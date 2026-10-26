@@ -479,26 +479,27 @@ pub(in crate::lowering) fn resolve_byte_view(
         let StructuralTypeShape::ByteSequence(carrier) = declaration.shape else {
             return Err(invalid());
         };
-        // A matched window joins as an affine mutable block parameter. Shared
-        // observations stay unrestricted. An owned arrival is only a bounded
-        // owner, never a borrowed descriptor.
-        let affine_loan = matches!(
-            (semantic.access, semantic.multiplicity, &carrier),
-            (
-                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow,
-                StructuralMultiplicity::Affine,
-                terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-            )
-        );
-        let owned = semantic.access == StructuralAccess::Owned;
-        if !(semantic.multiplicity == StructuralMultiplicity::Unrestricted || affine_loan)
-            || !semantic.projected_qualifications.is_empty()
-            || owned
-                && !matches!(
-                    carrier,
-                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+        // A descriptor may arrive as a value or through its storage address.
+        // Its backing permission remains the declared contained ceiling;
+        // owning descriptor words does not own the referenced bytes.
+        let backing_access = match carrier {
+            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                if semantic.multiplicity == StructuralMultiplicity::Unrestricted =>
+            {
+                semantic.access
+            }
+            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+            | terminal_psi::ByteSequenceCarrier::BoundedView { .. } => {
+                terminal_semantics::descriptor_parameter_access(
+                    semantic,
+                    structural_types.values().copied(),
                 )
-        {
+                .ok_or_else(invalid)?
+            }
+            _ => return Err(invalid()),
+        };
+        let owned = semantic.access == StructuralAccess::Owned;
+        if !semantic.projected_qualifications.is_empty() {
             return Err(invalid());
         }
         // The semantic declaration is authenticated above. Only physical
@@ -515,7 +516,7 @@ pub(in crate::lowering) fn resolve_byte_view(
                     place,
                     structural_type: semantic.structural_type,
                 },
-                semantic.access,
+                backing_access,
             ));
         }
         let parameter = parameters
@@ -551,7 +552,7 @@ pub(in crate::lowering) fn resolve_byte_view(
                 place,
                 placement: parameter.placement.clone(),
             },
-            semantic.access,
+            backing_access,
         ));
     }
     let Some(AbstractOperation::ByteSequenceSubslice { psi_operation, result, source, start, end, length, obligation }) =

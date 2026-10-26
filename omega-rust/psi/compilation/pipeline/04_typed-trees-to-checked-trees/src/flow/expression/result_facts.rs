@@ -51,12 +51,7 @@ impl Execution<'_, '_, '_> {
         if !validation::declared_carriers_match(self.program, source_type, target) {
             return Vec::new();
         }
-        let Some(source) = validation::canonical_place_from_expression_in_state(
-            self.program,
-            self.state.symbol,
-            self.statement_index,
-            cast.value,
-        ) else {
+        let Some(source) = self.completed_value_place(cast.value) else {
             return Vec::new();
         };
         let handles = crate::flow::active_context_handles(self.context, contexts);

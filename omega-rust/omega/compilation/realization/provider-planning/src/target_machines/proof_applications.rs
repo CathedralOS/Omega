@@ -7,7 +7,7 @@
 //! is another application even when its declaration symbol is unchanged.
 
 use arena::HandleSpan;
-use checked_trees::CheckedTrees;
+use checked_trees::{CheckedTrees, typed_trees};
 use flow_effects::{OperationalPlan, StaticMachineCallBinding};
 use symbols::SymbolHandle;
 use target::TargetProfile;
@@ -56,6 +56,94 @@ pub fn proof_application_machines(
     )
 }
 
+/// Declaration formation follows the exact typed descriptions consumed by
+/// these already selected machine applications. Metadata references may add
+/// declarations and their types/contracts, never another executable body.
+/// This is the ordinary retention visitor, not a second source checker or a
+/// nearest-enclosing-machine approximation.
+pub fn proof_application_declaration_owners(
+    checked: &CheckedTrees,
+    machines: &[SymbolHandle],
+    declarations: &[SymbolHandle],
+) -> Vec<SymbolHandle> {
+    let typed = &checked.typed;
+    let mut roots = machines.to_vec();
+    loop {
+        let selection =
+            typed_trees::references::DeclarationSelection::from_symbols(roots.iter().copied());
+        let references =
+            typed_trees::references::collect_selected_program_references(typed, &selection);
+        let before = roots.len();
+        // Descriptive custody still retains type/contract formation; it
+        // grants no executable body application. Both roles may add only
+        // non-machine declarations below.
+        for symbol in references
+            .symbols
+            .into_iter()
+            .chain(references.descriptor_symbols)
+        {
+            let declaration = typed
+                .trait_machine_signature(symbol)
+                .map_or(symbol, |(owner, _)| owner.symbol);
+            if typed.machine_by_symbol(declaration).is_none()
+                && declarations.contains(&declaration)
+                && !roots.contains(&declaration)
+            {
+                roots.push(declaration);
+            }
+        }
+        if roots.len() == before {
+            break;
+        }
+    }
+    roots.retain(|root| typed.machine_by_symbol(*root).is_none());
+    for declaration in typed.traits() {
+        if roots.contains(&declaration.symbol) {
+            roots.extend(
+                typed
+                    .trait_machine_signatures(declaration)
+                    .iter()
+                    .map(|signature| signature.symbol),
+            );
+            roots.extend(
+                declaration
+                    .refinement_clauses
+                    .iter()
+                    .map(|row| row.signature.symbol),
+            );
+        }
+    }
+    roots.sort_unstable_by_key(|root| (root.arena_index(), root.generation()));
+    roots.dedup();
+    roots
+}
+
+/// The immutable declaration roster, including exact trait-signature owners.
+/// Ground model recipes may close these descriptions under the selected copy's
+/// capsule without executing them or inventing a machine application.
+pub fn declaration_formation_owners(checked: &CheckedTrees) -> Vec<SymbolHandle> {
+    let mut declarations = typed_trees::references::collect_program_declarations(&checked.typed);
+    declarations.retain(|owner| checked.typed.machine_by_symbol(*owner).is_none());
+    for owner in checked.typed.traits() {
+        declarations.extend(
+            checked
+                .typed
+                .trait_machine_signatures(owner)
+                .iter()
+                .map(|signature| signature.symbol),
+        );
+        declarations.extend(
+            owner
+                .refinement_clauses
+                .iter()
+                .map(|row| row.signature.symbol),
+        );
+    }
+    declarations.sort_unstable_by_key(|owner| (owner.arena_index(), owner.generation()));
+    declarations.dedup();
+    declarations
+}
+
 /// Conservative demand discovery may follow every checked candidate. It
 /// grants no proof or provider authority: the actual application walk below
 /// consumes only settled rows. This avoids demanding unrelated target
@@ -64,6 +152,7 @@ pub fn target_has_proof_demand(
     checked: &CheckedTrees,
     target: TargetProfile,
     owners: &[SymbolHandle],
+    declarations: &[SymbolHandle],
 ) -> bool {
     let typed = &checked.typed;
     let mut candidates: Vec<_> = typed
@@ -85,9 +174,11 @@ pub fn target_has_proof_demand(
                 .map(|clause| (clause.requirement_symbol, machine.symbol)),
         );
     }
-    application_machines(checked, target, false, &candidates, &[], &[])
-        .iter()
-        .any(|machine| owners.contains(machine))
+    let machines = application_machines(checked, target, false, &candidates, &[], &[]);
+    machines.iter().any(|machine| owners.contains(machine))
+        || proof_application_declaration_owners(checked, &machines, declarations)
+            .iter()
+            .any(|declaration| owners.contains(declaration))
 }
 
 fn application_machines(

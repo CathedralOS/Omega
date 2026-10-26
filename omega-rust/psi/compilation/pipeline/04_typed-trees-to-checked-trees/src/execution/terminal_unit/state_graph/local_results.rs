@@ -75,7 +75,7 @@ fn validate(
     let expected_identity =
         validation::stored_structural_type_identity(program, reference, &[], &[]);
     let referent_identity = validation::reference_shell(program, reference)
-        .map(|shell| validation::structural_type_identity(program, shell.referee, &[], &[]));
+        .map(|shell| validation::stored_structural_type_identity(program, shell.referee, &[], &[]));
     let multiplicity =
         validation::reference_result_custody::binding_multiplicity(program, reference);
     // A borrowed descriptor's release is not an additional owned disposal.

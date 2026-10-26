@@ -14,10 +14,10 @@
 //! qualifications only, which no fact this judgment supports can reach.
 
 use super::closed_integer_index_bindings;
-use crate::proof_contracts::contract_entailment::{
+use crate::proof_contracts::contract_entailment::scoped_arithmetic_implication_for_declaration;
+use crate::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
     ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
-    scoped_arithmetic_implication_for_declaration,
 };
 use language_semantics::SemanticDomainId;
 use symbols::SymbolHandle;

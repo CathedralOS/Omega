@@ -258,8 +258,7 @@ pass/borrows/borrowed_array_loop checked 10020ms @a92f16431042
 pass/borrows/borrowed_case_leaf_copy_exit built 23646ms exit:70 @a92f16431042
 pass/borrows/borrowed_record_stack_parameter_writeback_exit built 23700ms exit:70 @a92f16431042
 pass/borrows/borrowed_sum_dispatch checked 11277ms @a92f16431042
-pass/borrows/borrowed_window_parameter_provenance_exit rejected 10133ms @a92f16431042
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "replace_via_borrowed_carrier_block_parameter", reason: "Unit graph state loan chain lender lends from two homes", gap: None })
+pass/borrows/borrowed_window_parameter_provenance_exit built 10133ms exit:0 @beacd47121d
 pass/borrows/boundary_scalar_slice_write_exit built 10189ms exit:0 @a92f16431042
 pass/borrows/branch_selected_record_composed_receiver_exit built 23738ms exit:70 @a92f16431042
 pass/borrows/branch_selected_record_receiver_exit built 23729ms exit:70 @a92f16431042
@@ -817,8 +816,7 @@ pass/calls/runtime_authored_numeric_names_exit built 2909ms exit:0 @a92f16431042
 pass/calls/runtime_boolean_result_across_console_exit built 8432ms exit:70 stdout:match @a92f16431042
 pass/calls/runtime_borrowed_binding_field_state_loan_exit built 8260ms exit:70 stdout:match @a92f16431042
 pass/calls/runtime_borrowed_float_formal_exchange_exit built 12829ms exit:70 @a92f16431042
-pass/calls/runtime_borrowed_parameter_ensures_issuer_exit rejected 2655ms regressed-from:built+exit:0 @a92f16431042
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "owned membership transport cannot establish routed authority", gap: None })
+pass/calls/runtime_borrowed_parameter_ensures_issuer_exit built 2655ms exit:0 @daf1a576211
 pass/calls/runtime_boundary_computed_selector_order_exit built 8967ms exit:70 @a92f16431042
 pass/calls/runtime_boundary_loop_projected_subslice_exit built 8936ms exit:70 @a92f16431042
 pass/calls/runtime_boundary_projected_mutable_subslice_exit built 8907ms exit:70 @a92f16431042

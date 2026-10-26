@@ -226,7 +226,7 @@ impl PrimitiveStorageWrites {
                     &execution.frame_at_depth(home.depth)?.scalar_array_values
                 };
                 let stored = arrays
-                    .get(&home.place)
+                    .backing(&home.place)
                     .filter(|array| array.structural_type == home.structural_type)
                     .and_then(|array| array.elements().get(*index))
                     .ok_or(TerminalInterpretError::StructuralPrimitiveStorageMissing(
@@ -326,7 +326,7 @@ fn local_type(machine: &TerminalMachine, place: PlaceId) -> Option<StructuralTyp
     ) && result.place == place
         && result.structural_type == structural_type
         && result.multiplicity == StructuralMultiplicity::Unrestricted
-        && result.qualifications.is_empty()
+        && result.qualification_establishments.is_empty()
         && result.projected_qualifications.is_empty()
         && result.claims.is_empty())
     .then_some(structural_type)
@@ -851,6 +851,11 @@ impl TerminalExecution<'_> {
         &self,
         place: PlaceId,
     ) -> Result<PrimitiveStorageHome, TerminalInterpretError> {
+        if self.scalar_array_values.retains_retired(&place) {
+            return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
+                place,
+            ));
+        }
         Ok(PrimitiveStorageHome {
             depth: self.call_stack.len(),
             machine: self.current_machine,
@@ -948,7 +953,9 @@ impl TerminalExecution<'_> {
                     })
             })
             .or_else(|| {
-                if path.is_empty() {
+                // Completed scalar copies own ordinary readable payload at
+                // their root. Writes retain their projected-store contract.
+                if writing && path.is_empty() {
                     return None;
                 }
                 machine
@@ -1220,7 +1227,7 @@ impl TerminalExecution<'_> {
         )
         .ok_or_else(malformed)?;
         let path = path.as_slice();
-        if let Some(array) = scalar_array_values.get(&place) {
+        if let Some(array) = scalar_array_values.backing(&place) {
             if array.structural_type != structural_type || structural_values.contains_key(&place) {
                 return Err(malformed());
             }
@@ -1336,6 +1343,21 @@ impl TerminalExecution<'_> {
         scalar_type: ScalarType,
         observation: ScalarStorageObservation,
     ) -> Result<(PrimitiveStorage, ScalarType, bool), TerminalInterpretError> {
+        if path.contains(&semantic_vocabulary::CanonicalStructuralPathSegment::Referent) {
+            let physical = terminal_semantics::canonical_structural_storage_path(
+                self.program.structural_types().values(),
+                view.structural_type,
+                path,
+            )
+            .ok_or_else(malformed)?;
+            let resolved = self
+                .reference_primitive_access(view, false, &physical)?
+                .ok_or_else(malformed)?;
+            if resolved.1 != scalar_type {
+                return Err(malformed());
+            }
+            return Ok(resolved);
+        }
         let shared_view = matches!(
             observation,
             ScalarStorageObservation::OrdinaryReference { shared_view: true }
@@ -1672,7 +1694,9 @@ impl TerminalExecution<'_> {
         let view = TerminalStructuralValue {
             opaque_identity: identity,
             structural_type: result.structural_type,
-            qualifications: Vec::new(),
+            // Canonical admission authenticated these memberships against the
+            // exact initializing SSA value; storage retains that same theory.
+            qualifications: result.qualifications.clone(),
             projected_qualifications: Vec::new(),
             path: Vec::new(),
         };
@@ -1858,6 +1882,68 @@ impl TerminalExecution<'_> {
         self.read_primitive_storage(source, storage, scalar_type, expected, shared_view)
     }
 
+    /// Read one completed constructor leaf through its actual operand. A
+    /// projected or borrowed argument retains its activation home, descriptor
+    /// window and scalar codec; opaque leaf metadata cannot recreate them.
+    /// A whole owned primitive formal is already a completed payload, not a
+    /// request to create a borrowing grant from that formal.
+    pub(crate) fn read_primitive_argument(
+        &self,
+        argument: &StructuralArgument,
+        completed: &TerminalStructuralValue,
+        relative_path: &[StructuralPathSegment],
+        expected: ScalarType,
+    ) -> Result<TerminalScalarValue, TerminalInterpretError> {
+        if !matches!(
+            argument.access,
+            StructuralAccess::Owned
+                | StructuralAccess::SharedBorrow
+                | StructuralAccess::MutableBorrow
+        ) {
+            return Err(malformed());
+        }
+        let mut path = argument.path.clone();
+        path.extend_from_slice(relative_path);
+        if path.is_empty() {
+            let machine = self
+                .program
+                .machines()
+                .get(&self.current_machine)
+                .ok_or_else(malformed)?;
+            if let Some(parameter) = machine
+                .structural_parameter(argument.place)
+                .filter(|parameter| parameter.access == StructuralAccess::Owned)
+            {
+                // Select this role from the actual declaration, before resolving
+                // storage. A failed home/loan query never falls back to metadata.
+                let current = self
+                    .structural_values
+                    .get(&argument.place)
+                    .ok_or_else(malformed)?;
+                if current != completed
+                    || current.structural_type != parameter.structural_type
+                    || !matches!(self.program.structural_types().get(&parameter.structural_type).ok_or_else(malformed)?.shape,
+                        terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar) if scalar == expected)
+                {
+                    return Err(malformed());
+                }
+                let (storage, actual, shared) =
+                    self.primitive_view_access(completed, &[], expected, false)?;
+                return self.read_primitive_storage(
+                    argument.place,
+                    storage,
+                    actual,
+                    expected,
+                    shared,
+                );
+            }
+        }
+        // The ordinary reader authenticates the exact declared access and
+        // follows retained loans into their original (possibly suspended)
+        // owner before resolving this complete typed path.
+        self.read_primitive_place(argument.place, &path, expected)
+    }
+
     pub(crate) fn read_primitive_home(
         &self,
         home: PrimitiveStorageHome,
@@ -1913,7 +1999,7 @@ impl TerminalExecution<'_> {
                     &self.frame_at_depth(home.depth)?.scalar_array_values
                 };
                 arrays
-                    .get(&home.place)
+                    .backing(&home.place)
                     .filter(|array| array.structural_type == home.structural_type)
                     .and_then(|array| array.elements().get(index))
                     .copied()
@@ -2160,7 +2246,7 @@ impl TerminalExecution<'_> {
                         .ok_or(malformed())?
                         .scalar_array_values
                 };
-                let array = arrays.get_mut(&home.place).ok_or(
+                let array = arrays.backing_mut(&home.place).ok_or(
                     TerminalInterpretError::StructuralPrimitiveStorageMissing(destination),
                 )?;
                 let stored = array.elements_mut()?.get_mut(index).ok_or(
@@ -2238,6 +2324,7 @@ impl TerminalExecution<'_> {
         let block = machine
             .block(&target)
             .ok_or(TerminalInterpretError::VerifiedBlockMissing)?;
+        let mut retired = Vec::new();
         for place in block
             .operations
             .iter()
@@ -2249,16 +2336,23 @@ impl TerminalExecution<'_> {
             {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }
-            if let Some(previous) = self.structural_values.remove(&place)
-                && local_type(machine, place).is_some()
-            {
-                self.structural_primitive_storage
-                    .remove(&StructuralRuntimePlace::from(&previous));
+            if let Some(previous) = self.structural_values.remove(&place) {
+                let root = StructuralRuntimePlace::from(&previous);
+                if local_type(machine, place).is_some() {
+                    self.structural_primitive_storage.remove(&root);
+                }
+                retired.push(root);
             }
-            self.scalar_array_values.remove(&place);
+            crate::scalar_array::PackedHomeRetirement::retire_packed_home(
+                &mut self.scalar_array_values,
+                &place,
+            );
             self.byte_sequence_values.remove(&place);
             self.primitive_loan_values.remove(&place);
             self.element_view_values.remove(&place);
+        }
+        for root in retired {
+            self.queue_retired_descriptor_home(root);
         }
         Ok(())
     }

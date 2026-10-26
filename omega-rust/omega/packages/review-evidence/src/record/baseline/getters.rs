@@ -17,16 +17,9 @@ use crate::record::PackageReviewConstShape;
 use crate::record::PackageReviewDangerousAuthority;
 use crate::record::PackageReviewDangerousAuthoritySlack;
 use crate::record::PackageReviewPropositionShape;
-use semantic_vocabulary::PackageKeyIdentity;
-use target::TargetProfile;
 
 impl PackagePolicyBaseline {
-    pub const fn package(&self) -> PackageKeyIdentity {
-        self.package
-    }
-    pub const fn target(&self) -> TargetProfile {
-        self.target
-    }
+    crate::record::accessors::record_accessors!(package, target);
     pub const fn public_api(&self) -> &PackagePolicyPublicApi {
         &self.public_api
     }

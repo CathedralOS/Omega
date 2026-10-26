@@ -31,6 +31,7 @@ use std::collections::BTreeMap;
 
 mod captured_loans;
 mod conditional_return;
+mod dispatch_copies;
 mod guarded_chain;
 mod loan_chains;
 mod loaned_local_homes;
@@ -213,45 +214,6 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         let claim = claim_id(allocate_dense(&mut next_claim)?);
         claims.source_claims.push((event.claim_identity, claim));
     }
-    // Selected block arrivals own destination-local names too. Reserve the
-    // checked roster before emitting a graph's fixed namespace; actual arms
-    // bind incoming obligations and never introduce resources at these names.
-    for (_, receipt) in checked.facts.flow.ownership.owned_selections.iter() {
-        if !state_owners
-            .iter()
-            .any(|(state, machine)| *state == receipt.state && *machine == receipt.machine)
-        {
-            continue;
-        }
-        for identity in checked
-            .facts
-            .flow
-            .ownership
-            .selection_result_claims
-            .span_or_empty(receipt.result_claims)
-            .iter()
-            .map(|claim| claim.claim_identity)
-            .chain(
-                checked
-                    .facts
-                    .flow
-                    .ownership
-                    .selection_produced_claims
-                    .span_or_empty(receipt.produced_claims)
-                    .iter()
-                    .map(|claim| claim.claim_identity),
-            )
-        {
-            if !claims
-                .source_claims
-                .iter()
-                .any(|(existing, _)| *existing == identity)
-            {
-                let claim = claim_id(allocate_dense(&mut next_claim)?);
-                claims.source_claims.push((identity, claim));
-            }
-        }
-    }
     for (_, binding) in checked.facts.flow.ownership.selection_place_bindings.iter() {
         if state_owners
             .iter()
@@ -328,6 +290,28 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
                     claims.source_claims.push((received.claim, claim));
                 }
             }
+        }
+    }
+    // Private result joins share the published namespace of ordinary calls.
+    // Reserving a typed path is not establishment; arrivals transport actual IDs.
+    for (value, node) in checked.facts.values.structural_values.nodes.iter() {
+        if !plan.states.iter().any(|state| state.state == node.state)
+            || !matches!(
+                node.kind,
+                checked_trees::CheckedStructuralValueKind::Dispatch { .. }
+                    | checked_trees::CheckedStructuralValueKind::Projection { .. }
+            )
+        {
+            continue;
+        }
+        for path in crate::emission::claim_bindings::completed_value_paths(checked, value)? {
+            claims
+                .completed_values
+                .push(crate::emission::claim_bindings::CompletedValueClaim {
+                    value,
+                    path,
+                    claim: claim_id(allocate_dense(&mut next_claim)?),
+                });
         }
     }
     // Proven invocation storage aliases have no block argument or new name.
@@ -516,6 +500,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             block_entry_claims.push(binding);
         }
     }
+    block_entry_claims.sort_by_key(|binding| binding.claim);
     let mut blocks = Vec::new();
     let mut arrival_edges = BTreeMap::new();
     if let Some(entry) = invocation_entry {
@@ -725,6 +710,56 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     // runs. A plain entry publishes its clauses on the machine contract
     // instead — invocation is an arrival without an edge proof.
     for (position, state) in plan.states.iter().enumerate() {
+        let declaration =
+            checked
+                .state_by_symbol(state.state)
+                .ok_or(LoweringError::Unsupported(
+                    "state requirement has no source declaration",
+                ))?;
+        let owner =
+            checked
+                .machine_holding_state(state.state)
+                .ok_or(LoweringError::Unsupported(
+                    "state requirement has no machine owner",
+                ))?;
+        let expected = checked
+            .state_contracts(declaration)
+            .iter()
+            .filter(|contract| {
+                contract.kind == checked_trees::signature::SignatureContractKind::Requires
+            })
+            .flat_map(|contract| contract.facts.handles())
+            .filter(|fact| {
+                matches!(
+                    checked.proof_facts.get(*fact),
+                    checked_trees::domain::ProofFact::Proposition(_)
+                )
+            })
+            .collect::<Vec<_>>();
+        let actual = state
+            .requires
+            .iter()
+            .filter_map(|requirement| match requirement {
+                checked_trees::CheckedStateContractRequirement::SourceFact(fact) => Some(*fact),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        if expected != actual
+            || actual.iter().any(|fact| {
+                checked
+                    .facts
+                    .proof
+                    .state_requires_fact(&checked.typed, owner.symbol, state.state, *fact)
+                    .is_none()
+            })
+        {
+            return unsupported("state source requirement lost its exact declared proof roster");
+        }
+        if position == 0 && !actual.is_empty() {
+            return unsupported(
+                "source invocation requirement needs its invocation evidence owner",
+            );
+        }
         if state.requires.is_empty()
             || (position == 0 && !entry_reentered)
             || !live_states[position]
@@ -743,17 +778,18 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             return unsupported("Unit graph requires header reached by case dispatch");
         }
         let incoming_edges = arrival_edges.get(&header).cloned().unwrap_or_default();
-        let has_source_expression = state.requires.iter().any(|requirement| {
+        let requires_source_decision = state.requires.iter().any(|requirement| {
             matches!(
                 requirement,
                 checked_trees::CheckedStateContractRequirement::SourceExpression(_)
+                    | checked_trees::CheckedStateContractRequirement::SourceFact(_)
             )
         });
         // Source checking owns the complete authored contract, including
         // predicates outside this scalar vocabulary. Consume its exact call
         // decision at every actual arrival; never replace an unrepresented
         // requirement with Truth or infer its discharge from its spelling.
-        if has_source_expression
+        if requires_source_decision
             && (incoming_edges.is_empty()
                 || incoming_edges
                     .iter()
@@ -768,7 +804,8 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
                 checked_trees::CheckedStateContractRequirement::Closed(clause) => {
                     Some(Some(clause.clone()))
                 }
-                checked_trees::CheckedStateContractRequirement::SourceExpression(_) => None,
+                checked_trees::CheckedStateContractRequirement::SourceExpression(_)
+                | checked_trees::CheckedStateContractRequirement::SourceFact(_) => None,
             })
             .collect::<Vec<_>>();
         // A state's `requires` cites its own parameter positions; the roster
@@ -891,6 +928,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             )?,
         );
     }
+    crate::emission::claim_bindings::seal_block_entry_claims(&mut block_entry_claims)?;
     let mut machine = TerminalMachine {
         assembly_target_requirement: checked
             .typed
@@ -913,10 +951,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         structural_places,
         structural_parameters: parameters,
         entry_claims: claims.entry_claims,
-        block_entry_claims: {
-            block_entry_claims.sort_by_key(|binding| binding.claim);
-            block_entry_claims
-        },
+        block_entry_claims,
         loan_completions,
         ranked_scc: None,
         result: machine_result,

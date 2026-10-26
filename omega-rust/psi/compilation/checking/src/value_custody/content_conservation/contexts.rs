@@ -8,6 +8,7 @@ use arena::{Arena, Handle};
 use diagnostics::Diagnostic;
 use language_semantics::content::{ContentConservationOwnerKind, ContentProjectionPlan};
 use std::collections::HashSet;
+use std::sync::Arc;
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::ExpressionHandle;
@@ -112,6 +113,7 @@ impl TypedReferences for ContractContexts<'_, '_> {
             signature.return_type,
             SymbolHandle::invalid(),
             &contracts,
+            &Arc::from([]),
             self.proof_nodes,
             self.checking_plans,
             self.formations,

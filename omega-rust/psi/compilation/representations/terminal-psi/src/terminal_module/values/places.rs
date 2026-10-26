@@ -223,6 +223,29 @@ pub struct OperationProjection<'a> {
 }
 
 impl OperationKind {
+    /// The direct source of an intrinsic structural observation. This is a
+    /// read inventory, not permission or a lifetime judgment: a copied result
+    /// can retain its own authority, and consumers must independently preserve
+    /// its dependencies. Calls, loan formation, stores and moves are excluded.
+    pub fn structural_observation_source(&self) -> Option<PlaceId> {
+        match self {
+            Self::ElementViewLength { source } | Self::ByteSequenceLength { source } => {
+                Some(source.place)
+            }
+            Self::PrimitiveScalarRead { source, .. }
+            | Self::StructuralByteSequenceFieldLength { source, .. }
+            | Self::StructuralByteSequenceFieldRead { source, .. }
+            | Self::StructuralCaseMembership { source, .. }
+            | Self::StructuralLeafCopy { source, .. }
+            | Self::StructuralCaseLeafCopy { source, .. }
+            | Self::ByteSequenceRead { source, .. }
+            | Self::ElementViewRead { source, .. }
+            | Self::BooleanStructuralField { source, .. }
+            | Self::ScalarStructuralField { source, .. } => Some(*source),
+            _ => None,
+        }
+    }
+
     /// Rewrite every direct runtime structural root operand through `map`, in
     /// operand order. Stores visit their destination before their source.
     ///

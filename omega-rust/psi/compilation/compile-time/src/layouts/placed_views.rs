@@ -304,6 +304,7 @@ pub fn desugar_placed_views(
             &execution,
             policy_machine,
             schema,
+            &domain.accounting,
         )
         .map_err(|reason| {
             vec![Diagnostic::error(format!(
@@ -468,6 +469,7 @@ pub(crate) fn validate_placed_view_plans_in(
             &execution,
             policy_machine,
             schema,
+            &domain.accounting,
         )
         .map_err(|reason| {
             vec![Diagnostic::error(format!(

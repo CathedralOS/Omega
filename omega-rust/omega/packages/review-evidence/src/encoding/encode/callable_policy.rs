@@ -6,7 +6,7 @@ pub(super) use behavior::{crash_route, termination};
 pub(in crate::encoding) use row::encode_callable;
 
 use super::declarations::encode_type_identity;
-use super::encoder::Encoder;
+use super::encoder::{Encoder, encode_canonical_component};
 use super::public_api::type_parameter as encode_type_parameter;
 use super::values::identity::encode_nominal;
 use crate::encoding::{
@@ -15,14 +15,11 @@ use crate::encoding::{
 use crate::record::{PackagePolicyCallableConformance, PackagePolicyCallables};
 
 impl PackagePolicyCallables {
-    pub fn canonical_bytes(&self) -> Result<Vec<u8>, PackageReviewEncodingError> {
-        Encoder::policy_bytes(
-            CALLABLE_POLICY_MAGIC,
-            PACKAGE_CALLABLE_POLICY_VERSION,
-            self,
-            policy,
-        )
-    }
+    encode_canonical_component!(
+        CALLABLE_POLICY_MAGIC,
+        PACKAGE_CALLABLE_POLICY_VERSION,
+        policy,
+    );
 }
 
 pub(super) fn policy(

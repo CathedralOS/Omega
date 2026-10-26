@@ -284,6 +284,7 @@ pub(crate) fn validate(
         &prepared,
         authority.clone(),
         &probe_symbols,
+        &domain.accounting,
     )?;
     let program = checked.typed();
     // A dependency capsule names a separate declaration job. Validate every

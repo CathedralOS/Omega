@@ -145,18 +145,12 @@ pub(crate) fn lower_nominal_affine_unit_cleanup_machine(
 
 /// Selected cleanup operations have the same hook contract for Unit and scalar exits.
 pub(crate) fn continuation_cleanups<'a>(
+    control: &'a checked_trees::CheckedCleanupControlPlans,
     operations: impl IntoIterator<Item = &'a CheckedUnitEffectOperationPlan>,
 ) -> impl Iterator<Item = &'a CheckedUnitNominalAffineCleanupPlan> {
     operations
         .into_iter()
-        .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-        .filter_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::ContinuationCleanup {
-                cleanup_actions, ..
-            } => Some(cleanup_actions),
-            _ => None,
-        })
-        .flatten()
+        .flat_map(move |operation| control.operation_actions(operation))
         .filter_map(checked_trees::CheckedNormalCleanupAction::nominal)
 }
 
@@ -434,12 +428,14 @@ pub(crate) fn selected_cleanups(
         .iter()
         .filter_map(|(_, action)| action.nominal())
         .chain(
-            plans
-                .machines
-                .iter()
-                .flat_map(|machine| continuation_cleanups(&machine.operations)),
+            plans.machines.iter().flat_map(|machine| {
+                continuation_cleanups(&plans.cleanup_control, &machine.operations)
+            }),
         )
-        .chain(composed_states().flat_map(|state| continuation_cleanups(&state.operations)))
+        .chain(
+            composed_states()
+                .flat_map(|state| continuation_cleanups(&plans.cleanup_control, &state.operations)),
+        )
         .chain(retained_call_cleanups(checked, None))
         .chain(
             plans
@@ -466,6 +462,7 @@ pub(crate) fn retained_call_cleanups(
     checked: &CheckedTrees,
     machine: Option<SymbolHandle>,
 ) -> impl Iterator<Item = &CheckedUnitNominalAffineCleanupPlan> {
+    let control = &checked.facts.flow.terminal_unit_effects.cleanup_control;
     checked
         .facts
         .values
@@ -483,8 +480,11 @@ pub(crate) fn retained_call_cleanups(
                     == machine
             })
         })
-        .flat_map(|(_, call)| {
-            continuation_cleanups(call.operands().iter().chain(call.completions().iter()))
+        .flat_map(move |(_, call)| {
+            continuation_cleanups(
+                control,
+                call.operands().iter().chain(call.completions().iter()),
+            )
         })
 }
 

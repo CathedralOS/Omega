@@ -34,6 +34,8 @@ use semantic_vocabulary::{
     BoundaryMachineId, ClaimId, EdgeId, IntegerSign, IntegerType, MachineId, OperationId, PlaceId,
     ScalarType, StructuralTypeId, ValueId,
 };
+
+use super::test_support::empty_machine_code_function;
 use target::NativeTarget;
 use target_operations::{
     CallSiteOwner, CompletionClaimSource, ScalarAbiValue, TerminalPsiProvenance,
@@ -418,12 +420,7 @@ fn installed_provider_scalar_call_plan() -> MachineCodePlan {
         identities: Default::default(),
         functions: vec![
             MachineCodeFunction {
-                machine: machine_id(1),
                 attachment: Some(StructuralTypeId::new(1).expect("attachment type")),
-                nominal_cleanup_subject: None,
-                scalar_abi: None,
-                mixed_structural_scalar_abi: None,
-                structural_call_scalar_return: None,
                 parameter_abi: Some(ParameterFunctionAbiRecord {
                     call_plan: call_plan.clone(),
                     parameters: vec![ScalarAbiValue {
@@ -445,7 +442,6 @@ fn installed_provider_scalar_call_plan() -> MachineCodePlan {
                     0x48, 0x83, 0xc4, 0x10, // 17: add rsp, 16 — frame release
                     0xc3, // 21: ret
                 ],
-                x86_floating_control: None,
                 unit_stack: Some(UnitStackEvidence {
                     frame: Some(StackAdjustmentPair {
                         byte_size: 16,
@@ -457,9 +453,6 @@ fn installed_provider_scalar_call_plan() -> MachineCodePlan {
                     aarch64_return_link: None,
                     stack_alignment: 16,
                 }),
-                unit_parameter_homes: Vec::new(),
-                unit_parameters: Vec::new(),
-                scalar_stack: None,
                 internal_calls: vec![InternalCallRelocation {
                     owner: CallSiteOwner::Operation(operation_id(1)),
                     target: machine_id(2),
@@ -475,9 +468,6 @@ fn installed_provider_scalar_call_plan() -> MachineCodePlan {
                     scalar_stack: None,
                     offset: 9,
                 }],
-                foreign_calls: Vec::new(),
-                internal_unit_calls: Vec::new(),
-                internal_unit_scalar_calls: Vec::new(),
                 installed_provider_unit_scalar_calls: vec![InstalledProviderUnitScalarCallRecord {
                     owner: CallSiteOwner::Operation(operation_id(1)),
                     boundary,
@@ -505,12 +495,6 @@ fn installed_provider_scalar_call_plan() -> MachineCodePlan {
                     code_offset: 4,
                     byte_count: 13,
                 }],
-                unit_scalar_homes: Vec::new(),
-                unit_integer_constants: Vec::new(),
-                unit_affine_scalar_records: Vec::new(),
-                unit_structural_scalar_field_stores: Vec::new(),
-                unit_write_only_primitive_stores: Vec::new(),
-                scalar_structural_scalar_field_stores: Vec::new(),
                 unit_affine_cleanup: Some(UnitAffineCleanupRecord {
                     psi_edge: edge_id(1),
                     structural_types: Vec::new().into(),
@@ -519,11 +503,6 @@ fn installed_provider_scalar_call_plan() -> MachineCodePlan {
                     code_offset: 21,
                     byte_count: 1,
                 }),
-                unit_continuations: Vec::new(),
-                scalar_affine_cleanup: None,
-                scalar_control_affine_cleanups: Vec::new(),
-                scalar_structural_parameters: Vec::new(),
-                scalar_structural_parameter_homes: Vec::new(),
                 semantic_code_attribution: vec![
                     SemanticCodeAttribution {
                         site: SemanticCodeSite::Operation(operation_id(1)),
@@ -538,17 +517,9 @@ fn installed_provider_scalar_call_plan() -> MachineCodePlan {
                         byte_count: 1,
                     },
                 ],
-                port_effects: Vec::new(),
-                boundary_settlements: Vec::new(),
-                structural_return: None,
+                ..empty_machine_code_function(machine_id(1))
             },
             MachineCodeFunction {
-                machine: machine_id(2),
-                attachment: None,
-                nominal_cleanup_subject: None,
-                scalar_abi: None,
-                mixed_structural_scalar_abi: None,
-                structural_call_scalar_return: None,
                 parameter_abi: Some(ParameterFunctionAbiRecord {
                     call_plan: call_plan.clone(),
                     parameters: vec![ScalarAbiValue {
@@ -563,32 +534,7 @@ fn installed_provider_scalar_call_plan() -> MachineCodePlan {
                     edges: vec![edge_id(9)],
                 },
                 bytes: vec![0xc3],
-                x86_floating_control: None,
-                unit_stack: None,
-                unit_parameter_homes: Vec::new(),
-                unit_parameters: Vec::new(),
-                scalar_stack: None,
-                internal_calls: Vec::new(),
-                foreign_calls: Vec::new(),
-                internal_unit_calls: Vec::new(),
-                internal_unit_scalar_calls: Vec::new(),
-                installed_provider_unit_scalar_calls: Vec::new(),
-                unit_scalar_homes: Vec::new(),
-                unit_integer_constants: Vec::new(),
-                unit_affine_scalar_records: Vec::new(),
-                unit_structural_scalar_field_stores: Vec::new(),
-                unit_write_only_primitive_stores: Vec::new(),
-                scalar_structural_scalar_field_stores: Vec::new(),
-                unit_affine_cleanup: None,
-                unit_continuations: Vec::new(),
-                scalar_affine_cleanup: None,
-                scalar_control_affine_cleanups: Vec::new(),
-                scalar_structural_parameters: Vec::new(),
-                scalar_structural_parameter_homes: Vec::new(),
-                semantic_code_attribution: Vec::new(),
-                port_effects: Vec::new(),
-                boundary_settlements: Vec::new(),
-                structural_return: None,
+                ..empty_machine_code_function(machine_id(2))
             },
         ],
     }

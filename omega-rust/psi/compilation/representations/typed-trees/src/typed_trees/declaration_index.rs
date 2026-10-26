@@ -5,16 +5,14 @@
 //! used to live in thread-local caches keyed on the program's address or
 //! instance tag; the address could be recycled under a dropped program and
 //! every entry had to re-derive its own freshness. The indexes now live
-//! inside the program itself, guarded by the arena revision counters —
-//! every mutation-capable call on an `Arena` bumps the revision, so a stale
-//! index cannot outlive the table it describes regardless of which mutator
-//! moved it.
+//! with the program. Data-definition storage owns its index directly: mutable
+//! arena access clears it, replacement carries it with the arena, and queries
+//! key the complete visible root span. This also covers public table replacement
+//! and root-generation changes without relying on an additive revision key.
 //!
-//! `TypedTrees` mutates declarations only through its methods
-//! (`push_data_definition`, `push_domain_definition`, `push_machine` and
-//! siblings), which is also the point where a revision moves. Keeping the
-//! revision check inside each slot makes the indexes correct even where a
-//! table is still reached through a `pub` field.
+//! The remaining declaration indexes retain their existing arena-revision and
+//! roster-key strategies below; the data-definition ownership boundary does not
+//! establish arbitrary replacement freshness for those separate owners.
 
 use crate::{data, machine};
 use arena::{Handle, HandleSpan, OwnedIndex};
@@ -22,8 +20,11 @@ use symbols::SymbolHandle;
 
 mod relationships;
 mod requirement_applications;
-use relationships::{DataMemberIndex, StateDeclarationIndex};
+use relationships::{DataMemberIndex, StateDeclarationIndex, StateDeclarationRevision};
 use requirement_applications::RequirementApplicationIndex;
+
+#[cfg(test)]
+mod tests;
 
 /// Handle-keyed maps take the integer hasher; none is iterated for output
 /// order, and `Box<str>`/`usize`/tuple keys hash through the same mixing as
@@ -31,11 +32,9 @@ use requirement_applications::RequirementApplicationIndex;
 type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>;
 type HashSet<T> = std::collections::HashSet<T, symbols::BuildSymbolHasher>;
 
-/// A roster span's identity folded into a freshness key: `TypedTrees`
-/// publishes `roots` and `tables` as `pub` fields, and a few callers
-/// re-point a root span in place (retained-prefix builds, product pruning)
-/// without touching the arena's revision. The span's start and count carry
-/// exactly the visible roster, so they must join the key.
+/// Compact roster marker retained by the remaining revision-keyed indexes.
+/// It includes the start index and count, not the handle generation. The
+/// data-definition storage owner instead keys its complete `HandleSpan`.
 fn roster_marker<T>(span: HandleSpan<T>) -> u64 {
     ((span.start().arena_index() as u64) << 32) | span.count() as u64
 }
@@ -117,28 +116,7 @@ struct StatePositionIndex {
     rows: Vec<(SymbolHandle, (u32, u32))>,
 }
 
-/// Data-definition roster: every position carrying a symbol, and every
-/// position carrying a name. `by_symbol` keeps ALL matching positions (test
-/// fixtures can forge duplicate symbols and write-frame analysis asks for
-/// the whole set); `first_position` answers the common single-declaration
-/// lookup.
-#[derive(Clone, Default)]
-pub struct DataDefinitionIndex {
-    by_symbol: HashMap<SymbolHandle, Vec<u32>>,
-    by_name: HashMap<Box<str>, Vec<u32>>,
-    first_position: HashMap<SymbolHandle, u32>,
-}
-
-impl DataDefinitionIndex {
-    /// Every position declaring `symbol`, in declaration order — absent,
-    /// unique, and duplicate answers all read the same slice.
-    pub fn positions_for_symbol(&self, symbol: SymbolHandle) -> &[u32] {
-        self.by_symbol
-            .get(&symbol)
-            .map(Vec::as_slice)
-            .unwrap_or(&[])
-    }
-}
+pub use super::data_definitions::DataDefinitionIndex;
 
 /// Domain-definition roster: the first position per symbol, matching the
 /// roster `find` the index replaces. Shared by the in-crate proof readers
@@ -150,8 +128,9 @@ struct DomainPositionIndex {
 
 /// Exact type-parameter declaration handles, in symbol order. A flat arena
 /// includes data, machine and trait parameters; call-target indexes cover only
-/// machines and cannot answer this relationship. Last duplicate wins, matching
-/// the declaration table consumed by custody queries before this index existed.
+/// machines and cannot answer this relationship. Stable symbol ordering retains
+/// every live arena occurrence: existing indexed readers select the last, while
+/// named value typing preserves its first-match scan before checking binder kind.
 #[derive(Clone, Default)]
 struct TypeParameterIndex {
     rows: Vec<(SymbolHandle, Handle<data::TypeParameter>)>,
@@ -232,9 +211,8 @@ pub struct DomainCandidateIndex {
 pub struct DeclarationIndexes {
     machines: OwnedIndex<MachinePositionIndex, (u64, HandleSpan<machine::Machine>)>,
     states: OwnedIndex<StatePositionIndex, (u64, u64, HandleSpan<machine::Machine>)>,
-    state_declarations: OwnedIndex<StateDeclarationIndex>,
+    state_declarations: OwnedIndex<StateDeclarationIndex, StateDeclarationRevision>,
     data_members: OwnedIndex<DataMemberIndex>,
-    data_definitions: OwnedIndex<DataDefinitionIndex>,
     type_parameters: OwnedIndex<TypeParameterIndex>,
     domains: OwnedIndex<DomainPositionIndex>,
     attached_drops: OwnedIndex<AttachedDropIndex>,
@@ -265,6 +243,10 @@ impl super::TypedTrees {
     /// and seal it, so readers of the frozen program look up declarations
     /// without locking. Verdict memos that grow per query stay lazy.
     pub(super) fn seal_declaration_indexes(&mut self) {
+        // A transform may reconstruct private tables before freezing. Rebuild
+        // the containment/value roster under this owner, even if a replacement
+        // arena happened to carry the predecessor's revision numbers.
+        self.invalidate_state_declaration_index();
         let any_symbol = self.symbols.root();
         self.with_machine_position_index(|_| ());
         self.with_state_position_index(|_| ());
@@ -281,12 +263,19 @@ impl super::TypedTrees {
         indexes.states.seal();
         indexes.state_declarations.seal();
         indexes.data_members.seal();
-        indexes.data_definitions.seal();
+        self.tables.data_definitions.seal();
         indexes.type_parameters.seal();
         indexes.domains.seal();
         indexes.attached_drops.seal();
         indexes.call_targets.seal();
         indexes.requirement_applications.seal();
+    }
+
+    /// Mutable table access can replace an arena with an unrelated arena at
+    /// the same revision. Invalidate containment before exposing that access;
+    /// ordinary in-place changes remain covered by the complete revision tuple.
+    pub(super) fn invalidate_state_declaration_index(&mut self) {
+        self.declaration_indexes.state_declarations.clear();
     }
 
     /// Return sealed indexes to their lazy slots before the program mutates.
@@ -296,7 +285,7 @@ impl super::TypedTrees {
         indexes.states.unseal();
         indexes.state_declarations.unseal();
         indexes.data_members.unseal();
-        indexes.data_definitions.unseal();
+        self.tables.data_definitions.unseal();
         indexes.type_parameters.unseal();
         indexes.domains.unseal();
         indexes.attached_drops.unseal();
@@ -497,16 +486,11 @@ impl super::TypedTrees {
         index
     }
 
-    /// Resolve an exact parameter symbol without rebuilding a custody-owned
-    /// copy of the declaration table. Generations stay part of the handle.
-    pub fn data_type_parameter_by_symbol(
+    fn with_type_parameter_index<Result>(
         &self,
-        symbol: SymbolHandle,
-    ) -> Option<&data::TypeParameter> {
-        if !symbol.is_valid() {
-            return None;
-        }
-        let handle = self.declaration_indexes.type_parameters.with(
+        run: impl FnOnce(&TypeParameterIndex) -> Result,
+    ) -> Result {
+        self.declaration_indexes.type_parameters.with(
             self.data_type_parameters.revision(),
             || {
                 let mut rows: Vec<_> = self
@@ -515,64 +499,51 @@ impl super::TypedTrees {
                     .filter(|(_, parameter)| parameter.symbol.is_valid())
                     .map(|(handle, parameter)| (parameter.symbol, handle))
                     .collect();
-                rows.sort_by_key(|(symbol, _)| (symbol.arena_index(), symbol.generation()));
-                rows.dedup_by(|later, earlier| {
-                    if later.0 == earlier.0 {
-                        *earlier = *later;
-                        true
-                    } else {
-                        false
-                    }
-                });
+                relationships::sort_symbol_rows(&mut rows);
                 TypeParameterIndex { rows }
             },
-            |index| {
-                index
-                    .rows
-                    .binary_search_by_key(
-                        &(symbol.arena_index(), symbol.generation()),
-                        |(symbol, _)| (symbol.arena_index(), symbol.generation()),
-                    )
-                    .ok()
-                    .map(|position| index.rows[position].1)
-            },
-        )?;
+            run,
+        )
+    }
+
+    /// Resolve the last arena occurrence of this exact parameter symbol,
+    /// preserving the existing indexed lookup. Generations stay in the key.
+    pub fn data_type_parameter_by_symbol(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Option<&data::TypeParameter> {
+        if !symbol.is_valid() {
+            return None;
+        }
+        let handle = self.with_type_parameter_index(|index| {
+            relationships::symbol_rows(&index.rows, symbol)
+                .last()
+                .map(|(_, handle)| *handle)
+        })?;
+        Some(self.data_type_parameters.get(handle))
+    }
+
+    /// Resolve the first live arena occurrence before a consumer tests its kind.
+    /// A later matching value binder cannot replace an earlier type binder.
+    pub fn first_data_type_parameter_by_symbol(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Option<&data::TypeParameter> {
+        if !symbol.is_valid() {
+            return None;
+        }
+        let handle = self.with_type_parameter_index(|index| {
+            relationships::first_symbol_row(&index.rows, symbol).map(|(_, handle)| *handle)
+        })?;
         Some(self.data_type_parameters.get(handle))
     }
 
     /// The whole data-definition index: every position per symbol, every
     /// position per declared name, and the first position per symbol.
     pub fn with_data_definition_index<R>(&self, run: impl FnOnce(&DataDefinitionIndex) -> R) -> R {
-        self.declaration_indexes.data_definitions.with(
-            self.tables
-                .data_definitions
-                .revision()
-                .wrapping_add(roster_marker(self.roots.data_definitions)),
-            || {
-                let mut index = DataDefinitionIndex::default();
-                for (position, definition) in self.data_definitions().iter().enumerate() {
-                    let position = position as u32;
-                    if definition.symbol.is_valid() {
-                        index
-                            .by_symbol
-                            .entry(definition.symbol)
-                            .or_default()
-                            .push(position);
-                        index
-                            .first_position
-                            .entry(definition.symbol)
-                            .or_insert(position);
-                    }
-                    index
-                        .by_name
-                        .entry(definition.name.as_str().into())
-                        .or_default()
-                        .push(position);
-                }
-                index
-            },
-            run,
-        )
+        self.tables
+            .data_definitions
+            .with_index(self.roots.data_definitions, run)
     }
 
     /// First data-definition position carrying `symbol`, matching the roster
@@ -581,12 +552,7 @@ impl super::TypedTrees {
         if !symbol.is_valid() {
             return None;
         }
-        self.with_data_definition_index(|index| {
-            index
-                .first_position
-                .get(&symbol)
-                .map(|position| *position as usize)
-        })
+        self.with_data_definition_index(|index| index.first_position(symbol))
     }
 
     /// The first data declaration carrying `symbol`.
@@ -617,17 +583,13 @@ impl super::TypedTrees {
     /// All data-definition positions carrying `symbol`, in declaration
     /// order.
     pub fn data_definition_positions_for_symbol(&self, symbol: SymbolHandle) -> Vec<u32> {
-        self.with_data_definition_index(|index| {
-            index.by_symbol.get(&symbol).cloned().unwrap_or_default()
-        })
+        self.with_data_definition_index(|index| index.positions_for_symbol(symbol).to_vec())
     }
 
     /// All data-definition positions declared under `name`, in declaration
     /// order.
     pub fn data_definition_positions_for_name(&self, name: &str) -> Vec<u32> {
-        self.with_data_definition_index(|index| {
-            index.by_name.get(name).cloned().unwrap_or_default()
-        })
+        self.with_data_definition_index(|index| index.positions_for_name(name).to_vec())
     }
 
     /// First domain-definition position carrying `symbol`, matching the
@@ -662,8 +624,10 @@ impl super::TypedTrees {
         if !data_symbol.is_valid() {
             return false;
         }
-        if self.unique_data_definition_by_symbol(data_symbol)
-            .is_some_and(|data| data.cleanup_selection.is_some()) {
+        if self
+            .unique_data_definition_by_symbol(data_symbol)
+            .is_some_and(|data| data.cleanup_selection.is_some())
+        {
             return true;
         }
         self.declaration_indexes.attached_drops.with(

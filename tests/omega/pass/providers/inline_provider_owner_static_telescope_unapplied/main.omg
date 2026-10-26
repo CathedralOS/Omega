@@ -1,0 +1,31 @@
+// An inline member of a boundary trait serves provider selection through its
+// exact requirement edge, exactly as a whole conformance map's row does. The
+// application is retained through a nested field and a borrowed call; only the
+// selected entry establishes provider custody.
+
+public boundary trait Reading {
+    machine read() -> u64;
+}
+
+data ReadingProvider<Element> {}
+machine ReadingProvider::read() -> u64 satisfies Reading::read { 42 }
+
+// Merely checking a helper's application must not demand an unrelated selection.
+public boundary trait Unselected { machine read() -> u64; }
+machine unused() -> u64 reaches Unselected {
+    Unselected::read()
+}
+
+data Session {}
+data Main { session: Session; }
+
+machine read() -> u64 reaches Reading {
+    Reading::read()
+}
+
+machine Main::main(main: &mut Main) reaches Reading crashes Trap {
+    let value: u64 = read();
+    transition value == 42 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -37,6 +37,13 @@ pub(crate) enum Step {
         argument: usize,
         segment: usize,
     },
+    /// Advance the same prepared place before a selector, or finish it before
+    /// the next actual argument. Descriptor addresses precede selector effects.
+    Structural {
+        operation: usize,
+        argument: usize,
+        complete: bool,
+    },
     /// A produced structural value or its following checked completion.
     /// Both execute inside the enclosing argument's captured value namespace.
     Operation(usize),
@@ -108,22 +115,10 @@ pub(super) fn build_operations(
                 result.statement_index
             }
             _ => {
-                if operations[index].call().is_some_and(|call| {
-                    call.structural_arguments
-                        .iter()
-                        .any(|argument| argument.call_selector_segments().next().is_some())
-                        || call.structural_arguments.iter().enumerate().any(
-                            |(argument_ordinal, _)| {
-                                !recorded_window_endpoint_roots(
-                                    checked,
-                                    state,
-                                    call.coordinate,
-                                    argument_ordinal,
-                                )
-                                .is_empty()
-                            },
-                        )
-                }) {
+                if operations[index]
+                    .call()
+                    .is_some_and(|call| !call.structural_arguments.is_empty())
+                {
                     steps.push(Step::Begin);
                     append(
                         checked,
@@ -312,11 +307,28 @@ fn append(
                 steps,
             )?;
         }
-        for (segment, _) in structural_arguments[argument_ordinal].call_selector_segments() {
+        for segment in structural_arguments[argument_ordinal].call_selector_positions() {
+            steps.push(Step::Structural {
+                operation: index,
+                argument: argument_ordinal,
+                complete: false,
+            });
             steps.push(Step::Selector {
                 operation: index,
                 argument: argument_ordinal,
                 segment,
+            });
+        }
+        if !matches!(
+            structural_arguments[argument_ordinal].source,
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }
+                | checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }
+                | checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice { .. }
+        ) {
+            steps.push(Step::Structural {
+                operation: index,
+                argument: argument_ordinal,
+                complete: true,
             });
         }
         // A folded window keeps no descriptor to narrow, yet its authored

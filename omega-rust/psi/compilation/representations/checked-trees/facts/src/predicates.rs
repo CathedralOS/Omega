@@ -139,6 +139,9 @@ pub enum CheckedScalarExpression {
     /// program-point value snapshots retain this form; ordinary scalar native
     /// execution plans still reject it.
     StructuralParameterField {
+        /// The actual read occurrence for current Flow binding. Formal and
+        /// generated algebra has no observation and retains declared subjects.
+        observation: typed_trees::expression::ExpressionHandle,
         parameter_position: u32,
         path: Vec<CheckedStructuralPredicatePathSegment>,
         primitive_type: typed_trees::types::PrimitiveType,
@@ -152,6 +155,9 @@ pub enum CheckedScalarExpression {
     /// evaluated selectors. Every selector owns its own `index < extent`
     /// obligation; selectors are never folded into one flattened coordinate.
     StructuralParameterIndexedRead {
+        /// The authored read whose completed address supplies current facts.
+        /// Generated algebra has no source occurrence and cannot seed one.
+        observation: typed_trees::expression::ExpressionHandle,
         root: CheckedStorageRoot,
         path: Vec<CheckedStructuralPredicatePathSegment>,
         index: Box<CheckedScalarSelector>,
@@ -247,6 +253,47 @@ pub fn u64_integer_literal(
 }
 
 impl CheckedScalarExpression {
+    /// The complete declaration-relative geometry of a parameter observation.
+    /// Executable selectors must be literal to become path segments; existing
+    /// static segments retain their identities. Each consumer independently
+    /// admits its path vocabulary, type, access and current-value evidence.
+    /// This does not replace the executable read or its bounds occurrence.
+    pub fn parameter_observation_projection(&self) -> Option<CheckedStructuralParameterField> {
+        let (parameter_position, path) = match self {
+            Self::StructuralParameterField {
+                parameter_position,
+                path,
+                ..
+            } => (*parameter_position, path.clone()),
+            Self::StructuralParameterIndexedRead {
+                root,
+                path,
+                index,
+                element_path,
+                ..
+            } => {
+                let mut projections = path
+                    .iter()
+                    .cloned()
+                    .map(CheckedScalarReadProjection::Static)
+                    .collect::<Vec<_>>();
+                projections.push(CheckedScalarReadProjection::RuntimeIndex(
+                    index.as_ref().clone(),
+                ));
+                projections.extend_from_slice(element_path);
+                (
+                    root.parameter()?,
+                    CheckedScalarReadProjection::static_path(&projections)?,
+                )
+            }
+            _ => return None,
+        };
+        Some(CheckedStructuralParameterField {
+            parameter_position,
+            path,
+        })
+    }
+
     /// Whether evaluating this expression executes any Trapping primitive,
     /// i.e. whether it owns an operation-level `Trap` crash site.
     /// Boolean subterms are inspected through their integer
@@ -407,6 +454,8 @@ pub enum CheckedBooleanExpression {
     /// parameter. Terminal production resolves every authored identity to the
     /// canonical structural field ID at that exact type level.
     StructuralParameterField {
+        /// The actual read occurrence; zero denotes formal/generated algebra.
+        observation: typed_trees::expression::ExpressionHandle,
         parameter_position: u32,
         path: Vec<CheckedStructuralPredicatePathSegment>,
     },
@@ -599,6 +648,9 @@ impl CheckedStructuralCaseSubject {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CheckedStructuralPredicatePathSegment {
+    /// One exact readable stored-reference crossing retained by the producer.
+    /// Borrowed formal entry presentation is carried by the root, separately.
+    Referent,
     Field(typed_trees::data::DataMemberIdentity),
     Case(typed_trees::data::DataMemberIdentity),
     FixedIndex(u64),

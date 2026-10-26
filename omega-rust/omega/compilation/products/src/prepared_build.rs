@@ -9,6 +9,54 @@ use artifacts::compile_timings::CompileTimings;
 use package_compilation::BuildSourceCustody;
 use std::sync::Arc;
 
+/// Settled Build output before any deferred Product context is prepared.
+/// The parse prefix supplies fresh contexts; the typed frontier is reusable
+/// only for its own assembly inputs or its still-deferred Product source.
+pub struct SettledBuildSource {
+    pub parsed: crate::PreparedCheckedSource,
+    pub frontier: crate::TypedCompilationFrontier,
+    pub evaluated: crate::EvaluatedBuild,
+    pub package_inputs: Option<package_compilation::PackageCompilationInputs>,
+    pub original_assembly: package_compilation::SourceAssemblyInputs,
+    pub build_execution_profile: Option<target::TargetProfile>,
+    pub timings: CompileTimings,
+    pub build_elapsed_micros: u128,
+}
+
+/// The invocation's fixed source and execution custody beside Product defaults.
+pub struct SettledPackageBuild {
+    pub root: std::path::PathBuf,
+    pub target: target::TargetProfile,
+    pub inputs: package_compilation::PackageCompilationInputs,
+    pub rollback: optimization_core::OptimizationRollback,
+    pub permit_unsettled_fused_service_fields: bool,
+    pub source: SettledBuildSource,
+}
+
+impl SettledPackageBuild {
+    /// Fork only for a real sibling Product. The final consumer can move the
+    /// original source/storage instead; no execution custody is duplicated.
+    pub fn fork(&mut self) -> Self {
+        Self {
+            root: self.root.clone(),
+            target: self.target,
+            inputs: self.inputs.clone(),
+            rollback: self.rollback.clone(),
+            permit_unsettled_fused_service_fields: self.permit_unsettled_fused_service_fields,
+            source: SettledBuildSource {
+                parsed: self.source.parsed.fork(),
+                frontier: self.source.frontier.clone(),
+                evaluated: self.source.evaluated.clone(),
+                package_inputs: self.source.package_inputs.clone(),
+                original_assembly: self.source.original_assembly.clone(),
+                build_execution_profile: self.source.build_execution_profile,
+                timings: self.source.timings.clone(),
+                build_elapsed_micros: self.source.build_elapsed_micros,
+            },
+        }
+    }
+}
+
 /// Evaluated Build and the retained frontend that an actual Product demand
 /// completes. Pending authored bodies and generated sources grant no execution.
 #[derive(Clone)]
@@ -34,6 +82,8 @@ pub struct PreparedBuild {
 /// Realization never receives a mutable copy of this source continuation.
 pub struct PreparedProductSource {
     pub source: Arc<psi_compiler::PreparedSource>,
+    /// Logical authored-completion charges belong to this source judgment.
+    pub source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
     pub computed_build_config: Arc<ComputedBuildConfig>,
     pub admission: BuildAdmission,
     pub build_sources: BuildSourceCustody,
@@ -45,6 +95,7 @@ pub struct PreparedProductSource {
 /// The source checker produces this before any target provider is selected.
 #[derive(Clone)]
 pub struct CheckedProductSource {
+    pub source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
     pub program: Arc<checked_trees::CheckedTrees>,
     /// All authored Product defaults, shared unchanged across target settlement.
     pub provider_defaults:

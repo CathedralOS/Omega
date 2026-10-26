@@ -14,6 +14,7 @@ use crate::expressions::expression::name_paths::{
     lower_name_path_members_into_table, lower_table_name_path_node_into_table,
 };
 use crate::expressions::expression::operators::lower_binary_operator;
+use crate::expressions::proposition::is_proposition_call_target;
 use crate::lowerer::name::lower_name;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::CollectionMeasure;
@@ -392,12 +393,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     self.retain_builtin_type_reference(symbols::BuiltinTypeAtom::Int)?;
                 }
                 if let Some(program) = self.program
-                    && call.target_symbol.is_valid()
-                    && matches!(
-                        program.symbols.get(call.target_symbol).kind,
-                        symbols::SymbolKind::Proposition
-                            | symbols::SymbolKind::PropositionParameter
-                    )
+                    && is_proposition_call_target(&program.symbols, call.target_symbol)
                 {
                     return Err(Diagnostic::error(if self.fact_position {
                         "a proposition application must be the complete fact in this implementation slice"

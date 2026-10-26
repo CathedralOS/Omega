@@ -9,6 +9,37 @@
 //! outputs and `operation_attempts.rs` operation attempts, outcomes and
 //! service bindings.
 
+/// Declare one filesystem operation record whose fields are all `Copy`. The
+/// invocation spells the docs, derives and `pub(crate)` fields once; the
+/// expansion adds the struct, a `new` that stores the fields in declaration
+/// order, and one `const` reader per field. A record whose constructor or
+/// readers are not that shape keeps its own declaration.
+macro_rules! filesystem_record {
+    (
+        $(#[$record_meta:meta])*
+        $record_vis:vis struct $record:ident {
+            $($field_vis:vis $field:ident: $field_ty:ty,)+
+        }
+    ) => {
+        $(#[$record_meta])*
+        $record_vis struct $record {
+            $($field_vis $field: $field_ty,)+
+        }
+
+        impl $record {
+            pub const fn new($($field: $field_ty),+) -> Self {
+                Self { $($field),+ }
+            }
+
+            $(
+                pub const fn $field(self) -> $field_ty {
+                    self.$field
+                }
+            )+
+        }
+    };
+}
+
 mod canonical_metadata;
 mod grants;
 mod logical_handles;

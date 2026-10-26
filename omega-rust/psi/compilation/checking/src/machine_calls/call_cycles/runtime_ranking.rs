@@ -17,11 +17,11 @@ use typed_trees::signature::SignatureContractKind;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
+use crate::RankingRangeMeasure;
 use crate::machine_calls::graph_components::strongly_connected_components;
 use crate::proof_contracts::contract_entailment::{
     RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
-    RankingRangeMeasure, call_member_premise_symbols, mixed_call_endpoints_are_pinned,
-    prove_ranking_range_call,
+    call_member_premise_symbols, mixed_call_endpoints_are_pinned, prove_ranking_range_call,
 };
 use comparison::Comparison;
 use projection::RankProjection;

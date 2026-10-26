@@ -12,6 +12,8 @@ use std::sync::Arc;
 
 mod activation;
 use activation::SourceContext;
+mod authored_completion;
+use authored_completion::AuthoredCompletions;
 
 /// Parsed, source-scoped input after package admission and Build-helper selection.
 #[derive(Clone)]
@@ -34,6 +36,14 @@ pub struct SourceCompilationRequest {
 /// Cloning retains a reusable compilation input, never permission to execute Build.
 #[derive(Clone)]
 pub struct SourceContinuation {
+    input: SourceCompletionInput,
+    completions: AuthoredCompletions,
+}
+
+/// Exact post-Build input, excluding the invocation's retention owner.
+#[derive(Clone)]
+struct SourceCompletionInput {
+    inherited_accounting: build_time_evaluation::SourceCompletionAccounting,
     typing: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
     pending_bodies: syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
     pending_pre_checks: Vec<PreCheckEvaluation>,
@@ -44,12 +54,12 @@ impl std::fmt::Debug for SourceContinuation {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
             .debug_struct("SourceContinuation")
-            .field("machine_count", &self.typing.typed().machines().len())
+            .field("machine_count", &self.input.typing.typed().machines().len())
             .field(
                 "pending_body_count",
-                &self.pending_bodies.pending_machines().count(),
+                &self.input.pending_bodies.pending_machines().count(),
             )
-            .field("pre_check_count", &self.pending_pre_checks.len())
+            .field("pre_check_count", &self.input.pending_pre_checks.len())
             .finish()
     }
 }
@@ -62,7 +72,9 @@ pub struct BuildSourceInput<'source> {
 }
 
 /// Authored bodies are complete; generated sources may extend this exact base.
+#[derive(Clone)]
 pub struct CompletedSource {
+    accounting: build_time_evaluation::SourceCompletionAccounting,
     typing: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
     pending_pre_checks: Vec<PreCheckEvaluation>,
     context: SourceContext,
@@ -81,12 +93,17 @@ pub struct SourceExtensionRequest {
 /// typed trees cannot establish which authored source frontier may be extended.
 #[derive(Clone)]
 pub struct PreparedSource {
+    accounting: build_time_evaluation::SourceCompletionAccounting,
     typing: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
     pending_pre_checks: Vec<PreCheckEvaluation>,
     context: SourceContext,
 }
 
 impl PreparedSource {
+    pub fn accounting(&self) -> &build_time_evaluation::SourceCompletionAccounting {
+        &self.accounting
+    }
+
     pub(crate) fn typed(&self) -> &typed_trees::TypedTrees {
         self.typing.typed()
     }
@@ -129,9 +146,13 @@ impl SourceCompilationRequest {
         let retained_program = activation
             .as_ref()
             .map(|activation| activation.typing.typed().clone());
-        let (mut retained, mut pending_pre_checks) = match activation {
-            Some(activation) => (Some(activation.typing), activation.pre_checks),
-            None => (None, Vec::new()),
+        let (mut retained, mut pending_pre_checks, inherited_accounting) = match activation {
+            Some(activation) => (
+                Some(activation.typing),
+                activation.pre_checks,
+                activation.accounting,
+            ),
+            None => (None, Vec::new(), Default::default()),
         };
         let resolved_base = retained
             .as_mut()
@@ -220,10 +241,14 @@ impl SourceCompilationRequest {
         };
         pending_pre_checks.push(pre_check);
         Ok(SourceContinuation {
-            typing,
-            pending_bodies,
-            pending_pre_checks,
-            context,
+            input: SourceCompletionInput {
+                inherited_accounting,
+                typing,
+                pending_bodies,
+                pending_pre_checks,
+                context,
+            },
+            completions: Default::default(),
         })
     }
 }
@@ -241,11 +266,12 @@ impl SourceContinuation {
         (
             symbol_resolved_trees_to_typed_trees::SeededTypingBase,
             Vec<PreCheckEvaluation>,
+            build_time_evaluation::SourceCompletionAccounting,
         ),
         Vec<Diagnostic>,
     > {
-        let (mut typing, mut pending_bodies) = self.typing.activate_body_completion(
-            self.pending_bodies,
+        let (mut typing, mut pending_bodies) = self.input.typing.activate_body_completion(
+            self.input.pending_bodies,
             Arc::clone(&sources),
             bindings,
         )?;
@@ -274,27 +300,23 @@ impl SourceContinuation {
         }
         // Pre-checks may depend on the receiving Build's representation choices.
         // Keep their exact work; projection and ordinary evaluation follow later.
-        Ok((typing, self.pending_pre_checks))
+        Ok((
+            typing,
+            self.input.pending_pre_checks,
+            self.input.inherited_accounting,
+        ))
     }
 
     /// Whether two admitted Build continuations have exactly the same remaining
     /// source work. A common pre-Build origin alone is insufficient: Build may
     /// have elaborated declarations or consumed different evaluation obligations.
     pub fn same_completion_input(&self, other: &Self) -> bool {
-        self.typing == other.typing
-            && self.context.same_input(&other.context)
-            && self.pending_bodies == other.pending_bodies
-            && self.pending_pre_checks.len() == other.pending_pre_checks.len()
-            && self
-                .pending_pre_checks
-                .iter()
-                .zip(&other.pending_pre_checks)
-                .all(|(left, right)| left.same_pending_work(right))
+        self.input.same_completion_input(&other.input)
     }
 
     /// Borrow declaration descriptions for package custody; this is not executable input.
     pub fn typed(&self) -> &typed_trees::TypedTrees {
-        self.typing.typed()
+        self.input.typing.typed()
     }
 
     /// Locate the same authored machine in a distinct source context. This
@@ -353,8 +375,8 @@ impl SourceContinuation {
 
     pub fn build_input(&mut self) -> BuildSourceInput<'_> {
         BuildSourceInput {
-            typed: self.typing.typed_mut(),
-            pre_checks: &mut self.pending_pre_checks,
+            typed: self.input.typing.typed_mut(),
+            pre_checks: &mut self.input.pending_pre_checks,
         }
     }
 
@@ -363,11 +385,20 @@ impl SourceContinuation {
         self,
         observer: &mut impl PsiCompilationObserver,
     ) -> Result<CompletedSource, Vec<Diagnostic>> {
+        if let Some(source) = self.completions.find(&self.input)? {
+            return Ok(source);
+        }
+        let input = self.input.clone();
         let Self {
-            mut typing,
-            mut pending_bodies,
-            pending_pre_checks,
-            context,
+            input:
+                SourceCompletionInput {
+                    inherited_accounting,
+                    mut typing,
+                    mut pending_bodies,
+                    pending_pre_checks,
+                    context,
+                },
+            completions,
         } = self;
         loop {
             // Build may append concrete declarations. Join their exact suffix
@@ -386,22 +417,29 @@ impl SourceContinuation {
                 })?;
         }
         let mut deferred = Vec::new();
+        let mut accounting = inherited_accounting;
         for pre_check in pending_pre_checks {
-            if let Some(pending) = pre_check.evaluate_or_defer(typing.typed_mut())? {
+            let recorded = pre_check.evaluate_or_defer_recorded(typing.typed_mut())?;
+            accounting.append(recorded.accounting);
+            if let Some(pending) = recorded.pending {
                 deferred.push(pending);
             }
         }
-        Ok(CompletedSource {
+        let source = CompletedSource {
             typing,
             pending_pre_checks: deferred,
             context,
-        })
+            accounting,
+        };
+        completions.retain(input, &source)?;
+        Ok(source)
     }
 }
 
 impl CompletedSource {
     pub fn finish(self) -> Arc<PreparedSource> {
         Arc::new(PreparedSource {
+            accounting: self.accounting,
             typing: self.typing,
             pending_pre_checks: self.pending_pre_checks,
             context: self.context,
@@ -442,17 +480,36 @@ impl CompletedSource {
         self.typing = observer.record_result(PsiCompilationStage::Typing, || {
             self.typing.lower_extension(seeded)
         })?;
-        self.pending_pre_checks
-            .extend(PreCheckEvaluation::evaluate_extension_or_defer(
-                pre_checks,
-                wire_schema_frontier,
-                self.typing.typed_mut(),
-            )?);
+        let (pending, accounting) = PreCheckEvaluation::evaluate_extension_or_defer(
+            pre_checks,
+            wire_schema_frontier,
+            self.typing.typed_mut(),
+        )?;
+        self.pending_pre_checks.extend(pending);
+        self.accounting.append(accounting);
         self.context.authority = Some(extension.selection_authority);
         Ok(Arc::new(PreparedSource {
+            accounting: self.accounting,
             typing: self.typing,
             pending_pre_checks: self.pending_pre_checks,
             context: self.context,
         }))
+    }
+}
+
+impl SourceCompletionInput {
+    fn same_completion_input(&self, other: &Self) -> bool {
+        self.typing == other.typing
+            && self
+                .inherited_accounting
+                .same_receipts(&other.inherited_accounting)
+            && self.context.same_input(&other.context)
+            && self.pending_bodies == other.pending_bodies
+            && self.pending_pre_checks.len() == other.pending_pre_checks.len()
+            && self
+                .pending_pre_checks
+                .iter()
+                .zip(&other.pending_pre_checks)
+                .all(|(left, right)| left.same_pending_work(right))
     }
 }

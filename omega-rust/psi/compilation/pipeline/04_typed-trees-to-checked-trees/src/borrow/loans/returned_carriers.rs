@@ -27,16 +27,33 @@ use validation::borrow_contracts::ViewReturnInputSource;
 use checked_trees::expression::ExpressionHandle;
 use symbols::SymbolHandle;
 
-/// The same completed lifetime frontier drives loan attribution and access
-/// ancestry. Body reconstruction may refine a candidate's projection, but may
-/// not erase an input named by the declaration's shared output lifetime.
+/// Descriptor candidates and lifetime debts share one completed relation.
+/// Address consumers use only descriptor candidates; unused declared inputs
+/// remain independently retained debts in the loan producer below.
 pub(crate) fn call_reference_sources(
     program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     call: &checked_trees::expression::TableCallExpression,
 ) -> Option<Vec<(ViewReturnFieldSource, Vec<facts::PlaceSegment>)>> {
     let fields = call_reference_lifetime_sources(program, state_symbol, call)?;
-    Some(completed_sources(program, call.target_symbol, fields))
+    let sources = completed_sources(
+        program,
+        call.target_symbol,
+        fields,
+        program.expression_table.expression_handles(call.arguments),
+    );
+    if sources
+        .iter()
+        .any(|source| matches!(source, CompletedReturnSource::UnresolvedDescriptor { .. }))
+    {
+        return None;
+    }
+    Some(
+        sources
+            .into_iter()
+            .filter_map(CompletedReturnSource::descriptor_candidate)
+            .collect(),
+    )
 }
 
 /// The complete declared lifetime relation, without optional body geometry.
@@ -57,22 +74,113 @@ pub(crate) fn call_reference_lifetime_sources(
     }
 }
 
+/// A source selected by the body can identify a descriptor, while another
+/// input may still owe its declared lifetime without identifying that address.
+/// If body reconstruction is unavailable, descriptor candidates retain the
+/// conservative lifetime/interference frontier. Actual address selection or a
+/// further reference load still needs its own exact captured geometry; the
+/// frontier alone cannot identify that address or grant a stored descriptor.
+pub(super) enum CompletedReturnSource {
+    DescriptorCandidate {
+        field: ViewReturnFieldSource,
+        projection: Vec<facts::PlaceSegment>,
+    },
+    LifetimeDependency {
+        field: ViewReturnFieldSource,
+    },
+    /// A recognized opaque output is not an input-relative address. Keep
+    /// this unavailable spatial alternative beside all declared lifetime debts;
+    /// another return route must not mask it with a convenient input source.
+    UnresolvedDescriptor {
+        owner_path: Vec<BorrowOwnerSegment>,
+        kind: checked_trees::BorrowAccessKind,
+    },
+}
+
+impl CompletedReturnSource {
+    fn descriptor_candidate(self) -> Option<(ViewReturnFieldSource, Vec<facts::PlaceSegment>)> {
+        match self {
+            Self::DescriptorCandidate { field, projection } => Some((field, projection)),
+            Self::LifetimeDependency { .. } | Self::UnresolvedDescriptor { .. } => None,
+        }
+    }
+
+    /// Capture every declared input obligation. A retained lifetime cannot
+    /// become a spatial root merely because it shares the result's owner path.
+    pub(super) fn capture_loans(
+        self,
+        local: &checked_trees::statement::TableLocalData,
+        owner_prefix: &[BorrowOwnerSegment],
+        capture: impl FnOnce(
+            ViewReturnFieldSource,
+            Vec<facts::PlaceSegment>,
+        ) -> Vec<StatementBorrowLoan>,
+    ) -> Vec<StatementBorrowLoan> {
+        match self {
+            Self::UnresolvedDescriptor {
+                mut owner_path,
+                kind,
+            } => {
+                let mut path = owner_prefix.to_vec();
+                path.append(&mut owner_path);
+                vec![StatementBorrowLoan {
+                    formation_owner_path: None,
+                    incoming_origin: None,
+                    formation_expression: local.initial_value,
+                    representation_address: None,
+                    owner_symbol: local.symbol,
+                    storage_owner: facts::PlaceRoot::Symbol(local.symbol),
+                    owner_name: local.name.clone(),
+                    owner_path: path,
+                    retained_operand: None,
+                    place: checked_trees::CapturedPlace::default(),
+                    source_owner_symbol: SymbolHandle::invalid(),
+                    supplying_loans: Vec::new(),
+                    lineage: checked_trees::BorrowLoanLineage::UnretainedDerived,
+                    kind,
+                    call_result: true,
+                }]
+            }
+            Self::DescriptorCandidate { field, projection } => capture(field, projection),
+            Self::LifetimeDependency { field } => {
+                let mut loans = capture(field, Vec::new());
+                for loan in &mut loans {
+                    loan.lineage = checked_trees::BorrowLoanLineage::LifetimeDependency;
+                }
+                loans
+            }
+        }
+    }
+}
+
 pub(super) fn completed_sources(
     program: &dyn ::validation::CheckingInput,
     target: SymbolHandle,
     fields: Vec<ViewReturnFieldSource>,
-) -> Vec<(ViewReturnFieldSource, Vec<facts::PlaceSegment>)> {
+    arguments: &[ExpressionHandle],
+) -> Vec<CompletedReturnSource> {
+    // Nominal retained fields are nonspatial even when the body relation
+    // cannot be reconstructed. Refine only actual descriptor fields below.
     let (dependencies, fields): (Vec<_>, Vec<_>) =
         fields.into_iter().partition(|field| field.lifetime_only);
-    let mut sources = match completed_field_sources(program, target, &fields, None) {
+    let mut sources = match completed_field_sources(program, target, &fields, None, arguments) {
         Some(Ok(sources)) => sources,
+        // A contradictory body is rejected by the mandatory declaration check.
+        // It must not manufacture loans from the signature fallback meanwhile.
         Some(Err(_)) => Vec::new(),
         None => fields
             .into_iter()
-            .map(|field| (field, Vec::new()))
+            .map(|field| CompletedReturnSource::DescriptorCandidate {
+                field,
+                projection: Vec::new(),
+            })
             .collect(),
     };
-    sources.extend(dependencies.into_iter().map(|field| (field, Vec::new())));
+    sources.extend(
+        dependencies
+            .into_iter()
+            .map(|field| CompletedReturnSource::LifetimeDependency { field }),
+    );
     sources
 }
 
@@ -167,13 +275,15 @@ pub(crate) fn returned_body_source_mismatch(
 /// without a reconstructible body retains its conservative lifetime footprint;
 /// executable custody still requires an exact returned-origin relation. `None`
 /// means unavailable reconstruction, `Err` names a contradictory formal input,
-/// and `Ok` preserves every declared lifetime obligation with body projections.
+/// and `Ok` preserves selected descriptor candidates and every remaining
+/// declared lifetime obligation with its distinct dependency role.
 fn completed_field_sources(
     program: &dyn ::validation::CheckingInput,
     target: SymbolHandle,
     fields: &[ViewReturnFieldSource],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<Result<Vec<(ViewReturnFieldSource, Vec<facts::PlaceSegment>)>, usize>> {
+    arguments: &[ExpressionHandle],
+) -> Option<Result<Vec<CompletedReturnSource>, usize>> {
     let (machine, state) = validation::find_state(program, target)?;
     if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
         || !machine.body_is_present
@@ -188,7 +298,8 @@ fn completed_field_sources(
             &prepared_frames
         }
     };
-    let sources = call_frames.reference_result_leaf_origins(state.symbol)?;
+    let sources =
+        call_frames.reference_result_leaf_origins_for_arguments(state.symbol, arguments)?;
     let parameters = program.state_parameters(state);
     let declared_paths = fields
         .iter()
@@ -203,10 +314,6 @@ fn completed_field_sources(
         if !source.source.recasts.is_empty() || source.source.representation.is_some() {
             return None;
         }
-        let (parameter_index, parameter) = parameters
-            .iter()
-            .enumerate()
-            .find(|(_, parameter)| parameter.symbol == source.source.root)?;
         let owner_path = structural_owner_path(
             program,
             &super::owner_paths::owner_path_from_place_segments(program, &source.result_path),
@@ -217,6 +324,20 @@ fn completed_field_sources(
             &source.result_path,
         )?;
         let kind = reference_borrow_access_kind(program, result_leaf)?;
+        if source.source.invocation_output.is_some() {
+            output.push(CompletedReturnSource::UnresolvedDescriptor {
+                owner_path: super::owner_paths::owner_path_from_place_segments(
+                    program,
+                    &source.result_path,
+                ),
+                kind,
+            });
+            continue;
+        }
+        let (parameter_index, parameter) = parameters
+            .iter()
+            .enumerate()
+            .find(|(_, parameter)| parameter.symbol == source.source.root)?;
         let projection = if is_reference_type(program, parameter.type_reference) {
             // Selector expressions belong to the callee. Erase their executable
             // coordinates but preserve whether they select an element or a
@@ -255,7 +376,10 @@ fn completed_field_sources(
         }) {
             matched = true;
             covered[index] = true;
-            output.push((field.clone(), projection.clone()));
+            output.push(CompletedReturnSource::DescriptorCandidate {
+                field: field.clone(),
+                projection: projection.clone(),
+            });
         }
         if !matched {
             return Some(Err(parameter_index));
@@ -267,7 +391,9 @@ fn completed_field_sources(
     // inputs' lifetime obligations.
     for (index, field) in fields.iter().enumerate() {
         if !covered[index] {
-            output.push((field.clone(), Vec::new()));
+            output.push(CompletedReturnSource::LifetimeDependency {
+                field: field.clone(),
+            });
         }
     }
     Some(Ok(output))
@@ -532,13 +658,15 @@ pub(super) fn relative_result_loans(
                 retained.formation_expression = expression;
             }
             loan.call_result = true;
-            loan.lineage = if loan.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency {
-                checked_trees::BorrowLoanLineage::LifetimeDependency
-            } else if loan.source_owner_symbol.is_valid() {
-                checked_trees::BorrowLoanLineage::UnretainedDerived
-            } else {
-                checked_trees::BorrowLoanLineage::DirectRoot
-            };
+            if loan.place.root.is_valid()
+                && loan.lineage != checked_trees::BorrowLoanLineage::LifetimeDependency
+            {
+                loan.lineage = if loan.source_owner_symbol.is_valid() {
+                    checked_trees::BorrowLoanLineage::UnretainedDerived
+                } else {
+                    checked_trees::BorrowLoanLineage::DirectRoot
+                };
+            }
         }
         return Some(limit_access(loans, &access_limits));
     }

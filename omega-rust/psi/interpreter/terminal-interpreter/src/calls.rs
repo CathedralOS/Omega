@@ -495,16 +495,13 @@ impl<'artifact> TerminalExecution<'artifact> {
                 let argument = structural_arguments.get(position).ok_or_else(malformed)?;
                 if formal.structural_type
                     != boundary_declaration.structural_parameters[position].structural_type
-                    || prepared_arguments
-                        .scalar_arrays
-                        .insert(
-                            formal.place,
-                            self.prepare_scalar_array_argument(callee, formal, argument)?,
-                        )?
-                        .is_some()
                 {
                     return Err(malformed());
                 }
+                prepared_arguments.scalar_arrays.publish(
+                    formal.place,
+                    self.prepare_scalar_array_argument(callee, formal, argument)?,
+                )?;
             }
             let claim_transfers = completion_receipts
                 .iter()
@@ -590,6 +587,10 @@ impl<'artifact> TerminalExecution<'artifact> {
         validate_boundary_requirements(boundary_declaration, |index| {
             boundary_arguments.values.get(index)
         })?;
+        crate::effects::boundary_predicates::validate_input_requirements(
+            boundary_declaration,
+            &scalar_arguments,
+        )?;
         self.preflight_boundary_result(boundary_declaration, &operation.result)?;
         let remaining_claims = complete_claims(
             &self.live_claims,
@@ -597,6 +598,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             completion_receipts,
             &boundary_declaration.structural_parameters,
         )?;
+        boundary_arguments.capture_reference_inputs(boundary_declaration, structural_arguments)?;
         boundary_arguments
             .storage_inputs
             .prepare_original_storage(self, handler, boundary)?;
@@ -643,7 +645,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 crash,
             )));
         }
-        boundary_arguments.validate_writeback(self)?;
+        boundary_arguments.validate_writeback(self, boundary_declaration)?;
         if let TerminalEffectResult::Structural(value) = &returned {
             boundary_arguments.reserve_host_result(&mut self.local_structural_identities, value)?;
         }

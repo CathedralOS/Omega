@@ -97,6 +97,8 @@ pub(super) fn close_constant_recipes(
     let mut range_closed = vec![false; range_rows.len()];
     let recipe_rows = &shared.facts.constant_recipe_obligations;
     let mut recipe_closed = vec![false; recipe_rows.len()];
+    let declaration_owners =
+        provider_planning::target_machines::declaration_formation_owners(shared);
     let proof_owners: Vec<_> = predicate_rows
         .iter()
         .map(|row| row.caller())
@@ -115,6 +117,7 @@ pub(super) fn close_constant_recipes(
                 shared,
                 target,
                 &proof_owners,
+                &declaration_owners,
             )
         {
             continue;
@@ -185,15 +188,35 @@ pub(super) fn close_constant_recipes(
             supplemental_inputs = query_inputs::prepare(shared, target, provenance, applications)?;
             &supplemental_inputs
         };
+        let declaration_applications =
+            provider_planning::target_machines::proof_application_declaration_owners(
+                shared,
+                &inputs.applications,
+                &declaration_owners,
+            );
         let predicate_applications: Vec<_> = predicate_rows
             .iter()
             .enumerate()
             .filter(|(_, obligation)| inputs.applications.contains(&obligation.caller()))
             .collect();
+        // These new declaration recipes contain captured BigInt bounds only,
+        // not open binders or source computations. The selected checked copy
+        // retains global descriptions for later Terminal metadata, so close
+        // every ground declaration model recipe in its primary capsule. This
+        // is conservative whole-capsule formation, not a caller premise or
+        // authority to execute a declaration. Supplemental capsules also close
+        // their actually referenced descriptions. Existing non-ground recipes
+        // retain their original machine-application selection.
         let range_applications: Vec<_> = range_rows
             .iter()
             .enumerate()
-            .filter(|(_, obligation)| inputs.applications.contains(&obligation.owner()))
+            .filter(|(_, obligation)| {
+                inputs.applications.contains(&obligation.owner())
+                    || (obligation.needs_address_model()
+                        && (declaration_applications.contains(&obligation.owner())
+                            || (target == selected_target_profile
+                                && declaration_owners.contains(&obligation.owner()))))
+            })
             .collect();
         let recipe_applications: Vec<_> = recipe_rows
             .iter()
@@ -212,6 +235,7 @@ pub(super) fn close_constant_recipes(
         }
         let proof_program = match &supplemental {
             None => None,
+            Some(_) if inputs.recipes.is_empty() && inputs.queries.is_empty() => None,
             Some(selected) => Some(close_constant_values(
                 source,
                 target,
@@ -242,10 +266,38 @@ pub(super) fn close_constant_recipes(
                 .push(application);
             predicate_closed[position] = true;
         }
+        let address_model = if range_applications
+            .iter()
+            .any(|(_, obligation)| obligation.needs_address_model())
+        {
+            let model = target::TargetSemantics::close_address_model(target).ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "selected target `{}` does not close the default address-space model",
+                    target.target_name(),
+                ))]
+            })?;
+            // The selected model is authority for the source bound. Lowering's
+            // supported representation is an independent capability limit.
+            if model.carrier()
+                != semantic_vocabulary::IntegerType::supported_address_representation()
+            {
+                return Err(vec![Diagnostic::error(format!(
+                    "selected address model for `{}` has no supported Terminal representation",
+                    target.target_name(),
+                ))]);
+            }
+            Some(checked_trees::IntegerRangeModel {
+                carrier: model.carrier(),
+                semantics_version: model.semantics_version(),
+                commitment: model.commitment(),
+            })
+        } else {
+            None
+        };
         for (position, obligation) in range_applications {
             let mut application = obligation.clone();
             application
-                .discharge(program, target.target_name())
+                .discharge(program, target.target_name(), address_model.as_ref())
                 .map_err(|reason| vec![reason])?;
             closed_facts
                 .operators
@@ -319,6 +371,12 @@ fn close_constant_values(
     // name; executable preparation has already normalized it in the checked
     // program. Roster positions are the same handles in both.
     let Some(pending) = source.deferred_evaluation.as_ref() else {
+        // Captured model-fit judgments require only their recorded value and
+        // the selected address model, not a fabricated source continuation.
+        // Any demanded recipe/query still requires its producing evaluator.
+        if inputs.recipes.is_empty() && inputs.queries.is_empty() {
+            return Ok((**typed).clone());
+        }
         return Err(vec![Diagnostic::error(
             "constant recipes are retained without their authored evaluation source",
         )]);

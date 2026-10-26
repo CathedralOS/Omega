@@ -176,7 +176,18 @@ fn eligible_type(
             if !symbol.is_valid()
                 || data.properties.multiplicity != Multiplicity::Unrestricted
                 || !program.data_type_parameters(data).is_empty()
-                || active[..active.len() - 1].iter().any(|ancestor| matches!(program.type_reference_table.type_reference(*ancestor), TypeReferenceNode::Named { symbol: previous, .. } if previous == symbol))
+                || active[..active.len() - 1].iter().any(|ancestor| {
+                    match program.type_reference_table.type_reference(*ancestor) {
+                        TypeReferenceNode::Named {
+                            symbol: previous, ..
+                        } => previous == symbol,
+                        TypeReferenceNode::Generic {
+                            base_symbol: previous,
+                            ..
+                        } => previous == symbol,
+                        _ => false,
+                    }
+                })
                 || program.attached_drop_machine_exists(*symbol)
             {
                 return false;
@@ -192,9 +203,57 @@ fn eligible_type(
                         .all(|field| eligible(program, field.type_reference, active)),
                 })
         }
+        TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } => {
+            let Some(data) = program.data_definition_by_symbol(*base_symbol) else {
+                return false;
+            };
+            if !base_symbol.is_valid()
+                || data.properties.multiplicity != Multiplicity::Unrestricted
+                || active[..active.len() - 1].iter().any(|ancestor| {
+                    match program.type_reference_table.type_reference(*ancestor) {
+                        TypeReferenceNode::Named {
+                            symbol: previous, ..
+                        } => previous == base_symbol,
+                        TypeReferenceNode::Generic {
+                            base_symbol: previous,
+                            ..
+                        } => previous == base_symbol,
+                        _ => false,
+                    }
+                })
+                || program.attached_drop_machine_exists(*base_symbol)
+            {
+                return false;
+            }
+            for argument in program
+                .type_reference_table
+                .type_reference_handles(*arguments)
+            {
+                if !matches!(
+                    program.type_reference_table.type_reference(*argument),
+                    TypeReferenceNode::ConstExpression(_)
+                ) && !eligible(program, *argument, active)
+                {
+                    return false;
+                }
+            }
+            program
+                .data_members(data)
+                .iter()
+                .all(|member| match member {
+                    DataMember::Field(field) => eligible(program, field.type_reference, active),
+                    DataMember::Variant(variant) => program
+                        .data_payload_fields(variant)
+                        .iter()
+                        .all(|field| eligible(program, field.type_reference, active)),
+                })
+        }
         TypeReferenceNode::Reference { .. }
         | TypeReferenceNode::Slice { .. }
-        | TypeReferenceNode::Generic { .. }
         | TypeReferenceNode::ConstExpression(_) => false,
     }
 }

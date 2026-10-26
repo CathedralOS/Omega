@@ -25,6 +25,9 @@ pub(in crate::proof_contracts::contract_entailment) fn scalar_operand_is_observe
     declared: TypeReferenceHandle,
     term: &StructuralTerm,
 ) -> bool {
+    if let Some(observed) = super::shared_inline_observation_type(program, term) {
+        return crate::declared_carriers_match(program, declared, observed);
+    }
     if let Some(observed) = super::owned_observation_type(program, term) {
         // Owned observation permits reading inline carrier cells only. The
         // projection owner masks each reference child before another crossing;
@@ -111,7 +114,9 @@ pub(in crate::proof_contracts::contract_entailment) fn term_is_unobserved_descri
             value,
             ..
         } => {
-            program.primitive_type_reference(*observed_type).is_none()
+            (program.primitive_type_reference(*observed_type).is_none()
+                && super::shared_inline_observation_type(program, term).is_none()
+                && super::owned_observation_type(program, term).is_none())
                 || term_is_unobserved_descriptor(program, value)
         }
         StructuralTerm::Application {
@@ -184,7 +189,7 @@ pub(in crate::proof_contracts::contract_entailment) fn term_is_unobserved_descri
 /// The term's declaration-bound result type selects each field; neither a
 /// destination type nor a reference's referent can supply a missing crossing.
 /// Case payloads need independent active-case evidence and are not record fields.
-fn completed_owned_carrier(
+pub(in crate::proof_contracts::contract_entailment) fn completed_owned_carrier(
     program: &dyn crate::CheckingInput,
     term: &StructuralTerm,
 ) -> Option<TypeReferenceHandle> {

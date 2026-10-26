@@ -191,10 +191,55 @@ impl std::fmt::Display for TargetSemanticObservationError {
 
 impl std::error::Error for TargetSemanticObservationError {}
 
+/// One selected default address-space model. The private fields are closed
+/// only from target-owned profile data, never from a source annotation or host
+/// layout. Its exact dependency identity travels with discharged formations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetAddressModel {
+    profile: TargetProfile,
+    carrier: semantic_vocabulary::IntegerType,
+    semantics_version: u32,
+    commitment: [u8; 32],
+}
+
+impl TargetAddressModel {
+    pub const fn profile(&self) -> TargetProfile {
+        self.profile
+    }
+    pub const fn carrier(&self) -> semantic_vocabulary::IntegerType {
+        self.carrier
+    }
+    pub const fn semantics_version(&self) -> u32 {
+        self.semantics_version
+    }
+    pub const fn commitment(&self) -> [u8; 32] {
+        self.commitment
+    }
+}
+
 /// Compiler-owned target-semantic projection namespace.
 pub struct TargetSemantics;
 
 impl TargetSemantics {
+    /// Close the default address-space subject under one concrete profile.
+    /// No source projection spelling is introduced by this internal closure.
+    pub fn close_address_model(profile: TargetProfile) -> Option<TargetAddressModel> {
+        use sha2::{Digest, Sha256};
+        let carrier = profile.address_model()?;
+        let semantics_version = 1_u32;
+        let mut commitment = Sha256::new();
+        commitment.update(b"omega.target-semantics.default-address-model.v1");
+        commitment.update(profile.identity().as_str().as_bytes());
+        commitment.update(semantics_version.to_le_bytes());
+        commitment.update(carrier.bits().to_le_bytes());
+        Some(TargetAddressModel {
+            profile,
+            carrier,
+            semantics_version,
+            commitment: commitment.finalize().into(),
+        })
+    }
+
     /// Form the symbolic UEFI entry-stack guarantee application for one exact
     /// selected profile. This does not select a numeric bound and does not
     /// establish that a runtime firmware invocation conforms to the profile.

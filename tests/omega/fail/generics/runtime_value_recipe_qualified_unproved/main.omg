@@ -1,0 +1,5 @@
+// Expected exit: 0
+domain<const Bound:u64> u64::AtMost<Bound>(value) requires value <= Bound;
+data Index<const Max:u64,Limit:u64 in AtMost<Max>> [copy] where value<Limit {value:u64;}
+machine probe(limit:u64)->u64 requires limit>=3 && limit<=10 {let indexed:Index<10,((limit+1u64) as u64 in AtMost<10>)> = Index{value:2}; (indexed.Limit as u64)}
+machine main() crashes Trap {let observed:u64=probe(10); transition observed==4 {true->done() _->bad()} machine done(){} machine bad() crashes Trap {crash Trap;}}

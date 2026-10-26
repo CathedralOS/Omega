@@ -1,6 +1,7 @@
-//! Reference-slot relations keep binding identity, backing, and authority separate.
-//! Unknown calls keep their outstanding relation obligations even after later stores.
+//! Reference-slot relations retain binding, backing and outstanding call obligations.
+//! Completed operands retain their exact source cuts and carrier/backing association.
 
+use super::super as frames;
 use super::*;
 
 /// One exact destination leaf after an ordinary call. All sources must remain
@@ -16,11 +17,34 @@ pub struct StoredReferenceEffect {
     pub destination: LocalWriteOrigin,
     pub sources: Vec<StoredReferenceSource>,
     pub retains_incoming: bool,
+    /// The complete private relation has only this slot's incoming value.
+    /// Established before projecting away static sources: an empty public
+    /// source roster alone cannot distinguish identity from lost geometry.
+    pub incoming_identity: bool,
     /// A runtime-selected destination may leave other physical slots intact.
     /// Unlike a conditional write to one exact slot, it cannot replace the
     /// destination's complete current descriptor occurrence.
     pub may_select: bool,
     pub access: language_semantics::ReferenceAccess,
+}
+
+/// Construction graph of exact normal-call descriptor contexts. Each node
+/// depends only on preceding nodes, so alternatives merge once without
+/// enumerating combinations. Indices identify query-local snapshots, never
+/// storage or permission. The consumer supplies the authentic entry roster.
+#[derive(Clone)]
+pub enum StoredReferenceCallContext {
+    Entry,
+    Invocation {
+        entry: usize,
+        /// Zero is an ordinary statement call, never a transition target.
+        expression: ExpressionHandle,
+        /// Unknown transfer stays unavailable, including through later joins.
+        effects: Option<Vec<StoredReferenceEffect>>,
+    },
+    Join {
+        alternatives: Vec<usize>,
+    },
 }
 
 /// The actual descriptor home and its backing are distinct coordinates.
@@ -31,6 +55,9 @@ pub struct StoredReferenceSource {
     pub lifetime_access: Option<language_semantics::ReferenceAccess>,
     pub carrier_symbol: SymbolHandle,
     pub carrier_segments: Vec<PlaceSegment>,
+    /// The exact referent observed from this carrier before projecting the
+    /// output. It authenticates supplier ancestry, not new address authority.
+    pub carrier_backing: Option<LocalWriteSource>,
     pub backing: LocalWriteSource,
 }
 
@@ -49,6 +76,9 @@ pub(in crate::machine_calls::calls::write_frames) struct SlotEffect {
 pub(in crate::machine_calls::calls::write_frames) struct SlotSource {
     pub(in crate::machine_calls::calls::write_frames) origin: FramePlaceOrigin,
     pub(in crate::machine_calls::calls::write_frames) carrier: FrameSourcePlace,
+    /// Captured at the same descriptor load as carrier, before a callee adds
+    /// value selectors. Another pointer load replaces both together.
+    pub(in crate::machine_calls::calls::write_frames) carrier_backing: Option<FramePlaceOrigin>,
     pub(in crate::machine_calls::calls::write_frames) lifetime_access:
         Option<language_semantics::ReferenceAccess>,
 }
@@ -73,6 +103,9 @@ pub struct StoredReferenceCallFailure {
 #[derive(Clone, Default)]
 pub(in crate::machine_calls::calls::write_frames) struct SlotRelationTransfer {
     pub effects: Vec<SlotEffect>,
+    /// Old constructor/arrival case epochs retired by completed invocation
+    /// writes. These install possible cases, never selected-tag evidence.
+    pub case_effects: Vec<CaseStorageEffect>,
     pub template_dependent: bool,
     pub incomplete_calls: Vec<StoredReferenceCallFailure>,
 }
@@ -120,6 +153,7 @@ impl SlotRelationTransfer {
         }
         Self {
             effects,
+            case_effects: Vec::new(),
             template_dependent,
             incomplete_calls: if template_dependent {
                 Vec::new()

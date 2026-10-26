@@ -9,19 +9,15 @@ use package_evidence::PackageReviewProjectionError;
 fn execute_build(
     session: &mut CompilationSession,
     request: CheckedCompileRequest,
-) -> compiler::PackageBuild {
-    let mut invocation = session
-        .begin_package_build(request)
-        .expect("admit package Build");
+) -> Result<compiler::PackageBuild, compiler::CompileFailure> {
+    let mut invocation = session.begin_package_build(request)?;
     let returned = invocation.execution().map(|execution| {
         let mut host = execution.host().expect("Build host");
         let mut activation = host.start().expect("Build activation");
         while !activation.advance(1024).expect("Build step").returned {}
         activation.complete().expect("normal Build return")
     });
-    session
-        .complete_package_build(invocation, returned)
-        .expect("complete package Build")
+    session.complete_package_build(invocation, returned)
 }
 
 #[test]
@@ -183,8 +179,7 @@ fn dependency_frontends_retain_constant_values_without_admitting_new_callers() {
                     .expect("complete dependency Build outputs, including empty bundles"),
             );
             let retained_before = retained_source_count();
-            let build = session
-                .prepare_package_build(occurrence)
+            let build = execute_build(&mut session, occurrence)
                 .expect("prepare dependency or consumer Build");
             // A profiled, single-test replay pins that the semantic witnesses
             // exercised reuse, rather than succeeding through fresh checking.
@@ -218,8 +213,9 @@ fn dependency_frontends_retain_constant_values_without_admitting_new_callers() {
             ),
         ] {
             let invalid = prepared.root_path.with_file_name(entry);
-            let refused = session
-                .prepare_package_build(CheckedCompileRequest {
+            let refused = execute_build(
+                &mut session,
+                CheckedCompileRequest {
                     package_inputs: Some(
                         inputs
                             .clone()
@@ -227,9 +223,10 @@ fn dependency_frontends_retain_constant_values_without_admitting_new_callers() {
                             .expect("invalid caller uses the same dependency Build outputs"),
                     ),
                     ..CheckedCompileRequest::new(&invalid, Some(target))
-                })
-                .map_err(PackageReviewFailure::Compilation)
-                .and_then(|build| session.review_package_build(build, usize::MAX));
+                },
+            )
+            .map_err(PackageReviewFailure::Compilation)
+            .and_then(|build| session.review_package_build(build, usize::MAX));
             let diagnostics = match refused {
                 Err(PackageReviewFailure::Compilation(failure)) => failure.into_diagnostics(),
                 Err(failure) => {
@@ -267,7 +264,8 @@ fn review_product_keeps_exact_custody_and_policy_budget() {
                 package_inputs: Some(inputs.clone()),
                 ..CheckedCompileRequest::new(&prepared.root_path, Some(target))
             },
-        );
+        )
+        .expect("complete package Build");
         session.review_package_build(build, maximum_bytes)
     };
     let first = review(usize::MAX).expect("review product");
@@ -346,7 +344,8 @@ fn review_policy_round_trip_preserves_authored_and_inferred_reach() {
                 package_inputs: prepared.package_inputs,
                 ..CheckedCompileRequest::new(&prepared.root_path, Some("macos_arm64"))
             },
-        );
+        )
+        .expect("complete package Build");
         let reviewed = session
             .review_package_build(build, usize::MAX)
             .expect("reach review");

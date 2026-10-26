@@ -50,11 +50,13 @@ pub(crate) fn prepare_checked_source(
 /// The product owner revalidates custody on reuse and retains only completed work.
 fn prepare_typed_frontier(
     source: PreparedCheckedSource,
-    child: &CheckedExecutionRequest<'_>,
+    package_inputs: Option<&PackageCompilationInputs>,
+    build_execution_profile: Option<target::TargetProfile>,
+    reuse: &SettledCheckReuse,
     catalogue: &mut source::SourceCatalogue,
 ) -> Result<(TypedCompilationFrontier, CompileTimings), Vec<Diagnostic>> {
     let (sources, mut timings, retention) =
-        match source.into_frontier(child.package_inputs, child.build.profile)? {
+        match source.into_frontier(package_inputs, build_execution_profile)? {
             PreparedSourceFrontier::Retained(frontier, timings) => {
                 counters::record_typed_frontier_reuse();
                 return Ok((frontier, timings));
@@ -67,8 +69,7 @@ fn prepare_typed_frontier(
         };
     counters::record_source_assembly();
     let assembly_started = std::time::Instant::now();
-    let (source_file_count, syntax) =
-        sources.assemble(child.package_inputs, &mut timings, catalogue)?;
+    let (source_file_count, syntax) = sources.assemble(package_inputs, &mut timings, catalogue)?;
     timings.add_completed(
         artifacts::compile_timings::SOURCE_ASSEMBLY,
         assembly_started.elapsed().as_micros(),
@@ -78,13 +79,13 @@ fn prepare_typed_frontier(
     let frontier = build_continuation::lower_typed_frontier(
         source_file_count,
         syntax,
-        child.build.profile,
-        child.package_inputs,
-        &child.settled_check_reuse,
+        build_execution_profile,
+        package_inputs,
+        reuse,
         &mut timings,
     )
     .map_err(|mut diagnostics| {
-        attribute_diagnostics(&mut diagnostics, &base_sources, child.package_inputs);
+        attribute_diagnostics(&mut diagnostics, &base_sources, package_inputs);
         diagnostics
     })?;
     // Preserve the report's inclusive Build ladder after separating preparation.
@@ -136,34 +137,56 @@ impl PreparedPackageInvocation {
         self.source.execution()
     }
 
-    pub(super) fn complete(
+    pub(super) fn settle(
         self,
         returned: Option<build_evaluation::ReturnedBuild>,
-        reuse: &SettledCheckReuse,
-        catalogue: &mut source::SourceCatalogue,
-    ) -> Result<PreparedPackageBuild, CompileFailure> {
+    ) -> Result<compilation_products::SettledPackageBuild, CompileFailure> {
         let inputs = self.inputs.ok_or_else(|| {
             vec![Diagnostic::error(
                 "Build completion requires joined package source custody",
             )]
         })?;
-        let prepared =
-            self.source
-                .complete(returned, Some(&inputs), Some(self.target), reuse, catalogue)?;
-        let base_sources = prepared.built.base_sources.clone();
-        PreparedPackageBuild::seal(
-            self.root,
-            self.target,
-            inputs.clone(),
-            self.rollback,
-            prepared,
-            self.permit_unsettled_fused_service_fields,
-        )
-        .map_err(|mut diagnostics| {
-            attribute_diagnostics(&mut diagnostics, &base_sources, Some(&inputs));
-            CompileFailure::from(diagnostics)
+        let source = self
+            .source
+            .settle(returned, Some(&inputs), Some(self.target))?;
+        Ok(compilation_products::SettledPackageBuild {
+            root: self.root,
+            target: self.target,
+            inputs,
+            rollback: self.rollback,
+            source,
+            permit_unsettled_fused_service_fields: self.permit_unsettled_fused_service_fields,
         })
     }
+}
+
+pub(super) fn prepare_settled_package_product(
+    settled: compilation_products::SettledPackageBuild,
+    target: target::TargetProfile,
+    inputs: PackageCompilationInputs,
+    reuse: &SettledCheckReuse,
+    catalogue: &mut source::SourceCatalogue,
+) -> Result<PreparedPackageBuild, CompileFailure> {
+    inputs.validate_execution_context(Some(target), settled.source.build_execution_profile)?;
+    let prepared = build_continuation::prepare_settled_product(
+        settled.source,
+        Some(&inputs),
+        reuse,
+        catalogue,
+    )?;
+    let base_sources = prepared.built.base_sources.clone();
+    PreparedPackageBuild::seal(
+        settled.root,
+        target,
+        inputs.clone(),
+        settled.rollback,
+        prepared,
+        settled.permit_unsettled_fused_service_fields,
+    )
+    .map_err(|mut diagnostics| {
+        attribute_diagnostics(&mut diagnostics, &base_sources, Some(&inputs));
+        CompileFailure::from(diagnostics)
+    })
 }
 
 pub(super) fn begin_package_build_worker(
@@ -304,7 +327,7 @@ fn prepare_build_source(
 
 fn prepare_build_source_invocation(
     root_path: &Path,
-    source: PreparedCheckedSource,
+    mut source: PreparedCheckedSource,
     child: CheckedExecutionRequest<'_>,
     pure_build_compilation: Option<&build_evaluation::PureBuildCompilation>,
     catalogue: &mut source::SourceCatalogue,
@@ -312,12 +335,20 @@ fn prepare_build_source_invocation(
     source.admit_root(root_path)?;
     child.admit_package_inputs()?;
 
-    let (frontier, timings) = prepare_typed_frontier(source, &child, catalogue)?;
+    let parsed = source.fork();
+    let (frontier, timings) = prepare_typed_frontier(
+        source,
+        child.package_inputs,
+        child.build.profile,
+        &child.settled_check_reuse,
+        catalogue,
+    )?;
     let base_sources = frontier.base_sources.clone();
     let package_inputs = child.package_inputs;
     build_continuation::prepare_build_invocation(
         root_path,
         child,
+        parsed,
         frontier,
         timings,
         pure_build_compilation,
@@ -362,8 +393,10 @@ pub(super) fn complete_prepared_build(
         attribute_diagnostics(&mut diagnostics, &base_sources, package_inputs);
         diagnostics
     })?;
+    let source_completion_accounting = source.accounting().clone();
     Ok(PreparedProductSource {
         source,
+        source_completion_accounting,
         computed_build_config,
         admission,
         build_sources,

@@ -103,6 +103,7 @@ enum SourceReuseMiss {
 }
 
 pub(super) struct ActivatedSource {
+    pub accounting: build_time_evaluation::SourceCompletionAccounting,
     pub typing: SeededTypingBase,
     pub pre_checks: Vec<PreCheckEvaluation>,
     sources: Arc<SourceMap>,
@@ -170,9 +171,20 @@ pub(super) fn select_retained_source(
         .map(|source| SourceCandidate::Completed(source.as_ref()))
         .chain(request.pending_sources.iter().map(SourceCandidate::Pending))
     {
+        let accounting = match &source {
+            SourceCandidate::Completed(source) => &source.accounting,
+            SourceCandidate::Pending(source) => &source.input.inherited_accounting,
+        };
+        accounting
+            .validate_charges()
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        // An unmeasured attempt must stay cold, including source activation.
+        if !accounting.has_complete_usage() {
+            continue;
+        }
         let (typing, source_context) = match &source {
             SourceCandidate::Completed(source) => (&source.typing, &source.context),
-            SourceCandidate::Pending(source) => (&source.typing, &source.context),
+            SourceCandidate::Pending(source) => (&source.input.typing, &source.input.context),
         };
         let Some(previous) = typing.typed().symbols.source_map() else {
             continue;
@@ -213,10 +225,12 @@ pub(super) fn select_retained_source(
         std::cmp::Reverse((*count, matches!(source, SourceCandidate::Completed(_))))
     });
     for (count, source, sources) in candidates {
-        let (typing, pending_pre_checks) = match source {
-            SourceCandidate::Completed(source) => {
-                (source.typing.clone(), source.pending_pre_checks.clone())
-            }
+        let (typing, pending_pre_checks, mut accounting) = match source {
+            SourceCandidate::Completed(source) => (
+                source.typing.clone(),
+                source.pending_pre_checks.clone(),
+                source.accounting.clone(),
+            ),
             SourceCandidate::Pending(source) => source.clone().complete_selected(
                 Arc::clone(&sources),
                 context.bindings.clone(),
@@ -276,7 +290,10 @@ pub(super) fn select_retained_source(
             .map(|pending| pending.activate_sources(original.typed(), typing.typed()))
             .collect::<Result<_, _>>()?;
         phase_profile::count("source_activation.retained_sources", count as u64);
+        // These are inherited execution receipts, not fresh selected-work cost.
+        accounting.mark_reused();
         return Ok(Some(ActivatedSource {
+            accounting,
             typing,
             pre_checks,
             sources,

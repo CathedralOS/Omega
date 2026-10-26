@@ -10,18 +10,25 @@ use typed_trees::signature::SignatureContractKind;
 use typed_trees::signature::StateSignature;
 use typed_trees::types::TypeReferenceHandle;
 
+mod calls;
+pub use calls::{CallQualificationContract, CallQualificationSource, call_qualification_source};
+
 /// An admission obligation is not a body assumption or a direct-call guarantee.
 /// The subject retains the exact realization formal, or the normal result.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BoundaryQualificationObligation {
+    pub declaring_trait: SymbolHandle,
     pub requirement: SymbolHandle,
     pub realization_state: SymbolHandle,
     pub domain: SymbolHandle,
+    pub semantic_domain: language_semantics::SemanticDomainId,
     pub parameter: SymbolHandle,
 }
 
 /// Resolve the same applied requirement for named maps and attached edges.
-/// Only authorized membership conclusions enter this refutation-only roster;
-/// ordinary contract refinement continues to own all other obligations.
+/// Only authorized membership conclusions enter this subject roster. Consumers
+/// may refute completed predicates or form exact postcondition operands; these
+/// obligations grant no body assumption, ordinary-call guarantee or supply.
 pub fn boundary_provider_qualification_obligations(
     program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
@@ -91,9 +98,11 @@ pub fn boundary_provider_qualification_obligations(
                     parameter.symbol
                 };
                 obligations.push(BoundaryQualificationObligation {
+                    declaring_trait: definition.symbol,
                     requirement: requirement.symbol,
                     realization_state: state.symbol,
                     domain: membership.domain_symbol,
+                    semantic_domain: membership.semantic_domain,
                     parameter,
                 });
             }

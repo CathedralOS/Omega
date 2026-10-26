@@ -517,7 +517,16 @@ fn scalar_value_at_observation(
     ) {
         return None;
     }
-    proof.scalar_value_at_place(place)
+    let mut place = place.clone();
+    crate::flow::narrow_pinned_index_segments(
+        scope.program,
+        &scope.facts.semantic,
+        scope.caller_state_symbol,
+        scope.statement_index,
+        scope.contexts,
+        &mut place.segments,
+    );
+    proof.scalar_value_at_place(&place)
 }
 
 /// A stored observation retains its declaration's interpretation across the

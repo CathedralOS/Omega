@@ -7,9 +7,10 @@
 //! They agree only when they look through the same shells, so this module owns
 //! that rule rather than each consumer peeling its own:
 //!
-//! - A loan's access binds on the field, parameter or local that uses a type,
-//!   not on the type, so a reference shell is looked through to the storage it
-//!   lends, including a reference to a fixed byte array.
+//! - A loan's outer access binds on the parameter or operand that uses a
+//!   type. Executable storage erases that presentation once, retaining any
+//!   inner reference as pointer data. Logical source projection instead looks
+//!   through all root presentation shells and records actual loads separately.
 //! - A qualification restricts values without changing their storage and is
 //!   looked through unless its declaration owns a storage restriction. A
 //!   primitive interval or scalar predicate keeps its qualification so its
@@ -32,9 +33,9 @@ use symbols::SymbolHandle;
 use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-/// The type node whose identity a structural plan for `type_reference`
-/// registers under: the storage beneath its loan and qualification shells,
-/// as described in the module comment.
+/// The logical backing beneath all root loan presentation and qualification
+/// shells. Source paths use this geometry; executable signature/storage
+/// registration instead uses [`structural_storage_type`].
 pub fn structural_identity_type(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
@@ -87,10 +88,66 @@ pub fn structural_identity_type(
     reference
 }
 
-/// The identity a structural plan for `type_reference` registers under when
-/// the plan describes the storage a value lends or owns: the identity of
-/// [`structural_identity_type`] under the same binders and substitutions.
-pub fn structural_type_identity(
+/// The storage an executable occurrence lends. Its outer borrow is the
+/// parameter's access edge; a further reference is stored pointer data and
+/// keeps its own shape, access and referent. The logical source projection
+/// query above deliberately looks through that remaining presentation.
+/// Constraint and specialization normalization uses the common shell owner.
+pub fn structural_storage_type(
+    program: &dyn crate::CheckingInput,
+    type_reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> TypeReferenceHandle {
+    let Some(outer) = crate::value_custody::reference_shells::peel_carrier_shells(
+        program,
+        type_reference,
+        substitutions,
+    ) else {
+        return TypeReferenceHandle::invalid();
+    };
+    if let TypeReferenceNode::Reference { referee, .. } =
+        program.type_reference_table.type_reference(outer)
+    {
+        let Some(stored) = crate::value_custody::reference_shells::peel_carrier_shells(
+            program,
+            *referee,
+            substitutions,
+        ) else {
+            return TypeReferenceHandle::invalid();
+        };
+        if matches!(
+            program.type_reference_table.type_reference(stored),
+            TypeReferenceNode::Reference { .. }
+        ) {
+            // Validate only the finite reference chain, without expanding a
+            // nominal pointee. A cycle cannot acquire a physical identity.
+            let mut selected = stored;
+            let mut remaining = program.type_reference_table.type_reference_count();
+            while let TypeReferenceNode::Reference { referee, .. } =
+                program.type_reference_table.type_reference(selected)
+            {
+                let Some(next) = remaining.checked_sub(1) else {
+                    return TypeReferenceHandle::invalid();
+                };
+                remaining = next;
+                let Some(next) = crate::value_custody::reference_shells::peel_carrier_shells(
+                    program,
+                    *referee,
+                    substitutions,
+                ) else {
+                    return TypeReferenceHandle::invalid();
+                };
+                selected = next;
+            }
+            return stored;
+        }
+    }
+    structural_identity_type(program, type_reference, substitutions)
+}
+
+/// Source projections name the logical backing after all root presentation
+/// shells. This geometry identity grants no reference load or access.
+pub fn logical_structural_type_identity(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
@@ -104,6 +161,26 @@ pub fn structural_type_identity(
             type_reference,
             substitutions,
         ))
+    })
+}
+
+/// The identity a structural plan for `type_reference` registers under when
+/// the plan describes the storage a value lends or owns: the identity of
+/// [`structural_storage_type`] under the same binders and substitutions.
+pub fn structural_type_identity(
+    program: &dyn crate::CheckingInput,
+    type_reference: TypeReferenceHandle,
+    binders: &[(SymbolHandle, String)],
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> typed_trees::type_identity::TypeIdentityId {
+    let storage = structural_storage_type(program, type_reference, substitutions);
+    if !storage.is_valid() {
+        return Default::default();
+    }
+    program.storage_type_identity(TypeIdentityRequest {
+        binders,
+        substitutions,
+        ..TypeIdentityRequest::ordinary(storage)
     })
 }
 
@@ -132,6 +209,9 @@ pub fn stored_structural_type_identity(
     binders: &[(SymbolHandle, String)],
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> typed_trees::type_identity::TypeIdentityId {
+    if !structural_storage_type(program, type_reference, substitutions).is_valid() {
+        return Default::default();
+    }
     if stores_reference_shape(program, type_reference, substitutions)
         || slice_view_shell(program, type_reference, substitutions).is_some()
     {

@@ -56,6 +56,7 @@ use validation::{
     scoped_arithmetic_implication,
 };
 
+mod completions;
 mod components;
 mod demands;
 

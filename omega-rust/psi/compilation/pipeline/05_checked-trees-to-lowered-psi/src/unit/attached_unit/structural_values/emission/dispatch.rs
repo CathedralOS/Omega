@@ -14,13 +14,15 @@ impl Emission<'_, '_, '_> {
     pub(super) fn dispatch(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        value: checked_trees::CheckedStructuralValueHandle,
         expression: checked_trees::expression::ExpressionHandle,
         subject: checked_trees::CheckedDispatchSubject,
         arms: arena::HandleSpan<checked_trees::CheckedStructuralDispatchArm>,
         continuation: Option<&mut ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
         let completed_prefix = self.evaluation.completed_operand_scope.len();
-        let result = self.dispatch_value(identities, expression, subject, arms, continuation);
+        let result =
+            self.dispatch_value(identities, value, expression, subject, arms, continuation);
         self.evaluation
             .completed_operand_scope
             .truncate(completed_prefix);
@@ -30,6 +32,7 @@ impl Emission<'_, '_, '_> {
     fn dispatch_value(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        value: checked_trees::CheckedStructuralValueHandle,
         expression: checked_trees::expression::ExpressionHandle,
         subject: checked_trees::CheckedDispatchSubject,
         arms: arena::HandleSpan<checked_trees::CheckedStructuralDispatchArm>,
@@ -84,8 +87,11 @@ impl Emission<'_, '_, '_> {
         let continuation = if let Some(continuation) = continuation {
             continuation
         } else {
-            owned_continuation =
-                self.root_value_continuation(self.values[..source_count].to_vec())?;
+            owned_continuation = self.root_value_continuation(
+                identities,
+                value,
+                self.values[..source_count].to_vec(),
+            )?;
             owned_continuation.claim_destinations =
                 crate::emission::claim_bindings::selections::reserve(
                     self.checked,
@@ -152,29 +158,8 @@ impl Emission<'_, '_, '_> {
                 }
             }
             self.values.truncate(source_count);
-            // Constructor births and moved claims belong to this predecessor,
-            // not to the destination names bound at the common continuation.
-            let arm_claims = self
-                .checked
-                .facts
-                .flow
-                .ownership
-                .owned_selection_at(self.state, self.statement)
-                .map(|(_, receipt)| {
-                    crate::emission::claim_bindings::prepare_selection_arm_claims(
-                        identities,
-                        self.checked,
-                        receipt,
-                        arm.source_arm,
-                        self.structural_type,
-                        self.environment.structural_types,
-                    )
-                })
-                .transpose()?;
-            let previous = arm_claims
-                .filter(|claims| !claims.is_empty())
-                .map(|prepared| self.install_establishment_claims(&prepared))
-                .transpose()?;
+            // Births are attached to exact completed constructor nodes by
+            // complete_construction; this route only chooses storage aliases.
             if position + 1 < arms.len() {
                 self.selection_route.push(
                     crate::emission::claim_bindings::selections::SelectedDecision {
@@ -195,11 +180,8 @@ impl Emission<'_, '_, '_> {
                     },
                 );
             }
-            if let Some(enclosing) = previous {
-                self.restore_establishment_claims(enclosing);
-            }
             emitted?;
-            self.restore_fallback(fallback);
+            self.restore_fallback(fallback)?;
         }
         self.selection_route.truncate(route_prefix);
         if is_root {

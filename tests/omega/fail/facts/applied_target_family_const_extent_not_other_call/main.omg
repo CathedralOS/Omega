@@ -1,0 +1,29 @@
+// Another application of the same family cannot donate its static extent.
+use omega::language::core::slice;
+
+linux_x86_64 machine view<T, const Count: u64>(items: &[T]) -> &[T]
+requires items.len == Count
+ensures result.len == Count
+{ items }
+linux_arm64 machine view<T, const Count: u64>(items: &[T]) -> &[T]
+requires items.len == Count
+ensures result.len == Count
+{ items }
+macos_arm64 machine view<T, const Count: u64>(items: &[T]) -> &[T]
+requires items.len == Count
+ensures result.len == Count
+{ items }
+windows_x86_64 machine view<T, const Count: u64>(items: &[T]) -> &[T]
+requires items.len == Count
+ensures result.len == Count
+{ items }
+
+machine require_four(items: &[u8]) -> u64
+requires items.len == 4
+{ 4 }
+machine main() {
+    let three: [u8; 3] = [1, 2, 3];
+    let four: [u8; 4] = [1, 2, 3, 4];
+    let accepted: u64 = require_four(view<u8, 4>(&four[..]));
+    let rejected: u64 = require_four(view<u8, 3>(&three[..]));
+}

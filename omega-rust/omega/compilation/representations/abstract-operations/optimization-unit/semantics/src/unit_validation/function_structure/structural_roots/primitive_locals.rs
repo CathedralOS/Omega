@@ -34,8 +34,8 @@ pub(super) fn validate(
     };
     let local_matches = |result: &StructuralOperationResult, scalar_type| {
         result.multiplicity == StructuralMultiplicity::Unrestricted
-            && result.qualifications.is_empty()
             && result.projected_qualifications.is_empty()
+            && result.qualification_establishments.is_empty()
             && result.claims.is_empty()
             && claim_free(result.place)
             && primitive(result.structural_type, scalar_type)
@@ -72,6 +72,7 @@ pub(super) fn validate(
             // valid initialization cannot authorize a later restricted write;
             // those writes must carry the common store's exact range evidence.
             local_matches(result, value.scalar_type)
+                && result.qualifications.is_empty()
                 && types
                     .get(&result.structural_type)
                     .is_some_and(|declaration| declaration.scalar_restriction.is_none())

@@ -174,6 +174,20 @@ impl StructuralTypeDeclaration {
 }
 
 impl StructuralTypeShape {
+    /// A canonical view carries access on its occurrence. A stored view keeps
+    /// Some(access) on its descriptor instead. This storage-role query grants
+    /// neither live backing permission nor ownership of the viewed storage.
+    pub fn is_canonical_view_descriptor(&self) -> bool {
+        matches!(
+            self,
+            StructuralTypeShape::ElementView { access: None, .. }
+                | StructuralTypeShape::ByteSequence(
+                    ByteSequenceCarrier::BorrowedView { access: None }
+                        | ByteSequenceCarrier::BoundedView { access: None, .. }
+                )
+        )
+    }
+
     /// Whether this shape composes other structural types by value: record,
     /// fixed array, sum, or mixed interiors.
     pub fn is_composite_shape(&self) -> bool {

@@ -159,13 +159,28 @@ impl CompilationSession {
         invocation: super::checking::PreparedPackageInvocation,
         returned: Option<build_evaluation::ReturnedBuild>,
     ) -> Result<PreparedPackageBuild, CompileFailure> {
-        // Dependencies may have completed while this Build was suspended.
-        // Product preparation consumes their current judgments and coordinates.
+        let settled = self.settle_build(invocation, returned)?;
+        let target = settled.target;
+        let inputs = settled.inputs.clone();
+        self.prepare_settled_product(settled, target, inputs)
+    }
+
+    pub(super) fn prepare_settled_product(
+        &mut self,
+        settled: compilation_products::SettledPackageBuild,
+        target: target::TargetProfile,
+        inputs: PackageCompilationInputs,
+    ) -> Result<PreparedPackageBuild, CompileFailure> {
+        // Dependencies may have joined while Build was suspended. Product
+        // preparation reads the session's current judgments and coordinates.
         let reuse = self.reuse();
-        let prepared = invocation.complete(returned, &reuse, &mut self.source_catalogue)?;
-        if let Some(check) = prepared.retained_build_check() {
-            retain_judgment(&mut self.checks.sibling_build_checks, check);
-        }
+        let prepared = super::checking::prepare_settled_package_product(
+            settled,
+            target,
+            inputs,
+            &reuse,
+            &mut self.source_catalogue,
+        )?;
         let source = prepared.source_continuation();
         if !self
             .pending_sources
@@ -175,6 +190,18 @@ impl CompilationSession {
             self.pending_sources.push(source.clone());
         }
         Ok(prepared)
+    }
+
+    pub(super) fn settle_build(
+        &mut self,
+        invocation: super::checking::PreparedPackageInvocation,
+        returned: Option<build_evaluation::ReturnedBuild>,
+    ) -> Result<compilation_products::SettledPackageBuild, CompileFailure> {
+        let settled = invocation.settle(returned)?;
+        if let Some(check) = &settled.source.evaluated.retained_check {
+            retain_judgment(&mut self.checks.sibling_build_checks, check);
+        }
+        Ok(settled)
     }
 
     fn prepare_source(

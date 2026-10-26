@@ -126,7 +126,8 @@ pub(super) fn build(
             operations.push(operation);
             Some(CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result })
         };
-    let terminator = if let Some(terminator) = closed_sum::build(
+    let before_closed_sum = trace.mark();
+    let closed_sum = closed_sum::build(
         program,
         facts,
         shapes,
@@ -139,7 +140,13 @@ pub(super) fn build(
         operations,
         terminator_index,
         trace,
-    ) {
+    );
+    // A case route that entered a specific obligation retains its refusal if
+    // every later route also fails. An inapplicable case route leaves the mark
+    // unchanged and must not hide the ordinary tail's own diagnostic.
+    let closed_sum_failure =
+        (closed_sum.is_none() && trace.mark() != before_closed_sum).then(|| trace.mark());
+    let terminator = if let Some(terminator) = closed_sum {
         terminator
     } else if let checked_trees::CheckedControlResultPlan::Scalar { primitive_type } = result
         && let Some(completion) = returns::scalar_completion(
@@ -728,6 +735,9 @@ pub(super) fn build(
                     }
                     _ => "state graph: terminator: unsupported tail: other statement tail",
                 });
+                if let Some(mark) = closed_sum_failure {
+                    trace.restore(&mark);
+                }
                 return None;
             }
         }

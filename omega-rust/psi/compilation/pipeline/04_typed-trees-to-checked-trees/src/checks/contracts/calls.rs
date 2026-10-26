@@ -29,6 +29,14 @@ use crate::labels::{
     symbol_name,
 };
 
+/// Whole-contract answers may depend on a completed alternative's exact
+/// contexts. Share repeated questions only within that same captured premise
+/// roster; never reuse one arm's positive result to qualify another arm.
+struct WholeContractCache {
+    contexts: Vec<facts::FactContextHandle>,
+    answers: Vec<(arena::Handle<checked_trees::ContractProofFact>, bool)>,
+}
+
 pub(super) fn check_call_requires(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
@@ -75,142 +83,159 @@ pub(super) fn check_call_requires(
         nominal_requirements,
         diagnostics,
     );
-    let mut whole_contract_cache = Vec::new();
+    let mut whole_contract_caches = Vec::<WholeContractCache>::new();
     for requires_context in facts
         .flow
         .semantic_constraint_contexts(call_flow.requires_constraints)
     {
         let context = facts.semantic.contexts.get(requires_context);
         for fact in facts.semantic.context_view(context).facts() {
-            let membership = super::call_values::membership_evidence(
-                program, facts, state_flow, call_flow, fact,
-            );
-            let requirement_contexts = membership
-                .as_ref()
-                .map_or(entry_contexts.as_slice(), |evidence| {
-                    evidence.contexts.as_slice()
-                });
-            let captured_judgment = captured_boolean::judgment(
-                program,
-                facts,
-                state_flow,
-                call_flow,
-                requirement_contexts,
-                fact,
-                expression_intervals,
-                call_frames,
-                &mut whole_contract_cache,
-            );
-            let satisfied =
-                selected_evidence_proves_requirement(facts, state_flow, call_flow, fact)
-                    || captured_judgment.unwrap_or_else(|| match fact.payload {
-                        FactPayload::ContractBooleanExpression { expression, .. } => {
-                            boolean_requirements::proves(
-                                program,
-                                facts,
-                                state_flow,
-                                call_flow,
-                                requirement_contexts,
-                                expression,
-                                incoming_guards,
-                                call_frames,
-                            )
-                        }
-                        _ => {
-                            semantic_contexts_prove_contract_fact(
-                                program,
-                                facts,
-                                facts::ProgramPoint::Statement {
-                                    machine_symbol: state_flow.machine_symbol,
-                                    state_symbol: state_flow.state_symbol,
-                                    statement_index: call_flow.statement_index,
-                                },
-                                requirement_contexts,
-                                fact,
-                            ) || transparent_requirement_proves(
-                                program, facts, state_flow, call_flow, fact,
-                            )
-                        }
+            let membership = {
+                super::call_values::membership_evidence(program, facts, state_flow, call_flow, fact)
+            };
+            let mut proves_case = |case: Option<&super::call_values::MembershipCase>| {
+                let requirement_contexts =
+                    case.map_or(entry_contexts.as_slice(), |case| case.contexts.as_slice());
+                let cache_index = whole_contract_caches
+                    .iter()
+                    .position(|cache| cache.contexts.as_slice() == requirement_contexts)
+                    .unwrap_or_else(|| {
+                        whole_contract_caches.push(WholeContractCache {
+                            contexts: requirement_contexts.to_vec(),
+                            answers: Vec::new(),
+                        });
+                        whole_contract_caches.len() - 1
                     });
-            // ch8 construction-grant: a string literal whose compile-time bytes
-            // satisfy a domain's declared byte-predicate fact grants that
-            // domain without a validating boundary call -- this is how a literal
-            // flows into a `&[u8] in Utf8` target.
-            // Complete applied theories can discharge every predicate using
-            // the exact captured actual. The older symbol-only shortcuts
-            // below still cannot collapse an indexed family to its symbol.
-            let satisfied = satisfied
-                || (captured_judgment.is_none()
-                    && proven_predicates_grant_domain(
+                let captured_judgment = {
+                    captured_boolean::judgment(
                         program,
                         facts,
                         state_flow,
                         call_flow,
                         requirement_contexts,
                         fact,
+                        expression_intervals,
                         call_frames,
-                    ));
-            let satisfied = satisfied
-                || (captured_judgment.is_none()
-                    && !super::prover::indexed_membership(program, fact.payload)
-                    && (transition_guard_proves_requires(
-                        program,
-                        facts,
-                        state_flow,
-                        call_flow,
-                        fact,
-                        call_frames,
-                    ) || string_literal_grants_domain(
-                        program,
-                        &facts.semantic,
-                        fact.payload,
-                        fact.place,
-                    ) || value_call_return_domain_grants(
-                        program,
-                        &facts.semantic,
-                        fact.payload,
-                        fact.place,
-                    ) || subslice_grants_domain(
-                        program,
-                        facts,
-                        requirement_contexts,
-                        fact.payload,
-                        fact.place,
-                    ) || parameter_domain_grants(
-                        program,
-                        facts,
-                        state_flow,
-                        fact.payload,
-                        fact.place,
-                    ) || super::reference_domains::proves(
-                        program,
-                        facts,
-                        state_flow,
-                        call_flow,
-                        requirement_contexts,
-                        fact,
-                        membership
-                            .as_ref()
-                            .and_then(|evidence| evidence.referents.as_deref()),
-                        call_frames,
-                    )));
+                        &mut whole_contract_caches[cache_index].answers,
+                    )
+                };
+                let satisfied =
+                    selected_evidence_proves_requirement(facts, state_flow, call_flow, fact)
+                        || captured_judgment.unwrap_or_else(|| match fact.payload {
+                            FactPayload::ContractBooleanExpression { expression, .. } => {
+                                boolean_requirements::proves(
+                                    program,
+                                    facts,
+                                    state_flow,
+                                    call_flow,
+                                    requirement_contexts,
+                                    expression,
+                                    incoming_guards,
+                                    call_frames,
+                                )
+                            }
+                            _ => {
+                                semantic_contexts_prove_contract_fact(
+                                    program,
+                                    facts,
+                                    facts::ProgramPoint::Statement {
+                                        machine_symbol: state_flow.machine_symbol,
+                                        state_symbol: state_flow.state_symbol,
+                                        statement_index: call_flow.statement_index,
+                                    },
+                                    requirement_contexts,
+                                    fact,
+                                ) || transparent_requirement_proves(
+                                    program, facts, state_flow, call_flow, fact,
+                                )
+                            }
+                        });
+                // ch8 construction-grant: a string literal whose compile-time bytes
+                // satisfy a domain's declared byte-predicate fact grants that
+                // domain without a validating boundary call -- this is how a literal
+                // flows into a `&[u8] in Utf8` target.
+                let satisfied = satisfied
+                    || (captured_judgment.is_none()
+                        && proven_predicates_grant_domain(
+                            program,
+                            facts,
+                            state_flow,
+                            call_flow,
+                            requirement_contexts,
+                            fact,
+                            call_frames,
+                        ));
+                let satisfied = satisfied || {
+                    captured_judgment.is_none()
+                        && !super::prover::indexed_membership(program, fact.payload)
+                        && (transition_guard_proves_requires(
+                            program,
+                            facts,
+                            state_flow,
+                            call_flow,
+                            fact,
+                            call_frames,
+                        ) || string_literal_grants_domain(
+                            program,
+                            &facts.semantic,
+                            fact.payload,
+                            fact.place,
+                        ) || value_call_return_domain_grants(
+                            program,
+                            &facts.semantic,
+                            fact.payload,
+                            fact.place,
+                        ) || subslice_grants_domain(
+                            program,
+                            facts,
+                            requirement_contexts,
+                            fact.payload,
+                            fact.place,
+                        ) || parameter_domain_grants(
+                            program,
+                            facts,
+                            state_flow,
+                            fact.payload,
+                            fact.place,
+                        ) || super::reference_domains::proves(
+                            program,
+                            facts,
+                            state_flow,
+                            call_flow,
+                            requirement_contexts,
+                            fact,
+                            case.and_then(|case| case.referents.as_deref()),
+                            call_frames,
+                        ))
+                };
 
-            let satisfied = satisfied
-                || crate::checks::termination::profile_requirement_covered(
-                    program,
-                    facts,
-                    state_flow,
-                    call_flow,
-                    fact,
-                    call_frames,
-                );
-            let satisfied = satisfied
-                && super::prover::contract_membership_place_is_accessible(
-                    program,
-                    &facts.semantic,
-                    requirement_contexts,
-                    fact,
-                );
+                let satisfied = satisfied
+                    || crate::checks::termination::profile_requirement_covered(
+                        program,
+                        facts,
+                        state_flow,
+                        call_flow,
+                        fact,
+                        call_frames,
+                    );
+                satisfied
+                    && super::prover::contract_membership_place_is_accessible(
+                        program,
+                        &facts.semantic,
+                        requirement_contexts,
+                        fact,
+                    )
+            };
+            // Every possible completed actual must establish the requirement
+            // independently. Combining arm facts would invent a value that no
+            // execution captured; one successful arm cannot qualify the join.
+            let satisfied = match membership.as_ref() {
+                None => proves_case(None),
+                Some(evidence) => {
+                    !evidence.cases.is_empty()
+                        && evidence.cases.iter().all(|case| proves_case(Some(case)))
+                }
+            };
             // Preserve the successful judgment at the captured operand, not
             // on its source home or every later use of the same expression.
             // Terminal publication consumes this ordinary value-formation row;

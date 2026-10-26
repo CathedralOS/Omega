@@ -598,7 +598,7 @@ fn coordinate_value(
     program: &dyn crate::CheckingInput,
     state: &State,
     coordinate: &RankSubjectCoordinate,
-    bindings: &[super::super::super::StrictArithmeticSymbolBinding],
+    bindings: &[crate::StrictArithmeticSymbolBinding],
     lengths: &[(symbols::SymbolHandle, String)],
     engine: &mut Engine<'_>,
 ) -> Option<Polynomial> {
@@ -608,10 +608,10 @@ fn coordinate_value(
                 .iter()
                 .find(|binding| binding.symbol == coordinate.parameter)?;
             match &binding.value {
-                super::super::super::StrictArithmeticBindingValue::Atom { identity, .. } => {
+                crate::StrictArithmeticBindingValue::Atom { identity, .. } => {
                     Some(Polynomial::atom(identity.clone()))
                 }
-                super::super::super::StrictArithmeticBindingValue::Integer(value) => {
+                crate::StrictArithmeticBindingValue::Integer(value) => {
                     Some(Polynomial::constant(value.clone()))
                 }
             }

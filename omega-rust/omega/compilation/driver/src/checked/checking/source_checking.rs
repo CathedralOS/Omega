@@ -18,17 +18,19 @@ pub(crate) fn check_product_source(
 ) -> Result<CheckedProductSource, Vec<Diagnostic>> {
     let PreparedProductSource {
         source,
+        source_completion_accounting,
         mut computed_build_config,
         admission,
         build_sources,
         mut timings,
         retained_build_check,
     } = source;
+    source_completion_accounting
+        .validate_charges()
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let program = source.into_check_input();
     let typed = program.typed();
-    // Build records lexical Product choices before that source is typed. Resolve
-    // them against the completed Product owner carried into this check, never
-    // the invocation-private Build program or an extracted unpaired typed tree.
+    // Resolve Build choices against the completed Product origin.
     let bindings = provider_planning::program_entry::collect_root_bindings(
         typed,
         &computed_build_config.root_binding_requests,
@@ -131,6 +133,7 @@ pub(crate) fn check_product_source(
     let accepted_template_classifications =
         trust_model::AcceptedTemplateClassifications::capture(&program);
     Ok(CheckedProductSource {
+        source_completion_accounting,
         program,
         provider_defaults: provider_defaults.into(),
         computed_build_config,

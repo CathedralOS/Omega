@@ -253,6 +253,7 @@ impl OperationFrame<'_, '_> {
             &earlier,
             inputs.byte_places,
             inputs.evaluated_selectors,
+            inputs.completed_structural_arguments,
         )?;
         let prepared = crate::emission::claim_bindings::prepare_claim_transfers(
             identities,
@@ -274,6 +275,7 @@ impl OperationFrame<'_, '_> {
             structural_arguments,
             &prepared,
             self.calls,
+            &mut self.evaluation.current_claims,
         )
     }
 }

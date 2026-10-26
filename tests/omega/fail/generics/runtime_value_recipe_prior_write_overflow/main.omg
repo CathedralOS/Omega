@@ -1,0 +1,2 @@
+data Index<Limit:u32> [copy] { value:u32; }
+machine main() { let mut limit:u32=8; limit=4294967295; let indexed:Index<(limit+1u32)> = Index{value:8}; }

@@ -18,62 +18,35 @@ pub(super) struct LiveMembership {
     evidence: QualificationEvidence,
 }
 
-// A join queries the same batch for every incoming fact. Sort scratch positions
-// by exact place identity once, retaining original publication order. Equality
-// below still includes the selected domain instance and establishment evidence.
-fn membership_positions(memberships: &[LiveMembership]) -> Vec<usize> {
-    let mut positions: Vec<_> = (0..memberships.len()).collect();
-    positions.sort_unstable_by(|left, right| {
-        memberships[*left]
-            .place
-            .compare_identity(&memberships[*right].place)
-            .then_with(|| left.cmp(right))
-    });
-    positions
-}
-
-fn matching_positions<'positions>(
-    memberships: &[LiveMembership],
-    positions: &'positions [usize],
-    required: &LiveMembership,
-) -> &'positions [usize] {
-    let start = positions.partition_point(|position| {
-        memberships[*position]
-            .place
-            .compare_identity(&required.place)
-            .is_lt()
-    });
-    let end = positions.partition_point(|position| {
-        !memberships[*position]
-            .place
-            .compare_identity(&required.place)
-            .is_gt()
-    });
-    &positions[start..end]
+// Compute each structural path key once per batch. A bucket is only a
+// candidate set: full membership equality below still checks root/path,
+// domain instance and qualification evidence, including on hash collisions.
+fn membership_buckets(memberships: &[LiveMembership]) -> facts::places::PlaceBucketIndex {
+    facts::places::PlaceBucketIndex::new(memberships.iter().map(|membership| {
+        facts::places::place_bucket_hash(membership.place.root, &membership.place.segments)
+    }))
 }
 
 fn deduplicate(memberships: &mut Vec<LiveMembership>) {
-    let positions = membership_positions(memberships);
-    let retained: Vec<_> = memberships
-        .iter()
-        .enumerate()
-        .map(|(position, membership)| {
-            !matching_positions(memberships, &positions, membership)
-                .iter()
-                .take_while(|previous| **previous < position)
-                .any(|previous| memberships[*previous] == *membership)
-        })
-        .collect();
-    let mut retained = retained.into_iter();
-    memberships.retain(|_| retained.next().unwrap_or(false));
+    let buckets = membership_buckets(memberships);
+    let first =
+        buckets.group_equal_positions(|left, right| memberships[left] == memberships[right]);
+    let mut position = 0;
+    memberships.retain(|_| {
+        let retained = first[position] == position;
+        position += 1;
+        retained
+    });
 }
 
 pub(super) fn retain_common(memberships: &mut Vec<LiveMembership>, incoming: &[LiveMembership]) {
-    let positions = membership_positions(incoming);
+    let buckets = membership_buckets(incoming);
     memberships.retain(|membership| {
-        matching_positions(incoming, &positions, membership)
-            .iter()
-            .any(|position| incoming[*position] == *membership)
+        let key =
+            facts::places::place_bucket_hash(membership.place.root, &membership.place.segments);
+        buckets
+            .candidates(key)
+            .any(|position| incoming[position] == *membership)
     });
 }
 
@@ -115,16 +88,18 @@ impl Execution<'_, '_, '_> {
         constraints: &mut HandleSpan<FlowConstraintRef>,
     ) {
         let retained = self.live_memberships(*contexts);
-        let retained_positions = membership_positions(&retained);
+        let retained_buckets = membership_buckets(&retained);
         let point = ProgramPoint::Statement {
             machine_symbol: self.machine.symbol,
             state_symbol: self.state.symbol,
             statement_index: self.statement_index,
         };
         for membership in memberships {
-            if matching_positions(&retained, &retained_positions, &membership)
-                .iter()
-                .any(|position| retained[*position] == membership)
+            let key =
+                facts::places::place_bucket_hash(membership.place.root, &membership.place.segments);
+            if retained_buckets
+                .candidates(key)
+                .any(|position| retained[position] == membership)
             {
                 continue;
             }

@@ -1,7 +1,7 @@
 // Two invocation-local instances of Counter<T>: Counter<i32> records a score
 // and Counter<bool> latches a flag. Static machines take explicit borrowed
 // counters; each instance retains its own value and write count. Only the
-// observed scalars and Console context pass to the selected final state.
+// observed scalars pass to an independent nested final machine.
 //
 //   score: record(30), record(12) -> current 12 (record REPLACES), times 2
 //   flag:  record(true)           -> current true, times 1
@@ -13,41 +13,33 @@ data Counter<T> {
     value: T;
     times: i32 in Wrapping;
 }
-machine Counter::record<T>(counter: &mut Counter<T>, value: T) {
+machine record_counter<T>(counter: &mut Counter<T>, value: T) {
     counter.value = value;
     counter.times = counter.times + 1;
 }
-machine Counter::current<T [copy]>(counter: &Counter<T>) -> T {
+machine current_counter<T [copy]>(counter: &Counter<T>) -> T {
     transition { _ -> (counter.value) }
 }
-machine Counter::count<T>(counter: &Counter<T>) -> i32 in Wrapping {
+machine counter_count<T>(counter: &Counter<T>) -> i32 in Wrapping {
     transition { _ -> (counter.times) }
 }
-data Main {
-}
-machine Main::main(main: &mut Main) reaches Console {
+machine entry_start() reaches Console {
     let mut score: Counter<i32>;
     let mut flag: Counter<bool>;
-    Counter::record(&mut score, 30);
-    Counter::record(&mut score, 12);
-    Counter::record(&mut flag, true);
-    let total: i32 = Counter::current(&score);
-    let times_score: i32 in Wrapping = Counter::count(&score);
-    let times_flag: i32 in Wrapping = Counter::count(&flag);
-    let latched: bool = Counter::current(&flag);
+    record_counter(&mut score, 30);
+    record_counter(&mut score, 12);
+    record_counter(&mut flag, true);
+    let total: i32 = current_counter(&score);
+    let times_score: i32 in Wrapping = counter_count(&score);
+    let times_flag: i32 in Wrapping = counter_count(&flag);
+    let latched: bool = current_counter(&flag);
     transition latched {
-        true -> tally(main, total, times_score, times_flag)
-        false -> wrong(main)
+        true -> tally(total, times_score, times_flag)
+        false -> wrong()
     }
-    state tally(main: &mut Main, total: i32, times_score: i32 in Wrapping, times_flag: i32 in Wrapping) {
+    machine tally(total: i32, times_score: i32 in Wrapping, times_flag: i32 in Wrapping) reaches Console {
         let code: i32 in Wrapping = (total as i32 in Wrapping) + times_score + 1 + times_flag;
         Console::exit_process(code as i32);
     }
-    state wrong(main: &mut Main) { Console::exit_process(3); }
-}
-
-// The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
-    let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    machine wrong() reaches Console { Console::exit_process(3); }
 }

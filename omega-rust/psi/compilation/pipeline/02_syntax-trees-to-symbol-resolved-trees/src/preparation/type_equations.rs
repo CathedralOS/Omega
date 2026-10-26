@@ -118,15 +118,15 @@ impl TypeEquation {
     }
 }
 
-/// Type-reference operands have no runtime expression representation. Syntax
-/// retains their equations for every specialization; lowering excludes only
-/// these obligations, recognized by the same classifier that synthesis solves.
-/// Existing name/range expression facts keep their current lowering, including
-/// provisional resolution used to evaluate range endpoints before synthesis.
+/// Static type equations remain specialization obligations, rather than value
+/// operators on a template's type binders. Named operands require the same
+/// selected, complete type identity that synthesis consumes. Range expressions
+/// still retain provisional resolution for their value-position endpoints.
 /// Closed instances must already have discharged equations and take no exemption.
 pub(crate) fn template_type_equation_offsets(
     syntax: &SyntaxTrees,
     definition: &syntax_trees::item::DataDefinition,
+    selection: Option<&declaration_selection::ConstantSelection>,
 ) -> Result<Vec<usize>, Diagnostic> {
     if definition.type_parameters.is_empty() {
         return Ok(Vec::new());
@@ -142,7 +142,26 @@ pub(crate) fn template_type_equation_offsets(
                 structure: Structure::TypeReference(_) | Structure::TypeOperand(_),
                 ..
             } => offsets.push(equation.fact_offset),
-            EquationShape::Structural { .. } => {}
+            EquationShape::Structural {
+                structure: Structure::Name { name, binder },
+                span,
+                ..
+            } => {
+                if binder.is_none() {
+                    validate_closed_name_type(syntax, selection, &name).map_err(|reason| {
+                        Diagnostic::error(format!(
+                            "generic data `{}` {reason}",
+                            definition.name.as_str(syntax),
+                        ))
+                        .with_source_span(span)
+                    })?;
+                }
+                offsets.push(equation.fact_offset);
+            }
+            EquationShape::Structural {
+                structure: Structure::RangeShell { .. },
+                ..
+            } => {}
             EquationShape::KindMismatch { span, description } => {
                 return Err(Diagnostic::error(format!(
                     "generic data `{}` where equation mixes type and value kinds: {description}",
@@ -153,6 +172,41 @@ pub(crate) fn template_type_equation_offsets(
         }
     }
     Ok(offsets)
+}
+
+/// Both template admission and specialization use the selected declaration's
+/// complete type role. A known generic head still owes its argument tuple.
+fn validate_closed_name_type(
+    syntax: &SyntaxTrees,
+    selection: Option<&declaration_selection::ConstantSelection>,
+    name: &Identifier,
+) -> Result<(), String> {
+    let Some(identity) = closed_name_identity(syntax, selection, name) else {
+        return Err(format!(
+            "where type equation operand `{}` does not name a closed type",
+            name.as_str(syntax),
+        ));
+    };
+    let complete = match identity {
+        ClosedArgumentIdentity::Builtin(_) => true,
+        ClosedArgumentIdentity::Nominal(declaration) => {
+            syntax.root_item(declaration).as_data().is_some_and(|data| {
+                data.type_parameters.is_empty() && data.lifetime_parameters.is_empty()
+            })
+        }
+        ClosedArgumentIdentity::RetainedNominal(selected) => selection
+            .and_then(|selection| selection.retained_data_header(selected))
+            .is_some_and(|data| {
+                data.type_parameters.is_empty() && data.lifetime_parameters.is_empty()
+            }),
+        _ => false,
+    };
+    if !complete {
+        return Err(
+            "where type equation requires a complete constructor argument tuple".to_owned(),
+        );
+    }
+    Ok(())
 }
 
 /// Synthesis may defer containers it cannot specialize (for example, an
@@ -178,7 +232,7 @@ pub(crate) fn validate_materialized_type_equations(
     let Some(definition) = syntax.root_item(declaration).as_data() else {
         return Ok(());
     };
-    if !template_type_equation_offsets(syntax, definition)?.is_empty() {
+    if !template_type_equation_offsets(syntax, definition, selection)?.is_empty() {
         return Err(Diagnostic::error(format!(
             "generic data `{}` retains unsolved type equations; its application requires closed instance specialization",
             definition.name.as_str(syntax),
@@ -1107,41 +1161,8 @@ impl<'a, 's> Solver<'a, 's> {
         name: &Identifier,
         span: SourceSpan,
     ) -> Result<(), Diagnostic> {
-        let Some(identity) = closed_name_identity(self.syntax, self.selection, name) else {
-            return Err(self
-                .reject(format!(
-                    "where type equation operand `{}` does not name a closed type",
-                    name.as_str(self.syntax),
-                ))
-                .with_source_span(span));
-        };
-        // Declaration selection is not argument formation. A bare generic head
-        // cannot become a closed argument merely because its owner is known.
-        let complete = match identity {
-            ClosedArgumentIdentity::Builtin(_) => true,
-            ClosedArgumentIdentity::Nominal(declaration) => self
-                .syntax
-                .root_item(declaration)
-                .as_data()
-                .is_some_and(|data| {
-                    data.type_parameters.is_empty() && data.lifetime_parameters.is_empty()
-                }),
-            ClosedArgumentIdentity::RetainedNominal(selected) => self
-                .selection
-                .and_then(|selection| selection.retained_data_header(selected))
-                .is_some_and(|data| {
-                    data.type_parameters.is_empty() && data.lifetime_parameters.is_empty()
-                }),
-            _ => false,
-        };
-        if !complete {
-            return Err(self
-                .reject(
-                    "where type equation requires a complete constructor argument tuple".to_owned(),
-                )
-                .with_source_span(span));
-        }
-        Ok(())
+        validate_closed_name_type(self.syntax, self.selection, name)
+            .map_err(|reason| self.reject(reason).with_source_span(span))
     }
 
     /// The binder side is unbound: a closed name, an already bound type

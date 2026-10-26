@@ -1,3 +1,4 @@
+use crate::expressions::proposition::is_proposition_call_target;
 use crate::lowerer::Lowerer;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
@@ -9,12 +10,7 @@ pub(super) fn lower_call_statement(
     lowerer: &mut Lowerer,
     call: &resolved::statement::TableCall,
 ) -> Result<typed::statement::TableCall, Diagnostic> {
-    if call.target_symbol.is_valid()
-        && matches!(
-            lowerer.source_trees.symbols.get(call.target_symbol).kind,
-            symbols::SymbolKind::Proposition | symbols::SymbolKind::PropositionParameter
-        )
-    {
+    if is_proposition_call_target(&lowerer.source_trees.symbols, call.target_symbol) {
         return Err(Diagnostic::error(
             "a proposition application is proof-only and cannot appear as an executable call statement",
         ));

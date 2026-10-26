@@ -257,6 +257,28 @@ impl<'program> CallFrameResolver<'program> {
         .is_some()
     }
 
+    /// Exact logical contract. This does not authenticate normal completion or
+    /// lend authority; the consumer must join its performed-call resource row.
+    pub fn reference_slot_contract<'query>(
+        &'query self,
+        machine: &'query Machine,
+        state: &'query State,
+        statement_index: usize,
+        call_ordinal: usize,
+        target: SymbolHandle,
+        expression: ExpressionHandle,
+    ) -> Option<super::ReferenceSlotContract<'query>> {
+        super::stored_calls::invocation_contract(
+            self.program,
+            machine,
+            state,
+            statement_index,
+            call_ordinal,
+            target,
+            expression,
+        )
+    }
+
     /// Body-derived normal-exit slot relation in the selected state's formal
     /// namespace. This is also required for a stored-output body with no callers.
     pub fn state_stored_reference_effects(
@@ -272,6 +294,31 @@ impl<'program> CallFrameResolver<'program> {
             &mut FrameInference::default(),
         )
         .and_then(super::stored_calls::public_effects)
+    }
+
+    /// The same formal relation under fixed scalar values proved by completed
+    /// caller operands. These invocation rows never enter the state-only memo.
+    /// Unknown values retain the ordinary full possible-slot relation.
+    pub fn state_stored_reference_effects_for_indices(
+        &self,
+        machine: &Machine,
+        state: &State,
+        indices: &[Option<usize>],
+    ) -> Option<Vec<super::StoredReferenceEffect>> {
+        if self.program.state_parameters(state).len() != indices.len() {
+            return None;
+        }
+        let mut inference = FrameInference::default();
+        inference.with_invocation(self.program, state, &[], indices, |inference| {
+            super::stored_calls::state_effects(
+                self.program,
+                machine,
+                state,
+                &self.tables.symbols,
+                inference,
+            )
+            .and_then(super::stored_calls::public_effects)
+        })
     }
 
     /// Closed dispatch joins the checked slot-output relation of every possible
@@ -305,7 +352,144 @@ impl<'program> CallFrameResolver<'program> {
         {
             return Some(Vec::new());
         }
-        let (_, _, _, transfer) = self.statement_reference_transfer(machine, statement)?;
+        let (_, _, _, transfers) = self.statement_reference_transfer(machine, statement)?;
+        let transfer = transfers.all_routes();
+        if !transfer.is_complete() {
+            return None;
+        }
+        super::stored_calls::public_effects(transfer.effects)
+    }
+
+    /// Reference generations retained by the lexical successor. Calls in a
+    /// departing transition arm keep their own invocation/edge custody; they
+    /// cannot replace the descriptor roster on the guard's fallthrough route.
+    pub fn stored_reference_fallthrough_effects(
+        &self,
+        machine: &Machine,
+        statement: &StatementNode,
+    ) -> Option<Vec<super::StoredReferenceEffect>> {
+        if statement.as_call().is_none()
+            && !statement_value_expression_roots(self.program, statement)
+                .iter()
+                .any(|expression| expression_has_calls(self.program, *expression))
+        {
+            return Some(Vec::new());
+        }
+        let (_, _, _, transfers) = self.statement_reference_transfer(machine, statement)?;
+        let transfer = transfers.fallthrough();
+        if !transfer.is_complete() {
+            return None;
+        }
+        super::stored_calls::public_effects(transfer.effects)
+    }
+
+    /// Each normal invocation establishes its own slot contents before the
+    /// next operand. Keep those cuts from the same ordered evaluator used by
+    /// the joined statement query; no exit summary can locate an earlier call.
+    pub fn stored_reference_call_contexts(
+        &self,
+        machine: &Machine,
+        state: &State,
+        statement_index: usize,
+    ) -> Option<Vec<super::stored_calls::StoredReferenceCallContext>> {
+        let statement = self
+            .program
+            .statement_table
+            .statement_at(state, statement_index)?;
+        if statement.as_call().is_none()
+            && !statement_value_expression_roots(self.program, statement)
+                .iter()
+                .any(|expression| expression_has_calls(self.program, *expression))
+        {
+            return Some(vec![super::stored_calls::StoredReferenceCallContext::Entry]);
+        }
+        let prefix = super::state_write_walk::collected_prefix_at(
+            &self.caches.state_write_shared_collections,
+            self.program,
+            machine,
+            state,
+            &self.tables.symbols,
+            statement_index,
+            true,
+        )?;
+        super::stored_calls::call_contexts(
+            self.program,
+            machine,
+            state,
+            statement,
+            &prefix,
+            &self.tables.symbols,
+            &mut FrameInference::for_state(state.symbol),
+        )
+    }
+
+    /// Completed calls at this exact operand, including its evaluated children.
+    /// The ordinary evaluator retains the selected target and match-arm cut;
+    /// the statement's joined exit relation is a different occurrence.
+    pub fn stored_reference_effects_at_expression(
+        &self,
+        machine: &Machine,
+        state: &State,
+        statement_index: usize,
+        expression: ExpressionHandle,
+    ) -> Option<Vec<super::StoredReferenceEffect>> {
+        let statement = self
+            .program
+            .statement_table
+            .statements(state.statement_nodes)
+            .get(statement_index)?;
+        // The caller's current loan roster already owns prior statements.
+        // A call-free statement adds no invocation effects and needs no second
+        // reconstruction of that entry through source-level write inference.
+        if statement.as_call().is_none()
+            && !statement_value_expression_roots(self.program, statement)
+                .iter()
+                .any(|expression| expression_has_calls(self.program, *expression))
+        {
+            return Some(Vec::new());
+        }
+        // Prove empty reference-slot demand from the same ordered evaluator.
+        // A completed invocation with a known empty writable frontier adds no
+        // caller-entry substitution. Unknown or symbolic calls remain incomplete
+        // even if this empty starting context contains no slots to invalidate.
+        let empty = CollectedStatementPrefix {
+            isolated_locals: Vec::new(),
+            aliases: Vec::new(),
+            divergent: Vec::new(),
+            stored: Vec::new(),
+        };
+        let unbound = super::stored_calls::effects_at_expression(
+            self.program,
+            machine,
+            state,
+            statement,
+            &empty,
+            &self.tables.symbols,
+            &mut FrameInference::for_state(state.symbol),
+            expression,
+        );
+        if unbound.is_some_and(|snapshot| snapshot.is_complete() && snapshot.effects.is_empty()) {
+            return Some(Vec::new());
+        }
+        let prefix = super::state_write_walk::collected_prefix_at(
+            &self.caches.state_write_shared_collections,
+            self.program,
+            machine,
+            state,
+            &self.tables.symbols,
+            statement_index,
+            true,
+        )?;
+        let transfer = super::stored_calls::effects_at_expression(
+            self.program,
+            machine,
+            state,
+            statement,
+            &prefix,
+            &self.tables.symbols,
+            &mut FrameInference::for_state(state.symbol),
+            expression,
+        )?;
         if !transfer.is_complete() {
             return None;
         }
@@ -321,7 +505,7 @@ impl<'program> CallFrameResolver<'program> {
         statement: &StatementNode,
     ) -> Option<Vec<super::stored_calls::StoredReferenceCallFailure>> {
         self.statement_reference_transfer(machine, statement)
-            .map(|(_, _, _, transfer)| transfer.incomplete_calls)
+            .map(|(_, _, _, transfers)| transfers.all_routes().incomplete_calls)
     }
 
     /// A reachable opaque output slot needs a complete normal-exit relation,
@@ -352,8 +536,9 @@ impl<'program> CallFrameResolver<'program> {
         statement: &StatementNode,
         binding_is_stable: impl Fn(SymbolHandle, &[facts::PlaceSegment]) -> bool,
     ) -> Option<Vec<LocalWriteOrigin>> {
-        let (state, index, mut prefix, transfer) =
+        let (state, index, mut prefix, transfers) =
             self.statement_reference_transfer(machine, statement)?;
+        let transfer = transfers.all_routes();
         if !transfer.is_complete() {
             return None;
         }
@@ -399,15 +584,26 @@ impl<'program> CallFrameResolver<'program> {
         &State,
         usize,
         CollectedStatementPrefix,
-        super::stored_calls::SlotRelationTransfer,
+        super::stored_calls::StatementSlotTransfers,
     )> {
-        let (state, _, index) = super::caller_aliases::caller_statement_at_site(
+        let trace_refusal = |phase: &str, state: SymbolHandle, index: Option<usize>| {
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE stored-reference-statement-transfer-refusal machine={:?} state={:?} statement={:?} phase={}",
+                    machine.symbol, state, index, phase,
+                );
+            }
+        };
+        let Some((state, _, index)) = super::caller_aliases::caller_statement_at_site(
             self.program,
             machine,
             &self.tables.symbols,
             CallerWriteSite::Statement(statement),
-        )?;
-        let prefix = super::state_write_walk::collected_prefix_at(
+        ) else {
+            trace_refusal("statement-site", SymbolHandle::invalid(), None);
+            return None;
+        };
+        let Some(prefix) = super::state_write_walk::collected_prefix_at(
             &self.caches.state_write_shared_collections,
             self.program,
             machine,
@@ -415,8 +611,11 @@ impl<'program> CallFrameResolver<'program> {
             &self.tables.symbols,
             index,
             true,
-        )?;
-        let effects = super::stored_calls::statement_effects(
+        ) else {
+            trace_refusal("entry-prefix", state.symbol, Some(index));
+            return None;
+        };
+        let Some(effects) = super::stored_calls::statement_effects(
             self.program,
             machine,
             state,
@@ -424,7 +623,10 @@ impl<'program> CallFrameResolver<'program> {
             &prefix,
             &self.tables.symbols,
             &mut FrameInference::for_state(state.symbol),
-        )?;
+        ) else {
+            trace_refusal("statement-effects", state.symbol, Some(index));
+            return None;
+        };
         Some((state, index, prefix, effects))
     }
 
@@ -1108,7 +1310,7 @@ impl<'program> CallFrameResolver<'program> {
     /// only when every selected invocation has a complete empty frame in its
     /// own namespace. No alias translation is needed for an empty frame;
     /// opaque or nonempty frames establish nothing about caller storage.
-    pub(crate) fn declaration_expression_has_empty_write_frame(
+    pub fn declaration_expression_has_empty_write_frame(
         &self,
         expression: ExpressionHandle,
         builtin_operation: &impl Fn(ExpressionHandle) -> bool,

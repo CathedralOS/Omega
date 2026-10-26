@@ -8,8 +8,8 @@ use symbols::SymbolHandle;
 use typed_trees::proposition::{ProofSubstitutions, PropositionLabels};
 
 /// Bind outcome-specific producer guarantees to the one transition arm that
-/// tests the saved result of a direct immutable call. Broader value-origin
-/// tracing intentionally remains fail-closed for this stage.
+/// tests the saved result of a direct call, including immutable binding copies.
+/// Mutable bindings and non-binding value transformations remain fail-closed.
 pub(crate) fn bind_outcome_specific_arm_facts(
     program: &dyn ::validation::CheckingInput,
     proof: &mut ProofFacts,
@@ -49,57 +49,12 @@ pub(crate) fn bind_outcome_specific_arm_facts(
                     }
                     continue;
                 };
-                let Some(result_path) = program.expression_table.name_path_node(result_expression)
+                let Some((result_call_statement_index, result_call_expression, result_call)) =
+                    saved_result_call(program, caller_state, statement_index, result_expression)
                 else {
                     if !selectors.is_empty() {
                         diagnostics.push(diagnostics::Diagnostic::error(
-                            "outcome proof selectors require a saved immutable direct-call result",
-                        ));
-                    }
-                    continue;
-                };
-                let result_symbol = std::iter::once(result_path.head_symbol)
-                    .chain(
-                        program
-                            .expression_table
-                            .name_path_member_symbols(result_path.member_symbols)
-                            .iter()
-                            .copied(),
-                    )
-                    .chain(std::iter::once(result_path.symbol))
-                    .find(|symbol| symbol.is_valid())
-                    .unwrap_or_else(SymbolHandle::invalid);
-                let result_name = match program
-                    .expression_table
-                    .name_path_members(result_path.members)
-                {
-                    [name] => Some(name.as_str()),
-                    _ => None,
-                };
-                let result_calls = statements
-                    .iter()
-                    .take(statement_index)
-                    .enumerate()
-                    .filter_map(|(index, statement)| {
-                        let local = statement.as_local_data()?;
-                        let identity_matches = if result_symbol.is_valid() {
-                            local.symbol == result_symbol
-                        } else {
-                            result_name.is_some_and(|name| local.name.as_str() == name)
-                        };
-                        if !identity_matches || local.is_mutable {
-                            return None;
-                        }
-                        let call = program.expression_table.call_node(local.initial_value)?;
-                        Some((index, local.initial_value, call))
-                    })
-                    .collect::<Vec<_>>();
-                let [(result_call_statement_index, result_call_expression, result_call)] =
-                    result_calls.as_slice()
-                else {
-                    if !selectors.is_empty() {
-                        diagnostics.push(diagnostics::Diagnostic::error(
-                            "outcome proof selectors are currently limited to one unambiguous direct call captured in an immutable local",
+                            "outcome proof selectors require one immutable saved direct-call result",
                         ));
                     }
                     continue;
@@ -182,9 +137,9 @@ pub(crate) fn bind_outcome_specific_arm_facts(
                         row.fact,
                         &substitutions,
                         caller_state.symbol,
-                        *result_call_statement_index,
+                        result_call_statement_index,
                         validation::CallSite::Expression {
-                            expression: *result_call_expression,
+                            expression: result_call_expression,
                             call: result_call,
                         },
                         target_state,
@@ -245,7 +200,9 @@ pub(crate) fn bind_outcome_specific_arm_facts(
                     caller_machine_symbol: caller_machine.symbol,
                     caller_state_symbol: caller_state.symbol,
                     statement_index,
-                    result_call_statement_index: *result_call_statement_index,
+                    result_call_statement_index,
+                    result_call_expression,
+                    result_call_target: target_state.symbol,
                     result_data,
                     result_case,
                     result_expression,
@@ -260,6 +217,43 @@ pub(crate) fn bind_outcome_specific_arm_facts(
         Ok(())
     } else {
         Err(diagnostics)
+    }
+}
+
+/// Follow exact immutable binding copies back to the completed call. Dispatch
+/// subject capture introduces the same kind of copy as an authored local; it
+/// does not change the event that established the outcome. Each step must be
+/// earlier in admitted execution order, so malformed cycles and later bindings
+/// fail without replaying an initializer or admitting a mutable snapshot.
+fn saved_result_call<'program>(
+    program: &'program dyn ::validation::CheckingInput,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    mut expression: typed_trees::expression::ExpressionHandle,
+) -> Option<(
+    usize,
+    typed_trees::expression::ExpressionHandle,
+    &'program typed_trees::expression::TableCallExpression,
+)> {
+    let order = program
+        .statement_table
+        .admitted_execution_order(state.statement_nodes);
+    let mut before = order.position(statement_index)?;
+    loop {
+        let path = program.expression_table.name_path_node(expression)?;
+        if !path.symbol.is_valid() || path.head_symbol != path.symbol {
+            return None;
+        }
+        let (ordinal, local) = program.state_local_declaration(state, path.symbol)?;
+        let position = order.position(ordinal)?;
+        if local.is_mutable || !local.initial_value.is_valid() || position >= before {
+            return None;
+        }
+        expression = local.initial_value;
+        if let Some(call) = program.expression_table.call_node(expression) {
+            return Some((ordinal, expression, call));
+        }
+        before = position;
     }
 }
 
@@ -381,62 +375,7 @@ pub(crate) fn exact_outcome_case_test(
     None
 }
 
-/// The root a guaranteeing contract's occurrence re-anchors to at the caller:
-/// the callee's reserved `result`, a bare occurrence of one of the target
-/// state's parameters (by authored position), or anything else.
-pub(super) fn occurrence_root(
-    program: &dyn ::validation::CheckingInput,
-    target_state: &typed_trees::state::State,
-    occurrence: typed_trees::expression::ExpressionHandle,
-) -> checked_trees::OutcomeOccurrenceRoot {
-    if program.expression_table.names_reserved_result(occurrence) {
-        return checked_trees::OutcomeOccurrenceRoot::CalleeResult;
-    }
-    if let typed_trees::expression::ExpressionNode::Name(path) =
-        program.expression_table.expression(occurrence)
-        && path.symbol.is_valid()
-        && let Some(position) = program
-            .state_parameters(target_state)
-            .iter()
-            .position(|parameter| parameter.symbol == path.symbol)
-        && let Ok(source_position) = u32::try_from(position)
-    {
-        return checked_trees::OutcomeOccurrenceRoot::CalleeParameter { source_position };
-    }
-    if let typed_trees::expression::ExpressionNode::Member(member) =
-        program.expression_table.expression(occurrence)
-        && member.member_symbol.is_valid()
-        && member.case_variant.is_none()
-    {
-        let (source_position, mut fields) =
-            match occurrence_root(program, target_state, member.receiver) {
-                checked_trees::OutcomeOccurrenceRoot::CalleeParameter { source_position } => {
-                    (source_position, Vec::new())
-                }
-                checked_trees::OutcomeOccurrenceRoot::CalleeParameterProjection {
-                    source_position,
-                    fields,
-                } => (source_position, fields),
-                _ => return checked_trees::OutcomeOccurrenceRoot::Other,
-            };
-        fields.push(member.member_symbol);
-        return checked_trees::OutcomeOccurrenceRoot::CalleeParameterProjection {
-            source_position,
-            fields,
-        };
-    }
-    if program
-        .closed_integer_value_in(occurrence, target_state.symbol)
-        .is_some()
-        || matches!(
-            program.expression_table.expression(occurrence),
-            typed_trees::expression::ExpressionNode::Boolean(_)
-        )
-    {
-        return checked_trees::OutcomeOccurrenceRoot::ClosedValue;
-    }
-    checked_trees::OutcomeOccurrenceRoot::Other
-}
+pub(super) use validation::contract_argument_root as occurrence_root;
 
 fn outcome_call_substitutions(
     program: &dyn ::validation::CheckingInput,

@@ -118,7 +118,7 @@ fn compact_difference_rows_match_symbolic_walk_with_cycles_and_overflow() {
 }
 
 #[test]
-fn constructor_congruence_keeps_effectful_occurrences_and_generations() {
+fn constructor_congruence_keeps_denotations_events_and_declaration_generations() {
     let left = place(1);
     let right = place(2);
     let relations = [
@@ -126,13 +126,20 @@ fn constructor_congruence_keeps_effectful_occurrences_and_generations() {
         relation(right.clone(), left.clone(), 0),
     ];
     let mut comparison = ValueComparison::new(&relations);
-    let call = |argument: Operand| Operand::Call {
-        target: symbols::SymbolHandle::from_arena_index(3),
+    // Only admitted repeatable denotations enter Operand::Call. Runtime
+    // event leaves keep exact occurrence identity and gain no child congruence.
+    let call = |argument: Operand, target| Operand::Call {
+        target,
         arguments: vec![argument],
     };
-    let repeated_left = call(left.clone());
-    let repeated_right = call(right.clone());
+    let target = symbols::SymbolHandle::from_parts(3, 1);
+    let repeated_left = call(left.clone(), target);
+    let repeated_right = call(right.clone(), target);
     assert!(comparison.same_value(&repeated_left, &repeated_right));
+    let different_target = call(right.clone(), symbols::SymbolHandle::from_parts(4, 1));
+    let stale_target = call(right.clone(), symbols::SymbolHandle::from_parts(3, 2));
+    assert!(!comparison.same_value(&repeated_left, &different_target));
+    assert!(!comparison.same_value(&repeated_left, &stale_target));
     let first_event = Operand::CompletedCall {
         target: symbols::SymbolHandle::from_arena_index(3),
         occurrence: typed_trees::expression::ExpressionHandle::from_parts(4, 1),

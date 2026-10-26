@@ -314,6 +314,12 @@ helper that passes does not close an item.
       execution (zero selections retain structural eligibility; repeated
       identical selections invoke once; distinct inherited/conjoined selections
       reject).
+    - Red place on main: `samples/cli/facts/domain_selected_cleanup/erased_predicates`
+      (explicit predicate erasure) refuses native compilation since its landing
+      (#165, `f8645229c43`); the probe at the landing commit fails too, so the
+      place never ran green. Terminal Psi lowering reports `InvalidUnitMachinePlan`
+      — "resident membership home has no exact source projection"
+      (`pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/structural_values/emission/current_memberships.rs`).
   Acceptance: a nine-place fact row for `dropped by` with observable cleanup side
   effects passes `omega run --both` (with reject twins for conflicting machine
   applications, erasure bypass, missing inherited obligations, unauthorized
@@ -398,6 +404,19 @@ defines the complete product bar.
     `samples/cli/facts/copied_call_argument_snapshot` including
     `copied_call_argument_snapshot/*/{indexed_byte_view,inferred_indexed_byte_view,post_write_indexed_byte_view,public_post_write_indexed_byte_view,ranked_indexed_byte_view,computed_ranked_indexed_byte_view,captured_window_indices}`
     and `samples/cli/facts/matched_field_windows` across all nine places).
+    - **Const-argument recipe boundary (red on main):** since `a600523a236`
+      (#91) stage 01 retains every generic value argument as a
+      `ConstExpression` recipe without parser-side evaluation, so a layout built
+      from raw 01→03b output degrades a generic-capacity field to `Unit` and the
+      layout crate's two `full_width_*_rejects_placement_instead_of_panicking`
+      tests are red on main (bisected 2026-10-26; red at every base since #91,
+      including `79804c48963`-good → `a600523a236`-bad). The value closes in the
+      driver's execution settlement
+      (`omega/compilation/driver/src/execution_settlement/constant_recipe_closure.rs`),
+      whose fold rewrites application sites to canonical literal spellings —
+      the representation the layout build consumes at realization. Any 01→03b
+      consumer that needs closed extents (the layout tests included) must be
+      migrated to that closed representation or have its contract restated.
   - **Loan locals and projected storage (REFERENCE-LOCAL-BINDING-ROUTES):**
     reference-valued locals from every admitted producer keep their loan
     identity, backing, and access through reads, calls, and explicit state
@@ -1122,7 +1141,11 @@ narrows realization only.
   reject; private dependency machines remain inaccessible. Captured dependency
   bytes no longer imply root-only Build metadata authority. Reconciliation keeps
   its scope/alias/cycle/limit checks; compiler completion refuses any unjoined
-  request. Project preparation now retains transaction recovery, lock selection
+  request. Pre-acquired source inputs retain the exact request value, purpose,
+  ordinal and selected source; bound compilation rejoins those receipts against
+  the executed ledger rather than treating an alias graph as settlement. The
+  same validation serves post-execution acquisition, and changed locators still
+  refuse with unchanged aliases. Project preparation retains recovery, lock selection
   and concurrent-edit checks across application-owned source execution; its
   begin/finish boundary accepts the actual acquired graph without parsing Build
   declarations. Application source discovery now drives the executed traversal
@@ -1148,6 +1171,15 @@ narrows realization only.
   occurrences. Final Product context now chooses its target at source join;
   the SDK completes a foreign-target dependency graph after host discovery,
   then selects and executes the host product. Pre-admitted targets remain fixed.
+  Build settlement is now a separate opaque result before Product preparation:
+  source-request/output settlement consumes the actual return, while independent
+  Product contexts resolve and type from the same captured input under their own
+  admitted semantic bindings. The SDK exercises accepted review and executable
+  contexts after live-source deletion, refusing missing entry acceptance and a
+  replaced request graph without replay or additional Build fuel. Default Builds
+  reprepare changed compilation purposes from retained parsing. The ordinary
+  composite route consumes this same sequence; this phase boundary does not yet
+  complete the production retained-discovery cutover above.
   Execution-time profile, staging, snapshots/outputs, sponsors and grant guards
   now travel as one owned `BuildExecutionInputs` from package admission through
   the compiler facade into Build evaluation; repeated field-by-field forwarding
@@ -1567,7 +1599,8 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   on Windows, macOS, and both Linux targets, and fail fixtures reject reads,
   bare forwarding, readable widening, and overlapping exclusive arguments.
 
-- **STRUCTURAL-BORROW-IDENTITY.** (Also covers **`PLACED-ACCESS-NATIVE-OPS`**.)
+- **STRUCTURAL-BORROW-IDENTITY.** (Also covers **`PLACED-ACCESS-NATIVE-OPS`** and
+  **`GENERIC-FIXED-ARRAY-VIEWS`**.)
   Preserve original caller storage and exact-once computed/indexed selector
   semantics through every projection, call preparation, and native placement
   end to end (`Psi 04–07` and `Omega 00–09`) under
@@ -1590,6 +1623,20 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     [the constrained shared-field witness](tests/omega/pass/layouts/runtime_indexed_restricted_field_read/README.md),
     and `borrows/runtime_indexed_{stored_reference_call,scalar_descriptor_call,reference_call_regions}`
     across Windows x86-64, macOS ARM64, Linux x86-64, and Linux AArch64.
+  - Carry ordinary generic fixed-array views from `&[T; Count]` to `&[T]`
+    through the range protocol, preserving symbolic extent and backing custody.
+    Distinct extents 3 and 4 must check in all four target bodies and return 0
+    in both engines; wrong extents, stale descriptors and conflicting backing
+    writes reject.
+  - Qualify the nine-place
+    [reference recast backing-footprint row](samples/cli/facts/reference_recast_backing_footprint/README.md)
+    on the other three declared hosted targets, preserving the original address
+    and full backing loan alongside its fact-sensitive reject twins.
+  - Keep `pass/ownership/runtime_{captured_exclusive_argument,exclusive_argument_before_descriptor_retarget}_exit`
+    and `runtime_{fixed_selector_collection_capture,index_before_descriptor_retarget,fixed_selector_owned_argument}_exit`
+    at 0 in both engines: capture the collection before its selector, execute
+    the selector once and retain completed arguments before later siblings.
+    `fail/ownership/fixed_selector_owned_argument_second_consume` must reject.
   - Keep all `calls/unread_multistate_receiver_exit` and `borrows/*_exit`
     snapshot, subloan, and linear-owner controls passing.
 
@@ -1662,17 +1709,26 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     independently reviewed finite diagnostic; that original run remains red.
     The [Linear continuation](samples/cli/facts/opaque_closed_carrier_exchange/independent_linear/README.md)
     carries actual whole ownership claims through independent inputs and returns
-    across all nine places on all four targets.
+    across all nine places on all four targets. Restore their current Build
+    selection path across the deferred Product source/dependency join: the
+    unchanged baseline now refuses the first `select_representation` Data
+    operand before execution. Preserve the qualified source contracts and
+    exact representation/provider authority through that repair.
   - Complete installed-provider custody and native marshaling for protocol-owned
-    backing, permitted snapshots and the wider resident/view
-    codecs those boundaries require. Preserve the complete lifetime, range and
+    backing, permitted snapshots and the remaining resident/view codecs.
+    Finite embedded ordinary records now retain original borrowed backing
+    through [nested record codecs](samples/cli/facts/foreign_nested_record_backing/README.md)
+    in all nine places on all four hosts; arrays, tagged/dynamic carriers,
+    independently qualified descendants and nested owned/result publication
+    still require their own codecs. Preserve the complete lifetime, range and
     revision/lease records through stage 05
     `retention/retained_borrow_custody.rs` and the selected provider; private
     per-call captures cannot supply original backing.
 
   Acceptance: `samples/cli/facts/opaque_closed_carrier_exchange`,
   `samples/cli/facts/foreign_retained_shared_borrow`,
-  `samples/cli/facts/foreign_retained_mutable_borrow`, and the `providers/foreign_*`
+  `samples/cli/facts/foreign_retained_mutable_borrow`,
+  `samples/cli/facts/foreign_nested_record_backing`, and the `providers/foreign_*`
   corpus fixtures pass `omega run --both` across matching hosts with exact
   register/stack placement, occurrence preservation, and retention leases, while
   carrier/target/lifecycle/multiplicity drift and unauthorized retention reject.
@@ -1813,12 +1869,20 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     `source/library/core/{content,extent}.omg` identities (keeping
     `tests/omega/pass/core/content_conservation_wrapper_match_exit` and
     `tests/omega/fail/core/content_conservation_wrapper_match_unproved_alternative`).
+    Only proved bodies and admitted declarations supply theorem roots; unproved
+    guarantees and recursive cycles cannot seed their own evidence. Keep every
+    reachable return alternative, capture epoch and invocation correlation.
   - Carry per-invocation geometry, backing, and live supply through provider
     planning and native settlement in
     `omega-rust/omega/compilation/realization/provider-planning/src/{service_schema/mod.rs,provider_planning/qualification_grants.rs}`
     and stage 05 `unit/attached_unit/catalog.rs` so
     `tests/omega/pass/core/content_retained_custody_round_trip` receives an
-    authorized initial claim and executes its submit/complete cycle.
+    authorized initial claim from its selected admitted `InitialSupply::acquire`
+    invocation and executes its submit/complete cycle. Fresh native allocation
+    and constructor shape alone do not establish the initial claim.
+  - Complete canonical execution qualification of the hosted-entry programs
+    `tests/omega/pass/terminal_psi/{content_custody_exit,structural_content_passthrough}`
+    alongside the custody path, using bundled Content and quantity identities.
   - Implement usable `Extent` split and merge machines in
     `source/library/core/extent.omg` that consume and account for all inputs,
     preserve vacancy independently of the backing grant, and return Cathedral's
@@ -2036,9 +2100,14 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   rows, the named acceptance fixtures, and the forwarded descriptor production
   under `runtime_index_application/forwarded` (including same-index mutable
   loans and reference forwarding). Construction/bounds/retag and static-kind
-  controls reject. Keep this outcome open: the other three hosted execution
-  environments have not been observed; explicit-target image production is not
-  native/Terminal execution on those hosts.
+  controls reject. Keep this outcome open: general computed-data formation,
+  independently proved runtime/result index equality, selected-operator result
+  guarantees and nested composition still require whole-item qualification.
+  CI candidate `7ad3806d0f45` additionally observed 57 native/Terminal agreements
+  and 97 intended rejects on Linux ARM64 and macOS ARM64, using the existing
+  hosted runners. Windows execution and the later capture/nested-result source
+  changes remain unqualified. Explicit-target image production supplies no
+  native/Terminal execution evidence on another host.
 
 - **STRUCTURAL-GENERIC-MATCHING.** Complete
   [static type equality](wiki/spec/language/generics.md#static-type-equality),

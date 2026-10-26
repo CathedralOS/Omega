@@ -66,8 +66,28 @@ pub(super) fn build(
         transition_start,
         expression,
     );
+    let captured_place = crate::flow::captured_case_subject(
+        program,
+        crate::flow::CapturedSubjectFacts::from(facts),
+        machine,
+        state,
+        transition_start,
+        guard,
+    )
+    .and_then(|subject| {
+        let source = facts.flow.control.operands.get(subject.source);
+        validation::canonical_place_from_expression_in_state(
+            program,
+            source.state_symbol,
+            source.statement_index,
+            source.expression,
+        )
+    });
     let dispatch = match subject_place.as_ref() {
-        Some(place) if place.root.as_symbol().is_some() => DispatchSubject::Place(place),
+        Some(place) if place.root.as_symbol().is_some() => DispatchSubject::Place {
+            subject: place,
+            captured_source: captured_place.as_ref(),
+        },
         _ => DispatchSubject::Computed(dispatch_subjects::evaluated_case_subject(
             program,
             statements,
@@ -138,6 +158,7 @@ pub(super) fn build(
         }
         (
             CheckedUnitStructuralArgumentPlan {
+                projection_evaluations: Default::default(),
                 source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
                     parameter_index: u32::try_from(position).ok()?,
                 },
@@ -184,6 +205,7 @@ pub(super) fn build(
                 shapes.add_type(shell.referee, &[], &[])?;
                 (
                     CheckedUnitStructuralArgumentPlan {
+                        projection_evaluations: Default::default(),
                         source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                             binding_ordinal: result.binding_ordinal,
                         },
@@ -233,7 +255,7 @@ pub(super) fn build(
         local_results: &established_results,
         ..edge_calls
     };
-    if let DispatchSubject::Place(place) = dispatch
+    if let DispatchSubject::Place { subject: place, .. } = dispatch
         && !place.segments.is_empty()
     {
         let (projected, path) = crate::execution::terminal_unit::calls::projected_argument_path(
@@ -546,7 +568,7 @@ pub(super) fn build(
         subject,
         subject_type: type_reference,
         subject_kind: match dispatch {
-            DispatchSubject::Place(_) => checked_trees::CheckedClosedSumSubjectKind::Place,
+            DispatchSubject::Place { .. } => checked_trees::CheckedClosedSumSubjectKind::Place,
             DispatchSubject::Computed(_) => checked_trees::CheckedClosedSumSubjectKind::Computed,
         },
         cases,
@@ -557,7 +579,12 @@ pub(super) fn build(
 #[derive(Clone, Copy)]
 enum DispatchSubject<'place> {
     /// A parameter or an earlier immutable local, named by every arm.
-    Place(&'place validation::CanonicalPlace),
+    Place {
+        subject: &'place validation::CanonicalPlace,
+        /// Authenticated completed backing of an observed descriptor. Payload
+        /// receivers can retain this source while the guard uses the descriptor.
+        captured_source: Option<&'place validation::CanonicalPlace>,
+    },
     /// One authored call. The parser copies the dispatch subject into every
     /// arm's guard and payload read; each copy keeps the one authored call's
     /// selection occurrence. The dispatch evaluates that call once, at the
@@ -568,11 +595,16 @@ enum DispatchSubject<'place> {
 
 impl DispatchSubject<'_> {
     fn is_symbol(self, symbol: symbols::SymbolHandle) -> bool {
-        matches!(self, Self::Place(subject) if subject.root == facts::PlaceRoot::Symbol(symbol))
+        matches!(self, Self::Place { subject, .. } if subject.root == facts::PlaceRoot::Symbol(symbol))
     }
 
-    fn is_symbol_place(self, place: &validation::CanonicalPlace) -> bool {
-        matches!(self, Self::Place(subject) if subject == place)
+    fn is_symbol_place(
+        self,
+        program: &dyn validation::CheckingInput,
+        place: &validation::CanonicalPlace,
+    ) -> bool {
+        matches!(self, Self::Place { subject, .. }
+            if crate::flow::canonical_places_agree(program, subject, place))
     }
 
     /// Whether `expression` names this subject at `statement_index`.
@@ -584,22 +616,23 @@ impl DispatchSubject<'_> {
         expression: typed_trees::expression::ExpressionHandle,
     ) -> bool {
         match self {
-            Self::Place(_) => validation::contextual_canonical_place_from_expression(
+            Self::Place { .. } => validation::contextual_canonical_place_from_expression(
                 program,
                 state.symbol,
                 statement_index,
                 expression,
             )
-            .is_some_and(|place| self.is_symbol_place(&place)),
+            .is_some_and(|place| self.is_symbol_place(program, &place)),
             Self::Computed(subject) => {
                 dispatch_subjects::repeats_subject(program, subject, expression)
             }
         }
     }
 
-    /// The selected case's payload field `argument` reads, `Some(None)` when
-    /// the argument does not read this subject at all, and `None` when it
-    /// reads the subject in a way a case edge cannot transfer.
+    /// An exact bare payload can forward the case's prepared scalar directly.
+    /// Other expressions use the ordinary completed operand graph, including
+    /// projections inside a copied payload. This forwarding pattern is not an
+    /// eligibility gate for checked scalar computations.
     #[allow(clippy::too_many_arguments)]
     fn payload_field<'program>(
         self,
@@ -621,7 +654,10 @@ impl DispatchSubject<'_> {
             return self.payload_field(program, state, statement_index, operand, variant);
         }
         match self {
-            Self::Place(subject) => {
+            Self::Place {
+                subject,
+                captured_source,
+            } => {
                 let Some(place) = validation::contextual_canonical_place_from_expression(
                     program,
                     state.symbol,
@@ -630,15 +666,33 @@ impl DispatchSubject<'_> {
                 ) else {
                     return Some(None);
                 };
-                if place.root != subject.root || !place.segments.starts_with(&subject.segments) {
+                let Some(subject) =
+                    [Some(subject), captured_source]
+                        .into_iter()
+                        .flatten()
+                        .find(|subject| {
+                            place.root == subject.root
+                                && place.segments.len() >= subject.segments.len()
+                                && place.segments.iter().zip(&subject.segments).all(
+                                    |(left, right)| {
+                                        crate::flow::canonical_place_segments_equal(
+                                            program, *left, *right,
+                                        )
+                                    },
+                                )
+                        })
+                else {
                     return Some(None);
-                }
+                };
                 let [
                     facts::PlaceSegment::Case { variant: selected },
                     facts::PlaceSegment::Field { symbol },
                 ] = &place.segments[subject.segments.len()..]
                 else {
-                    return None;
+                    // The case edge forwards only a bare payload field.
+                    // Nested fields and computed projections retain their
+                    // ordinary scalar/captured-copy evaluation and custody.
+                    return Some(None);
                 };
                 if *selected != variant.symbol {
                     return None;
@@ -812,13 +866,14 @@ fn subject_call(
     // Operand temporaries formed for this call, such as a slice descriptor
     // over a borrowed array, die at its normal continuation before the
     // dispatch inspects the result, exactly as a statement call's do.
-    crate::execution::terminal_unit::cleanup::anonymous::append_continuation(
+    crate::execution::terminal_unit::cleanup::anonymous::insert_continuation(
         program,
         facts,
         shapes,
         machine,
         state,
         coordinate,
+        operations.len(),
         &structural_results,
         operations,
         trace,

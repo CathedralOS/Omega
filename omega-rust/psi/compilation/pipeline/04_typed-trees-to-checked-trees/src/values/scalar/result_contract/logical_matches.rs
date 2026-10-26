@@ -147,12 +147,14 @@ impl ContractPredicates<'_, '_> {
         let term = if primitive_type == PrimitiveType::Bool {
             CheckedScalarExpression::Boolean(Box::new(
                 CheckedBooleanExpression::StructuralParameterField {
+                    observation: Default::default(),
                     parameter_position: observed.position,
                     path: observed.path,
                 },
             ))
         } else {
             CheckedScalarExpression::StructuralParameterField {
+                observation: Default::default(),
                 parameter_position: observed.position,
                 path: observed.path,
                 primitive_type,

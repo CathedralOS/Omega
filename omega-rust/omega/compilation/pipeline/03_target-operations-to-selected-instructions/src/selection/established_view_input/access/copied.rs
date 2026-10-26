@@ -54,7 +54,7 @@ pub(super) fn shared_projection(
             )
         }
         abstract_operations::StructuralCopyPath::Case(path) => {
-            let (selected, offset) = geometry::case_projection(root, path, types)?;
+            let geometry = geometry::case_projection(root, path, types)?;
             let shared_field = match path.split_last() {
                 Some((
                     semantic_vocabulary::CanonicalStructuralPathSegment::Field(field),
@@ -75,7 +75,12 @@ pub(super) fn shared_projection(
                 }),
                 _ => false,
             };
-            (selected, offset, Vec::new(), shared_field)
+            (
+                geometry.selected,
+                geometry.byte_offset,
+                geometry.elements,
+                shared_field,
+            )
         }
     };
     if selected != result.structural_type

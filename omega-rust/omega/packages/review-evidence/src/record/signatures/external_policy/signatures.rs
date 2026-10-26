@@ -15,20 +15,14 @@ pub struct PackagePolicyExternalCallableSignature {
 }
 
 impl PackagePolicyExternalCallableSignature {
-    pub const fn lifetime_parameter_count(&self) -> usize {
-        self.lifetime_parameter_count
-    }
-    pub fn static_parameters(&self) -> &[PackagePolicyTypeParameter] {
-        &self.static_parameters
-    }
-    pub fn conformance_bounds(&self) -> &[PackageReviewConformanceBound] {
-        &self.conformance_bounds
-    }
+    crate::record::accessors::record_accessors!(
+        lifetime_parameter_count,
+        static_parameters,
+        conformance_bounds,
+        return_type
+    );
     pub fn parameters(&self) -> &[PackageReviewExternalCallableParameter] {
         &self.parameters
-    }
-    pub const fn return_type(&self) -> Option<&PackageReviewTypeIdentity> {
-        self.return_type.as_ref()
     }
 }
 

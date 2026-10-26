@@ -6,6 +6,7 @@
 
 use super::super::cycle_substitutions::Substitutions;
 use super::super::path_instantiation::aggregate_arguments::AggregateMove;
+use super::ReferenceSource;
 use super::{
     AggregateOrigins, CollectedStatementPrefix, ExpressionHandle, FrameInference,
     FramePathPrecision, FramePlaceOrigin, Machine, ReferenceLeaf, State, TopLevelSymbols,
@@ -359,11 +360,11 @@ fn finite_substitutions(
                                 local_suffix: String::new(),
                                 local_segments: Vec::new(),
                                 may_select: false,
-                                origin: Some(FramePlaceOrigin {
+                                origin: Some(ReferenceSource::Symbolic(FramePlaceOrigin {
                                     path: { parameter.name.as_str().to_owned() },
                                     precision: FramePathPrecision::Exact,
                                     source,
-                                }),
+                                })),
                                 lifetime_dependencies: Vec::new(),
                             }],
                             ..Default::default()
@@ -385,7 +386,7 @@ fn finite_substitutions(
                                     local_suffix: leaf.local_path,
                                     local_segments: leaf.local_segments,
                                     may_select: leaf.may_select,
-                                    origin: leaf.origin,
+                                    origin: leaf.origin.map(ReferenceSource::Symbolic),
                                     lifetime_dependencies: leaf.lifetime_dependencies,
                                 })
                                 .collect(),
@@ -482,7 +483,7 @@ fn finite_substitutions(
                     Some(())
                 };
                 for leaf in actual.references {
-                    let origin = leaf.origin?;
+                    let origin = leaf.origin?.into_symbolic_place()?;
                     record(
                         Some(&leaf.local_segments),
                         &origin.source,

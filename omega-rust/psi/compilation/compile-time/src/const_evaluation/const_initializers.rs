@@ -561,7 +561,12 @@ pub(crate) fn evaluate(
                     }
                 }
                 let prepared = crate::PreparedBuildMachineProgram::prepare_in(&typed, &domain)?;
-                invocations::CheckedInitializers::prepare(&prepared, authority.clone(), &symbols)
+                invocations::CheckedInitializers::prepare(
+                    &prepared,
+                    authority.clone(),
+                    &symbols,
+                    &domain.accounting,
+                )
             })
             .transpose()?;
         let typed = checked

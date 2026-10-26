@@ -7,13 +7,10 @@ use crate::symbols::expressions::{
 use crate::symbols::scope::MachineScope;
 use crate::symbols::scoped_paths::resolve_state_scoped_members;
 use crate::symbols::targets::{
-    assign_assumed_binding_argument_symbol, assign_provider_selection_argument_symbol,
-    assign_representation_selection_argument_symbol, assign_runtime_subject_argument_symbol,
-    assign_static_argument_symbols, assign_transition_target_symbols, build_operand_route,
+    assign_call_machine_argument_symbols, assign_transition_target_symbols,
     resolve_call_target_symbol,
 };
 use crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_constraints;
-use language_semantics::declaration_selection::BuildOperation;
 
 pub(super) fn assign_local_type_symbols(
     machine: &MachineScope<'_>,
@@ -179,7 +176,6 @@ pub(super) fn assign_statement_symbols(
                 child_type_references,
                 symbols,
             );
-            let operand_route = build_operand_route(call.target.as_str(), call.target_symbol);
             crate::symbols::expressions::assign_static_arguments_type_symbols(
                 symbols,
                 machine,
@@ -189,38 +185,16 @@ pub(super) fn assign_statement_symbols(
                 child_type_references,
                 &call.machine_arguments,
             );
-            for (index, argument) in call.machine_arguments.iter_mut().enumerate() {
-                match operand_route {
-                    Some(BuildOperation::AssumedBindingContract) => {
-                        assign_assumed_binding_argument_symbol(symbols, argument);
-                    }
-                    Some(BuildOperation::RepresentationSelection) => {
-                        assign_representation_selection_argument_symbol(
-                            symbols,
-                            argument,
-                            index == 0,
-                        );
-                    }
-                    Some(operation) => assign_provider_selection_argument_symbol(
-                        symbols,
-                        argument,
-                        matches!(
-                            operation,
-                            BuildOperation::ProviderSelection | BuildOperation::BoundaryAcceptance
-                        ) && index == 0,
-                    ),
-                    None => {
-                        assign_static_argument_symbols(
-                            symbols,
-                            machine.symbol,
-                            machine.type_parameters,
-                            argument,
-                            false,
-                        );
-                        assign_runtime_subject_argument_symbol(symbols, state_symbol, argument);
-                    }
-                }
-            }
+            // The statement `Call` wrapper keeps `target` beside its storage row;
+            // borrow the two apart so the router can read one and mutate the other.
+            assign_call_machine_argument_symbols(
+                symbols,
+                machine,
+                state_symbol,
+                &call.target,
+                call.target_symbol,
+                &mut call.storage.machine_arguments,
+            );
         }
         symbol_resolved_trees::statement::Statement::ProofOutputBindingStatement(binding) => {
             binding.machine_symbol = machine.symbol;

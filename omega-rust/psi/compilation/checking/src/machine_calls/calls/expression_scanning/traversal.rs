@@ -90,6 +90,7 @@ pub(crate) fn validate_value_position_calls(
     transition_values: &crate::declarations::transitions::TransitionValueEnvironments,
     boundary_operator_applications: &mut Vec<crate::ValidatedBoundaryOperatorApplication>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     let executes = true;
     match statement {
@@ -106,6 +107,7 @@ pub(crate) fn validate_value_position_calls(
                 executes,
                 boundary_operator_applications,
                 diagnostics,
+                formation_obligations,
             );
             scan_assignment_target_calls(
                 program,
@@ -118,6 +120,7 @@ pub(crate) fn validate_value_position_calls(
                 executes,
                 boundary_operator_applications,
                 diagnostics,
+                formation_obligations,
             );
         }
         StatementNode::Call(call) => {
@@ -134,6 +137,7 @@ pub(crate) fn validate_value_position_calls(
                     executes,
                     boundary_operator_applications,
                     diagnostics,
+                    formation_obligations,
                 );
             }
         }
@@ -150,6 +154,7 @@ pub(crate) fn validate_value_position_calls(
                 executes,
                 boundary_operator_applications,
                 diagnostics,
+                formation_obligations,
             );
         }
         StatementNode::LocalData(local_data) => {
@@ -173,6 +178,7 @@ pub(crate) fn validate_value_position_calls(
                 executes,
                 boundary_operator_applications,
                 diagnostics,
+                formation_obligations,
             );
         }
         StatementNode::Transition(transition) => {
@@ -188,6 +194,7 @@ pub(crate) fn validate_value_position_calls(
                     executes,
                     boundary_operator_applications,
                     diagnostics,
+                    formation_obligations,
                 );
             }
             for target_handle in transition.targets() {
@@ -217,6 +224,7 @@ pub(crate) fn validate_value_position_calls(
                                 executes,
                                 boundary_operator_applications,
                                 diagnostics,
+                                formation_obligations,
                             );
                         }
                     }
@@ -235,6 +243,7 @@ pub(crate) fn validate_value_position_calls(
                             executes,
                             boundary_operator_applications,
                             diagnostics,
+                            formation_obligations,
                         );
                     }
                     TransitionTargetNode::Terminal => {}
@@ -258,6 +267,7 @@ fn scan_expression_calls(
     executes: bool,
     boundary_operator_applications: &mut Vec<crate::ValidatedBoundaryOperatorApplication>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     scan_expression_calls_at_position(
         program,
@@ -271,6 +281,7 @@ fn scan_expression_calls(
         executes,
         boundary_operator_applications,
         diagnostics,
+        formation_obligations,
     );
 }
 
@@ -292,6 +303,7 @@ fn scan_assignment_target_calls(
     executes: bool,
     boundary_operator_applications: &mut Vec<crate::ValidatedBoundaryOperatorApplication>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     let mut target_diagnostics = Vec::new();
     scan_expression_calls(
@@ -305,6 +317,7 @@ fn scan_assignment_target_calls(
         executes,
         boundary_operator_applications,
         &mut target_diagnostics,
+        formation_obligations,
     );
     let read_reports = unknown_field_read_reports(program, machine, state, expression);
     diagnostics.extend(
@@ -368,6 +381,7 @@ fn scan_expression_calls_at_position(
     executes: bool,
     boundary_operator_applications: &mut Vec<crate::ValidatedBoundaryOperatorApplication>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     if !expression.is_valid() {
         return;
@@ -573,6 +587,7 @@ fn scan_expression_calls_at_position(
                     executes,
                     boundary_operator_applications,
                     diagnostics,
+                    formation_obligations,
                 )
             };
             scan(dispatch.subject, executes, value_environment);
@@ -652,6 +667,7 @@ fn scan_expression_calls_at_position(
                     executes,
                     boundary_operator_applications,
                     diagnostics,
+                    formation_obligations,
                 );
             }
         }
@@ -695,6 +711,7 @@ fn scan_expression_calls_at_position(
                 executes,
                 boundary_operator_applications,
                 diagnostics,
+                formation_obligations,
             );
             // Recurse into the receiver and arguments (nested calls).
             if call.receiver.is_valid()
@@ -718,7 +735,9 @@ fn scan_expression_calls_at_position(
                     executes,
                     boundary_operator_applications,
                     diagnostics,
-                );
+
+    formation_obligations,
+);
             }
             for argument in program.expression_table.expression_handles(call.arguments) {
                 scan_expression_calls(
@@ -732,6 +751,7 @@ fn scan_expression_calls_at_position(
                     executes,
                     boundary_operator_applications,
                     diagnostics,
+                    formation_obligations,
                 );
             }
         }
@@ -747,6 +767,7 @@ fn scan_expression_calls_at_position(
                 binary.left,
                 binary.right,
                 diagnostics,
+                formation_obligations,
             );
             scan_expression_calls(
                 program,
@@ -759,6 +780,7 @@ fn scan_expression_calls_at_position(
                 executes,
                 boundary_operator_applications,
                 diagnostics,
+                formation_obligations,
             );
             let right_environment =
                 crate::proof_contracts::arithmetic_domains::short_circuit_operand_environment(
@@ -787,6 +809,7 @@ fn scan_expression_calls_at_position(
                     ),
                 boundary_operator_applications,
                 diagnostics,
+                formation_obligations,
             );
         }
         ExpressionNode::Cast(cast) => {
@@ -829,6 +852,7 @@ fn scan_expression_calls_at_position(
                 executes,
                 boundary_operator_applications,
                 diagnostics,
+                formation_obligations,
             );
         }
         ExpressionNode::Indexed(indexed) => {
@@ -850,6 +874,7 @@ fn scan_expression_calls_at_position(
                 executes,
                 boundary_operator_applications,
                 diagnostics,
+                formation_obligations,
             );
             scan_expression_calls(
                 program,
@@ -862,6 +887,7 @@ fn scan_expression_calls_at_position(
                 executes,
                 boundary_operator_applications,
                 diagnostics,
+                formation_obligations,
             );
         }
         ExpressionNode::Member(member) => {
@@ -876,6 +902,7 @@ fn scan_expression_calls_at_position(
                 executes,
                 boundary_operator_applications,
                 diagnostics,
+                formation_obligations,
             );
         }
         ExpressionNode::Borrow(inner) => {
@@ -890,6 +917,7 @@ fn scan_expression_calls_at_position(
                 executes,
                 boundary_operator_applications,
                 diagnostics,
+                formation_obligations,
             );
         }
         ExpressionNode::Unary(unary) => {
@@ -924,6 +952,7 @@ fn scan_expression_calls_at_position(
                 executes,
                 boundary_operator_applications,
                 diagnostics,
+                formation_obligations,
             );
         }
         ExpressionNode::ArrayLiteral(elements) => {
@@ -940,6 +969,7 @@ fn scan_expression_calls_at_position(
                     executes,
                     boundary_operator_applications,
                     diagnostics,
+                    formation_obligations,
                 );
             }
         }
@@ -957,6 +987,7 @@ fn scan_expression_calls_at_position(
                     executes,
                     boundary_operator_applications,
                     diagnostics,
+                    formation_obligations,
                 );
             }
         }
@@ -972,6 +1003,7 @@ fn scan_expression_calls_at_position(
                 executes,
                 boundary_operator_applications,
                 diagnostics,
+                formation_obligations,
             );
             scan_expression_calls(
                 program,
@@ -984,6 +1016,7 @@ fn scan_expression_calls_at_position(
                 executes,
                 boundary_operator_applications,
                 diagnostics,
+                formation_obligations,
             );
         }
         typed_trees::executable_leaf_expression_pattern!() => {}

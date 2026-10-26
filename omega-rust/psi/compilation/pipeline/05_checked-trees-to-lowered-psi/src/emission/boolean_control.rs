@@ -307,7 +307,7 @@ fn emit_reserved_boolean_guard_decision_blocks(
 ) -> LoweredBooleanDecisionTarget {
     // These observation-only decisions inherit their parent's scope; neither
     // sibling nor caller may reuse lengths first emitted in a private child.
-    let incoming_lengths = all_operations.length_observations.clone();
+    let incoming_observations = all_operations.storage_observations.clone();
     let target = match decision {
         LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant { value: true }) => {
             when_true_target.clone()
@@ -532,7 +532,7 @@ fn emit_reserved_boolean_guard_decision_blocks(
             }
         }
     };
-    all_operations.length_observations = incoming_lengths;
+    all_operations.storage_observations = incoming_observations;
     target
 }
 
@@ -593,7 +593,7 @@ pub(crate) fn emit_reserved_boolean_tuple_stage_blocks(
 ) -> BlockId {
     // These observation-only decisions inherit their parent's scope; neither
     // sibling nor caller may reuse lengths first emitted in a private child.
-    let incoming_lengths = all_operations.length_observations.clone();
+    let incoming_observations = all_operations.storage_observations.clone();
     let block_index = blocks.len();
     let block = block_id(
         first_block_identity
@@ -711,6 +711,6 @@ pub(crate) fn emit_reserved_boolean_tuple_stage_blocks(
         operations: all_operations[operation_start..operation_end].to_vec(),
         terminator,
     });
-    all_operations.length_observations = incoming_lengths;
+    all_operations.storage_observations = incoming_observations;
     block
 }

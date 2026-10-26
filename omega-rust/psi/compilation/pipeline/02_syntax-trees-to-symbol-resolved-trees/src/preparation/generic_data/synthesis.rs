@@ -11,7 +11,7 @@ use crate::preparation::generic_data::uses::{
     closed_constructor_carrier, relabel_closed_data_uses_in_constants,
     relabel_closed_data_uses_in_exact_assignments,
     relabel_closed_data_uses_in_exact_calls_and_returns,
-    relabel_closed_sum_memberships_from_local_types, relabel_unique_closed_sum_paths,
+    relabel_closed_sum_memberships_from_local_types,
 };
 
 use super::substitution::substitute_copied_type_names;
@@ -179,7 +179,7 @@ pub(crate) fn desugar_generic_data_instances_in(
                 .map(|parameter| {
                     (
                         parameter.name.as_str(syntax).to_string(),
-                        matches!(parameter.kind, TypeParameterKind::Const { .. }),
+                        parameter.kind.is_const_or_value(),
                     )
                 })
                 .collect();
@@ -219,7 +219,8 @@ pub(crate) fn desugar_generic_data_instances_in(
         let const_parameter_types = definition_parameters
             .iter()
             .map(|parameter| match parameter.kind {
-                TypeParameterKind::Const { type_reference } => Some(type_reference),
+                TypeParameterKind::Const { type_reference }
+                | TypeParameterKind::Value { type_reference } => Some(type_reference),
                 _ => None,
             })
             .collect();
@@ -527,7 +528,6 @@ pub(crate) fn desugar_generic_data_instances_in(
         &declarations,
     );
     relabel_closed_sum_memberships_from_local_types(syntax, &synthesized, selection, &declarations);
-    relabel_unique_closed_sum_paths(syntax, &synthesized, selection, &declarations);
 
     normalize_generic_template_const_expressions(syntax, &const_values, warnings, &declarations)
         .map_err(|diagnostic| vec![diagnostic])?;
@@ -796,8 +796,16 @@ fn synthesize_instance(
     // loop above, so its `const` mentions land in the same rewritten
     // window as the data-level fact copies.
     replace_const_expression_names_from(syntax, fact_expression_watermark, &const_expressions);
-    let cleanup_selection = base_info.cleanup_selection.clone().map(|selection|
-        super::substitution::substitute_cleanup_selection(syntax, snapshot, selection, &substitution, &const_parameter_values, warnings));
+    let cleanup_selection = base_info.cleanup_selection.clone().map(|selection| {
+        super::substitution::substitute_cleanup_selection(
+            syntax,
+            snapshot,
+            selection,
+            &substitution,
+            &const_parameter_values,
+            warnings,
+        )
+    });
     let declaration = syntax.push_root_item(Item::Data(DataDefinition {
         // The closed instance is compiler-generated, but its mandatory
         // derivation origin is the exact authored generic declaration.

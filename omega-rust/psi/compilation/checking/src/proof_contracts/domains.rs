@@ -40,6 +40,7 @@ pub(crate) fn validate_domain_definitions(
     symbols: &TopLevelSymbols<'_>,
     fact_plan: &FactPlan,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     validate_domain_aliases(program, diagnostics);
     validate_progress_profile_domains(program, diagnostics);
@@ -62,6 +63,7 @@ pub(crate) fn validate_domain_definitions(
                 type_parameters: program.domain_type_parameters(domain),
                 lifetime_parameters: &[],
             },
+            formation_obligations,
         );
         validate_domain_fact_payloads(
             program,

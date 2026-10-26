@@ -75,66 +75,52 @@
 //! `structural_case_arms.rs` recognizes guarded structural case arms and
 //! `self_induction.rs` intakes self-induction hypotheses.
 
-mod arithmetic_judgment;
-mod call_requirements;
+pub(crate) mod arithmetic_judgment;
+pub(crate) mod call_requirements;
 mod citations;
-mod collection_bounds;
-pub use collection_bounds::CollectionBoundsObservations;
-mod statement_predicates;
-pub use statement_predicates::StatementPredicateObservations;
-mod completed_domains;
-mod completed_observations;
+pub(crate) mod collection_bounds;
+pub(crate) mod completed_domains;
+pub(crate) mod completed_observations;
 mod completed_values;
 mod construction_predicates;
-pub use completed_domains::{
-    completed_value_proves_bound_domain_predicate, completed_value_proves_domain_predicate,
-    completed_value_refutes_domain,
-};
+pub(crate) mod statement_predicates;
+
 pub(crate) use construction_predicates::construction_predicate_judgments;
-mod call_projection_identity;
+pub(crate) mod call_projection_identity;
 mod const_ranges;
-mod content_conservation;
-pub use content_conservation::completed_value_preserves_entry_projection;
-pub use content_conservation::completed_value_proves_content_conservation;
+pub(crate) mod content_conservation;
 mod contract_refinement;
-mod exact_integer_fit;
 mod exit_coverage;
 mod fact_mentions;
 mod inductive_judgment;
-mod law_conformance;
+pub(crate) mod law_conformance;
+pub(crate) mod numeric_observations;
 mod observed_projections;
+mod operand_fits;
 mod proof_edges;
-mod proof_integer;
+pub(crate) mod proof_integer;
 mod quotient_congruence;
-mod ranking_range;
-mod refuted_requires;
+pub(crate) mod ranking_range;
+pub(crate) mod refuted_requires;
 mod result_bounds;
-mod scalar_observations;
-pub use call_projection_identity::{
-    captured_call_argument_index_matches, captured_call_index_value,
-    captured_call_subject_identity, owned_contract_subject,
-};
-mod scoped_arithmetic;
+pub(crate) mod scoped_arithmetic;
 mod self_induction;
 pub(crate) mod specification_calls;
-mod static_applications;
+pub(crate) mod static_applications;
 mod stored_predicates;
 pub(crate) use stored_predicates::stored_data_predicate_holds;
-mod strict_arithmetic;
+pub(crate) mod strict_arithmetic;
 mod structural_case_arms;
 pub(crate) mod structural_judgment;
 mod structural_prefix;
-pub(crate) use exact_integer_fit::{
+pub(crate) use operand_fits::{
+    anonymous_comparison_operand_fits_at_occurrence, anonymous_value_fit_at_occurrence,
     exact_binary_fits_at_occurrence, exact_cast_fits_at_occurrence,
+    float_integer_conversion_fits_at_occurrence,
 };
 mod structural_terms;
-mod transparent_applications;
+pub(crate) mod transparent_applications;
 
-pub use arithmetic_judgment::integer_embedding_sources_equal;
-pub use call_requirements::{
-    selected_value_call_requirement_entailed, structural_call_requirement_entailed,
-};
-pub use completed_observations::completed_value_is_bounded_by_static;
 pub(crate) use completed_observations::completed_value_fits_integer_interval;
 pub(crate) use const_ranges::{
     const_range_bound_is_admitted, selected_const_call_result_bounds, symbolic_range_contains,
@@ -142,77 +128,47 @@ pub(crate) use const_ranges::{
 };
 pub(crate) use contract_refinement::check_contract_refinement;
 pub(crate) use exit_coverage::entailment_covers_all_exits;
-pub use law_conformance::{
-    InheritedRequirementApplication, inherited_requirement_proposition_application,
-    inherited_requirement_proposition_label, inherited_satisfier_parameters,
+
+pub(crate) use content_conservation::{
+    ConditionalContentGuarantee, ContentBackingAddressGoal, ContentConservationDependencies,
+    ContentConservationImplication, completed_value_content_conservation_dependencies,
+    completed_value_has_content_conservation_candidate, completed_value_preserves_entry_projection,
+    completed_value_proves_backing_addresses, completed_value_proves_content_conservation,
 };
-pub use law_conformance::{MatchedLawGuarantee, matched_machine_law_guarantees};
 pub(crate) use law_conformance::{check_law_conformance, check_operator_contract_conformance};
+pub(crate) use numeric_observations::{
+    CapturedIntegerOperation, CapturedNumericObservations, CapturedScalarAssociation,
+    CapturedScalarObservation, NumericObservationDemand, captured_numeric_observations,
+};
 pub(crate) use proof_edges::proof_edge_strict_decrease_judged;
 pub(crate) use proof_integer::mathematical_integer_operands;
-pub use proof_integer::{anonymous_integer_math_literal, proof_integer_expression};
+
 pub(crate) use proof_integer::{
+    anonymous_integer_math_literal, anonymous_integer_value, proof_integer_expression,
     proof_integer_nonnegative, proof_integer_nonzero, proof_nat_cast,
     validate_proof_fact_integer_formation,
 };
-pub use ranking_range::{
-    ArithmeticCallObservation, RankArrivalCompatibility, RankArrivalCorrespondence,
-    RankArrivalDemand, RankCoordinateBinding, RankCoordinateTransport, RankLocalCapture,
-    RankPremiseCoordinate, RankPremiseInput, RankPremiseObservation, RankProtectedPath,
-    RankReceivingCoordinate, RankStateBindings, RankSubjectCoordinate, RankValueDerivation,
-    RankingRangeEdgeProof, RankingRangeMeasure, RankingRangePremises, RankingRangeState,
-    StateEntryCorrespondence, arithmetic_entry_requirement_is_covered,
-    discover_rank_arrival_correspondence, frame_preserves_rank_premises, protect_rank_premise,
-    prove_arithmetic_call_requirement, prove_captured_arithmetic_call_requirement,
-    prove_ranking_range_edge, prove_ranking_range_entry, prove_ranking_range_transition,
-    rank_protected_path, ranking_coordinate_type, ranking_range_arrival_preserves_roles,
-    ranking_range_premise_symbols, ranking_range_required_coordinates,
-    ranking_range_state_premise_coordinates, ranking_slice_length_observation,
-    select_rank_arrival_correspondence,
-};
-pub use ranking_range::{
-    ComputationBodyShape, DeclaredScalarView, MeasureBodyShape, ProjectionStep,
-    ScalarViewComputation, computation_body_shape, declared_scalar_view, find_declared_measure,
-    identity_subject_matches, measure_body_shape, measure_constraints_cover_subject,
-    unique_literal_field,
-};
+
 pub(crate) use ranking_range::{
     RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
     call_member_premise_symbols, mixed_call_endpoints_are_pinned, prove_ranking_range_call,
 };
-pub use ranking_range::{
-    captured_collection_length, captured_integer_value, closed_collection_length,
-    closed_collection_length_at_place, closed_collection_length_under_matches,
-};
-pub use refuted_requires::instantiated_value_call_requires_proven;
+
 pub(crate) use refuted_requires::reject_refuted_value_call_requires;
-pub use scalar_observations::{CapturedScalarObservation, captured_scalar_observations};
-pub use scoped_arithmetic::{
-    ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticComparison,
-    ScopedArithmeticExpression, ScopedArithmeticHypothesis, ScopedArithmeticValue,
-    ScopedCallCompletion, scoped_arithmetic_comparisons_unsatisfiable,
-    scoped_arithmetic_implication, scoped_arithmetic_value_bounds,
-    scoped_arithmetic_values_relation, scoped_completed_call_guarantees,
+
+pub(crate) use scoped_arithmetic::{
+    ScopedArithmeticBinding, ScopedArithmeticExpression, ScopedArithmeticValue,
 };
 pub(crate) use scoped_arithmetic::{
     scoped_arithmetic_implication_for_declaration,
     scoped_arithmetic_values_relation_for_declaration,
 };
-pub use specification_calls::call_contract_parameter_position;
+
 pub(crate) use specification_calls::{
     SelectedCallContract, selected_call_contract, validate_specification_call_requirements,
 };
-pub use static_applications::static_application_where_judgment;
-pub use strict_arithmetic::{
-    StrictArithmeticBindingValue, StrictArithmeticExpressionBinding,
-    StrictArithmeticImplicationJudgment, StrictArithmeticSymbolBinding,
-    strict_arithmetic_expression_implication,
-};
+
 pub(crate) use structural_judgment::declared_index_algebra_laws;
-pub use transparent_applications::{
-    InheritedRequirementEdge, transparent_call_requirement_entailed,
-    transparent_proposition_application_entailed,
-};
 
 use std::collections::BTreeMap;
 
@@ -613,16 +569,16 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
     let projection_plans = if ensures.iter().any(|fact| {
         content_conservation::content_conservation_plan(machine, *fact, &content_plans).is_some()
     }) {
-        crate::value_custody::content_projections::build_content_projection_plans(program)
+        crate::value_custody::content_conservation::content_projection_plans(program)
     } else {
-        Vec::new()
+        std::sync::Arc::new(Vec::new())
     };
-    let judge_normal_return = |fact: ExpressionHandle| -> Option<StructuralJudgment> {
+    let judge_normal_return = |fact: ExpressionHandle| -> Option<(
+        StructuralJudgment,
+        Vec<ContentConservationDependencies>,
+    )> {
         let content_plan =
             content_conservation::content_conservation_plan(machine, fact, &content_plans);
-        // Both a direct tail and a named-state/branch leaf own a completed
-        // runtime observation frame. Consume that frame, not a reconstruction
-        // from the machine entry that would lose writes or returned guarantees.
         let paths: Vec<_> = if let Some(paths) = &sole_arm_result {
             paths
                 .iter()
@@ -637,10 +593,17 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
         } else {
             return None;
         };
+        // A conditional normal-return contract may be vacuous. An empty
+        // observation frontier is not an independently established theorem.
+        if content_plan.is_some() && paths.is_empty() {
+            return Some((StructuralJudgment::Unknown, Vec::new()));
+        }
         let mut verdict = StructuralJudgment::Proven;
+        let mut dependencies = Vec::new();
+        let mut complete_candidate = true;
         for (judge, value) in paths {
-            let judgment = if let Some(plan) = content_plan {
-                content_conservation::judge_content_conservation(
+            let (judgment, dependency) = if let Some(plan) = content_plan {
+                content_conservation::judge_content_conservation_with_dependencies(
                     program,
                     judge,
                     value,
@@ -653,27 +616,43 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                     std::sync::Arc::make_mut(&mut bound.substitutions)
                         .insert(0, (RESULT_BINDER.to_owned(), value.clone()));
                 }
-                bound.judge(program, fact)
+                (bound.judge(program, fact), None)
             };
             if struct_trace() {
                 eprintln!(
                     "STRUCT normal-return machine={} value={value:?} fact={} verdict={}",
                     machine.name,
                     program.expression_table.display_name(fact),
-                    match judgment {
-                        StructuralJudgment::Proven => "proven",
-                        StructuralJudgment::Refuted => "refuted",
-                        StructuralJudgment::Unknown => "unknown",
+                    if dependency.is_some() {
+                        "conditional"
+                    } else {
+                        match judgment {
+                            StructuralJudgment::Proven => "proven",
+                            StructuralJudgment::Refuted => "refuted",
+                            StructuralJudgment::Unknown => "unknown",
+                        }
                     },
                 );
             }
             match judgment {
-                StructuralJudgment::Refuted => return Some(StructuralJudgment::Refuted),
-                StructuralJudgment::Unknown => verdict = StructuralJudgment::Unknown,
+                StructuralJudgment::Refuted => {
+                    return Some((StructuralJudgment::Refuted, Vec::new()));
+                }
+                StructuralJudgment::Unknown => {
+                    verdict = StructuralJudgment::Unknown;
+                    if let Some(dependency) = dependency {
+                        dependencies.push(dependency);
+                    } else {
+                        complete_candidate = false;
+                    }
+                }
                 StructuralJudgment::Proven => {}
             }
         }
-        Some(verdict)
+        if !complete_candidate {
+            dependencies.clear();
+        }
+        Some((verdict, dependencies))
     };
     let judge_structural = |fact: ExpressionHandle,
                             normal_return: Option<&StructuralJudgment>|
@@ -880,7 +859,38 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 proven.entry.push(*fact);
                 return false;
             }
-            let normal_return = judge_normal_return(*fact);
+            let normal_return = judge_normal_return(*fact).map(|(judgment, returns)| {
+                if !returns.is_empty()
+                    && let Some(plan) = content_conservation::content_conservation_plan(
+                        machine,
+                        *fact,
+                        &content_plans,
+                    )
+                {
+                    proven
+                        .conditional_content
+                        .push(ConditionalContentGuarantee {
+                            expression: *fact,
+                            plan: plan.clone(),
+                            returns,
+                        });
+                }
+                judgment
+            });
+            if machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+                && content_conservation::content_conservation_plan(machine, *fact, &content_plans)
+                    .is_some()
+            {
+                // One owner publishes canonical content guarantees. A pending
+                // law must not fall through to result bounds, proof induction
+                // or the generic Boolean engine and lose its source roster.
+                // Exit checking retains the original obligation until the
+                // rooted composition pass proves every ordinary return.
+                if matches!(normal_return, Some(StructuralJudgment::Proven)) {
+                    proven.normal_returns.push(*fact);
+                }
+                return false;
+            }
             let Some(held) = mention else {
                 // Selected normal-return guarantees and ordinary value
                 // equations use the same prepared path judgment as proof-only

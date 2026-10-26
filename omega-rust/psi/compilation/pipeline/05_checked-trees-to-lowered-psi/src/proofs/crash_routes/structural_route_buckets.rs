@@ -133,6 +133,7 @@ impl RouteTerms<'_> {
             CheckedBooleanExpression::StructuralParameterField {
                 parameter_position,
                 path,
+                ..
             } => lower_structural_member_term(
                 identities,
                 *parameter_position,
@@ -220,6 +221,7 @@ impl RouteTerms<'_> {
                     parameter_position,
                     path,
                     primitive_type,
+                    ..
                 } => lower_structural_member_term(
                     identities,
                     *parameter_position,
@@ -620,7 +622,7 @@ pub(crate) fn substitute_structural_crash_route_roots(
                     *root = replacement;
                     let mut rebased = prefix
                         .into_iter()
-                        .map(semantic_vocabulary::ScalarReadProjection::Static)
+                        .map(semantic_vocabulary::ScalarReadProjection::from)
                         .collect::<Vec<_>>();
                     rebased.append(path);
                     *path = rebased;

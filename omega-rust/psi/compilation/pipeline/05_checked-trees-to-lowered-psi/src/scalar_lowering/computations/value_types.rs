@@ -85,6 +85,15 @@ fn value_type(
             }
             terminal_scalar_type(node.primitive_type)?.into()
         }
+        CheckedScalarComputationKind::WithOperands { operand, .. } => value_type(
+            identities,
+            checked,
+            qualifications,
+            *operand,
+            bindings,
+            source_types,
+            active,
+        )?,
         CheckedScalarComputationKind::Apply { .. }
         | CheckedScalarComputationKind::StorageObservation { .. }
         | CheckedScalarComputationKind::SelectedComparison { .. } => {

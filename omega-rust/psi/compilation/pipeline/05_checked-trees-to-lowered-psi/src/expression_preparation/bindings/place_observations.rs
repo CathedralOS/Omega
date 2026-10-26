@@ -427,6 +427,7 @@ fn append_observation_path(
     };
     for segment in supplied {
         match segment {
+            Predicate::Referent => path.push(Projection::Referent),
             Predicate::Field(field) => path.push(Projection::Field(field.clone())),
             Predicate::FixedIndex(index) => path.push(Projection::FixedIndex(*index)),
             Predicate::RuntimeIndex(index) => {

@@ -1,0 +1,17 @@
+data ByteUnit {}
+data CountedQuantity<Unit> { magnitude: u64; }
+trait Content<Owner, Algebra> {
+    machine project(subject: &Owner) -> Algebra;
+}
+data Region [linear] { length: u64; }
+domain Region::Owned;
+machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
+satisfies Content<Region, CountedQuantity<ByteUnit>>::project
+{ CountedQuantity { magnitude: region.length } }
+data Pieces { left: Region in Owned; right: Region in Owned; }
+trait InvalidSplit {
+    machine split(whole: Region in Owned) -> Pieces
+    ensures Owned::content(old(&whole))
+        == separate(Owned::content(&result.left), Owned::content(&result.right));
+}
+machine main() {}

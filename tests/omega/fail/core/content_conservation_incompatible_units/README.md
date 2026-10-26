@@ -1,0 +1,1 @@
+Canonical core Content projections preserve their exact unit identities. Separating a ByteUnit quantity and a WordUnit quantity cannot prove conservation of the byte input, even when their scalar magnitudes have the same carrier.

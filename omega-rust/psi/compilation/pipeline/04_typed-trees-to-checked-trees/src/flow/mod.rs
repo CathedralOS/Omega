@@ -44,29 +44,40 @@ mod entry_origins;
 // Contract induction consumes the same all-path origin solution as flow
 // rebasing. These are scratch queries, not additional retained proof authority.
 pub(crate) use entry_origins::{
-    MachineParameterOrigins, entry_storage_origins, machine_parameter_origins,
-    machine_storage_origins, state_origins as state_parameter_origins,
+    MachineParameterOrigins, activation_parameter_origins, entry_storage_origins,
+    machine_parameter_origins, machine_storage_origins, state_origins as state_parameter_origins,
 };
 mod exits;
 mod guard_predicates;
 pub(crate) use guard_predicates::{saved_guard_observations, transition_guard_observations};
 mod expression;
+mod observations;
+pub(crate) use observations::{
+    CapturedSubjectFacts, captured_case_subject, captured_case_subject_result,
+    completed_dispatch_extraction, copied_payload_at, descriptor_context_agrees,
+    descriptor_observation_namespace,
+};
+mod captured_references;
+pub(crate) use captured_references::CapturedReferencePlace;
 mod operand_contexts;
 mod operand_values;
+mod selection_conditions;
+pub(crate) use operand_values::captured_reference_places;
 pub(crate) use operand_values::{
-    CapturedValue, captured_lifetime_roots, captured_observation_places,
-    captured_observation_roots, captured_operand_at_path, captured_operand_child_at_path,
-    captured_operand_values, captured_value_places, observe_captured_values,
-    project_captured_view_place,
+    CapturedOperand, CapturedValue, CapturedValueChoice, captured_lifetime_roots,
+    captured_observation_places, captured_observation_roots, captured_operand_at_path,
+    captured_operand_child_at_path, captured_operand_handle_at_path, captured_operand_values,
+    captured_value_places, observe_captured_values, project_captured_view_place,
 };
+pub(crate) use selection_conditions::{SelectionCondition, SelectionConditions};
 mod operator_calls;
 pub(crate) use operand_contexts::{
     OperandContextSelection, OperandContextSelections, binding_origin_is_stable,
     call_return_before_statement_agrees, captured_call_operands, entry_origin_is_stable,
     operand_binding_before_statement_agrees, operand_bindings_agree, operand_binds_live_view,
-    operand_binds_stable_copy, operand_contexts, operand_entry_binding_origin_is_stable,
-    operand_entry_origin_is_stable, operand_observation_before_statement_agrees,
-    operand_observations_agree,
+    operand_binds_stable_copy, operand_contents_writes_between, operand_contexts,
+    operand_entry_binding_origin_is_stable, operand_entry_origin_is_stable,
+    operand_observation_before_statement_agrees, operand_observations_agree,
 };
 mod state;
 mod statements;
@@ -140,7 +151,8 @@ use constraints::{
     append_contiguous_borrow_access_constraints, append_contiguous_borrow_root_constraints,
 };
 use context::{
-    FlowBuildContext, active_context_facts, active_context_handles, source_transfer_cases_selected,
+    FlowBuildContext, SharedFlowTables, active_context_facts, active_context_handles,
+    source_transfer_cases_selected,
 };
 pub(crate) use domain::build_domain_facts;
 pub(crate) use domain::context_survives_place_mutations;
@@ -200,16 +212,17 @@ pub(crate) fn resolved_operator_statement_symbol(
 }
 pub(crate) use ownership::{
     DiscoveredMoveEvent, FlowOwnershipEventSource, call_permission_evaluation,
-    discover_state_move_events, owned_call_operand_places,
+    discover_state_move_events, owned_call_operand_places, owned_operand_transfer_place,
 };
 pub(crate) use place::{
     CaseEvidence, LiteralExpressionProjection, LiteralValueSource, MembershipEvidence,
     canonical_place_from_semantic_place, canonical_place_from_symbol,
     canonical_place_joined_segments_may_overlap, canonical_place_segments_equal,
-    canonical_place_segments_may_overlap, canonical_places_agree, compose_captured_view_segments,
-    literal_argument_access_places, literal_expression_projections, literal_value_path_is_inactive,
-    literal_value_projections, narrow_pinned_index_segments, place_case_has_value,
-    place_case_path_is_inactive, place_cases_are_selected, place_segment_has_static_identity,
+    canonical_place_segments_may_overlap, canonical_places_agree, case_tag_segments_may_overlap,
+    compose_captured_view_segments, literal_argument_access_places, literal_expression_projections,
+    literal_value_path_is_inactive, literal_value_projections, narrow_pinned_index_segments,
+    place_case_has_value, place_case_path_is_inactive, place_cases_are_selected,
+    place_cases_are_selected_after, place_segment_has_static_identity,
     place_segment_has_unresolved_identity, projected_leaf_place, reference_source_place,
     segments_cover_subject, source_independent_place, stable_case_subject,
     static_place_segment_pair_equal,

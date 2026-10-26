@@ -83,6 +83,66 @@ enum ElementViewBacking {
 }
 
 impl ElementView {
+    /// A live view retains its selected backing, independently of the private
+    /// descriptor home from which that view was copied.
+    pub(crate) fn retain_storage(&self, retained: &mut crate::structural_storage::RetainedStorage) {
+        self.retain_projection_storage(retained, &[]);
+    }
+
+    /// The same captured window supplies ordinary roots and a saved return
+    /// origin's remaining selection. Element indexes are relative to this view;
+    /// forwarding never rereads a replaceable descriptor home for its offset.
+    pub(crate) fn retain_projection_storage(
+        &self,
+        retained: &mut crate::structural_storage::RetainedStorage,
+        projection: &[terminal_psi::ReferenceOriginProjection],
+    ) {
+        if let Some(home) = &self.home {
+            retained.primitive_home(home.storage);
+        }
+        match &self.backing {
+            ElementViewBacking::Typed(view) => view.retain_storage(retained),
+            ElementViewBacking::Representation(view) => view.retain_storage(retained),
+            ElementViewBacking::Structural { .. } => {}
+        }
+        let ElementViewBacking::Structural { collection } = &self.backing else {
+            // Typed and byte-representation admission recursively permits only
+            // scalar leaves. Those views contain no descriptor sidecells; their
+            // scalar/byte backing is independent of descriptor reclamation.
+            return;
+        };
+        let (window, suffix) = match projection.split_first() {
+            None => (self.window.clone(), &[][..]),
+            Some((terminal_psi::ReferenceOriginProjection::Element, suffix)) => {
+                (self.window.clone(), suffix)
+            }
+            Some((
+                terminal_psi::ReferenceOriginProjection::Exact(StructuralPathSegment::FixedIndex(
+                    index,
+                )),
+                suffix,
+            )) => {
+                let Ok(index) = usize::try_from(*index) else {
+                    return;
+                };
+                let Some(selected) = self
+                    .window
+                    .start
+                    .checked_add(index)
+                    .filter(|selected| *selected < self.window.end)
+                else {
+                    return;
+                };
+                let Some(end) = selected.checked_add(1) else {
+                    return;
+                };
+                (selected..end, suffix)
+            }
+            _ => return,
+        };
+        retained.elements(collection, window, suffix);
+    }
+
     pub(crate) fn retained_bytes(&self) -> Option<&crate::byte_sequences::ByteSequenceView> {
         match &self.backing {
             ElementViewBacking::Representation(view) => view.retained_bytes(),

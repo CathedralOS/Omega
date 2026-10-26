@@ -478,12 +478,14 @@ mod structural_scalar_field;
 pub use structural_scalar_field::{
     StructuralScalarField, StructuralSource, saved_dispatch_call, saved_dispatch_subject,
     structural_atomic_field, structural_scalar_field, structural_scalar_field_at_coordinate,
-    structural_scalar_field_in_parameters, structural_source,
+    structural_scalar_field_in_parameters, structural_scalar_field_of_evaluated_receiver,
+    structural_source,
 };
 mod member_paths;
 mod parameter_scoped;
 pub(crate) use parameter_scoped::has_retained_builtin_index_meaning;
 pub(crate) use parameter_scoped::parameter_scoped_type_reference;
+pub use parameter_scoped::parameter_source_type_application;
 mod projected_members;
 mod result_shape;
 pub use attached_storage::{
@@ -508,7 +510,7 @@ use member_paths::{collect_member_path, data_field_or_payload, data_field_or_pay
 pub(crate) use member_paths::{
     data_definition_for_type, declared_member_path_type, first_unknown_nested_field,
 };
-pub(crate) use projected_members::applied_data_member_field;
+pub use projected_members::applied_data_member_field;
 pub use projected_members::declared_case_projection_field;
 pub use projected_members::exact_data_member_field;
 pub(crate) use result_shape::expression_result_is_reference;
@@ -649,8 +651,29 @@ pub fn declared_carriers_match(
     left: TypeReferenceHandle,
     right: TypeReferenceHandle,
 ) -> bool {
+    declared_carriers_match_under_application(program, left, right, &[])
+}
+
+/// The same storage-carrier judgment under one exact authored application.
+/// Only right-hand declaration leaves see these simultaneous substitutions;
+/// constraint-shell weakening stays separate from arithmetic-policy admission.
+/// No type graph is allocated or inferred from a desired receiving type.
+pub(crate) fn declared_carriers_match_under_application(
+    program: &dyn crate::CheckingInput,
+    left: TypeReferenceHandle,
+    right: TypeReferenceHandle,
+    substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+) -> bool {
     let left = peel_declared_constraints(program, left);
     let right = peel_declared_constraints(program, right);
+    if let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(right)
+        && let Some((_, actual)) = substitutions.iter().find(|(formal, _)| formal == symbol)
+    {
+        // A supplied operand belongs to the caller. Its leaves must never be
+        // rebound by another formal in this same simultaneous application.
+        return declared_carriers_match_under_application(program, left, *actual, &[]);
+    }
     match (
         program.type_reference_table.type_reference(left),
         program.type_reference_table.type_reference(right),
@@ -668,7 +691,12 @@ pub fn declared_carriers_match(
             },
         ) => {
             left_access == right_access
-                && declared_carriers_match(program, *left_referee, *right_referee)
+                && declared_carriers_match_under_application(
+                    program,
+                    *left_referee,
+                    *right_referee,
+                    substitutions,
+                )
         }
         (
             TypeReferenceNode::Slice {
@@ -677,7 +705,12 @@ pub fn declared_carriers_match(
             TypeReferenceNode::Slice {
                 element_type: right_element,
             },
-        ) => declared_carriers_match(program, *left_element, *right_element),
+        ) => declared_carriers_match_under_application(
+            program,
+            *left_element,
+            *right_element,
+            substitutions,
+        ),
         (
             TypeReferenceNode::FixedArray {
                 element_type: left_element,
@@ -690,10 +723,19 @@ pub fn declared_carriers_match(
         ) => {
             program
                 .fixed_array_length_identity(left_length, &[], &[])
-                .is_some_and(|left| {
-                    Some(left) == program.fixed_array_length_identity(right_length, &[], &[])
-                })
-                && declared_carriers_match(program, *left_element, *right_element)
+                .zip(
+                    program.fixed_array_length_identity_with_simultaneous_substitutions(
+                        right_length,
+                        substitutions,
+                    ),
+                )
+                .is_some_and(|(left, right)| left == right)
+                && declared_carriers_match_under_application(
+                    program,
+                    *left_element,
+                    *right_element,
+                    substitutions,
+                )
         }
         (
             TypeReferenceNode::Generic {
@@ -717,14 +759,26 @@ pub fn declared_carriers_match(
                 && left_handles.len() == right_handles.len()
                 && left_handles.iter().zip(right_handles.iter()).all(
                     |(left_argument, right_argument)| {
-                        declared_carriers_match(program, *left_argument, *right_argument)
+                        declared_carriers_match_under_application(
+                            program,
+                            *left_argument,
+                            *right_argument,
+                            substitutions,
+                        )
                     },
                 )
         }
+        _ if substitutions.is_empty() => {
+            program.normalized_type_identity(left) == program.normalized_type_identity(right)
+        }
         _ => {
-            program.type_identity_with_simultaneous_substitutions(
-                typed_trees::type_identity::TypeIdentityRequest::ordinary(left),
-            ) == program.normalized_type_identity(right)
+            let applied = program.type_identity_with_simultaneous_substitutions(
+                typed_trees::type_identity::TypeIdentityRequest {
+                    substitutions,
+                    ..typed_trees::type_identity::TypeIdentityRequest::ordinary(right)
+                },
+            );
+            applied.is_valid() && program.normalized_type_identity(left) == applied
         }
     }
 }
@@ -837,10 +891,13 @@ pub use member_resolution::{
 };
 mod projection_types;
 pub use projection_types::{
-    canonical_place_source_type_application, canonical_place_type_reference,
-    collection_element_type_reference, expression_type_reference_in_state,
-    loan_carrier_has_owned_storage, observed_storage_type_references,
-    project_type_reference_from_segments, unique_data_definition_by_symbol,
+    StorageObservationTypePath, StorageObservationTypePathError,
+    canonical_owned_place_type_reference, canonical_place_source_type_application,
+    canonical_place_type_reference, collection_element_type_reference,
+    expression_type_reference_in_state, loan_carrier_has_owned_storage,
+    observed_storage_type_references, owned_projection_type_reference,
+    project_type_reference_from_segments, source_type_application_from_segments,
+    unique_data_definition_by_symbol,
 };
 pub mod receiver_projections;
 pub use receiver_projections::{

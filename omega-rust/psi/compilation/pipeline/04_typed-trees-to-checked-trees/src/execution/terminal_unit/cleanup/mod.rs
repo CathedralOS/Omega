@@ -23,6 +23,7 @@ mod order;
 mod partial_affine_cleanup;
 mod replacements;
 mod residuals;
+pub(in crate::execution::terminal_unit) mod retained_owners;
 pub(super) mod temporary_actions;
 mod temporary_descriptors;
 pub(crate) use temporary_actions::finalize_completion_actions;
@@ -282,7 +283,9 @@ pub(crate) fn nominal_cleanup_target_matches(
     let [receiver] = program.state_parameters(state) else {
         return false;
     };
-    let TypeReferenceNode::Reference { access, referee, .. } = program
+    let TypeReferenceNode::Reference {
+        access, referee, ..
+    } = program
         .type_reference_table
         .type_reference(receiver.type_reference)
     else {

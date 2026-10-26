@@ -37,6 +37,9 @@ impl VerifiedNativeArtifactInput {
         root: terminal_psi::TargetMachineCallable,
         establishments: &[TerminalPlacedViewEstablishment],
     ) -> Result<Self, ArtifactLoweringError> {
+        profile
+            .admit_address_representation()
+            .map_err(ArtifactLoweringError::TargetFamily)?;
         let module = artifact.semantic_module();
         let selections = terminal_installation::admit_target_machine_selections(
             artifact.view(),
@@ -138,6 +141,10 @@ impl VerifiedNativeArtifactInput {
         receiving_provider_roots: &[semantic_vocabulary::BoundaryMachineId],
         callbacks: &[backend_plan::TerminalCallbackOccurrenceProposal],
     ) -> Result<Self, crate::NativeExecutionScopeError> {
+        profile
+            .admit_address_representation()
+            .map_err(crate::NativeExecutionScopeError::TargetFamily)?;
+
         if artifact.view().identity() != self.plan().psi {
             return Err(crate::NativeExecutionScopeError::TerminalIdentityMismatch);
         }

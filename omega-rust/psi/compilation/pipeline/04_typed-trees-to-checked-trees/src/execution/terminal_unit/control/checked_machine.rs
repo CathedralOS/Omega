@@ -31,6 +31,7 @@ pub(crate) fn build_checked_machine_residual_parts(
     facts: &CheckFacts,
     scalar_callees: ScalarCalleeClosure,
     shapes: &mut ShapeCollector<'_>,
+    prepared_calls: &mut crate::execution::terminal_unit::structural_value_calls::PreparedCalls,
     machine: &typed_trees::machine::Machine,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     trace: &LocalConstructionTrace,
@@ -101,19 +102,9 @@ pub(crate) fn build_checked_machine_residual_parts(
     if program
         .primitive_type_reference(state.return_type)
         .is_some()
-        && (program
-            .machine_contracts(machine)
-            .iter()
-            .chain(program.state_contracts(state))
-            .any(|contract| {
-                !matches!(
-                    contract.kind,
-                    typed_trees::signature::SignatureContractKind::Crashes { .. }
-                        | typed_trees::signature::SignatureContractKind::Requires
-                        | typed_trees::signature::SignatureContractKind::Ensures
-                ) || contract.binding.is_some()
-            })
-            || !validation::scalar_result_contract_is_represented(program, state.return_type))
+        && (!crate::execution::terminal_unit::types::checked_machine_signature_has_plan(
+            program, facts, machine, state,
+        ) || !validation::scalar_result_contract_is_represented(program, state.return_type))
     {
         return None;
     }
@@ -183,6 +174,7 @@ pub(crate) fn build_checked_machine_residual_parts(
         facts,
         scalar_callees,
         shapes,
+        prepared_calls,
         machine,
         state,
         &mut structural_parameters,
@@ -312,6 +304,7 @@ pub(crate) fn build_checked_machine_residual_parts(
         return_unit_affine_discards(
             program,
             facts,
+            prepared_calls,
             machine.symbol,
             state.symbol,
             &structural_parameters,

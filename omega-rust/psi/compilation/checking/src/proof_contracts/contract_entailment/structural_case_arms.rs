@@ -383,6 +383,12 @@ fn recognize_structural_state_leaves_from<'a>(
     if !state.symbol.is_valid() || (start_index == 0 && path.contains(&state.symbol)) {
         return None;
     }
+    if requirement
+        .as_deref()
+        .is_some_and(StructuralPrefixVisitor::is_complete)
+    {
+        return Some(Vec::new());
+    }
     if start_index == 0 {
         path.push(state.symbol);
     }
@@ -913,6 +919,11 @@ fn recognize_structural_state_leaves_from<'a>(
                             Some(state),
                             guard,
                         )
+                        && let Some(subject_type) =
+                            crate::value_custody::field_domains::readable_type_reference(
+                                program,
+                                subject_type,
+                            )
                     {
                         // Only this successful arm owns the case predicate.
                         // Failed and sibling arms retain their prior context.

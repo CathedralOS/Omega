@@ -75,10 +75,7 @@ pub struct PackageReviewInstallationReach {
 }
 
 impl PackageReviewInstallationReach {
-    pub fn requirement(&self) -> &PackageReviewNominalIdentity {
-        &self.requirement
-    }
-
+    crate::record::accessors::record_accessors!(requirement);
     pub fn upper_bound(&self) -> &[PackageReviewNominalIdentity] {
         &self.upper_bound
     }

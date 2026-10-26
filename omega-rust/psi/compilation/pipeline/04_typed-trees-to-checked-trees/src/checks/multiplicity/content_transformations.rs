@@ -7,11 +7,13 @@
 //! retain their nominal identities and construction provenance; their new
 //! qualification authority lives in the derivation, not in a replacement ID.
 
+mod boundary_correspondence;
+
 use arena::Handle;
 use checked_trees::facts::{
     ContentBodyAvailableInput, ContentBodyClaimBinding, ContentBodyConservationFact,
-    ContentBodyDerivation, ContentBodyTransformation, ContentClaimTransformation,
-    ContentClaimTransformationSource,
+    ContentBodyCustody, ContentBodyDerivation, ContentBodyTransformation,
+    ContentClaimTransformation, ContentClaimTransformationSource,
 };
 use checked_trees::{CheckFacts, FlowPermissionEventFact};
 use language_semantics::{
@@ -31,11 +33,22 @@ struct Parent {
 
 struct Transaction {
     completion: Handle<checked_trees::FlowOperandFact>,
-    equations: Vec<ContentBodyDerivation>,
+    equations: Vec<PreparedDerivation>,
     parents: Vec<Parent>,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
     evaluation: checked_trees::FlowPermissionEvaluation,
+}
+
+struct PreparedDerivation {
+    conservation: Handle<ContentBodyConservationFact>,
+    lineage_roots: Vec<ContentBodyClaimBinding>,
+    custody: PreparedCustody,
+}
+
+enum PreparedCustody {
+    Derived,
+    Boundary(boundary_correspondence::PreparedCorrespondence),
 }
 
 pub(super) fn commit(
@@ -82,11 +95,65 @@ pub(super) fn commit(
     }
     // All fallible checks precede this point. Recording the relation and the
     // consumed frontier is one successful completion, with no partial grant.
-    let derivations = facts
-        .qualifications
-        .content
-        .body_derivations
-        .insert_many(transaction.equations);
+    let content = &mut facts.qualifications.content;
+    let mut derivations = Vec::with_capacity(transaction.equations.len());
+    for prepared in transaction.equations {
+        let custody = match prepared.custody {
+            PreparedCustody::Derived => ContentBodyCustody::Derived,
+            PreparedCustody::Boundary(prepared) => {
+                let requirements = prepared
+                    .requirements
+                    .into_iter()
+                    .map(|requirement| {
+                        let conservation_plan_index = content.boundary_requirement_plans.len();
+                        content
+                            .boundary_requirement_plans
+                            .push(requirement.conservation);
+                        checked_trees::facts::ContentBoundaryBodyRequirement {
+                            declaring_trait: requirement.declaring_trait,
+                            requirement: requirement.requirement,
+                            realization_state: requirement.realization_state,
+                            conservation_plan_index,
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                let requirements = content.boundary_body_requirements.insert_many(requirements);
+                let addresses = prepared
+                    .addresses
+                    .into_iter()
+                    .map(
+                        |address| checked_trees::facts::ContentBackingAddressTransport {
+                            input: address.input,
+                            output: address.output,
+                            input_segments: facts
+                                .flow
+                                .ownership
+                                .segments
+                                .insert_many(address.input_segments),
+                            output_segments: facts
+                                .flow
+                                .ownership
+                                .segments
+                                .insert_many(address.output_segments),
+                        },
+                    )
+                    .collect::<Vec<_>>();
+                let addresses = content.backing_addresses.insert_many(addresses);
+                ContentBodyCustody::Boundary {
+                    requirements,
+                    addresses,
+                }
+            }
+        };
+        derivations.push(ContentBodyDerivation {
+            conservation: prepared.conservation,
+            lineage_roots: content
+                .body_claim_bindings
+                .insert_many(prepared.lineage_roots),
+            custody,
+        });
+    }
+    let derivations = content.body_derivations.insert_many(derivations);
     facts
         .qualifications
         .content
@@ -166,15 +233,37 @@ fn prepare(
         let available = content
             .body_available_inputs
             .span_or_empty(equation.available_inputs);
-        if available.is_empty()
-            || equation
-                .inputs
-                .handles()
-                .any(|entry| !available.iter().any(|input| input.entry_binding == entry))
-        {
+        if available.is_empty() {
             return Err("derived transaction lacks every available parent");
         }
-        let mut anchor = PermissionClaimIdentity::Unknown;
+        let first_owner = available.first().map(|available| {
+            let binding = content.body_claim_bindings.get(available.binding);
+            (
+                binding.domain,
+                binding.semantic_domain,
+                binding.projection_machine,
+            )
+        });
+        let ordinary = available
+            .iter()
+            .map(|available| content.body_claim_bindings.get(available.binding))
+            .chain(content.body_claim_bindings.span_or_empty(equation.outputs))
+            .all(|binding| {
+                Some((
+                    binding.domain,
+                    binding.semantic_domain,
+                    binding.projection_machine,
+                )) == first_owner
+            });
+        // Classify authority before preparing it. Failure of the ordinary
+        // owner rule is not a catch-all grant: the other operation requires
+        // its own exact applied public law and completed backing proof.
+        let custody = if ordinary {
+            PreparedCustody::Derived
+        } else {
+            PreparedCustody::Boundary(boundary_correspondence::prepare(program, facts, equation)?)
+        };
+        let mut roots = Vec::new();
         let mut owner = None;
         for input in available {
             let binding = content.body_claim_bindings.get(input.binding);
@@ -183,7 +272,7 @@ fn prepare(
                 binding.semantic_domain,
                 binding.projection_machine,
             );
-            if owner.is_some_and(|owner| owner != projection) {
+            if ordinary && owner.is_some_and(|owner| owner != projection) {
                 return Err("one derivation cannot unite distinct qualification owners");
             }
             owner = Some(projection);
@@ -194,20 +283,25 @@ fn prepare(
                 return Err("two equations spend the same parent qualification");
             }
             inputs.push(binding);
-            let lineage =
-                lineage_anchor(facts, content.body_claim_bindings.get(input.entry_binding))?;
-            if anchor != PermissionClaimIdentity::Unknown && anchor != lineage {
-                return Err("derived parents have no checked common backing lineage");
+        }
+        for entry in equation.inputs.handles() {
+            for root in lineage_roots(facts, content.body_claim_bindings.get(entry))? {
+                if !roots
+                    .iter()
+                    .any(|previous| same_qualification(previous, &root))
+                {
+                    roots.push(root);
+                }
             }
-            anchor = lineage;
         }
         for output in content.body_claim_bindings.span_or_empty(equation.outputs) {
-            if owner
-                != Some((
-                    output.domain,
-                    output.semantic_domain,
-                    output.projection_machine,
-                ))
+            if ordinary
+                && owner
+                    != Some((
+                        output.domain,
+                        output.semantic_domain,
+                        output.projection_machine,
+                    ))
             {
                 return Err("a conservation equation cannot introduce another qualification");
             }
@@ -258,9 +352,10 @@ fn prepare(
                 place_index,
             });
         }
-        transaction.equations.push(ContentBodyDerivation {
+        transaction.equations.push(PreparedDerivation {
             conservation: *handle,
-            lineage_anchor: anchor,
+            lineage_roots: roots,
+            custody,
         });
     }
     if inputs.iter().any(|input| {
@@ -270,7 +365,9 @@ fn prepare(
     }) {
         return Err("identity forwarding belongs to the existing claim transfer");
     }
-    let completed = facts.flow.control.operands.get(transaction.completion);
+    let completed =
+        crate::flow::CapturedOperand::recorded(&facts.flow.control, transaction.completion)
+            .ok_or("missing raw output observation")?;
     let contexts = facts
         .flow
         .semantic_constraint_contexts(completed.constraints)
@@ -300,7 +397,7 @@ fn prepare(
                 &facts.flow.contexts,
                 &facts.flow.control,
                 &facts.semantic,
-                value.operand,
+                value.operand.row(),
                 value.type_reference,
                 value.operand.constraints,
             );
@@ -560,13 +657,16 @@ fn same_qualification(left: &ContentBodyClaimBinding, right: &ContentBodyClaimBi
         && left.projection_machine == right.projection_machine
 }
 
-fn lineage_anchor(
+fn lineage_roots(
     facts: &CheckFacts,
     input: &ContentBodyClaimBinding,
-) -> Result<PermissionClaimIdentity, &'static str> {
+) -> Result<Vec<ContentBodyClaimBinding>, &'static str> {
     let content = &facts.qualifications.content;
-    let mut anchor = None;
+    let mut roots: Option<Vec<ContentBodyClaimBinding>> = None;
     for (_, derivation) in content.body_derivations.iter() {
+        if !matches!(derivation.custody, ContentBodyCustody::Derived) {
+            continue;
+        }
         let equation = content.body_conservations.get(derivation.conservation);
         if content
             .body_claim_bindings
@@ -574,15 +674,25 @@ fn lineage_anchor(
             .iter()
             .any(|output| same_qualification(input, output))
         {
-            if anchor.is_some_and(|anchor| anchor != derivation.lineage_anchor) {
-                return Err("ambiguous qualified ancestor");
+            let candidate = content
+                .body_claim_bindings
+                .span_or_empty(derivation.lineage_roots);
+            if candidate.is_empty()
+                || roots.as_ref().is_some_and(|previous| {
+                    previous.len() != candidate.len()
+                        || previous.iter().any(|root| {
+                            !candidate
+                                .iter()
+                                .any(|other| same_qualification(root, other))
+                        })
+                })
+            {
+                return Err("ambiguous qualified root roster");
             }
-            anchor = Some(derivation.lineage_anchor);
+            roots = Some(candidate.to_vec());
         }
     }
-    // The body binder names an exact already-qualified entry claim. With no
-    // earlier derivation that entry is an opaque authority anchor, not fresh
-    // issuance. Distinct entries cannot be unified by equal provenance or
-    // equal geometry; call substitution must establish any relation first.
-    Ok(anchor.unwrap_or(input.claim_identity))
+    // Entry claims are already established authority. Their identities remain
+    // independent even when a proved operation combines their complete content.
+    Ok(roots.unwrap_or_else(|| vec![input.clone()]))
 }

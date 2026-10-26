@@ -72,6 +72,11 @@ pub(crate) fn encode_scalar_term(
                         writer.u8(3);
                         writer.id(*case);
                     }
+                    ScalarReadProjection::Static(CanonicalStructuralPathSegment::Referent) => {
+                        return Err(CodecError::MalformedProposition(
+                            semantic_vocabulary::PropositionError::NonCanonicalScalarReadProjection,
+                        ));
+                    }
                     ScalarReadProjection::Index(index) => {
                         writer.u8(4);
                         encode_scalar_term(writer, index, depth + 1)?;
@@ -521,4 +526,47 @@ pub(crate) fn decode_scalar_term(
         }
         tag => return Err(CodecError::InvalidTag("ScalarTerm", tag)),
     })
+}
+
+#[cfg(test)]
+mod scalar_read_projection_tests {
+    use super::*;
+    use semantic_vocabulary::{PlaceId, ScalarType};
+
+    #[test]
+    fn explicit_reference_read_has_an_exact_canonical_wire_roundtrip() {
+        let term = ScalarTerm::structural_read(
+            PlaceId::new(1).unwrap(),
+            vec![ScalarReadProjection::Referent],
+            ScalarType::Boolean,
+        )
+        .unwrap();
+        let mut writer = Writer::default();
+        encode_scalar_term(&mut writer, &term, 0).unwrap();
+        let bytes = writer.finish();
+        let mut reader = Reader::new(&bytes);
+        let decoded = decode_scalar_term(&mut reader, 0).unwrap();
+        assert_eq!(decoded, term);
+        assert_eq!(reader.remaining(), 0);
+        let mut repeated = Writer::default();
+        encode_scalar_term(&mut repeated, &decoded, 0).unwrap();
+        assert_eq!(repeated.finish(), bytes);
+    }
+
+    #[test]
+    fn static_reference_alias_cannot_be_published_on_the_scalar_read_wire() {
+        let term = ScalarTerm::StructuralRead {
+            root: PlaceId::new(1).unwrap(),
+            path: vec![ScalarReadProjection::Static(
+                CanonicalStructuralPathSegment::Referent,
+            )],
+            scalar_type: ScalarType::Boolean,
+        };
+        assert!(matches!(
+            encode_scalar_term(&mut Writer::default(), &term, 0),
+            Err(CodecError::MalformedProposition(
+                PropositionError::NonCanonicalScalarReadProjection
+            ))
+        ));
+    }
 }

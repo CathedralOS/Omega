@@ -64,9 +64,6 @@ fn expression_type_reference_in_state(
         ExpressionNode::Atomic(atomic) => {
             expression_type_reference_in_state(program, state_symbol, statement_index, atomic.value)
         }
-        ExpressionNode::Borrow(inner) => {
-            expression_type_reference_in_state(program, state_symbol, statement_index, inner.target)
-        }
         ExpressionNode::Name(path) => {
             let name = program
                 .expression_table
@@ -89,13 +86,12 @@ fn expression_type_reference_in_state(
         )
         .and_then(|receiver| field_type_reference(program, receiver, member))
         .or_else(|| data_binding_field_type_reference(program, state_symbol, member)),
-        ExpressionNode::Indexed(_) => program
+        ExpressionNode::Borrow(_) | ExpressionNode::Indexed(_) => program
             .machine_holding_state(state_symbol)
             .zip(program.state_by_symbol(state_symbol))
             .and_then(|(machine, state)| {
-                // The shared selected-index owner distinguishes builtin
-                // element projection from an authored indexing result. A
-                // collection shell alone cannot replace that declaration.
+                // Formation and indexing retain the complete operand type.
+                // Removing an explicit reference shell changes token selection.
                 crate::expression_result_type_reference(program, machine, state, expression)
             }),
         ExpressionNode::Cast(cast) => {

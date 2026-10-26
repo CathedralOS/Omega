@@ -21,6 +21,7 @@ impl CanonicalPlace {
         use facts::{PlaceRoot, PlaceSegment};
         let root_key = |root| match root {
             PlaceRoot::Unknown => (0, 0, 0, 0, 0),
+            PlaceRoot::InvocationOutput(_) => (5, 0, 0, 0, 0),
             PlaceRoot::Symbol(handle) => (1, handle.arena_index(), handle.generation(), 0, 0),
             PlaceRoot::Expression(handle) => (2, handle.arena_index(), handle.generation(), 0, 0),
             PlaceRoot::TypeReference(handle) => {
@@ -51,6 +52,12 @@ impl CanonicalPlace {
         };
         root_key(self.root)
             .cmp(&root_key(other.root))
+            .then_with(|| match (self.root, other.root) {
+                (PlaceRoot::InvocationOutput(left), PlaceRoot::InvocationOutput(right)) => {
+                    left.compare_identity(right)
+                }
+                _ => std::cmp::Ordering::Equal,
+            })
             .then_with(|| {
                 self.segments
                     .iter()
@@ -579,9 +586,10 @@ pub fn canonical_place_from_expression(
         }
         ExpressionNode::Borrow(inner) => canonical_place_from_expression(program, inner.target),
         // A borrow recast re-views the operand's bytes at the same address:
-        // the recast place is the operand's place. Value casts compute a new
-        // rvalue and keep the expression root.
-        ExpressionNode::Cast(cast) if cast.form.is_recast() => {
+        // the recast place is the operand's place. Same-carrier qualification
+        // casts preserve the operand's storage place; value conversions
+        // compute a new rvalue and keep the expression root.
+        ExpressionNode::Cast(cast) if cast_preserves_place(program, cast) => {
             canonical_place_from_expression(program, cast.value)
         }
         ExpressionNode::Name(path) => {
@@ -644,6 +652,105 @@ pub fn canonical_place_from_expression(
     }
 }
 
+pub(super) fn cast_preserves_place(
+    program: &dyn crate::CheckingInput,
+    cast: &checked_trees::expression::TableCastExpression,
+) -> bool {
+    if cast.form.is_recast() {
+        return true;
+    }
+    let target = if cast.result_type.is_valid() {
+        cast.result_type
+    } else {
+        cast.target_type
+    };
+    if !target.is_valid() {
+        return false;
+    }
+    let Some(target_carrier) = program.unwrapped_type_reference(target) else {
+        return false;
+    };
+    let Some(operand_pos) = super::member_resolution::expression_type_position(program, cast.value)
+    else {
+        return false;
+    };
+    match operand_pos {
+        super::member_resolution::MemberPosition::Reference(operand_ref) => {
+            carriers_match(program, operand_ref, target_carrier)
+        }
+        super::member_resolution::MemberPosition::Declaration(symbol) => {
+            match program.type_reference_table.type_reference(target_carrier) {
+                typed_trees::types::TypeReferenceNode::Named { symbol: s, .. } => *s == symbol,
+                typed_trees::types::TypeReferenceNode::Generic { base_symbol, .. } => {
+                    *base_symbol == symbol
+                }
+                _ => false,
+            }
+        }
+        _ => false,
+    }
+}
+
+fn carriers_match(
+    program: &dyn crate::CheckingInput,
+    left: typed_trees::types::TypeReferenceHandle,
+    right: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    let Some(left) = program.unwrapped_type_reference(left) else {
+        return false;
+    };
+    let Some(right) = program.unwrapped_type_reference(right) else {
+        return false;
+    };
+    if left == right {
+        return true;
+    }
+    match (
+        program.type_reference_table.type_reference(left),
+        program.type_reference_table.type_reference(right),
+    ) {
+        (
+            typed_trees::types::TypeReferenceNode::Named {
+                symbol: s1,
+                name: n1,
+            },
+            typed_trees::types::TypeReferenceNode::Named {
+                symbol: s2,
+                name: n2,
+            },
+        ) => {
+            if s1.is_valid() && s2.is_valid() {
+                s1 == s2
+            } else {
+                n1 == n2
+            }
+        }
+        (
+            typed_trees::types::TypeReferenceNode::Generic {
+                base_symbol: s1,
+                base_name: n1,
+                ..
+            },
+            typed_trees::types::TypeReferenceNode::Generic {
+                base_symbol: s2,
+                base_name: n2,
+                ..
+            },
+        ) => {
+            if s1.is_valid() && s2.is_valid() {
+                s1 == s2
+            } else {
+                n1 == n2
+            }
+        }
+        (
+            typed_trees::types::TypeReferenceNode::Unit,
+            typed_trees::types::TypeReferenceNode::Unit,
+        ) => true,
+        _ => false,
+    }
+}
+
 /// Whether either place resolver could root `expression` at `symbol`. Both
 /// descend borrows, recasts, members and indexes to one leaf; only a storage
 /// `Name` leaf yields a symbol root, and a resolved path names exactly its
@@ -662,7 +769,7 @@ pub fn place_root_may_be_symbol(
         }
         leaf = match program.expression_table.expression(leaf) {
             ExpressionNode::Borrow(inner) => inner.target,
-            ExpressionNode::Cast(cast) if cast.form.is_recast() => cast.value,
+            ExpressionNode::Cast(cast) if cast_preserves_place(program, cast) => cast.value,
             ExpressionNode::Member(member) => member.receiver,
             ExpressionNode::Indexed(indexed) => indexed.collection,
             ExpressionNode::Name(path) => {

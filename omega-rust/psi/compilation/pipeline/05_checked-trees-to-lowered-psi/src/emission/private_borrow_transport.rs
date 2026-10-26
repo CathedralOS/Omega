@@ -64,6 +64,38 @@ pub(crate) fn forward_private_state_borrows(
     next_place: &mut u64,
     places: &mut Vec<StructuralPlaceDeclaration>,
 ) -> Result<(), LoweringError> {
+    // A captured address can begin inside an authored state. It follows the
+    // same edge-scoped transport law as an ingress loan, from its own defining
+    // block onward. Freeze the definition roster before adding forwarding rows.
+    let roots = std::iter::once(root)
+        .chain(
+            blocks
+                .iter()
+                .filter(|block| {
+                    block.id != root
+                        && block.structural_parameters.iter().any(|parameter| {
+                            matches!(
+                                parameter.access,
+                                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                            )
+                        })
+                })
+                .map(|block| block.id),
+        )
+        .collect::<Vec<_>>();
+    for root in roots {
+        forward_from(root, blocks, structural_types, next_place, places)?;
+    }
+    Ok(())
+}
+
+fn forward_from(
+    root: BlockId,
+    blocks: &mut [Block],
+    structural_types: &[StructuralTypeDeclaration],
+    next_place: &mut u64,
+    places: &mut Vec<StructuralPlaceDeclaration>,
+) -> Result<(), LoweringError> {
     let source = blocks
         .iter()
         .find(|block| block.id == root)
@@ -73,7 +105,7 @@ pub(crate) fn forward_private_state_borrows(
         .structural_parameters
         .iter()
         .filter(|parameter| {
-            parameter.access == StructuralAccess::MutableBorrow
+            matches!(parameter.access, StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow)
                 // An explicitly carried name already has its custody path.
                 // Terminal keeps that source available across intermediate
                 // blocks until the transfer consumes it; do not invent a
@@ -148,9 +180,27 @@ pub(crate) fn forward_private_state_borrows(
                 .collect::<Vec<_>>(),
         );
     }
+    let mut reachable = vec![false; blocks.len()];
+    let mut pending = vec![
+        identities
+            .iter()
+            .position(|identity| *identity == root)
+            .ok_or(LoweringError::Unsupported(
+                "private borrow definition is absent",
+            ))?,
+    ];
+    while let Some(position) = pending.pop() {
+        if std::mem::replace(&mut reachable[position], true) {
+            continue;
+        }
+        pending.extend(successors[position].iter().copied());
+    }
     loop {
         let mut changed = false;
         for (position, targets) in successors.iter().enumerate() {
+            if !reachable[position] {
+                continue;
+            }
             for target in targets {
                 for ordinal in 0..source.len() {
                     if needed[*target][ordinal] > needed[position][ordinal] {
@@ -167,12 +217,21 @@ pub(crate) fn forward_private_state_borrows(
     let mut namespaces = Vec::with_capacity(blocks.len());
     for (position, block) in blocks.iter_mut().enumerate() {
         let mut names = Vec::with_capacity(source.len());
+        if !reachable[position] {
+            namespaces.push((block.id, names));
+            continue;
+        }
         for (ordinal, parameter) in source.iter().enumerate() {
             if needed[position][ordinal] == BorrowDemand::Unused {
                 continue;
             }
             let access = if block.id == root {
                 parameter.access
+            } else if parameter.access == StructuralAccess::WriteOnlyBorrow {
+                if needed[position][ordinal] == BorrowDemand::Shared {
+                    return unsupported("private write-only borrow cannot acquire read access");
+                }
+                StructuralAccess::WriteOnlyBorrow
             } else {
                 needed[position][ordinal].access()
             };

@@ -178,6 +178,7 @@ pub(in crate::execution::terminal_unit) fn build(
     facts: &CheckFacts,
     scalar_callees: ScalarCalleeClosure,
     shapes: &mut ShapeCollector<'_>,
+    prepared_calls: &mut crate::execution::terminal_unit::structural_value_calls::PreparedCalls,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     structural_parameters: &mut [CheckedUnitStructuralParameterPlan],
@@ -272,6 +273,8 @@ pub(in crate::execution::terminal_unit) fn build(
     // exit checking proves handback from each current flow exit, and lowering
     // executes that exit's checked cleanup. This remains true for owned and
     // borrowed carriers alike, including values consumed by this prefix.
+    let owner_candidates =
+        reference_retirement::OwnerCandidates::new(program, facts, machine.symbol, state.symbol)?;
     let mut operations = Vec::new();
     let mut place_loans = Vec::new();
     // Erased borrow carriers have no storage binding: the sequence advances
@@ -360,11 +363,25 @@ pub(in crate::execution::terminal_unit) fn build(
         }
 
         let statement_index = u32::try_from(index).ok()?;
+        prepared_calls.prepare_before(
+            program,
+            facts,
+            shapes,
+            machine,
+            state,
+            structural_parameters,
+            trivial_affine_locals,
+            entry_claims,
+            &operations,
+            index,
+        );
         trace.phase("statement sequence: reference retirement");
         trace.statement(Some(statement_index));
         append_reference_releases(
+            &owner_candidates,
             program,
             facts,
+            prepared_calls,
             shapes,
             structural_parameters,
             machine.symbol,
@@ -648,10 +665,12 @@ pub(in crate::execution::terminal_unit) fn build(
     trace.statement(None);
     phase_profile::scope("05.d.8_10.a.3.2c.3b5.completion", || {
         completion::complete(completion::Completion {
+            owner_candidates,
             program,
             facts,
             scalar_callees,
             shapes,
+            prepared_calls,
             machine,
             state,
             structural_parameters,

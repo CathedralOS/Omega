@@ -81,6 +81,7 @@ impl Evaluation {
             &self.shared_qualifications,
             environment.machine,
             operations,
+            environment.next_place,
         )?;
         let qualification = expansion.qualification_edge(&source_types, value.value_type(), 0);
         let entry = expansion.direct_value(&source_types, qualification, operand)?;
@@ -141,6 +142,7 @@ impl Evaluation {
             &self.shared_qualifications,
             root.machine,
             operations,
+            environment.next_place,
         )?;
         let entry =
             expansion.retained_root(identities, root, bindings, &source_types, result_type, 0)?;
@@ -407,6 +409,7 @@ impl Evaluation {
             qualifications,
             machine,
             operations,
+            environment.next_place,
         )?;
         let entry = match value {
             CheckedCallScalarArgument::Pure(_) => expansion.retained_pure_value(

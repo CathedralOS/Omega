@@ -247,7 +247,10 @@ fn place_matches(
             }
             Ok(true)
         }
-        Some(crate::flow::stored_values::StoredOperand::Unavailable) => Ok(false),
+        Some(
+            crate::flow::stored_values::StoredOperand::Unavailable
+            | crate::flow::stored_values::StoredOperand::Incoming(_),
+        ) => Ok(false),
         None => Ok(matches!(expected, Snapshot::Entry(entry) if entry == place)),
     }
 }

@@ -1,4 +1,4 @@
-//! Bind a proved body equation to its exact entry and returned carrier claims.
+//! Bind a completed body equation to its exact entry and returned carrier claims.
 //!
 //! A numeric theorem and a custody transaction are separate judgments. This
 //! binding retains the former without granting the latter: an entry claim may
@@ -93,8 +93,10 @@ pub(crate) fn observe_body_completion(
                 }
                 // The equation must hold at this value's completion, not merely
                 // at an eventual normal return. The query shares observation
-                // order with domain predicates and imports no ensures premise.
-                if !validation::completed_value_proves_content_conservation(
+                // order with domain predicates. Conditional call laws remain
+                // provisional here; the rooted publication pass checks their
+                // exact sources before any callable theorem can be consumed.
+                if !validation::completed_value_has_content_conservation_candidate(
                     program,
                     machine,
                     state,
@@ -106,6 +108,7 @@ pub(crate) fn observe_body_completion(
                 ) {
                     continue;
                 }
+                let mut conditions = crate::flow::SelectionConditions::new();
                 let returned = completed_owned_claims(
                     program,
                     facts,
@@ -113,6 +116,7 @@ pub(crate) fn observe_body_completion(
                     location,
                     places,
                     evaluation_events,
+                    &mut conditions,
                 );
                 let Ok(returned) = returned else {
                     // Missing/ambiguous custody has its owning checker error;
@@ -134,14 +138,20 @@ pub(crate) fn observe_body_completion(
                         .extend_term(outputs, |subject| {
                             let path = content_segments_to_fact_path(&subject.segments)?;
                             let mut matching = returned.iter().filter(|claim| claim.path == path);
-                            let claim = matching.next()?;
-                            if matching.next().is_some() {
+                            let first = matching.next()?;
+                            let ReturnedClaimSource::Live(identity) = first.source else {
                                 return None;
+                            };
+                            let mut coverage = first.condition;
+                            for claim in matching {
+                                if claim.source != first.source {
+                                    return None;
+                                }
+                                coverage = conditions.any(coverage, claim.condition);
                             }
-                            match claim.source {
-                                ReturnedClaimSource::Live(identity) => Some(identity),
-                                ReturnedClaimSource::Inactive => None,
-                            }
+                            conditions
+                                .covers(&facts.flow.control, coverage)
+                                .then_some(identity)
                         })
                         .is_none()
                 {

@@ -1,0 +1,1 @@
+A machine contract has declaration parameters, not body-local values. The later body_local binding must not supply the selected value operand of a call in the machine ensures, even when its initializer is 4 and the caller independently knows value == 4.

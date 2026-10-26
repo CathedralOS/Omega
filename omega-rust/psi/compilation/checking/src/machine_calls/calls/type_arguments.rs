@@ -221,6 +221,7 @@ pub(super) fn validate_resolved_call_arguments(
     call: &typed_trees::statement::TableCall,
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     let site = super::CallSite::Statement(call);
     let parameters = match super::argument_correspondence::executable_parameters(
@@ -279,5 +280,6 @@ pub(super) fn validate_resolved_call_arguments(
             )
         },
         diagnostics,
+        formation_obligations,
     );
 }

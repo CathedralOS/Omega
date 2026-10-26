@@ -461,7 +461,7 @@ impl Destination {
             },
             DestinationShape::ByteField { path, field } => {
                 if let Some(length) = operations
-                    .length_observations
+                    .storage_observations
                     .field_bytes
                     .iter()
                     .rev()
@@ -488,7 +488,7 @@ impl Destination {
             kind,
         );
         if let DestinationShape::ByteField { path, field } = &self.shape {
-            operations.length_observations.field_bytes.push((
+            operations.storage_observations.field_bytes.push((
                 self.place,
                 path.clone(),
                 *field,

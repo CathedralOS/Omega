@@ -29,19 +29,18 @@ use crate::value_custody::places::collection_length_receiver;
 use symbols::SymbolHandle;
 
 mod congruence;
-pub(super) use congruence::ValueComparison;
-mod delivered;
+pub(super) use congruence::{ValueComparison, same_value};
+mod match_joins;
 mod requirements;
 mod storage;
 mod transport;
-pub(crate) use delivered::delivered_value_orderings;
-pub(super) use delivered::survives_delivery;
-use delivered::{call_result_orderings, ensured_call_operand, match_subtract_floor};
+use match_joins::match_subtract_floor;
 pub use requirements::validate_ordered_requirement_call_totality;
+pub(super) use storage::survives_delivery;
 pub(super) use transport::rebind_relations;
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) enum Operand {
+pub(crate) enum Operand {
     Place {
         root: SymbolHandle,
         path: String,
@@ -425,7 +424,7 @@ impl Relation {
 
 /// `operand` served by the resolver's once-computed whole-program call plans
 /// when a live call-frame resolver reaches this site.
-pub(super) fn operand(
+pub(crate) fn operand(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
@@ -453,6 +452,37 @@ pub(crate) fn observation_survives_writes(
     })
 }
 
+/// Guard relations and bounds queries must name the same length value. The
+/// receiver has already earned an operand below the ordinary effect/access
+/// checks; declared geometry does not make an unavailable receiver observable.
+/// Only always-full arrays have a constant extent. Bounded byte owners and
+/// slices retain their live collection observation instead of their capacity.
+pub(super) fn collection_length_operand(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    collection: ExpressionHandle,
+    observed_collection: Operand,
+) -> Option<Operand> {
+    if let Some(extent) = crate::value_custody::places::declared_collection_extent(
+        program,
+        machine,
+        Some(state),
+        collection,
+    ) {
+        // Lengths span u64, beyond the interval owner's signed endpoints.
+        let literal = numerics::literals::IntegerLiteral::from_parts(
+            false,
+            numerics::literals::IntegerRadix::Decimal,
+            &extent.to_string(),
+        )
+        .ok()?;
+        Some(Operand::Integer(literal, None))
+    } else {
+        Some(Operand::CollectionLength(Box::new(observed_collection)))
+    }
+}
+
 fn build_operand(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -476,14 +506,9 @@ fn build_operand(
     }
     if let Some(collection) = collection_length_receiver(program, machine, Some(state), expression)
     {
-        return Some(Operand::CollectionLength(Box::new(build_operand(
-            program,
-            machine,
-            state,
-            collection,
-            depth + 1,
-            frames,
-        )?)));
+        let observed_collection =
+            build_operand(program, machine, state, collection, depth + 1, frames)?;
+        return collection_length_operand(program, machine, state, collection, observed_collection);
     }
     if let Some((_, source)) = crate::integer_embedding_argument(program, expression) {
         return build_operand(program, machine, state, source, depth + 1, frames);
@@ -1044,15 +1069,23 @@ pub(super) fn subtract_floor(
     environment: &ValueEnvironment,
     left: ExpressionHandle,
     right: ExpressionHandle,
+    preserves_storage: bool,
 ) -> Option<i64> {
-    subtract_floor_limited(program, machine, state, environment, left, right, 0)
+    let state = state?;
+    if !preserves_storage
+        && ![left, right].into_iter().all(|expression| {
+            operand(program, machine, state, expression, None)
+                .is_some_and(|value| value.is_immutable_snapshot(program, state))
+        })
+    {
+        return None;
+    }
+    subtract_floor_limited(program, machine, Some(state), environment, left, right, 0)
 }
 
-/// `left - right` is at least this floor when a live ordering says so.
-///
-/// A match on either side keeps the floor every arm proves. A call operand
-/// contributes the orderings its proved `ensures` states about that result.
-/// Both are the same ordering query, not a separate subtraction recognizer.
+/// A denotational floor after the operation owner authenticated operand
+/// preservation. Match recursion may use common live-place facts only under
+/// that outer admission; it cannot erase writes between two runtime reads.
 pub(super) fn subtract_floor_limited(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -1110,42 +1143,26 @@ pub(super) fn subtract_floor_limited(
     }
     let left_named = operand(program, machine, state, left, None);
     let right_named = operand(program, machine, state, right, None);
-    // Identical observations cancel. The ensures-call identity is not that
-    // observation: it names one occurrence and must not equate two calls.
+    // These operands admit only repeatable denotations. Runtime call
+    // observations retain their separate captured-value owner.
     if let (Some(left_named), Some(right_named)) = (&left_named, &right_named)
         && left_named == right_named
     {
         return Some(0);
     }
-    let left_operand = left_named.or_else(|| ensured_call_operand(program, left));
-    let right_operand = right_named.or_else(|| ensured_call_operand(program, right));
-    let (Some(left_operand), Some(right_operand)) = (left_operand, right_operand) else {
+    let (Some(left_operand), Some(right_operand)) = (left_named, right_named) else {
         return None;
     };
-    let call_orderings = call_result_orderings(program, machine, state, left)
-        .into_iter()
-        .chain(call_result_orderings(program, machine, state, right))
-        .collect::<Vec<_>>();
-    if environment.ordered_values.is_empty() && call_orderings.is_empty() {
-        return None;
-    }
-    let relation_floor = |relations: &[Relation]| {
-        let mut comparison = congruence::ValueComparison::new(relations);
-        relations
-            .iter()
-            .filter(|relation| {
-                comparison.same_value(&left_operand, &relation.left)
-                    && comparison.same_value(&right_operand, &relation.right)
-            })
-            .filter_map(Relation::minimum_difference)
-            .max()
-    };
-    if call_orderings.is_empty() {
-        return relation_floor(&environment.ordered_values);
-    }
-    let mut relations = environment.ordered_values.clone();
-    relations.extend(call_orderings);
-    relation_floor(&relations)
+    let mut comparison = ValueComparison::new(&environment.ordered_values);
+    environment
+        .ordered_values
+        .iter()
+        .filter(|relation| {
+            comparison.same_value(&left_operand, &relation.left)
+                && comparison.same_value(&right_operand, &relation.right)
+        })
+        .filter_map(Relation::minimum_difference)
+        .max()
 }
 
 /// Query a live comparison without widening an unequal value into an interval
@@ -1388,9 +1405,7 @@ fn composed_ceiling_gap(
     if needed <= 0 {
         return true;
     }
-    ordered_gaps(relations, value)
-        .into_iter()
-        .any(|(operand, gap)| gap >= needed && admits(operand))
+    ordered_gaps(relations, value).any(|(operand, gap)| gap >= needed && admits(operand))
 }
 
 /// Largest representable minimum differences reachable from one observation.
@@ -1399,11 +1414,12 @@ fn composed_ceiling_gap(
 fn ordered_gaps<'relations>(
     relations: &'relations [Relation],
     value: &'relations Operand,
-) -> Vec<(&'relations Operand, i64)> {
+) -> impl Iterator<Item = (&'relations Operand, i64)> {
     let mut comparison = congruence::ValueComparison::new(relations);
-    ordered_gaps_with_comparison(relations, value, &mut comparison)
+    ordered_gaps_with_comparison(relations, value, &mut comparison).into_iter()
 }
 
+/// Reuse a caller's congruence query while keeping the same bounded gap walk.
 pub(super) fn ordered_gaps_with_comparison<'relations>(
     _relations: &'relations [Relation],
     value: &'relations Operand,

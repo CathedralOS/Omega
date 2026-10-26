@@ -21,6 +21,7 @@ pub(crate) fn validate_callable_state_signatures(
     program: &dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     for machine in program.machines() {
         value_scope::validate(program, machine, symbols, diagnostics);
@@ -40,6 +41,7 @@ pub(crate) fn validate_callable_state_signatures(
                 lifetime_parameters: &lifetime_parameters,
             },
             diagnostics,
+            formation_obligations,
         );
         validate_state_signature_types(
             program
@@ -63,6 +65,7 @@ pub(crate) fn validate_callable_state_signatures(
                 type_parameters: &type_parameters,
                 lifetime_parameters: &lifetime_parameters,
             },
+            formation_obligations,
         );
         validate_machine_parameter_signatures(
             program,
@@ -72,6 +75,7 @@ pub(crate) fn validate_callable_state_signatures(
             &type_parameters,
             &lifetime_parameters,
             machine.name.as_str(),
+            formation_obligations,
         );
         validate_machine_state_result_agreement(program, machine, diagnostics);
     }
@@ -86,6 +90,7 @@ pub(crate) fn validate_callable_state_signatures(
             type_parameters,
             &definition.lifetime_parameters,
             definition.name.as_str(),
+            formation_obligations,
         );
     }
 
@@ -136,6 +141,7 @@ pub(crate) fn validate_callable_state_signatures(
                     type_parameters: &type_parameters,
                     lifetime_parameters: &lifetime_parameters,
                 },
+                formation_obligations,
             );
             validate_machine_parameter_signatures(
                 program,
@@ -145,6 +151,7 @@ pub(crate) fn validate_callable_state_signatures(
                 &type_parameters,
                 &lifetime_parameters,
                 machine.name.as_str(),
+                formation_obligations,
             );
         }
     }
@@ -230,6 +237,7 @@ fn validate_machine_parameter_signatures<'program>(
     inherited_type_parameters: &[typed_trees::data::TypeParameter],
     inherited_lifetime_parameters: &[Identifier],
     declaration: &'program str,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     for parameter in parameters {
         let typed_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind else {
@@ -289,6 +297,7 @@ fn validate_machine_parameter_signatures<'program>(
                 type_parameters: &local_type_parameters,
                 lifetime_parameters: &local_lifetime_parameters,
             },
+            formation_obligations,
         );
         validate_machine_parameter_signatures(
             program,
@@ -298,6 +307,7 @@ fn validate_machine_parameter_signatures<'program>(
             &local_type_parameters,
             &local_lifetime_parameters,
             declaration,
+            formation_obligations,
         );
     }
 }
@@ -309,6 +319,7 @@ fn validate_state_signature_types<'program>(
     diagnostics: &mut Vec<Diagnostic>,
     owner: StateSignatureOwner<'program>,
     type_parameter_scope: TypeParameterScope<'_>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     for signature in signatures {
         let mut lifetime_parameters = type_parameter_scope.lifetime_parameters.to_vec();
@@ -340,6 +351,7 @@ fn validate_state_signature_types<'program>(
                     lifetime_parameters: &lifetime_parameters,
                     ..type_parameter_scope
                 },
+                formation_obligations,
             );
         }
 
@@ -359,6 +371,7 @@ fn validate_state_signature_types<'program>(
                     lifetime_parameters: &lifetime_parameters,
                     ..type_parameter_scope
                 },
+                formation_obligations,
             );
         }
     }

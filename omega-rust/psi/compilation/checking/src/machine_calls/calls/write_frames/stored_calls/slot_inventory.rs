@@ -1,5 +1,5 @@
-//! Declared storage supplies the complete writable-slot inventory.
-//! A missing or opaque frontier is not an empty one; no body spelling supplies slots.
+//! Declared storage supplies the complete writable-slot inventory; unknown is not empty.
+//! Completed operands retain their exact source cuts and carrier/backing association.
 
 use super::super as frames;
 use super::*;
@@ -108,7 +108,7 @@ pub(in crate::machine_calls::calls::write_frames) fn provider_output_relation_re
     inventory.is_none_or(|inventory| !inventory.slots.is_empty())
 }
 
-fn parameter_destination_inventory(
+pub(super) fn parameter_destination_inventory(
     program: &dyn crate::CheckingInput,
     parameters: &[StateParameter],
 ) -> Option<DestinationInventory> {
@@ -225,7 +225,7 @@ pub(crate) fn provider_completion_covers_writable_slots(
             parameters
                 .get(position)
                 .is_some_and(|parameter| parameter.symbol == slot.origin.local_symbol)
-                && declared_outputs::owner_segments(&output.owner_path).as_ref()
+                && opaque_outputs::owner_segments(&output.owner_path).as_ref()
                     == Some(&slot.origin.local_segments)
                 && output.access == slot.access
         })

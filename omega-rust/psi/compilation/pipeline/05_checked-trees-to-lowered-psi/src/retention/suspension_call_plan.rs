@@ -49,11 +49,10 @@ pub(crate) fn retain_suspension_call_plans(
                 .ok_or(LoweringError::Unsupported(
                     "external completion cannot park a continuing activation",
                 ))?;
-        // Emission and checking name the same callee differently: scalar and
-        // structural-result calls record the callee machine symbol while Unit
-        // calls and `call.target_symbol` carry the resolved entry state.
-        // Comparing owning-machine identities keeps the redirect check sound —
-        // one coordinate maps to one authored callee — across both spellings.
+        // Ordinary module calls record their exact checked selected state for
+        // every result role. Boundary/dynamic occurrences retain their selected
+        // declaration identity; this shared plan compares callable owners across
+        // those distinct invocation kinds, independently of scalar/Unit spelling.
         if occurrences.next().is_some()
             || owning_callable_symbol(checked, occurrence.source_target)
                 != owning_callable_symbol(checked, crossing.target)

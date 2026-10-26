@@ -1320,7 +1320,6 @@ dependencies = [
  "semantic-vocabulary",
  "target",
  "target-operations",
- "terminal-codec",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
 ]

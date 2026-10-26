@@ -287,6 +287,20 @@ fn canonical_projection_type<'a>(
     for segment in path {
         let shape = &declaration(root)?.shape;
         match segment {
+            CanonicalStructuralPathSegment::Referent => {
+                if case_fields.is_some() {
+                    return None;
+                }
+                let StructuralTypeShape::Reference { referent, .. } = shape else {
+                    return None;
+                };
+                // Canonical type/storage paths describe geometry for predicates
+                // and postconditions too; this query grants no readable access.
+                if let Some(storage) = storage.as_mut() {
+                    storage.push(StructuralPathSegment::Referent);
+                }
+                root = *referent;
+            }
             CanonicalStructuralPathSegment::Case(identity) => {
                 if case_fields.is_some() {
                     return None;

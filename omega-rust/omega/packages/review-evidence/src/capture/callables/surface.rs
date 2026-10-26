@@ -7,7 +7,6 @@ use super::super::behavior::{
 use super::super::contracts::facts::{callable_contract_exposure, project_callable_contracts};
 use super::super::semantics::conformances::project_conformance_bounds;
 use super::super::semantics::facts::exactly_one;
-use super::super::semantics::signatures::callable_declaration_scope;
 use super::super::semantics::types::review_signature_type_identity_with_binders;
 use super::conformances::project_callable_conformances;
 use crate::capture::PackageReviewInput;
@@ -59,6 +58,7 @@ pub(super) struct ProjectedSurface<'a> {
     pub entry: &'a typed_trees::state::State,
     pub realized: &'a checked_trees::RealizedMachineContractEnvelope,
     pub binders: Vec<(SymbolHandle, String)>,
+    pub lifetime_parameters: Vec<typed_trees::name::Identifier>,
 }
 
 pub(super) fn project<'a>(
@@ -77,18 +77,16 @@ pub(super) fn project<'a>(
     crate::capture::source::suspension::validate_machine_operational(compilation, machine)?;
     let publishes_interface = callable_contract_exposure(machine)
         == language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface;
-    let scope = callable_declaration_scope(compilation, machine)?;
-    let (binders, policy_type_parameters) = super::policy_parameters::type_parameters(
-        compilation,
-        machine,
-        subject,
-        publishes_interface,
-    )?;
+    let super::policy_parameters::CallableParameters {
+        binders,
+        lifetime_parameters,
+        policy_type_parameters,
+    } = super::policy_parameters::prepare(compilation, machine, subject, publishes_interface)?;
     let conformance_bounds = project_conformance_bounds(
         compilation,
         &machine.conformance_bounds,
         &binders,
-        scope.lifetime_parameters,
+        &lifetime_parameters,
         "reviewed callable",
         subject,
     )?;
@@ -102,7 +100,7 @@ pub(super) fn project<'a>(
                     compilation,
                     parameter.type_reference,
                     &binders,
-                    scope.lifetime_parameters,
+                    &lifetime_parameters,
                 )?,
                 is_const: parameter.is_const,
                 is_mutable: parameter.is_mutable,
@@ -113,7 +111,7 @@ pub(super) fn project<'a>(
         compilation,
         entry.return_type,
         &binders,
-        scope.lifetime_parameters,
+        &lifetime_parameters,
     )?;
     let (policy_conformances, operator_realizations, requirement_realizations) = if matches!(
         machine.supply_mode,
@@ -135,9 +133,10 @@ pub(super) fn project<'a>(
         }
         (conformances, operators, Vec::new())
     } else {
-        project_callable_conformances(compilation, machine, &binders, true)?
+        project_callable_conformances(compilation, machine, &binders, &lifetime_parameters, true)?
     };
-    let contracts = project_callable_contracts(compilation, machine, entry, &binders)?;
+    let contracts =
+        project_callable_contracts(compilation, machine, entry, &binders, &lifetime_parameters)?;
     let service_reach = exactly_one(
         compilation
             .facts
@@ -334,7 +333,7 @@ pub(super) fn project<'a>(
             // callable coordinate or a satisfier row cannot reconstruct this
             // declaration-owned part of its public signature.
             spelling: machine.spelling,
-            lifetime_parameter_count: scope.lifetime_parameters.len(),
+            lifetime_parameter_count: lifetime_parameters.len(),
             policy_type_parameters,
             conformance_bounds,
             parameters,
@@ -362,6 +361,7 @@ pub(super) fn project<'a>(
             },
         },
         binders,
+        lifetime_parameters,
         entry,
         realized,
     })

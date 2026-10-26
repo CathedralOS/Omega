@@ -49,24 +49,7 @@ impl Builder<'_, '_> {
                 case,
             ));
         }
-        // A computed subject (`choose(flag) in Choice::Some`) is observed
-        // through its retained result, the same operation `==` uses.
-        if self
-            .program
-            .expression_table
-            .call_node(binary.left)
-            .is_some()
-        {
-            return self.computed_case_membership(expression, binary.left, case);
-        }
-        let constructor = self.case_construction(binary.left)?;
-        Some(self.publish_case_membership(
-            expression,
-            expression,
-            checked_trees::CheckedStructuralValueHandle::invalid(),
-            CheckedScalarComputationStructuralArgument::Case(constructor),
-            case,
-        ))
+        self.computed_case_membership(expression, binary.left, case)
     }
 
     /// Resolve the same readable place for membership and intrinsic
@@ -80,6 +63,9 @@ impl Builder<'_, '_> {
         typed_trees::types::TypeReferenceHandle,
         checked_trees::CheckedUnitStructuralArgumentPlan,
     )> {
+        if self.uses_captured_dispatch_value(subject) {
+            return None;
+        }
         let place = validation::canonical_place_from_expression_in_state(
             self.program,
             self.state,
@@ -143,6 +129,7 @@ impl Builder<'_, '_> {
         Some((
             projected,
             checked_trees::CheckedUnitStructuralArgumentPlan {
+                projection_evaluations: Default::default(),
                 // Keep storage identity until the receiver resolves its roster.
                 source,
                 path,

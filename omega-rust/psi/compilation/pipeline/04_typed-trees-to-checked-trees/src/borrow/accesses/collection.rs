@@ -50,6 +50,14 @@ impl<'a> BorrowAccessCollection<'a> {
         self
     }
 
+    pub(super) fn with_completed_dispatch_extraction(
+        mut self,
+        extraction: DispatchExtraction,
+    ) -> Self {
+        self.dispatch_extraction = extraction;
+        self
+    }
+
     pub(super) fn borrow_access_place(
         &self,
         expression: ExpressionHandle,
@@ -91,7 +99,7 @@ impl<'a> BorrowAccessCollection<'a> {
     ) {
         // A payload the dispatch already copied ended before the call's
         // first access; any other copied read ends after its own row.
-        let end_before_access = self.is_owned_copy(expression).then(|| {
+        let end_before_access = self.is_copyable_value(expression).then(|| {
             if self.reads_extracted_copy(expression) {
                 0
             } else {
@@ -113,7 +121,7 @@ impl<'a> BorrowAccessCollection<'a> {
     pub(super) fn reads_extracted_copy(&self, expression: ExpressionHandle) -> bool {
         self.dispatch_extraction
             .reads_extracted_copy(self.program, expression, |payload| {
-                self.is_owned_copy(payload)
+                self.is_copyable_value(payload)
             })
     }
 
@@ -178,14 +186,14 @@ impl<'a> BorrowAccessCollection<'a> {
         }
     }
 
-    pub(super) fn is_owned_copy(&self, expression: ExpressionHandle) -> bool {
+    pub(super) fn is_copyable_value(&self, expression: ExpressionHandle) -> bool {
         validation::expression_type_reference_in_state(
             self.program,
             self.state_symbol,
             self.statement_index,
             expression,
         )
-        .is_some_and(|reference| super::is_owned_copy_type(self.program, reference))
+        .is_some_and(|reference| super::is_copyable_value_type(self.program, reference))
     }
 
     fn append_access(

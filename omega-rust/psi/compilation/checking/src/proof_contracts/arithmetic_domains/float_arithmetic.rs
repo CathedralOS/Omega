@@ -86,11 +86,7 @@ pub(crate) fn float_source_proves_integer_conversion(
             })
             .or_else(|| declared_place_type_raw(program, machine, state, value))
     })
-    .is_some_and(|bounds| {
-        bounds.minimum.is_finite()
-            && bounds.maximum.is_finite()
-            && float_interval_fits_integer(bounds.minimum.trunc(), bounds.maximum.trunc(), target)
-    })
+    .is_some_and(|bounds| bounds.proves_integer_conversion(target))
 }
 
 /// An ordered source enclosure at this occurrence. Declaration-backed values
@@ -103,6 +99,46 @@ pub(crate) struct FloatSourceBounds {
 }
 
 impl FloatSourceBounds {
+    /// A positive selected comparison encloses one completed IEEE value.
+    /// Strict endpoints use the same format neighbor as ordinary flow facts.
+    pub(crate) fn from_comparison(
+        primitive: PrimitiveType,
+        operator: BinaryOperator,
+        bound: f64,
+        subject_on_left: bool,
+    ) -> Option<Self> {
+        if !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64) || !bound.is_finite() {
+            return None;
+        }
+        let interval = float_bound_from(operator, bound, subject_on_left, primitive)?;
+        Some(Self {
+            primitive,
+            minimum: interval.low.unwrap_or(f64::NEG_INFINITY),
+            maximum: interval.high.unwrap_or(f64::INFINITY),
+        })
+    }
+
+    pub(crate) fn intersect(self, other: Self) -> Option<Self> {
+        if self.primitive != other.primitive {
+            return None;
+        }
+        let minimum = self.minimum.max(other.minimum);
+        let maximum = self.maximum.min(other.maximum);
+        (minimum <= maximum).then_some(Self {
+            primitive: self.primitive,
+            minimum,
+            maximum,
+        })
+    }
+
+    /// Named conversion truncates fractional inputs; Exact casts separately
+    /// require unchanged denotation and therefore integrality.
+    pub(crate) fn proves_integer_conversion(&self, target: PrimitiveType) -> bool {
+        self.minimum.is_finite()
+            && self.maximum.is_finite()
+            && float_interval_fits_integer(self.minimum.trunc(), self.maximum.trunc(), target)
+    }
+
     pub(crate) fn is_exact_integer(&self, target: PrimitiveType) -> bool {
         self.is_integral() && float_interval_fits_integer(self.minimum, self.maximum, target)
     }

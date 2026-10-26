@@ -1,0 +1,17 @@
+// Expected exit: 0. Strict enum equality snapshots the left value before the right mutator.
+data Choice [copy] { case First; case Second; }
+data Holder { choice: Choice; }
+machine replace(holder: &mut Holder) -> Choice {
+    holder.choice = Choice::Second;
+    Choice::First
+}
+machine main() crashes Trap {
+    let mut holder: Holder = Holder { choice: Choice::First };
+    let same: bool = holder.choice == replace(&mut holder);
+    transition same && (holder.choice in Choice::Second) {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

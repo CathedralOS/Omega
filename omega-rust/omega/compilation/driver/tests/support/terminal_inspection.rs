@@ -15,6 +15,8 @@ use crate::fixture_package_inputs::{
 
 #[path = "closed_reach_controls.rs"]
 mod closed_reach_controls;
+#[path = "dynamic_image_controls.rs"]
+mod dynamic_image_controls;
 #[path = "terminal_host_provisions.rs"]
 mod host_provisions;
 #[path = "indexed_family_controls.rs"]
@@ -30,6 +32,7 @@ enum InspectionControls {
     BoundaryCallables,
     IndexedFamily,
     MathematicalActuals,
+    DynamicImage,
     ClosedReach,
     ClosedReachCaptures,
     FoldedLayouts,
@@ -110,12 +113,15 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 false,
                 Some(InspectionControls::MathematicalActuals),
             ),
+            [machine, "dynamic-image-controls"] => {
+                (*machine, false, Some(InspectionControls::DynamicImage))
+            }
             [machine, "indexed-family-controls"] => {
                 (*machine, false, Some(InspectionControls::IndexedFamily))
             }
             _ => {
                 return Err(format!(
-                    "{ORACLE} needs a machine name and optional `debug`, `closed-conformance-controls`, `closed-reach-controls`, `closed-reach-capture-controls`, `boundary-conformance-controls`, `indexed-family-controls` or `mathematical-actuals`"
+                    "{ORACLE} needs a machine name and optional `debug`, `closed-conformance-controls`, `closed-reach-controls`, `closed-reach-capture-controls`, `boundary-conformance-controls`, `indexed-family-controls` or `mathematical-actuals` or `dynamic-image-controls`"
                 ));
             }
         };
@@ -230,6 +236,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 InspectionControls::FoldedLayouts => folded_layout_controls(&decoded)?,
                 InspectionControls::FoldedStorage => folded_storage_controls(&decoded)?,
                 InspectionControls::BoundaryCallables => boundary_conformance_controls(&decoded)?,
+                InspectionControls::DynamicImage => dynamic_image_controls::inspect(&decoded)?,
                 InspectionControls::IndexedFamily | InspectionControls::MathematicalActuals => {
                     unreachable!("handled before ordinary inspection")
                 }

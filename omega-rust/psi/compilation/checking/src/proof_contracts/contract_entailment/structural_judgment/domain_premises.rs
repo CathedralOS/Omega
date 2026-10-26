@@ -314,6 +314,36 @@ impl StructuralJudge<'_> {
     ) {
         self.intake_admitted_scalar_bounds(reference, &value);
         let program = self.program;
+        // Only independently admitted values donate declared refinements.
+        // A pending cast or constructor may know its carrier before admission.
+        if let Some(meaning) =
+            crate::value_custody::expression_types::scalar_observation_meaning(program, reference)
+            && meaning.0.is_fixed_integer()
+            && super::super::structural_terms::scalar_operand_is_observed(
+                program, reference, &value,
+            )
+        {
+            for (minimum, maximum) in
+                crate::constrained_range_bounds(program, reference, false).unwrap_or_default()
+            {
+                for (operator, bound) in [
+                    (BinaryOperator::GreaterOrEqual, minimum),
+                    (BinaryOperator::LessOrEqual, maximum),
+                ] {
+                    self.intake_equation(
+                        StructuralTerm::ScalarBinary {
+                            references: [reference; 2],
+                            operator,
+                            meaning: [meaning; 2],
+                            left: Box::new(value.clone()),
+                            right: Box::new(StructuralTerm::Integer(bound)),
+                        },
+                        super::value_predicates::boolean_term(true),
+                        0,
+                    );
+                }
+            }
+        }
         for row in crate::field_domains::declared_type_domain_rows(program, reference) {
             let Some(projected) = super::super::observed_projections::project_observed_value(
                 program,
@@ -453,7 +483,10 @@ impl StructuralJudge<'_> {
             return;
         };
         let Some(bounds) = crate::proof_contracts::arithmetic_domains::atomic_resident_interval(
-            program, machine, Some(state), load.place,
+            program,
+            machine,
+            Some(state),
+            load.place,
         ) else {
             return;
         };
@@ -463,7 +496,9 @@ impl StructuralJudge<'_> {
             return;
         };
         if !meaning.0.is_fixed_integer()
-            || !super::super::structural_terms::scalar_operand_is_observed(program, reference, value)
+            || !super::super::structural_terms::scalar_operand_is_observed(
+                program, reference, value,
+            )
         {
             return;
         }
@@ -477,9 +512,9 @@ impl StructuralJudge<'_> {
                 operator,
                 meaning: [meaning; 2],
                 left: Box::new(value.clone()),
-                right: Box::new(StructuralTerm::Integer(
-                    numerics::bignum::BigInt::from_i64(bound),
-                )),
+                right: Box::new(StructuralTerm::Integer(numerics::bignum::BigInt::from_i64(
+                    bound,
+                ))),
             };
             self.intake_equation(predicate, super::value_predicates::boolean_term(true), 0);
         }
@@ -661,30 +696,53 @@ impl StructuralJudge<'_> {
                 {
                     StructuralTerm::Integer(literal.value_bignum()?)
                 } else {
-                    let symbol = match program.type_reference_table.type_reference(*argument) {
-                        TypeReferenceNode::Named { symbol, .. } => *symbol,
+                    match program.type_reference_table.type_reference(*argument) {
+                        TypeReferenceNode::Named { symbol, .. } => {
+                            if !symbol.is_valid()
+                                || program.symbols.get(*symbol).kind
+                                    != symbols::SymbolKind::TypeParameter
+                            {
+                                return None;
+                            }
+                            StructuralTerm::BoundValue(*symbol)
+                        }
                         TypeReferenceNode::ConstExpression(expression) => {
-                            program.expression_table.name_path_node(*expression)?.symbol
+                            if let Some(path) = program
+                                .expression_table
+                                .name_path_node(*expression)
+                                .filter(|path| {
+                                    path.symbol.is_valid()
+                                        && program.symbols.get(path.symbol).kind
+                                            == symbols::SymbolKind::TypeParameter
+                                })
+                            {
+                                StructuralTerm::BoundValue(path.symbol)
+                            } else if matches!(
+                                parameter.kind,
+                                typed_trees::data::TypeParameterKind::Const { .. }
+                            ) {
+                                super::super::structural_terms::structural_term(
+                                    program,
+                                    None,
+                                    None,
+                                    *expression,
+                                    None,
+                                )?
+                            } else {
+                                // A runtime Value recipe belongs to its
+                                // completed index/descriptor observation. This
+                                // static intake has no supplying frame and
+                                // cannot replay the former source expression.
+                                return None;
+                            }
                         }
                         _ => return None,
-                    };
-                    if !symbol.is_valid()
-                        || program.symbols.get(symbol).kind != symbols::SymbolKind::TypeParameter
-                    {
-                        return None;
                     }
-                    StructuralTerm::BoundValue(symbol)
                 };
                 Some((
                     StateParameter {
                         symbol: parameter.symbol,
-                        name: format!(
-                            "\0static_{}_{}",
-                            parameter.symbol.arena_index(),
-                            parameter.symbol.generation()
-                        )
-                        .as_str()
-                        .into(),
+                        name: parameter.name.clone(),
                         type_reference,
                         is_const: true,
                         ..Default::default()

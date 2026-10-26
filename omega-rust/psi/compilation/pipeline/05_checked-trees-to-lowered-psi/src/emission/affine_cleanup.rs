@@ -61,6 +61,9 @@ pub(crate) fn no_code_type_ids(
 }
 
 /// Complete source-checked no-code custody in the emitted operation graph.
+/// Copyable descriptor aggregates retain their source on ordinary copies and
+/// end only the physical binding with RetireHome; affine carriers dispose their
+/// remaining value. Both use the same actual birth and selected-edge equations.
 /// `parameters` delegates entry cleanup; the complete entry roster supplies
 /// authentic homes for move tracking and residual geometry. Only the checked
 /// capability roster authorizes additional owned local/result and
@@ -257,6 +260,41 @@ fn return_cleanup(terminator: &mut Terminator) -> Option<&mut Vec<TerminalAffine
     }
 }
 
+pub(super) fn copyable_descriptor_type_ids(
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Vec<semantic_vocabulary::StructuralTypeId> {
+    // Cleanup compatibility permits plain storage too; it does not establish
+    // that storage contains a descriptor. Only actual borrowed descriptor
+    // payloads need this additional home lifetime. Plain unrestricted payloads
+    // retain their ordinary producer/storage lifetime without disposal debt.
+    // Retirement ends only a descriptor binding, never its referent. Direct
+    // reference/view shells keep their existing loan-continuation owner.
+    types
+        .iter()
+        .filter(|declaration| {
+            declaration.descriptor_cleanup
+                && terminal_psi::structural_type_has_borrowed_storage_by(
+                    |identity| types.iter().find(|candidate| candidate.id == identity),
+                    declaration.id,
+                )
+                && terminal_semantics::discardable_store_value(
+                    types.iter(),
+                    declaration.id,
+                    StructuralMultiplicity::Unrestricted,
+                    false,
+                )
+                && matches!(
+                    declaration.shape,
+                    terminal_psi::StructuralTypeShape::Record { .. }
+                        | terminal_psi::StructuralTypeShape::FixedArray { .. }
+                        | terminal_psi::StructuralTypeShape::Sum { .. }
+                        | terminal_psi::StructuralTypeShape::Mixed { .. }
+                )
+        })
+        .map(|declaration| declaration.id)
+        .collect()
+}
+
 fn complete_carriers(
     parameters: &[StructuralParameterDeclaration],
     entry_parameters: &[StructuralParameterDeclaration],
@@ -270,13 +308,16 @@ fn complete_carriers(
         terminal_psi::StructuralArgument,
     )],
 ) -> Result<(), LoweringError> {
-    let affine = parameters
+    let copyable_descriptor_types = copyable_descriptor_type_ids(types);
+    let entry_owners = parameters
         .iter()
         .rev()
         .filter_map(|parameter| {
             (parameter.access == StructuralAccess::Owned
-                && parameter.multiplicity == StructuralMultiplicity::Affine)
-                .then_some(parameter.place)
+                && (parameter.multiplicity == StructuralMultiplicity::Affine
+                    || (parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                        && copyable_descriptor_types.contains(&parameter.structural_type))))
+            .then_some(parameter.place)
         })
         .collect::<Vec<_>>();
     // Descriptor cleanup remains owned by its loan continuation. Plain owned
@@ -313,8 +354,12 @@ fn complete_carriers(
             // Membership metadata neither settles this carrier's disposal
             // debt nor authorizes disposal. Keep it on the result; the exact
             // checked type or anchored loan-carrier authority below decides
-            // whether this pass may settle its claim-free affine custody.
-            if result.multiplicity != StructuralMultiplicity::Affine || !result.claims.is_empty() {
+            // whether this pass may settle its claim-free carrier custody.
+            let copyable_home = result.multiplicity == StructuralMultiplicity::Unrestricted
+                && copyable_descriptor_types.contains(&result.structural_type);
+            if (result.multiplicity != StructuralMultiplicity::Affine && !copyable_home)
+                || !result.claims.is_empty()
+            {
                 return None;
             }
             let mut declarations = types
@@ -328,14 +373,16 @@ fn complete_carriers(
                         | terminal_psi::StructuralTypeShape::Reference { .. }
                 ) || declaration.shape.is_borrowed_byte_view());
             if declarations.next().is_some()
-                || !(no_code_types.contains(&result.structural_type) || unscheduled_carrier)
+                || !(no_code_types.contains(&result.structural_type)
+                    || unscheduled_carrier
+                    || copyable_home)
             {
                 return None;
             }
             Some((result.place, operation.id))
         })
         .collect::<Vec<_>>();
-    let mut managed = affine.clone();
+    let mut managed = entry_owners.clone();
     managed.extend(births.iter().map(|(place, _)| *place));
     // A prior owned move can give a source local a block-parameter home.
     // Its exact incoming edge is its birth, just as an operation owns a
@@ -346,9 +393,11 @@ fn complete_carriers(
             .flat_map(|block| &block.structural_parameters)
             .filter(|parameter| {
                 parameter.access == StructuralAccess::Owned
-                    && parameter.multiplicity == StructuralMultiplicity::Affine
-                    && !affine.contains(&parameter.place)
-                    && no_code_types.contains(&parameter.structural_type)
+                    && (parameter.multiplicity == StructuralMultiplicity::Affine
+                        && no_code_types.contains(&parameter.structural_type)
+                        || parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                            && copyable_descriptor_types.contains(&parameter.structural_type))
+                    && !entry_owners.contains(&parameter.place)
                     && !partial_transfers.contains(&parameter.place)
             })
             .map(|parameter| parameter.place),
@@ -389,7 +438,7 @@ fn complete_carriers(
         .collect::<Vec<_>>();
     tracked_disposals.sort_unstable();
     tracked_disposals.dedup();
-    let initial_owners = affine
+    let initial_owners = entry_owners
         .iter()
         .copied()
         .chain(
@@ -422,7 +471,8 @@ fn complete_carriers(
         return unsupported("scalar graph affine parameters have duplicate places");
     }
     let entry_position = block_position(blocks, entry)?;
-    let reentered = !affine.is_empty() && !blocks[entry_position].structural_parameters.is_empty();
+    let reentered =
+        !entry_owners.is_empty() && !blocks[entry_position].structural_parameters.is_empty();
     let mut incoming = vec![Vec::new(); blocks.len()];
     let mut successors = vec![Vec::new(); blocks.len()];
     for (position, block) in blocks.iter().enumerate() {
@@ -433,7 +483,7 @@ fn complete_carriers(
             && block
                 .structural_parameters
                 .iter()
-                .any(|parameter| affine.contains(&parameter.place))
+                .any(|parameter| entry_owners.contains(&parameter.place))
         {
             return unsupported(
                 "scalar graph owned block parameters require exact forwarding custody",
@@ -447,11 +497,12 @@ fn complete_carriers(
                 ..
             } => {
                 if (structural_arguments.iter().any(|argument| {
-                    affine.contains(&argument.place) && argument.access == StructuralAccess::Owned
+                    entry_owners.contains(&argument.place)
+                        && projected_transfers::transfers_custody(argument, &copied_roots)
                 }) && !(reentered && *target == entry))
                     || cleanup_actions
                         .iter()
-                        .any(|action| competing_cleanup(action, &affine, &managed))
+                        .any(|action| competing_cleanup(action, &entry_owners, &managed))
                 {
                     return unsupported(
                         "scalar graph whole parameter cleanup cannot replace existing edge custody",
@@ -471,12 +522,12 @@ fn complete_carriers(
             } => {
                 if [when_true, when_false].iter().any(|edge| {
                     edge.structural_arguments.iter().any(|argument| {
-                        affine.contains(&argument.place)
-                            && argument.access == StructuralAccess::Owned
+                        entry_owners.contains(&argument.place)
+                            && projected_transfers::transfers_custody(argument, &copied_roots)
                     }) || edge
                         .cleanup_actions
                         .iter()
-                        .any(|action| competing_cleanup(action, &affine, &managed))
+                        .any(|action| competing_cleanup(action, &entry_owners, &managed))
                         || (reentered && edge.target == entry)
                 }) {
                     return unsupported(
@@ -489,7 +540,7 @@ fn complete_carriers(
                 if cases.iter().any(|edge| {
                     edge.cleanup_actions
                         .iter()
-                        .any(|action| competing_cleanup(action, &affine, &managed))
+                        .any(|action| competing_cleanup(action, &entry_owners, &managed))
                         || (reentered && edge.target == entry)
                 }) {
                     return unsupported(
@@ -503,7 +554,7 @@ fn complete_carriers(
                 cleanup_actions, ..
             } if cleanup_actions
                 .iter()
-                .all(|action| !competing_cleanup(action, &affine, &managed)) =>
+                .all(|action| !competing_cleanup(action, &entry_owners, &managed)) =>
             {
                 Vec::new()
             }
@@ -539,6 +590,7 @@ fn complete_carriers(
         &initial_owners,
         &managed,
         &births,
+        &copied_roots,
         &incoming,
         &successors,
     )?;
@@ -587,6 +639,7 @@ fn complete_carriers(
             &disposal_capability,
             &producers,
             &parameter_order,
+            &copied_roots,
         );
     };
     for (position, block) in blocks.iter_mut().enumerate() {
@@ -686,6 +739,7 @@ fn replace_managed_discards(
         semantic_vocabulary::OperationId,
     )],
     parameter_order: &[semantic_vocabulary::PlaceId],
+    copied_roots: &std::collections::BTreeSet<semantic_vocabulary::PlaceId>,
 ) {
     // A region disposal retains its home, and explicit retirement already
     // ends that home's current epoch. Neither belongs to root-discard rewriting.
@@ -712,7 +766,13 @@ fn replace_managed_discards(
             matches!(action, TerminalAffineCleanupAction::DiscardRoot(scheduled_place) if scheduled_place == place)
         })
     });
-    merge_discards(existing, additions, producers, parameter_order);
+    merge_discards(
+        existing,
+        additions,
+        producers,
+        parameter_order,
+        copied_roots,
+    );
 }
 
 /// Regional cleanup may coexist with a whole-home lifetime equation. Nominal
@@ -769,6 +829,7 @@ fn merge_discards(
         semantic_vocabulary::OperationId,
     )],
     parameter_order: &[semantic_vocabulary::PlaceId],
+    copied_roots: &std::collections::BTreeSet<semantic_vocabulary::PlaceId>,
 ) {
     for place in additions {
         let insertion = disposal_position(
@@ -777,7 +838,12 @@ fn merge_discards(
             producers,
             parameter_order,
         );
-        existing.insert(insertion, TerminalAffineCleanupAction::DiscardRoot(place));
+        let action = if copied_roots.contains(&place) {
+            TerminalAffineCleanupAction::RetireHome(place)
+        } else {
+            TerminalAffineCleanupAction::DiscardRoot(place)
+        };
+        existing.insert(insertion, action);
     }
 }
 

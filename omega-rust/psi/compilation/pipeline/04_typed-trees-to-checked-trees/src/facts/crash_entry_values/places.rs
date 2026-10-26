@@ -258,6 +258,13 @@ fn entry_parameter_place_at_write_boundary(
     }
     // Authenticate even a whole-parameter observation with an empty path.
     crate::values::resolve_structural_parameter_path(program, parameters, position, &path)?;
+    let root_type = crate::values::scalar::structural_fields::predicate_parameter_type(
+        program,
+        parameters[usize::try_from(position).ok()?].type_reference,
+    )?;
+    let (path, _) = crate::values::scalar::structural_fields::explicit_observation_path(
+        program, root_type, &path,
+    )?;
     Some((position, path))
 }
 

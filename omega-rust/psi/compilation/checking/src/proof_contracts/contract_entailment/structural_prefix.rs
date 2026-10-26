@@ -114,6 +114,11 @@ pub(super) type PrefixObservation<'a, 'program> = (
 pub(super) trait StructuralPrefixVisitor {
     fn site(&self) -> StructuralPrefixSite;
 
+    /// True once no further path observation can change the visitor's verdict.
+    fn is_complete(&self) -> bool {
+        false
+    }
+
     /// Every reached arm, before its premises are established - including an
     /// arm whose hypotheses contradict.
     fn entered(&mut self) {}
@@ -142,6 +147,9 @@ pub(super) trait StructuralPrefixVisitor {
         guarantees: &CitationFacts,
     ) {
         self.entered();
+        if self.is_complete() {
+            return;
+        }
         let mut judge = structural_arm_judge(program, judge, hypotheses, equations);
         if judge.hypotheses_contradictory {
             return;

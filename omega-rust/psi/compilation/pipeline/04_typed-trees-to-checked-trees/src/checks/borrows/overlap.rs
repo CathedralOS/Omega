@@ -106,7 +106,17 @@ pub(super) fn captured_place_compatibility<'p>(
     let (left_place, right_place) = receiver_namespace
         .as_ref()
         .map_or((left, right), |(left, right)| (left, right));
-    let roots_valid = left_place.root.is_valid() && right_place.root.is_valid();
+    // An output namespace is an identity, never a fresh allocation. Only the
+    // supplied incoming resource can admit its compatibility with another
+    // reference; an unbacked spelling proves neither access nor disjointness.
+    let authenticated = |place: &checked_trees::CapturedPlace| {
+        !matches!(place.root, facts::PlaceRoot::InvocationOutput(_))
+            || place.incoming_reference.is_valid()
+    };
+    let roots_valid = left_place.root.is_valid()
+        && right_place.root.is_valid()
+        && authenticated(left_place)
+        && authenticated(right_place);
     let same_root = roots_valid
         && left_place.root == right_place.root
         && left_place.incoming_reference == right_place.incoming_reference;
@@ -258,7 +268,8 @@ pub(super) fn canonical_place_for_loan(
         }),
         facts::PlaceRoot::Unknown
         | facts::PlaceRoot::TypeReference(_)
-        | facts::PlaceRoot::InvocationReferent { .. } => None,
+        | facts::PlaceRoot::InvocationReferent { .. }
+        | facts::PlaceRoot::InvocationOutput(_) => None,
     }
 }
 

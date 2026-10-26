@@ -1,7 +1,8 @@
-//! Rejoin a retained call's complete ordered access roster to its source.
+//! Rejoin an expression invocation's ordered access roster to its source.
 //!
-//! Call and transition operands share place collection but keep their own
-//! dispatch lifetime rules. Access rows are observations, not formal positions;
+//! Named transition targets complete their extraction lifetimes from flow's
+//! observed operand graph. Expression invocations keep ordinary argument-order
+//! ends. Access rows are observations, not formal positions;
 //! callers select operands through the exact authored call site returned here.
 
 use validation::{CallSite, call_site_argument_expressions, find_call_site};
@@ -9,7 +10,7 @@ use validation::{CallSite, call_site_argument_expressions, find_call_site};
 use checked_trees::{BorrowFacts, FlowCallFact};
 use symbols::SymbolHandle;
 
-pub(crate) fn rejoin_call_accesses<'program>(
+pub(crate) fn rejoin_expression_call_accesses<'program>(
     program: &'program dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     machine: SymbolHandle,
@@ -53,19 +54,7 @@ pub(crate) fn rejoin_call_accesses<'program>(
             }
             super::collect_call_argument_accesses
         }
-        CallSite::TransitionNamed { path, .. } => {
-            let target = validation::call_target_state(program, path.symbol)
-                .map_or(path.symbol, |state| state.symbol);
-            if source.authored_expression.is_valid()
-                || target != source.target_symbol
-                || path.head_symbol != source.receiver_symbol
-                || (path.members.count() > 1) != source.has_receiver
-            {
-                return None;
-            }
-            super::collect_transition_target_argument_accesses
-        }
-        CallSite::Statement(_) => return None,
+        _ => return None,
     };
     let arguments = call_site_argument_expressions(program, &site);
     let mut expected_segments = arena::Arena::new();

@@ -34,6 +34,38 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             return Ok(value);
         }
 
+        // Static conformance dispatch rewrote this call's target: the checker
+        // recorded the exact realization state on the call itself, so it
+        // executes before any receiver-carried adapter or name resolution.
+        if let Some(dispatch) = &call.static_requirement_dispatch {
+            let value = self.run_selected_realization(
+                dispatch.realization_state,
+                self.program
+                    .expression_table
+                    .expression_handles(call.arguments),
+                frame,
+            )?;
+            if self.guard_depth > 0 {
+                frame.record_guard_call_result(handle, &value);
+            }
+            return Ok(value);
+        }
+        // A `dyn Trait` selector call targets its checked dynamic slot:
+        // operand 0 carries the selector whose runtime type identity picks
+        // the realizing state, ahead of any static name or adapter route.
+        if let Some(slot) = self.program.dynamic_slot_by_symbol(call.target_symbol) {
+            let value = self.run_dynamic_slot(
+                slot,
+                self.program
+                    .expression_table
+                    .expression_handles(call.arguments),
+                frame,
+            )?;
+            if self.guard_depth > 0 {
+                frame.record_guard_call_result(handle, &value);
+            }
+            return Ok(value);
+        }
         let receiver_symbol = match self.program.expression_table.expression(call.receiver) {
             ExpressionNode::Member(member) => member.member_symbol,
             ExpressionNode::Name(path) => path.symbol,

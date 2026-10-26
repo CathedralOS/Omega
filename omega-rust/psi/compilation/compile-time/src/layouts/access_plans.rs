@@ -20,9 +20,10 @@ fn evaluate_selected_policy(
     machine: &typed_trees::machine::Machine,
     arguments: Vec<BuildTimeValue>,
     policy_kind: &str,
+    accounting: &crate::evaluation_accounting::EvaluationAccounting,
 ) -> Result<BuildTimeValue, String> {
     let policy_machine = machine.name.as_str();
-    let admission = BuildTimeAdmissionPlan::infer(typed, None);
+    let admission = BuildTimeAdmissionPlan::infer(typed, None).with_accounting(accounting.clone());
     let arguments = super::policy_arguments::policy_arguments(typed, machine, arguments)?;
     admission
         .admit_supplied_invocation(typed, machine, arguments, &[])?

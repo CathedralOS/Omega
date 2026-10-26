@@ -525,7 +525,8 @@ fn install_plan_laid_layout(
             &execution
         };
         let admission =
-            crate::BuildTimeAdmissionPlan::infer(execution, selection_authority.clone());
+            crate::BuildTimeAdmissionPlan::infer(execution, selection_authority.clone())
+                .with_accounting(domain.accounting.clone());
         let custodies: Vec<_> = record
             .invocation_sources
             .iter()
