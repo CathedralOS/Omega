@@ -1550,11 +1550,12 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     The [Linear continuation](samples/cli/facts/opaque_closed_carrier_exchange/independent_linear/README.md)
     carries actual whole ownership claims through independent inputs and returns
     across all nine places on all four targets.
-  - Connect stage 05 `retention/retained_borrow_custody.rs` and native
-    marshaling to installed-provider custody and default Terminal adapters for
-    moved, lifetime-borrowed, and permitted-snapshot boundaries so all nine
-    places of `samples/cli/facts/foreign_retained_shared_borrow` pass `omega run
-    --both`.
+  - Complete installed-provider custody and native marshaling for moved
+    backing, mutable retention, permitted snapshots and the wider resident/view
+    codecs those boundaries require. Preserve the complete lifetime, range and
+    revision/lease records through stage 05
+    `retention/retained_borrow_custody.rs` and the selected provider; private
+    per-call captures cannot supply original backing.
 
   Acceptance: `samples/cli/facts/opaque_closed_carrier_exchange`,
   `samples/cli/facts/foreign_retained_shared_borrow`, and the `providers/foreign_*`

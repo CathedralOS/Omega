@@ -52,11 +52,12 @@ completion authority. Embedders opt in with an explicit worker command; absence
 provides no native execution. Modeled host services retain their own bindings.
 
 All nine places and the shared-alias, enclosing-allocation and resident-whole-move
-controls reach actual native/Terminal zero exits on macOS ARM64 and both Linux
-targets. The pinned corpus and fresh public CLI projects exercise both engines;
-the nine intended loan rejects still reject. Windows still needs the complete
-current adapter path measured. Earlier native-only or physical worker results
-do not establish that agreement, so the row remains open.
+controls reach actual native/Terminal zero exits on all four hosted targets.
+The pinned corpus and fresh public CLI projects exercise both engines; the nine
+intended loan rejects still reject. Matching Windows/Linux x86-64 execution is
+recorded in [the hosted gate](https://github.com/CathedralOS/Omega/actions/runs/40254747695),
+and Linux ARM64 in [its matching-host gate](https://github.com/CathedralOS/Omega/actions/runs/40254749833).
+The macOS ARM64 qualification uses the same source revision and oracles.
 
 `tools/ci/compiler_retained_foreign.py` prepares and self-tests the matching C
 library, checks the nine intended rejects and pinned positives through the
@@ -116,9 +117,8 @@ foreign effects and executes in both engines.
   pointer. Protocol tokens remain ordinary transparent one-word records.
 - Omega 03–06: native calls use ordinary register/stack and activation homes;
   suspended callers retain their frame backing while helpers transport tokens.
-- Omega 07–09/emission: both Linux ELF profiles and macOS Mach-O imports execute
-  the authored C lifecycle with native/Terminal agreement. Windows PE agreement
-  remains unverified.
+- Omega 07–09/emission: both Linux ELF profiles, macOS Mach-O and Windows PE
+  imports execute the authored C lifecycle with native/Terminal agreement.
 
 This covers the direct shared fixed-record rung. The whole-move control covers
 ordinary owned movement between completed registrations. Transferring backing
