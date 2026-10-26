@@ -74,6 +74,16 @@ pub(super) fn validate(
         })?;
         let arguments = expressions.expression_handles(call.arguments);
         let expected = match request {
+            BuildSelectionRequest::Exclusion(_) => match operation {
+                "prepare" => 1,
+                "exclude" => 2,
+                _ => {
+                    return Err(Diagnostic::error(
+                        "behavior exclusion lost its checked value protocol",
+                    )
+                    .with_source_span(span));
+                }
+            },
             BuildSelectionRequest::Entry(binding) => {
                 if binding.slot.is_empty()
                     || matches!(&binding.implementation, RootBindingOperand::AuthoredPath(path) if path.is_empty())
@@ -95,8 +105,15 @@ pub(super) fn validate(
                 use language_semantics::declaration_selection::BuildOperation;
                 if !matches!(
                     binding.operation,
-                    BuildOperation::ProviderSelection | BuildOperation::RepresentationSelection
-                ) || binding.operands.len() != 2
+                    BuildOperation::ProviderSelection
+                        | BuildOperation::RepresentationSelection
+                        | BuildOperation::ServiceExclusion
+                ) || binding.operands.len()
+                    != if binding.operation == BuildOperation::ServiceExclusion {
+                        1
+                    } else {
+                        2
+                    }
                     || binding.operands.iter().any(|operand| {
                         operand.path.is_empty()
                             || operand.source_span.span.start >= operand.source_span.span.end

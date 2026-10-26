@@ -896,7 +896,6 @@ narrows realization only.
   `omega-rust/psi/compilation/driver/`,
   `omega-rust/omega/compilation/native-production/`, and workspace architecture
   gates (`tools/check_native_boundary.py` and `cargo metadata` guards).
-  - Unify ordinary one-shot execution loops with the shared session.
   - Implement pre-execution dependency input assignment and shared-node conflict
     checks at dependency activation admission without inheriting the root's
     slots (keeping required-output path byte results refused).
@@ -907,7 +906,10 @@ narrows realization only.
     per compilation with no realized target observed, run Psi `00–07` once in
     `compiler.rs` to produce one canonical Terminal Psi artifact, and run Omega
     `00–09` and emission once per requested target without
-    checked-tree/lowered-Psi sidecars.
+    checked-tree/lowered-Psi sidecars. The default `package_batch_sources`
+    measurement currently observes three source completions for two distinct
+    source cohorts; restore its existing two-completion oracle while preserving
+    each occurrence's Build receipts and exact Product admission.
   - Enforce via `cargo metadata` and source guards that Psi never depends on
     Omega, Omega pipeline/realization never depends on source/typed/checked Psi
     or interpreters, numbered stages are called only inside the Psi/Omega
@@ -1277,7 +1279,7 @@ decision (`SourceChecked`) into stage 05 and stage 00.
 
 - **BORROW-PROOF-CONVERGENCE.** Complete borrow-disjointness establishment in
   stage 04 `checks/borrows/` under [loans](wiki/spec/terminal-psi/loans.md)
-  across remaining callee/domain predicates, runtime projections, and
+  across remaining structured callee/domain predicates, runtime projections, and
   same-statement/theorem establishment beyond
   `samples/cli/facts/computed_subslice_extent`, using exact call substitution
   and the shared contract/range readers.
@@ -1385,7 +1387,8 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   across the full admitted entry/call closure, native artifact custody,
   installation, and replacement (`Psi 04–07` and `Omega 00–09`). Reuse
   `omega-rust/omega/compilation/backend/plans/provider-evidence/src/provider_evidence/executable_scopes/behavior_exclusions.rs`,
-  `omega-rust/omega/compilation/realization/trust-model/src/behavior_exclusions/selections.rs`,
+  `omega-rust/omega/compilation/driver/src/checked/checking/product_selections/exclusions.rs`,
+  `omega-rust/omega/compilation/driver/src/terminal/behavior_exclusions.rs`,
   `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/retained_terminal.rs`,
   `omega-rust/omega/compilation/native-production/src/realization.rs`,
   and `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/native_artifact.rs`.

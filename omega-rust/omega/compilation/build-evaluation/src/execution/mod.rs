@@ -170,6 +170,7 @@ impl PreparedBuildExecution {
             root_binding_requests: completed.root_bindings,
             declared_product_selections: completed.declared_product_selections,
             product_selection_requests: completed.product_selections,
+            behavior_exclusion_requests: completed.exclusions,
             project_declaration: Some(completed.declaration),
             optimization_report_request: completed.optimization_report,
             evaluation_usage: Some(usage),
