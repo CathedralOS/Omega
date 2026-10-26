@@ -145,6 +145,33 @@ pub(crate) enum CallSite {
     Expression(ExpressionHandle),
 }
 
+impl CallSite {
+    /// The authored static machine application this site's call node carries:
+    /// the retained application an ordinary call authored, or the zero handle
+    /// when the node authorizes no application. `None` when the site names no
+    /// call node at all, so every caller keeps its own missing-node behaviour.
+    pub(crate) fn authored_machine_application(
+        self,
+        program: &TypedTrees,
+    ) -> Option<typed_trees::static_applications::StaticMachineApplicationHandle> {
+        Some(match self {
+            CallSite::Expression(handle) => {
+                program
+                    .expression_table
+                    .call_node(handle)?
+                    .authored_machine_application
+            }
+            CallSite::Statement(handle) => {
+                program
+                    .statement_table
+                    .statement(handle)
+                    .as_call()?
+                    .authored_machine_application
+            }
+        })
+    }
+}
+
 #[derive(Clone)]
 struct CallSelection {
     site: CallSite,
@@ -744,18 +771,12 @@ fn candidate_for_selection<'template>(
 ) -> Candidate<'template> {
     Candidate {
         template: std::borrow::Cow::Borrowed(&template.template),
-        binding_application: match selection.site {
-            CallSite::Expression(handle) => program.expression_table.call_node(handle).map_or(
-                typed_trees::static_applications::StaticMachineApplicationHandle::invalid(),
-                |call| call.authored_machine_application,
+        binding_application: selection
+            .site
+            .authored_machine_application(program)
+            .unwrap_or_else(
+                typed_trees::static_applications::StaticMachineApplicationHandle::invalid,
             ),
-            CallSite::Statement(handle) => {
-                program.statement_table.statement(handle).as_call().map_or(
-                    typed_trees::static_applications::StaticMachineApplicationHandle::invalid(),
-                    |call| call.authored_machine_application,
-                )
-            }
-        },
         type_bindings: selection.type_bindings.clone(),
         const_bindings: selection.const_bindings.clone(),
         runtime_value_bindings: selection.runtime_value_bindings.clone(),
