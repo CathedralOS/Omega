@@ -270,7 +270,7 @@ impl PackageCompilationInputs {
                 let expected_root = self
                     .package_root(self.source.root)
                     .expect("validated package graph retains its root");
-                if !root_file.starts_with(expected_root) {
+                if self.package_for_source(&root_file) != Some(self.source.root) {
                     diagnostics.push(Diagnostic::error(format!(
                         "compilation root {} is outside reconciled root package {}",
                         root_file.display(),
@@ -332,18 +332,7 @@ pub(super) fn append_overlapping_source_roots(
                     let relative = root
                         .strip_prefix(ancestor_root)
                         .expect("ancestor is a component prefix");
-                    let directory = parent.entries().any(|(path, node)| {
-                        path == relative && matches!(node, source::CapturedSourceNode::Directory)
-                    });
-                    if directory
-                        && parent
-                            .entries()
-                            .filter_map(|(path, node)| {
-                                let member = path.strip_prefix(relative).ok()?;
-                                (!member.as_os_str().is_empty()).then_some((member, node))
-                            })
-                            .eq(child.entries())
-                    {
+                    if captured_subtree_matches(parent, relative, child) {
                         continue;
                     }
                 }
@@ -365,6 +354,39 @@ pub(super) fn append_overlapping_source_roots(
                 }
             }),
     );
+}
+
+/// A nested mount must preserve every captured observation, including absence.
+fn captured_subtree_matches(
+    parent: &source::CapturedSourceTree,
+    relative: &Path,
+    child: &source::CapturedSourceTree,
+) -> bool {
+    if !parent.entries().any(|(path, node)| {
+        path == relative && matches!(node, source::CapturedSourceNode::Directory)
+    }) {
+        return false;
+    }
+    let mut child_entries = child.entries();
+    for (path, node) in parent.entries().filter_map(|(path, node)| {
+        let member = path.strip_prefix(relative).ok()?;
+        (!member.as_os_str().is_empty()).then_some((member, node))
+    }) {
+        let Some((child_path, child_node)) = child_entries.next() else {
+            return false;
+        };
+        let same_node = match (node, child_node) {
+            (
+                source::CapturedSourceNode::Symlink { target: a },
+                source::CapturedSourceNode::Symlink { target: b },
+            ) => a.as_os_str() == b.as_os_str(),
+            _ => node == child_node,
+        };
+        if path != child_path || !same_node {
+            return false;
+        }
+    }
+    child_entries.next().is_none()
 }
 
 pub(crate) fn canonical_source_root(path: &Path) -> Result<PathBuf, String> {

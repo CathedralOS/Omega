@@ -28,7 +28,8 @@ POSITIVES += tuple(f"pass/facts/opaque_independent_qualified_input_through_{p}_e
 NEGATIVES += tuple(f"fail/facts/opaque_independent_qualified_input_through_{p}_unissued" for p in PLACES)
 POSITIVES += ("pass/facts/opaque_independent_qualified_input_import_alias_exit",
               "pass/facts/opaque_independent_qualified_input_renumbered_catalog_exit")
-NEGATIVES += ("fail/facts/opaque_independent_qualified_input_bare_sibling_unissued",)
+NEGATIVES += ("fail/facts/opaque_independent_qualified_input_bare_sibling_unissued",
+              "fail/facts/opaque_independent_qualified_input_undeclared_nested_import")
 
 
 def authenticate_windows_lldiv(output):

@@ -273,7 +273,7 @@ pub(crate) fn discover_package_imports(
                     };
                     match phase {
                         PackageImportPhase::TargetIndependent => {
-                            if let Some(physical) = pending.physical_source(filesystem)? {
+                            if let Some(physical) = pending.physical_source(packages)? {
                                 imports.push((physical, parsed_source.scope));
                             }
                             requests.push(pending);
