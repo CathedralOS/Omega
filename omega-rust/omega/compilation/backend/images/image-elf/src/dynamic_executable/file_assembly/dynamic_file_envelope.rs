@@ -103,19 +103,10 @@ pub struct ElfDynamicFileEnvelopeSerializationError {
     diagnostic: Diagnostic,
 }
 
-impl ElfDynamicFileEnvelopeSerializationError {
-    pub const fn diagnostic(&self) -> &Diagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (ValidatedElfResolvedDynamicTable, Diagnostic) {
-        (self.resolved_dynamic_table, self.diagnostic)
-    }
-}
-
-diagnostics::diagnostic_display!(ElfDynamicFileEnvelopeSerializationError);
-
-impl std::error::Error for ElfDynamicFileEnvelopeSerializationError {}
+image::rejection_carrier!(
+    ElfDynamicFileEnvelopeSerializationError;
+    resolved_dynamic_table: ValidatedElfResolvedDynamicTable,
+);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ElfDynamicFileEnvelopeContents {

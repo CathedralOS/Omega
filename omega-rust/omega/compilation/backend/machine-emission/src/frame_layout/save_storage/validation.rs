@@ -5,7 +5,7 @@ use register_environment::selected_preservation_storage_catalog;
 
 use super::{
     NonAuthoritativeCalleeSaveStorageError, NonAuthoritativeCalleeSaveStoragePlan,
-    ValidatedNonAuthoritativeCalleeSaveStorage, custody, replay,
+    ValidatedNonAuthoritativeCalleeSaveStorage, admit_plan, custody, replay,
 };
 
 pub(crate) fn validate_non_authoritative_callee_save_storage(
@@ -29,7 +29,13 @@ pub(crate) fn validate_non_authoritative_callee_save_storage(
     {
         return Err(NonAuthoritativeCalleeSaveStorageError::RootMismatch);
     }
-    let replayed = replay::reconstruct(source, environment, candidate.policy, candidate.budget)?;
+    let replayed = admit_plan(
+        source,
+        environment,
+        candidate.policy,
+        candidate.budget,
+        replay::reconstruct_functions,
+    )?;
     if candidate.usage != replayed.usage {
         return Err(NonAuthoritativeCalleeSaveStorageError::UsageMismatch);
     }

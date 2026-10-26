@@ -208,19 +208,22 @@ impl<'program> CallFrameResolver<'program> {
                     receiver: Some(Vec::new()),
                     arguments: Vec::new(),
                 };
-                // Resolved machines, dynamic slots and selected operators use
-                // explicit operands. Static boundary namespaces also carry no
-                // receiver storage; the exact signature distinguishes them
-                // from receiver-bearing requirements.
+                // Concrete entries and instantiated dynamic slots receive all
+                // data through explicit operands. A trait namespace retained
+                // on the call is not an implicit receiver storage origin.
+                // A selected named operator has the same explicit operand
+                // roster as a machine. Its namespace is a declaration owner,
+                // never a hidden storage receiver. Retain the exact selection
+                // before capturing operands, just as the write collector does;
+                // otherwise an empty signature ceiling becomes opaque here.
                 let callee_is_resolved = frames::machine_state_by_symbol(program, target).is_some()
                     || program.dynamic_slot_by_symbol(target).is_some()
                     || program.operator_definition_by_symbol(target).is_some()
+                    // A static boundary namespace has no runtime storage.
+                    // Keep receiver-bearing calls on the ordinary origin path;
+                    // only the exact selected signature can distinguish them.
                     || frames::boundary_calls::boundary_trait_signature_and_receiver(
-                        program,
-                        machine,
-                        &receiver_members,
-                        name,
-                        site,
+                        program, machine, &receiver_members, name, site,
                     )
                     .is_some_and(|(_, has_runtime_receiver)| !has_runtime_receiver);
                 // A nested call can follow effects in an enclosing operand. The

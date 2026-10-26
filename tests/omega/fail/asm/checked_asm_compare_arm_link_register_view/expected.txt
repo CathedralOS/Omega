@@ -1,0 +1,1 @@
+unsupported AArch64 scratch register view

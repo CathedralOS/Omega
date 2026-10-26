@@ -17,6 +17,9 @@ pub(in crate::machine_calls::calls::write_frames) fn public_effects(
                 .iter()
                 .any(|source| source.origin.source.is_static() && source.lifetime_access.is_none());
             Some(StoredReferenceEffect {
+                suppliers_complete: sources
+                    .iter()
+                    .all(|source| source.lifetime_access.is_none()),
                 has_static_values,
                 destination: LocalWriteOrigin {
                     local_symbol: effect.root,

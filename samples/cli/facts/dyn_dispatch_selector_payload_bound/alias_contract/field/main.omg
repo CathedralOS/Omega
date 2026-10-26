@@ -1,0 +1,32 @@
+// Dispatching a trait method through a dynamic trait carrier (dyn / trait conformance) whose contract establishes result <= 88u64 preserves the return bound across the selector and data lanes, discharging exact subtraction 88u64 - result.
+// Expected exit: 0.
+public let within_payload_bound(value: u64, ceiling: u64): core::Strict<0> = value <= ceiling;
+
+trait PayloadEvaluator {
+    machine compute(base: u64) -> u64
+    ensures within_payload_bound(result, 88u64);
+}
+
+ActualEvaluator satisfies PayloadEvaluator {
+    machine compute(base: u64) -> u64
+    ensures result <= 88u64
+    {
+        38u64
+    }
+}
+
+data Carrier [copy] {
+    selector: dyn PayloadEvaluator;
+}
+
+machine main() crashes Trap {
+    let c: Carrier = Carrier { selector: ActualEvaluator as dyn PayloadEvaluator };
+    let result: u64 = PayloadEvaluator::compute(c.selector, 10u64);
+    let diff: u64 = 88u64 - result;
+    transition diff == 50u64 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -5,16 +5,15 @@
 use calling_conventions::{
     BoundaryCallingApplication, BoundaryValueClass, BoundaryValueGraph, CallSignature, ValueShape,
 };
-use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, StructuralTypeId};
+use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
 use target::TargetProfile;
 use target_operations::NormalizedForeignCallBinding;
 use terminal_interpreter::TerminalImportSignature;
 use terminal_psi::{
     BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind, StructuralAccess,
-    StructuralMultiplicity,
 };
 
-use super::{AddressOperation, TerminalRuntimeError};
+use super::{AddressContract, AddressOperation, TerminalRuntimeError};
 
 pub(super) fn select(
     binding: &NormalizedForeignCallBinding,
@@ -79,7 +78,7 @@ pub(super) fn validate(
     application: Option<&BoundaryCallingApplication>,
     signature: &TerminalImportSignature,
     operation: AddressOperation,
-) -> Result<(StructuralTypeId, [u8; 32]), TerminalRuntimeError> {
+) -> Result<AddressContract, TerminalRuntimeError> {
     let invalid = TerminalRuntimeError::InvalidProvision;
     let application = application.ok_or(TerminalRuntimeError::InvalidProvision(
         "inet adapter requires the complete admitted opaque calling application",
@@ -87,21 +86,20 @@ pub(super) fn validate(
     let word = IntegerType::new(IntegerSign::Unsigned, 32)
         .map_err(|_| invalid("inet native u32 type is not admitted"))?;
     let scalar = ScalarType::Integer(word);
-    let (structural_type, root) = match operation {
+    let (structural_type, root, multiplicity) = match operation {
         AddressOperation::Make => {
             let BoundaryMachineResult::Structural(result) = &signature.result else {
                 return Err(invalid("inet_makeaddr requires one structural result"));
             };
             if signature.scalar_parameters != [scalar, scalar]
                 || !signature.structural_parameters.is_empty()
-                || result.multiplicity != StructuralMultiplicity::Affine
                 || !result.qualifications.is_empty()
                 || !result.projected_qualifications.is_empty()
                 || declaration.parameter_order != [BoundaryParameterKind::Scalar; 2]
                 || application.signature.parameters.len() != 2
             {
                 return Err(invalid(
-                    "inet_makeaddr requires two u32 scalars and an unqualified affine result",
+                    "inet_makeaddr requires two u32 scalars and an unqualified result",
                 ));
             }
             for root in &application.signature.parameters {
@@ -125,6 +123,7 @@ pub(super) fn validate(
                     .signature
                     .result
                     .ok_or_else(|| invalid("inet_makeaddr native result shape is absent"))?,
+                result.multiplicity,
             )
         }
         AddressOperation::Host => {
@@ -135,14 +134,13 @@ pub(super) fn validate(
             };
             if !signature.scalar_parameters.is_empty()
                 || signature.result != BoundaryMachineResult::Scalar(scalar.into())
-                || parameter.multiplicity != StructuralMultiplicity::Affine
                 || parameter.access != StructuralAccess::Owned
                 || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
                 || declaration.parameter_order != [BoundaryParameterKind::Structural]
             {
                 return Err(invalid(
-                    "inet_lnaof requires one unqualified owned affine argument and a u32 result",
+                    "inet_lnaof requires one unqualified owned argument and a u32 result",
                 ));
             }
             let [root] = application.signature.parameters.as_slice() else {
@@ -163,7 +161,7 @@ pub(super) fn validate(
                     "inet_lnaof native result must be an aligned four-byte integer",
                 ));
             }
-            (parameter.structural_type, *root)
+            (parameter.structural_type, *root, parameter.multiplicity)
         }
     };
     let envelope = super::super::native_word::native_word_envelope(&application.signature, root)
@@ -207,8 +205,9 @@ pub(super) fn validate(
             })?,
     };
     super::super::admit_exact_foreign_call(signature, declaration, binding, &native_signature)?;
-    Ok((
+    Ok(AddressContract {
         structural_type,
-        application.opaque_applications[0].selected_application_commitment,
-    ))
+        application: application.opaque_applications[0].selected_application_commitment,
+        multiplicity,
+    })
 }

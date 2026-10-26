@@ -939,9 +939,8 @@ fn collect_type(
                 program, reference, definition, owner_path, visiting, output, template,
             )
         }
-        // A selector carries implementation identity, not a hidden data
-        // instance. Its complete reference frontier is empty; the call's
-        // explicit data operands retain their own lifetime obligations.
+        // Implementation selection stores no user-state lifetime. References
+        // to selector storage were handled above as ordinary references.
         TypeReferenceNode::Unit | TypeReferenceNode::DynamicTrait { .. } => true,
         TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Slice { .. } => false,
     }

@@ -110,19 +110,7 @@ pub struct ElfDynamicSectionPlanningError {
     diagnostic: Diagnostic,
 }
 
-impl ElfDynamicSectionPlanningError {
-    pub const fn diagnostic(&self) -> &Diagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (PlannedElfDynamicLinkInputs, Diagnostic) {
-        (self.inputs, self.diagnostic)
-    }
-}
-
-diagnostics::diagnostic_display!(ElfDynamicSectionPlanningError);
-
-impl std::error::Error for ElfDynamicSectionPlanningError {}
+image::rejection_carrier!(ElfDynamicSectionPlanningError; inputs: PlannedElfDynamicLinkInputs);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ElfDynamicSectionContents {

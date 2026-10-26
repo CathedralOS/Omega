@@ -4,11 +4,14 @@
 //! the corresponding authored type. These links survive provisional resolution
 //! without reselecting by a source coordinate or a leaf spelling. An initializer,
 //! literal element, flow predicate or private postcondition supplies no type.
-//! Open schemas remain obligations: this reader does not invent a closed type
-//! for a generic callee's unapplied result or replace later compatibility checks.
+//! Open callee results first consume the exact selected argument substitution
+//! from the shared structural solver. Unapplied/underdetermined results remain
+//! obligations; this reader never inspects a callee body or replaces the later
+//! compatibility, formation, property and invocation-contract checks.
 
-use super::SourceLinks;
+use super::{ConstantSelection, SourceLinks};
 use arena::{Handle, HandleSpan};
+use diagnostics::Diagnostic;
 use symbol_resolved_trees::{SymbolResolvedTrees, expression, statement, types};
 use symbols::{SymbolHandle, SymbolKind};
 use syntax_trees::{SyntaxTrees, types::TypeReferenceHandle};
@@ -170,13 +173,25 @@ fn declared_type<'trees>(
     None
 }
 
+/// Early type observations are evidence for inference, not a second call
+/// admission boundary. A producer whose telescope cannot yet be observed keeps
+/// its diagnostic here; an independently determined consumer may proceed to
+/// ordinary checking of the unchanged call. If the consumer also lacks a tuple,
+/// its refusal includes the retained producer explanation.
+pub(super) struct CallTypeObservations {
+    pub(super) types: Vec<(TypeReferenceHandle, TypeReferenceHandle)>,
+    pub(super) pending_diagnostics: Vec<Diagnostic>,
+}
+
 fn expression_types<'trees>(
-    syntax: &SyntaxTrees,
+    syntax: &mut SyntaxTrees,
     trees: &'trees SymbolResolvedTrees,
     sources: &SourceLinks,
     expression: expression::ExpressionHandle,
+    selection: &ConstantSelection<'_>,
+    pending_diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<Vec<(TypeReferenceHandle, &'trees types::TypeReference)>> {
-    match trees.tables.bodies.expressions.expression(expression) {
+    let observed = match trees.tables.bodies.expressions.expression(expression) {
         expression::ExpressionNode::Name(name) => {
             declared_type(syntax, trees, sources, name.symbol, false)
                 .map(|reference| vec![reference])
@@ -194,8 +209,18 @@ fn expression_types<'trees>(
             if member.case_variant.is_some() {
                 return None;
             }
+            let Some(receivers) = expression_types(
+                syntax,
+                trees,
+                sources,
+                member.receiver,
+                selection,
+                pending_diagnostics,
+            ) else {
+                return None;
+            };
             let mut fields = Vec::new();
-            for (_, mut reference) in expression_types(syntax, trees, sources, member.receiver)? {
+            for (_, mut reference) in receivers {
                 loop {
                     reference = match reference {
                         types::TypeReference::Reference(reference) => {
@@ -210,24 +235,97 @@ fn expression_types<'trees>(
                 let types::TypeReference::Named { symbol, .. } = reference else {
                     return None;
                 };
-                trees.data_definition_by_symbol(*symbol)?;
-                let field = trees.symbols.find_child_by_name_and_kind(
+                if trees.data_definition_by_symbol(*symbol).is_none() {
+                    return None;
+                }
+                let Some(field) = trees.symbols.find_child_by_name_and_kind(
                     *symbol,
                     member.member.as_str(),
                     SymbolKind::Field,
-                )?;
-                fields.push(declared_type(syntax, trees, sources, field, false)?);
+                ) else {
+                    return None;
+                };
+                let Some(field) = declared_type(syntax, trees, sources, field, false) else {
+                    return None;
+                };
+                fields.push(field);
             }
             Some(fields)
         }
         expression::ExpressionNode::Call(call) => {
-            declared_type(syntax, trees, sources, call.target_symbol, true)
-                .map(|reference| vec![reference])
+            if let Some(reference) = declared_type(syntax, trees, sources, call.target_symbol, true)
+            {
+                return Some(vec![reference]);
+            }
+            // A generic declaration's open return type is not an observation.
+            // Complete its exact selected telescope from declared argument
+            // types first, then carry the substituted result to the consumer.
+            // This descends only through argument expressions, never callee
+            // bodies, so recursion in the source call graph needs no unfolding.
+            let Some(index) = super::selected_machine(trees, call.target_symbol) else {
+                return None;
+            };
+            let Some((authored_result, resolved_result)) =
+                sources
+                    .declared_types
+                    .iter()
+                    .find_map(|&(origin, authored)| {
+                        if !matches!(origin, DeclaredTypeOrigin::Result(_)) {
+                            return None;
+                        }
+                        let (symbol, resolved) = origin.declaration(trees)?;
+                        (symbol == call.target_symbol).then_some((authored, resolved))
+                    })
+            else {
+                return None;
+            };
+            let Some((original, _)) = sources
+                .expressions
+                .iter()
+                .find(|(_, resolved)| *resolved == expression)
+            else {
+                return None;
+            };
+            let syntax_trees::expression::ExpressionNode::Call(authored) =
+                syntax.expressions.expression(*original).clone()
+            else {
+                return None;
+            };
+            let ordinary_types =
+                call_constraints(syntax, trees, sources, call, Some(expression), selection);
+            pending_diagnostics.extend(ordinary_types.pending_diagnostics);
+            let completed = super::complete_arguments(
+                syntax,
+                index,
+                &authored.target,
+                &authored.machine_arguments,
+                Some(authored_result),
+                &ordinary_types.types,
+                sources,
+                selection,
+            );
+            match completed {
+                Ok((_, result)) => result.map(|result| vec![(result, resolved_result)]),
+                Err(reason) => {
+                    pending_diagnostics.push(reason);
+                    None
+                }
+            }
         }
         expression::ExpressionNode::Match(dispatch) => {
             let mut references = Vec::new();
             for arm in trees.tables.bodies.expressions.match_arms(dispatch.arms) {
-                references.extend(expression_types(syntax, trees, sources, arm.value)?);
+                let Some(observed) = expression_types(
+                    syntax,
+                    trees,
+                    sources,
+                    arm.value,
+                    selection,
+                    pending_diagnostics,
+                ) else {
+                    return None;
+                };
+                references.extend(observed);
             }
             (!references.is_empty()).then_some(references)
         }
@@ -235,15 +333,18 @@ fn expression_types<'trees>(
         // equation. In particular, array elements and a literal's magnitude
         // do not determine its generic application's type or extent.
         _ => None,
-    }
+    };
+    observed
 }
 
 fn constraints(
-    syntax: &SyntaxTrees,
+    syntax: &mut SyntaxTrees,
     trees: &SymbolResolvedTrees,
     sources: &SourceLinks,
     target: SymbolHandle,
     arguments: HandleSpan<expression::ExpressionHandle>,
+    selection: &ConstantSelection<'_>,
+    pending_diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<(TypeReferenceHandle, TypeReferenceHandle)> {
     let mut observations = Vec::new();
     let Some((_, state)) = trees
@@ -271,7 +372,14 @@ fn constraints(
         else {
             continue;
         };
-        if let Some(actuals) = expression_types(syntax, trees, sources, *argument) {
+        if let Some(actuals) = expression_types(
+            syntax,
+            trees,
+            sources,
+            *argument,
+            selection,
+            pending_diagnostics,
+        ) {
             observations.extend(actuals.into_iter().map(|(actual, _)| (*formal, actual)));
         }
     }
@@ -279,13 +387,23 @@ fn constraints(
 }
 
 pub(super) fn call_constraints(
-    syntax: &SyntaxTrees,
+    syntax: &mut SyntaxTrees,
     trees: &SymbolResolvedTrees,
     sources: &SourceLinks,
     call: &expression::TableCallExpression,
     occurrence: Option<expression::ExpressionHandle>,
-) -> Vec<(TypeReferenceHandle, TypeReferenceHandle)> {
-    let mut observations = constraints(syntax, trees, sources, call.target_symbol, call.arguments);
+    selection: &ConstantSelection<'_>,
+) -> CallTypeObservations {
+    let mut pending_diagnostics = Vec::new();
+    let mut observations = constraints(
+        syntax,
+        trees,
+        sources,
+        call.target_symbol,
+        call.arguments,
+        selection,
+        &mut pending_diagnostics,
+    );
     let formal = sources
         .declared_types
         .iter()
@@ -315,14 +433,31 @@ pub(super) fn call_constraints(
             }
         }
     }
-    observations
+    CallTypeObservations {
+        types: observations,
+        pending_diagnostics,
+    }
 }
 
 pub(super) fn statement_constraints(
-    syntax: &SyntaxTrees,
+    syntax: &mut SyntaxTrees,
     trees: &SymbolResolvedTrees,
     sources: &SourceLinks,
     call: &statement::Call,
-) -> Vec<(TypeReferenceHandle, TypeReferenceHandle)> {
-    constraints(syntax, trees, sources, call.target_symbol, call.arguments)
+    selection: &ConstantSelection<'_>,
+) -> CallTypeObservations {
+    let mut pending_diagnostics = Vec::new();
+    let types = constraints(
+        syntax,
+        trees,
+        sources,
+        call.target_symbol,
+        call.arguments,
+        selection,
+        &mut pending_diagnostics,
+    );
+    CallTypeObservations {
+        types,
+        pending_diagnostics,
+    }
 }

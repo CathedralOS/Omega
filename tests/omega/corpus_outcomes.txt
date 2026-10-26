@@ -404,6 +404,57 @@ fail/asm/backward_write_stale_ensures rejected 1449ms expected @a92f16431042
 	cannot prove asm `ensures` fact at block exit in Subject::change state `change` (statement 5): subject.ready
 fail/asm/borrow_read_after_backward_write rejected 1374ms expected @a92f16431042
 	statement 6 mutates `main.cell.value` while local borrow `borrowed` is still active (borrowed at statement 1; its last use is at statement 7)
+fail/asm/checked_asm_compare_arm_link_register_view rejected 10ms expected @e06334c63dc4+wt
+	tests/omega/fail/asm/checked_asm_compare_arm_link_register_view/main.omg:1:50: unsupported AArch64 scratch register view `w30`: register aliases require shared-bit state modeling
+fail/asm/checked_asm_compare_arm_unencodable_immediate rejected 4ms expected @e06334c63dc4+wt
+	tests/omega/fail/asm/checked_asm_compare_arm_unencodable_immediate/main.omg:1:48: cmp requires a modeled 32-bit register or a fitting unsigned 32-bit immediate source
+fail/asm/checked_asm_compare_arm_uninitialized_upper_register rejected 964ms expected @e06334c63dc4+wt
+	assembly label `asm#entry` reads uninitialized scratch register/flag value
+fail/asm/checked_asm_compare_exit_goal_overwritten rejected 3441ms expected @e06334c63dc4+wt
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_x86_64$5$entry state `done` (statement 1): output == 37
+	cannot prove asm `ensures` fact at block exit in compare$assembly$windows_x86_64$5$entry state `done` (statement 1): output == 37
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_arm64$5$entry state `done` (statement 1): output == 37
+	cannot prove asm `ensures` fact at block exit in compare$assembly$macos_arm64$5$entry state `done` (statement 1): output == 37
+	cannot prove ensures contract for exit from compare$assembly$linux_x86_64$5$entry at statement 2: output == 37
+	cannot prove ensures contract for exit from compare$assembly$windows_x86_64$5$entry at statement 2: output == 37
+	cannot prove ensures contract for exit from compare$assembly$linux_arm64$5$entry at statement 2: output == 37
+	cannot prove ensures contract for exit from compare$assembly$macos_arm64$5$entry at statement 2: output == 37
+fail/asm/checked_asm_compare_mixed_registers rejected 2ms expected @e06334c63dc4+wt
+	tests/omega/fail/asm/checked_asm_compare_mixed_registers/main.omg:8:9: assembly instruction and register operands require incompatible targets
+fail/asm/checked_asm_compare_one_block_false_exit_goal rejected 2576ms expected @e06334c63dc4+wt
+	cannot prove asm `ensures` fact at block exit in compare state `entry` (statement 9): output == 38
+	cannot prove asm `ensures` fact at block exit in compare state `entry` (statement 9): output == 38
+	cannot prove asm `ensures` fact at block exit in compare state `entry` (statement 9): output == 38
+	cannot prove asm `ensures` fact at block exit in compare state `entry` (statement 9): output == 38
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_x86_64$5$entry state `asm#label#0#entry` (statement 4): output == 38
+	cannot prove asm `ensures` fact at block exit in compare$assembly$windows_x86_64$5$entry state `asm#label#0#entry` (statement 4): output == 38
+	cannot prove asm `ensures` fact at block exit in compare$assembly$linux_arm64$5$entry state `asm#label#0#entry` (statement 4): output == 38
+	cannot prove asm `ensures` fact at block exit in compare$assembly$macos_arm64$5$entry state `asm#label#0#entry` (statement 4): output == 38
+	cannot prove requires contract for call compare$assembly$linux_x86_64$5$entry from compare: output == 38 (needs fact `output == 38` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove ensures contract for exit from compare at statement 11: result == 37
+	cannot prove requires contract for call compare$assembly$windows_x86_64$5$entry from compare: output == 38 (needs fact `output == 38` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove ensures contract for exit from compare at statement 11: result == 37
+	cannot prove requires contract for call compare$assembly$linux_arm64$5$entry from compare: output == 38 (needs fact `output == 38` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove ensures contract for exit from compare at statement 11: result == 37
+	cannot prove requires contract for call compare$assembly$macos_arm64$5$entry from compare: output == 38 (needs fact `output == 38` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove ensures contract for exit from compare at statement 11: result == 37
+	cannot prove ensures contract for exit from compare$assembly$linux_x86_64$5$entry at statement 6: output == 38
+	cannot prove ensures contract for exit from compare$assembly$windows_x86_64$5$entry at statement 6: output == 38
+	cannot prove ensures contract for exit from compare$assembly$linux_arm64$5$entry at statement 6: output == 38
+	cannot prove ensures contract for exit from compare$assembly$macos_arm64$5$entry at statement 6: output == 38
+fail/asm/checked_asm_compare_stale_intermediate_goal rejected 2320ms expected @e06334c63dc4+wt
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+	cannot prove ensures contract for exit from compare at statement 8: result == 37
+fail/asm/checked_asm_compare_wrong_entry_edge rejected 2221ms expected @e06334c63dc4+wt
+	cannot prove requires contract for call countdown$assembly$portable$4$entry from countdown: asm#scratch#4#zf$version$2 || asm#scratch#4#eax$version$1 == 0 (needs fact `asm#scratch#4#zf || asm#scratch#4#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/asm/checked_asm_compare_wrong_flag_snapshot rejected 1778ms expected @e06334c63dc4+wt
+	cannot prove asm `requires` fact at block entry in main state `entry` (statement 31): snapshot & 2261 == 148
+fail/asm/checked_asm_compare_wrong_target rejected 428ms expected @e06334c63dc4+wt
+	assembly catalog target requirement conflicts with the authored target body
+fail/asm/checked_asm_compare_x86_uninitialized_register rejected 515ms expected @e06334c63dc4+wt
+	assembly label `asm#entry` reads uninitialized scratch register/flag value
 fail/asm/cyclic_label rejected 326ms expected @a92f16431042
 	cyclic assembly label control in `Main::main` state `main` requires checked loop invariants; this control domain is not yet implemented
 fail/asm/duplicate_label rejected 15ms expected @a92f16431042
@@ -456,6 +507,8 @@ fail/asm/instruction_effect_wrong_port rejected 3020ms expected @a92f16431042
 	cannot prove asm `ensures` fact at block exit in observe state `entry` (statement 3): proposition:fact:port_written(33,byte)
 fail/asm/observation_does_not_establish_address_model rejected 894ms expected @a92f16431042
 	Exact integer cast in machine `convert` state `entry` from `addr` to `u64` is not provably representable; prove the embedded address fits the destination integer range at this occurrence; count and address widths are independent.
+fail/asm/ordinary_requires_only_call_still_checked rejected 3202ms expected @e06334c63dc4+wt
+	cannot prove requires contract for call needs from main: 0 == 37 (needs fact `value == 37` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/asm/proposition_missing_premise rejected 1590ms expected @a92f16431042
 	cannot prove asm `requires` fact at block entry in observe state `entry` (statement 2): proposition:fact:ready(value)
 fail/asm/proposition_prior_write_invalidates_requires rejected 1554ms expected @a92f16431042
@@ -534,52 +587,65 @@ fail/asm/wrong_label_entry_fact rejected 1353ms expected @a92f16431042
 	cannot prove asm `requires` fact at block entry in Main::main state `main` (statement 8): main.output == 99
 fail/asm/wrong_label_exit_fact rejected 1649ms expected @a92f16431042
 	cannot prove asm `ensures` fact at block exit in Main::main state `main` (statement 10): main.output == 99
-fail/atomics/atomic_boolean_expected rejected 595ms expected @a92f16431042
+fail/atomics/atomic_boolean_expected rejected 463ms expected @036605466510+wt
 	machine `replace` state `entry` assignment stores a boolean into a `u32` place, which holds a numeric value
-fail/atomics/atomic_boolean_fetch rejected 593ms expected @a92f16431042
+fail/atomics/atomic_boolean_fetch rejected 385ms expected @036605466510+wt
 	machine `update` state `entry` assignment stores a boolean into a `u32` place, which holds a numeric value
-fail/atomics/atomic_boolean_replacement rejected 594ms expected @a92f16431042
+fail/atomics/atomic_boolean_loaded_cell_reference rejected 667ms expected @036605466510+wt
+	argument `value` for state `entry` expects `&AtomicBool`, got `member access`
+fail/atomics/atomic_boolean_loaded_mutable_reference rejected 675ms expected @036605466510+wt
+	argument `value` for state `entry` is declared `&mut` (`&mut bool`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/atomics/atomic_boolean_ordinary_bool_load rejected 851ms expected @036605466510+wt
+	atomic load in machine `main` state `entry` requires dedicated atomic storage or an admitted placed atomic accessor
+fail/atomics/atomic_boolean_ordinary_mutable_store rejected 722ms expected @036605466510+wt
+	machine `publish` state `entry` assignment requires dedicated atomic storage or an admitted placed atomic accessor; ordinary write authority does not authorize an atomic event
+fail/atomics/atomic_boolean_replacement rejected 572ms expected @036605466510+wt
 	machine `replace` state `entry` assignment stores a boolean into a `u32` place, which holds a numeric value
-fail/atomics/atomic_boolean_store rejected 509ms expected @a92f16431042
+fail/atomics/atomic_boolean_store rejected 479ms expected @036605466510+wt
 	machine `update` state `entry` assignment stores a boolean into a `u32` place, which holds a numeric value
-fail/atomics/atomic_boolean_swap rejected 479ms expected @a92f16431042
+fail/atomics/atomic_boolean_swap rejected 635ms expected @036605466510+wt
 	machine `update` state `entry` assignment stores a boolean into a `u32` place, which holds a numeric value
-fail/atomics/atomic_compare_exchange_failure_stronger_rejected rejected 12ms expected @a92f16431042
+fail/atomics/atomic_compare_exchange_failure_stronger_rejected rejected 4ms expected @036605466510+wt
 	tests/omega/fail/atomics/atomic_compare_exchange_failure_stronger_rejected/main.omg:1:1: atomic compare_exchange failure ordering `GlobalOrder` is invalid for success ordering `Receive`; failure cannot publish or be stronger than success
-fail/atomics/atomic_load_publish_ordering_rejected rejected 13ms expected @a92f16431042
+fail/atomics/atomic_load_publish_ordering_rejected rejected 2ms expected @036605466510+wt
 	tests/omega/fail/atomics/atomic_load_publish_ordering_rejected/main.omg:7:40: atomic load cannot use `Publish` ordering; use `NoOrdering`, `Receive`, or `GlobalOrder`
-fail/atomics/atomic_operand_boolean_arithmetic rejected 463ms expected @a92f16431042
+fail/atomics/atomic_operand_boolean_arithmetic rejected 443ms expected @036605466510+wt
 	machine `replace` state `entry` applies an operator to a boolean and a numeric value -- Omega does not coerce a boolean to a number -- compare booleans directly (`b == true`) or convert a number explicitly (`n != 0`)
-fail/atomics/atomic_operand_call_argument rejected 461ms expected @a92f16431042
+fail/atomics/atomic_operand_call_argument rejected 503ms expected @036605466510+wt
 	argument `value` for state `entry` expects `bool`, got `integer literal`
-fail/atomics/atomic_operand_implicit_narrowing rejected 1391ms expected @a92f16431042
+fail/atomics/atomic_operand_implicit_narrowing rejected 476ms expected @036605466510+wt
 	store in machine `replace` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
 	store in machine `replace` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
-fail/atomics/atomic_record_shared_replacement rejected 1392ms expected @a92f16431042
+fail/atomics/atomic_record_shared_replacement rejected 420ms expected @036605466510+wt
 	machine `reset` state `entry` assignment cannot write `word` because it is not mutable in this state (if `word` is undeclared -- a typo -- no such field or local exists)
-fail/atomics/atomic_store_receive_ordering_rejected rejected 25ms expected @a92f16431042
+fail/atomics/atomic_store_receive_ordering_rejected rejected 2ms expected @036605466510+wt
 	tests/omega/fail/atomics/atomic_store_receive_ordering_rejected/main.omg:1:1: atomic store cannot use `Receive` ordering; use `NoOrdering`, `Publish`, or `GlobalOrder`
-fail/atomics/case_payload_non_event_write rejected 1398ms expected @a92f16431042
+fail/atomics/case_payload_non_event_write rejected 547ms expected @036605466510+wt
 	machine `overwrite` state `entry` assignment cannot write `choice` because it is not mutable in this state (if `choice` is undeclared -- a typo -- no such field or local exists)
-fail/atomics/fence_authored_bodyless_lookalike rejected 76ms expected @a92f16431042
+fail/atomics/fence_authored_bodyless_lookalike rejected 27ms expected @036605466510+wt
 	`Atomic::fence` names a compiler primitive, but only the sealed toolchain declaration supplies it; merely naming a declaration `Atomic::fence` grants no primitive implementation or proof authority
-fail/atomics/fence_does_not_identify_observations rejected 3524ms expected @a92f16431042
+fail/atomics/fence_does_not_identify_observations rejected 1489ms expected @036605466510+wt
 	cannot prove requires contract for call same from observe: before == after (needs fact `before == after` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/atomics/fence_false_result_case rejected 3698ms expected @a92f16431042
+fail/atomics/fence_false_result_case rejected 1450ms expected @036605466510+wt
 	Atomic::fence requires one proof-static FenceOrdering case at operand completion: ordering case proof is ambiguous
 	cannot prove ensures contract for exit from wrong at statement 0: result == FenceOrdering::Publish
-fail/atomics/fence_no_ordering rejected 1392ms expected @a92f16431042
+fail/atomics/fence_no_ordering rejected 799ms expected @036605466510+wt
 	machine `fence_invalid` state `entry` uses `NoOrdering`, which is not a declared local, parameter, field, or type in this state (check the spelling)
-fail/atomics/fence_returned_view_case_invalidated rejected 3641ms expected @a92f16431042
+fail/atomics/fence_returned_view_case_invalidated rejected 1343ms expected @036605466510+wt
 	Atomic::fence requires one proof-static FenceOrdering case at operand completion: no live ordering case is proved
-fail/atomics/fence_runtime_ordering rejected 3543ms expected @a92f16431042
+fail/atomics/fence_runtime_ordering rejected 1256ms expected @036605466510+wt
 	Atomic::fence requires one proof-static FenceOrdering case at operand completion: no live ordering case is proved
-fail/atomics/fence_stale_ordering_case rejected 3127ms expected @a92f16431042
+fail/atomics/fence_stale_ordering_case rejected 1331ms expected @036605466510+wt
 	Atomic::fence requires one proof-static FenceOrdering case at operand completion: no live ordering case is proved
-fail/atomics/shared_receiver_plain_field_write rejected 1351ms expected @a92f16431042
+fail/atomics/placed_atomic_load_denied rejected 1015ms expected @036605466510+wt
+	placed atomic field `value` does not admit `load`
+fail/atomics/placed_atomic_store_denied rejected 948ms expected @036605466510+wt
+	placed atomic field `value` does not admit `store`
+fail/atomics/shared_receiver_plain_field_write rejected 455ms expected @036605466510+wt
 	machine `Counter::bump` state `bump` assignment cannot write `counter` because it is not mutable in this state (if `counter` is undeclared -- a typo -- no such field or local exists)
-fail/atomics/stored_reference_non_atomic_shared_store rejected 2299ms expected @a92f16431042
+fail/atomics/stored_reference_non_atomic_shared_store rejected 438ms expected @036605466510+wt
 	machine `reject` state `entry` assignment cannot write `packet` because it is not mutable in this state (if `packet` is undeclared -- a typo -- no such field or local exists)
+	machine `reject` state `entry` assignment requires dedicated atomic storage or an admitted placed atomic accessor; ordinary write authority does not authorize an atomic event
 fail/blockexec/blocking_executor_ticket_scope_loss rejected 3324ms expected @a92f16431042
 	linear value `ticket` reaches scope exit without being consumed or transferred
 fail/blockexec/worker_body_requires_suspend_safe_arguments rejected 4576ms expected @a92f16431042
@@ -611,6 +677,10 @@ fail/borrow/mutated_selector_entry_actual_case rejected 1966ms expected @a92f164
 	cannot prove index `other` is within length 4 in main::entry
 fail/borrow/mutated_selector_entry_actual_guard rejected 1788ms expected @a92f16431042
 	cannot prove index `other` is within length 4 in main::entry
+fail/borrow/named_operator_effectful_argument_retires_bound rejected 1823ms expected @7480471d532b+wt
+	cannot prove index `index` is within length 4 in keep::entry
+fail/borrow/named_operator_mutable_argument_retires_bound rejected 790ms expected @7480471d532b+wt
+	cannot prove index `index` is within length 4 in keep::entry
 fail/borrow/nested_aggregate_result_invalidated rejected 1847ms expected @a92f16431042
 	statement 1 mutates `right` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 fail/borrow/nested_borrow_carrying_local_escape rejected 1840ms expected @a92f16431042
@@ -688,6 +758,10 @@ fail/borrow/signed_window_shared_mutation rejected 3170ms expected @a92f16431042
 	argument `values` for state `entry` is declared `&mut` (`&mut [f64]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/borrow/state_reference_permutation_duplicate_exclusive rejected 1540ms expected @a92f16431042
 	state `repeat` receives `first` as mutable more than once
+fail/borrow/static_boundary_request_argument_effect_retires_zero rejected 708ms expected @7480471d532b+wt
+	cannot prove requires contract for call acquire from entry: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/borrow/static_boundary_request_post_write_is_unknown rejected 743ms expected @7480471d532b+wt
+	cannot prove requires contract for call need_zero from entry: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/borrow/static_byte_state_loan_cannot_write rejected 874ms expected @a92f16431042
 	machine `main` state `damage` assignment cannot write `bytes` because it is not mutable in this state (if `bytes` is undeclared -- a typo -- no such field or local exists)
 fail/borrow/static_callable_write_retires_subject_fact rejected 3026ms expected @a92f16431042
@@ -4551,6 +4625,24 @@ fail/facts/assumed_binding_result_bound_through_target_body_rejected rejected 12
 	cannot prove index `Required.get()` is within length 2 in exercise::entry
 	cannot prove index `Required.get()` is within length 2 in exercise::entry
 	cannot prove index `Required.get()` is within length 2 in exercise::entry
+fail/facts/atomic_boolean_store/call_result rejected 1ms expected @036605466510+wt
+	tests/omega/fail/facts/atomic_boolean_store/call_result/main.omg:1:1: atomic store cannot use `Receive` ordering; use `NoOrdering`, `Publish`, or `GlobalOrder`
+fail/facts/atomic_boolean_store/const_name rejected 1ms expected @036605466510+wt
+	tests/omega/fail/facts/atomic_boolean_store/const_name/main.omg:1:1: atomic store cannot use `Receive` ordering; use `NoOrdering`, `Publish`, or `GlobalOrder`
+fail/facts/atomic_boolean_store/field rejected 0ms expected @036605466510+wt
+	tests/omega/fail/facts/atomic_boolean_store/field/main.omg:1:1: atomic store cannot use `Receive` ordering; use `NoOrdering`, `Publish`, or `GlobalOrder`
+fail/facts/atomic_boolean_store/local rejected 0ms expected @036605466510+wt
+	tests/omega/fail/facts/atomic_boolean_store/local/main.omg:1:1: atomic store cannot use `Receive` ordering; use `NoOrdering`, `Publish`, or `GlobalOrder`
+fail/facts/atomic_boolean_store/match_join rejected 0ms expected @036605466510+wt
+	tests/omega/fail/facts/atomic_boolean_store/match_join/main.omg:1:1: atomic store cannot use `Receive` ordering; use `NoOrdering`, `Publish`, or `GlobalOrder`
+fail/facts/atomic_boolean_store/other_machine rejected 1ms expected @036605466510+wt
+	tests/omega/fail/facts/atomic_boolean_store/other_machine/main.omg:1:1: atomic store cannot use `Receive` ordering; use `NoOrdering`, `Publish`, or `GlobalOrder`
+fail/facts/atomic_boolean_store/other_state rejected 1ms expected @036605466510+wt
+	tests/omega/fail/facts/atomic_boolean_store/other_state/main.omg:1:1: atomic store cannot use `Receive` ordering; use `NoOrdering`, `Publish`, or `GlobalOrder`
+fail/facts/atomic_boolean_store/parameter rejected 1ms expected @036605466510+wt
+	tests/omega/fail/facts/atomic_boolean_store/parameter/main.omg:1:1: atomic store cannot use `Receive` ordering; use `NoOrdering`, `Publish`, or `GlobalOrder`
+fail/facts/atomic_boolean_store/target_body rejected 1ms expected @036605466510+wt
+	tests/omega/fail/facts/atomic_boolean_store/target_body/main.omg:1:1: atomic store cannot use `Receive` ordering; use `NoOrdering`, `Publish`, or `GlobalOrder`
 fail/facts/atomic_compare_exchange_once_composition_rejected rejected 2ms expected @a92f16431042
 	tests/omega/fail/facts/atomic_compare_exchange_once_composition_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
 fail/facts/atomic_compare_exchange_once_forged_outcome_rejected rejected 942ms expected @a92f16431042
@@ -4754,6 +4846,27 @@ fail/facts/boundary_requirement_ceiling_missing_through_parameter_rejected rejec
 	tests/omega/fail/facts/boundary_requirement_ceiling_missing_through_parameter_rejected/main.omg:4:26: boundary-trait machine requirement `Mark::read` must declare an explicit `reaches` ceiling; use bare `reaches` for empty reach
 fail/facts/boundary_requirement_ceiling_missing_through_target_body_rejected rejected 11ms expected @5f1191d43438+wt
 	tests/omega/fail/facts/boundary_requirement_ceiling_missing_through_target_body_rejected/main.omg:4:26: boundary-trait machine requirement `Mark::read` must declare an explicit `reaches` ceiling; use bare `reaches` for empty reach
+fail/facts/boundary_zero_origin_through_call_result_changed rejected 794ms expected @7480471d532b+wt
+	cannot prove requires contract for call acquire from main: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/boundary_zero_origin_through_const_name_changed rejected 768ms expected @7480471d532b+wt
+	cannot prove requires contract for call acquire from main: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/boundary_zero_origin_through_field_changed rejected 763ms expected @7480471d532b+wt
+	cannot prove requires contract for call acquire from main: holder.request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/boundary_zero_origin_through_local_changed rejected 762ms expected @7480471d532b+wt
+	cannot prove requires contract for call acquire from main: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/boundary_zero_origin_through_match_join_changed rejected 791ms expected @7480471d532b+wt
+	cannot prove requires contract for call acquire from main: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/boundary_zero_origin_through_other_machine_changed rejected 760ms expected @7480471d532b+wt
+	cannot prove requires contract for call other from main: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/boundary_zero_origin_through_other_state_changed rejected 796ms expected @7480471d532b+wt
+	cannot prove requires contract for call transport from main: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/boundary_zero_origin_through_parameter_changed rejected 761ms expected @7480471d532b+wt
+	cannot prove requires contract for call transport from main: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/boundary_zero_origin_through_target_body_changed rejected 760ms expected @7480471d532b+wt
+	cannot prove requires contract for call transport from main: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call transport from main: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call transport from main: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call transport from main: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/bounded_activation_claim_split_through_call_result_rejected rejected 3499ms expected @a92f16431042
 	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation claim split does not cover its parent")))
 fail/facts/bounded_activation_claim_split_through_const_name_rejected rejected 3396ms expected @a92f16431042
@@ -5117,6 +5230,51 @@ fail/facts/checked_asm_arm_load_through_parameter_rejected rejected 2ms expected
 	tests/omega/fail/facts/checked_asm_arm_load_through_parameter_rejected/main.omg:6:9: asm instruction `ldr` operand uses bracketed `[...]` memory addressing: spell authorized access as a typed Omega place such as `self.buffer[index]` — the place carries the provenance/permission contract raw addresses cannot express
 fail/facts/checked_asm_arm_load_through_target_body_rejected rejected 2ms expected @a92f16431042
 	tests/omega/fail/facts/checked_asm_arm_load_through_target_body_rejected/main.omg:11:9: asm instruction `ldr` operand uses bracketed `[...]` memory addressing: spell authorized access as a typed Omega place such as `self.buffer[index]` — the place carries the provenance/permission contract raw addresses cannot express
+fail/facts/checked_asm_compare_preserves_through_call_result_rejected rejected 2361ms expected @e06334c63dc4+wt
+	cannot prove requires contract for call compare$assembly$linux_x86_64$5$entry from compare: !asm#scratch#7#zf$version$2 || asm#scratch#7#eax$version$0 == 0 (needs fact `!asm#scratch#7#zf || asm#scratch#7#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$windows_x86_64$5$entry from compare: !asm#scratch#48#zf$version$2 || asm#scratch#48#eax$version$0 == 0 (needs fact `!asm#scratch#48#zf || asm#scratch#48#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$linux_arm64$5$entry from compare: !asm#scratch#89#zf$version$2 || asm#scratch#89#w0$version$0 == 0 (needs fact `!asm#scratch#89#zf || asm#scratch#89#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$macos_arm64$5$entry from compare: !asm#scratch#130#zf$version$2 || asm#scratch#130#w0$version$0 == 0 (needs fact `!asm#scratch#130#zf || asm#scratch#130#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/checked_asm_compare_preserves_through_const_name_rejected rejected 1964ms expected @e06334c63dc4+wt
+	cannot prove requires contract for call compare$assembly$linux_x86_64$5$entry from compare: !asm#scratch#7#zf$version$2 || asm#scratch#7#eax$version$0 == 0 (needs fact `!asm#scratch#7#zf || asm#scratch#7#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$windows_x86_64$5$entry from compare: !asm#scratch#48#zf$version$2 || asm#scratch#48#eax$version$0 == 0 (needs fact `!asm#scratch#48#zf || asm#scratch#48#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$linux_arm64$5$entry from compare: !asm#scratch#89#zf$version$2 || asm#scratch#89#w0$version$0 == 0 (needs fact `!asm#scratch#89#zf || asm#scratch#89#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$macos_arm64$5$entry from compare: !asm#scratch#130#zf$version$2 || asm#scratch#130#w0$version$0 == 0 (needs fact `!asm#scratch#130#zf || asm#scratch#130#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/checked_asm_compare_preserves_through_field_rejected rejected 2164ms expected @e06334c63dc4+wt
+	cannot prove requires contract for call compare$assembly$linux_x86_64$5$entry from compare: !asm#scratch#7#zf$version$2 || asm#scratch#7#eax$version$0 == 0 (needs fact `!asm#scratch#7#zf || asm#scratch#7#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$windows_x86_64$5$entry from compare: !asm#scratch#48#zf$version$2 || asm#scratch#48#eax$version$0 == 0 (needs fact `!asm#scratch#48#zf || asm#scratch#48#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$linux_arm64$5$entry from compare: !asm#scratch#89#zf$version$2 || asm#scratch#89#w0$version$0 == 0 (needs fact `!asm#scratch#89#zf || asm#scratch#89#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$macos_arm64$5$entry from compare: !asm#scratch#130#zf$version$2 || asm#scratch#130#w0$version$0 == 0 (needs fact `!asm#scratch#130#zf || asm#scratch#130#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/checked_asm_compare_preserves_through_local_rejected rejected 2728ms expected @e06334c63dc4+wt
+	cannot prove requires contract for call compare$assembly$linux_x86_64$5$entry from compare: !asm#scratch#7#zf$version$2 || asm#scratch#7#eax$version$0 == 0 (needs fact `!asm#scratch#7#zf || asm#scratch#7#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$windows_x86_64$5$entry from compare: !asm#scratch#48#zf$version$2 || asm#scratch#48#eax$version$0 == 0 (needs fact `!asm#scratch#48#zf || asm#scratch#48#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$linux_arm64$5$entry from compare: !asm#scratch#89#zf$version$2 || asm#scratch#89#w0$version$0 == 0 (needs fact `!asm#scratch#89#zf || asm#scratch#89#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$macos_arm64$5$entry from compare: !asm#scratch#130#zf$version$2 || asm#scratch#130#w0$version$0 == 0 (needs fact `!asm#scratch#130#zf || asm#scratch#130#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/checked_asm_compare_preserves_through_match_join_rejected rejected 2647ms expected @e06334c63dc4+wt
+	cannot prove requires contract for call compare$assembly$linux_x86_64$5$entry from compare: !asm#scratch#7#zf$version$2 || asm#scratch#7#eax$version$0 == 0 (needs fact `!asm#scratch#7#zf || asm#scratch#7#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$windows_x86_64$5$entry from compare: !asm#scratch#48#zf$version$2 || asm#scratch#48#eax$version$0 == 0 (needs fact `!asm#scratch#48#zf || asm#scratch#48#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$linux_arm64$5$entry from compare: !asm#scratch#89#zf$version$2 || asm#scratch#89#w0$version$0 == 0 (needs fact `!asm#scratch#89#zf || asm#scratch#89#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$macos_arm64$5$entry from compare: !asm#scratch#130#zf$version$2 || asm#scratch#130#w0$version$0 == 0 (needs fact `!asm#scratch#130#zf || asm#scratch#130#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/checked_asm_compare_preserves_through_other_machine_rejected rejected 3100ms expected @e06334c63dc4+wt
+	cannot prove requires contract for call compare$assembly$linux_x86_64$5$entry from compare: !asm#scratch#7#zf$version$2 || asm#scratch#7#eax$version$0 == 0 (needs fact `!asm#scratch#7#zf || asm#scratch#7#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$windows_x86_64$5$entry from compare: !asm#scratch#48#zf$version$2 || asm#scratch#48#eax$version$0 == 0 (needs fact `!asm#scratch#48#zf || asm#scratch#48#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$linux_arm64$5$entry from compare: !asm#scratch#89#zf$version$2 || asm#scratch#89#w0$version$0 == 0 (needs fact `!asm#scratch#89#zf || asm#scratch#89#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$macos_arm64$5$entry from compare: !asm#scratch#130#zf$version$2 || asm#scratch#130#w0$version$0 == 0 (needs fact `!asm#scratch#130#zf || asm#scratch#130#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/checked_asm_compare_preserves_through_other_state_rejected rejected 1982ms expected @e06334c63dc4+wt
+	cannot prove requires contract for call compare$assembly$linux_x86_64$5$entry from compare: !asm#scratch#7#zf$version$2 || asm#scratch#7#eax$version$0 == 0 (needs fact `!asm#scratch#7#zf || asm#scratch#7#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$windows_x86_64$5$entry from compare: !asm#scratch#48#zf$version$2 || asm#scratch#48#eax$version$0 == 0 (needs fact `!asm#scratch#48#zf || asm#scratch#48#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$linux_arm64$5$entry from compare: !asm#scratch#89#zf$version$2 || asm#scratch#89#w0$version$0 == 0 (needs fact `!asm#scratch#89#zf || asm#scratch#89#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$macos_arm64$5$entry from compare: !asm#scratch#130#zf$version$2 || asm#scratch#130#w0$version$0 == 0 (needs fact `!asm#scratch#130#zf || asm#scratch#130#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/checked_asm_compare_preserves_through_parameter_rejected rejected 2051ms expected @e06334c63dc4+wt
+	cannot prove requires contract for call compare$assembly$linux_x86_64$5$entry from compare: !asm#scratch#7#zf$version$2 || asm#scratch#7#eax$version$0 == 0 (needs fact `!asm#scratch#7#zf || asm#scratch#7#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$windows_x86_64$5$entry from compare: !asm#scratch#48#zf$version$2 || asm#scratch#48#eax$version$0 == 0 (needs fact `!asm#scratch#48#zf || asm#scratch#48#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$linux_arm64$5$entry from compare: !asm#scratch#89#zf$version$2 || asm#scratch#89#w0$version$0 == 0 (needs fact `!asm#scratch#89#zf || asm#scratch#89#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$macos_arm64$5$entry from compare: !asm#scratch#130#zf$version$2 || asm#scratch#130#w0$version$0 == 0 (needs fact `!asm#scratch#130#zf || asm#scratch#130#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/checked_asm_compare_preserves_through_target_body_rejected rejected 2163ms expected @e06334c63dc4+wt
+	cannot prove requires contract for call compare$assembly$linux_x86_64$5$entry from compare: !asm#scratch#7#zf$version$2 || asm#scratch#7#eax$version$0 == 0 (needs fact `!asm#scratch#7#zf || asm#scratch#7#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$windows_x86_64$5$entry from compare: !asm#scratch#48#zf$version$2 || asm#scratch#48#eax$version$0 == 0 (needs fact `!asm#scratch#48#zf || asm#scratch#48#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$linux_arm64$5$entry from compare: !asm#scratch#89#zf$version$2 || asm#scratch#89#w0$version$0 == 0 (needs fact `!asm#scratch#89#zf || asm#scratch#89#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call compare$assembly$macos_arm64$5$entry from compare: !asm#scratch#130#zf$version$2 || asm#scratch#130#w0$version$0 == 0 (needs fact `!asm#scratch#130#zf || asm#scratch#130#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/checked_asm_countdown_through_call_result_rejected rejected 1597ms expected @a92f16431042
 	cannot prove requires contract for call done from main$assembly$portable$5$entry: ((asm#scratch#7#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
 fail/facts/checked_asm_countdown_through_const_name_rejected rejected 3079ms expected @a92f16431042
@@ -5625,6 +5783,60 @@ fail/facts/copied_case_before_later_argument_through_target_body_rejected reject
 	cannot prove requires contract for call apply from main: chosen == constructor:78:package:0101010101010101010101010101010101010101010101010101010101010101::Slot12:name:Present (needs fact `chosen == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call apply from main: chosen == constructor:78:package:0101010101010101010101010101010101010101010101010101010101010101::Slot12:name:Present (needs fact `chosen == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call apply from main: chosen == constructor:78:package:0101010101010101010101010101010101010101010101010101010101010101::Slot12:name:Present (needs fact `chosen == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_call_result rejected 1505ms expected @f9baa191b37a+wt
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_const_name rejected 1058ms expected @f9baa191b37a+wt
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_field rejected 1154ms expected @f9baa191b37a+wt
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_local rejected 1095ms expected @f9baa191b37a+wt
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_match_join rejected 1107ms expected @f9baa191b37a+wt
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_other_machine rejected 1261ms expected @f9baa191b37a+wt
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_other_state rejected 1283ms expected @f9baa191b37a+wt
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_parameter rejected 943ms expected @f9baa191b37a+wt
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_target_body rejected 962ms expected @f9baa191b37a+wt
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_call_result rejected 1979ms expected @717593f593c6+wt
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_const_name rejected 2042ms expected @717593f593c6+wt
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_field rejected 2011ms expected @717593f593c6+wt
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_local rejected 2105ms expected @717593f593c6+wt
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_match_join rejected 1859ms expected @717593f593c6+wt
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_other_machine rejected 2004ms expected @717593f593c6+wt
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_other_state rejected 2061ms expected @717593f593c6+wt
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_parameter rejected 1987ms expected @717593f593c6+wt
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_target_body rejected 2103ms expected @717593f593c6+wt
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/correlated_invariant_store_through_call_result_rejected rejected 518ms expected @a92f16431042
 	machine `advance` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/facts/correlated_invariant_store_through_const_name_rejected rejected 520ms expected @a92f16431042
@@ -6014,6 +6226,27 @@ fail/facts/disjoint_windows_through_target_body_overlap rejected 1576ms expected
 	statement 4 reads `a[0]` while local borrow `b` is still active (borrowed at statement 1)
 fail/facts/domain_geometry_conserved_result_wrong_partition rejected 2490ms expected @a92f16431042
 	cannot prove ensures contract for exit from split at statement 3: Bounded.content(old(&whole)) == separate(Bounded.content(&result.left), Bounded.content(&result.right))
+fail/facts/dyn_dispatch_payload_alias_through_call_result_public_bound_weakened rejected 719ms expected @e06334c63dc4+wt
+	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dyn_dispatch_payload_alias_through_const_name_public_bound_weakened rejected 692ms expected @e06334c63dc4+wt
+	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dyn_dispatch_payload_alias_through_field_public_bound_weakened rejected 533ms expected @e06334c63dc4+wt
+	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dyn_dispatch_payload_alias_through_local_public_bound_weakened rejected 538ms expected @e06334c63dc4+wt
+	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dyn_dispatch_payload_alias_through_match_join_public_bound_weakened rejected 519ms expected @e06334c63dc4+wt
+	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dyn_dispatch_payload_alias_through_other_machine_public_bound_weakened rejected 544ms expected @e06334c63dc4+wt
+	exact arithmetic in machine `forward` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dyn_dispatch_payload_alias_through_other_state_public_bound_weakened rejected 741ms expected @e06334c63dc4+wt
+	exact arithmetic in machine `main` state `evaluate` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dyn_dispatch_payload_alias_through_parameter_public_bound_weakened rejected 565ms expected @e06334c63dc4+wt
+	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dyn_dispatch_payload_alias_through_target_body_public_bound_weakened rejected 718ms expected @e06334c63dc4+wt
+	exact arithmetic in machine `compute_target` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `compute_target` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `compute_target` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `compute_target` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/dyn_dispatch_selector_payload_bound_through_call_result_rejected rejected 941ms expected @a92f16431042
 	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/dyn_dispatch_selector_payload_bound_through_const_name_rejected rejected 940ms expected @a92f16431042
@@ -6035,6 +6268,24 @@ fail/facts/dyn_dispatch_selector_payload_bound_through_target_body_rejected reje
 	exact arithmetic in machine `compute_target` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `compute_target` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `compute_target` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dynamic_float_alias_through_call_result_outside_interval rejected 4218ms expected @e06334c63dc4+wt
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures public_interval(result, 0.0, 0.5)`; callers of the requirement assume it
+fail/facts/dynamic_float_alias_through_const_name_outside_interval rejected 2920ms expected @e06334c63dc4+wt
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures public_interval(result, 0.0, 0.5)`; callers of the requirement assume it
+fail/facts/dynamic_float_alias_through_field_outside_interval rejected 2549ms expected @e06334c63dc4+wt
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures public_interval(result, 0.0, 0.5)`; callers of the requirement assume it
+fail/facts/dynamic_float_alias_through_local_outside_interval rejected 2605ms expected @e06334c63dc4+wt
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures public_interval(result, 0.0, 0.5)`; callers of the requirement assume it
+fail/facts/dynamic_float_alias_through_match_join_outside_interval rejected 2551ms expected @e06334c63dc4+wt
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures public_interval(result, 0.0, 0.5)`; callers of the requirement assume it
+fail/facts/dynamic_float_alias_through_other_machine_outside_interval rejected 2670ms expected @e06334c63dc4+wt
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures public_interval(result, 0.0, 0.5)`; callers of the requirement assume it
+fail/facts/dynamic_float_alias_through_other_state_outside_interval rejected 2565ms expected @e06334c63dc4+wt
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures public_interval(result, 0.0, 0.5)`; callers of the requirement assume it
+fail/facts/dynamic_float_alias_through_parameter_outside_interval rejected 2429ms expected @e06334c63dc4+wt
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures public_interval(result, 0.0, 0.5)`; callers of the requirement assume it
+fail/facts/dynamic_float_alias_through_target_body_outside_interval rejected 3146ms expected @e06334c63dc4+wt
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures public_interval(result, 0.0, 0.5)`; callers of the requirement assume it
 fail/facts/dynamic_float_refinement_through_call_result_outside_interval rejected 5351ms expected @a92f16431042
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`; callers of the requirement assume it
 fail/facts/dynamic_float_refinement_through_const_name_outside_interval rejected 11147ms expected @a92f16431042
@@ -6629,6 +6880,24 @@ fail/facts/float_delivery_through_target_body_rejected rejected 8159ms expected 
 	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/float_meaning_result_through_call_result_wrong_meaning rejected 818ms expected @7480471d532b+wt
+	machine `forward` ensures contract proof fact `F32.meaning(result) == FloatSemantics.minimum(F32.meaning(left), F32.meaning(right))` speaks about proof-only `FloatMeaning`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+fail/facts/float_meaning_result_through_const_name_wrong_meaning rejected 887ms expected @7480471d532b+wt
+	machine `forward` ensures contract proof fact `F32.meaning(result) == FloatSemantics.minimum(F32.meaning(left), F32.meaning(right))` speaks about proof-only `FloatMeaning`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+fail/facts/float_meaning_result_through_field_wrong_meaning rejected 784ms expected @7480471d532b+wt
+	machine `forward` ensures contract proof fact `F32.meaning(result) == FloatSemantics.minimum(F32.meaning(left), F32.meaning(right))` speaks about proof-only `FloatMeaning`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+fail/facts/float_meaning_result_through_local_wrong_meaning rejected 822ms expected @7480471d532b+wt
+	machine `forward` ensures contract proof fact `F32.meaning(result) == FloatSemantics.minimum(F32.meaning(left), F32.meaning(right))` speaks about proof-only `FloatMeaning`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+fail/facts/float_meaning_result_through_match_join_wrong_meaning rejected 821ms expected @7480471d532b+wt
+	machine `forward` ensures contract proof fact `F32.meaning(result) == FloatSemantics.minimum(F32.meaning(left), F32.meaning(right))` speaks about proof-only `FloatMeaning`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+fail/facts/float_meaning_result_through_other_machine_wrong_meaning rejected 844ms expected @7480471d532b+wt
+	machine `forward` ensures contract proof fact `F32.meaning(result) == FloatSemantics.minimum(F32.meaning(left), F32.meaning(right))` speaks about proof-only `FloatMeaning`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+fail/facts/float_meaning_result_through_other_state_wrong_meaning rejected 842ms expected @7480471d532b+wt
+	machine `forward` ensures contract proof fact `F32.meaning(result) == FloatSemantics.minimum(F32.meaning(left), F32.meaning(right))` speaks about proof-only `FloatMeaning`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+fail/facts/float_meaning_result_through_parameter_wrong_meaning rejected 915ms expected @7480471d532b+wt
+	machine `forward` ensures contract proof fact `F32.meaning(result) == FloatSemantics.minimum(F32.meaning(left), F32.meaning(right))` speaks about proof-only `FloatMeaning`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+fail/facts/float_meaning_result_through_target_body_wrong_meaning rejected 917ms expected @7480471d532b+wt
+	machine `forward` ensures contract proof fact `F32.meaning(result) == FloatSemantics.minimum(F32.meaning(left), F32.meaning(right))` speaks about proof-only `FloatMeaning`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
 fail/facts/float_range_delivery_through_call_result_rejected rejected 8230ms expected @a92f16431042
 	cannot prove requires contract for call admit from probe: source(reading) >= 0.0 && source(reading) <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/float_range_delivery_through_const_name_rejected rejected 8131ms expected @a92f16431042
@@ -7513,6 +7782,24 @@ fail/facts/inferred_array_equation_call_through_other_state_rejected rejected 29
 fail/facts/inferred_array_equation_call_through_parameter_rejected rejected 315ms expected @a92f16431042
 	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
 fail/facts/inferred_array_equation_call_through_target_body_rejected rejected 316ms expected @a92f16431042
+	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/facts/inferred_array_equation_forwarded_result_through_call_result_rejected rejected 295ms expected @036605466510+wt
+	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/facts/inferred_array_equation_forwarded_result_through_const_name_rejected rejected 775ms expected @036605466510+wt
+	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/facts/inferred_array_equation_forwarded_result_through_field_rejected rejected 375ms expected @036605466510+wt
+	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/facts/inferred_array_equation_forwarded_result_through_local_rejected rejected 287ms expected @036605466510+wt
+	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/facts/inferred_array_equation_forwarded_result_through_match_join_rejected rejected 274ms expected @036605466510+wt
+	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/facts/inferred_array_equation_forwarded_result_through_other_machine_rejected rejected 236ms expected @036605466510+wt
+	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/facts/inferred_array_equation_forwarded_result_through_other_state_rejected rejected 258ms expected @036605466510+wt
+	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/facts/inferred_array_equation_forwarded_result_through_parameter_rejected rejected 252ms expected @036605466510+wt
+	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/facts/inferred_array_equation_forwarded_result_through_target_body_rejected rejected 223ms expected @036605466510+wt
 	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
 fail/facts/inferred_indexed_byte_view_argument_snapshot_through_call_result_exit rejected 1203ms expected @e8fdf0110b10
 	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #1:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -8568,6 +8855,36 @@ fail/facts/matched_window_through_parameter_rejected rejected 2194ms expected @a
 	cannot prove ensures contract for exit from from_parameter at statement 0: result.len == 2
 fail/facts/matched_window_through_target_body_rejected rejected 1779ms expected @a92f16431042
 	cannot prove ensures contract for exit from from_target at statement 0: result.len == 2
+fail/facts/may_write_choice_finite_cycle_same_query_swap rejected 845ms expected @036605466510+wt
+	cannot prove index `other` is within length 4 in main::entry
+fail/facts/may_write_choice_finite_cycle_through_call_result_overlapping rejected 972ms expected @036605466510+wt
+	cannot prove requires contract for call kept_index from main: other < 4 (needs fact `other < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/may_write_choice_finite_cycle_through_const_name_overlapping rejected 928ms expected @036605466510+wt
+	cannot prove requires contract for call read_at from main: other < 4 && items[..].len == 4 (needs fact `index < 4 && items.len == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/may_write_choice_finite_cycle_through_field_overlapping rejected 846ms expected @036605466510+wt
+	cannot prove index `bounds.other` is within length 4 in main::entry
+fail/facts/may_write_choice_finite_cycle_through_local_overlapping rejected 913ms expected @036605466510+wt
+	cannot prove index `other` is within length 4 in main::entry
+fail/facts/may_write_choice_finite_cycle_through_match_join_overlapping rejected 951ms expected @036605466510+wt
+	cannot prove requires contract for call joined_index from main: other < 4 (needs fact `other < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/may_write_choice_finite_cycle_through_other_machine_overlapping rejected 892ms expected @036605466510+wt
+	cannot prove requires contract for call read_at from main: other < 4 (needs fact `index < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/may_write_choice_finite_cycle_through_other_state_overlapping rejected 925ms expected @036605466510+wt
+	cannot prove requires contract for call read from main: other < 4 (needs fact `index < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/may_write_choice_finite_cycle_through_parameter_overlapping rejected 869ms expected @036605466510+wt
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+fail/facts/may_write_choice_finite_cycle_through_target_body_overlapping rejected 903ms expected @036605466510+wt
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+fail/facts/may_write_choice_finite_cycle_unknown_selector rejected 762ms expected @036605466510+wt
+	cannot prove index `other` is within length 4 in consume::entry
 fail/facts/may_write_choice_through_call_result_overlapping rejected 2355ms expected @a92f16431042
 	cannot prove requires contract for call kept_index from main: other < 4 (needs fact `other < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/may_write_choice_through_const_name_overlapping rejected 2314ms expected @a92f16431042
@@ -10368,6 +10685,42 @@ fail/facts/opaque_independent_closed_carrier_through_parameter_cleanup rejected 
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
 fail/facts/opaque_independent_closed_carrier_through_target_body_cleanup rejected 313ms expected @a92f16431042
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
+fail/facts/opaque_independent_copy_through_call_result_rejected rejected 1068ms expected @4d987059e887+wt
+	cannot use `first` in machine `observe` state `entry` (statement 3) after `first` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
+fail/facts/opaque_independent_copy_through_const_name_rejected rejected 1049ms expected @4d987059e887+wt
+	cannot use `first` in machine `observe` state `entry` (statement 3) after `first` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
+fail/facts/opaque_independent_copy_through_field_rejected rejected 1047ms expected @4d987059e887+wt
+	cannot use `stored.value` in machine `observe` state `entry` (statement 3) after `stored.value` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `stored.value` first
+fail/facts/opaque_independent_copy_through_local_rejected rejected 1046ms expected @4d987059e887+wt
+	cannot use `first` in machine `observe` state `entry` (statement 3) after `first` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
+fail/facts/opaque_independent_copy_through_match_join_rejected rejected 1065ms expected @4d987059e887+wt
+	cannot use `first` in machine `receive` state `entry` (statement 2) after `first` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
+fail/facts/opaque_independent_copy_through_other_machine_rejected rejected 1066ms expected @4d987059e887+wt
+	cannot use `first` in machine `observe` state `entry` (statement 3) after `first` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
+fail/facts/opaque_independent_copy_through_other_state_rejected rejected 1039ms expected @4d987059e887+wt
+	cannot use `first` in machine `receive` state `entry` (statement 2) after `first` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
+fail/facts/opaque_independent_copy_through_parameter_rejected rejected 1101ms expected @4d987059e887+wt
+	cannot use `first` in machine `receive` state `entry` (statement 2) after `first` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
+fail/facts/opaque_independent_copy_through_target_body_rejected rejected 1083ms expected @4d987059e887+wt
+	cannot use `first` in machine `observe` state `entry` (statement 3) after `first` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
+fail/facts/opaque_independent_linear_through_call_result_unconsumed rejected 1486ms expected @a6874229378b+wt
+	linear value `pair.second` reaches scope exit without being consumed or transferred
+fail/facts/opaque_independent_linear_through_const_name_unconsumed rejected 1237ms expected @a6874229378b+wt
+	linear value `pair.second` reaches scope exit without being consumed or transferred
+fail/facts/opaque_independent_linear_through_field_unconsumed rejected 1214ms expected @a6874229378b+wt
+	linear value `pair.second` reaches scope exit without being consumed or transferred
+fail/facts/opaque_independent_linear_through_local_unconsumed rejected 1457ms expected @a6874229378b+wt
+	linear value `pair.second` reaches scope exit without being consumed or transferred
+fail/facts/opaque_independent_linear_through_match_join_unconsumed rejected 1487ms expected @a6874229378b+wt
+	linear value `pair.second` reaches scope exit without being consumed or transferred
+fail/facts/opaque_independent_linear_through_other_machine_unconsumed rejected 1313ms expected @a6874229378b+wt
+	linear value `pair.second` reaches scope exit without being consumed or transferred
+fail/facts/opaque_independent_linear_through_other_state_unconsumed rejected 1158ms expected @a6874229378b+wt
+	linear value `pair.second` reaches scope exit without being consumed or transferred
+fail/facts/opaque_independent_linear_through_parameter_unconsumed rejected 1204ms expected @a6874229378b+wt
+	linear value `pair.second` reaches scope exit without being consumed or transferred
+fail/facts/opaque_independent_linear_through_target_body_unconsumed rejected 1205ms expected @a6874229378b+wt
+	linear value `pair.second` reaches scope exit without being consumed or transferred
 fail/facts/opaque_nested_carrier_cleanup rejected 4009ms expected @a92f16431042
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
 fail/facts/opaque_wrapped_carrier_cleanup rejected 3954ms expected @a92f16431042
@@ -10614,6 +10967,33 @@ fail/facts/provider_poststate_wrong_projection_rejected rejected 2032ms expected
 	machine `Installer::install` satisfies `Installing::install` but proves no ensures matching the declared law `slot.bytes.len == replacement.len` -- a law requirement's satisfier must carry that equation as a machine-checked ensures, general in every law parameter
 fail/facts/provider_poststate_wrong_subjects_rejected rejected 1663ms expected @717593f593c6+wt
 	machine `Installer::install` satisfies `Installing::install` but proves no ensures matching the declared law `destination.bytes.len == source.sibling.len` -- a law requirement's satisfier must carry that equation as a machine-checked ensures, general in every law parameter
+fail/facts/public_post_write_indexed_byte_view_argument_snapshot_through_call_result_exit rejected 1751ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 7; an indexed value retains its captured index
+fail/facts/public_post_write_indexed_byte_view_argument_snapshot_through_const_name_exit rejected 1723ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 7; an indexed value retains its captured index
+fail/facts/public_post_write_indexed_byte_view_argument_snapshot_through_field_exit rejected 1790ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 7; an indexed value retains its captured index
+fail/facts/public_post_write_indexed_byte_view_argument_snapshot_through_local_exit rejected 1672ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 7; an indexed value retains its captured index
+fail/facts/public_post_write_indexed_byte_view_argument_snapshot_through_match_join_exit rejected 1688ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 7; an indexed value retains its captured index
+fail/facts/public_post_write_indexed_byte_view_argument_snapshot_through_other_machine_exit rejected 1870ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 7; an indexed value retains its captured index
+fail/facts/public_post_write_indexed_byte_view_argument_snapshot_through_other_state_exit rejected 1717ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 7; an indexed value retains its captured index
+fail/facts/public_post_write_indexed_byte_view_argument_snapshot_through_parameter_exit rejected 1840ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 7; an indexed value retains its captured index
+fail/facts/public_post_write_indexed_byte_view_argument_snapshot_through_target_body_exit rejected 1734ms expected @717593f593c6+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 7; an indexed value retains its captured index
 fail/facts/qualified_field_capacity_through_call_result_rejected rejected 1220ms expected @a92f16431042
 	data `Strategy` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/facts/qualified_field_capacity_through_const_name_rejected rejected 751ms expected @a92f16431042
@@ -11058,6 +11438,39 @@ fail/facts/runtime_count_index_through_target_body_rejected rejected 2159ms expe
 	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from main: count < bytes[..].len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from main: count < bytes[..].len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from main: count < bytes[..].len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_index_application_forwarded_through_call_result_rejected rejected 1611ms expected @036605466510+wt
+	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_index_application_forwarded_through_const_name_rejected rejected 1937ms expected @036605466510+wt
+	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_index_application_forwarded_through_field_rejected rejected 1664ms expected @036605466510+wt
+	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from construct: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from construct: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_index_application_forwarded_through_local_rejected rejected 1844ms expected @036605466510+wt
+	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_index_application_forwarded_through_match_join_rejected rejected 1975ms expected @036605466510+wt
+	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_index_application_forwarded_through_other_machine_rejected rejected 1685ms expected @036605466510+wt
+	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from construct: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from construct: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_index_application_forwarded_through_other_state_rejected rejected 1798ms expected @036605466510+wt
+	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `construct`
+	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `construct`
+fail/facts/runtime_index_application_forwarded_through_parameter_rejected rejected 1872ms expected @036605466510+wt
+	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_index_application_forwarded_through_target_body_rejected rejected 1770ms expected @036605466510+wt
+	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/runtime_index_application_through_call_result_rejected rejected 912ms expected @a92f16431042
 	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/facts/runtime_index_application_through_const_name_rejected rejected 918ms expected @a92f16431042
@@ -13107,6 +13520,85 @@ fail/facts/state_transition_ranking_bound_through_target_body_rejected rejected 
 	exact arithmetic in machine `probe` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `ranked_loop(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 	exact arithmetic in machine `probe` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `ranked_loop(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 	exact arithmetic in machine `probe` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `ranked_loop(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+fail/facts/static_callback_reach_recursive_component rejected 2258ms expected @3353916f9430+wt
+	terminating machine traverse: cannot prove strict rank decrease on a recurrent arrival: the transition from `traverse` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+	terminating machine traverse$specialized$1a9069ef08e7f8c1$0: cannot prove strict rank decrease on a recurrent arrival: the transition from `traverse$specialized$1a9069ef08e7f8c1$0` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+	machine call cycle: `traverse$specialized$1a9069ef08e7f8c1$0` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+	machine call cycle: `traverse` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+fail/facts/static_callback_reach_recursive_terminal rejected 1788ms expected @3353916f9430+wt
+	machine call cycle: `traverse` -- an abstract call has no unconditional public termination contract; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+fail/facts/static_callback_reach_recursive_terminal_rank rejected 1381ms expected @3353916f9430+wt
+	terminating machine traverse: cannot prove strict rank decrease on a recurrent arrival: the transition from `traverse` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+	terminating machine traverse$specialized$1a9069ef08e7f8c1$0: cannot prove strict rank decrease on a recurrent arrival: the transition from `traverse$specialized$1a9069ef08e7f8c1$0` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+	machine call cycle: `traverse$specialized$1a9069ef08e7f8c1$0` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+	machine call cycle: `traverse` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+fail/facts/static_callback_reach_selected_schema rejected 1695ms expected @3353916f9430+wt
+	machine `TraversalCode::traverse$specialized$e7faf60c2b169585$0` state `traverse` value call to `quiet` violates required fact `value <= 37 && Count <= 37`: the instantiated fact is structurally false (`first <= 37 && 38 <= 37`)
+	machine `ordinary$specialized$3051a3ac972a47e8$0` state `entry` value call to `quiet` violates required fact `value <= 37 && Count <= 37`: the instantiated fact is structurally false (`first <= 37 && 38 <= 37`)
+fail/facts/static_callback_reach_terminal_binder rejected 1538ms expected @3353916f9430+wt
+	cannot prove ensures contract for exit from traverse at statement 1: result <= 37
+	cannot prove ensures contract for exit from traverse at statement 2: result <= 37
+fail/facts/static_callback_reach_through_call_result rejected 1743ms expected @3353916f9430+wt
+	machine argument `quiet` for `ordinary` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine argument `quiet` for `traverse` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine `quiet` state `entry` does not satisfy trait `StepContract` machine `step`: service `Extra` is not allowed by the trait requirement
+	machine `pure_observer` publishes service reach `<none>` but its checked body reaches undeclared service `Extra`
+	machine `produce` publishes service reach `Console` but its checked body reaches undeclared service `Extra`
+fail/facts/static_callback_reach_through_const_name rejected 2428ms expected @3353916f9430+wt
+	machine argument `quiet` for `ordinary` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine argument `quiet` for `traverse` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine `quiet` state `entry` does not satisfy trait `StepContract` machine `step`: service `Extra` is not allowed by the trait requirement
+	machine `pure_observer` publishes service reach `<none>` but its checked body reaches undeclared service `Extra`
+	machine `evaluate` publishes service reach `Console` but its checked body reaches undeclared service `Extra`
+fail/facts/static_callback_reach_through_field rejected 1631ms expected @3353916f9430+wt
+	machine argument `quiet` for `ordinary` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine argument `quiet` for `traverse` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine `quiet` state `entry` does not satisfy trait `StepContract` machine `step`: service `Extra` is not allowed by the trait requirement
+	machine `pure_observer` publishes service reach `<none>` but its checked body reaches undeclared service `Extra`
+	machine `evaluate` publishes service reach `Console` but its checked body reaches undeclared service `Extra`
+fail/facts/static_callback_reach_through_local rejected 1905ms expected @3353916f9430+wt
+	machine argument `quiet` for `ordinary` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine argument `quiet` for `traverse` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine `quiet` state `entry` does not satisfy trait `StepContract` machine `step`: service `Extra` is not allowed by the trait requirement
+	machine `pure_observer` publishes service reach `<none>` but its checked body reaches undeclared service `Extra`
+	machine `evaluate` publishes service reach `Console` but its checked body reaches undeclared service `Extra`
+fail/facts/static_callback_reach_through_match_join rejected 3085ms expected @3353916f9430+wt
+	machine argument `quiet` for `ordinary` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine argument `quiet` for `traverse` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine argument `quiet` for `traverse` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine `quiet` state `entry` does not satisfy trait `StepContract` machine `step`: service `Extra` is not allowed by the trait requirement
+	machine `pure_observer` publishes service reach `<none>` but its checked body reaches undeclared service `Extra`
+	machine `evaluate` publishes service reach `Console` but its checked body reaches undeclared service `Extra`
+fail/facts/static_callback_reach_through_other_machine rejected 3194ms expected @3353916f9430+wt
+	machine argument `quiet` for `ordinary` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine argument `quiet` for `traverse` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine `quiet` state `entry` does not satisfy trait `StepContract` machine `step`: service `Extra` is not allowed by the trait requirement
+	machine `pure_observer` publishes service reach `<none>` but its checked body reaches undeclared service `Extra`
+	machine `evaluate` publishes service reach `Console` but its checked body reaches undeclared service `Extra`
+fail/facts/static_callback_reach_through_other_state rejected 2854ms expected @3353916f9430+wt
+	machine argument `quiet` for `ordinary` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine argument `quiet` for `traverse` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine `quiet` state `entry` does not satisfy trait `StepContract` machine `step`: service `Extra` is not allowed by the trait requirement
+	machine `pure_observer` publishes service reach `<none>` but its checked body reaches undeclared service `Extra`
+	machine `evaluate` publishes service reach `Console` but its checked body reaches undeclared service `Extra`
+fail/facts/static_callback_reach_through_parameter rejected 1902ms expected @3353916f9430+wt
+	machine argument `quiet` for `ordinary` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine argument `quiet` for `traverse` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine `quiet` state `entry` does not satisfy trait `StepContract` machine `step`: service `Extra` is not allowed by the trait requirement
+	machine `pure_observer` publishes service reach `<none>` but its checked body reaches undeclared service `Extra`
+	machine `evaluate` publishes service reach `Console` but its checked body reaches undeclared service `Extra`
+fail/facts/static_callback_reach_through_target_body rejected 1462ms expected @3353916f9430+wt
+	machine argument `quiet` for `ordinary` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine argument `quiet` for `traverse` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine argument `quiet` for `traverse` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine argument `quiet` for `traverse` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine argument `quiet` for `traverse` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine `quiet` state `entry` does not satisfy trait `StepContract` machine `step`: service `Extra` is not allowed by the trait requirement
+	machine `pure_observer` publishes service reach `<none>` but its checked body reaches undeclared service `Extra`
+	machine `evaluate` publishes service reach `Console` but its checked body reaches undeclared service `Extra`
+	machine `evaluate` publishes service reach `Console` but its checked body reaches undeclared service `Extra`
+	machine `evaluate` publishes service reach `Console` but its checked body reaches undeclared service `Extra`
+	machine `evaluate` publishes service reach `Console` but its checked body reaches undeclared service `Extra`
 fail/facts/static_evidence_premise_through_call_result_rejected rejected 1378ms expected @a92f16431042
 	machine `main` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
 fail/facts/static_evidence_premise_through_const_name_rejected rejected 1378ms expected @a92f16431042
@@ -16285,7 +16777,7 @@ fail/generics/const_extent_inclusive_bound rejected 1773ms expected @a92f1643104
 	cannot prove index `index` is within length 2 in read$specialized$f8459f0a1522a338$0::take
 fail/generics/const_extent_index_without_guard rejected 1361ms expected @a92f16431042
 	cannot prove index `4` is within length 2
-fail/generics/const_generic_runtime_argument rejected 371ms unexpected @a92f16431042
+fail/generics/const_generic_runtime_argument rejected 264ms expected @036605466510+wt
 	const parameter `Count` of `prefix_count` requires a normalized closed value
 fail/generics/const_index_active_case_false rejected 29ms expected @a92f16431042
 	constant `POINT` is invalid: data constant `Choice` violates its case predicate
@@ -16490,6 +16982,13 @@ fail/generics/indexed_result_destination_conflict rejected 613ms expected @a92f1
 	machine `main` state `entry` assignment expects `Box<u64>`, but the value is delivered as `Box<u32>`
 fail/generics/inferred_argument_parameter_conflict rejected 969ms expected @a92f16431042
 	argument `right` for state `entry` expects `T`, got `named value`
+fail/generics/inferred_equation_conflicting_inferred_result_rejected rejected 269ms expected @036605466510+wt
+	generic machine `capacity` cannot determine `Length` from its where equations; supply the argument explicitly
+	generic machine `forward` where type equation has conflicting element types
+fail/generics/inferred_equation_deferred_callee_requires_rejected rejected 570ms expected @036605466510+wt
+	machine `main` state `entry` value call to `forward` violates required fact `okay`: the instantiated fact is structurally false
+fail/generics/inferred_equation_explicit_forward_conflict_rejected rejected 579ms expected @036605466510+wt
+	argument `value` for state `entry` expects `[u8; 3]`, got `named value`
 fail/generics/inferred_machine_array_equation_constructor_identity_rejected rejected 436ms expected @a92f16431042
 	generic machine `capacity` where type equation requires the same fixed-array constructor
 fail/generics/inferred_machine_array_equation_copy_bound_rejected rejected 888ms expected @a92f16431042
@@ -16664,14 +17163,28 @@ fail/generics/returned_generic_result_parameter_mismatch rejected 677ms expected
 	machine `wrong` state `entry` local `__hoist_15` expects `Output`, but the value is delivered as `Input`
 fail/generics/runtime_difference_const_argument rejected 22ms expected @a92f16431042
 	const argument expression: machine index operand must select a constant in its original lexical scope; runtime locals, parameters and open binders cannot be evaluated
+fail/generics/runtime_index_borrow_call_access_mismatch rejected 656ms expected @036605466510+wt
+	argument `item` for state `entry` is declared `&mut` (`&mut Indexed<limit>`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/generics/runtime_index_borrow_call_const_mismatch rejected 731ms expected @036605466510+wt
+	argument `item` for state `entry` expects `&mut Indexed<limit, 2>`, got `named value`
+fail/generics/runtime_index_borrow_call_generic_callback_mismatch rejected 717ms expected @036605466510+wt
+	argument `item` for state `Routine` expects `&mut Item`, got `named value`
+fail/generics/runtime_index_borrow_call_nominal_mismatch rejected 606ms expected @036605466510+wt
+	argument `item` for state `entry` expects `&mut Indexed<limit>`, got `named value`
+fail/generics/runtime_index_borrow_call_retag_mismatch rejected 1463ms expected @036605466510+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+fail/generics/runtime_index_borrow_call_type_mismatch rejected 578ms expected @036605466510+wt
+	argument `item` for state `entry` expects `&mut Indexed<limit, u64>`, got `named value`
+fail/generics/runtime_index_borrow_call_value_mismatch rejected 1473ms expected @036605466510+wt
+	machine `example` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
 fail/generics/runtime_index_carrier_argument_effect rejected 249ms expected @a92f16431042
 	cannot retain runtime index descriptor `Limit` from its application argument without an evaluated scalar subject
 fail/generics/runtime_index_carrier_array_extent_mismatch rejected 1910ms expected @a92f16431042
 	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
 fail/generics/runtime_index_carrier_array_mismatch rejected 1903ms expected @a92f16431042
 	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-fail/generics/runtime_index_carrier_borrow_mismatch rejected 815ms unexpected @a92f16431042
-	argument `item` for state `entry` expects `&Indexed<limit>`, got `named value`
+fail/generics/runtime_index_carrier_borrow_mismatch rejected 1079ms expected @036605466510+wt
+	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
 fail/generics/runtime_index_carrier_call_selected_mutated rejected 2246ms expected @a92f16431042
 	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
 fail/generics/runtime_index_carrier_call_selected_stale rejected 1649ms expected @a92f16431042
@@ -16689,8 +17202,8 @@ fail/generics/runtime_index_carrier_descriptor_borrow_return rejected 1639ms exp
 	mutable scalar loan cannot preserve a runtime index descriptor
 fail/generics/runtime_index_carrier_descriptor_indexed_write rejected 1743ms expected @a92f16431042
 	cannot prove runtime index descriptor equals its captured index
-fail/generics/runtime_index_carrier_descriptor_whole_write rejected 782ms unexpected @a92f16431042
-	argument `item` for state `entry` expects `&mut Indexed<limit>`, got `named value`
+fail/generics/runtime_index_carrier_descriptor_whole_write rejected 1048ms expected @036605466510+wt
+	cannot prove runtime index descriptor equals its captured index
 fail/generics/runtime_index_carrier_explicit_argument_effect rejected 419ms expected @a92f16431042
 	cannot validate runtime index descriptor `Limit` across argument or field effects without an evaluated scalar snapshot
 fail/generics/runtime_index_carrier_explicit_payload_effect rejected 312ms expected @a92f16431042
@@ -16767,6 +17280,8 @@ fail/generics/selected_open_capture_wrong_nominal rejected 659ms expected @a92f1
 	argument `value` for state `Selected::forward::forward` expects the `First` data type but got `Second` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
 fail/generics/selected_operator_preserves_blocking_ceiling rejected 1100ms expected @a92f16431042
 	machine `choose` omits `blocks;` from its published contract, but its body may block
+fail/generics/selected_value_bool_public_contract_mismatch rejected 1384ms expected @036605466510+wt
+	cannot prove requires contract for call need_true from main: second == true (needs fact `value == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/generics/state_argument_generic_result_parameter_mismatch rejected 488ms expected @a92f16431042
 	argument `value` for state `finish` expects `Output`, got `call expression`
 fail/generics/static_callable_excess_local_type_argument rejected 482ms expected @a92f16431042
@@ -17869,6 +18384,24 @@ fail/proofs/disjunctive_domain_wrong_subject rejected 2147ms expected @a92f16431
 	construction of `Checked` field `value` is not proven in domain `Pair::Small` in invalid state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
 fail/proofs/domain_mathematical_narrow_import rejected 570ms expected @a92f16431042
 	exact arithmetic in machine `cut` state `entry` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
+fail/proofs/dyn_requirement_distinct_observations rejected 619ms expected @e06334c63dc4+wt
+	exact arithmetic in machine `main` state `entry` local `invalid` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/proofs/dyn_requirement_float_alias_inequality rejected 3712ms expected @e06334c63dc4+wt
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures upper(result)`; callers of the requirement assume it
+fail/proofs/dyn_requirement_float_alias_negated rejected 2987ms expected @e06334c63dc4+wt
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures upper(result)`; callers of the requirement assume it
+fail/proofs/dyn_requirement_float_alias_strict rejected 2690ms expected @e06334c63dc4+wt
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures strict(result)`; callers of the requirement assume it
+fail/proofs/dyn_requirement_float_literal_qualification rejected 1216ms expected @e06334c63dc4+wt
+	invalid mathematical application `positive(0.0)`: mathematical argument does not preserve its declared carrier and policy
+fail/proofs/dyn_requirement_float_literal_wrong_format rejected 980ms expected @e06334c63dc4+wt
+	invalid mathematical application `value_ok(0.0)`: mathematical argument does not preserve its declared carrier and policy
+fail/proofs/dyn_requirement_float_nonhost_wider rejected 3883ms expected @e06334c63dc4+wt
+	cannot prove requires contract for call accept from main: public_interval(observed, 0.0, 0.5) (needs fact `public_interval(value, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/dyn_requirement_float_nonreflexive rejected 3559ms expected @e06334c63dc4+wt
+	cannot prove ensures contract for exit from claim at statement 0: reflexive(value)
+fail/proofs/dyn_requirement_float_public_only rejected 3281ms expected @e06334c63dc4+wt
+	cannot prove requires contract for call accept from main: public_interval(observed, 0.0, 0.5) (needs fact `public_interval(value, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/embedded_address_bound_not_strict rejected 2621ms expected @a92f16431042
 	exact arithmetic in machine `offset` state `entry` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
 fail/proofs/embedded_successor_call_requirement_weakened_bound rejected 3252ms expected @a92f16431042
@@ -19317,6 +19850,14 @@ fail/termination/computed_measure_non_monotone_body rejected 1627ms expected @a9
 fail/termination/computed_measure_rank_range_overflow rejected 1864ms expected @a92f16431042
 	terminating machine walk: cannot prove rank range `0..=400` for the rank produced by the selected view
 	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+fail/termination/computed_rank_guard_write rejected 611ms expected @f9baa191b37a+wt
+	machine call cycle: `retain_counted` -- a write, call, or alias invalidates the entry-relative ranking; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+fail/termination/computed_rank_no_decrease rejected 611ms expected @f9baa191b37a+wt
+	machine call cycle: `retain_counted` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+fail/termination/computed_rank_operand_write rejected 598ms expected @f9baa191b37a+wt
+	machine call cycle: `retain_counted` -- call operands invalidate the exact entry-relative ranking frame; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+fail/termination/computed_rank_static_arity rejected 256ms expected @f9baa191b37a+wt
+	machine `retain_counted` has no const parameter for extra argument `Count`
 fail/termination/computed_result_rank_alternative_results rejected 1840ms expected @a92f16431042
 	terminating machine countdown: cannot prove rank range `0..=9` for the rank produced by the selected view
 	machine call cycle: `countdown` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
@@ -20135,6 +20676,8 @@ pass/asm/atomic_release_disposition_reference_exit checked 2973ms check-target:l
 pass/asm/atomic_release_disposition_replaced_contents_exit checked 2963ms check-target:linux_x86_64 @a92f16431042
 pass/asm/atomic_release_disposition_returned_view_exit checked 3020ms check-target:linux_x86_64 @a92f16431042
 pass/asm/atomic_release_disposition_state_exit checked 2902ms check-target:linux_x86_64 @a92f16431042
+pass/asm/checked_asm_compare_flag_snapshot_exit checked 2749ms check-target:linux_x86_64 @e06334c63dc4+wt
+pass/asm/checked_asm_compare_one_block_exit checked 3915ms check-target:macos_arm64 @e06334c63dc4+wt
 pass/asm/checked_countdown_literal_exit checked 2852ms check-target:linux_x86_64 @a92f16431042
 pass/asm/checked_label_borrow_last_use_exit checked 3113ms check-target:macos_arm64 @a92f16431042
 pass/asm/checked_label_call_result_exit checked 2855ms check-target:macos_arm64 @a92f16431042
@@ -20142,6 +20685,7 @@ pass/asm/checked_label_edges_exit checked 2995ms check-target:macos_arm64 @a92f1
 pass/asm/checked_label_reverse_local_exit checked 2852ms check-target:macos_arm64 @a92f16431042
 pass/asm/checked_label_specialization_exit checked 2870ms check-target:macos_arm64 @a92f16431042
 pass/asm/checked_label_transition_exit checked 2900ms check-target:macos_arm64 @a92f16431042
+pass/asm/entry_zero_branch_conditional_exit checked 3977ms check-target:linux_x86_64 @e06334c63dc4+wt
 pass/asm/finite_prefix_preserves_model_exit checked 3232ms check-target:macos_arm64 @a92f16431042
 pass/asm/instruction_disposition_native checked 3819ms check-target:linux_x86_64 @a92f16431042
 pass/asm/observation_preserves_address_model checked 3186ms @a92f16431042
@@ -20156,27 +20700,30 @@ pass/asm/scratch_subtract_modular_underflow_exit checked 3148ms check-target:lin
 pass/asm/scratch_target_sibling_capture_identity_exit checked 3079ms check-target:linux_x86_64 @a92f16431042
 pass/asm/scratch_zero_flag_survives_move_exit checked 3084ms check-target:linux_x86_64 @a92f16431042
 pass/asm/state_fact_transfers_exit checked 3120ms check-target:linux_x86_64 @a92f16431042
-pass/atomics/atomic_global_order_operations checked 2284ms @a92f16431042
-pass/atomics/atomic_order_surface checked 3233ms @a92f16431042
-pass/atomics/runtime_atomic_after_quoted_write_exit checked 7265ms check-target:macos_arm64 @a92f16431042
-pass/atomics/runtime_atomic_bitwise_widths_exit checked 7465ms check-target:macos_arm64 @a92f16431042
-pass/atomics/runtime_atomic_case_field_state_exit checked 2509ms check-target:macos_arm64 @a92f16431042
-pass/atomics/runtime_atomic_compare_exchange_exit checked 8232ms check-target:macos_arm64 @a92f16431042
-pass/atomics/runtime_atomic_computed_operands_exit checked 2511ms check-target:macos_arm64 @a92f16431042
-pass/atomics/runtime_atomic_computed_updates_exit checked 2904ms check-target:macos_arm64 @a92f16431042
-pass/atomics/runtime_atomic_fence_captured_ordering_exit checked 2819ms check-target:macos_arm64 @a92f16431042
-pass/atomics/runtime_atomic_fences_exit checked 3417ms check-target:macos_arm64 @a92f16431042
-pass/atomics/runtime_atomic_fetch_add_exit checked 7485ms check-target:macos_arm64 @a92f16431042
-pass/atomics/runtime_atomic_operand_order_exit checked 3554ms check-target:macos_arm64 @a92f16431042
-pass/atomics/runtime_authored_fence_name_exit checked 3207ms check-target:macos_arm64 @a92f16431042
-pass/atomics/runtime_case_payload_atomic_events_exit checked 2892ms check-target:macos_arm64 @a92f16431042
-pass/atomics/runtime_mixed_common_atomic_cell_exit checked 2588ms check-target:macos_arm64 @a92f16431042
-pass/atomics/runtime_nested_case_payload_atomic_event_exit checked 2414ms check-target:macos_arm64 @a92f16431042
-pass/atomics/runtime_projected_state_operands_exit checked 3150ms check-target:macos_arm64 @a92f16431042
-pass/atomics/runtime_shared_case_waived_atomic_exit checked 6604ms check-target:macos_arm64 @a92f16431042
-pass/atomics/runtime_stored_reference_atomic_events_exit checked 2714ms check-target:macos_arm64 @a92f16431042
-pass/atomics/selected_reference_atomic_provider checked 2492ms check-target:linux_x86_64 @a92f16431042
-pass/atomics/shared_receiver_atomic_store checked 7246ms check-target:macos_arm64 @a92f16431042
+pass/atomics/atomic_global_order_operations checked 1339ms @036605466510+wt
+pass/atomics/atomic_order_surface checked 1746ms @036605466510+wt
+pass/atomics/placed_atomic_load checked 1791ms @036605466510+wt
+pass/atomics/placed_atomic_shared_store checked 1820ms @036605466510+wt
+pass/atomics/runtime_atomic_after_quoted_write_exit checked 7091ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/runtime_atomic_bitwise_widths_exit checked 7683ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/runtime_atomic_boolean_orderings_exit checked 1748ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/runtime_atomic_case_field_state_exit checked 1830ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/runtime_atomic_compare_exchange_exit checked 7512ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/runtime_atomic_computed_operands_exit checked 1763ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/runtime_atomic_computed_updates_exit checked 1916ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/runtime_atomic_fence_captured_ordering_exit checked 2040ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/runtime_atomic_fences_exit checked 1767ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/runtime_atomic_fetch_add_exit checked 8154ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/runtime_atomic_operand_order_exit checked 1715ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/runtime_authored_fence_name_exit checked 1943ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/runtime_case_payload_atomic_events_exit checked 1916ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/runtime_mixed_common_atomic_cell_exit checked 1825ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/runtime_nested_case_payload_atomic_event_exit checked 1838ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/runtime_projected_state_operands_exit checked 1897ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/runtime_shared_case_waived_atomic_exit checked 8543ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/runtime_stored_reference_atomic_events_exit checked 1938ms check-target:macos_arm64 @036605466510+wt
+pass/atomics/selected_reference_atomic_provider checked 2513ms check-target:linux_x86_64 @036605466510+wt
+pass/atomics/shared_receiver_atomic_store checked 8902ms check-target:macos_arm64 @036605466510+wt
 pass/blockexec/blocking_executor_custody_claims_compile checked 3895ms check-target:macos_arm64 @a92f16431042
 pass/blockexec/runtime_selected_worker_body_exit checked 2459ms check-target:macos_arm64 @a92f16431042
 pass/borrow/copyable_array_view_survives_owner_pass_compile checked 2612ms @a92f16431042
@@ -20184,6 +20731,7 @@ pass/borrow/explicit_aggregate_lifetime_selects_source checked 2519ms @a92f16431
 pass/borrow/mutable_selector_literal_replacement_exit checked 2764ms check-target:macos_arm64 @a92f16431042
 pass/borrow/mutable_selector_rhs_snapshot_exit checked 3087ms check-target:macos_arm64 @a92f16431042
 pass/borrow/mutable_selector_unchanged_exit checked 2360ms check-target:macos_arm64 @a92f16431042
+pass/borrow/named_operator_disjoint_argument_preserves_bound checked 845ms @7480471d532b+wt
 pass/borrow/nested_reference_parameter_referent_assignment checked 3054ms @a92f16431042
 pass/borrow/projected_record_state_loan_split_exit checked 2212ms check-target:macos_arm64 @a92f16431042
 pass/borrow/reference_parameter_referent_copy_exit checked 3356ms check-target:macos_arm64 @a92f16431042
@@ -22223,6 +22771,15 @@ pass/facts/assumed_binding_result_bound_through_other_machine_exit checked 4512m
 pass/facts/assumed_binding_result_bound_through_other_state_exit checked 4620ms check-target:macos_arm64 @a92f16431042
 pass/facts/assumed_binding_result_bound_through_parameter_exit checked 4491ms check-target:macos_arm64 @a92f16431042
 pass/facts/assumed_binding_result_bound_through_target_body_exit checked 4511ms check-target:macos_arm64 @a92f16431042
+pass/facts/atomic_boolean_store/call_result checked 2321ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_boolean_store/const_name checked 2338ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_boolean_store/field checked 1943ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_boolean_store/local checked 2084ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_boolean_store/match_join checked 2107ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_boolean_store/other_machine checked 2014ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_boolean_store/other_state checked 2247ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_boolean_store/parameter checked 2111ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_boolean_store/target_body checked 1989ms check-target:macos_arm64 @036605466510+wt
 pass/facts/atomic_compare_exchange_once_composition_exit checked 4403ms check-target:macos_arm64 @a92f16431042
 pass/facts/atomic_compare_exchange_once_high_bit_exit checked 4369ms check-target:macos_arm64 @a92f16431042
 pass/facts/atomic_compare_exchange_once_local_exit checked 4033ms check-target:macos_arm64 @a92f16431042
@@ -22297,6 +22854,15 @@ pass/facts/boundary_provider_call_through_other_machine_exit checked 2709ms chec
 pass/facts/boundary_provider_call_through_other_state_exit checked 2706ms check-target:macos_arm64 @a92f16431042
 pass/facts/boundary_provider_call_through_parameter_exit checked 2935ms check-target:macos_arm64 @a92f16431042
 pass/facts/boundary_provider_call_through_target_body_exit checked 2663ms check-target:macos_arm64 @a92f16431042
+pass/facts/boundary_zero_origin_through_call_result_exit checked 1079ms check-target:macos_arm64 @7480471d532b+wt
+pass/facts/boundary_zero_origin_through_const_name_exit checked 1053ms check-target:macos_arm64 @7480471d532b+wt
+pass/facts/boundary_zero_origin_through_field_exit checked 1025ms check-target:macos_arm64 @7480471d532b+wt
+pass/facts/boundary_zero_origin_through_local_exit checked 988ms check-target:macos_arm64 @7480471d532b+wt
+pass/facts/boundary_zero_origin_through_match_join_exit checked 1039ms check-target:macos_arm64 @7480471d532b+wt
+pass/facts/boundary_zero_origin_through_other_machine_exit checked 1036ms check-target:macos_arm64 @7480471d532b+wt
+pass/facts/boundary_zero_origin_through_other_state_exit checked 1042ms check-target:macos_arm64 @7480471d532b+wt
+pass/facts/boundary_zero_origin_through_parameter_exit checked 1001ms check-target:macos_arm64 @7480471d532b+wt
+pass/facts/boundary_zero_origin_through_target_body_exit checked 1027ms check-target:macos_arm64 @7480471d532b+wt
 pass/facts/bounded_activation_claim_split_through_call_result_exit checked 2974ms check-target:macos_arm64 @a92f16431042
 pass/facts/bounded_activation_claim_split_through_const_name_exit checked 3883ms check-target:macos_arm64 @a92f16431042
 pass/facts/bounded_activation_claim_split_through_field_exit checked 3282ms check-target:macos_arm64 @a92f16431042
@@ -22461,6 +23027,15 @@ pass/facts/checked_asm_arm_load_through_other_machine_exit checked 2833ms check-
 pass/facts/checked_asm_arm_load_through_other_state_exit checked 2927ms check-target:macos_arm64 @a92f16431042
 pass/facts/checked_asm_arm_load_through_parameter_exit checked 2813ms check-target:macos_arm64 @a92f16431042
 pass/facts/checked_asm_arm_load_through_target_body_exit checked 2818ms check-target:macos_arm64 @a92f16431042
+pass/facts/checked_asm_compare_preserves_through_call_result_exit checked 3354ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/checked_asm_compare_preserves_through_const_name_exit checked 2801ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/checked_asm_compare_preserves_through_field_exit checked 3349ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/checked_asm_compare_preserves_through_local_exit checked 3124ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/checked_asm_compare_preserves_through_match_join_exit checked 3140ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/checked_asm_compare_preserves_through_other_machine_exit checked 3298ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/checked_asm_compare_preserves_through_other_state_exit checked 6687ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/checked_asm_compare_preserves_through_parameter_exit checked 5561ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/checked_asm_compare_preserves_through_target_body_exit checked 6041ms check-target:macos_arm64 @e06334c63dc4+wt
 pass/facts/checked_asm_countdown_through_call_result_exit checked 2817ms check-target:linux_x86_64 @a92f16431042
 pass/facts/checked_asm_countdown_through_const_name_exit checked 2782ms check-target:linux_x86_64 @a92f16431042
 pass/facts/checked_asm_countdown_through_field_exit checked 2857ms check-target:linux_x86_64 @a92f16431042
@@ -22669,6 +23244,15 @@ pass/facts/copied_case_before_later_argument_through_other_machine_exit checked 
 pass/facts/copied_case_before_later_argument_through_other_state_exit checked 692ms check-target:macos_arm64 @fd2b4fad69e5+wt
 pass/facts/copied_case_before_later_argument_through_parameter_exit checked 682ms check-target:macos_arm64 @fd2b4fad69e5+wt
 pass/facts/copied_case_before_later_argument_through_target_body_exit checked 708ms check-target:macos_arm64 @fd2b4fad69e5+wt
+pass/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_call_result checked 1478ms check-target:macos_arm64 @f9baa191b37a+wt
+pass/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_const_name checked 1456ms check-target:macos_arm64 @f9baa191b37a+wt
+pass/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_field checked 1787ms check-target:macos_arm64 @f9baa191b37a+wt
+pass/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_local checked 1806ms check-target:macos_arm64 @f9baa191b37a+wt
+pass/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_match_join checked 1500ms check-target:macos_arm64 @f9baa191b37a+wt
+pass/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_other_machine checked 1371ms check-target:macos_arm64 @f9baa191b37a+wt
+pass/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_other_state checked 1812ms check-target:macos_arm64 @f9baa191b37a+wt
+pass/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_parameter checked 1826ms check-target:macos_arm64 @f9baa191b37a+wt
+pass/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_target_body checked 1462ms check-target:macos_arm64 @f9baa191b37a+wt
 pass/facts/correlated_invariant_store_through_call_result_exit checked 2900ms check-target:macos_arm64 @a92f16431042
 pass/facts/correlated_invariant_store_through_const_name_exit checked 2644ms check-target:macos_arm64 @a92f16431042
 pass/facts/correlated_invariant_store_through_field_exit checked 2690ms check-target:macos_arm64 @a92f16431042
@@ -22827,6 +23411,15 @@ pass/facts/double_indexed_rmw_through_other_machine_exit checked 2127ms check-ta
 pass/facts/double_indexed_rmw_through_other_state_exit checked 2813ms check-target:macos_arm64 @a92f16431042
 pass/facts/double_indexed_rmw_through_parameter_exit checked 2368ms check-target:macos_arm64 @a92f16431042
 pass/facts/double_indexed_rmw_through_target_body_exit checked 2393ms check-target:macos_arm64 @a92f16431042
+pass/facts/dyn_dispatch_payload_alias_through_call_result_exit checked 2792ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/dyn_dispatch_payload_alias_through_const_name_exit checked 2537ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/dyn_dispatch_payload_alias_through_field_exit checked 3087ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/dyn_dispatch_payload_alias_through_local_exit checked 2068ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/dyn_dispatch_payload_alias_through_match_join_exit checked 1936ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/dyn_dispatch_payload_alias_through_other_machine_exit checked 2025ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/dyn_dispatch_payload_alias_through_other_state_exit checked 1999ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/dyn_dispatch_payload_alias_through_parameter_exit checked 2213ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/dyn_dispatch_payload_alias_through_target_body_exit checked 2199ms check-target:macos_arm64 @e06334c63dc4+wt
 pass/facts/dyn_dispatch_selector_payload_bound_through_call_result_exit checked 2670ms check-target:macos_arm64 @a92f16431042
 pass/facts/dyn_dispatch_selector_payload_bound_through_const_name_exit checked 2700ms check-target:macos_arm64 @a92f16431042
 pass/facts/dyn_dispatch_selector_payload_bound_through_field_exit checked 2697ms check-target:macos_arm64 @a92f16431042
@@ -22836,6 +23429,15 @@ pass/facts/dyn_dispatch_selector_payload_bound_through_other_machine_exit checke
 pass/facts/dyn_dispatch_selector_payload_bound_through_other_state_exit checked 2625ms check-target:macos_arm64 @a92f16431042
 pass/facts/dyn_dispatch_selector_payload_bound_through_parameter_exit checked 2670ms check-target:macos_arm64 @a92f16431042
 pass/facts/dyn_dispatch_selector_payload_bound_through_target_body_exit checked 2212ms check-target:macos_arm64 @a92f16431042
+pass/facts/dynamic_float_alias_through_call_result_exit checked 5975ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/dynamic_float_alias_through_const_name_exit checked 6034ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/dynamic_float_alias_through_field_exit checked 6329ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/dynamic_float_alias_through_local_exit checked 5545ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/dynamic_float_alias_through_match_join_exit checked 5484ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/dynamic_float_alias_through_other_machine_exit checked 5858ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/dynamic_float_alias_through_other_state_exit checked 4722ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/dynamic_float_alias_through_parameter_exit checked 5066ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/facts/dynamic_float_alias_through_target_body_exit checked 4501ms check-target:macos_arm64 @e06334c63dc4+wt
 pass/facts/dynamic_float_refinement_through_call_result_exit checked 12367ms check-target:macos_arm64 @a92f16431042
 pass/facts/dynamic_float_refinement_through_const_name_exit checked 12312ms check-target:macos_arm64 @a92f16431042
 pass/facts/dynamic_float_refinement_through_field_exit checked 12745ms check-target:macos_arm64 @a92f16431042
@@ -23090,6 +23692,15 @@ pass/facts/float_delivery_through_other_machine_exit checked 9969ms check-target
 pass/facts/float_delivery_through_other_state_exit checked 9718ms check-target:macos_arm64 @a92f16431042
 pass/facts/float_delivery_through_parameter_exit checked 12820ms check-target:macos_arm64 @a92f16431042
 pass/facts/float_delivery_through_target_body_exit checked 10638ms check-target:macos_arm64 @a92f16431042
+pass/facts/float_meaning_result_through_call_result_exit checked 2608ms check-target:macos_arm64 @7480471d532b+wt
+pass/facts/float_meaning_result_through_const_name_exit checked 2589ms check-target:macos_arm64 @7480471d532b+wt
+pass/facts/float_meaning_result_through_field_exit checked 2606ms check-target:macos_arm64 @7480471d532b+wt
+pass/facts/float_meaning_result_through_local_exit checked 2516ms check-target:macos_arm64 @7480471d532b+wt
+pass/facts/float_meaning_result_through_match_join_exit checked 2543ms check-target:macos_arm64 @7480471d532b+wt
+pass/facts/float_meaning_result_through_other_machine_exit checked 2592ms check-target:macos_arm64 @7480471d532b+wt
+pass/facts/float_meaning_result_through_other_state_exit checked 2686ms check-target:macos_arm64 @7480471d532b+wt
+pass/facts/float_meaning_result_through_parameter_exit checked 2749ms check-target:macos_arm64 @7480471d532b+wt
+pass/facts/float_meaning_result_through_target_body_exit checked 2799ms check-target:macos_arm64 @7480471d532b+wt
 pass/facts/float_range_delivery_through_call_result_exit checked 11583ms check-target:macos_arm64 @a92f16431042
 pass/facts/float_range_delivery_through_const_name_exit checked 14219ms check-target:macos_arm64 @a92f16431042
 pass/facts/float_range_delivery_through_field_exit checked 13264ms check-target:macos_arm64 @a92f16431042
@@ -23396,6 +24007,15 @@ pass/facts/inferred_array_equation_call_through_other_machine_exit checked 2865m
 pass/facts/inferred_array_equation_call_through_other_state_exit checked 2646ms check-target:macos_arm64 @a92f16431042
 pass/facts/inferred_array_equation_call_through_parameter_exit checked 2712ms check-target:macos_arm64 @a92f16431042
 pass/facts/inferred_array_equation_call_through_target_body_exit checked 2628ms check-target:macos_arm64 @a92f16431042
+pass/facts/inferred_array_equation_forwarded_result_through_call_result_exit checked 1932ms check-target:macos_arm64 @036605466510+wt
+pass/facts/inferred_array_equation_forwarded_result_through_const_name_exit checked 1857ms check-target:macos_arm64 @036605466510+wt
+pass/facts/inferred_array_equation_forwarded_result_through_field_exit checked 2100ms check-target:macos_arm64 @036605466510+wt
+pass/facts/inferred_array_equation_forwarded_result_through_local_exit checked 1986ms check-target:macos_arm64 @036605466510+wt
+pass/facts/inferred_array_equation_forwarded_result_through_match_join_exit checked 1942ms check-target:macos_arm64 @036605466510+wt
+pass/facts/inferred_array_equation_forwarded_result_through_other_machine_exit checked 1918ms check-target:macos_arm64 @036605466510+wt
+pass/facts/inferred_array_equation_forwarded_result_through_other_state_exit checked 1977ms check-target:macos_arm64 @036605466510+wt
+pass/facts/inferred_array_equation_forwarded_result_through_parameter_exit checked 1746ms check-target:macos_arm64 @036605466510+wt
+pass/facts/inferred_array_equation_forwarded_result_through_target_body_exit checked 1894ms check-target:macos_arm64 @036605466510+wt
 pass/facts/inferred_indexed_byte_view_argument_snapshot_through_call_result_exit checked 1505ms check-target:macos_arm64 @e8fdf0110b10
 pass/facts/inferred_indexed_byte_view_argument_snapshot_through_const_name_exit checked 1446ms check-target:macos_arm64 @e8fdf0110b10
 pass/facts/inferred_indexed_byte_view_argument_snapshot_through_field_exit checked 1386ms check-target:macos_arm64 @e8fdf0110b10
@@ -23847,6 +24467,16 @@ pass/facts/matched_window_through_other_machine_exit checked 2173ms check-target
 pass/facts/matched_window_through_other_state_exit checked 1871ms check-target:macos_arm64 @a92f16431042
 pass/facts/matched_window_through_parameter_exit checked 2166ms check-target:macos_arm64 @a92f16431042
 pass/facts/matched_window_through_target_body_exit checked 1984ms check-target:macos_arm64 @a92f16431042
+pass/facts/may_write_choice_finite_cycle_same_query_exit checked 1180ms check-target:macos_arm64 @036605466510+wt
+pass/facts/may_write_choice_finite_cycle_through_call_result_exit checked 1174ms check-target:macos_arm64 @036605466510+wt
+pass/facts/may_write_choice_finite_cycle_through_const_name_exit checked 1430ms check-target:macos_arm64 @036605466510+wt
+pass/facts/may_write_choice_finite_cycle_through_field_exit checked 1291ms check-target:macos_arm64 @036605466510+wt
+pass/facts/may_write_choice_finite_cycle_through_local_exit checked 1289ms check-target:macos_arm64 @036605466510+wt
+pass/facts/may_write_choice_finite_cycle_through_match_join_exit checked 1148ms check-target:macos_arm64 @036605466510+wt
+pass/facts/may_write_choice_finite_cycle_through_other_machine_exit checked 1152ms check-target:macos_arm64 @036605466510+wt
+pass/facts/may_write_choice_finite_cycle_through_other_state_exit checked 1230ms check-target:macos_arm64 @036605466510+wt
+pass/facts/may_write_choice_finite_cycle_through_parameter_exit checked 1067ms check-target:macos_arm64 @036605466510+wt
+pass/facts/may_write_choice_finite_cycle_through_target_body_exit checked 1165ms check-target:macos_arm64 @036605466510+wt
 pass/facts/may_write_choice_through_call_result_exit checked 1826ms check-target:macos_arm64 @a92f16431042
 pass/facts/may_write_choice_through_const_name_exit checked 1704ms check-target:macos_arm64 @a92f16431042
 pass/facts/may_write_choice_through_field_exit checked 1684ms check-target:macos_arm64 @a92f16431042
@@ -24617,6 +25247,24 @@ pass/facts/opaque_independent_closed_carrier_through_other_machine_exit checked 
 pass/facts/opaque_independent_closed_carrier_through_other_state_exit checked 13078ms check-target:macos_arm64 @a92f16431042
 pass/facts/opaque_independent_closed_carrier_through_parameter_exit checked 11115ms check-target:macos_arm64 @a92f16431042
 pass/facts/opaque_independent_closed_carrier_through_target_body_exit checked 10767ms check-target:macos_arm64 @a92f16431042
+pass/facts/opaque_independent_copy_through_call_result_exit checked 1432ms check-target:macos_arm64 @4d987059e887+wt
+pass/facts/opaque_independent_copy_through_const_name_exit checked 1432ms check-target:macos_arm64 @4d987059e887+wt
+pass/facts/opaque_independent_copy_through_field_exit checked 1387ms check-target:macos_arm64 @4d987059e887+wt
+pass/facts/opaque_independent_copy_through_local_exit checked 1387ms check-target:macos_arm64 @4d987059e887+wt
+pass/facts/opaque_independent_copy_through_match_join_exit checked 1406ms check-target:macos_arm64 @4d987059e887+wt
+pass/facts/opaque_independent_copy_through_other_machine_exit checked 1404ms check-target:macos_arm64 @4d987059e887+wt
+pass/facts/opaque_independent_copy_through_other_state_exit checked 1399ms check-target:macos_arm64 @4d987059e887+wt
+pass/facts/opaque_independent_copy_through_parameter_exit checked 1397ms check-target:macos_arm64 @4d987059e887+wt
+pass/facts/opaque_independent_copy_through_target_body_exit checked 1409ms check-target:macos_arm64 @4d987059e887+wt
+pass/facts/opaque_independent_linear_through_call_result_exit checked 1834ms check-target:macos_arm64 @a6874229378b+wt
+pass/facts/opaque_independent_linear_through_const_name_exit checked 1678ms check-target:macos_arm64 @a6874229378b+wt
+pass/facts/opaque_independent_linear_through_field_exit checked 1558ms check-target:macos_arm64 @a6874229378b+wt
+pass/facts/opaque_independent_linear_through_local_exit checked 1574ms check-target:macos_arm64 @a6874229378b+wt
+pass/facts/opaque_independent_linear_through_match_join_exit checked 1771ms check-target:macos_arm64 @a6874229378b+wt
+pass/facts/opaque_independent_linear_through_other_machine_exit checked 1710ms check-target:macos_arm64 @a6874229378b+wt
+pass/facts/opaque_independent_linear_through_other_state_exit checked 1661ms check-target:macos_arm64 @a6874229378b+wt
+pass/facts/opaque_independent_linear_through_parameter_exit checked 1552ms check-target:macos_arm64 @a6874229378b+wt
+pass/facts/opaque_independent_linear_through_target_body_exit checked 1634ms check-target:macos_arm64 @a6874229378b+wt
 pass/facts/opaque_nested_carrier_exchange_exit checked 44185ms check-target:macos_arm64 terminal-runtime.observe:unrequested terminal-runtime.observe_replacement:unrequested terminal-runtime.relay:unrequested terminal-inspections:match @a92f16431042
 pass/facts/opaque_wrapped_carrier_exchange_exit checked 24068ms check-target:macos_arm64 terminal-runtime.observe:unrequested terminal-inspections:match @a92f16431042
 pass/facts/open_const_implementation_through_call_result_exit checked 7292ms check-target:macos_arm64 @a92f16431042
@@ -24910,6 +25558,15 @@ pass/facts/runtime_count_index_through_other_machine_exit checked 3513ms check-t
 pass/facts/runtime_count_index_through_other_state_exit checked 2404ms check-target:macos_arm64 @a92f16431042
 pass/facts/runtime_count_index_through_parameter_exit checked 3132ms check-target:macos_arm64 @a92f16431042
 pass/facts/runtime_count_index_through_target_body_exit checked 3111ms check-target:macos_arm64 @a92f16431042
+pass/facts/runtime_index_application_forwarded_through_call_result_exit checked 2143ms check-target:macos_arm64 @036605466510+wt
+pass/facts/runtime_index_application_forwarded_through_const_name_exit checked 2204ms check-target:macos_arm64 @036605466510+wt
+pass/facts/runtime_index_application_forwarded_through_field_exit checked 1985ms check-target:macos_arm64 @036605466510+wt
+pass/facts/runtime_index_application_forwarded_through_local_exit checked 2071ms check-target:macos_arm64 @036605466510+wt
+pass/facts/runtime_index_application_forwarded_through_match_join_exit checked 2157ms check-target:macos_arm64 @036605466510+wt
+pass/facts/runtime_index_application_forwarded_through_other_machine_exit checked 2017ms check-target:macos_arm64 @036605466510+wt
+pass/facts/runtime_index_application_forwarded_through_other_state_exit checked 2419ms check-target:macos_arm64 @036605466510+wt
+pass/facts/runtime_index_application_forwarded_through_parameter_exit checked 2423ms check-target:macos_arm64 @036605466510+wt
+pass/facts/runtime_index_application_forwarded_through_target_body_exit checked 2085ms check-target:macos_arm64 @036605466510+wt
 pass/facts/runtime_index_application_through_call_result_exit checked 2863ms check-target:macos_arm64 @a92f16431042
 pass/facts/runtime_index_application_through_const_name_exit checked 2865ms check-target:macos_arm64 @a92f16431042
 pass/facts/runtime_index_application_through_field_exit checked 3075ms check-target:macos_arm64 @a92f16431042
@@ -25771,6 +26428,19 @@ pass/facts/state_transition_ranking_bound_through_other_machine_exit checked 268
 pass/facts/state_transition_ranking_bound_through_other_state_exit checked 2738ms check-target:macos_arm64 @a92f16431042
 pass/facts/state_transition_ranking_bound_through_parameter_exit checked 2660ms check-target:macos_arm64 @a92f16431042
 pass/facts/state_transition_ranking_bound_through_target_body_exit checked 2656ms check-target:macos_arm64 @a92f16431042
+pass/facts/static_callback_reach_recursive_component checked 6066ms check-target:macos_arm64 terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_recursive_terminal checked 5442ms check-target:macos_arm64 terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_selected_schema checked 6599ms check-target:macos_arm64 terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_terminal_binder checked 6378ms check-target:macos_arm64 terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_through_call_result checked 9674ms check-target:macos_arm64 terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_through_const_name checked 10365ms check-target:macos_arm64 terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_through_field checked 8674ms check-target:macos_arm64 terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_through_local checked 9811ms check-target:macos_arm64 terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_through_match_join checked 10833ms check-target:macos_arm64 terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_through_other_machine checked 10081ms check-target:macos_arm64 terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_through_other_state checked 9254ms check-target:macos_arm64 terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_through_parameter checked 10772ms check-target:macos_arm64 terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_through_target_body checked 8570ms check-target:macos_arm64 terminal-inspections:match @3353916f9430+wt
 pass/facts/static_evidence_premise_through_call_result_exit checked 2686ms check-target:macos_arm64 @a92f16431042
 pass/facts/static_evidence_premise_through_const_name_exit checked 3027ms check-target:macos_arm64 @a92f16431042
 pass/facts/static_evidence_premise_through_field_exit checked 3738ms check-target:macos_arm64 @a92f16431042
@@ -27145,6 +27815,11 @@ pass/generics/generic_result_parameter_receipt checked 1711ms @a92f16431042
 pass/generics/generic_seq_consuming_map_filter checked 1485ms @a92f16431042
 pass/generics/generic_seq_map_filter checked 1919ms @a92f16431042
 pass/generics/higher_order_schema checked 2033ms @a92f16431042
+pass/generics/inferred_equation_inferred_array_result_exit checked 1927ms check-target:macos_arm64 @036605466510+wt
+pass/generics/inferred_equation_machine_binder_context_exit checked 2541ms check-target:macos_arm64 @036605466510+wt
+pass/generics/inferred_equation_nested_forwarding_exit checked 2167ms check-target:macos_arm64 @036605466510+wt
+pass/generics/inferred_equation_outer_context_exit checked 2366ms check-target:macos_arm64 @036605466510+wt
+pass/generics/inferred_equation_reference_compatibility_exit checked 2289ms check-target:macos_arm64 @036605466510+wt
 pass/generics/inferred_machine_array_equation_deferred_bodies_exit checked 2000ms check-target:macos_arm64 @a92f16431042
 pass/generics/inferred_machine_array_equation_generic_owner_field_exit checked 2903ms check-target:macos_arm64 @a92f16431042
 pass/generics/inferred_machine_array_equation_named_extent_exit checked 2001ms check-target:macos_arm64 @a92f16431042
@@ -27262,8 +27937,7 @@ pass/generics/runtime_index_carrier_call_result checked 2427ms @a92f16431042
 pass/generics/runtime_index_carrier_call_selected_index checked 1846ms @a92f16431042
 pass/generics/runtime_index_carrier_call_selected_preserved checked 1469ms @a92f16431042
 pass/generics/runtime_index_carrier_call_selected_replacement checked 2008ms @a92f16431042
-pass/generics/runtime_index_carrier_descriptor_whole_preserve rejected 545ms regressed-from:checked @a92f16431042
-	argument `item` for state `entry` expects `&mut Indexed<limit>`, got `named value`
+pass/generics/runtime_index_carrier_descriptor_whole_preserve checked 1323ms @036605466510+wt
 pass/generics/runtime_index_carrier_direct_call_result checked 1487ms @a92f16431042
 pass/generics/runtime_index_carrier_indexed_element_valid checked 1551ms @a92f16431042
 pass/generics/runtime_index_carrier_local checked 1371ms @a92f16431042
@@ -27305,6 +27979,7 @@ pass/generics/runtime_value_recipe_bounded_declaration checked 1345ms check-targ
 pass/generics/selected_member_distinct_binder_names_exit checked 1899ms check-target:macos_arm64 @a92f16431042
 pass/generics/selected_member_shared_runtime_subject_exit checked 1950ms check-target:macos_arm64 @a92f16431042
 pass/generics/selected_open_capture_carriers_exit checked 2445ms check-target:macos_arm64 @a92f16431042
+pass/generics/selected_value_bool_public_contract_exit checked 1982ms check-target:macos_arm64 @036605466510+wt
 pass/generics/seq_map_filter checked 2031ms @a92f16431042
 pass/generics/static_callable_local_type_argument_exit checked 3040ms check-target:macos_arm64 @a92f16431042
 pass/generics/static_machine_borrowed_parameter_refines_after_substitution checked 2188ms @a92f16431042
@@ -28020,6 +28695,9 @@ pass/proofs/descriptor_bound_call_after_element_call rejected 2012ms regressed-f
 	cannot prove requires contract for call demand from filter: partition.count <= partition.records.len (needs fact `partition.count <= partition.records.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/proofs/disjunctive_domain_result_exit checked 2015ms check-target:macos_arm64 @a92f16431042
 pass/proofs/domain_mathematical_selection_exit checked 1948ms check-target:macos_arm64 @a92f16431042
+pass/proofs/dyn_requirement_float_alias_rounding_exit checked 5089ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/proofs/dyn_requirement_float_provider_alias_exit checked 5319ms check-target:macos_arm64 @e06334c63dc4+wt
+pass/proofs/dyn_requirement_float_raw_use_exit checked 5912ms check-target:macos_arm64 @e06334c63dc4+wt
 pass/proofs/embed_collection_length checked 1709ms @a92f16431042
 pass/proofs/embed_returned_length checked 1520ms @a92f16431042
 pass/proofs/embedded_address_bounds_exit checked 7933ms check-target:macos_arm64 @a92f16431042

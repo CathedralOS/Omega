@@ -1,18 +1,11 @@
 //! Same-block elimination from proof-bearing redundants to total-policy leaders.
 
-use std::collections::BTreeMap;
-
 use optimization_core::{OptimizationRuleContract, OptimizationSafetyClass};
-use optimization_unit::{
-    LocalScalarCommonSubexpressionRewrite, NodeLocation, OptimizationFact, PsiOptimizationUnit,
-    PsiRewriteCandidate,
-};
+use optimization_unit::{OptimizationFact, PsiOptimizationUnit, PsiRewriteCandidate};
 
-use super::exact_pure_scalar_effect;
 use super::expression_keys::{compatible_policy_scalar_leader, compatible_policy_scalar_redundant};
 use crate::rules::accepted_obligations::accepted_obligation_fact;
 use crate::rules::global_value_numbering::same_block_contract;
-use crate::rules::node_elision::node_elision_accounting;
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 psi_rule_contract!(
@@ -31,111 +24,37 @@ impl PsiOptimizationRule for SameBlockProofCertifiedCompatiblePolicyScalarCseRul
         unit: &PsiOptimizationUnit,
         analyses: RuleAnalysisView<'_>,
     ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-        let (use_definitions, effects) = analyses.use_definitions_and_effects()?;
-        let mut candidates = Vec::new();
-        for function in &unit.functions {
-            for block in &function.blocks {
-                let mut leaders = BTreeMap::new();
-                for (index, node) in block.nodes.iter().enumerate() {
-                    let node_index =
-                        u32::try_from(index).expect("optimization node index fits u32");
-                    if let Some((key, operation, result, scalar_type)) =
-                        compatible_policy_scalar_leader(&node.operation)
-                        && exact_pure_scalar_effect(
-                            unit,
-                            effects,
-                            function.machine,
-                            block.id,
-                            node_index,
-                        )
-                        && !function.facts.iter().any(|fact| {
-                            matches!(fact, OptimizationFact::OperationObligationReference { support, .. }
-                                if *support == operation)
-                        })
-                    {
-                        leaders.entry(key).or_insert((
-                            node_index,
-                            operation,
-                            result,
-                            scalar_type,
-                        ));
-                    }
-                    let Some((key, operation, result, scalar_type)) =
-                        compatible_policy_scalar_redundant(&node.operation)
-                    else {
-                        continue;
-                    };
-                    let Some(obligation_fact) =
-                        accepted_obligation_fact(unit, function.machine, operation).ok()
-                    else {
-                        continue;
-                    };
-                    if !exact_pure_scalar_effect(
-                        unit,
-                        effects,
-                        function.machine,
-                        block.id,
-                        node_index,
-                    ) || !use_definitions.uses.iter().any(|(machine, use_site)| {
-                        *machine == function.machine && use_site.value == result
-                    }) {
-                        continue;
-                    }
-                    let Some((leader, leader_operation, leader_result, leader_type)) =
-                        leaders.get(&key).copied()
-                    else {
-                        continue;
-                    };
-                    if leader_type != scalar_type {
-                        continue;
-                    }
-                    let Some(receiver) = block.nodes.get(index + 1) else {
-                        continue;
-                    };
-                    if receiver
-                        .provenance
-                        .iter()
-                        .any(|source| node.provenance.contains(source))
-                    {
-                        continue;
-                    }
-                    let redundant = NodeLocation {
-                        machine: function.machine,
-                        block: block.id,
-                        node: node_index,
-                    };
-                    let Some((affected_blocks, provenance)) =
-                        node_elision_accounting(function, redundant, result)
-                    else {
-                        continue;
-                    };
-                    candidates.push(
-                        PsiRewriteCandidate::new_proof_certified_local_scalar_common_subexpression(
-                            unit.identity,
-                            Self::contract(),
-                            affected_blocks,
-                            provenance,
-                            obligation_fact,
-                            -1,
-                            LocalScalarCommonSubexpressionRewrite {
-                                leader: NodeLocation {
-                                    machine: function.machine,
-                                    block: block.id,
-                                    node: leader,
-                                },
-                                redundant,
-                                leader_operation,
-                                redundant_operation: operation,
-                                leader_result,
-                                redundant_result: result,
-                                scalar_type,
-                            },
-                        )
-                        .map_err(RuleProposalError::InvalidCandidate)?,
-                    );
+        super::propose_same_block_scalar_cse(
+            unit,
+            analyses,
+            |_| (),
+            |_, _, function, operation| {
+                let row = compatible_policy_scalar_leader(operation)?;
+                if function.facts.iter().any(|fact| {
+                    matches!(fact, OptimizationFact::OperationObligationReference { support, .. }
+                        if *support == row.1)
+                }) {
+                    return None;
                 }
-            }
-        }
-        Ok(candidates)
+                Some(row)
+            },
+            |_, unit, function, operation| {
+                let row = compatible_policy_scalar_redundant(operation)?;
+                let fact = accepted_obligation_fact(unit, function.machine, row.1).ok()?;
+                Some((row, fact))
+            },
+            |same| {
+                PsiRewriteCandidate::new_proof_certified_local_scalar_common_subexpression(
+                    unit.identity,
+                    Self::contract(),
+                    same.affected_blocks,
+                    same.provenance,
+                    same.extras,
+                    -1,
+                    same.patch,
+                )
+                .map_err(RuleProposalError::InvalidCandidate)
+            },
+        )
     }
 }

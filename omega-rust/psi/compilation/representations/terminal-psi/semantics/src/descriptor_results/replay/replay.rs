@@ -898,6 +898,16 @@ impl<'a> Replay<'a> {
                 summary.invalidates_contents |= effects.invalidates_contents;
                 Some(summary)
             }
+            DescriptorInvocationTarget::Public { realizations, .. } if !realizations.is_empty() => {
+                let summaries = realizations
+                    .iter()
+                    .map(|machine| self.summary(*machine, depth))
+                    .collect::<Option<Vec<_>>>()?;
+                Some(super::dispatch::join(
+                    direct_target_summary(&call.target)?,
+                    &summaries,
+                ))
+            }
             target => direct_target_summary(target),
         }
     }
@@ -914,6 +924,16 @@ impl<'a> Replay<'a> {
                 summary.effects = effects.effects.clone();
                 summary.invalidates_contents |= effects.invalidates_contents;
                 Some(summary)
+            }
+            DescriptorInvocationTarget::Public { realizations, .. } if !realizations.is_empty() => {
+                let summaries = realizations
+                    .iter()
+                    .map(|machine| self.summaries.get(machine)?.clone())
+                    .collect::<Option<Vec<_>>>()?;
+                Some(super::dispatch::join(
+                    direct_target_summary(&call.target)?,
+                    &summaries,
+                ))
             }
             target => direct_target_summary(target),
         }

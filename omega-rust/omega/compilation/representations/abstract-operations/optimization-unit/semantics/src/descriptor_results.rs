@@ -1209,6 +1209,8 @@ fn adapt(
                         *interface,
                         *slot,
                     );
+                    let realizations =
+                        kernel::public_realizations(dynamic_dispatch, *interface, *slot)?;
                     let slot = dynamic_dispatch
                         .interface(*interface)?
                         .slots
@@ -1218,14 +1220,15 @@ fn adapt(
                         types,
                         slot_kind,
                         slot,
+                        realizations.clone(),
                         structural_arguments,
                         result,
                         &graph.place_types,
                     )?;
-                    // Incomplete actual queries make replay skip invocation
-                    // transfer, so they must keep blanket public invalidation.
-                    let effects_machine = effects_machine
-                        .filter(|_| call.argument_contents.iter().all(Option::is_some));
+                    // Replay skips an incomplete invocation, so neither an
+                    // exact selection nor a catalog union may remove its fence.
+                    let complete_contents = call.argument_contents.iter().all(Option::is_some);
+                    let effects_machine = effects_machine.filter(|_| complete_contents);
                     if let kernel::DescriptorInvocationTarget::Public {
                         effects_machine: target,
                         ..
@@ -1233,9 +1236,9 @@ fn adapt(
                     {
                         *target = effects_machine;
                     }
-                    // A complete selected summary owns changed slots;
-                    // omitted incoming identities preserve untouched siblings.
-                    if effects_machine.is_none() {
+                    let has_stored_effects = complete_contents
+                        && (effects_machine.is_some() || !realizations.is_empty());
+                    if !has_stored_effects {
                         for actual in structural_arguments
                             .iter()
                             .filter(|actual| actual.access != StructuralAccess::SharedBorrow)
@@ -1254,7 +1257,8 @@ fn adapt(
                             invalidates_contents: true,
                             ..
                         }
-                    ) {
+                    ) && !has_stored_effects
+                    {
                         graph.unresolved_contents_writes.insert(position);
                         step.may_escape = true;
                     }

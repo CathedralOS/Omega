@@ -26,9 +26,9 @@ pub(super) fn call_argument_types(
     site: super::caller_aliases::CallerWriteSite<'_>,
     symbols: &TopLevelSymbols<'_>,
 ) -> Vec<TypeReferenceHandle> {
-    // A slot is an already instantiated callable, including its explicit
-    // selector prefix. Falling back to the authored requirement drops that
-    // operand and shifts every contextual type onto the preceding argument.
+    // A dynamic slot has already instantiated its complete operand roster,
+    // including the independent selector. The public declaration omits that
+    // lane, so reading it here would shift every actual's type by one position.
     if let Some(slot) = program.dynamic_slot_by_symbol(target_symbol) {
         return slot
             .parameters

@@ -24,7 +24,7 @@ pub(crate) fn analyze_fixed_precolored_intervals(
     budget: optimization_core::OptimizationWorkBudget,
 ) -> Result<ValidatedFixedPrecoloredIntervals, FixedPrecoloredIntervalError> {
     let plan = compute::compute(ranges, legality, policy, budget)?;
-    validate::seal_fixed_precolored_intervals(ranges, plan)
+    validate::seal_fixed_precolored_intervals(plan)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,11 +38,6 @@ pub struct FixedPrecoloredIntervalValidationReceipt {
     pub(crate) fuel_schedule: FuelScheduleIdentity,
     pub(crate) policy: FixedPrecoloredIntervalPolicy,
     pub(crate) usage: OptimizationWorkUsage,
-    pub(crate) function_count: usize,
-    pub(crate) inspected_register_count: usize,
-    pub(crate) interval_count: usize,
-    pub(crate) entry_interval_count: usize,
-    pub(crate) operand_interval_count: usize,
 }
 
 impl FixedPrecoloredIntervalValidationReceipt {
@@ -55,21 +50,6 @@ impl FixedPrecoloredIntervalValidationReceipt {
     }
     pub const fn usage(self) -> OptimizationWorkUsage {
         self.usage
-    }
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-    pub const fn inspected_register_count(self) -> usize {
-        self.inspected_register_count
-    }
-    pub const fn interval_count(self) -> usize {
-        self.interval_count
-    }
-    pub const fn entry_interval_count(self) -> usize {
-        self.entry_interval_count
-    }
-    pub const fn operand_interval_count(self) -> usize {
-        self.operand_interval_count
     }
 }
 

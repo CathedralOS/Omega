@@ -1673,8 +1673,9 @@ impl<'program> StructuralJudge<'program> {
             return None;
         }
         let site = crate::CallSite::Expression { expression, call };
-        let static_bindings = super::super::specification_calls::call_scalar_substitution(
+        let static_bindings = super::super::specification_calls::call_contract_scalar_substitution(
             program,
+            scope.0.symbol,
             &owner,
             site,
             |subject| self.completed_scalar_subject(subject, site, actuals?, scope.0, scope.1),
@@ -1954,7 +1955,43 @@ impl<'program> StructuralJudge<'program> {
             );
         }
         self.intake_admitted_value_predicates(result_type, captured.clone());
-        self.intake_result_indices(result_type, &captured, callable, parameters, &bindings);
+        // The signature's indices are declared in its formal telescope. Bind
+        // them to the operands captured for this invocation, before importing
+        // equations about its detached result. The applied result type names
+        // caller storage for type checking; rereading those names here loses
+        // the operand epoch after a later sibling writes the original home.
+        let mut result_parameters = parameters;
+        let mut result_callable = callable;
+        let mut result_bindings = std::borrow::Cow::Borrowed(bindings.as_slice());
+        if let SelectedCallContract::DynamicSlot { slot, .. } = &owner {
+            // Public guarantees keep declaration binders; the instantiated
+            // result carrier keeps the slot's invocation binders. Rejoin that
+            // same admitted positional telescope before interpreting indices.
+            result_parameters = slot.data_parameters();
+            if result_parameters.len() != parameters.len() {
+                return None;
+            }
+            result_callable = slot.symbol;
+            result_bindings = std::borrow::Cow::Owned(
+                bindings
+                    .iter()
+                    .map(|(symbol, value)| {
+                        let actual = parameters
+                            .iter()
+                            .position(|parameter| parameter.symbol == *symbol)
+                            .map_or(*symbol, |position| result_parameters[position].symbol);
+                        (actual, value.clone())
+                    })
+                    .collect::<Vec<_>>(),
+            );
+        }
+        self.intake_admitted_value_indices(
+            owner_return_type(&owner),
+            &captured,
+            result_callable,
+            result_parameters,
+            &result_bindings,
+        );
         if let SelectedCallContract::Concrete(callee, selected_state) = &owner {
             equations.extend(self.returned_field_equations(
                 callee,

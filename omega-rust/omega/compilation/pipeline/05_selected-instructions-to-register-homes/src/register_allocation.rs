@@ -59,10 +59,14 @@ pub fn stage_register_allocation(
         // the run — not a rebuilt legality — to runtime spill so the produced
         // manifest keeps the suite's ledger and completion identity.
         SelectedInstructionOptimizationEvidence::LiteralFolds(run) => {
-            return stage_selected_lowering_register_allocation(run);
+            return phase_profile::scope("06.1.d.05.route_selected_lowering", || {
+                stage_selected_lowering_register_allocation(run)
+            });
         }
         SelectedInstructionOptimizationEvidence::PreAllocation(run) => {
-            return stage_pre_allocation_register_allocation(run);
+            return phase_profile::scope("06.1.d.05.route_pre_allocation", || {
+                stage_pre_allocation_register_allocation(run)
+            });
         }
     };
     let selections = ranges.selections().clone();
@@ -73,12 +77,16 @@ pub fn stage_register_allocation(
     if let Some(rule) = recovery {
         return match rule {
             Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1 => {
-                let legality = stage_optimized_allocation_legality(ranges)
-                    .map_err(RegisterAllocationError::Legality)?;
-                stage_shared_entry_fixed_view_register_allocation(legality)
+                phase_profile::scope("06.1.d.05.route_shared_entry_fixed_view", || {
+                    let legality = stage_optimized_allocation_legality(ranges)
+                        .map_err(RegisterAllocationError::Legality)?;
+                    stage_shared_entry_fixed_view_register_allocation(legality)
+                })
             }
             Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1 => {
-                stage_active_resident_register_allocation(ranges)
+                phase_profile::scope("06.1.d.05.route_active_resident", || {
+                    stage_active_resident_register_allocation(ranges)
+                })
             }
             _ => Err(RegisterAllocationError::UnsupportedComposition),
         };

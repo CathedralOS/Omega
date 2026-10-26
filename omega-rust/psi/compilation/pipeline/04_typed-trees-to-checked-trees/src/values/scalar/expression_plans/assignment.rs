@@ -4,86 +4,62 @@
 use super::{
     CheckedScalarExpressionRole, ExpressionNode, StatementPlanner,
     assignment_target_primitive_type, lower_index_expression, lower_return_expression,
-    retain_expression_call_arguments, retain_subslice_endpoints,
+    retain_subslice_endpoints,
 };
 
 pub(crate) fn plan(
-    planner: StatementPlanner<'_, '_>,
+    planner: &mut StatementPlanner<'_, '_>,
     assignment: &typed_trees::statement::TableAssignment,
 ) {
-    let StatementPlanner {
-        program,
-        operators,
-        exact_integer_casts,
-        machine,
-        state,
-        parameters,
-        scalar_parameters,
-        parameter_types,
-        statement_index,
-        statement_ordinal,
-        locals,
-        expressions,
-        proof_terms,
-        source_bindings,
-        binding_symbols,
-        ..
-    } = planner;
     // An atomic carrier retains its authored operands,
     // never its arithmetic model (`atomic_operands.rs`).
     if let Some(operands) = super::super::atomic_operands::lower(
-        program,
-        operators,
-        machine,
-        state,
+        planner.program,
+        planner.operators,
+        planner.machine,
+        planner.state,
         assignment,
-        scalar_parameters,
-        parameters,
-        parameter_types,
-        locals,
-        exact_integer_casts,
+        planner.scalar_parameters,
+        planner.parameters,
+        planner.parameter_types,
+        planner.locals,
+        planner.exact_integer_casts,
     ) {
         retain_subslice_endpoints(
             operands,
-            state.symbol,
-            statement_ordinal,
-            scalar_parameters,
-            locals,
-            expressions,
-            source_bindings,
-            binding_symbols,
+            planner.state.symbol,
+            planner.statement_ordinal,
+            planner.scalar_parameters,
+            planner.locals,
+            planner.expressions,
+            planner.source_bindings,
+            planner.binding_symbols,
         );
         return;
     }
     // Every indexed step of the target keeps its own
     // selector row, keyed by its depth from the target.
-    for (depth, index) in validation::assignment_target_selectors(program, assignment.target)
-        .into_iter()
-        .enumerate()
+    for (depth, index) in
+        validation::assignment_target_selectors(planner.program, assignment.target)
+            .into_iter()
+            .enumerate()
     {
         let Ok(depth) = u32::try_from(depth) else {
             break;
         };
         let Some(expression) = lower_index_expression(
-            program,
-            operators,
+            planner.program,
+            planner.operators,
             index,
-            scalar_parameters,
-            parameters,
-            parameter_types,
-            locals,
-            exact_integer_casts,
+            planner.scalar_parameters,
+            planner.parameters,
+            planner.parameter_types,
+            planner.locals,
+            planner.exact_integer_casts,
         ) else {
             continue;
         };
-        super::record_scalar_value_pair(
-            source_bindings,
-            expressions,
-            binding_symbols,
-            scalar_parameters,
-            locals,
-            state.symbol,
-            statement_ordinal,
+        planner.record_scalar_value_pair(
             CheckedScalarExpressionRole::AssignmentIndex { depth },
             symbols::SymbolHandle::invalid(),
             index,
@@ -97,60 +73,44 @@ pub(crate) fn plan(
     // lands does not change their source bindings. The
     // qualified-call spelling below stays for the cast
     // chains only ordinary integer-returning machines have.
-    if let Some(expression) = super::value_call_expression(program, assignment.value) {
-        retain_expression_call_arguments(
-            program,
-            operators,
-            state,
-            statement_ordinal,
-            expression,
-            scalar_parameters,
-            parameters,
-            parameter_types,
-            locals,
-            exact_integer_casts,
-            expressions,
-            proof_terms,
-            source_bindings,
-            binding_symbols,
-        );
+    if let Some(expression) = super::value_call_expression(planner.program, assignment.value) {
+        planner.retain_expression_call_arguments(expression);
     }
     // Retain selected RHS meaning at the statement. A later
     // executable consumer still owns its admitted store shape.
     let Some(target_type_reference) = validation::expression_type_reference_in_state(
-        program,
-        state.symbol,
-        statement_index,
+        planner.program,
+        planner.state.symbol,
+        planner.statement_index,
         assignment.target,
     ) else {
         return;
     };
-    let Some(target_type) = assignment_target_primitive_type(program, target_type_reference) else {
+    let Some(target_type) =
+        assignment_target_primitive_type(planner.program, target_type_reference)
+    else {
         return;
     };
     let Some(expression) = lower_return_expression(
-        program,
-        operators,
+        planner.program,
+        planner.operators,
         assignment.value,
-        scalar_parameters,
-        parameters,
-        parameter_types,
-        locals,
+        planner.scalar_parameters,
+        planner.parameters,
+        planner.parameter_types,
+        planner.locals,
         target_type,
-        exact_integer_casts,
+        planner.exact_integer_casts,
     ) else {
         return;
     };
-    super::record_scalar_value_pair(
-        source_bindings,
-        expressions,
-        binding_symbols,
-        scalar_parameters,
-        locals,
-        state.symbol,
-        statement_ordinal,
+    planner.record_scalar_value_pair(
         CheckedScalarExpressionRole::AssignmentValue,
-        match program.expression_table.expression(assignment.target) {
+        match planner
+            .program
+            .expression_table
+            .expression(assignment.target)
+        {
             ExpressionNode::Name(path) => path.symbol,
             _ => symbols::SymbolHandle::invalid(),
         },

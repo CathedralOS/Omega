@@ -8,16 +8,7 @@ pub enum PostAllocationOptimizationManifestError {
     ContentMismatch,
 }
 
-impl std::fmt::Display for PostAllocationOptimizationManifestError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "invalid post-allocation optimization manifest: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for PostAllocationOptimizationManifestError {}
+crate::decode_error_display! { PostAllocationOptimizationManifestError, "invalid post-allocation optimization manifest" }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PostAllocationOptimizationManifestDecodeError {
@@ -41,13 +32,4 @@ optimization_core::truncated_from_adapter!(PostAllocationOptimizationManifestDec
 
 optimization_core::take_error_from_adapter!(PostAllocationOptimizationManifestDecodeError);
 
-impl std::fmt::Display for PostAllocationOptimizationManifestDecodeError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "invalid post-allocation manifest encoding: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for PostAllocationOptimizationManifestDecodeError {}
+crate::decode_error_display! { PostAllocationOptimizationManifestDecodeError, "invalid post-allocation manifest encoding" }

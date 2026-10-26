@@ -456,6 +456,15 @@ pub(crate) fn next_instruction_id(function: &SelectedFunction) -> Option<u32> {
 /// The register twin of [`next_instruction_id`].
 pub(crate) fn next_register_id(function: &SelectedFunction) -> Option<u32> {
     if let Some(last) = function.virtual_registers.last()
+        && last.id.0 as usize + 1 == function.virtual_registers.len()
+        && function
+            .virtual_registers
+            .first()
+            .is_some_and(|first| first.id.0 == 0)
+    {
+        return last.id.0.checked_add(1);
+    }
+    if let Some(last) = function.virtual_registers.last()
         && function.virtual_registers.len() > 1
         && last.id.0 as usize >= function.virtual_registers.len() - 1
         && function
@@ -1536,25 +1545,46 @@ pub(super) fn derive_runtime_spill<'source>(
     let mut pinned_units = std::collections::BTreeSet::new();
     if any_flexible {
         let model = environment.physical().model();
-        let mut seen_units = vec![false; model.units.len()];
-        let mut seen_views = vec![false; model.views.len()];
+        let mut units_mask = 0u64;
+        let mut views_mask = 0u64;
+        let mut seen_units = Vec::new();
+        let mut seen_views = Vec::new();
         let mut mark_unit = |unit: RegisterUnitId| {
             let idx = usize::from(unit.0);
-            if idx >= seen_units.len() {
-                seen_units.resize(idx + 1, false);
+            if idx < 64 {
+                units_mask |= 1u64 << idx;
+            } else {
+                if idx >= seen_units.len() {
+                    seen_units.resize(idx + 1, false);
+                }
+                seen_units[idx] = true;
             }
-            seen_units[idx] = true;
         };
         let mut mark_view = |view: register_model::RegisterViewId| {
             let idx = usize::from(view.0);
-            if idx >= seen_views.len() {
-                seen_views.resize(idx + 1, false);
+            if idx < 64 {
+                views_mask |= 1u64 << idx;
+            } else {
+                if idx >= seen_views.len() {
+                    seen_views.resize(idx + 1, false);
+                }
+                seen_views[idx] = true;
             }
-            seen_views[idx] = true;
         };
         for register in &function.virtual_registers {
             if let Some(view) = register.entry_fixed_view {
                 mark_view(view);
+            } else if register.id.0 as usize >= 256 {
+                // Reload and split registers appended during recovery never carry
+                // `entry_fixed_view` (`entry_fixed_view: None`), while original
+                // entry-bound registers sit near the front of `virtual_registers`.
+                // Scan the rest only if any holds `entry_fixed_view`.
+                for tail in &function.virtual_registers[register.id.0 as usize..] {
+                    if let Some(view) = tail.entry_fixed_view {
+                        mark_view(view);
+                    }
+                }
+                break;
             }
         }
         for block_index in 0..function.blocks.len() {
@@ -1590,24 +1620,44 @@ pub(super) fn derive_runtime_spill<'source>(
                 mark_unit(unit);
             }
         }
+        let mut um = units_mask;
+        while um != 0 {
+            let bit = um.trailing_zeros() as u16;
+            um &= um - 1;
+            implicit_use_units.insert(RegisterUnitId(bit));
+        }
         for (idx, &seen) in seen_units.iter().enumerate() {
             if seen && let Ok(id) = u16::try_from(idx) {
                 implicit_use_units.insert(RegisterUnitId(id));
             }
         }
-        pinned_units = seen_views
-            .iter()
-            .enumerate()
-            .filter_map(|(idx, &seen)| seen.then_some(idx))
-            .flat_map(|idx| {
-                model
-                    .views
-                    .get(idx)
-                    .into_iter()
-                    .flat_map(|view| view.units.iter().chain(&view.write_units))
-            })
-            .copied()
-            .collect();
+        let mut pinned_mask = 0u64;
+        let mut vm = views_mask;
+        while vm != 0 {
+            let bit = vm.trailing_zeros() as usize;
+            vm &= vm - 1;
+            if let Some(view) = model.views.get(bit) {
+                for &u in view.units.iter().chain(&view.write_units) {
+                    if (u.0 as usize) < 64 {
+                        pinned_mask |= 1u64 << u.0;
+                    } else {
+                        pinned_units.insert(u);
+                    }
+                }
+            }
+        }
+        while pinned_mask != 0 {
+            let bit = pinned_mask.trailing_zeros() as u16;
+            pinned_mask &= pinned_mask - 1;
+            pinned_units.insert(RegisterUnitId(bit));
+        }
+        for (idx, &seen) in seen_views.iter().enumerate() {
+            if seen && let Some(view) = model.views.get(idx) {
+                for &u in view.units.iter().chain(&view.write_units) {
+                    pinned_units.insert(u);
+                }
+            }
+        }
     }
     // One reload register stays open for consecutive flexible uses only
     // while the instructions between them cannot destroy register content;
@@ -1710,34 +1760,36 @@ pub(super) fn derive_runtime_spill<'source>(
     // and every unit-writing instruction the policy did not cross. Proposal,
     // replay, and the slot-reuse last-writer walk all consume this set, so
     // the three of them can never disagree about where a span ends.
-    let span_closes: Vec<std::collections::BTreeSet<usize>> = function
+    let mut span_closes: Vec<std::collections::BTreeSet<usize>> = function
         .blocks
         .iter()
-        .enumerate()
-        .map(|(block_index, block)| {
-            if !shared_reload[block_index]
-                && redefinitions[block_index].is_empty()
-                && !structural_uses
-                    .iter()
-                    .any(|pending| pending.block == block_index)
-            {
-                return std::collections::BTreeSet::new();
-            }
-            if let Some(writers) = function.blocks.block_unit_writer_indices(block_index) {
-                let mut closes = redefinitions[block_index].clone();
-                let crossed = &crossed_unit_writes[block_index];
-                if crossed.is_empty() {
-                    closes.extend(writers.iter().copied());
-                } else {
-                    for &index in writers {
-                        if !crossed.contains(&index) {
-                            closes.insert(index);
-                        }
+        .map(|_| std::collections::BTreeSet::new())
+        .collect();
+    for &block_index in &use_blocks {
+        if !shared_reload[block_index]
+            && redefinitions[block_index].is_empty()
+            && !structural_uses
+                .iter()
+                .any(|pending| pending.block == block_index)
+        {
+            continue;
+        }
+        if let Some(writers) = function.blocks.block_unit_writer_indices(block_index) {
+            let mut closes = redefinitions[block_index].clone();
+            let crossed = &crossed_unit_writes[block_index];
+            if crossed.is_empty() {
+                closes.extend(writers.iter().copied());
+            } else {
+                for &index in writers {
+                    if !crossed.contains(&index) {
+                        closes.insert(index);
                     }
                 }
-                return closes;
             }
-            block
+            span_closes[block_index] = closes;
+        } else {
+            let block = &function.blocks[block_index];
+            span_closes[block_index] = block
                 .instructions
                 .iter()
                 .enumerate()
@@ -1748,9 +1800,9 @@ pub(super) fn derive_runtime_spill<'source>(
                             && !crossed_unit_writes[block_index].contains(&index)))
                     .then_some(index)
                 })
-                .collect()
-        })
-        .collect();
+                .collect();
+        }
+    }
     // Every recorded binding must resolve to exactly the snapshot chunk-load
     // stream its transport describes — `ReadPlace` accesses for its edge and
     // source place in the transport's chunk decomposition, each in this

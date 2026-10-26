@@ -1,0 +1,14 @@
+// Expected exit: 0.
+public let bounded(value: f64): core::Strict<0> = value >= 0.0 && value <= 0.5;
+trait Fraction {
+    machine get() -> f64 ensures bounded(result);
+}
+Quarter satisfies Fraction {
+    machine get() -> f64 ensures result >= 0.25 && result <= 0.25 { 0.25 }
+}
+machine accept(value: f64) requires value >= 0.0 && value <= 0.5 {}
+machine main() {
+    let selected: dyn Fraction = Quarter as dyn Fraction;
+    let observed: f64 = Fraction::get(selected);
+    accept(observed);
+}

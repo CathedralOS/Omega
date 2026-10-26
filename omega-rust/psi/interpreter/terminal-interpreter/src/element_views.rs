@@ -83,6 +83,13 @@ enum ElementViewBacking {
 }
 
 impl ElementView {
+    pub(crate) fn retained_bytes(&self) -> Option<&crate::byte_sequences::ByteSequenceView> {
+        match &self.backing {
+            ElementViewBacking::Representation(view) => view.retained_bytes(),
+            ElementViewBacking::Structural { .. } | ElementViewBacking::Typed(_) => None,
+        }
+    }
+
     /// Freeze a projection in the supplying home, rather than retaining a
     /// path through a descriptor that can subsequently be replaced.
     pub(crate) fn captured_storage_home(

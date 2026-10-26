@@ -5,17 +5,13 @@ use super::{
     aarch64_darwin_mixed_unit_call_keys, aarch64_darwin_register_unit_call_keys,
 };
 use register_model::{
-    RegisterConstraintFamily, RegisterConstraintKey, RegisterInstructionConstraint,
-    RegisterOperandAccess, RegisterOperandConstraint, ValidatedPhysicalRegisterModel,
-    find_register_constraint,
+    RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess,
+    RegisterOperandConstraint, ValidatedPhysicalRegisterModel, find_register_constraint,
 };
 pub fn aarch64_indirect_aggregate_call_keys(darwin: bool) -> Vec<RegisterConstraintKey> {
     let first = if darwin { 2300 } else { 2200 };
     (first..first + 81)
-        .map(|variant| RegisterConstraintKey {
-            family: RegisterConstraintFamily::Call,
-            variant,
-        })
+        .map(RegisterConstraintKey::call)
         .collect()
 }
 

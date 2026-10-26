@@ -15,7 +15,7 @@ pub(crate) fn parse_optional_parameters<'tokens, 'source>(
     }
 
     let mut input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
-    let mut parameters = super::ParameterSpanBuilder::new();
+    let mut parameters = crate::handle_spans::HandleSpanBuilder::new();
 
     if !input.at_punctuation(PunctuationKind::RightParen) {
         loop {

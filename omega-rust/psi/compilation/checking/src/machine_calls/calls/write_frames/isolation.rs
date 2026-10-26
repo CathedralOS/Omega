@@ -470,7 +470,8 @@ fn type_is_caller_isolated_local_inner(
             bindings.truncate(mark);
             isolated
         }
-        // Code selection carries no data referent into the callee.
+        // A selector chooses code; every data argument remains independent.
+        // Its trait arguments are types, not hidden runtime referents.
         TypeReferenceNode::DynamicTrait { .. } => true,
         TypeReferenceNode::Reference { .. }
         | TypeReferenceNode::ConstExpression(_)

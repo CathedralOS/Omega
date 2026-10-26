@@ -1,5 +1,5 @@
 use crate::input::token_cursor::{Input, ParseResult};
-use arena::{Handle, HandleSpan};
+use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{CapabilityContract, CapabilityContractKind};
 use tokens::PunctuationKind;
@@ -11,8 +11,7 @@ pub(crate) fn parse_state_arrival_contracts<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, HandleSpan<CapabilityContract>> {
-    let mut start = Handle::invalid();
-    let mut count = 0u32;
+    let mut contracts = crate::handle_spans::HandleSpanBuilder::new();
 
     while input.at_contextual("requires") {
         let keyword_source_span = Some(input.current_source_span());
@@ -46,12 +45,7 @@ pub(crate) fn parse_state_arrival_contracts<'tokens, 'source>(
                 facts,
                 token_count,
             });
-        if count == 0 {
-            start = handle;
-        }
-        count = count
-            .checked_add(1)
-            .expect("state arrival contract span count overflow");
+        contracts.push(handle);
         input = rest;
     }
 
@@ -65,5 +59,5 @@ pub(crate) fn parse_state_arrival_contracts<'tokens, 'source>(
         ));
     }
 
-    Ok((HandleSpan::from_parts_or_empty(start, count), input))
+    Ok((contracts.finish(), input))
 }

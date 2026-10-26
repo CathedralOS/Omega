@@ -1,6 +1,6 @@
 //! Exact ordinary affine identity calls transfer real ownership without claims.
+use crate::unit_validation::operation_contracts::plain_calls::plain_structural_call;
 use abstract_operations::AbstractOperation as O;
-use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::StructuralTypeId;
 use std::collections::{BTreeMap, BTreeSet};
@@ -13,32 +13,13 @@ pub(crate) fn exact_plain_affine_structural_call(
     callee: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
 ) -> bool {
-    let O::CallStructural {
-        result:
-            AbstractStructuralCallResult::Structural {
-                result,
-                selected_evidence,
-            },
-        arguments,
-        structural_arguments,
-        claim_transfers,
-        requirement_obligations,
-        crash_continuations,
-        ..
-    } = operation
-    else {
-        return false;
-    };
-    let Some(signature) = callee.result.structural() else {
-        return false;
-    };
-    let Some(contract) = callee.verified_contract.as_ref() else {
+    let Some(call) = plain_structural_call(operation, callee) else {
         return false;
     };
     let [parameter] = callee.structural_parameters.as_slice() else {
         return false;
     };
-    let [argument] = structural_arguments.as_slice() else {
+    let [argument] = call.structural_arguments else {
         return false;
     };
     let [block] = callee.blocks.as_slice() else {
@@ -65,38 +46,27 @@ pub(crate) fn exact_plain_affine_structural_call(
         && trivial_affine_locals.is_empty()
         && cleanup_actions.is_empty()
         && callee.parameters.is_empty()
-        && arguments.is_empty()
+        && call.arguments.is_empty()
         && parameter.position == 0
         && parameter.access == terminal_psi::StructuralAccess::Owned
         && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-        && parameter.structural_type == signature.structural_type
+        && parameter.structural_type == call.signature.structural_type
         && parameter.qualifications.is_empty()
         && parameter.projected_qualifications.is_empty()
         && argument.access == terminal_psi::StructuralAccess::Owned
         && argument.path.is_empty()
-        && signature.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-        && signature.qualifications.is_empty()
-        && signature.projected_qualifications.is_empty()
-        && result.structural_type == signature.structural_type
-        && result.multiplicity == signature.multiplicity
-        && result.qualifications.is_empty()
-        && result.projected_qualifications.is_empty()
-        && result.claims.is_empty()
-        && claim_transfers.is_empty()
-        && requirement_obligations.is_empty()
-        && *crash_continuations == contract.crash_routes
-        && selected_evidence.is_empty()
+        && call.signature.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+        && call.signature.qualifications.is_empty()
+        && call.signature.projected_qualifications.is_empty()
+        && call.result.structural_type == call.signature.structural_type
+        && call.result.multiplicity == call.signature.multiplicity
+        && call.selected_evidence.is_empty()
         && callee.entry_claims.is_empty()
-        && callee.entry_claim_declarations.is_empty()
-        && callee.content_entry_claims.is_empty()
-        && callee.evidence_contract_lanes.is_empty()
+        && call.contract.outcome_specific_ensures.is_empty()
         && callee.published_service_ceiling.is_empty()
-        && contract.requires.is_empty()
-        && contract.ensures.is_empty()
-        && contract.outcome_specific_ensures.is_empty()
         && finite_owned_shape(
             types,
-            signature.structural_type,
+            call.signature.structural_type,
             &mut BTreeSet::new(),
             &mut BTreeSet::new(),
         )

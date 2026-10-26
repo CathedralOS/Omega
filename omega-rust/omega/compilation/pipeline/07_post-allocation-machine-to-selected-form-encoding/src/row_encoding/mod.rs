@@ -49,6 +49,8 @@ mod normalized_foreign;
 mod route;
 mod scalar_call;
 
+pub(crate) use normalized_foreign::normalized_foreign_call_record;
+
 #[cfg(test)]
 mod narrow_load_tests;
 #[cfg(test)]

@@ -127,7 +127,8 @@ pub(crate) fn try_parse_destructure_let<'tokens, 'source>(
             relevance: language_core::BindingRelevance::Relevant,
         }));
     let marker = syntax_trees.items.append_statement_handle(marker);
-    let mut count: u32 = 1;
+    let mut statements = crate::handle_spans::HandleSpanBuilder::new();
+    statements.push(marker);
 
     for (field, binding) in fields {
         let Some(binding) = binding else {
@@ -151,11 +152,10 @@ pub(crate) fn try_parse_destructure_let<'tokens, 'source>(
                 is_mutable: false,
                 relevance: language_core::BindingRelevance::Relevant,
             }));
-        let _ = syntax_trees.items.append_statement_handle(statement);
-        count = count.checked_add(1).expect("destructure count overflow");
+        statements.push(syntax_trees.items.append_statement_handle(statement));
     }
 
-    Some((HandleSpan::from_parts(marker, count), rest))
+    Some((statements.finish(), rest))
 }
 
 /// Chapter-10 proof-output binding:

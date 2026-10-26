@@ -16,7 +16,6 @@ use crate::values::{
 };
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::StructuralTypeId;
-use std::collections::BTreeMap;
 use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
 
 pub(crate) enum ConstructorValue<'execution> {
@@ -252,14 +251,14 @@ impl<'execution> ConstructorValue<'execution> {
 }
 
 pub(crate) struct ConstructorStorage {
-    completed_profiles: BTreeMap<
+    completed_profiles: RuntimeRows<
         StructuralRuntimePlace,
         crate::provider_storage::profiles::CompletedResourceProfile,
     >,
     provider_descriptors:
-        BTreeMap<StructuralRuntimePlace, crate::provider_storage::ProviderStorageBinding>,
+        RuntimeRows<StructuralRuntimePlace, crate::provider_storage::ProviderStorageBinding>,
     activation_descriptors:
-        BTreeMap<StructuralRuntimePlace, crate::byte_sequences::binding::ByteSequenceBinding>,
+        RuntimeRows<StructuralRuntimePlace, crate::byte_sequences::binding::ByteSequenceBinding>,
     host_atoms:
         RuntimeRows<StructuralRuntimePlace, crate::structural_storage::HostStructuralPayload>,
     scalars: RuntimeRows<StructuralScalarRuntimeField, TerminalScalarValue>,
@@ -297,13 +296,63 @@ impl DetachedConstructorStorage {
 }
 
 impl ConstructorStorage {
+    /// Detached resident custody owns these rows independently of the execution
+    /// tables. Its provider and immutable backing edges can share other owners.
+    pub(crate) fn measure_result_custody<'storage>(
+        &'storage self,
+        execution: &'storage TerminalExecution<'_>,
+        custody: &mut crate::result_custody::ResultCustody<'storage>,
+    ) -> Result<(), TerminalInterpretError> {
+        for count in [
+            self.completed_profiles.len(),
+            self.provider_descriptors.len(),
+            self.activation_descriptors.len(),
+            self.host_atoms.len(),
+            self.scalars.len(),
+            self.bytes.len(),
+            self.views.len(),
+            self.byte_descriptors.len(),
+            self.references.len(),
+            self.primitives.len(),
+            self.byte_arrays.len(),
+            self.cases.len(),
+        ] {
+            custody.add_cells(count)?;
+        }
+        for binding in self.provider_descriptors.values() {
+            custody.provider(execution, *binding)?;
+        }
+        for binding in self.activation_descriptors.values() {
+            custody.binding(binding)?;
+        }
+        for binding in self.bytes.values() {
+            custody.binding(binding)?;
+        }
+        for binding in self.byte_descriptors.values() {
+            custody.binding(binding)?;
+        }
+        for bytes in self.byte_arrays.values() {
+            custody.bytes(bytes)?;
+        }
+        for (_, bytes) in &self.owner_writes {
+            custody.bytes(bytes)?;
+        }
+        for view in self.views.values() {
+            custody.element_view(view)?;
+        }
+        for reference in self.references.values() {
+            custody.reference(reference)?;
+        }
+        Ok(())
+    }
+
     pub(crate) fn new(
         account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
     ) -> Self {
         Self {
-            completed_profiles: BTreeMap::new(),
-            provider_descriptors: BTreeMap::new(),
-            activation_descriptors: BTreeMap::new(),
+            completed_profiles: RuntimeRows::new(account),
+            provider_descriptors: RuntimeRows::new(account),
+            activation_descriptors: RuntimeRows::new(account),
             host_atoms: RuntimeRows::new(account),
             scalars: RuntimeRows::new(account),
             bytes: RuntimeRows::new(account),
@@ -358,7 +407,8 @@ impl ConstructorStorage {
                     ),
                 );
             }
-            self.provider_descriptors.insert(relocate(home)?, *binding);
+            self.provider_descriptors
+                .insert(relocate(home)?, *binding)?;
         }
         for (home, binding) in &original.activation_descriptors {
             let target = relocate(home)?;
@@ -366,11 +416,11 @@ impl ConstructorStorage {
             descriptor.opaque_identity = target.opaque_identity;
             descriptor.path = target.path.clone();
             self.activation_descriptors
-                .insert(target, binding.clone().with_descriptor_home(descriptor));
+                .insert(target, binding.clone().with_descriptor_home(descriptor))?;
         }
         for (home, profile) in &original.completed_profiles {
             self.completed_profiles
-                .insert(relocate(home)?, profile.clone());
+                .insert(relocate(home)?, profile.clone())?;
         }
         for (home, payload) in &original.host_atoms {
             self.host_atoms.insert(relocate(home)?, *payload)?;
@@ -736,7 +786,7 @@ impl ConstructorStorage {
             self.activation_descriptors.insert(
                 destination.clone(),
                 binding.with_descriptor_home(descriptor),
-            );
+            )?;
             return Ok(());
         }
 
@@ -859,7 +909,7 @@ impl ConstructorStorage {
                 source,
             ) {
                 if let Some(target) = relocate(home) {
-                    self.completed_profiles.insert(target, profile.clone());
+                    self.completed_profiles.insert(target, profile.clone())?;
                 }
             }
         }
@@ -874,7 +924,7 @@ impl ConstructorStorage {
                         ),
                     );
                 }
-                self.provider_descriptors.insert(target, *binding);
+                self.provider_descriptors.insert(target, *binding)?;
             }
         }
         for (home, binding) in crate::structural_storage::cells(
@@ -890,7 +940,7 @@ impl ConstructorStorage {
                 descriptor.opaque_identity = target.opaque_identity;
                 descriptor.path = target.path.clone();
                 self.activation_descriptors
-                    .insert(target, binding.clone().with_descriptor_home(descriptor));
+                    .insert(target, binding.clone().with_descriptor_home(descriptor))?;
             }
         }
         for (home, binding) in
@@ -1014,6 +1064,18 @@ impl ConstructorStorage {
         execution: &TerminalExecution<'_>,
     ) -> Result<(), TerminalInterpretError> {
         execution
+            .provider_storage
+            .descriptors
+            .validate_append(&self.provider_descriptors)?;
+        execution
+            .provider_storage
+            .completed_profiles
+            .validate_append(&self.completed_profiles)?;
+        execution
+            .activation_storage
+            .claim_descriptors
+            .validate_append(&self.activation_descriptors)?;
+        execution
             .structural_scalar_fields
             .validate_append(&self.scalars)?;
         execution
@@ -1055,15 +1117,15 @@ impl ConstructorStorage {
         execution
             .activation_storage
             .claim_descriptors
-            .extend(self.activation_descriptors);
+            .append(&mut self.activation_descriptors)?;
         execution
             .provider_storage
             .descriptors
-            .extend(self.provider_descriptors);
+            .append(&mut self.provider_descriptors)?;
         execution
             .provider_storage
             .completed_profiles
-            .extend(self.completed_profiles);
+            .append(&mut self.completed_profiles)?;
         execution
             .structural_byte_sequence_fields
             .append(&mut self.bytes)?;

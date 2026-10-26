@@ -51,13 +51,10 @@ impl DeviceOrderingRole {
     }
 }
 
-normalized_extent_identity! {
-
-    OrderingEventId, "ordering-event"
-}
+normalized_extent_identity! { OrderingEventId, "ordering-event" }
 normalized_extent_identity! {
     /// The stable device instance an ordering event names — distinct from the
-/// per-transfer borrower identity an external loan carries.
+    /// per-transfer borrower identity an external loan carries.
     DeviceInstanceId, "device-instance"
 }
 normalized_extent_identity! {

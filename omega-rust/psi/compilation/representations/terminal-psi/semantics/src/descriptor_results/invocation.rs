@@ -9,6 +9,7 @@ pub fn public_invocation(
     types: &[StructuralTypeDeclaration],
     slot_kind: DescriptorSlotKind,
     slot: &terminal_psi::TerminalDynamicSlot,
+    realizations: Vec<MachineId>,
     actuals: &[terminal_psi::StructuralArgument],
     result: Option<&terminal_psi::StructuralOperationResult>,
     place_types: &BTreeMap<PlaceId, StructuralTypeId>,
@@ -63,6 +64,7 @@ pub fn public_invocation(
         operation,
         target: DescriptorInvocationTarget::Public {
             effects_machine: None,
+            realizations,
             extent: semantic_vocabulary::ReferenceOriginExtent::WithinRegion,
             results,
             invalidates_contents,
@@ -260,4 +262,30 @@ pub fn selected_stored_effects_row(
         return None;
     }
     catalog.row(table, slot)
+}
+
+/// Every catalog row is a possible normal completion. Absent rows trap and
+/// supply no post-state; an unresolved executable body later withholds replay.
+pub fn public_realizations(
+    catalog: &terminal_psi::TerminalDynamicDispatchCatalog,
+    interface: u32,
+    slot: u32,
+) -> Option<Vec<MachineId>> {
+    catalog
+        .interface(interface)?
+        .slots
+        .get(usize::try_from(slot).ok()?)?;
+    let mut realizations = Vec::new();
+    for table in catalog
+        .tables
+        .iter()
+        .filter(|table| table.interface == interface)
+    {
+        if let Some(machine) = *table.rows.get(usize::try_from(slot).ok()?)? {
+            if !realizations.contains(&machine) {
+                realizations.push(machine);
+            }
+        }
+    }
+    Some(realizations)
 }

@@ -24,6 +24,7 @@ use crate::descriptor_lifetimes::{DescriptorPathSegment, descriptor_path};
 
 mod analysis;
 mod contents_queries;
+mod dispatch;
 mod provider;
 mod replay;
 pub use analysis::{DescriptorAnalysis, DescriptorSourceObservation, DescriptorSourceObservations};

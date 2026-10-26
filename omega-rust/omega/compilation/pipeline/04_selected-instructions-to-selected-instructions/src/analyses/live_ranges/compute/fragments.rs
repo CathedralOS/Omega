@@ -211,35 +211,66 @@ pub(super) fn interference(rows: &[super::VirtualLiveRange]) -> Vec<super::Virtu
     let rows_monotonic = rows
         .windows(2)
         .all(|pair| pair[0].virtual_register < pair[1].virtual_register);
-    if rows_monotonic && by_block.len() == 1 {
-        let fragments = by_block.values_mut().next().unwrap();
-        fragments.sort_unstable_by_key(|&(start, _, row, _)| (start, row));
+    if rows_monotonic {
         let mut buckets: Vec<Vec<VirtualRegisterId>> = vec![Vec::new(); rows.len()];
         let mut total_pairs = 0usize;
         let mut active: Vec<(u32, u32, VirtualRegisterId)> = Vec::new();
-        for &(start, end, row, vreg) in fragments.iter() {
-            active.retain(|&(live_end, _, _)| start < live_end);
-            for &(_, live_row, live_vreg) in &active {
-                if live_row != row {
-                    let (lo_row, hi_vreg) = if live_row < row {
-                        (live_row as usize, vreg)
-                    } else {
-                        (row as usize, live_vreg)
-                    };
-                    buckets[lo_row].push(hi_vreg);
-                    total_pairs += 1;
+        for fragments in by_block.values_mut() {
+            fragments.sort_unstable_by_key(|&(start, _, row, _)| (start, row));
+            active.clear();
+            for &(start, end, row, vreg) in fragments.iter() {
+                active.retain(|&(live_end, _, _)| start < live_end);
+                for &(_, live_row, live_vreg) in &active {
+                    if live_row != row {
+                        let (lo_row, hi_vreg) = if live_row < row {
+                            (live_row as usize, vreg)
+                        } else {
+                            (row as usize, live_vreg)
+                        };
+                        buckets[lo_row].push(hi_vreg);
+                        total_pairs += 1;
+                    }
                 }
+                active.push((end, row, vreg));
             }
-            active.push((end, row, vreg));
         }
+        let max_vreg = rows.last().map_or(0, |r| r.virtual_register.0 as usize);
+        let mut seen = vec![0u32; max_vreg + 1];
+        let mut stamp = 0u32;
         let mut pairs = Vec::with_capacity(total_pairs);
         for (lo_row, mut bucket) in buckets.into_iter().enumerate() {
             if bucket.is_empty() {
                 continue;
             }
             if bucket.len() > 1 {
-                bucket.sort_unstable();
-                bucket.dedup();
+                if bucket.len() <= 16 {
+                    if bucket.windows(2).any(|w| w[0] >= w[1]) {
+                        bucket.sort_unstable();
+                        bucket.dedup();
+                    }
+                } else {
+                    stamp += 1;
+                    let mut write_idx = 0usize;
+                    let mut monotonic = true;
+                    let mut prev = 0u32;
+                    for idx in 0..bucket.len() {
+                        let hi = bucket[idx];
+                        let hi_idx = hi.0 as usize;
+                        if seen[hi_idx] != stamp {
+                            seen[hi_idx] = stamp;
+                            if write_idx > 0 && hi.0 < prev {
+                                monotonic = false;
+                            }
+                            prev = hi.0;
+                            bucket[write_idx] = hi;
+                            write_idx += 1;
+                        }
+                    }
+                    bucket.truncate(write_idx);
+                    if !monotonic {
+                        bucket.sort_unstable();
+                    }
+                }
             }
             let lower = rows[lo_row].virtual_register;
             for higher in bucket {

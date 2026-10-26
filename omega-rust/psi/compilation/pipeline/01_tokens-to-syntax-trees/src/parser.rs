@@ -100,10 +100,6 @@ impl ParsedSyntaxPages {
 
     /// Consume worker pages into their source-chunk order without copying any
     /// syntax tree or its arena allocations.
-    pub fn into_syntax_trees(self) -> Vec<SyntaxTrees> {
-        self.pages.into_pages().into_iter().flatten().collect()
-    }
-
     pub fn into_parts(self) -> (Vec<SyntaxTrees>, ParsedSources) {
         let trees = self.pages.into_pages().into_iter().flatten().collect();
         let mut sources = Arena::with_capacity(self.sources.len());
@@ -115,10 +111,6 @@ impl ParsedSyntaxPages {
 /// Parse one ordered lexical frontier into bounded worker-owned pages. Tasks
 /// receive contiguous source chunks, so Rayon collection restores authored
 /// source order without sorting by completion or allocation identity.
-pub fn parse_source_pages(lexed: LexedSources) -> Result<ParsedSyntaxPages, Vec<Diagnostic>> {
-    parse_source_pages_from(lexed, 1)
-}
-
 pub fn parse_source_pages_from(
     mut lexed: LexedSources,
     first_page_identity: u32,

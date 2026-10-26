@@ -104,19 +104,10 @@ pub struct ElfDynamicSectionSerializationError {
     diagnostic: Diagnostic,
 }
 
-impl ElfDynamicSectionSerializationError {
-    pub const fn diagnostic(&self) -> &Diagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (ValidatedElfDynamicSectionPlan, Diagnostic) {
-        (self.plan, self.diagnostic)
-    }
-}
-
-diagnostics::diagnostic_display!(ElfDynamicSectionSerializationError);
-
-impl std::error::Error for ElfDynamicSectionSerializationError {}
+image::rejection_carrier!(
+    ElfDynamicSectionSerializationError;
+    plan: ValidatedElfDynamicSectionPlan,
+);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ElfDynamicSectionPayloadBytes {

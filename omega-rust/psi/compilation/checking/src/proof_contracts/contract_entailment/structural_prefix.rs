@@ -7,7 +7,7 @@
 
 use super::citations::{CitationFacts, machine_requires_facts};
 use super::structural_case_arms::{
-    recognize_structural_case_arms, recognize_structural_state_prefix,
+    recognize_structural_case_arms, recognize_structural_state_prefix, structural_arm_judge,
 };
 use super::structural_judgment::{StructuralJudge, StructuralTerm};
 use symbols::SymbolHandle;
@@ -99,9 +99,37 @@ pub(super) fn expression_prefix_roots(
     Some(roots)
 }
 
+/// One reached arm of a visited prefix, in `observe`'s reading order: the
+/// program facts, the site's machine and resolved state, the arm's substitute
+/// judge carrying the selected call's published guarantees, and the
+/// environment earlier siblings established.
+pub(super) type PrefixObservation<'a, 'program> = (
+    &'program dyn crate::CheckingInput,
+    &'a Machine,
+    &'program State,
+    StructuralJudge<'program>,
+    &'a [(String, StructuralTerm)],
+);
+
 pub(super) trait StructuralPrefixVisitor {
     fn site(&self) -> StructuralPrefixSite;
 
+    /// Every reached arm, before its premises are established - including an
+    /// arm whose hypotheses contradict.
+    fn entered(&mut self) {}
+
+    /// The site's state could not be resolved at this arm.
+    fn unresolved(&mut self, _machine: &Machine) {}
+
+    /// One reached arm with established premises and a resolved site state. A
+    /// visitor that owns a different entry point overrides `visit` and leaves
+    /// this unreachable.
+    fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>);
+
+    /// Establish this observation's premises - the arm's hypotheses and
+    /// equations, its contradiction test, and the selected call's published
+    /// guarantees - then resolve the site's state and hand the arm to
+    /// `observe`. Observing a completed value never restates that sequence.
     #[allow(clippy::too_many_arguments)]
     fn visit<'program>(
         &mut self,
@@ -112,7 +140,19 @@ pub(super) trait StructuralPrefixVisitor {
         hypotheses: &[(String, StructuralTerm)],
         equations: &[(StructuralTerm, StructuralTerm)],
         guarantees: &CitationFacts,
-    );
+    ) {
+        self.entered();
+        let mut judge = structural_arm_judge(program, judge, hypotheses, equations);
+        if judge.hypotheses_contradictory {
+            return;
+        }
+        guarantees.intake(&mut judge);
+        let Some(state) = program.state_in_machine(machine, self.site().state) else {
+            self.unresolved(machine);
+            return;
+        };
+        self.observe((program, machine, state, judge, environment));
+    }
 }
 
 pub(super) fn observe_runtime_state_prefix(

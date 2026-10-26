@@ -1,0 +1,35 @@
+// A nominal Step callback selection contributes its specialized reach row;
+// its result is produced in a later state of the same machine.
+// Place: another state.
+// Expected exit: 0
+trait StepContract {
+    machine step(value: u64) -> u64;
+}
+
+machine bump(value: u64) -> u64
+satisfies StepContract::step
+{
+    42
+}
+
+machine walk<machine Step>(value: u64) -> u64
+where machine Step satisfies StepContract::step;
+{
+    Step(value)
+}
+
+machine observe(value: u64) -> u64 {
+    transition { _ -> measure(value) }
+    state measure(value: u64) -> u64 {
+        walk<bump>(value)
+    }
+}
+
+machine main() crashes Trap {
+    transition observe(35) == 42u64 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -1,0 +1,6 @@
+data Indexed<Limit:u32>{value:u32;}
+data Other<Limit:u32>{value:u32;}
+machine read(limit:u32,item:&mut Indexed<limit>) {}
+machine example(a:u32) { let mut item:Other<a> = Other{value:8}; read(a,&mut item); }
+
+machine main() {}

@@ -179,13 +179,14 @@ fn check_register_flow(
             }
         }
     }
-    let mut incoming = vec![u32::MAX; blocks.len()];
+    const { assert!(language_core::inline_assembly::ASM_SCRATCH_SLOT_COUNT <= u64::BITS as usize) };
+    let mut incoming = vec![u64::MAX; blocks.len()];
     let mut outgoing = incoming.clone();
     let mut reachable = vec![false; blocks.len()];
     reachable[0] = true;
     loop {
         let mut changed = false;
-        let mut next = vec![u32::MAX; blocks.len()];
+        let mut next = vec![u64::MAX; blocks.len()];
         next[0] = 0;
         let mut next_reachable = vec![false; blocks.len()];
         next_reachable[0] = true;
@@ -491,6 +492,37 @@ fn has_scratch(program: &TypedTrees, state: &State) -> bool {
 
 pub(crate) fn normalize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     super::validate_primitive_meanings(program)?;
+    // Local control and register operations may lower to ordinary statements.
+    // Consume their recorded catalog demands before either normalization route
+    // erases the graph; an authored target never supplies missing semantics.
+    for machine_index in 0..program.machines().len() {
+        let machine = &program.machines()[machine_index];
+        let mut requirement = machine.assembly_target_requirement;
+        for state in program.machine_states(machine) {
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                if let StatementNode::Assembly(AssemblyControlPoint::Entry(handle)) = statement {
+                    requirement = requirement
+                        .intersect(program.statement_table.assembly(*handle).target_requirement)
+                        .ok_or_else(|| {
+                            vec![Diagnostic::error(
+                                "assembly catalog target requirements conflict in one machine",
+                            )]
+                        })?;
+                }
+            }
+        }
+        if machine
+            .authored_target
+            .as_ref()
+            .is_some_and(|target| !requirement.accepts_target_name(target.as_str()))
+        {
+            return Err(vec![Diagnostic::error(
+                "assembly catalog target requirement conflicts with the authored target body",
+            )]);
+        }
+        program.machines_mut()[machine_index].assembly_target_requirement = requirement;
+    }
+
     if !program.machines().iter().any(|machine| {
         program
             .machine_states(machine)
@@ -506,17 +538,6 @@ pub(crate) fn normalize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>>
             if !has_scratch(&source, state) {
                 continue;
             }
-            let requirement = language_core::inline_assembly::AsmTargetApplicability::X86_64;
-            if machine
-                .authored_target
-                .as_ref()
-                .is_some_and(|target| !requirement.accepts_target_name(target.as_str()))
-            {
-                return Err(vec![Diagnostic::error(
-                    "assembly catalog target requirement conflicts with the authored target body",
-                )]);
-            }
-            program.machines_mut()[machine_index].assembly_target_requirement = requirement;
             let statements = source.statement_table.statements(state.statement_nodes);
             let mut rewritten = Vec::new();
             let mut cursor = 0;
@@ -695,7 +716,6 @@ fn normalize_graph(
     }
     let blocks = source.statement_table.assembly_blocks(graph.blocks);
     let successors = successors(source, graph, 0)?;
-    let conditional_entry = matches!(blocks[0].exit, AssemblyExit::ZeroFlag(_, _));
     let mut reachable = vec![false; blocks.len()];
     let mut pending = successors.clone();
     while let Some(index) = pending.pop() {
@@ -809,7 +829,7 @@ fn normalize_graph(
             .symbols
             .insert_generated_root_from(owner.symbol, SymbolKind::Machine, &helper_name);
     let mut helper = Machine {
-        assembly_target_requirement: language_core::inline_assembly::AsmTargetApplicability::X86_64,
+        assembly_target_requirement: graph.target_requirement,
         symbol: helper_symbol,
         name: Identifier::generated(&helper_name),
         // Extraction preserves the original direct-service declaration. The
@@ -892,7 +912,7 @@ fn normalize_graph(
             .collect();
         for fact in requires {
             let mut fact = program.proof_facts.get(fact).clone();
-            if conditional_entry {
+            if let AssemblyExit::ZeroFlag(_, when_set) = blocks[0].exit {
                 let typed_trees::domain::ProofFact::Expression(obligation) = fact else {
                     return Err(Diagnostic::error(
                         "conditional assembly entry requires a Boolean edge proposition",
@@ -906,8 +926,9 @@ fn normalize_graph(
                     .ok_or_else(|| Diagnostic::error("conditional entry lost zero flag"))?
                     .1;
                 let flag = name(program, flag_symbol);
-                // Taken: !ZF implies obligation. Fallthrough: ZF implies it.
-                let inverse_guard = if edge == 0 {
+                // Every destination owes !edge_guard || obligation. The
+                // taken and fallthrough guards swap for JZ/B.EQ vs JNZ/B.NE.
+                let inverse_guard = if (edge == 0) != when_set {
                     flag
                 } else {
                     program
@@ -939,6 +960,22 @@ fn normalize_graph(
             );
         }
     }
+    let captured_references: Vec<_> = bindings
+        .iter()
+        .zip(&entry_mapping)
+        .filter(|(binding, _)| binding.access.is_some())
+        .map(|(_, (_, parameter))| *parameter)
+        .collect();
+    super::normal_exit_contracts::append(
+        program,
+        source,
+        state,
+        graph,
+        body_start,
+        &entry_mapping,
+        &captured_references,
+        &mut helper,
+    );
     program.push_machine_state(&mut helper, entry);
     for (index, block) in blocks
         .iter()

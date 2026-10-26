@@ -100,24 +100,10 @@ pub struct ElfDynamicTagPlanningError {
     diagnostic: Diagnostic,
 }
 
-impl ElfDynamicTagPlanningError {
-    pub const fn diagnostic(&self) -> &Diagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(
-        self,
-    ) -> (
-        ValidatedElfProcedureLinkageSectionDescriptorPlan,
-        Diagnostic,
-    ) {
-        (self.descriptors, self.diagnostic)
-    }
-}
-
-diagnostics::diagnostic_display!(ElfDynamicTagPlanningError);
-
-impl std::error::Error for ElfDynamicTagPlanningError {}
+image::rejection_carrier!(
+    ElfDynamicTagPlanningError;
+    descriptors: ValidatedElfProcedureLinkageSectionDescriptorPlan,
+);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ElfDynamicTagContents {

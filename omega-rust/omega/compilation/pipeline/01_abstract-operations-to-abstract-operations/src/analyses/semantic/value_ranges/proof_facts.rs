@@ -62,20 +62,16 @@ pub(super) fn extend(
                 else {
                     continue;
                 };
-                let mut accepted_matches = unit.accepted_obligation_facts.iter().filter(|fact| {
-                    fact.machine == function.machine
-                        && fact.owner == optimization_unit::PsiProvenance::Operation(operation)
-                        && fact.obligation == obligation
-                        && fact.proposition == canonical
-                        && fact.psi == unit.psi
-                        && fact.has_canonical_identity()
-                });
-                let Some(accepted) = accepted_matches.next() else {
+                let Some(accepted) = unit
+                    .accepted_obligation_fact(
+                        function.machine,
+                        optimization_unit::PsiProvenance::Operation(operation),
+                        Some(obligation),
+                    )
+                    .filter(|fact| fact.proposition == canonical)
+                else {
                     continue;
                 };
-                if accepted_matches.next().is_some() {
-                    continue;
-                }
                 let mut question_matches = unit.proof_questions.iter().filter(|question| {
                     question.owner
                         == (ProofQuestionOwner::Operation {
