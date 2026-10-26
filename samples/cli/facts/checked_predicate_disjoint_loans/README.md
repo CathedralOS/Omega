@@ -106,6 +106,18 @@ All positives bind all four hosted `ProgramEntry` targets and declare exit 0.
   returns true whenever its second index is nonzero, independently of the first.
   A decreasing first index cannot justify reusing a lemma about the original
   pair unless its instantiated conclusion is still the requested conclusion.
+  The record production retains [two exact roots](controls/record_two_roots/main.omg)
+  and [nested owned paths](controls/record_nested_path/main.omg); an
+  [unrelated root](controls/record_unrelated_root/invalid/main.omg) or
+  [sibling path](controls/record_unrelated_path/invalid/main.omg) supplies no
+  separation. [A saved field snapshot](controls/record_snapshot/main.omg)
+  retains its meaning after the original changes, while a
+  [stale original](controls/record_stale_field/invalid/main.omg) and a
+  [stronger predicate](controls/record_stronger/invalid/main.omg) cannot
+  establish the caller requirement. The
+  [operand-time snapshot](controls/record_operand_snapshot/main.omg) and its
+  [equal-input twin](controls/record_operand_snapshot/invalid/main.omg) bind
+  the constructed record before a later argument mutates its source.
   Unsupported/effectful bodies and exhausted proof work supply no evidence.
 - **Psi 05–07:** admitted loans and stores use the existing Terminal Psi route;
   pure proof reasoning introduces no runtime authority or proof replay. Public
