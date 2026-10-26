@@ -1,7 +1,6 @@
 // An AArch64 ldr destination, place reads the typed place, and the following Omega use reads that recorded value.
 // Expected exit: 0.
-data Loader {}
-linux_arm64 machine Loader::read(source: u32) crashes Trap {
+linux_arm64 machine read_place(source: u32) crashes Trap {
     let mut loaded: u32 = 0;
     asm {
         ldr loaded, [source]
@@ -14,7 +13,7 @@ linux_arm64 machine Loader::read(source: u32) crashes Trap {
     machine bad() crashes Trap { crash Trap; }
 }
 
-macos_arm64 machine Loader::read(source: u32) crashes Trap {
+macos_arm64 machine read_place(source: u32) crashes Trap {
     let mut loaded: u32 = 0;
     asm {
         ldr loaded, [source]
@@ -27,7 +26,7 @@ macos_arm64 machine Loader::read(source: u32) crashes Trap {
     machine bad() crashes Trap { crash Trap; }
 }
 
-windows_x86_64 machine Loader::read(source: u32) crashes Trap {
+windows_x86_64 machine read_place(source: u32) crashes Trap {
     let mut loaded: u32 = 0;
     asm {
         mov loaded, [source]
@@ -40,7 +39,7 @@ windows_x86_64 machine Loader::read(source: u32) crashes Trap {
     machine bad() crashes Trap { crash Trap; }
 }
 
-linux_x86_64 machine Loader::read(source: u32) crashes Trap {
+linux_x86_64 machine read_place(source: u32) crashes Trap {
     let mut loaded: u32 = 0;
     asm {
         mov loaded, [source]
@@ -53,5 +52,5 @@ linux_x86_64 machine Loader::read(source: u32) crashes Trap {
     machine bad() crashes Trap { crash Trap; }
 }
 machine main() crashes Trap {
-    Loader::read(37);
+    read_place(37);
 }
