@@ -1386,6 +1386,33 @@ fn executed_dependency_source_join(project: &str, private_call: bool) {
         .next()
         .unwrap()
         .1;
+    let mut changed_request = preview.dependency_acquisitions().to_vec();
+    let build_declarations::BuildRequest::Dependency {
+        source: build_declarations::BuildDependencySource::Path(location),
+        ..
+    } = &mut changed_request[0].request
+    else {
+        panic!("this fixture selects an ordinary Path source");
+    };
+    *location = "../different_source_with_the_same_alias".into();
+    let changed_request = preview
+        .clone()
+        .with_dependency_acquisitions(changed_request)
+        .unwrap();
+    let failure = root_return
+        .join_dependency_sources(
+            &changed_request,
+            &[build_evaluation::BuildDependencySelection {
+                purpose: build_declarations::DependencyPurpose::Product,
+                request_ordinal: 0,
+                package: selected,
+            }],
+        )
+        .expect_err("an unchanged alias graph cannot substitute another source request");
+    assert!(
+        failure.contains("differs from its exact acquired source request"),
+        "{failure}"
+    );
     for (purpose, request_ordinal, package, reason) in [
         (
             build_declarations::DependencyPurpose::Product,
