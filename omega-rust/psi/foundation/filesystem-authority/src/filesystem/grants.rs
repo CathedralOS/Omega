@@ -29,12 +29,14 @@ pub enum FilesystemGrantRefusalReason {
     ObservationEvidenceLimitExceeded,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FilesystemGrantRefusal {
-    pub(crate) operand_ordinal: u8,
-    pub(crate) access: FilesystemGrantAccess,
-    pub(crate) reason: FilesystemGrantRefusalReason,
-}
+filesystem_record!(
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct FilesystemGrantRefusal {
+        pub(crate) operand_ordinal: u8,
+        pub(crate) access: FilesystemGrantAccess,
+        pub(crate) reason: FilesystemGrantRefusalReason,
+    }
+);
 
 /// Compiler-issued identity for one scoped filesystem grant root.
 ///
@@ -128,6 +130,11 @@ impl FilesystemGrantRoot {
 /// `relative_path` uses `/` between UTF-8 components, never carries a leading
 /// separator, and is empty for the root itself. It therefore contains no host
 /// absolute path or compiler working-directory spelling.
+/// One scoped path that passed the grant gate before host access.
+///
+/// `relative_path` uses `/` between UTF-8 components, never carries a leading
+/// separator, and is empty for the root itself. It therefore contains no host
+/// absolute path or compiler working-directory spelling.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FilesystemAuthorizedPath {
     pub(crate) operand_ordinal: u8,
@@ -165,32 +172,6 @@ impl FilesystemAuthorizedPath {
 
     pub fn relative_path(&self) -> &[u8] {
         &self.relative_path
-    }
-}
-
-impl FilesystemGrantRefusal {
-    pub const fn new(
-        operand_ordinal: u8,
-        access: FilesystemGrantAccess,
-        reason: FilesystemGrantRefusalReason,
-    ) -> Self {
-        Self {
-            operand_ordinal,
-            access,
-            reason,
-        }
-    }
-
-    pub const fn operand_ordinal(self) -> u8 {
-        self.operand_ordinal
-    }
-
-    pub const fn access(self) -> FilesystemGrantAccess {
-        self.access
-    }
-
-    pub const fn reason(self) -> FilesystemGrantRefusalReason {
-        self.reason
     }
 }
 
