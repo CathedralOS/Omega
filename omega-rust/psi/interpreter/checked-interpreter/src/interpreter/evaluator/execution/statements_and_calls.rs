@@ -254,6 +254,15 @@ impl<'program> Evaluator<'program> {
                 frame,
             );
         }
+        if let Some(slot) = self.program.dynamic_slot_by_symbol(call.target_symbol) {
+            return self.run_dynamic_slot(
+                slot,
+                self.program
+                    .statement_table
+                    .expression_handles(call.arguments),
+                frame,
+            );
+        }
         if let Some(value) = self.try_selected_named_call(
             call.receiver_symbol,
             call.target_symbol,

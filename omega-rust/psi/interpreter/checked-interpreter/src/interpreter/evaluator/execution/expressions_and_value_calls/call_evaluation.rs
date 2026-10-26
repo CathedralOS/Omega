@@ -50,6 +50,22 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             }
             return Ok(value);
         }
+        // A `dyn Trait` selector call targets its checked dynamic slot:
+        // operand 0 carries the selector whose runtime type identity picks
+        // the realizing state, ahead of any static name or adapter route.
+        if let Some(slot) = self.program.dynamic_slot_by_symbol(call.target_symbol) {
+            let value = self.run_dynamic_slot(
+                slot,
+                self.program
+                    .expression_table
+                    .expression_handles(call.arguments),
+                frame,
+            )?;
+            if self.guard_depth > 0 {
+                frame.record_guard_call_result(handle, &value);
+            }
+            return Ok(value);
+        }
         let receiver_symbol = match self.program.expression_table.expression(call.receiver) {
             ExpressionNode::Member(member) => member.member_symbol,
             ExpressionNode::Name(path) => path.symbol,
