@@ -552,7 +552,8 @@ impl<'program> StructuralJudge<'program> {
                         environment,
                         scope,
                         0,
-                        &mut NormalObservation::None,
+                        OperationObservations::none(),
+                        &mut Vec::new(),
                         NormalValueDemand::Value,
                     )?);
                 }

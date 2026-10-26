@@ -74,7 +74,7 @@ pub fn consumer_captures(
         pending.extend(
             control
                 .operand_children
-                .span_or_empty(operand.children)
+                .span(operand.constructed_children())?
                 .iter()
                 .map(|child| child.value),
         );
