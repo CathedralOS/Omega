@@ -3,6 +3,10 @@
 //! to select conflicting declarations under that ill-formed substitution.
 
 use diagnostics::Diagnostic;
+use symbols::{SymbolHandle, SymbolKind};
+use typed_trees::expression::ExpressionHandle;
+use typed_trees::references::{TypedReferences, visit_type_reference};
+use typed_trees::types::TypeReferenceHandle;
 
 pub fn validate_executable_domain_test_carriers(
     program: &dyn crate::CheckingInput,
@@ -31,6 +35,14 @@ pub fn validate_executable_domain_test_carriers(
             let Some(target) = crate::unwrapped_type_reference(program, domain.target_type) else {
                 continue;
             };
+            if carrier_has_open_binders(program, subject)
+                || carrier_has_open_binders(program, target)
+            {
+                // A binder is not a different nominal carrier. The same
+                // judgment runs again on the completed application; ordinary
+                // generic checking still proves the template's requirements.
+                continue;
+            }
             if !crate::declared_carriers_match(program, subject, target) {
                 return Err(Diagnostic::error(format!(
                     "executable domain test `{}` expects subject carrier `{}`, got `{}`",
@@ -43,4 +55,60 @@ pub fn validate_executable_domain_test_carriers(
         }
     }
     Ok(())
+}
+
+#[derive(Default)]
+struct CarrierReferences {
+    symbols: Vec<SymbolHandle>,
+    types: Vec<TypeReferenceHandle>,
+    expressions: Vec<ExpressionHandle>,
+}
+
+impl Extend<SymbolHandle> for CarrierReferences {
+    fn extend<References: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: References) {
+        self.symbols.extend(symbols);
+    }
+}
+
+impl TypedReferences for CarrierReferences {
+    fn type_reference(&mut self, reference: TypeReferenceHandle) -> bool {
+        if self.types.contains(&reference) {
+            return false;
+        }
+        self.types.push(reference);
+        true
+    }
+
+    fn expression(&mut self, expression: ExpressionHandle) -> bool {
+        if self.expressions.contains(&expression) {
+            return false;
+        }
+        self.expressions.push(expression);
+        true
+    }
+}
+
+fn carrier_has_open_binders(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> bool {
+    let mut references = CarrierReferences::default();
+    visit_type_reference(program.typed_program(), &mut references, reference);
+    // Elaboration can replace a generic root with its exact data instance.
+    // Its retained application, rather than its rendered name, owns binders.
+    let mut ordinal = 0;
+    while ordinal < references.symbols.len() {
+        let symbol = references.symbols[ordinal];
+        ordinal += 1;
+        if symbol.is_valid() && program.symbols.get(symbol).kind == SymbolKind::TypeParameter {
+            return true;
+        }
+        if let Some(application) = program
+            .data_definition_by_symbol(symbol)
+            .and_then(|definition| definition.generic_instance)
+        {
+            visit_type_reference(program.typed_program(), &mut references, application);
+        }
+    }
+    false
 }

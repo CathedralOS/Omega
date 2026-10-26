@@ -15,9 +15,6 @@ pub(crate) fn place_paths_overlap(left: &str, right: &str) -> bool {
     crate::machine_calls::calls::frame_paths_overlap(left, right)
 }
 
-/// The straight-line place path an expression denotes (`self.v`, `count`), for
-/// the value environment. `None` for non-place expressions.
-
 /// Both operand expressions' place paths, or `None` when either operand is
 /// not a simple place — the common bound-lookup prologue.
 pub(crate) fn place_path_pair(
@@ -30,6 +27,8 @@ pub(crate) fn place_path_pair(
     Some((left, right))
 }
 
+/// The straight-line place path an expression denotes (`self.v`, `count`), for
+/// the value environment. `None` for non-place expressions.
 pub(crate) fn place_path(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,

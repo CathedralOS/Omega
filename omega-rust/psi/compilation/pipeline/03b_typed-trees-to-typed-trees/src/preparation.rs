@@ -318,6 +318,16 @@ pub fn prepare_typed_trees(
     phase_profile::scope("05.c.3.k.assignment_destinations", || {
         crate::assignment_destinations::prepare(&mut program)
     });
+    // Predicate copies retain exact tested subjects through specialization.
+    // A carrier that was open before binding must be judged after its caller
+    // telescope and inferred destinations have closed, before frozen checking.
+    phase_profile::scope("05.c.3.l.domain_test_carriers", || {
+        let contracts = arena::Arena::default();
+        let owners =
+            validation::expression_owners::OwnerEnvironmentIndex::new(&program, &contracts);
+        validation::validate_executable_domain_test_carriers(&program, &contracts, &owners)
+            .map_err(|diagnostic| vec![diagnostic])
+    })?;
     phase_profile::scope("05.c.3.m.assembly_admit", || {
         crate::assembly_control::admit(&program)
     })?;

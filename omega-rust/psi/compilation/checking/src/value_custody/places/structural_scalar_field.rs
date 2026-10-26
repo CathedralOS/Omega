@@ -84,7 +84,7 @@ pub fn structural_scalar_field_in_parameters(
         let mut segments = actual.segments.clone();
         segments.extend_from_slice(suffix);
         let actual = super::CanonicalPlace {
-            root: actual.root.clone(),
+            root: actual.root,
             segments,
         };
         if rebased.as_ref().is_some_and(|selected| selected != &actual) {
