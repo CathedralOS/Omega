@@ -241,6 +241,47 @@ fn terminal_consumers_call_psi_without_a_product_wrapper() {
 }
 
 #[test]
+fn exclusion_source_resolution_stays_out_of_terminal_policy() {
+    let selection = include_str!("checked/checking/product_selections.rs");
+    assert!(selection.contains("exclusions::resolve("));
+    let source = include_str!("checked/checking/product_selections/exclusions.rs");
+    assert!(source.contains("pub(super) fn resolve("));
+    assert!(source.contains("resolve_product_path("));
+    let policy = include_str!("terminal/behavior_exclusions.rs");
+    assert!(policy.contains("establish_behavior_exclusions("));
+    for source_owner in [
+        "typed_trees::",
+        "checked_trees::",
+        "resolve_product_path(",
+        "trust_model::",
+    ] {
+        assert!(
+            !policy.contains(source_owner),
+            "{source_owner} crossed the Terminal policy boundary"
+        );
+    }
+    let trust = include_str!("../../realization/trust-model/src/lib.rs");
+    assert!(!trust.contains("mod behavior_exclusions;"));
+    assert!(!trust.contains("harvest_behavior_exclusions"));
+    assert!(!trust.contains("verify_entry_behavior_exclusions"));
+    let manifest = include_str!("../../realization/trust-model/Cargo.toml");
+    for unrelated_owner in [
+        "build-time-evaluation =",
+        "checked-interpreter =",
+        "typed-trees-to-checked-trees =",
+        "terminal-installation =",
+        "terminal-psi =",
+        "target =",
+        "semantic-vocabulary =",
+    ] {
+        assert!(
+            !manifest.contains(unrelated_owner),
+            "{unrelated_owner} returned to grant reconstruction"
+        );
+    }
+}
+
+#[test]
 fn early_constants_share_terminal_production_without_tree_fallback() {
     let early = include_str!(
         "../../../../psi/compilation/compile-time/src/machine_execution/build_machines.rs"
