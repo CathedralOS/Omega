@@ -707,8 +707,9 @@ pub(crate) fn type_references_match_for_trait_bindings(
         && let Some(binding) = bindings
             .iter()
             .find(|binding| binding.parameter_symbol == *symbol)
+        && binding_matches_actual(program, binding, actual, bindings)
     {
-        return binding_matches_actual(program, binding, actual, bindings);
+        return true;
     }
     if let Some(parameter) = required_trait_type_parameter(program, required, trait_type_parameters)
     {
