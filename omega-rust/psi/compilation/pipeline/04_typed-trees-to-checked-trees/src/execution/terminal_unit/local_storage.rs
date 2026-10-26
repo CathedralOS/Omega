@@ -86,9 +86,9 @@ pub(crate) fn operand_source(
         CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } => {
             let mut matching = results.iter().filter(|(binding, root)| {
                 *root == facts::PlaceRoot::Expression(*expression)
-                    && operations.iter().any(|operation| {
-                        operation.structural_result_binding() == Some(binding)
-                    })
+                    && operations
+                        .iter()
+                        .any(|operation| operation.structural_result_binding() == Some(binding))
             });
             let (result, _) = matching.next()?;
             if matching.next().is_some() {
