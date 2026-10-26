@@ -191,9 +191,12 @@ impl PackageBuildSession {
         let directory = self.create_build_directory(self.root.join("source"))?;
         Ok(compiler::CheckedCompileRequest {
             source_capture: Some(capture.clone()),
-            build_dir: Some(directory),
-            filesystem_sponsor: Some(self.filesystem_sponsor.clone()),
-            evaluation_sponsor: Some(self.evaluation_sponsor.clone()),
+            build: package_compilation::BuildExecutionInputs {
+                directory: Some(directory),
+                filesystem_sponsor: Some(self.filesystem_sponsor.clone()),
+                evaluation_sponsor: Some(self.evaluation_sponsor.clone()),
+                ..Default::default()
+            },
             ..compiler::CheckedCompileRequest::new(entry, Some(profile.target_name()))
         })
     }

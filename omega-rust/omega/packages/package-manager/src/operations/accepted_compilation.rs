@@ -409,22 +409,24 @@ fn prepare_occurrences(
             });
             let compile_request = CheckedCompileRequest {
                 package_inputs: Some(inputs),
-                build_execution_profile: execution_profile,
-                build_dir: Some(session.create_occurrence_directory(
-                    &key,
-                    custody.resolution(),
-                    purpose,
-                )?),
-                filesystem_sponsor: Some(session.filesystem_sponsor().clone()),
-                evaluation_sponsor: Some(session.evaluation_sponsor().clone()),
-                build_snapshot: Some(snapshot),
-                restricted_build_grants: checkpoint.as_ref().map(|checkpoint| {
-                    Box::new(checkpoint.grants(
-                        key.identity(),
-                        context,
-                        closure.dependency_path(&key),
-                    )) as Box<dyn compiler::RestrictedBuildGrants>
-                }),
+                build: package_compilation::BuildExecutionInputs {
+                    profile: execution_profile,
+                    directory: Some(session.create_occurrence_directory(
+                        &key,
+                        custody.resolution(),
+                        purpose,
+                    )?),
+                    filesystem_sponsor: Some(session.filesystem_sponsor().clone()),
+                    evaluation_sponsor: Some(session.evaluation_sponsor().clone()),
+                    snapshot: Some(snapshot),
+                    restricted_grants: checkpoint.as_ref().map(|checkpoint| {
+                        Box::new(checkpoint.grants(
+                            key.identity(),
+                            context,
+                            closure.dependency_path(&key),
+                        )) as Box<dyn compiler::RestrictedBuildGrants>
+                    }),
+                },
                 collect_timings: request.timings,
                 optimization_rollback: request.product.optimization_rollback(),
                 ..CheckedCompileRequest::new(&entry, Some(target.target_name()))

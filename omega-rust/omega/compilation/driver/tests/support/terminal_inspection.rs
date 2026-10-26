@@ -115,7 +115,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             .map_err(|errors| format!("inspection {machine} build inputs: {errors:?}"))?;
         let mut request = CheckedCompileRequest::new(&prepared.root_path, None);
         request.package_inputs = prepared.package_inputs;
-        request.build_snapshot = snapshot;
+        request.build.snapshot = snapshot;
         if matches!(
             conformance_controls,
             Some(InspectionControls::MathematicalActuals)

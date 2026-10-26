@@ -51,6 +51,7 @@ pub use compilation_products::{
 };
 pub use compiler::compile;
 pub use compiler::package::publish_checked_component;
+pub use package_compilation::BuildExecutionInputs;
 pub use product_execution::{CompilationOutput, CompilationProduct, CompilationProductError};
 pub use target::ExplicitTargetSet;
 pub use terminal_psi_to_abstract_operations::provider_admission::SourceEvaluatedImportSettlement;

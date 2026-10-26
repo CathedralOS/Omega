@@ -380,11 +380,14 @@ impl<'pass> PackageReviewRound<'pass> {
             return Ok(None);
         }
         let request = CheckedCompileRequest {
-            build_execution_profile: self.execution_profile,
             package_inputs: Some(inputs),
-            filesystem_sponsor: Some(session.filesystem_sponsor().clone()),
-            evaluation_sponsor: Some(session.evaluation_sponsor().clone()),
-            build_snapshot: Some(assembled.build_snapshot.clone()),
+            build: package_compilation::BuildExecutionInputs {
+                profile: self.execution_profile,
+                filesystem_sponsor: Some(session.filesystem_sponsor().clone()),
+                evaluation_sponsor: Some(session.evaluation_sponsor().clone()),
+                snapshot: Some(assembled.build_snapshot.clone()),
+                ..Default::default()
+            },
             collect_timings: self.source_bindings.collect_timings,
             permit_unsettled_fused_service_fields: self.discovery
                 == TargetEntryDiscovery::Dependencies,

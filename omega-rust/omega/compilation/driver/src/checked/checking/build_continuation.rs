@@ -37,17 +37,13 @@ pub(super) fn prepare_build_invocation(
     let started = std::time::Instant::now();
     let CheckedExecutionRequest {
         selected_target_profile,
-        build_execution_profile,
         package_inputs,
-        build_dir,
-        filesystem_sponsor,
-        evaluation_sponsor,
-        build_snapshot,
+        build,
         optimization_rollback: _,
-        restricted_build_grants,
         permit_unsettled_fused_service_fields: _,
         settled_check_reuse,
     } = child;
+    let build_execution_profile = build.profile;
     let TypedCompilationFrontier {
         mut source,
         anonymous_source,
@@ -69,12 +65,7 @@ pub(super) fn prepare_build_invocation(
             package_inputs,
             anonymous_source: anonymous_source.as_ref(),
             generated_source_custody: &generated_source_custody,
-            execution_profile: build_execution_profile,
-            build_directory: build_dir,
-            filesystem_sponsor,
-            evaluation_sponsor,
-            snapshot: build_snapshot.as_ref(),
-            restricted_build_grants,
+            execution: build,
             artifact_only: false,
             prior_checks: settled_check_reuse
                 .prior

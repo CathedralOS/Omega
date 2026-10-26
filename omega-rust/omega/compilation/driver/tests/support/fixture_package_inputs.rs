@@ -876,8 +876,8 @@ pub fn accepted_fixture_product_request(
     let snapshot = fixture_build_snapshot(&prepared.root_path)?;
     let mut request = CheckedCompileRequest::new(&prepared.root_path, target);
     request.package_inputs = prepared.package_inputs.take();
-    request.build_snapshot = snapshot;
-    request.build_dir = Some(build_dir);
+    request.build.snapshot = snapshot;
+    request.build.directory = Some(build_dir);
     Ok(compiler::PackageCompilationRequest {
         occurrences: fixture_occurrences(prepared, request)?,
         product,
@@ -1061,11 +1061,14 @@ pub fn reviewed_repository_fixture_package_inputs(
     let request = CheckedCompileRequest {
         package_inputs: Some(package_inputs.clone().with_semantic_role_discovery(true)),
         permit_unsettled_fused_service_fields: true,
-        build_snapshot: fixture_build_snapshot(&root_path)?,
-        build_dir: Some(sealed_fixture_staging::fresh_staging_build_dir(
-            &repo_root(),
-            authored_project_root,
-        )),
+        build: package_compilation::BuildExecutionInputs {
+            snapshot: fixture_build_snapshot(&root_path)?,
+            directory: Some(sealed_fixture_staging::fresh_staging_build_dir(
+                &repo_root(),
+                authored_project_root,
+            )),
+            ..Default::default()
+        },
         ..CheckedCompileRequest::new(&root_path, target_name)
     };
     let preliminary = if target_name.is_some()
@@ -1205,7 +1208,7 @@ fn join_dependency_builds(
     }
     let mut root_request = CheckedCompileRequest::new(root_path, target_name);
     root_request.package_inputs = Some(inputs.clone());
-    root_request.build_execution_profile = TargetProfile::host_if_supported();
+    root_request.build.profile = TargetProfile::host_if_supported();
     let requests = dependency_requests(graph, &inputs, authored_project_root, root_request)?;
     with_dependency_build_session(|session| omega_build::join_dependency_builds(session, requests))
         .map_err(|failure| failure.failure.into_diagnostics())
@@ -1266,19 +1269,22 @@ fn dependency_requests(
         let entry = if main.is_file() { main } else { build };
         requests.push(CheckedCompileRequest {
             package_inputs: Some(occurrence_inputs),
-            build_execution_profile: execution_profile,
-            build_dir: Some(staging.join(format!(
-                "{}-{}",
-                requests.len(),
-                if purpose.is_product() {
-                    "product"
-                } else {
-                    "build"
-                }
-            ))),
-            build_snapshot: Some(package_compilation::BuildSnapshotRequest::new(
-                std::iter::empty::<Vec<u8>>(),
-            )),
+            build: package_compilation::BuildExecutionInputs {
+                profile: execution_profile,
+                directory: Some(staging.join(format!(
+                    "{}-{}",
+                    requests.len(),
+                    if purpose.is_product() {
+                        "product"
+                    } else {
+                        "build"
+                    }
+                ))),
+                snapshot: Some(package_compilation::BuildSnapshotRequest::new(
+                    std::iter::empty::<Vec<u8>>(),
+                )),
+                ..Default::default()
+            },
             ..CheckedCompileRequest::new(&entry, occurrence_target.as_deref())
         });
     }

@@ -1146,9 +1146,15 @@ narrows realization only.
   occurrences. Final Product context now chooses its target at source join;
   the SDK completes a foreign-target dependency graph after host discovery,
   then selects and executes the host product. Pre-admitted targets remain fixed.
-  Before wiring retained scheduling, separate execution-time snapshots, outputs,
-  sponsors and grants from post-return Product work; none may be dropped from
-  an old occurrence request. Terminal Build now executes captured Source reads,
+  Execution-time profile, staging, snapshots/outputs, sponsors and grant guards
+  now travel as one owned `BuildExecutionInputs` from package admission through
+  the compiler facade into Build evaluation; repeated field-by-field forwarding
+  is removed and compilation defaults resolve in one place. The sliced generator
+  retains its refusing grant guard through normal return and releases it only
+  after settlement, before Product checking. Production admission still needs
+  the retained scheduling cutover: issue those inputs before Build, never drop
+  them while converting old occurrence requests to post-return Product work.
+  Terminal Build now executes captured Source reads,
   private Output writes/sealing, required-output completion and generated-source
   handoff through source-issued ordinary boundary calls. The generator SDK
   retains exact bytes and six I/O observations across fuel pauses; forged facets,

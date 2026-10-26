@@ -12,6 +12,7 @@ mod build_admission;
 pub mod build_record_codec;
 pub mod build_value;
 mod completed_outputs;
+mod execution_inputs;
 mod filesystem_scope;
 mod observation_identity;
 mod observation_projection;
@@ -22,6 +23,7 @@ mod snapshot_request;
 
 pub use build_admission::{SelectedBuildMachine, admit_build_machine, select_build_machine};
 pub use completed_outputs::RetainedBuildOutputs;
+pub use execution_inputs::BuildExecutionInputs;
 pub use filesystem_scope::preparation::prepare_filesystem_scope;
 pub use filesystem_scope::runtime::{BuildFilesystemEffects, BuildFilesystemRuntime};
 pub use filesystem_scope::{

@@ -61,11 +61,11 @@ fn main() {
     let mut limited =
         compiler::CheckedCompileRequest::new(&prepared.root_path, Some("linux_x86_64"));
     limited.package_inputs = prepared.package_inputs.clone();
-    limited.build_execution_profile = target::TargetProfile::host_if_supported();
-    limited.build_snapshot = compiler::BuildSnapshotRequest::automatic_package_inventory(
+    limited.build.profile = target::TargetProfile::host_if_supported();
+    limited.build.snapshot = compiler::BuildSnapshotRequest::automatic_package_inventory(
         limited.package_inputs.as_ref(),
     );
-    limited.evaluation_sponsor = Some(
+    limited.build.evaluation_sponsor = Some(
         build_time_evaluation::BuildEvaluationSponsor::new_with_measurement(
             limits,
             evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi {

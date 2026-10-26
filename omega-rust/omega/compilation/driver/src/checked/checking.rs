@@ -51,7 +51,7 @@ fn prepare_typed_frontier(
     child: &CheckedExecutionRequest<'_>,
 ) -> Result<(TypedCompilationFrontier, CompileTimings), Vec<Diagnostic>> {
     let (sources, mut timings, retention) =
-        match source.into_frontier(child.package_inputs, child.build_execution_profile)? {
+        match source.into_frontier(child.package_inputs, child.build.profile)? {
             PreparedSourceFrontier::Retained(frontier, timings) => {
                 counters::record_typed_frontier_reuse();
                 return Ok((frontier, timings));
@@ -74,7 +74,7 @@ fn prepare_typed_frontier(
     let frontier = build_continuation::lower_typed_frontier(
         source_file_count,
         syntax,
-        child.build_execution_profile,
+        child.build.profile,
         child.package_inputs,
         &mut timings,
     )
@@ -171,21 +171,9 @@ pub(super) fn begin_package_build_worker(
     let inputs = request.package_inputs;
     let child = CheckedExecutionRequest {
         selected_target_profile: Some(selected_target),
-        build_execution_profile: request
-            .build_execution_profile
-            .or_else(target::TargetProfile::host_if_supported),
         package_inputs: inputs.as_ref(),
-        build_dir: request.build_dir.as_deref(),
-        filesystem_sponsor: request.filesystem_sponsor,
-        evaluation_sponsor: request.evaluation_sponsor,
-        // Explicit custody always wins; otherwise the root package's own
-        // canonical Source metadata selects its sealed inventory, the same
-        // way the product route derives it.
-        build_snapshot: request.build_snapshot.or_else(|| {
-            package_compilation::BuildSnapshotRequest::automatic_package_inventory(inputs.as_ref())
-        }),
+        build: request.build.resolve_compilation_defaults(inputs.as_ref()),
         optimization_rollback: request.optimization_rollback.clone(),
-        restricted_build_grants: request.restricted_build_grants,
         permit_unsettled_fused_service_fields: false,
         settled_check_reuse: reuse,
     };
@@ -219,21 +207,9 @@ pub(super) fn select_checked_worker(
     let package_inputs = request.package_inputs.as_ref();
     let child = CheckedExecutionRequest {
         selected_target_profile,
-        build_execution_profile: request
-            .build_execution_profile
-            .or_else(target::TargetProfile::host_if_supported),
         package_inputs,
-        build_dir: request.build_dir.as_deref(),
-        filesystem_sponsor: request.filesystem_sponsor,
-        evaluation_sponsor: request.evaluation_sponsor,
-        // Explicit custody always wins; otherwise the root package's own
-        // canonical Source metadata selects its sealed inventory, the same
-        // way the product route derives it.
-        build_snapshot: request.build_snapshot.or_else(|| {
-            package_compilation::BuildSnapshotRequest::automatic_package_inventory(package_inputs)
-        }),
+        build: request.build.resolve_compilation_defaults(package_inputs),
         optimization_rollback: request.optimization_rollback.clone(),
-        restricted_build_grants: request.restricted_build_grants,
         permit_unsettled_fused_service_fields: request.permit_unsettled_fused_service_fields,
         settled_check_reuse: reuse,
     };

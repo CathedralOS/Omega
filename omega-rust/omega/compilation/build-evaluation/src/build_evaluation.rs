@@ -6,13 +6,12 @@
 
 use crate::PureBuildCompilation;
 use artifacts::compile_timings::CompileTimings;
-use build_time_evaluation::{BuildEvaluationSponsor, BuildMachineFilesystemSponsor};
 use compilation_products::CompileFailure;
 use diagnostics::Diagnostic;
 pub use package_compilation::build_execution::RestrictedBuildGrants;
 use package_compilation::build_execution::{RestrictedBuildRequest, select_build_machine};
 use package_compilation::{
-    BuildSnapshotRequest, PackageCompilationInputs, PackageSourceConsumptionCommitment,
+    BuildExecutionInputs, PackageCompilationInputs, PackageSourceConsumptionCommitment,
 };
 use std::path::Path;
 use std::sync::Arc;
@@ -31,12 +30,7 @@ pub struct BuildEvaluationRequest<'request> {
     pub anonymous_source: Option<&'request package_compilation::AnonymousSourceCapture>,
     pub generated_source_custody:
         &'request [(source::SourceId, build_output::PackageGeneratedSource)],
-    pub execution_profile: Option<target::TargetProfile>,
-    pub build_directory: Option<&'request Path>,
-    pub filesystem_sponsor: Option<BuildMachineFilesystemSponsor>,
-    pub evaluation_sponsor: Option<BuildEvaluationSponsor>,
-    pub snapshot: Option<&'request BuildSnapshotRequest>,
-    pub restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
+    pub execution: BuildExecutionInputs,
     pub artifact_only: bool,
     /// This occurrence's earlier Build language judgment, not grants or effects.
     /// Prior judgments this invocation may reuse: its own slot's chain plus
@@ -148,16 +142,21 @@ pub fn prepare_build_evaluation(
         package_inputs,
         anonymous_source,
         generated_source_custody,
-        execution_profile,
-        build_directory,
-        filesystem_sponsor,
-        evaluation_sponsor,
-        snapshot,
-        mut restricted_build_grants,
+        execution,
         artifact_only,
         prior_checks,
         retain_check,
     } = request;
+    let BuildExecutionInputs {
+        profile: execution_profile,
+        directory: build_directory,
+        filesystem_sponsor,
+        evaluation_sponsor,
+        snapshot,
+        restricted_grants: mut restricted_build_grants,
+    } = execution;
+    let build_directory = build_directory.as_deref();
+    let snapshot = snapshot.as_ref();
     // Source-owned entry selection requires no interpreter or host resources.
     // A package without an entry has nothing to admit or execute: its ordinary
     // declarations are checked by the final product pass, just once.

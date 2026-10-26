@@ -95,7 +95,7 @@ pub fn resolve_project_sources(
             execution_profile,
         )
         .map_err(Resources)?;
-    request.build_snapshot = snapshot;
+    request.build.snapshot = snapshot;
     let root = execute_returned_build(session.compiler(), request).map_err(Compilation)?;
     let declared = acquired
         .declare_build(normal_return(&root)?)
