@@ -408,6 +408,41 @@ impl ContractPredicates<'_, '_> {
         depth: usize,
     ) -> Option<(CheckedScalarExpression, TypeReferenceHandle)> {
         let program = self.program;
+        // A selected contract recipe has already passed ordinary formation and
+        // target closure. Publish its exact landed value through the existing
+        // scalar vocabulary; never evaluate a source call in this reader.
+        if program
+            .constant_recipe_for_contract_expression(expression)
+            .is_valid()
+            && let Some(value) = program.closed_integer_expression_value_in(expression, self.owner)
+        {
+            let reference = validation::parameter_expression_result_type_reference(
+                program,
+                self.owner,
+                self.parameters,
+                expression,
+            )?;
+            let primitive = program.primitive_type_reference(reference)?;
+            typed_trees::closed_numeric::land_integer(&value, primitive)?;
+            let spelling = value.to_string();
+            let (negative, digits) = spelling
+                .strip_prefix('-')
+                .map_or((false, spelling.as_str()), |digits| (true, digits));
+            let literal = numerics::literals::IntegerLiteral::from_parts(
+                negative,
+                numerics::literals::IntegerRadix::Decimal,
+                digits,
+            )
+            .ok()?
+            .with_landing(numerics::literals::IntegerLanding {
+                landed_type: primitive.landed_landing()?,
+                domain: ArithmeticDomain::Exact,
+            });
+            return Some((
+                CheckedScalarExpression::IntegerLiteral { literal },
+                reference,
+            ));
+        }
         match program.expression_table.expression(expression) {
             ExpressionNode::Match(_) if depth < 64 => {
                 self.logical_match_numeric(expression, depth + 1)

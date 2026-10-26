@@ -28,6 +28,8 @@ pub(super) fn construction_conditions(
     while let Some(predicate) = pending.pop() {
         let binary = program.expression_table.binary_node(predicate)?;
         if binary.operator == BinaryOperator::And {
+            // Logical conjunction has no authored operator spelling. Each
+            // comparison leaf still authenticates its exact selected meaning.
             pending.extend([binary.left, binary.right]);
             continue;
         }
