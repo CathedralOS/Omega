@@ -262,7 +262,7 @@ fn closed_terms_identical(
                 && left.private_layout_operation == right.private_layout_operation
                 && left.layout_query == right.layout_query
                 && left.native_code_layout == right.native_code_layout
-                && left.root_binding == right.root_binding
+                && left.build_selection == right.build_selection
                 && expressions
                     .expression_handles(left.arguments)
                     .iter()
