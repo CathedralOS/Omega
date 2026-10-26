@@ -10,14 +10,53 @@ use selected_instructions::{FunctionLiveRanges, LiveRangePoint};
 
 #[derive(Debug)]
 pub(super) struct AllocationDomain<'a> {
-    pub(super) members: Vec<&'a VirtualRegisterAllocationLegality>,
+    pub(super) leader_member: &'a VirtualRegisterAllocationLegality,
+    pub(super) extra_members: Vec<&'a VirtualRegisterAllocationLegality>,
     pub(super) first_point: LiveRangePoint,
+    pub(super) candidates_mask: u64,
     pub(super) candidates: Vec<RegisterViewId>,
 }
 
-impl AllocationDomain<'_> {
+impl<'a> AllocationDomain<'a> {
+    #[inline]
     pub(super) fn leader(&self) -> VirtualRegisterId {
-        self.members[0].virtual_register
+        self.leader_member.virtual_register
+    }
+
+    #[inline]
+    pub(super) fn members(
+        &self,
+    ) -> std::iter::Chain<
+        std::iter::Once<&'a VirtualRegisterAllocationLegality>,
+        std::iter::Copied<std::slice::Iter<'_, &'a VirtualRegisterAllocationLegality>>,
+    > {
+        std::iter::once(self.leader_member).chain(self.extra_members.iter().copied())
+    }
+
+    pub(super) fn materialize_candidates(&self) -> Vec<RegisterViewId> {
+        if !self.candidates.is_empty() {
+            return self.candidates.clone();
+        }
+        let mut out = Vec::with_capacity(self.candidates_mask.count_ones() as usize);
+        let mut mask = self.candidates_mask;
+        while mask != 0 {
+            let bit = mask.trailing_zeros() as u16;
+            mask &= mask - 1;
+            out.push(RegisterViewId(bit));
+        }
+        out
+    }
+}
+
+struct DomainCandidates {
+    mask: u64,
+    overflow: Vec<RegisterViewId>,
+}
+
+impl DomainCandidates {
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.mask == 0 && self.overflow.is_empty()
     }
 }
 
@@ -40,14 +79,43 @@ pub(super) fn build_domains<'a>(
             &mut referenced_cache,
         )?;
     }
+    if ranges.tied_pairs.is_empty() && ranges.edge_transfers.is_empty() {
+        let mut domains = Vec::with_capacity(legality.virtual_registers.len());
+        for register in &legality.virtual_registers {
+            if register.spans.is_empty() {
+                continue;
+            }
+            if !register.entry_transitions.is_empty() {
+                return Err(RegisterHomeError::UnresolvedEntryTransitions {
+                    function,
+                    register: register.virtual_register.0,
+                    count: register.entry_transitions.len(),
+                });
+            }
+            let (first_point, _) = interval_bounds(function, register)?;
+            let cands = common_candidates_repr(function, register)?;
+            domains.push(AllocationDomain {
+                leader_member: register,
+                extra_members: Vec::new(),
+                first_point,
+                candidates_mask: cands.mask,
+                candidates: cands.overflow,
+            });
+        }
+        return Ok(domains);
+    }
     tied_components(function, legality, ranges)?
         .into_iter()
-        .filter(|members| members.iter().any(|member| !member.spans.is_empty()))
-        .map(|mut members| match build_domain(function, &mut members) {
-            Ok((first_point, candidates)) => Ok(AllocationDomain {
-                members,
+        .filter(|(leader, extra)| {
+            !leader.spans.is_empty() || extra.iter().any(|member| !member.spans.is_empty())
+        })
+        .map(|( mut leader, mut extra)| match build_domain(function, &mut leader, &mut extra) {
+            Ok((first_point, cands)) => Ok(AllocationDomain {
+                leader_member: leader,
+                extra_members: extra,
                 first_point,
-                candidates,
+                candidates_mask: cands.mask,
+                candidates: cands.overflow,
             }),
             Err(error) => {
                 // A failed component reports the edge transfer naming one of its
@@ -56,9 +124,10 @@ pub(super) fn build_domains<'a>(
                 // quadratic in a large function.
                 let edge = || {
                     ranges.edge_transfers.iter().find(|edge| {
-                        members
-                            .iter()
-                            .any(|member| member.virtual_register == edge.parameter)
+                        leader.virtual_register == edge.parameter
+                            || extra
+                                .iter()
+                                .any(|member| member.virtual_register == edge.parameter)
                     })
                 };
                 if matches!(error, RegisterHomeError::NoCommonTiedComponent { .. })
@@ -80,15 +149,13 @@ fn tied_components<'a>(
     function: usize,
     legality: &'a FunctionAllocationLegality,
     ranges: &FunctionLiveRanges,
-) -> Result<Vec<Vec<&'a VirtualRegisterAllocationLegality>>, RegisterHomeError> {
-    if ranges.tied_pairs.is_empty() && ranges.edge_transfers.is_empty() {
-        return Ok(legality
-            .virtual_registers
-            .iter()
-            .filter(|register| !register.spans.is_empty())
-            .map(|register| vec![register])
-            .collect());
-    }
+) -> Result<
+    Vec<(
+        &'a VirtualRegisterAllocationLegality,
+        Vec<&'a VirtualRegisterAllocationLegality>,
+    )>,
+    RegisterHomeError,
+> {
     let max_reg_id = legality
         .virtual_registers
         .iter()
@@ -138,7 +205,10 @@ fn tied_components<'a>(
         }
     }
     let components = crate::assignment::same_home::SameHomeComponents::from_ranges(ranges);
-    let mut grouped = vec![Vec::new(); legality.virtual_registers.len()];
+    let mut grouped: Vec<Option<(
+        &'a VirtualRegisterAllocationLegality,
+        Vec<&'a VirtualRegisterAllocationLegality>,
+    )>> = vec![None; legality.virtual_registers.len()];
     for (pos, register) in legality.virtual_registers.iter().enumerate() {
         let leader = components.leader(register.virtual_register);
         let leader_pos = if leader == register.virtual_register {
@@ -146,9 +216,13 @@ fn tied_components<'a>(
         } else {
             get_pos(leader).expect("component leader is a declared virtual register")
         };
-        grouped[leader_pos].push(register);
+        if let Some((_, extra)) = &mut grouped[leader_pos] {
+            extra.push(register);
+        } else {
+            grouped[leader_pos] = Some((register, Vec::new()));
+        }
     }
-    grouped.retain(|members| !members.is_empty());
+    let grouped: Vec<_> = grouped.into_iter().flatten().collect();
     let mut clobbered_leaders = Vec::new();
     for early in &ranges.early_clobbers {
         let def_leader = components.leader(early.def_virtual_register);
@@ -164,33 +238,55 @@ fn tied_components<'a>(
         clobbered_leaders.sort_unstable();
         clobbered_leaders.dedup();
     }
-    for members in &grouped {
-        if members.len() > 1 {
-            let member_leader = components.leader(members[0].virtual_register);
+    for (leader, extra) in &grouped {
+        if !extra.is_empty() {
+            let has_member = |reg: VirtualRegisterId| {
+                leader.virtual_register == reg
+                    || extra.iter().any(|member| member.virtual_register == reg)
+            };
+            let member_leader = components.leader(leader.virtual_register);
             if clobbered_leaders.binary_search(&member_leader).is_ok()
                 && ranges.early_clobbers.iter().any(|early| {
-                    members
-                        .iter()
-                        .any(|member| member.virtual_register == early.def_virtual_register)
-                        && early.uses.iter().any(|used| {
-                            members
-                                .iter()
-                                .any(|member| member.virtual_register == used.virtual_register)
-                        })
+                    has_member(early.def_virtual_register)
+                        && early.uses.iter().any(|used| has_member(used.virtual_register))
                 })
-                && let Some(edge) = ranges.edge_transfers.iter().find(|edge| {
-                    members
-                        .iter()
-                        .any(|member| member.virtual_register == edge.parameter)
-                })
+                && let Some(edge) = ranges
+                    .edge_transfers
+                    .iter()
+                    .find(|edge| has_member(edge.parameter))
             {
                 return Err(RegisterHomeError::UnsupportedEdgeTransfer {
                     function,
                     edge: edge.psi_edge.get(),
                 });
             }
-            for (index, left) in members.iter().enumerate() {
-                for right in members.iter().skip(index + 1) {
+            for right in extra {
+                if registers_interfere(
+                    leader.virtual_register,
+                    right.virtual_register,
+                    &ranges.interference,
+                ) {
+                    let (lower, higher) =
+                        ordered_pair(leader.virtual_register, right.virtual_register);
+                    if let Some(edge) = ranges
+                        .edge_transfers
+                        .iter()
+                        .find(|edge| has_member(edge.parameter))
+                    {
+                        return Err(RegisterHomeError::UnsupportedEdgeTransfer {
+                            function,
+                            edge: edge.psi_edge.get(),
+                        });
+                    }
+                    return Err(RegisterHomeError::TiedRegistersInterfere {
+                        function,
+                        lower: lower.0,
+                        higher: higher.0,
+                    });
+                }
+            }
+            for (index, left) in extra.iter().enumerate() {
+                for right in extra.iter().skip(index + 1) {
                     if registers_interfere(
                         left.virtual_register,
                         right.virtual_register,
@@ -198,11 +294,11 @@ fn tied_components<'a>(
                     ) {
                         let (lower, higher) =
                             ordered_pair(left.virtual_register, right.virtual_register);
-                        if let Some(edge) = ranges.edge_transfers.iter().find(|edge| {
-                            members
-                                .iter()
-                                .any(|member| member.virtual_register == edge.parameter)
-                        }) {
+                        if let Some(edge) = ranges
+                            .edge_transfers
+                            .iter()
+                            .find(|edge| has_member(edge.parameter))
+                        {
                             return Err(RegisterHomeError::UnsupportedEdgeTransfer {
                                 function,
                                 edge: edge.psi_edge.get(),
@@ -223,14 +319,18 @@ fn tied_components<'a>(
 
 fn build_domain<'a>(
     function: usize,
-    members: &mut Vec<&'a VirtualRegisterAllocationLegality>,
-) -> Result<(LiveRangePoint, Vec<RegisterViewId>), RegisterHomeError> {
-    if members.len() > 1 {
-        members.sort_by_key(|member| member.virtual_register);
+    leader: &mut &'a VirtualRegisterAllocationLegality,
+    extra: &mut Vec<&'a VirtualRegisterAllocationLegality>,
+) -> Result<(LiveRangePoint, DomainCandidates), RegisterHomeError> {
+    if !extra.is_empty() {
+        extra.push(*leader);
+        extra.sort_by_key(|member| member.virtual_register);
+        *leader = extra.remove(0);
     }
     let mut first_point = None;
-    let mut candidates = None::<Vec<RegisterViewId>>;
-    for member in members.iter() {
+    let mut shared_mask = u64::MAX;
+    let mut shared_vec = None::<Vec<RegisterViewId>>;
+    for member in std::iter::once(*leader).chain(extra.iter().copied()) {
         if !member.entry_transitions.is_empty() {
             return Err(RegisterHomeError::UnresolvedEntryTransitions {
                 function,
@@ -240,31 +340,75 @@ fn build_domain<'a>(
         }
         let (first, _) = interval_bounds(function, member)?;
         first_point = Some(first_point.map_or(first, |point: LiveRangePoint| point.min(first)));
-        let member_candidates = common_candidates(function, member)?;
-        if let Some(shared) = &mut candidates {
-            shared.retain(|candidate| member_candidates.binary_search(candidate).is_ok());
+        let member_cands = common_candidates_repr(function, member)?;
+        if shared_vec.is_none() && member_cands.overflow.is_empty() {
+            shared_mask &= member_cands.mask;
         } else {
-            candidates = Some(member_candidates);
+            let member_vec = if member_cands.overflow.is_empty() {
+                mask_to_vec(member_cands.mask)
+            } else {
+                member_cands.overflow
+            };
+            if let Some(shared) = &mut shared_vec {
+                shared.retain(|candidate| member_vec.binary_search(candidate).is_ok());
+            } else if shared_mask == u64::MAX {
+                shared_vec = Some(member_vec);
+            } else {
+                let mut vec = mask_to_vec(shared_mask);
+                vec.retain(|candidate| member_vec.binary_search(candidate).is_ok());
+                shared_vec = Some(vec);
+            }
         }
     }
-    let candidates = candidates.expect("allocation domain is nonempty");
-    if candidates.is_empty() {
-        if members.len() > 1 {
+    let cands = if let Some(vec) = shared_vec {
+        if vec.iter().all(|v| (v.0 as usize) < 64) {
+            let mut mask = 0u64;
+            for &v in &vec {
+                mask |= 1u64 << v.0;
+            }
+            DomainCandidates {
+                mask,
+                overflow: Vec::new(),
+            }
+        } else {
+            DomainCandidates {
+                mask: 0,
+                overflow: vec,
+            }
+        }
+    } else {
+        DomainCandidates {
+            mask: shared_mask,
+            overflow: Vec::new(),
+        }
+    };
+    if cands.is_empty() {
+        if !extra.is_empty() {
             return Err(RegisterHomeError::NoCommonTiedComponent {
                 function,
-                leader: members[0].virtual_register.0,
-                member_count: members.len(),
+                leader: leader.virtual_register.0,
+                member_count: 1 + extra.len(),
             });
         }
         return Err(RegisterHomeError::NoCommonCandidate {
             function,
-            register: members[0].virtual_register.0,
+            register: leader.virtual_register.0,
         });
     }
     Ok((
         first_point.expect("allocation domain is nonempty"),
-        candidates,
+        cands,
     ))
+}
+
+fn mask_to_vec(mut mask: u64) -> Vec<RegisterViewId> {
+    let mut out = Vec::with_capacity(mask.count_ones() as usize);
+    while mask != 0 {
+        let bit = mask.trailing_zeros() as u16;
+        mask &= mask - 1;
+        out.push(RegisterViewId(bit));
+    }
+    out
 }
 
 fn interval_bounds(
@@ -282,10 +426,10 @@ fn interval_bounds(
     Ok((first.start, last.end))
 }
 
-fn common_candidates(
+fn common_candidates_repr(
     function: usize,
     register: &VirtualRegisterAllocationLegality,
-) -> Result<Vec<RegisterViewId>, RegisterHomeError> {
+) -> Result<DomainCandidates, RegisterHomeError> {
     let first = register
         .spans
         .first()
@@ -293,7 +437,7 @@ fn common_candidates(
             function,
             register: register.virtual_register.0,
         })?;
-    let common = intersect_candidates(
+    let common = intersect_candidates_repr(
         &first.candidates,
         register.spans[1..]
             .iter()
@@ -334,15 +478,10 @@ fn common_candidates(
     Ok(common)
 }
 
-/// The views legal at every point of a register's range. Each point's
-/// candidates are canonically view-sorted, so the running intersection stays a
-/// sorted vector filtered by binary search; a long-lived register crosses
-/// thousands of points, and spill recovery recomputes every register of the
-/// changed function at each step.
-fn intersect_candidates<'a>(
+fn intersect_candidates_repr<'a>(
     first: &[RegisterViewId],
     rest: impl Iterator<Item = &'a [RegisterViewId]>,
-) -> Vec<RegisterViewId> {
+) -> DomainCandidates {
     if first.iter().all(|v| (v.0 as usize) < 64) {
         let mut mask = 0u64;
         for &v in first {
@@ -352,7 +491,10 @@ fn intersect_candidates<'a>(
         let mut rest_iter = rest.peekable();
         while let Some(&candidates) = rest_iter.peek() {
             if mask == 0 {
-                return Vec::new();
+                return DomainCandidates {
+                    mask: 0,
+                    overflow: Vec::new(),
+                };
             }
             if !candidates.iter().all(|v| (v.0 as usize) < 64) {
                 fallback = true;
@@ -366,20 +508,12 @@ fn intersect_candidates<'a>(
             mask &= cm;
         }
         if !fallback {
-            let mut common = Vec::with_capacity(mask.count_ones() as usize);
-            while mask != 0 {
-                let bit = mask.trailing_zeros() as u16;
-                mask &= mask - 1;
-                common.push(RegisterViewId(bit));
-            }
-            return common;
+            return DomainCandidates {
+                mask,
+                overflow: Vec::new(),
+            };
         }
-        let mut common = Vec::with_capacity(mask.count_ones() as usize);
-        while mask != 0 {
-            let bit = mask.trailing_zeros() as u16;
-            mask &= mask - 1;
-            common.push(RegisterViewId(bit));
-        }
+        let mut common = mask_to_vec(mask);
         for candidates in rest_iter {
             if common.is_empty() {
                 break;
@@ -388,7 +522,10 @@ fn intersect_candidates<'a>(
                 common.retain(|candidate| candidates.binary_search(candidate).is_ok());
             }
         }
-        return common;
+        return DomainCandidates {
+            mask: 0,
+            overflow: common,
+        };
     }
     let mut common = first.to_vec();
     if common
@@ -406,7 +543,23 @@ fn intersect_candidates<'a>(
             common.retain(|candidate| candidates.binary_search(candidate).is_ok());
         }
     }
-    common
+    DomainCandidates {
+        mask: 0,
+        overflow: common,
+    }
+}
+
+#[cfg(test)]
+fn intersect_candidates<'a>(
+    first: &[RegisterViewId],
+    rest: impl Iterator<Item = &'a [RegisterViewId]>,
+) -> Vec<RegisterViewId> {
+    let cands = intersect_candidates_repr(first, rest);
+    if cands.overflow.is_empty() {
+        mask_to_vec(cands.mask)
+    } else {
+        cands.overflow
+    }
 }
 
 fn ordered_pair(
