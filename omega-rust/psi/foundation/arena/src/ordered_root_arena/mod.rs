@@ -34,6 +34,29 @@ impl<T: Default> OrderedRootArena<T> {
         self.iter().next()
     }
 
+    /// Read an exact identity returned by `push`. Root selection never moves
+    /// its declaration storage or reuses an identity for another declaration.
+    pub fn get(&self, handle: Handle<T>) -> &T {
+        self.storage.get(handle)
+    }
+
+    pub fn contains(&self, handle: Handle<T>) -> bool {
+        self.handles.span_or_empty(self.roots).contains(&handle)
+    }
+
+    /// Select roots without rebuilding their storage. Durable references to
+    /// retained roots keep their original generational identities.
+    pub fn retain(&mut self, mut keep: impl FnMut(&T) -> bool) {
+        let retained = self
+            .handles
+            .span_or_empty(self.roots)
+            .iter()
+            .copied()
+            .filter(|handle| keep(self.storage.get(*handle)))
+            .collect::<Vec<_>>();
+        self.roots = self.handles.insert_many(retained);
+    }
+
     pub fn iter(&self) -> OrderedRootArenaIter<'_, T> {
         OrderedRootArenaIter {
             storage: &self.storage,
@@ -64,15 +87,14 @@ impl<T: Default> OrderedRootArena<T> {
         None
     }
 
-    /// The owned freshness counter of the storage arena, bumped by every
-    /// mutation-capable call — `push`, `for_each_mut`, `find_mut`, and
-    /// `IndexMut` all route through the storage arena's own revision. A
-    /// consumer comparing revisions across borrows sees any change to the
-    /// arena's contents, including in-place rewrites that keep the length
-    /// fixed.
+    /// Combined freshness of declaration storage and ordered root selection.
+    /// In-place rewrites and pruning both invalidate consumers, while retained
+    /// declaration handles continue to name the same storage.
     #[inline]
     pub fn revision(&self) -> u64 {
-        self.storage.revision()
+        self.storage
+            .revision()
+            .wrapping_add(self.handles.revision())
     }
 }
 
@@ -132,6 +154,21 @@ impl<'arena, T: Default> Iterator for OrderedRootArenaIter<'arena, T> {
 #[cfg(test)]
 mod tests {
     use super::OrderedRootArena;
+
+    #[test]
+    fn selecting_roots_preserves_retained_identity_and_changes_revision() {
+        let mut roots = OrderedRootArena::<u64>::new();
+        let first = roots.push(10);
+        let removed = roots.push(20);
+        let last = roots.push(30);
+        let revision = roots.revision();
+        roots.retain(|value| *value != 20);
+        assert_eq!(roots.get(first), &10);
+        assert_eq!(roots.get(last), &30);
+        assert_eq!(roots[1], 30);
+        assert!(!roots.contains(removed));
+        assert!(roots.revision() > revision);
+    }
 
     #[test]
     fn preserves_insertion_order_over_stable_handles() {

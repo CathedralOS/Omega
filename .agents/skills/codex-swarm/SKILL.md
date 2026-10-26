@@ -222,7 +222,7 @@ This mode changes orchestration ownership, not language or acceptance rules.
    and checkpoints. On a failure, use focused comparisons or smaller candidate
    subsets to locate the changed dependency/interaction; preserve all originals
    and report deferred slices. Do not suppress checks or rewrite fixed oracles.
-   After any conflict resolution, inclusion change or main movement, reassess
+   After an actual conflict resolution, prerequisite or inclusion/source change, reassess
    inputs and rerun affected/final checks, reusing only justified evidence.
 7. **Land only when authorized.** Batch intake and combined validation are not
    a queue bypass. Submit the validated batch as a PR through tools/landing.md;
@@ -311,8 +311,8 @@ is a different outcome, and send that session the claim note rather than
 the investigation trace. When the next failure is still that outcome's, do
 not compact. A new assignment message states that the
 previous assignment is complete, names the next program, updates
-ownership/dependencies and carries the new acceptance. Synchronize its lane
-with current main before editing. Do not create another session merely
+ownership/dependencies and carries the new acceptance. Keep a continuation's fixed base and warm producers. A new independent assignment
+gets one initial main preflight; main movement alone never refreshes an active lane. Do not create another session merely
 because a worker ended its turn or became idle.
 
 When create or follow-up has an uncertain result, preserve the operation identity

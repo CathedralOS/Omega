@@ -118,6 +118,31 @@ impl<'a> CandidateViews<'a> {
         let class_idx = usize::from(class.id.0);
         let cell = self.boundaries_by_class[class_idx]
             .partition_point(|boundary| *boundary <= point);
+        self.candidates_at_cell(
+            function_index,
+            register,
+            class,
+            available,
+            block,
+            point,
+            cell,
+            fixed,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn candidates_at_cell(
+        &mut self,
+        function_index: usize,
+        register: &VirtualLiveRange,
+        class: &RegisterClass,
+        available: &[RegisterViewId],
+        block: SelectedBlockId,
+        point: LiveRangePoint,
+        cell: usize,
+        fixed: Option<RegisterViewId>,
+    ) -> Result<&[RegisterViewId], AllocationLegalityError> {
+        let class_idx = usize::from(class.id.0);
         let bucket = &mut self.candidates_by_class[class_idx][cell];
         let pos = if let Some(pos) = bucket.iter().position(|(b, _)| *b == block) {
             pos

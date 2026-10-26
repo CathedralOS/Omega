@@ -20,6 +20,32 @@ pub(super) fn select(
     component: &[usize],
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> SelectedComponent {
+    if let Err(reason) = topology.require_tail_component(program, component) {
+        return SelectedComponent {
+            positions: component.to_vec(),
+            source_natural: None,
+            bodies: Vec::new(),
+            decision: Err(reason),
+            source_outcomes: Vec::new(),
+        };
+    }
+    let requires_ranking = component.iter().any(|position| {
+        let plan = &program.machines()[*position].termination_plan;
+        plan.implementation_witness.is_some()
+            || plan
+                .interface
+                .published()
+                .is_some_and(language_semantics::TerminationGuarantee::promises_termination)
+    });
+    if !requires_ranking {
+        return SelectedComponent {
+            positions: component.to_vec(),
+            source_natural: None,
+            bodies: Vec::new(),
+            decision: Ok(None),
+            source_outcomes: Vec::new(),
+        };
+    }
     if let Some(result) = super::source_natural::admit(program, component, frames) {
         return match result {
             Ok(source) => SelectedComponent {

@@ -228,6 +228,13 @@ impl Execution<'_, '_, '_> {
             if !complete {
                 continue;
             }
+            // Local alternatives do not describe the unknown address of an
+            // image alternative. Retain every supplier and lifetime debt while
+            // withholding that incomplete joined descriptor geometry.
+            if source_images.iter().any(|image| *image) && source_images.iter().any(|image| !*image)
+            {
+                places.clear();
+            }
             let mut roots = Vec::new();
             for profile in profiles {
                 let Some(retained) = self.context.control.retained_roots(profile) else {
@@ -256,7 +263,8 @@ impl Execution<'_, '_, '_> {
                 .get_mut(retention)
                 .immutable_image = dependencies.is_empty()
                 && source_images.iter().all(|image| *image)
-                && (effect.has_static_values || !sources.is_empty());
+                && ((effect.has_static_values && sources.is_empty() && !effect.retains_incoming)
+                    || !sources.is_empty());
             // Retain the actual supplying evaluations independently of the
             // sanitized post-call address. Resource consumers must not recover
             // a permission from the destination slot's older loan generation.

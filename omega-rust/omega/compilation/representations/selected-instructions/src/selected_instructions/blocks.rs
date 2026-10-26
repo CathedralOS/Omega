@@ -221,7 +221,14 @@ impl BlockEntry {
                         if span.0 == u32::MAX {
                             *span = (idx_u32, idx_u32);
                         } else {
-                            span.1 = idx_u32;
+                            let prev_last = span.1 & 0x7FFF_FFFF;
+                            if idx_u32 > prev_last {
+                                if prev_last != span.0 {
+                                    span.1 = idx_u32 | 0x8000_0000;
+                                } else {
+                                    span.1 = idx_u32;
+                                }
+                            }
                         }
                     }
                     if let Some(view) = operand.fixed_view {
@@ -695,10 +702,46 @@ impl SelectedBlocks {
             if first == u32::MAX {
                 None
             } else {
-                Some((first as usize, last as usize))
+                Some((first as usize, (last & 0x7FFF_FFFF) as usize))
             }
         } else {
             Some((0, len - 1))
+        }
+    }
+    /// First and last body instruction indices in `block_index` that reference
+    /// `register`, together with whether `register` is referenced by any
+    /// instruction strictly between `first` and `last`.
+    pub fn block_register_instruction_span_detail(
+        &self,
+        block_index: usize,
+        register: VirtualRegisterId,
+    ) -> Option<(usize, usize, bool)> {
+        let entry = self.0.get(block_index)?;
+        let len = entry.block.instructions.len();
+        if len == 0 {
+            return None;
+        }
+        let lookup = entry.lookup();
+        let word = (register.0 as usize) >> 6;
+        if !lookup
+            .referenced_register_bits
+            .get(word)
+            .is_some_and(|&w| (w & (1u64 << (register.0 & 63))) != 0)
+        {
+            return None;
+        }
+        if len >= 64 {
+            let &(first, last) = lookup
+                .register_instruction_spans
+                .get(register.0 as usize)?;
+            if first == u32::MAX {
+                None
+            } else {
+                let has_interior = (last & 0x8000_0000) != 0;
+                Some((first as usize, (last & 0x7FFF_FFFF) as usize, has_interior))
+            }
+        } else {
+            Some((0, len - 1, true))
         }
     }
     /// Replace `index`'s instructions and terminator without cloning the old

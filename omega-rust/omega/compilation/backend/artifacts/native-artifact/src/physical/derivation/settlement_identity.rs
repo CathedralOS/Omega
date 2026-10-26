@@ -5,15 +5,15 @@ use crate::NativeSelectedProviderPlanDigest;
 pub(crate) use crate::OptimizedBoundaryOccurrence;
 use crate::physical::derivation::hashing::{
     canonical_usize, hash_boundary_settlement_record, hash_boundary_structural_result, hash_bytes,
-    hash_claim_source, hash_internal_scalar_argument_source, hash_port_effect_record,
-    hash_structural_argument, hash_structural_parameter_declaration, hash_structural_path,
-    hash_target,
+    hash_call_site_owner, hash_claim_source, hash_internal_scalar_argument_source,
+    hash_port_effect_record, hash_structural_argument, hash_structural_parameter_declaration,
+    hash_structural_path, hash_target,
 };
 use crate::{BoundaryInternalCallCustody, CompilerBuiltinResult, CompilerBuiltinScalarArgument};
 use machine_code::PortEffectRecord;
 use semantic_vocabulary::BoundaryMachineId;
 use target::NativeTarget;
-use target_operations::{CallSiteOwner, ProviderExecutionBinding};
+use target_operations::ProviderExecutionBinding;
 
 /// Strong identity for one hosted builtin settlement. The derivation binds
 /// the builtin's catalog row — `identity_tags` name its closed execution and
@@ -316,26 +316,7 @@ pub(super) fn hash_internal_call_custody(
             ),
         };
     digest.byte(family_tag);
-    match owner {
-        CallSiteOwner::Operation(operation) => {
-            digest.byte(1);
-            digest.raw(&operation.get().to_le_bytes());
-            digest.raw(&0_u32.to_le_bytes());
-        }
-        CallSiteOwner::ExternalCompletion(edge) => {
-            digest.byte(3);
-            digest.raw(&edge.get().to_le_bytes());
-            digest.raw(&0_u32.to_le_bytes());
-        }
-        CallSiteOwner::CleanupAction {
-            edge,
-            action_ordinal,
-        } => {
-            digest.byte(2);
-            digest.raw(&edge.get().to_le_bytes());
-            digest.raw(&action_ordinal.to_le_bytes());
-        }
-    }
+    hash_call_site_owner(digest, owner);
     digest.raw(&call_target.get().to_le_bytes());
     digest.raw(&canonical_usize(call_field_offset));
     match frame_terms {

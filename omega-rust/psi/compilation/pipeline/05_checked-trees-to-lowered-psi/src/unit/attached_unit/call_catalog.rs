@@ -14,6 +14,7 @@ use super::{
 };
 pub(super) struct CheckedCallCatalog {
     pub(super) operations: Vec<symbols::SymbolHandle>,
+    pub(super) source_machines: Vec<symbols::SymbolHandle>,
     pub(super) providers: Vec<CheckedUnitProviderCandidate>,
     pub(super) boundaries: Vec<symbols::SymbolHandle>,
 }
@@ -155,6 +156,16 @@ pub(super) fn discover(
             }
             None => Vec::new(),
         };
+        let source_machines = plans.source_machines(checked, &closure)?;
+        for source in &source_machines {
+            for boundary in crate::expression_preparation::computation_graph::boundary_targets(
+                checked, *source,
+            )? {
+                if !retained_boundary_roots.contains(&boundary) {
+                    retained_boundary_roots.push(boundary);
+                }
+            }
+        }
         let candidates = checked_unit_provider_candidates(
             checked,
             plans,
@@ -206,7 +217,7 @@ pub(super) fn discover(
                 structural_scalar_roots.push(*root);
             }
         }
-        for machine_symbol in &closure {
+        for machine_symbol in &source_machines {
             let computed_structural_roots =
                 crate::expression_preparation::computation_graph::structural_call_targets(
                     checked,
@@ -228,6 +239,8 @@ pub(super) fn discover(
                     ordinary_scalar_roots.push(target);
                 }
             }
+        }
+        for machine_symbol in &closure {
             for operation in UnitBody::find(plans, *machine_symbol)?.operations() {
                 // An ordinary scalar call roots its scalar callee.
                 if let Some(call) = operation
@@ -253,7 +266,7 @@ pub(super) fn discover(
             &structural_scalar_roots,
         )?;
 
-        for source in closure.iter().chain(&scalar_closure) {
+        for source in source_machines.iter().chain(&scalar_closure) {
             // An expression's dying owner invokes its selected hook even
             // when no ordinary operation calls that hook. Close those
             // dependencies for every body before assigning callable IDs;
@@ -290,7 +303,7 @@ pub(super) fn discover(
         // through a call edge: every implementation a closure body selects
         // joins the closure, so the dispatch catalog can name each row.
         let mut dispatched = false;
-        for source in closure.iter().chain(&scalar_closure) {
+        for source in source_machines.iter().chain(&scalar_closure) {
             for selection in checked
                 .facts
                 .dynamic_conformances
@@ -332,6 +345,7 @@ pub(super) fn discover(
         // still checked before these plans reach the catalog.
         return Ok(CheckedCallCatalog {
             operations: closure,
+            source_machines,
             providers: candidates,
             boundaries: retained_boundary_roots,
         });
