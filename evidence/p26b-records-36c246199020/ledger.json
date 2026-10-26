@@ -1,0 +1,17 @@
+{
+  "source": "36c24619902086c51af1042a8aeacd47ac43b132",
+  "producer": "39b908e3a33f98afcdd7169e0b1bcfcc8ec7b2e0",
+  "target": "macos_arm64",
+  "review": "accepted:true reviewer/root/fact_a exact36c",
+  "qualification": "same active state revision31; four completed-replay checks reused, zero invalidated; no engine replay",
+  "public": "105 actual source-bound observations:46native/Terminalzero agreements59intendedrejects",
+  "retained": "104checking(45accepted59intendedrejects),45native/Terminalzero agreements;5unchanged comparisons andrankedtheoremcore checking",
+  "source_replay": "Both actual gate-retained bundles verified/restored in isolated bare repo seededonly known7810a10b28a58ad23f342fd1bb8bc3560eb9ed4e;actual39bcomponents restored",
+  "sha256": {
+    "qualification.tar.gz": "c440e3d5fec8a639769bc93d539c87345eebbd2d0cd5184eccee5bf5adec905f",
+    "baad519176fe5fab77922a6bd0c617108c6765f3.bundle": "d0e70b30bcb6891236a31a079cb1dce103679107b6b94e9d2ebda2366c2ced3d",
+    "10d00029c08b47fe4cb76e10cca469f2f2ff8253.bundle": "e8a31862ea21be7f7768dc2a322c051d32f856e302d8ed8daf53858abd3dd7f4"
+  },
+  "archive_members": 1413,
+  "limits": "Only owned common integer fields/fullowned paths closed; parent broad structuredcallee/domain/runtimeprojection/theorem remainsopen. Nativehostmacos_arm64 only. Earlier277 approval/runtime remain distinct historical."
+}
