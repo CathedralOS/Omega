@@ -69,12 +69,12 @@ impl ResolvedPackageBuild {
     }
 }
 
-/// Resolve actual local dependency requests without static Build projection.
+/// Resolve actual dependency requests without static Build projection.
 /// The shared execution owner is also used by ordinary compilation and review.
 /// This migration entry retains normal returns for subsequent admission; it
 /// does not authorize effects, refresh locks, or realize native dependencies.
-/// Git/workspace requests retain the package resolver's explicit refusal until
-/// their pinned acquisition adapters are connected.
+/// Named Git/workspace selection still requires executed workspace declarations;
+/// it never falls back to static declaration projection here.
 pub fn resolve_project_sources(
     session: &mut PackageBuildSession,
     request: ProjectSourceRequest,
@@ -86,6 +86,7 @@ pub fn resolve_project_sources(
         snapshot,
     } = request;
 
+    let mut acquisitions = preparation.source_acquisitions().map_err(Preparation)?;
     let acquired = preparation.acquire_root().map_err(Preparation)?;
     let mut request = session
         .source_build_request(
@@ -106,7 +107,7 @@ pub fn resolve_project_sources(
         match resolution {
             ExecutedSourceResolution::Complete(resolved) => break resolved,
             ExecutedSourceResolution::Request(request) => {
-                let acquired = match request.acquire_local_source().map_err(Source)? {
+                let acquired = match acquisitions.acquire(request).map_err(Source)? {
                     BuildSourceAcquisition::Execute(acquired) => acquired,
                     BuildSourceAcquisition::Reused(next) => {
                         resolution = next;
@@ -135,6 +136,7 @@ pub fn resolve_project_sources(
         let inputs = resolved.join_build(identity, returned).map_err(Source)?;
         builds.push(ResolvedPackageBuild { build, inputs });
     }
+    drop(acquisitions);
     let prepared = preparation
         .complete_source_resolution(resolved)
         .map_err(Preparation)?;

@@ -12,7 +12,7 @@ fn source(name: &str, product: &[&str], build: &[&str]) -> PackageSourceCustody 
         .nth(4)
         .unwrap()
         .join("tests/omega/pass/build/separate_build_product_imports_exit");
-    let acquired = crate::resolution::source::AcquiredLocalSource::capture(
+    let acquired = crate::resolution::source::AcquiredBuildSource::capture_local(
         &root,
         LocalSourceLimits::default(),
         ExternalSourceContext::derive(b"graph-state-test"),

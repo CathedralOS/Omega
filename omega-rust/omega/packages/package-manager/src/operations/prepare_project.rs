@@ -87,7 +87,7 @@ impl PreparedLocalProject {
 
 #[derive(Debug)]
 pub enum PrepareLocalProjectError {
-    Acquisition(crate::resolution::source::LocalSourceAcquisitionError),
+    Acquisition(crate::resolution::source::BuildSourceAcquisitionError),
     SourceJoin(String),
     NestedBuildActivationRequired {
         package: crate::declarations::PackageKey,
@@ -377,13 +377,58 @@ impl LocalProjectPreparation {
 
     pub fn acquire_root(
         &self,
-    ) -> Result<crate::resolution::source::AcquiredLocalSource, PrepareLocalProjectError> {
-        crate::resolution::source::AcquiredLocalSource::capture(
+    ) -> Result<crate::resolution::source::AcquiredBuildSource, PrepareLocalProjectError> {
+        crate::resolution::source::AcquiredBuildSource::capture_local(
             &self.canonical_root,
             LocalSourceLimits::default(),
             ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT),
         )
         .map_err(PrepareLocalProjectError::Acquisition)
+    }
+
+    /// Retain this operation's acquisition policy while the application executes
+    /// anonymous Build sources. Accepted selectors cannot refresh during discovery.
+    pub fn source_acquisitions(
+        &self,
+    ) -> Result<crate::resolution::source::BuildSourceAcquisitions<'_>, PrepareLocalProjectError>
+    {
+        let source = self
+            .accepted
+            .as_ref()
+            .and_then(|lock| lock.targets().first())
+            .map(|target| target.source());
+        if let Some(source) = source {
+            let matches_root = matches!(source.root().request(), crate::resolution::graph::CanonicalRootSourceRequest::ExternalLocal { requested_root, source_context }
+                if requested_root == self.canonical_root.as_os_str().as_encoded_bytes()
+                    && source_context == &ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT));
+            if !matches_root {
+                return Err(PrepareLocalProjectError::Locked(
+                    "accepted Git pins belong to another root request".into(),
+                ));
+            }
+        }
+        let acquisition = if self.offline {
+            GitExactRevisionAcquisition::Offline
+        } else {
+            GitExactRevisionAcquisition::AllowFetch
+        };
+        let pins = source
+            .map(|source| {
+                crate::resolution::graph::GitDependencyPins::new(source, &[], acquisition)
+            })
+            .transpose()
+            .map_err(|error| PrepareLocalProjectError::Locked(error.to_string()))?;
+        Ok(crate::resolution::source::BuildSourceAcquisitions::new(
+            &self.storage,
+            GitResolutionOptions {
+                pins,
+                offline: self.offline,
+            },
+            PackageRootSourceRequest::ExternalLocal {
+                requested_root: self.canonical_root.clone(),
+                source_context: ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT),
+            },
+        ))
     }
 
     /// Only package-manager resolution can supply this graph. Exact input

@@ -1,0 +1,21 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "executed_git_source_join_exit");
+    request_sources(builder);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+}
+
+machine request_sources(builder: &mut Build) {
+    Build::depend_as(builder, "selected", Source::Git {
+        repository: "https://omega-source.invalid/executed-source.git",
+        revision: "executed-build-fixture-v1",
+        selection: PackageSelection::Root
+    });
+    Build::depend_as(builder, "shared", Source::Git {
+        repository: "https://omega-source.invalid/executed-source.git",
+        revision: "executed-build-fixture-v1",
+        selection: PackageSelection::Root
+    });
+}

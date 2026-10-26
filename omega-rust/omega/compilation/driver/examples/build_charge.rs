@@ -1,6 +1,9 @@
 //! A pure Build cache hit owes the current occurrence its recorded logical charge.
 #[path = "../tests/support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
+#[path = "../tests/support/joined_product_execution.rs"]
+mod joined_product_execution;
+use joined_product_execution::{execute_joined_product, execute_report};
 
 use artifacts::compile_timings::counters;
 use build_time_evaluation::{BuildEvaluationSponsor, BuildEvaluationSponsorLimits};
@@ -881,7 +884,7 @@ fn unbound_build_invocation(project_name: &str) {
         std::fs::copy(authored.join(name), temporary.path().join(name))
             .expect("copy authored source");
     }
-    let acquired = package_manager::resolution::source::AcquiredLocalSource::capture(
+    let acquired = package_manager::resolution::source::AcquiredBuildSource::capture_local(
         temporary.path(),
         package_source::LocalSourceLimits::default(),
         package_source::ExternalSourceContext::derive(b"build-charge-sdk"),
@@ -1271,12 +1274,13 @@ fn executed_dependency_source_join(project: &str, private_call: bool) {
         .resolve()
         .unwrap();
     let mut children = Vec::new();
+    let mut acquisitions = preparation.source_acquisitions().unwrap();
     let resolved = loop {
         match resolution {
             ExecutedSourceResolution::Complete(resolved) => break resolved,
             ExecutedSourceResolution::Request(pending) => {
-                let acquired = match pending
-                    .acquire_local_source()
+                let acquired = match acquisitions
+                    .acquire(pending)
                     .expect("acquire only the selected dependency")
                 {
                     package_manager::resolution::source::BuildSourceAcquisition::Execute(
@@ -1393,6 +1397,7 @@ fn executed_dependency_source_join(project: &str, private_call: bool) {
             .is_err(),
         "request join is single-use"
     );
+    drop(acquisitions);
     let prepared = preparation
         .complete_source_resolution(resolved)
         .expect("complete preparation from actual Build source work");
@@ -1433,78 +1438,6 @@ fn executed_dependency_source_join(project: &str, private_call: bool) {
         before + 2,
         "one root and one dependency activation, no replay"
     );
-}
-
-fn execute_joined_product(
-    compiler: &mut CompilationSession,
-    build: compiler::PackageBuild,
-    output: &std::path::Path,
-) -> Result<(), compiler::CompilationProductError> {
-    let product = compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
-        private_entry_ram: Vec::new(),
-        terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
-        terminal_authority_permission_policy: None,
-        optimization_rollback: Default::default(),
-    });
-    let mut outcomes = compiler
-        .complete_package_products(vec![(
-            (),
-            compiler::PreparedPackageProduct {
-                build,
-                product,
-                permissions: None,
-            },
-        )])
-        .expect("joined Product batch");
-    let (_, outcome) = outcomes.pop().expect("one Product outcome");
-    let report = outcome.and_then(compiler::CompilationOutput::into_report)?;
-    execute_report(report, output);
-    Ok(())
-}
-
-fn execute_report(report: compiler::CompileReport, output: &std::path::Path) {
-    let artifact = report
-        .retained_native_artifact()
-        .expect("native product")
-        .psi_artifact();
-    let reloaded = terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
-        .expect("named Product publishes portable Terminal");
-    let observation = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
-        x86_flags: None,
-        provider_proposal: None,
-        artifact: &reloaded,
-        target: Some(
-            target::TargetProfile::host_if_supported()
-                .unwrap()
-                .target_name(),
-        ),
-        provisions: report.runtime_provisions(),
-        fuel_allowance: 100_000,
-        domain_exit: terminal_runtime::TerminalDomainExitDelegation::IsolatedContainingDomain,
-        standard_input: None,
-        clock: None,
-    })
-    .expect("execute joined Terminal Product");
-    assert!(
-        matches!(
-            observation.status,
-            terminal_interpreter::TerminalExecutionStatus::Complete(
-                terminal_interpreter::TerminalExecutionResult::Unit
-            )
-        ),
-        "{:?}",
-        observation.status
-    );
-    let published = compilation_products::publication::publish_compilation(report, output)
-        .expect("publish native Product");
-    let observed = std::process::Command::new(
-        published
-            .checked_native_executable_path()
-            .expect("native executable"),
-    )
-    .output()
-    .expect("execute joined native Product");
-    assert_eq!(observed.status.code(), Some(0), "{observed:?}");
 }
 
 fn project_session_lifecycle() {

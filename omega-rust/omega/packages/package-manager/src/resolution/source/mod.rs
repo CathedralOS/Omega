@@ -23,6 +23,8 @@ impl SourceRootRole {
     }
 }
 
+mod acquisition;
+pub use acquisition::{AcquiredBuildSource, BuildSourceAcquisitionError, BuildSourceAcquisitions};
 mod build_resolution;
 mod custody;
 pub use build_resolution::{
@@ -33,7 +35,6 @@ mod error;
 pub(crate) mod git;
 mod local;
 pub(crate) use local::external_local_dependency_root;
-pub use local::{AcquiredLocalSource, LocalSourceAcquisitionError};
 
 /// Package entry selection observes acquired bytes when available. The live
 /// path is only for legacy persisted-custody consumers without an in-memory

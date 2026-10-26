@@ -180,6 +180,10 @@ pub(crate) fn begin_source_closure<E>(
 }
 
 impl PendingSourceResolution {
+    pub(crate) fn root_request(&self) -> &PackageRootSourceRequest {
+        &self.owner.traversal.root_request
+    }
+
     pub(crate) fn acquired_source(
         &self,
         lineage: &package_source::SourceLineage,

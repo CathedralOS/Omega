@@ -1173,7 +1173,16 @@ narrows realization only.
   inherit the root's slots. Required-output path byte results remain explicitly
   refused.
   Ordinary one-shot compiler calls still own their execution loop.
-  Extend pinned Git/workspace acquisition and preserve
+  Root Git requests now use package-owned acquisition before executing their
+  declarations, retaining authenticated lineage/commit/tree rather than treating
+  snapshots as external-local packages. Acquisition policy belongs to its exact
+  originating project request; two aliases share the first Git source and Build.
+  The Git SDK executes native/Terminal exit 0 after moving the selector and
+  deleting the live project sources, with offline-unaccepted, foreign-policy and
+  private-call refusal controls. Executed and transitional static acquisition
+  now share the accepted-pin/offline selection rule. Complete accepted-lock
+  round-trip qualification, named workspace and Git-relative Path acquisition;
+  preserve
   review/lock/offline recovery while replacing static Build projection,
   provider readiness/resumption, and demanded Product-description queries; this
   is not yet the completed production cutover.

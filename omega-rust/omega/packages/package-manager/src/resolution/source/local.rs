@@ -2,7 +2,10 @@ mod recovery;
 pub(crate) use recovery::recover_cached_external_local_source;
 
 use super::projection::project_package_build;
-use super::{ResolvePackageSourceError, ResolvedPackageSource, SourceRootRole};
+use super::{
+    AcquiredBuildSource, BuildSourceAcquisitionError, ResolvePackageSourceError,
+    ResolvedPackageSource, SourceRootRole,
+};
 use crate::declarations::PackageKey;
 use package_source::local::operations::resolve_local_source_snapshot_in_lane;
 use package_source::local::staging::StagedLocalSnapshot;
@@ -13,123 +16,6 @@ use package_source::{
 };
 use package_source::{LocalSourceLimits, ResolvedLocalSnapshot, SourceResolver};
 use std::path::Path;
-
-/// Acquired bytes and source lineage before executing the source's Build.
-/// No declaration is parsed here and no provisional package key is minted.
-pub struct AcquiredLocalSource {
-    capture: package_source::local::resolution_observations::CapturedLocalSource,
-    lineage: SourceLineage,
-    limits: LocalSourceLimits,
-}
-
-#[derive(Debug)]
-pub enum LocalSourceAcquisitionError {
-    Source(package_source::SourceResolveError),
-    Identity(package_source::IdentityError),
-}
-
-impl std::fmt::Display for LocalSourceAcquisitionError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Source(error) => error.fmt(formatter),
-            Self::Identity(error) => error.fmt(formatter),
-        }
-    }
-}
-
-impl std::error::Error for LocalSourceAcquisitionError {}
-
-impl AcquiredLocalSource {
-    /// Capture once under the package source limits. Transaction recovery and
-    /// lock selection belong to the enclosing package operation, before this
-    /// acquisition; this primitive grants no review or execution authority.
-    pub fn capture(
-        root: &Path,
-        limits: LocalSourceLimits,
-        context: ExternalSourceContext,
-    ) -> Result<Self, LocalSourceAcquisitionError> {
-        let limits = limits.compiler_bounded();
-        let capture = package_source::local::operations::capture_local_source_input(root, limits)
-            .map_err(LocalSourceAcquisitionError::Source)?;
-        let canonical_path = capture.canonical_live_root().to_str().ok_or_else(|| {
-            LocalSourceAcquisitionError::Identity(
-                package_source::IdentityError::UnsupportedNonUtf8Path(
-                    capture.canonical_live_root().to_path_buf(),
-                ),
-            )
-        })?;
-        let lineage = SourceLineage::ExternalLocal(
-            ExternalLocalLineage::from_canonical_path(canonical_path.to_owned(), context)
-                .map_err(LocalSourceAcquisitionError::Identity)?,
-        );
-        Ok(Self {
-            capture,
-            lineage,
-            limits,
-        })
-    }
-
-    pub fn source_capture(
-        &self,
-    ) -> &package_source::local::resolution_observations::CapturedLocalSource {
-        &self.capture
-    }
-
-    /// Establish a named source owner from the returned role, not Build syntax.
-    /// The binding is one source, not a settled dependency graph. The compiler
-    /// still joins the exact capture and original invocation before Product
-    /// typing; a binding alone cannot authenticate a foreign Build return.
-    pub fn bind_returned_build(
-        &self,
-        returned: &build_evaluation::ReturnedBuild,
-    ) -> Result<package_compilation::PackageSourceBinding, String> {
-        self.declare_build(returned)?.source_binding()
-    }
-
-    /// Bind the executed role and complete dependency ledger to these acquired
-    /// bytes. Compilation still authenticates the original activation at join.
-    pub fn declare_build(
-        &self,
-        returned: &build_evaluation::ReturnedBuild,
-    ) -> Result<super::DeclaredBuildSource, String> {
-        let name = match returned.declaration() {
-            build_declarations::BuildDeclaration::Package(package) => &package.name,
-            build_declarations::BuildDeclaration::Application(application) => &application.name,
-            build_declarations::BuildDeclaration::Workspace(_) => {
-                return Err("a workspace declaration does not name a Product source owner".into());
-            }
-        };
-        let key = PackageKey::new(name.clone().into(), self.lineage.clone());
-        let SourceLineage::ExternalLocal(lineage) = &self.lineage else {
-            return Err("local acquisition lost its external source lineage".into());
-        };
-        let requests =
-            crate::declarations::dependencies::read::DependencyProjections::from_executed_requests(
-                returned.requests().iter().map(|issued| issued.request()),
-            )?;
-        let custody = super::PackageSourceCustody::from_resolved_parts(
-            key,
-            returned.declaration().kind(),
-            ImmutableSourceResolution::external_local(SourceContentDigest::derive(
-                self.capture.normalized().content_identity.as_bytes(),
-            )),
-            super::PackageSourceMaterialization::from_local(self.capture.normalized()),
-            self.capture.canonical_live_root().to_path_buf(),
-            super::PackageSourceNavigation::Root,
-            super::PackageSourceSelectionEvidence::Root,
-            self.limits,
-            requests,
-        )
-        .with_captured_source(std::sync::Arc::clone(self.capture.tree()));
-        Ok(super::DeclaredBuildSource {
-            custody,
-            root_request: crate::resolution::graph::PackageRootSourceRequest::ExternalLocal {
-                requested_root: self.capture.requested_root().to_path_buf(),
-                source_context: lineage.source_context().clone(),
-            },
-        })
-    }
-}
 
 pub(crate) fn external_local_dependency_root(
     requester_root: &Path,
@@ -153,13 +39,14 @@ pub(crate) fn capture_external_local_project_source(
     limits: LocalSourceLimits,
     context: ExternalSourceContext,
 ) -> Result<super::PackageSourceCustody, ResolvePackageSourceError> {
-    let AcquiredLocalSource {
+    let AcquiredBuildSource {
         capture: captured,
         lineage,
         limits,
-    } = AcquiredLocalSource::capture(root, limits, context).map_err(|error| match error {
-        LocalSourceAcquisitionError::Source(error) => ResolvePackageSourceError::Source(error),
-        LocalSourceAcquisitionError::Identity(error) => ResolvePackageSourceError::Identity(error),
+        ..
+    } = AcquiredBuildSource::capture_local(root, limits, context).map_err(|error| match error {
+        BuildSourceAcquisitionError::Source(error) => ResolvePackageSourceError::Source(error),
+        BuildSourceAcquisitionError::Identity(error) => ResolvePackageSourceError::Identity(error),
     })?;
     let declaration = super::projection::project_captured_package_build(
         captured.canonical_live_root(),

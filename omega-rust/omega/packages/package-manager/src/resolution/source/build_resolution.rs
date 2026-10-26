@@ -2,8 +2,7 @@
 //! executes each acquired source; this owner never invokes a compiler. The
 //! resulting graph is source custody, not package review or execution authority.
 
-use super::{AcquiredLocalSource, PackageSourceCustody};
-use crate::declarations::dependencies::read::DependencySourceRequest;
+use super::{AcquiredBuildSource, PackageSourceCustody};
 use crate::resolution::graph::reconcile::{
     PendingSourceResolution, SourceClosureStep, begin_source_closure,
 };
@@ -50,7 +49,7 @@ pub enum ExecutedSourceResolution {
 }
 
 impl ExecutedSourceResolution {
-    fn from_step(step: SourceClosureStep) -> Self {
+    pub(super) fn from_step(step: SourceClosureStep) -> Self {
         match step {
             SourceClosureStep::Request(request) => Self::Request(PendingBuildSource { request }),
             SourceClosureStep::Complete(closure) => {
@@ -61,7 +60,7 @@ impl ExecutedSourceResolution {
 }
 
 pub struct PendingBuildSource {
-    request: PendingSourceResolution,
+    pub(super) request: PendingSourceResolution,
 }
 
 /// A new source needs one executed declaration. A repeated acquisition keeps
@@ -72,65 +71,9 @@ pub enum BuildSourceAcquisition {
     Reused(ExecutedSourceResolution),
 }
 
-impl PendingBuildSource {
-    /// The local transport adapter preserves the original requester's base and
-    /// context. Git/workspace requests need their pinned acquisition adapter;
-    /// this operation never treats their locator as an ambient local path.
-    pub fn acquire_local_source(self) -> Result<BuildSourceAcquisition, String> {
-        let requester = self.request.requester();
-        let DependencySourceRequest::Path { location, .. } = self.request.source() else {
-            return Err(self
-                .request
-                .fail("executed Git requests require pinned source acquisition")
-                .to_string());
-        };
-        let package_source::SourceLineage::ExternalLocal(lineage) =
-            requester.key().source_lineage()
-        else {
-            return Err(self
-                .request
-                .fail("workspace requests require their registered source acquisition")
-                .to_string());
-        };
-        let root = match super::external_local_dependency_root(requester.snapshot_root(), location)
-        {
-            Ok(root) => root,
-            Err(error) => return Err(self.request.fail(error).to_string()),
-        };
-        let selected_lineage = match package_source::ExternalLocalLineage::canonicalize(
-            &root,
-            lineage.source_context().clone(),
-        ) {
-            Ok(lineage) => package_source::SourceLineage::ExternalLocal(lineage),
-            Err(error) => return Err(self.request.fail(error).to_string()),
-        };
-        if let Some(custody) = self.request.acquired_source(&selected_lineage).cloned() {
-            let step = self
-                .request
-                .complete::<String>(custody)
-                .map_err(|error| error.to_string())?;
-            return Ok(BuildSourceAcquisition::Reused(
-                ExecutedSourceResolution::from_step(step),
-            ));
-        }
-        let acquired = match AcquiredLocalSource::capture(
-            &root,
-            requester.source_limits(),
-            lineage.source_context().clone(),
-        ) {
-            Ok(acquired) => acquired,
-            Err(error) => return Err(self.request.fail(error).to_string()),
-        };
-        Ok(BuildSourceAcquisition::Execute(AcquiredBuildDependency {
-            pending: self.request,
-            acquired,
-        }))
-    }
-}
-
 pub struct AcquiredBuildDependency {
-    pending: PendingSourceResolution,
-    acquired: AcquiredLocalSource,
+    pub(super) pending: PendingSourceResolution,
+    pub(super) acquired: AcquiredBuildSource,
 }
 
 impl AcquiredBuildDependency {
