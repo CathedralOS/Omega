@@ -70,9 +70,10 @@ fn main() {
     let builds_before = counters::build_execution_count();
     let checks_before = counters::settled_check_totals().0;
     let terminals_before = counters::terminal_production_count();
-    let outcomes = compiler::compile(request)
-        .expect("request admission")
-        .into_outcomes();
+    let outcomes =
+        omega_build::compile_sources(&mut compiler::CompilationSession::default(), request)
+            .expect("request admission")
+            .into_outcomes();
     assert_eq!(outcomes.len(), target_names.len());
     let mut reports = Vec::new();
     let mut rejections = 0;

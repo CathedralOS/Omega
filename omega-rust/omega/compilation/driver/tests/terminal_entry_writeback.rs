@@ -32,8 +32,7 @@ fn produce(
         reviewed_repository_fixture_package_inputs(&root, None).expect("sealed fixture inputs");
     let mut request = CheckedCompileRequest::new(&prepared.root_path, None);
     request.package_inputs = prepared.package_inputs;
-    let checked = CompilationSession::default()
-        .check(request)
+    let checked = omega_build::check_source(&mut CompilationSession::default(), request)
         .result
         .unwrap_or_else(|error| panic!("{machine}: {error:?}"));
     let typed = &checked.execution().program.typed;
@@ -712,6 +711,15 @@ fn build_settings_use_the_existing_validator_after_terminal_execution() {
             );
             drop(instance);
             let requests = host.into_executed().unwrap();
+            let requests: Vec<_> = requests
+                .iter()
+                .map(|request| match request {
+                    language_semantics::declaration_selection::ExecutedBuildSelection::Entry(
+                        binding,
+                    ) => binding,
+                    other => panic!("entry-only witness issued a different selection: {other:?}"),
+                })
+                .collect();
             if machine == "build" {
                 assert_eq!(
                     requests

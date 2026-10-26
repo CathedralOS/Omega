@@ -140,7 +140,19 @@ pub(crate) fn execute_returned_build(
     request: CheckedCompileRequest,
 ) -> Result<ReturnedPackageBuild, CompileFailure> {
     let mut invocation = compiler.begin_package_build(request)?;
-    let returned = if let Some(execution) = invocation.execution() {
+    let returned = execute_build(invocation.execution())?;
+    Ok(ReturnedPackageBuild {
+        invocation,
+        returned,
+    })
+}
+
+/// Run one admitted activation to return. This is the shared one-shot policy for
+/// source and package consumers; its retained ledger still requires final join.
+pub(crate) fn execute_build(
+    execution: Option<&mut build_evaluation::PreparedBuildExecution>,
+) -> Result<Option<build_evaluation::ReturnedBuild>, CompileFailure> {
+    let returned = if let Some(execution) = execution {
         let mut host = execution.host()?;
         let refuse = |reason| {
             vec![Diagnostic::error(format!(
@@ -158,10 +170,7 @@ pub(crate) fn execute_returned_build(
     } else {
         None
     };
-    Ok(ReturnedPackageBuild {
-        invocation,
-        returned,
-    })
+    Ok(returned)
 }
 
 pub(super) fn prepare_packages<Owner>(

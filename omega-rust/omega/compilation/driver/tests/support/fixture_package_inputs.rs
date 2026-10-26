@@ -872,16 +872,18 @@ fn derive_supplier_program_entry_binding(
                 "entry fixture inputs: {errors:?}"
             ))]
         })?;
-    let checked = compiler::CompilationSession::default()
-        .check(CheckedCompileRequest {
+    let checked = omega_build::check_source(
+        &mut compiler::CompilationSession::default(),
+        CheckedCompileRequest {
             package_inputs: Some(inputs),
             ..CheckedCompileRequest::new(
                 &supplier_root.join(format!("targets/{target_name}/entry.omg")),
                 Some(target_name),
             )
-        })
-        .result
-        .map_err(|failure| failure.into_diagnostics())?;
+        },
+    )
+    .result
+    .map_err(|failure| failure.into_diagnostics())?;
     checked
         .execution()
         .candidate_service_binding(
@@ -1131,8 +1133,7 @@ pub fn reviewed_repository_fixture_package_inputs(
                 .map_err(|failure| failure.into_diagnostics())
         })?
     } else {
-        session
-            .check(request)
+        omega_build::check_source(&mut session, request)
             .result
             .map_err(|failure| failure.into_diagnostics())?
     };
@@ -1369,9 +1370,7 @@ pub fn check_fixture_request(
                 .map_err(|failure| failure.into_diagnostics())
         })
     } else {
-        prepared
-            .session
-            .check(request)
+        omega_build::check_source(&mut prepared.session, request)
             .result
             .map_err(|failure| failure.into_diagnostics())
     }

@@ -23,15 +23,18 @@ fn produce(machine: &str) -> CanonicalTerminalArtifact {
         reviewed_repository_fixture_package_inputs(&root, None).expect("sealed fixture inputs");
     let mut request = CheckedCompileRequest::new(&prepared.root_path, None);
     request.package_inputs = prepared.package_inputs;
-    CompilationSession::default()
-        .produce(request, CompilationProduct::Inspection(machine.to_owned()))
-        .and_then(compiler::CompilationOutput::into_inspection)
-        .map(|produced| {
-            produced
-                .into_artifact()
-                .expect("portable inspection product")
-        })
-        .unwrap_or_else(|error| panic!("{machine}: {error:?}"))
+    omega_build::produce_source(
+        &mut CompilationSession::default(),
+        request,
+        CompilationProduct::Inspection(machine.to_owned()),
+    )
+    .and_then(compiler::CompilationOutput::into_inspection)
+    .map(|produced| {
+        produced
+            .into_artifact()
+            .expect("portable inspection product")
+    })
+    .unwrap_or_else(|error| panic!("{machine}: {error:?}"))
 }
 
 fn accessor_writes(

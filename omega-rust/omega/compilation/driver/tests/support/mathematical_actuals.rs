@@ -22,8 +22,7 @@ pub(super) fn produce(
     request: compiler::CheckedCompileRequest,
     machine: &str,
 ) -> Result<CanonicalTerminalArtifact, String> {
-    let checked = compiler::CompilationSession::default()
-        .check(request)
+    let checked = omega_build::check_source(&mut compiler::CompilationSession::default(), request)
         .result
         .map_err(|errors| format!("mathematical actual source checking: {errors:?}"))?;
     let program = &checked.execution().program;

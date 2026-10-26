@@ -65,12 +65,12 @@ pub(crate) fn compile(
                     .then_some(profile.target_name());
                 let mut source = compiler::CheckedCompileRequest::new(&request.root_path, target);
                 source.build.directory = Some(directory.to_path_buf());
-                compiler::CompilationSession::default()
-                    .produce(
-                        source,
-                        compiler::CompilationProduct::Inspection(machine.clone()),
-                    )
-                    .map_err(|error| BuildError::Diagnostics(error.into_diagnostics()))
+                crate::produce_source(
+                    &mut compiler::CompilationSession::default(),
+                    source,
+                    compiler::CompilationProduct::Inspection(machine.clone()),
+                )
+                .map_err(|error| BuildError::Diagnostics(error.into_diagnostics()))
             };
             reports.push((*profile, output));
         }
@@ -122,7 +122,9 @@ fn compile_standalone_reports(
     if let Some(snapshot) = &request.build_snapshot {
         compilation = compilation.with_build_snapshot(snapshot.clone());
     }
-    let outcomes = compiler::compile(compilation).map_err(BuildError::Diagnostics)?;
+    let outcomes =
+        crate::compile_sources(&mut compiler::CompilationSession::default(), compilation)
+            .map_err(BuildError::Diagnostics)?;
     for outcome in outcomes.into_outcomes().into_vec() {
         let profile = match (outcome.target_profile(), &request.targets, targets) {
             (Some(profile), _, _) => profile,
