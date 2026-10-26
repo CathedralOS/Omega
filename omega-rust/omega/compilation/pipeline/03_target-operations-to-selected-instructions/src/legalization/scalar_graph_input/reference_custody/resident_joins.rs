@@ -23,67 +23,6 @@ pub(super) fn merge(
 ) -> Result<Option<Custody>, LegalizationError> {
     let mut arrivals = arrivals.collect::<Vec<_>>();
     let first = arrivals.first().ok_or_else(|| invalid())?;
-    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-        let locations = arrivals
-            .iter()
-            .flat_map(|arrival| arrival.leaves.keys())
-            .collect::<BTreeSet<_>>();
-        for location in locations {
-            for arrival in arrivals
-                .iter()
-                .filter(|arrival| !arrival.leaves.contains_key(location))
-            {
-                eprintln!(
-                    "CHECKSITE reference-missing-arrival machine={:?} target={:?} location={:?} position={:?} impossible={} retired={:?}",
-                    function.machine,
-                    target,
-                    location,
-                    arrival.reference_position,
-                    super::descriptor_backing::path_is_impossible(
-                        function,
-                        arrival,
-                        types,
-                        location.0,
-                        &location.1
-                    ),
-                    arrival
-                        .retired
-                        .keys()
-                        .filter(|identity| identity.place == location.0)
-                        .collect::<Vec<_>>()
-                );
-            }
-        }
-    }
-    // An unchanged ingress sum retains its declaration across a local join.
-    // Its payload may be absent only on predecessors that independently prove
-    // that exact case impossible. Validate every missing predecessor before
-    // combining their histories and losing their individual case contexts.
-    let guarded_ingress = arrivals
-        .iter()
-        .flat_map(|arrival| arrival.leaves.keys())
-        .filter(|location| {
-            function
-                .structural_parameter(location.0)
-                .is_some_and(|parameter| parameter.access == StructuralAccess::Owned)
-                && arrivals
-                    .iter()
-                    .any(|arrival| !arrival.leaves.contains_key(*location))
-                && arrivals
-                    .iter()
-                    .filter(|arrival| !arrival.leaves.contains_key(*location))
-                    .all(|arrival| {
-                        super::descriptor_backing::path_is_impossible(
-                            function,
-                            arrival,
-                            types,
-                            location.0,
-                            &location.1,
-                        )
-                    })
-        })
-        .cloned()
-        .collect::<BTreeSet<_>>();
     let is_parameter = |place| {
         function.block(target).is_some_and(|block| {
             block.structural_parameters.iter().any(|parameter| {
@@ -203,7 +142,6 @@ pub(super) fn merge(
             function,
             target,
             types,
-            &guarded_ingress,
             &mut complete.leaves,
             &arrival.leaves,
         )?

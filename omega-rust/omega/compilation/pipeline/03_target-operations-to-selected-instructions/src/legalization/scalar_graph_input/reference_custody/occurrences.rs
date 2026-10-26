@@ -258,7 +258,6 @@ pub(super) fn merge_arrivals(
     function: &PsiOptimizationFunction,
     target: BlockId,
     types: &[StructuralTypeDeclaration],
-    guarded_ingress: &BTreeSet<(PlaceId, Vec<StructuralPathSegment>)>,
     left: &mut BTreeMap<(PlaceId, Vec<StructuralPathSegment>), Leaf>,
     right: &BTreeMap<(PlaceId, Vec<StructuralPathSegment>), Leaf>,
 ) -> Result<Option<()>, LegalizationError> {
@@ -277,22 +276,8 @@ pub(super) fn merge_arrivals(
                     .iter()
                     .find(|parameter| parameter.place == key.0)
             })
-            .or_else(|| {
-                guarded_ingress.contains(key)
-                    .then(|| function.structural_parameter(key.0))
-                    .flatten()
-            })
             .filter(|parameter| parameter.access == StructuralAccess::Owned)
-            .ok_or_else(|| {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-                    eprintln!(
-                        "CHECKSITE reference-arrival-asymmetric machine={:?} block={:?} location={:?} left={} right={} identity={:?} contract={:?} root={:?}",
-                        function.machine, target, key, left.contains_key(key),
-                        right.contains_key(key), leaf.identity, leaf.contract, leaf.root,
-                    );
-                }
-                invalid()
-            })?;
+            .ok_or_else(|| invalid())?;
         if !key
             .1
             .iter()

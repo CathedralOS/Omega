@@ -116,7 +116,7 @@ pub(super) fn validate(
             .cloned()
             .ok_or(LegalizationError::custody())?;
         for (node_index, (operation, node)) in body.iter().zip(&source_nodes).enumerate() {
-            custody.set_position(optimized, &plan.structural_types, block.block, node_index)?;
+            custody.set_position(block.block, node_index)?;
             // Returns belong only to the terminator, never an ordinary row.
             if matches!(operation, TargetUnitOperation::Return { .. }) {
                 return Err(LegalizationError::custody());
@@ -143,7 +143,7 @@ pub(super) fn validate(
                 unit,
             )?;
         }
-        custody.set_position(optimized, &plan.structural_types, block.block, body.len())?;
+        custody.set_position(block.block, body.len())?;
         let source_terminator = &source
             .nodes
             .last()

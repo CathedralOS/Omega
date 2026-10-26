@@ -1820,6 +1820,10 @@ fail/borrows/tail_recursive_mutation_retires_field_bound rejected 5055ms expecte
 fail/borrows/tail_recursive_write_conflicts_with_live_sibling_loan rejected 5011ms expected @a92f16431042
 	state `fill` receives `work` while local borrow `observed` is still active (borrowed at statement 2; its last use is at statement 4)
 	statement 3 mutates `work.stable.value` while local borrow `observed` is still active (borrowed at statement 2; its last use is at statement 4)
+fail/borrows/target_family_backing_alternatives_rejected rejected 1107ms expected @fa85736af490
+	state `store` receives `selected` as both mutable and read-only
+	state `store_code` receives `second` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 4)
+	statement 4 borrows `second` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 4)
 fail/borrows/template_sibling_stored_view_local_escape rejected 1315ms expected @a92f16431042
 	machine `replace` stores a borrowed value without a complete normal-exit backing relation
 fail/borrows/temporary_backing_loan_survives_reference_last_use rejected 1339ms expected @a92f16431042
@@ -6943,6 +6947,24 @@ fail/facts/dependent_subtract_through_target_body_rejected rejected 2092ms expec
 	exact arithmetic in machine `subtracted` state `entry` local `remaining` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `subtracted` state `entry` local `remaining` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `subtracted` state `entry` local `remaining` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/descriptor_guard_replacement_through_call_result_rejected rejected 1101ms expected @fa85736af490
+	state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only
+fail/facts/descriptor_guard_replacement_through_const_name_rejected rejected 1070ms expected @fa85736af490
+	state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only
+fail/facts/descriptor_guard_replacement_through_field_rejected rejected 1068ms expected @fa85736af490
+	state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only
+fail/facts/descriptor_guard_replacement_through_local_rejected rejected 1075ms expected @fa85736af490
+	state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only
+fail/facts/descriptor_guard_replacement_through_match_join_rejected rejected 1073ms expected @fa85736af490
+	state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only
+fail/facts/descriptor_guard_replacement_through_other_machine_rejected rejected 1063ms expected @fa85736af490
+	state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only
+fail/facts/descriptor_guard_replacement_through_other_state_rejected rejected 1063ms expected @fa85736af490
+	state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only
+fail/facts/descriptor_guard_replacement_through_parameter_rejected rejected 1254ms expected @fa85736af490
+	state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only
+fail/facts/descriptor_guard_replacement_through_target_body_rejected rejected 1255ms expected @fa85736af490
+	state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only
 fail/facts/descriptor_range_exclusive_loan_through_call_result_rejected rejected 2995ms expected @a92f16431042
 	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
 fail/facts/descriptor_range_exclusive_loan_through_const_name_rejected rejected 2986ms expected @a92f16431042
@@ -22314,6 +22336,7 @@ pass/borrows/stored_reference_projection_exit checked 6406ms check-target:macos_
 pass/borrows/stored_view_return_consumers checked 1854ms @a92f16431042
 pass/borrows/structural_operand_view_catalog_exit checked 3784ms check-target:macos_arm64 @a92f16431042
 pass/borrows/tagged_scalar_field_live_copy_exit checked 2228ms check-target:macos_arm64 @a92f16431042
+pass/borrows/target_family_backing_alternatives_exit checked 1309ms check-target:macos_arm64 @fa85736af490
 pass/borrows/terminal_call_loan_completion_exit checked 2218ms check-target:macos_arm64 @a92f16431042
 pass/borrows/transition_shared_borrow_result checked 6318ms check-target:macos_arm64 @a92f16431042
 pass/borrows/view_field_record_exit_disposal checked 2016ms @a92f16431042
@@ -24649,6 +24672,15 @@ pass/facts/dependent_subtract_through_other_machine_exit checked 2937ms check-ta
 pass/facts/dependent_subtract_through_other_state_exit checked 3462ms check-target:macos_arm64 @a92f16431042
 pass/facts/dependent_subtract_through_parameter_exit checked 2620ms check-target:macos_arm64 @a92f16431042
 pass/facts/dependent_subtract_through_target_body_exit checked 2553ms check-target:macos_arm64 @a92f16431042
+pass/facts/descriptor_guard_replacement_through_call_result_exit checked 1309ms check-target:macos_arm64 @fa85736af490
+pass/facts/descriptor_guard_replacement_through_const_name_exit checked 1278ms check-target:macos_arm64 @fa85736af490
+pass/facts/descriptor_guard_replacement_through_field_exit checked 1278ms check-target:macos_arm64 @fa85736af490
+pass/facts/descriptor_guard_replacement_through_local_exit checked 1292ms check-target:macos_arm64 @fa85736af490
+pass/facts/descriptor_guard_replacement_through_match_join_exit checked 1292ms check-target:macos_arm64 @fa85736af490
+pass/facts/descriptor_guard_replacement_through_other_machine_exit checked 1303ms check-target:macos_arm64 @fa85736af490
+pass/facts/descriptor_guard_replacement_through_other_state_exit checked 1298ms check-target:macos_arm64 @fa85736af490
+pass/facts/descriptor_guard_replacement_through_parameter_exit checked 1577ms check-target:macos_arm64 @fa85736af490
+pass/facts/descriptor_guard_replacement_through_target_body_exit checked 1566ms check-target:macos_arm64 @fa85736af490
 pass/facts/descriptor_range_exclusive_loan_through_call_result_exit checked 2973ms check-target:macos_arm64 @a92f16431042
 pass/facts/descriptor_range_exclusive_loan_through_const_name_exit checked 3109ms check-target:macos_arm64 @a92f16431042
 pass/facts/descriptor_range_exclusive_loan_through_field_exit checked 2441ms check-target:macos_arm64 @a92f16431042

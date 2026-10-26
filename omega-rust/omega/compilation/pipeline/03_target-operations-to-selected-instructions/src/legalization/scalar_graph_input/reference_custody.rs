@@ -365,37 +365,10 @@ impl Custody {
 
     pub(in crate::legalization) fn set_position(
         &mut self,
-        function: &PsiOptimizationFunction,
-        types: &[StructuralTypeDeclaration],
         block: BlockId,
         node_index: usize,
     ) -> Result<(), LegalizationError> {
         self.reference_position = Some((block, u32::try_from(node_index).map_err(|_| invalid())?));
-        // Entry types catalogue mutually exclusive payloads, not simultaneous
-        // live loans. Remove only unchanged parameter rows whose case is
-        // independently proved impossible here. Unknown membership and all
-        // established/replaced occurrences retain their custody obligations.
-        let inactive = self
-            .leaves
-            .iter()
-            .filter_map(|(location, leaf)| {
-                (matches!(leaf.contract, CarrierContract::Parameter(_))
-                    && leaf.identity == OccurrenceIdentity::parameter(location)
-                    && descriptor_backing::path_is_impossible(
-                        function,
-                        self,
-                        types,
-                        location.0,
-                        &location.1,
-                    ))
-                .then_some(location.clone())
-            })
-            .collect::<Vec<_>>();
-        for location in inactive {
-            self.leaves.remove(&location);
-        }
-        self.prune_retired();
-        self.validate_occurrences()?;
         Ok(())
     }
 
@@ -2160,46 +2133,6 @@ fn relocate_subtree_leaves<'a>(
     Ok(())
 }
 
-/// Reconstruct the sole-leaf move from owned ingress independently of target
-/// rows. Other establishments retain their parent as ordinary reborrows.
-fn transferred_ingress_leaf(
-    function: &PsiOptimizationFunction,
-    custody: &Custody,
-    types: &[StructuralTypeDeclaration],
-    source: &StructuralArgument,
-) -> Option<(PlaceId, Vec<StructuralPathSegment>)> {
-    let parameter = function
-        .structural_parameter(source.place)
-        .filter(|parameter| parameter.access == StructuralAccess::Owned)?;
-    if matches!(
-        find_structural_type(types, parameter.structural_type)?.shape,
-        StructuralTypeShape::Reference { .. }
-    ) {
-        return None;
-    }
-    let (StructuralPathSegment::Referent, path) = source.path.split_last()? else {
-        return None;
-    };
-    let paths = leaf_paths(types, parameter.structural_type, custody.leaves.len())?;
-    if paths.len() != 1 || paths[0].as_slice() != path {
-        return None;
-    }
-    let key = (source.place, path.to_vec());
-    let leaf = custody.leaves.get(&key)?;
-    (leaf.parents.is_empty()
-        && custody
-            .leaves
-            .keys()
-            .filter(|(carrier, _)| *carrier == source.place)
-            .count()
-            == 1
-        && !custody
-            .leaves
-            .values()
-            .any(|child| custody.descends_from(child, &leaf.identity)))
-    .then_some(key)
-}
-
 /// Apply one operation's custody effect after its target row validated.
 /// Admission was proven upstream; this replay keeps only enough state to
 /// resolve later `.., Referent` spellings and result rosters independently.
@@ -2480,11 +2413,11 @@ pub(in crate::legalization) fn apply(
             {
                 return Err(invalid());
             }
-            let transferred = transferred_ingress_leaf(function, custody, types, source);
+            // Formation is a reborrow even when the owning aggregate has only
+            // one reference leaf. Only explicit move operations transfer its
+            // permission; layout cardinality cannot consume the parent.
             let leaf =
-                if let Some(key) = transferred {
-                    custody.leaves.remove(&key).ok_or_else(|| invalid())?
-                } else {
+                {
                     let (mut root, parents) = normalized_source(function, custody, types, source)?;
                     if let Some(storage) = storage {
                         // The source operation, not its signature, issues the
@@ -3397,7 +3330,7 @@ pub(in crate::legalization) fn block_entry_states(
         let block = &blocks[position];
         let mut custody = entries.get(&block.id).cloned().ok_or_else(|| invalid())?;
         for (node_index, node) in blocks[position].nodes.iter().enumerate() {
-            custody.set_position(function, types, block.id, node_index)?;
+            custody.set_position(block.id, node_index)?;
             if matches!(
                 node.operation,
                 abstract_operations::return_or_return_unit_pattern!(..)
