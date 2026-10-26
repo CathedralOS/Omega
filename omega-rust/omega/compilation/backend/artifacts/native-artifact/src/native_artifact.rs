@@ -154,6 +154,52 @@ impl<Image> NativeArtifactEmissionParts<Image> {
     }
 }
 
+impl<Image> NativeArtifactParts<Image> {
+    /// The retained terminal-authority closure receipt names exactly this
+    /// row's realization inputs: its Terminal artifact identity, target,
+    /// selected-provider closure, physical policy and permission policy.
+    /// Either product refuses a receipt that drifted from them, in its own
+    /// refusal vocabulary.
+    fn terminal_authority_closure_matches(&self) -> bool {
+        self.terminal_authority_closure_review
+            .terminal_artifact_identity()
+            == *self.psi_artifact.manifest().identity().as_bytes()
+            && self.terminal_authority_closure_review.target() == self.target
+            && self
+                .terminal_authority_closure_review
+                .selected_provider_closure()
+                .as_bytes()
+                == self.selected_provider_closure_digest.as_bytes()
+            && self.terminal_authority_closure_review.physical_policy()
+                == self.terminal_authority_policy_identity
+            && self.terminal_authority_closure_review.permission_policy()
+                == self.terminal_authority_permission_policy_identity
+    }
+
+    /// Derive this row's physical children over the exact Terminal, object,
+    /// image and selected-plan custody it carries. The caller passes the row's
+    /// own emitted image output and final-image symbol digest: the direct
+    /// image answers them directly, while the dynamic writer projects the
+    /// admitted image inside its request.
+    fn evidence_derivation(
+        &self,
+        image_output: &image::EmittedImageOutput,
+        final_image_symbol_digest: [u8; 32],
+    ) -> Result<NativePhysicalEvidenceDerivation, &'static str> {
+        derive_physical_evidence(
+            &self.physical_evidence_scope,
+            &self.psi_artifact,
+            self.target,
+            &self.object,
+            image_output,
+            final_image_symbol_digest,
+            &self.selected_provider_plans,
+            &self.provider_executions,
+            self.boundary_application_coverage.as_ref(),
+        )
+    }
+}
+
 impl NativeArtifact {
     /// Complete fresh native emission by deriving the identity optimization
     /// projection and every currently supported physical child. The artifact
@@ -198,21 +244,13 @@ impl NativeArtifact {
         // The gap is derivation state, not a retained claim: it is recomputed
         // from the replayed inputs so a retained artifact can never assert a
         // blocking subject the derivation would not have produced.
-        let physical_evidence_gap = match derive_physical_evidence(
-            &parts.physical_evidence_scope,
-            &parts.psi_artifact,
-            parts.target,
-            &parts.object,
-            parts.image.output(),
-            *parts.image.final_image_symbol_digest().as_bytes(),
-            &parts.selected_provider_plans,
-            &parts.provider_executions,
-            parts.boundary_application_coverage.as_ref(),
-        )? {
-            NativePhysicalEvidenceDerivation::Blocked(gap) => Some(gap),
-            NativePhysicalEvidenceDerivation::Unavailable
-            | NativePhysicalEvidenceDerivation::Complete(_) => None,
-        };
+        let final_image_symbol_digest = *parts.image.final_image_symbol_digest().as_bytes();
+        let physical_evidence_gap =
+            match parts.evidence_derivation(parts.image.output(), final_image_symbol_digest)? {
+                NativePhysicalEvidenceDerivation::Blocked(gap) => Some(gap),
+                NativePhysicalEvidenceDerivation::Unavailable
+                | NativePhysicalEvidenceDerivation::Complete(_) => None,
+            };
         let artifact = Self::seal(parts, physical_evidence_gap);
         artifact.validate()?;
         Ok(artifact)
@@ -243,29 +281,7 @@ impl NativeArtifact {
         {
             return Err("native artifact target disagrees with its object or image");
         }
-        if self
-            .parts
-            .terminal_authority_closure_review
-            .terminal_artifact_identity()
-            != *self.parts.psi_artifact.manifest().identity().as_bytes()
-            || self.parts.terminal_authority_closure_review.target() != self.parts.target
-            || self
-                .parts
-                .terminal_authority_closure_review
-                .selected_provider_closure()
-                .as_bytes()
-                != self.parts.selected_provider_closure_digest.as_bytes()
-            || self
-                .parts
-                .terminal_authority_closure_review
-                .physical_policy()
-                != self.parts.terminal_authority_policy_identity
-            || self
-                .parts
-                .terminal_authority_closure_review
-                .permission_policy()
-                != self.parts.terminal_authority_permission_policy_identity
-        {
+        if !self.parts.terminal_authority_closure_matches() {
             return Err(
                 "native artifact terminal-authority closure receipt drifted from its exact realization inputs",
             );
@@ -296,22 +312,15 @@ impl NativeArtifact {
             &self.parts.provider_executions,
         )
         .map_err(provider_execution::ProviderExecutionReplayError::direct_message)?;
-        let (expected_physical_evidence, expected_physical_evidence_gap) =
-            match derive_physical_evidence(
-                &self.parts.physical_evidence_scope,
-                &self.parts.psi_artifact,
-                self.parts.target,
-                &self.parts.object,
-                self.parts.image.output(),
-                *self.parts.image.final_image_symbol_digest().as_bytes(),
-                &self.parts.selected_provider_plans,
-                &self.parts.provider_executions,
-                self.parts.boundary_application_coverage.as_ref(),
-            )? {
-                NativePhysicalEvidenceDerivation::Unavailable => (None, None),
-                NativePhysicalEvidenceDerivation::Complete(evidence) => (Some(evidence), None),
-                NativePhysicalEvidenceDerivation::Blocked(gap) => (None, Some(gap)),
-            };
+        let final_image_symbol_digest = *self.parts.image.final_image_symbol_digest().as_bytes();
+        let (expected_physical_evidence, expected_physical_evidence_gap) = match self
+            .parts
+            .evidence_derivation(self.parts.image.output(), final_image_symbol_digest)?
+        {
+            NativePhysicalEvidenceDerivation::Unavailable => (None, None),
+            NativePhysicalEvidenceDerivation::Complete(evidence) => (Some(evidence), None),
+            NativePhysicalEvidenceDerivation::Blocked(gap) => (None, Some(gap)),
+        };
         if self.parts.physical_evidence != expected_physical_evidence {
             return Err(
                 "native artifact physical children disagree with its validated identity projection",

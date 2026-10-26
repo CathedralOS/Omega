@@ -798,6 +798,35 @@ pub(crate) fn canonical_usize(value: usize) -> [u8; 8] {
         .to_le_bytes()
 }
 
+/// The canonical digest row of one call-site owner: the owner-family tag
+/// followed by the family's compact coordinates. Every identity that
+/// commits a call-site owner feeds this exact row.
+pub(crate) fn hash_call_site_owner(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    owner: &CallSiteOwner,
+) {
+    match owner {
+        CallSiteOwner::Operation(operation) => {
+            digest.byte(1);
+            digest.raw(&operation.get().to_le_bytes());
+            digest.raw(&0_u32.to_le_bytes());
+        }
+        CallSiteOwner::ExternalCompletion(edge) => {
+            digest.byte(3);
+            digest.raw(&edge.get().to_le_bytes());
+            digest.raw(&0_u32.to_le_bytes());
+        }
+        CallSiteOwner::CleanupAction {
+            edge,
+            action_ordinal,
+        } => {
+            digest.byte(2);
+            digest.raw(&edge.get().to_le_bytes());
+            digest.raw(&action_ordinal.to_le_bytes());
+        }
+    }
+}
+
 /// Canonical identity of the one subject that stopped a scoped derivation.
 /// Occurrence subjects hash their exact occurrence identity (which already
 /// commits terminal, machine, operation, boundary, and ordinal); record and
@@ -812,26 +841,7 @@ pub(crate) fn physical_evidence_gap_identity(
         NativePhysicalEvidenceGapSubject::ForeignCallSiteOwner { machine, owner } => {
             digest.byte(2);
             digest.raw(&machine.get().to_le_bytes());
-            match owner {
-                CallSiteOwner::Operation(operation) => {
-                    digest.byte(1);
-                    digest.raw(&operation.get().to_le_bytes());
-                    digest.raw(&0_u32.to_le_bytes());
-                }
-                CallSiteOwner::ExternalCompletion(edge) => {
-                    digest.byte(3);
-                    digest.raw(&edge.get().to_le_bytes());
-                    digest.raw(&0_u32.to_le_bytes());
-                }
-                CallSiteOwner::CleanupAction {
-                    edge,
-                    action_ordinal,
-                } => {
-                    digest.byte(2);
-                    digest.raw(&edge.get().to_le_bytes());
-                    digest.raw(&action_ordinal.to_le_bytes());
-                }
-            }
+            hash_call_site_owner(&mut digest, owner);
         }
         NativePhysicalEvidenceGapSubject::UnsupportedSettlementRealization { occurrence } => {
             digest.byte(3);
