@@ -84,6 +84,25 @@ pub fn occurrence_integer_expression_bounds(
     (low <= high).then_some((low, high))
 }
 
+/// Conditional bounds captured at this exact evaluated occurrence. Consumers
+/// retain every observation as a target obligation before publishing a proof.
+pub fn occurrence_integer_expression_recipe(
+    program: &dyn crate::CheckingInput,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+) -> Option<checked_trees::IntegerRangeRecipe> {
+    expression_observation(
+        program,
+        machine_symbol,
+        state_symbol,
+        Some(statement_index),
+        expression,
+    )?
+    .recipe
+}
+
 pub fn occurrence_integer_expressions_bounds(
     program: &dyn crate::CheckingInput,
     machine_symbol: SymbolHandle,

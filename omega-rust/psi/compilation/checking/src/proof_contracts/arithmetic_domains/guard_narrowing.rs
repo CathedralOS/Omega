@@ -31,7 +31,7 @@ pub(crate) use arrivals::{
 pub use arrivals::{
     arrival_integer_expression_bounds, occurrence_collection_footprint_fits,
     occurrence_integer_expression_bounds, occurrence_integer_expression_fits_range,
-    occurrence_integer_expressions_bounds,
+    occurrence_integer_expression_recipe, occurrence_integer_expressions_bounds,
 };
 use projected_facts::ProjectedOperand;
 

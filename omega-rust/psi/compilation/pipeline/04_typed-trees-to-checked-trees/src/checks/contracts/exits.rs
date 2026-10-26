@@ -137,6 +137,7 @@ pub(super) fn check_exit_ensures(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     cyclic_headers: &mut CyclicHeaderInvariants,
     recipe_obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
+    integer_range_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let entry_contexts: Vec<_> = facts
@@ -347,6 +348,20 @@ pub(super) fn check_exit_ensures(
                 )
             {
                 recipe_obligations.extend(conditions);
+                continue;
+            }
+            if !satisfied
+                && missing_origins.is_empty()
+                && let Some(conditions) = scalars::proves_with_range_conditions(
+                    program,
+                    facts,
+                    exit_flow,
+                    &entry_contexts,
+                    fact,
+                    call_frames,
+                )
+            {
+                integer_range_obligations.extend(conditions);
                 continue;
             }
             if !satisfied {

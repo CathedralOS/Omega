@@ -186,6 +186,9 @@ pub(crate) fn check_checked_facts_recording(
             facts
                 .constant_recipe_obligations
                 .extend(decided.recipe_obligations);
+            facts
+                .integer_range_obligations
+                .extend(decided.integer_range_obligations);
             facts.decided_call_requires = decided.call_requires;
             facts.qualifications.value_formations = decided.value_qualifications;
         }

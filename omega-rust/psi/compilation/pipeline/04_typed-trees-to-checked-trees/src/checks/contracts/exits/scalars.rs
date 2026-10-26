@@ -18,7 +18,7 @@ use crate::flow::canonical_place_from_symbol;
 
 mod admitted_domains;
 mod deferred_recipes;
-pub(super) use deferred_recipes::proves_with_recipe_conditions;
+pub(super) use deferred_recipes::{proves_with_range_conditions, proves_with_recipe_conditions};
 mod boolean_results;
 pub(in crate::checks::contracts) use admitted_domains::BoundaryRefutations;
 pub(crate) mod calls;

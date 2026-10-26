@@ -62,6 +62,51 @@ pub(in super::super) fn proves_with_recipe_conditions<'program>(
     (used_result && !conditions.is_empty()).then_some(conditions)
 }
 
+/// A returned evaluated range may prove a scalar guarantee conditionally. The
+/// existing range closure owns every endpoint observation and publication debt.
+pub(in super::super) fn proves_with_range_conditions<'program>(
+    program: &'program dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    exit: &FlowExitFact,
+    contexts: &[FactContextHandle],
+    requirement: &facts::Fact,
+    call_frames: Option<&validation::CallFrameResolver<'program>>,
+) -> Option<Vec<checked_trees::IntegerRangeObligation>> {
+    let FactPayload::ContractBooleanExpression {
+        fact: contract,
+        expression,
+        ..
+    } = requirement.payload
+    else {
+        return None;
+    };
+    let machine = program.machine(exit.machine_symbol)?;
+    let evaluator = ExitScalars {
+        program,
+        facts,
+        machine,
+        exit,
+        contexts,
+        contract,
+        call_frames,
+    };
+    let mut pending = vec![expression];
+    let mut conditions = Vec::new();
+    while let Some(expression) = pending.pop() {
+        if !builtin(&evaluator, expression) {
+            return None;
+        }
+        if let Some(binary) = program.expression_table.binary_node(expression)
+            && binary.operator == BinaryOperator::And
+        {
+            pending.extend([binary.left, binary.right]);
+            continue;
+        }
+        conditions.push(evaluator.result_range_condition(expression)?);
+    }
+    (!conditions.is_empty()).then_some(conditions)
+}
+
 fn builtin(evaluator: &ExitScalars<'_, '_>, expression: ExpressionHandle) -> bool {
     super::has_builtin_operators(evaluator.program, &evaluator.facts.operators, expression)
         && validation::has_builtin_bound_expression_meaning(

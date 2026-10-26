@@ -96,6 +96,7 @@ pub(super) struct ContractDecisions {
     pub(super) scalar_returns: Vec<checked_trees::CheckedScalarReturnQualification>,
     pub(super) constant_obligations: Vec<checked_trees::ConstantPredicateObligation>,
     pub(super) recipe_obligations: Vec<checked_trees::ConstantRecipeObligation>,
+    pub(super) integer_range_obligations: Vec<checked_trees::IntegerRangeObligation>,
     pub(super) call_requires: Vec<checked_trees::DecidedCallRequires>,
     pub(super) value_qualifications: arena::Arena<checked_trees::CheckedValueQualification>,
 }
@@ -115,6 +116,7 @@ pub(super) fn check_flow_call_contracts(
     let mut scalar_returns = Vec::new();
     let mut constant_obligations = Vec::new();
     let mut recipe_obligations = Vec::new();
+    let mut integer_range_obligations = Vec::new();
     let mut value_qualifications = arena::Arena::default();
     let constructor_memberships = writes::ConstructorMemberships::new(facts);
     let content_plans = validation::content_conservation_plans(program);
@@ -232,6 +234,7 @@ pub(super) fn check_flow_call_contracts(
                     call_frames,
                     &mut cyclic_headers,
                     &mut recipe_obligations,
+                    &mut integer_range_obligations,
                     &mut diagnostics,
                 )
             });
@@ -295,6 +298,7 @@ pub(super) fn check_flow_call_contracts(
             scalar_returns,
             constant_obligations,
             recipe_obligations,
+            integer_range_obligations,
             call_requires: decided,
             value_qualifications,
         })

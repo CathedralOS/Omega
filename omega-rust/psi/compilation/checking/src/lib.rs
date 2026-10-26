@@ -396,7 +396,9 @@ pub use proof_contracts::arithmetic_domains::immutable_integer_expression_bounds
 pub use proof_contracts::arithmetic_domains::integer_widen_is_total;
 pub use proof_contracts::arithmetic_domains::normal_return_integer_bounds;
 pub use proof_contracts::arithmetic_domains::normal_return_length_collection;
-pub use proof_contracts::arithmetic_domains::occurrence_integer_expression_bounds;
+pub use proof_contracts::arithmetic_domains::{
+    occurrence_integer_expression_bounds, occurrence_integer_expression_recipe,
+};
 pub use proof_contracts::arithmetic_domains::occurrence_integer_expression_fits_range;
 pub use proof_contracts::arithmetic_domains::occurrence_integer_expressions_bounds;
 pub use proof_contracts::arithmetic_domains::state_parameter_integer_interval;
