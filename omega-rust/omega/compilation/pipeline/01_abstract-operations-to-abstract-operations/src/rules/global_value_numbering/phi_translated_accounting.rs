@@ -3,7 +3,9 @@
 use std::collections::BTreeSet;
 
 use crate::analyses::block_dominates;
-use crate::rules::control_flow_cleanup::provenance_realized_at;
+use crate::rules::control_flow_cleanup::{
+    node_realized_provenance, provenance_realized_at, record_node_provenance,
+};
 use optimization_unit::{
     NodeLocation, PhiTranslatedScalarIncoming, ProvenanceRewrite, PsiOptimizationFunction,
     PsiRealizationSite,
@@ -25,12 +27,7 @@ pub(super) fn phi_translated_cse_accounting(
         .map(|row| row.source)
         .chain([block.id])
         .collect::<BTreeSet<_>>();
-    let mut provenance = vec![provenance_realized_at(
-        PsiRealizationSite::Node(redundant),
-        PsiRealizationSite::Node(redundant),
-        &removed.provenance,
-        &removed.fuel,
-    )];
+    let mut provenance = vec![node_realized_provenance(redundant, removed)];
     for row in incoming {
         let source = function.block(row.source)?;
         let edge = source
@@ -71,22 +68,12 @@ pub(super) fn phi_translated_cse_accounting(
     }
     for later in function.blocks.iter().skip(block_position + 1) {
         affected.insert(later.id);
-        for (index, node) in later.nodes.iter().enumerate() {
-            if node.provenance.is_empty() {
-                continue;
-            }
-            let site = PsiRealizationSite::Node(NodeLocation {
-                machine: function.machine,
-                block: later.id,
-                node: u32::try_from(index).ok()?,
-            });
-            provenance.push(provenance_realized_at(
-                site,
-                site,
-                &node.provenance,
-                &node.fuel,
-            ));
-        }
+        record_node_provenance(
+            function.machine,
+            later,
+            later.nodes.iter().enumerate(),
+            &mut provenance,
+        )?;
     }
     provenance.sort_by_key(ProvenanceRewrite::canonical_sort_key);
     Some((affected.into_iter().collect(), provenance))

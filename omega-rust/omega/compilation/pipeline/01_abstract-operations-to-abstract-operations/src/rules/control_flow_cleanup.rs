@@ -8,10 +8,10 @@
 
 use crate::rules::catalog::BuiltInRuleRegistration;
 use optimization_unit::{
-    FuelSettlement, NodeLocation, OptimizationBlock, ProvenanceDisposition, ProvenanceRewrite,
-    PsiOptimizationFunction, PsiProvenance, PsiRealizationSite,
+    FuelSettlement, NodeLocation, OptimizationBlock, OptimizationNode, ProvenanceDisposition,
+    ProvenanceRewrite, PsiOptimizationFunction, PsiProvenance, PsiRealizationSite,
 };
-use semantic_vocabulary::BlockId;
+use semantic_vocabulary::{BlockId, MachineId};
 use std::collections::BTreeSet;
 
 mod adjacent_block_merge;
@@ -79,6 +79,43 @@ pub(super) fn provenance_proven_unreachable_at(
     }
 }
 
+/// One node's provenance and fuel realized in place at its own site. Both of
+/// the row's realization sites name the node's location, so a rule that leaves
+/// a node in place and merely restamps it names only that location.
+pub(super) fn node_realized_provenance(
+    location: NodeLocation,
+    node: &OptimizationNode,
+) -> ProvenanceRewrite {
+    let site = PsiRealizationSite::Node(location);
+    provenance_realized_at(site, site, &node.provenance, &node.fuel)
+}
+
+/// Record the in-place site row of every provenance-bearing node `nodes`
+/// selects, in block order. The node keeps its own location, so this is the
+/// surviving-node stamp every removal and merge accounting epilogue shares;
+/// a node whose position shifts keeps its own old-to-new row.
+pub(super) fn record_node_provenance<'node>(
+    machine: MachineId,
+    block: &OptimizationBlock,
+    nodes: impl Iterator<Item = (usize, &'node OptimizationNode)>,
+    realized: &mut Vec<ProvenanceRewrite>,
+) -> Option<()> {
+    for (node_index, node) in nodes {
+        if node.provenance.is_empty() {
+            continue;
+        }
+        realized.push(node_realized_provenance(
+            NodeLocation {
+                machine,
+                block: block.id,
+                node: u32::try_from(node_index).ok()?,
+            },
+            node,
+        ));
+    }
+    Some(())
+}
+
 /// One block's node scan against the running effect ledger: a node whose
 /// declared input or output no longer matches the expected ordinal marks its
 /// block affected and stamps realized provenance at the node site. Shared by
@@ -103,13 +140,7 @@ pub(super) fn record_block_effect_drift(
         if effect_changes && excluded != Some(location) {
             affected.insert(block.id);
             if !node.provenance.is_empty() {
-                let site = PsiRealizationSite::Node(location);
-                realized.push(provenance_realized_at(
-                    site,
-                    site,
-                    &node.provenance,
-                    &node.fuel,
-                ));
+                realized.push(node_realized_provenance(location, node));
             }
         }
         *expected_effect = expected_effect.checked_add(1)?;

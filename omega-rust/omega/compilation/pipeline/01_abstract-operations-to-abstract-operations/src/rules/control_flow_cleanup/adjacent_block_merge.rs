@@ -19,7 +19,7 @@ use semantic_vocabulary::BlockId;
 use crate::rules::CONTROL_FLOW_CLEANUP_PASS_NAME;
 use crate::rules::control_flow_cleanup::block_merge_substitutions::merge_substitutions;
 use crate::rules::control_flow_cleanup::merge_boundary_ownership::merge_boundary_ownership_witness;
-use crate::rules::control_flow_cleanup::provenance_realized_at;
+use crate::rules::control_flow_cleanup::{provenance_realized_at, record_node_provenance};
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 psi_rule_contract!(
@@ -284,30 +284,4 @@ pub(super) fn adjacent_merge_accounting(
     }
     realized.sort_by_key(optimization_unit::ProvenanceRewrite::canonical_sort_key);
     Some((affected.into_iter().collect(), realized))
-}
-
-/// Record every provenance-bearing node's realization site in block order.
-fn record_node_provenance<'node>(
-    machine: semantic_vocabulary::MachineId,
-    block: &optimization_unit::OptimizationBlock,
-    nodes: impl Iterator<Item = (usize, &'node optimization_unit::OptimizationNode)>,
-    realized: &mut Vec<ProvenanceRewrite>,
-) -> Option<()> {
-    for (node_index, node) in nodes {
-        if node.provenance.is_empty() {
-            continue;
-        }
-        let site = PsiRealizationSite::Node(NodeLocation {
-            machine,
-            block: block.id,
-            node: u32::try_from(node_index).ok()?,
-        });
-        realized.push(provenance_realized_at(
-            site,
-            site,
-            &node.provenance,
-            &node.fuel,
-        ));
-    }
-    Some(())
 }
