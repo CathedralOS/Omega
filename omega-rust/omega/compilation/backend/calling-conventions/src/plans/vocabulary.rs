@@ -301,6 +301,50 @@ pub enum ValueLocation {
 }
 
 impl ValueLocation {
+    /// The one construction of a register-resident placement row: fragment
+    /// `value_byte_offset` bytes into `register` with `byte_size` payload.
+    pub const fn register(
+        register: MachineRegister,
+        value_byte_offset: u32,
+        byte_size: u32,
+    ) -> Self {
+        Self::Register {
+            register,
+            value_byte_offset,
+            byte_size,
+        }
+    }
+
+    /// The one construction of an incoming-stack-area placement row.
+    pub const fn stack(
+        stack_byte_offset: u32,
+        value_byte_offset: u32,
+        byte_size: u32,
+        alignment: u16,
+    ) -> Self {
+        Self::Stack {
+            stack_byte_offset,
+            value_byte_offset,
+            byte_size,
+            alignment,
+        }
+    }
+
+    /// The one construction of an indirect (pointer-carried) placement row.
+    pub const fn indirect(
+        pointer: IndirectPointerLocation,
+        copy_stack_byte_offset: Option<u32>,
+        byte_size: u32,
+        alignment: u16,
+    ) -> Self {
+        Self::Indirect {
+            pointer,
+            copy_stack_byte_offset,
+            byte_size,
+            alignment,
+        }
+    }
+
     /// The register this location resolves to directly: a `Register`
     /// placement, or an `Indirect` whose pointer lives in a register. Stack
     /// placements and stack-resident indirect pointers resolve to none.
