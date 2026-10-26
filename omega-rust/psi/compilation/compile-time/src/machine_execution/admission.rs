@@ -321,6 +321,16 @@ impl BuildTimeAdmissionPlan {
                 continue;
             }
             visited.push(machine);
+            // A portable family head has no executable body in shared Psi.
+            // Its exact scoped member is another selected realization demand,
+            // even when every member contains only ordinary checked code.
+            if program
+                .target_machine_families
+                .iter()
+                .any(|family| family.canonical == machine && !family.members.is_empty())
+            {
+                return true;
+            }
             // Named and normalized token requirements appear as ordinary
             // calls. Their bodies are supplied by selected providers, not by
             // the requirement declarations in this closure.
