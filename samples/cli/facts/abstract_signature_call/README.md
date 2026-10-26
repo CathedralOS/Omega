@@ -267,6 +267,29 @@ and no fixture key or diagnostic continuation line was lost.
    (`Omega 07–09` + emission):** the emitted host image executes and agrees with
    Terminal Psi (`omega run --both`), and the twins reject before emission.
 
+## Fixed-base constant-production observations
+
+At source checkpoint `289c0e2e27400b3f9c2640b0fea7504807b254fd`, the optimized
+CLI SHA-256 is
+`98362f018b493b0774979dc4ccaa65ef90e04932457d5b279de9b2b836ba45aa`,
+and the corpus runner is
+`27c25a0d0901cab630aeec55f3dea9d107d121215cc620ea9745b956b292f975`.
+Their generation record binds the compiler, library, Cargo, and toolchain
+inputs; both report opt-level 1. The focused corpus `--both` observation covers
+21 positive fixtures (the prior nine, this production's root and nine places,
+and two composition controls): each native and Terminal run exits 0 and the
+engines agree. Its initial verdict is additions to the Intel host golden,
+with no lost successes or runtime oracle failures; the Jev advisory is
+`record_safe`.
+
+The preliminary public sample gate reports 21/21 native positives and 22/22
+intended-invalid controls, using the earlier implementation producer
+`be69a36903ae7c7d63d36f9ae186ce4896d867fd618eaa6a07d7cca7f27d04c9`.
+That observation retains its actual producer identity. The pinned qualification ledger, raw engine streams, prepared locks, source
+snapshots, and required independent review use `build/swarm/operator/`; the PR
+identifies their exact submitted candidate. Package preparation is completed for nested
+projects from leaves to root before frozen execution captures.
+
 ## What remains open
 
 - The rest of **OPERATOR-MACHINE-SUPPLY** is untouched: the static
