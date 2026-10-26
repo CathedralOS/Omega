@@ -186,6 +186,13 @@ pub(super) fn close_constant_recipes(
             range_closed[position] = true;
         }
         if let Some(proof_program) = proof_program {
+            closed_typed.constant_recipe_closure.target_bodies.extend(
+                proof_program
+                    .constant_recipe_closure
+                    .target_bodies
+                    .iter()
+                    .cloned(),
+            );
             closed_typed
                 .constant_recipe_closure
                 .receipts
@@ -217,6 +224,17 @@ pub(super) fn close_constant_recipes(
             .then(left.plan_identity.cmp(&right.plan_identity))
     });
     receipts.dedup();
+    let target_bodies = &mut closed_typed.constant_recipe_closure.target_bodies;
+    target_bodies.sort_by_key(|row| {
+        (
+            row.target_scope.clone(),
+            row.head.arena_index(),
+            row.head.generation(),
+            row.member.arena_index(),
+            row.member.generation(),
+        )
+    });
+    target_bodies.dedup();
     if !receipts.is_empty() {
         closed_typed.constant_recipe_closure.target_scope =
             selected_target_profile.target_name().to_owned();
@@ -265,6 +283,7 @@ fn close_constant_values(
         &validation::derive_pre_flow_operator_selections(authored),
         selected_provider_plan_facts,
     )?;
+    let target_bodies = evaluation.target_body_receipts();
     let (operators, provider_bodies) = evaluation.pending_fold_providers();
     let mut receipts: Vec<ConstantRecipeDependencyReceipt> = operators
         .iter()
@@ -302,7 +321,9 @@ fn close_constant_values(
     // storage keeps its symbolic positions for every other target.
     let mut evaluated = authored.clone();
     evaluation.evaluate_pending(&mut evaluated, source.constant_recipe_continuations.clone())?;
-    let closure = typed.read_constant_recipe_closure(&evaluated, receipts)?;
+    let mut closure = typed.read_constant_recipe_closure(&evaluated, receipts)?;
+    closure.target_bodies = target_bodies;
+    closure.target_scope = selected_target_profile.target_name().to_owned();
     let mut closed_typed = (**typed).clone().with_constant_recipe_closure(closure);
     closed_typed.plan_laid_layouts = std::mem::take(&mut evaluated.plan_laid_layouts);
     closed_typed.plan_laid_target_layouts = std::mem::take(&mut evaluated.plan_laid_target_layouts);

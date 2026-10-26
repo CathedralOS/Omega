@@ -80,6 +80,14 @@ pub struct ClosedConstantRecipe {
     pub value: BigInt,
 }
 
+/// Exact scoped body used while a portable family was evaluated privately.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ConstantTargetBodySelection {
+    pub head: SymbolHandle,
+    pub member: SymbolHandle,
+    pub target_scope: String,
+}
+
 /// Every recipe's value under one target capsule, with the realization
 /// receipts the evaluation consumed. Empty in the shared program.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -88,6 +96,7 @@ pub struct ConstantRecipeClosure {
     pub target_scope: String,
     pub values: Vec<ClosedConstantRecipe>,
     pub receipts: Vec<ConstantRecipeDependencyReceipt>,
+    pub target_bodies: Vec<ConstantTargetBodySelection>,
 }
 
 impl ConstantRecipeClosure {
@@ -349,6 +358,7 @@ impl crate::TypedTrees {
         }
         if unclosed.is_empty() {
             Ok(ConstantRecipeClosure {
+                target_bodies: Vec::new(),
                 values,
                 receipts,
                 ..Default::default()

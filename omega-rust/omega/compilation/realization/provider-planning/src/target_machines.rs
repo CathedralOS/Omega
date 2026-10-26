@@ -192,6 +192,41 @@ pub(crate) fn realized_machine<'program>(
         .then_some(machine)
 }
 
+/// The same exact family selection supplies closed source evaluation. These
+/// rows name checked bodies; they supply no invocation or access permission.
+pub fn selected_constant_target_bodies(
+    context: crate::ProviderPlanningContext<'_>,
+    target: TargetProfile,
+) -> Result<Vec<build_time_evaluation::SelectedBuildTimeTargetBody>, Vec<Diagnostic>> {
+    if context.scope != source::DependencyScope::Product {
+        return Ok(Vec::new());
+    }
+    let mut selected = Vec::new();
+    for family in &context.typed.target_machine_families {
+        if !context.contains(family.canonical) {
+            continue;
+        }
+        let Some(member) =
+            family_member_for_target(context.typed, family.canonical, target.target_name())
+        else {
+            continue;
+        };
+        if !realizes_machine(context, member, Some(target.target_name())) {
+            continue;
+        }
+        selected.push(
+            build_time_evaluation::SelectedBuildTimeTargetBody::prepare(
+                context.typed,
+                family.canonical,
+                member.symbol,
+                target.target_name(),
+            )
+            .map_err(|reason| vec![Diagnostic::error(reason)])?,
+        );
+    }
+    Ok(selected)
+}
+
 /// The retained member body a family head stands for on one target, from
 /// Psi's explicit family catalog. `None` when the family has no body for
 /// that target: the head itself is never a realization.
