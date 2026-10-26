@@ -204,8 +204,10 @@ capability.
    assignment. For new automatic work, choose an actionable `TASKS.md` outcome
    by its stated priority and release dependencies, then discharge it inside
    `samples/cli/facts`. Read its full acceptance
-   and verify its remaining gap against a fresh current-main compiler build
-   (`build/gate-cli`), never a stale cached binary (`omega-latest.exe`). Name
+   and verify its remaining gap with an optimized exact-source producer
+   for the recorded fixed base. Reuse a warm `build/gate-cli` or retained
+   producer with verified inputs; build only when those inputs changed or no
+   valid producer exists. Never use an unverified cached binary. Name
    the exact requirement the next witness will discharge. Never filter discovery
    solely to folders that already have all nine `<place>/main.omg` files and
    already pass on current main (which produces coverage-only commits without
@@ -651,9 +653,14 @@ That directory is gitignored local state. An existing checkout stays where it is
 selecting or dispatching work. A failed fetch stops the new launch; a cached
 `origin/main` is never a fallback. Each independent cloud executor repeats this
 preflight before implementation. Existing outcomes retain their worktrees and
-unpublished work, integrating fetched main at a safe checkpoint outside an
-active qualification capture. Offline plans and dry runs are previews, not a
-completed launch preflight.
+unpublished work and their recorded fixed base, including after resumption or
+compaction. Main or queue SHA movement alone never triggers pull, rebase, build,
+requalification or review. Only a demonstrated actual merge conflict, a concrete
+prerequisite or changed affected source justifies targeted local integration and
+affected checks. Required PR/merge-group CI owns integration admission.
+Postlanding verification reads the merged PR, published commit and CI results;
+it does not rebuild or rerun acceptance. Offline plans and dry runs are previews,
+not a completed launch preflight.
 
 - Give a session or subagent a complete piece of work, never a stage: the
   parent capability and remaining acceptance, its next sample and oracle,
