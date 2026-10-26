@@ -178,6 +178,40 @@ admission.
   Terminal Psi. The other four authored targets have no runtime observation
   on this Intel host and remain outside this run's platform qualification.
 
+## Applied generic callback production
+
+The next production under **OPERATOR-MACHINE-SUPPLY** keeps the same premise,
+selected body and `hold` operation, and supplies the callback's explicit static
+tuple: `const DIRECT: bool = apply<witness<1>>(true)`, with
+`witness<const Marker: u64>`. The unused parameter still owes its declared kind,
+carrier and bounds. The frozen [root](constant_initializer/applied_callback/main.omg)
+has source SHA-256
+`e5383eb6e400c986fd0c5a1b5b93b5da04b0881b8a993c214266abca86415b7b`.
+The optimized producer from fixed source
+`37f85b4aa3810cfb579257afb37cc8b99508c84f` refuses it before execution with
+`a nested machine application without a completely admitted callable tuple`.
+That is a new remaining formation gap after the constant-custody repair in
+PR 253; no runtime acceptance for this production is claimed yet.
+
+| Place | Positive | Reject twin |
+| --- | --- | --- |
+| local | [local](constant_initializer/applied_callback/local/main.omg) | [invalid](constant_initializer/applied_callback/local/invalid/main.omg) |
+| field | [field](constant_initializer/applied_callback/field/main.omg) | [invalid](constant_initializer/applied_callback/field/invalid/main.omg) |
+| parameter | [parameter](constant_initializer/applied_callback/parameter/main.omg) | [invalid](constant_initializer/applied_callback/parameter/invalid/main.omg) |
+| call result | [call result](constant_initializer/applied_callback/call_result/main.omg) | [invalid](constant_initializer/applied_callback/call_result/invalid/main.omg) |
+| match join | [match join](constant_initializer/applied_callback/match_join/main.omg) | [invalid](constant_initializer/applied_callback/match_join/invalid/main.omg) |
+| const name | [const name](constant_initializer/applied_callback/const_name/main.omg) | [invalid](constant_initializer/applied_callback/const_name/invalid/main.omg) |
+| nested machine | [other state](constant_initializer/applied_callback/other_state/main.omg) | [invalid](constant_initializer/applied_callback/other_state/invalid/main.omg) |
+| another machine | [other machine](constant_initializer/applied_callback/other_machine/main.omg) | [invalid](constant_initializer/applied_callback/other_machine/invalid/main.omg) |
+| target body | [target body](constant_initializer/applied_callback/target_body/main.omg) | [invalid](constant_initializer/applied_callback/target_body/invalid/main.omg) |
+
+Each twin changes only the premise's own result to false. The nine transports
+and root are pinned under
+`tests/omega/{pass,fail}/facts/abstract_signature_call_applied_callback_*`.
+Their current results, complete tuple admission, independent review and
+publication remain to be established. The broader task's formation, law,
+declaration migration and other-host acceptance remain open.
+
 ## Execution
 
 Every positive place binds `ProgramEntry` for all four hosted targets

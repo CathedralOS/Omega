@@ -266,7 +266,9 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         changed_owners.extend(cleanup_applications::materialize(program)?);
         native_query_lifetimes::retain(program)?;
         crate::preparation::elaborate_projected_receivers(program)?;
-        changed_owners.extend(contextual_calls::close(program)?);
+        let contextual_owners = contextual_calls::close(program)?;
+        let contextual_changed = !contextual_owners.is_empty();
+        changed_owners.extend(contextual_owners);
         crate::constructed_results::retain_constructed_result_types(program);
         // Source formation needs the normal typed operand/context inventory,
         // but must precede tuple derivation and canonical const replacement.
@@ -291,7 +293,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         let candidates = candidate::collect(program);
         let callee_states = candidate::callees(program, &candidates);
         if candidates.is_empty() {
-            if captures_changed {
+            if captures_changed || contextual_changed {
                 continue;
             }
             return Ok(typed_trees::references::DeclarationSelection::from_symbols(
@@ -350,7 +352,8 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
             &candidates,
             &mut selections,
             &mut changed_owners,
-        )? || captures_changed;
+        )? || captures_changed
+            || contextual_changed;
         for (candidate_index, candidate) in candidates.iter().enumerate() {
             // Open callers keep their symbolic applications. Concrete applications
             // of the same template are independent tuples, never evidence with

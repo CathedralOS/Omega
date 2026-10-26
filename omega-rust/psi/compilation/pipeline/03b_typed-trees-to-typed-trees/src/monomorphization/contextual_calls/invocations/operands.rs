@@ -7,8 +7,7 @@ use typed_trees::data::{TypeParameter, TypeParameterKind};
 
 pub(super) fn derive(
     program: &mut TypedTrees,
-    caller: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    scope: &super::InvocationScope,
     site: CallSite,
     parameters: &[TypeParameter],
     selected: &[StaticMachineArgument],
@@ -88,9 +87,8 @@ pub(super) fn derive(
     );
     let mut inferred = super::super::super::StaticProposals::default();
     for (required, argument) in runtime.iter().zip(arguments) {
-        if let Some(actual) =
-            validation::expression_result_type_reference(program, caller, state, *argument)
-            && (caller.has_specialization_parameters()
+        if let Some(actual) = scope.result_type(program, *argument)
+            && (scope.has_open_parameters(program)
                 || !super::super::super::selection::names_type_binder(program, actual))
         {
             super::super::super::infer_static_bindings(context, *required, actual, &mut inferred);
