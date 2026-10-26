@@ -19,7 +19,7 @@ machine main() crashes Trap {
     let mut values: [Cell; 2] = [Cell { value: 1 }, Cell { value: 2 }];
     let indices: Indices = Indices { first: 0, second: 0 };
     replace(&mut values[..], Indices { first: indices.first, second: indices.second }, flip(&mut indices));
-    transition values[0].value == 17 && values[1].value == 53 { true -> done() _ -> bad() }
+    transition values[0].value == 17 && values[1].value == 53 && indices.second == 0 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }
