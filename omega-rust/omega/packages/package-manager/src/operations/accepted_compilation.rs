@@ -400,12 +400,10 @@ fn prepare_occurrences(
             let entry = if is_root {
                 request.entry.to_path_buf()
             } else {
-                let main = custody.snapshot_root().join("main.omg");
-                if main.is_file() {
-                    main
-                } else {
-                    custody.snapshot_root().join("build.omg")
-                }
+                crate::resolution::source::package_entry(
+                    custody.snapshot_root(),
+                    custody.captured_source().map(std::sync::Arc::as_ref),
+                )
             };
             let snapshot = if is_root {
                 request

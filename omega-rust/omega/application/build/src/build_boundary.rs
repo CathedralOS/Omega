@@ -205,7 +205,11 @@ fn application_schedules_dependencies_without_opening_source_continuations() {
     assert!(execution.contains("activation.advance(1024)"));
     assert!(execution.contains("compiler.complete_package_build(invocation, returned)"));
     assert!(execution.contains("compiler.complete_package_components(builds)"));
-    for source in [execution, include_str!("package_compilation.rs")] {
+    for source in [
+        execution,
+        include_str!("package_compilation.rs"),
+        include_str!("build_execution/source_resolution.rs"),
+    ] {
         for forbidden in [
             "CheckedCompilation",
             "PreparedPackageBuild",

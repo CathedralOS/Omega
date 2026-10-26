@@ -369,6 +369,12 @@ fn begin_local_project_preparation_in_storage(
 }
 
 impl LocalProjectPreparation {
+    /// The authored entry routed inside the acquired namespace, not permission
+    /// to reopen it. Source compilation must also receive `acquire_root` custody.
+    pub fn entry_path(&self) -> PathBuf {
+        self.canonical_root.join(&self.entry_relative)
+    }
+
     pub fn acquire_root(
         &self,
     ) -> Result<crate::resolution::source::AcquiredLocalSource, PrepareLocalProjectError> {

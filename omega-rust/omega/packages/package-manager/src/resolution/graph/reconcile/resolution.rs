@@ -106,6 +106,10 @@ struct SourceClosureTraversal {
     root_role: BuildDeclarationKind,
     limits: PackageSourceClosureLimits,
     accepted: BTreeMap<PackageKey, PackageSourceCustody>,
+    // Acquisition identity exists before the Build-produced package name.
+    // Executed-source adapters reuse their invocation's first capture; graph
+    // reconciliation still validates every alias, role, edge and cycle.
+    acquired: BTreeMap<package_source::SourceLineage, PackageSourceCustody>,
     observed: BTreeMap<PackageKey, Vec<ObservedCustody>>,
     dependencies: BTreeMap<PackageKey, Vec<ResolvedDependency>>,
     depths: BTreeMap<PackageKey, usize>,
@@ -151,6 +155,7 @@ pub(crate) fn begin_source_closure<E>(
     let root_key = root.key().clone();
     let root_role = root.role();
     let accepted = BTreeMap::from([(root_key.clone(), root.clone())]);
+    let acquired = BTreeMap::from([(root_key.source_lineage().clone(), root.clone())]);
     let observed = BTreeMap::from([(
         root_key.clone(),
         vec![ObservedCustody {
@@ -164,6 +169,7 @@ pub(crate) fn begin_source_closure<E>(
         root_role,
         limits,
         accepted,
+        acquired,
         observed,
         dependencies: BTreeMap::new(),
         depths: BTreeMap::from([(root_key.clone(), 0)]),
@@ -174,6 +180,13 @@ pub(crate) fn begin_source_closure<E>(
 }
 
 impl PendingSourceResolution {
+    pub(crate) fn acquired_source(
+        &self,
+        lineage: &package_source::SourceLineage,
+    ) -> Option<&PackageSourceCustody> {
+        self.owner.traversal.acquired.get(lineage)
+    }
+
     pub(crate) const fn purpose(&self) -> DependencyPurpose {
         self.purpose
     }
@@ -214,6 +227,11 @@ impl PendingSourceResolution {
             });
         }
         let alias = self.source().resolved_alias(dependency.key().name());
+        self.owner
+            .traversal
+            .acquired
+            .entry(dependency.key().source_lineage().clone())
+            .or_insert_with(|| dependency.clone());
         self.owner.selected.push(SelectedDependency {
             purpose: self.purpose,
             dependency_index: self.dependency_index,

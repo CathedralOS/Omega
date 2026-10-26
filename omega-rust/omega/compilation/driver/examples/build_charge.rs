@@ -33,8 +33,12 @@ fn main() {
     deferred_product_uses_captured_imports();
     unbound_build_invocation("separate_build_product_imports_exit");
     unbound_build_invocation("executed_project_identity_exit");
-    executed_dependency_source_join(false);
-    executed_dependency_source_join(true);
+    executed_dependency_source_join("executed_dependency_source_join_exit", false);
+    executed_dependency_source_join("executed_dependency_source_join_exit", true);
+    executed_dependency_source_join("executed_dependency_shared_source_exit", false);
+    application_source_resolution("executed_dependency_source_join_exit", false);
+    application_source_resolution("executed_dependency_source_join_exit", true);
+    application_source_resolution("executed_dependency_shared_source_exit", false);
     interleaved_build_invocations();
     foreign_build_return_refuses();
     ignored_build_request_still_requires_join();
@@ -487,18 +491,17 @@ fn unbound_build_invocation(project_name: &str) {
     assert_eq!(counters::build_execution_count(), before);
 }
 
-fn executed_dependency_source_join(private_call: bool) {
-    use package_manager::resolution::source::ExecutedSourceResolution;
+fn executed_source_workspace(
+    project: &str,
+    private_call: bool,
+) -> platform_custody::temporary_directory::TemporaryDirectory {
     let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
         "executed-source-graph",
         false,
     )
     .expect("exclusive source graph workspace");
     let fixtures = fixture_package_inputs::repo_root().join("tests/omega/pass/build");
-    for package in [
-        "executed_dependency_source_join_exit",
-        "executed_dependency_source_library",
-    ] {
+    for package in [project, "executed_dependency_source_library"] {
         std::fs::create_dir(temporary.path().join(package)).unwrap();
         for name in ["main.omg", "build.omg"] {
             std::fs::copy(
@@ -512,17 +515,84 @@ fn executed_dependency_source_join(private_call: bool) {
         std::fs::copy(
             fixture_package_inputs::repo_root()
                 .join("tests/omega/fail/build/executed_dependency_private_call/main.omg"),
-            temporary
-                .path()
-                .join("executed_dependency_source_join_exit/main.omg"),
+            temporary.path().join(project).join("main.omg"),
         )
         .unwrap();
     }
+    temporary
+}
+
+fn application_source_resolution(project: &str, private_call: bool) {
+    let temporary = executed_source_workspace(project, private_call);
     let profile = target::TargetProfile::host_if_supported().unwrap();
     let preparation = package_manager::operations::begin_local_project_preparation(
-        &temporary
+        &temporary.path().join(project).join("main.omg"),
+        &[profile],
+        true,
+    )
+    .unwrap()
+    .unwrap();
+    let mut compiler = CompilationSession::default();
+    let before = counters::build_execution_count();
+    let resolved = omega_build::resolve_project_sources(&mut compiler, preparation, profile)
+        .unwrap_or_else(|error| panic!("application source resolution: {error:?}"));
+    assert_eq!(resolved.builds.len(), 2);
+    assert_eq!(counters::build_execution_count(), before + 2);
+    // Normal application discovery owns both captured namespaces and returned
+    // activations. No later compiler/review consumer may need live source.
+    for package in [project, "executed_dependency_source_library"] {
+        for name in ["main.omg", "build.omg"] {
+            std::fs::remove_file(temporary.path().join(package).join(name)).unwrap();
+        }
+    }
+    let mut builds = resolved.builds;
+    let child = builds.pop().unwrap();
+    let inputs = child.package_inputs().clone();
+    let child = child.complete(&mut compiler, inputs).unwrap();
+    let root = builds.pop().unwrap();
+    let inputs = root
+        .package_inputs()
+        .clone()
+        .with_complete_dependency_generated_sources(vec![child.generated_source_bundle().clone()])
+        .unwrap();
+    let root = root.complete(&mut compiler, inputs).unwrap();
+    let result = execute_joined_product(&mut compiler, root, &temporary.path().join("output"));
+    if private_call {
+        let diagnostics = result
+            .expect_err("application join must preserve privacy")
+            .into_diagnostics();
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("selects private machine `private_answer::entry`")),
+            "{diagnostics:?}"
+        );
+        println!("application_executed_source_join_preserved_private_machine_rejection");
+    } else {
+        result
+            .unwrap_or_else(|error| panic!("application product: {:?}", error.into_diagnostics()));
+        println!(
+            "{project}: application_executed_source_join_native_and_terminal_exit0_without_live_sources_or_replay"
+        );
+    }
+    assert_eq!(counters::build_execution_count(), before + 2);
+    assert_eq!(
+        resolved.prepared.entry_path(),
+        temporary
             .path()
-            .join("executed_dependency_source_join_exit/main.omg"),
+            .canonicalize()
+            .unwrap()
+            .join(project)
+            .join("main.omg")
+    );
+}
+
+fn executed_dependency_source_join(project: &str, private_call: bool) {
+    use package_manager::resolution::source::ExecutedSourceResolution;
+    let temporary = executed_source_workspace(project, private_call);
+    let profile = target::TargetProfile::host_if_supported().unwrap();
+    let preparation = package_manager::operations::begin_local_project_preparation(
+        &temporary.path().join(project).join("main.omg"),
         &[profile],
         true,
     )
@@ -555,23 +625,29 @@ fn executed_dependency_source_join(private_call: bool) {
         match resolution {
             ExecutedSourceResolution::Complete(resolved) => break resolved,
             ExecutedSourceResolution::Request(pending) => {
-                let acquired = pending
-                    .capture_local_source()
-                    .expect("acquire only the selected dependency");
+                let acquired = match pending
+                    .acquire_local_source()
+                    .expect("acquire only the selected dependency")
+                {
+                    package_manager::resolution::source::BuildSourceAcquisition::Execute(
+                        acquired,
+                    ) => acquired,
+                    package_manager::resolution::source::BuildSourceAcquisition::Reused(next) => {
+                        resolution = next;
+                        continue;
+                    }
+                };
                 let capture = acquired.source_capture().clone();
                 for name in ["main.omg", "build.omg"] {
                     std::fs::remove_file(capture.canonical_live_root().join(name)).unwrap();
                 }
                 let mut invocation = compiler.begin_package_build(request(&capture)).unwrap();
                 let returned = return_build(&mut invocation).unwrap();
-                resolution = acquired
+                let (identity, next) = acquired
                     .complete(&returned)
                     .expect("join actual child declaration");
-                children.push((
-                    capture.canonical_live_root().to_path_buf(),
-                    invocation,
-                    returned,
-                ));
+                resolution = next;
+                children.push((identity, invocation, returned));
             }
         }
     };
@@ -588,12 +664,7 @@ fn executed_dependency_source_join(private_call: bool) {
         .expect("all packages retain captured bytes");
     assert_eq!(preview.packages().count(), 2);
     let mut generated = Vec::new();
-    for (path, mut invocation, mut returned) in children {
-        let identity = preview
-            .packages()
-            .find(|(_, root)| *root == path)
-            .unwrap()
-            .0;
+    for (identity, mut invocation, mut returned) in children {
         assert!(
             preview.canonical_source_metadata(identity).is_none(),
             "foreign package has no root Build metadata view"
@@ -658,7 +729,7 @@ fn executed_dependency_source_join(private_call: bool) {
     let changed_graph = unbound_join_inputs(
         acquired.source_capture(),
         acquired.source_capture().tree().clone(),
-        "executed_dependency_source_join_exit",
+        project,
     );
     assert!(
         root_return
@@ -702,7 +773,7 @@ fn executed_dependency_source_join(private_call: bool) {
         outcome
             .unwrap_or_else(|failure| panic!("joined Product: {:?}", failure.into_diagnostics()));
         println!(
-            "executed_dependency_graph_joined_captured_child_native_and_terminal_exit0_without_replay"
+            "{project}: executed_dependency_graph_joined_captured_child_native_and_terminal_exit0_without_replay"
         );
     }
     assert_eq!(

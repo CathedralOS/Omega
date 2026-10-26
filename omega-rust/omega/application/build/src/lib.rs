@@ -9,7 +9,9 @@
 //! waits for demanded components before their consumers. `package_commands.rs`
 //! schedules admitted target reviews before package-owned publication. The
 //! review dependency loop and audit target/session lifecycle also live here.
-//! Terminal Build/helper suspension remains separate migration work.
+//! `build_execution/source_resolution.rs` drives actual source requests while
+//! retaining returned invocations, sharing execution with compilation/review.
+//! Production admission and provider/helper suspension remain migration work.
 
 mod build;
 mod build_directory;
@@ -28,6 +30,10 @@ pub mod publication;
 mod build_boundary;
 
 pub use build::build;
+pub use build_execution::source_resolution::{
+    ProjectSourceResolutionError, ResolvedPackageBuild, ResolvedProjectBuilds,
+    resolve_project_sources,
+};
 pub use check_project::{
     CheckPreparedLocalProjectError, CheckedProjectTargetOutcome, PreparedLocalProjectCheckRequest,
     ProjectInspectionError, check_prepared_local_project_for_targets,

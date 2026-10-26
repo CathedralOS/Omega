@@ -9,6 +9,8 @@
 //! compiles that root through its own product request, stops after joining the
 //! dependencies' generated source into the root request.
 
+pub(crate) mod source_resolution;
+
 use build_declarations::DependencyPurpose;
 use compiler::{CheckedCompileRequest, CompileFailure, PackageBuild};
 use compiler::{CompilationSession, PackageCompileFailure};
@@ -63,6 +65,34 @@ pub(crate) fn execute_package_build(
     compiler: &mut CompilationSession,
     request: CheckedCompileRequest,
 ) -> Result<PackageBuild, CompileFailure> {
+    execute_returned_build(compiler, request)?.complete(compiler)
+}
+
+/// Application work retained between normal return and the final source join.
+/// Keeping the invocation beside its return prevents the scheduler from
+/// discarding the source continuation and replaying Build after acquisition.
+pub(crate) struct ReturnedPackageBuild {
+    pub(crate) invocation: compiler::PackageBuildInvocation,
+    pub(crate) returned: Option<build_evaluation::ReturnedBuild>,
+}
+
+impl ReturnedPackageBuild {
+    pub(crate) fn complete(
+        self,
+        compiler: &mut CompilationSession,
+    ) -> Result<PackageBuild, CompileFailure> {
+        let Self {
+            invocation,
+            returned,
+        } = self;
+        compiler.complete_package_build(invocation, returned)
+    }
+}
+
+pub(crate) fn execute_returned_build(
+    compiler: &mut CompilationSession,
+    request: CheckedCompileRequest,
+) -> Result<ReturnedPackageBuild, CompileFailure> {
     let mut invocation = compiler.begin_package_build(request)?;
     let returned = if let Some(execution) = invocation.execution() {
         let mut host = execution.host()?;
@@ -82,7 +112,10 @@ pub(crate) fn execute_package_build(
     } else {
         None
     };
-    compiler.complete_package_build(invocation, returned)
+    Ok(ReturnedPackageBuild {
+        invocation,
+        returned,
+    })
 }
 
 pub(super) fn prepare_packages<Owner>(

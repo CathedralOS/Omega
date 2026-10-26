@@ -1127,12 +1127,17 @@ narrows realization only.
   request. Project preparation now retains transaction recovery, lock selection
   and concurrent-edit checks across application-owned source execution; its
   begin/finish boundary accepts the actual acquired graph without parsing Build
-  declarations. The SDK uses that boundary, and focused package tests preserve
-  transaction exclusion and refusal ordering. This is not the production CLI
-  route yet: application preparation
-  still consumes package management's static graph, and ordinary one-shot
-  compiler calls still own their execution loop. The application must consume
-  the executed traversal, extend pinned Git/workspace acquisition and preserve
+  declarations. Application source discovery now drives the executed traversal
+  through the same execution loop as compilation/review, retaining invocations
+  for final completion rather than replay. Repeated local requests reuse their
+  first acquired source and Build while every graph edge still reconciles. The
+  SDK proves two aliases share one dependency activation, including after its
+  live files are deleted, and runs the application route through native/Terminal
+  completion with private-call rejection. Package tests preserve transaction
+  exclusion and refusal ordering. Production CLI admission still consumes the
+  static graph; it must consume these retained Builds across review and target
+  occurrences. Ordinary one-shot compiler calls still own their execution loop.
+  Extend pinned Git/workspace acquisition and preserve
   review/lock/offline recovery while replacing static Build projection,
   provider readiness/resumption, and demanded Product-description queries; this
   is not yet the completed production cutover.

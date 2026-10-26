@@ -17,6 +17,10 @@ pub struct DeclaredBuildSource {
 }
 
 impl DeclaredBuildSource {
+    pub fn identity(&self) -> PackageKeyIdentity {
+        self.custody.key().identity()
+    }
+
     pub fn source_binding(&self) -> Result<PackageSourceBinding, String> {
         let custody = &self.custody;
         let tree = custody
@@ -60,11 +64,19 @@ pub struct PendingBuildSource {
     request: PendingSourceResolution,
 }
 
+/// A new source needs one executed declaration. A repeated acquisition keeps
+/// the first immutable capture and advances the same graph without replaying
+/// Build. Reuse still checks this occurrence's role, alias and dependency edge.
+pub enum BuildSourceAcquisition {
+    Execute(AcquiredBuildDependency),
+    Reused(ExecutedSourceResolution),
+}
+
 impl PendingBuildSource {
     /// The local transport adapter preserves the original requester's base and
     /// context. Git/workspace requests need their pinned acquisition adapter;
     /// this operation never treats their locator as an ambient local path.
-    pub fn capture_local_source(self) -> Result<AcquiredBuildDependency, String> {
+    pub fn acquire_local_source(self) -> Result<BuildSourceAcquisition, String> {
         let requester = self.request.requester();
         let DependencySourceRequest::Path { location, .. } = self.request.source() else {
             return Err(self
@@ -85,6 +97,22 @@ impl PendingBuildSource {
             Ok(root) => root,
             Err(error) => return Err(self.request.fail(error).to_string()),
         };
+        let selected_lineage = match package_source::ExternalLocalLineage::canonicalize(
+            &root,
+            lineage.source_context().clone(),
+        ) {
+            Ok(lineage) => package_source::SourceLineage::ExternalLocal(lineage),
+            Err(error) => return Err(self.request.fail(error).to_string()),
+        };
+        if let Some(custody) = self.request.acquired_source(&selected_lineage).cloned() {
+            let step = self
+                .request
+                .complete::<String>(custody)
+                .map_err(|error| error.to_string())?;
+            return Ok(BuildSourceAcquisition::Reused(
+                ExecutedSourceResolution::from_step(step),
+            ));
+        }
         let acquired = match AcquiredLocalSource::capture(
             &root,
             requester.source_limits(),
@@ -93,10 +121,10 @@ impl PendingBuildSource {
             Ok(acquired) => acquired,
             Err(error) => return Err(self.request.fail(error).to_string()),
         };
-        Ok(AcquiredBuildDependency {
+        Ok(BuildSourceAcquisition::Execute(AcquiredBuildDependency {
             pending: self.request,
             acquired,
-        })
+        }))
     }
 }
 
@@ -106,6 +134,11 @@ pub struct AcquiredBuildDependency {
 }
 
 impl AcquiredBuildDependency {
+    pub fn entry_path(&self) -> std::path::PathBuf {
+        let capture = self.source_capture();
+        super::package_entry(capture.canonical_live_root(), Some(capture.tree()))
+    }
+
     pub fn source_capture(&self) -> &CapturedLocalSource {
         self.acquired.source_capture()
     }
@@ -115,16 +148,17 @@ impl AcquiredBuildDependency {
     pub fn complete(
         self,
         returned: &build_evaluation::ReturnedBuild,
-    ) -> Result<ExecutedSourceResolution, String> {
+    ) -> Result<(PackageKeyIdentity, ExecutedSourceResolution), String> {
         let declared = match self.acquired.declare_build(returned) {
             Ok(declared) => declared,
             Err(error) => return Err(self.pending.fail(error).to_string()),
         };
+        let identity = declared.identity();
         let step = self
             .pending
             .complete::<String>(declared.custody)
             .map_err(|error| error.to_string())?;
-        Ok(ExecutedSourceResolution::from_step(step))
+        Ok((identity, ExecutedSourceResolution::from_step(step)))
     }
 }
 
