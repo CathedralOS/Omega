@@ -1108,17 +1108,36 @@ fn backing_storage_access_conflicts(
             else {
                 return true;
             };
-            // A within-region origin may address any byte under its storage
-            // root. Widen to that whole root, retaining its exact identity:
-            // uncertainty inside one allocation does not alias every other
-            // activation-local allocation. It intentionally has no exact path
-            // usable for a descriptor load. Unknown bases still refuse above.
+            // A within-region origin need not provide a descriptor address.
+            // Widen to its whole storage root only when the region itself is
+            // proven inline. A pointer/view crossing or unknown element family
+            // cannot acquire disjointness from its descriptor's local home.
             let path = if origin.extent == semantic_vocabulary::ReferenceOriginExtent::Projected {
                 let Some(path) = origin.exact_path() else {
                     return true;
                 };
                 path
             } else {
+                let Some(region_path) = origin
+                    .path
+                    .iter()
+                    .map(|projection| match projection {
+                        ReferenceOriginProjection::Exact(segment) => Some(segment.clone()),
+                        ReferenceOriginProjection::Element => None,
+                    })
+                    .collect::<Option<Vec<_>>>()
+                else {
+                    return true;
+                };
+                if !source_contract(function, custody, place).is_some_and(|root| {
+                    terminal_semantics::projection_stays_in_inline_storage(
+                        types.iter(),
+                        root,
+                        &region_path,
+                    )
+                }) {
+                    return true;
+                }
                 Vec::new()
             };
             custody.borrowed_sources.contains_key(&place)
