@@ -91,6 +91,19 @@ fn lower_lexical_machine_into(
     machine: &syntax::item::Machine,
     lexical_parent: Handle<Machine>,
 ) -> Result<(), Diagnostic> {
+    // Nesting supplies a lexical name, not the outer declaration's public
+    // interface. Every header selects dependencies under its own exposure.
+    lowerer.with_authored_expression_exposure(machine_interface_exposure(machine), |lowerer| {
+        lower_lexical_machine_parts(lowerer, syntax_trees, machine, lexical_parent)
+    })
+}
+
+fn lower_lexical_machine_parts(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    machine: &syntax::item::Machine,
+    lexical_parent: Handle<Machine>,
+) -> Result<(), Diagnostic> {
     if lexical_parent.is_valid()
         && (machine.is_public
             || machine.attached_data.is_some()
@@ -104,7 +117,9 @@ fn lower_lexical_machine_into(
     if !machine.nested_machines.is_empty()
         && (!machine.type_parameters.is_empty() || !machine.lifetime_parameters.is_empty())
     {
-        return Err(Diagnostic::error("nested machines retaining an enclosing static telescope are not yet supported"));
+        return Err(Diagnostic::error(
+            "nested machines retaining an enclosing static telescope are not yet supported",
+        ));
     }
     // OPERATOR-MACHINE-SUPPLY: `machine.spelling` (the optional fixed token
     // after `machine`) is copied onto the symbol-resolved declaration below
