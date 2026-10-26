@@ -179,7 +179,7 @@ pub(crate) fn desugar_generic_data_instances_in(
                 .map(|parameter| {
                     (
                         parameter.name.as_str(syntax).to_string(),
-                        matches!(parameter.kind, TypeParameterKind::Const { .. }),
+                        parameter.kind.is_const_or_value(),
                     )
                 })
                 .collect();
@@ -219,7 +219,8 @@ pub(crate) fn desugar_generic_data_instances_in(
         let const_parameter_types = definition_parameters
             .iter()
             .map(|parameter| match parameter.kind {
-                TypeParameterKind::Const { type_reference } => Some(type_reference),
+                TypeParameterKind::Const { type_reference }
+                | TypeParameterKind::Value { type_reference } => Some(type_reference),
                 _ => None,
             })
             .collect();
@@ -796,8 +797,16 @@ fn synthesize_instance(
     // loop above, so its `const` mentions land in the same rewritten
     // window as the data-level fact copies.
     replace_const_expression_names_from(syntax, fact_expression_watermark, &const_expressions);
-    let cleanup_selection = base_info.cleanup_selection.clone().map(|selection|
-        super::substitution::substitute_cleanup_selection(syntax, snapshot, selection, &substitution, &const_parameter_values, warnings));
+    let cleanup_selection = base_info.cleanup_selection.clone().map(|selection| {
+        super::substitution::substitute_cleanup_selection(
+            syntax,
+            snapshot,
+            selection,
+            &substitution,
+            &const_parameter_values,
+            warnings,
+        )
+    });
     let declaration = syntax.push_root_item(Item::Data(DataDefinition {
         // The closed instance is compiler-generated, but its mandatory
         // derivation origin is the exact authored generic declaration.

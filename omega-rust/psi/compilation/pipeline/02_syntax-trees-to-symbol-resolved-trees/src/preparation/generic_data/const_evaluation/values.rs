@@ -314,6 +314,27 @@ pub(in crate::preparation::generic_data) fn syntax_type_identity(
                 }
             }
             TypeReferenceNode::Unit => "()".to_owned(),
+            TypeReferenceNode::ConstExpression(expression) => {
+                match syntax.expressions.expression(*expression) {
+                    syntax_trees::expression::ExpressionNode::Integer(literal) => {
+                        super::integer_literal_value(literal)
+                            .map(|value| value.to_string())
+                            .ok_or_else(|| "integer literal exceeds const envelope".to_owned())?
+                    }
+                    syntax_trees::expression::ExpressionNode::Name(path) => {
+                        let [member] = syntax.expressions.identifier_path_members(*path) else {
+                            return Err("unsupported path in const expression".to_owned());
+                        };
+                        member.as_str(syntax).to_owned()
+                    }
+                    _ => {
+                        return Err(
+                            "structured const parameter types must be a canonical scalar, fixed array, or declared data value"
+                                .to_owned(),
+                        );
+                    }
+                }
+            }
             _ => {
                 return Err(
                 "structured const parameter types must be a canonical scalar, fixed array, or declared data value"
@@ -548,10 +569,7 @@ fn generic_application_label(
                         syntax,
                         selection,
                         *argument,
-                        matches!(
-                            parameter.kind,
-                            syntax_trees::item::TypeParameterKind::Const { .. }
-                        ),
+                        parameter.kind.is_const_or_value(),
                     )
                     .ok_or("generic const carrier is not a closed monomorphizable application")?;
                     let label = selected_type_label(syntax, *argument, selection)?;
@@ -596,10 +614,7 @@ fn synthesized_instance<'syntax>(
                 syntax,
                 selection,
                 *argument,
-                matches!(
-                    parameter.kind,
-                    syntax_trees::item::TypeParameterKind::Const { .. }
-                ),
+                parameter.kind.is_const_or_value(),
             )
         })
         .collect::<Option<Vec<_>>>()?;
