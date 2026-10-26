@@ -1799,10 +1799,21 @@ fn declared_realization_targets(root_path: &Path) -> Vec<String> {
     // Read the slot operand structurally. An explicit Build argument can be
     // a call containing commas, and comments may contain example bindings;
     // neither should change which target this fixture actually declares.
-    for item in syntax.root_items() {
-        let syntax_trees::item::Item::Machine(machine) = item else {
+    // Candidate discovery follows the declaration graph. Native admission
+    // still executes Build and requires an actually selected root; seeing a
+    // source binding here supplies no execution or entry authority.
+    let mut pending = syntax
+        .root_item_handles()
+        .iter()
+        .rev()
+        .copied()
+        .collect::<Vec<_>>();
+    while let Some(item) = pending.pop() {
+        let syntax_trees::item::Item::Machine(machine) = syntax.items.item(item) else {
             continue;
         };
+        let nested = machine.nested_machines.handles().collect::<Vec<_>>();
+        pending.extend(nested.into_iter().rev());
         for state in syntax.items.state_handles(machine.states) {
             let state = syntax.items.state(*state);
             for statement in syntax.items.statements(state.statements) {

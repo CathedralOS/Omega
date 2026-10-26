@@ -2,6 +2,7 @@
 
 pub(crate) mod build_continuation;
 pub(crate) mod compile_thread;
+mod product_selections;
 mod source_checking;
 pub(crate) use source_checking::check_product_source;
 

@@ -41,6 +41,8 @@ pub(crate) fn rederive_selections(
     let derived = representation_planning::rederive_opaque_representation_selections(
         compilation.checking_input,
         selected,
+        &compilation.custody.build().declared_product_selections,
+        &compilation.custody.build().product_selection_requests,
         compilation
             .custody
             .build()

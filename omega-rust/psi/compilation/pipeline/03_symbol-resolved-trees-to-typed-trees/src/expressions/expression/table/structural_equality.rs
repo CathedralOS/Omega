@@ -383,7 +383,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     private_layout_operation: None,
                     layout_query: None,
                     native_code_layout: None,
-                    root_binding: Default::default(),
+                    build_selection: Default::default(),
                     arguments,
                     evidence_arguments: Box::default(),
                     operational_acknowledgement:

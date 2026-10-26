@@ -4,13 +4,15 @@
 //! and optimized operations share custody; consumers never parse debug names or
 //! reopen trees. Portable artifact bytes alone do not grant Build authority.
 
-use language_semantics::declaration_selection::RootBindingRequest;
+use language_semantics::declaration_selection::{BuildSelectionRequest, ProductDeclarationRequest};
 use semantic_vocabulary::OperationId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalBuildBindingOperation {
     Prepare,
     Bind,
+    Select,
+    SelectMode,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -18,7 +20,7 @@ pub struct TerminalBuildBindingCall {
     pub operation: OperationId,
     pub boundary: semantic_vocabulary::BoundaryMachineId,
     pub action: TerminalBuildBindingOperation,
-    pub request: RootBindingRequest,
+    pub request: BuildSelectionRequest,
 }
 
 /// Source-issued context bound to exact Terminal semantics and, for private
@@ -27,6 +29,7 @@ pub struct TerminalBuildBindingCall {
 pub struct TerminalBuildBindings {
     identity: terminal_codec::TerminalExecutionIdentity,
     calls: Vec<TerminalBuildBindingCall>,
+    declarations: Vec<std::sync::Arc<ProductDeclarationRequest>>,
 }
 
 impl TerminalBuildBindings {
@@ -37,13 +40,22 @@ impl TerminalBuildBindings {
         (self.identity == artifact.custody_identity()).then_some(&self.calls)
     }
 
+    pub fn declarations_for(
+        &self,
+        artifact: terminal_codec::TerminalExecutionView<'_>,
+    ) -> Option<&[std::sync::Arc<ProductDeclarationRequest>]> {
+        (self.identity == artifact.custody_identity()).then_some(&self.declarations)
+    }
+
     pub(super) fn new(
         artifact: terminal_codec::TerminalExecutionView<'_>,
         calls: Vec<TerminalBuildBindingCall>,
+        declarations: Vec<std::sync::Arc<ProductDeclarationRequest>>,
     ) -> Self {
         Self {
             identity: artifact.custody_identity(),
             calls,
+            declarations,
         }
     }
 }
@@ -64,12 +76,12 @@ pub(super) fn capture(
         else {
             continue;
         };
-        if !call.root_binding.is_valid() {
+        if !call.build_selection.is_valid() {
             continue;
         }
         let request = checked
             .expression_table
-            .root_binding_request(call.root_binding)
+            .build_selection_request(call.build_selection)
             .ok_or_else(|| {
                 diagnostics::Diagnostic::error(
                     "Build call lost its designated operands before publication",
@@ -85,6 +97,8 @@ pub(super) fn capture(
         let action = match call.target.as_str() {
             "prepare" => TerminalBuildBindingOperation::Prepare,
             "bind" | "bind_description" => TerminalBuildBindingOperation::Bind,
+            "select" => TerminalBuildBindingOperation::Select,
+            "select_mode" => TerminalBuildBindingOperation::SelectMode,
             _ => {
                 return Err(diagnostics::Diagnostic::error(
                     "checked Build binding has no admitted operation",
@@ -120,4 +134,28 @@ pub(super) fn emitted_boundary(
         ));
     };
     Ok(*boundary)
+}
+
+/// Formation sees every checked source request, including choices in helpers
+/// and branches that optimization or execution never reaches. Copies of one
+/// authored occurrence do not create another formation obligation.
+pub(super) fn capture_declarations(
+    checked: &checked_trees::CheckedTrees,
+) -> Vec<std::sync::Arc<ProductDeclarationRequest>> {
+    let mut declarations = Vec::new();
+    for (_, node) in checked.expression_table.iter_expressions() {
+        let typed_trees::expression::ExpressionNode::Call(call) = node else {
+            continue;
+        };
+        let Some(BuildSelectionRequest::Declaration(request)) = checked
+            .expression_table
+            .build_selection_request(call.build_selection)
+        else {
+            continue;
+        };
+        if !declarations.contains(request) {
+            declarations.push(request.clone());
+        }
+    }
+    declarations
 }

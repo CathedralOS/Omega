@@ -218,9 +218,34 @@ impl SourceMap {
         let Some(declaration) = self.file_at(declaration) else {
             return true;
         };
-        if reference.dependency_scope != declaration.dependency_scope {
-            return false;
+        reference.dependency_scope == declaration.dependency_scope
+            && self.reference_can_see_stratum_at(reference, declaration)
+    }
+
+    /// Temporal source visibility shared by ordinary lookup and designated
+    /// Product descriptions. A purpose bridge never grants visibility into
+    /// the current activation's generated declarations.
+    pub fn reference_can_see_stratum(
+        &self,
+        reference: SourceSpan,
+        declaration: SourceSpan,
+    ) -> bool {
+        if reference.span.start == reference.span.end {
+            return true;
         }
+        match (self.file_at(reference), self.file_at(declaration)) {
+            (Some(reference), Some(declaration)) => {
+                self.reference_can_see_stratum_at(reference, declaration)
+            }
+            _ => true,
+        }
+    }
+
+    fn reference_can_see_stratum_at(
+        &self,
+        reference: &SourceFile,
+        declaration: &SourceFile,
+    ) -> bool {
         match declaration.resolution_stratum {
             SourceResolutionStratum::Base => true,
             SourceResolutionStratum::CurrentActivationExtension => {

@@ -6,7 +6,7 @@
 //! access. An integer ticket or a declared description type never proves issuance.
 
 use diagnostics::Diagnostic;
-use language_semantics::declaration_selection::RootBindingOperand;
+use language_semantics::declaration_selection::{BuildSelectionRequest, RootBindingOperand};
 use typed_trees::expression::ExpressionNode;
 
 pub(super) fn validate(
@@ -56,7 +56,7 @@ pub(super) fn validate(
             .iter()
             .find(|(symbol, _)| *symbol == call.target_symbol)
             .map(|(_, name)| *name);
-        if !call.root_binding.is_valid() {
+        if !call.build_selection.is_valid() {
             if operation.is_some() {
                 return Err(Diagnostic::error(
                     "Build binding protocol requires source-issued designated product operands",
@@ -64,42 +64,68 @@ pub(super) fn validate(
             }
             continue;
         }
-        let binding = expressions
-            .root_binding_request(call.root_binding)
-            .ok_or_else(|| {
-                Diagnostic::error("root binding lost its designated product operands")
-            })?;
-        let sites = owners.containing_statement_sites(expression);
-        if sites.is_empty() {
-            continue;
-        }
+        let request = expressions
+            .build_selection_request(call.build_selection)
+            .ok_or_else(|| Diagnostic::error("Build selection lost its designated operands"))?;
+        let span = request.source_span();
         let operation = operation.ok_or_else(|| {
-            Diagnostic::error("root binding lost its toolchain boundary requirement")
-                .with_source_span(binding.source_span)
+            Diagnostic::error("Build selection lost its exact toolchain boundary requirement")
+                .with_source_span(span)
         })?;
-        if binding.slot.is_empty()
-            || matches!(&binding.implementation, RootBindingOperand::AuthoredPath(path) if path.is_empty())
-        {
-            return Err(Diagnostic::error("root-slot binding requires exactly one slot path and one implementation path or description expression").with_source_span(binding.source_span));
-        }
         let arguments = expressions.expression_handles(call.arguments);
-        let expected = match (&binding.implementation, operation) {
-            (_, "prepare") | (RootBindingOperand::AuthoredPath(_), "bind") => 1,
-            (RootBindingOperand::Description, "bind_description") => 2,
-            _ => {
-                return Err(Diagnostic::error(
-                    "root binding operation disagrees with its designated product operands",
-                )
-                .with_source_span(binding.source_span));
+        let expected = match request {
+            BuildSelectionRequest::Entry(binding) => {
+                if binding.slot.is_empty()
+                    || matches!(&binding.implementation, RootBindingOperand::AuthoredPath(path) if path.is_empty())
+                {
+                    return Err(Diagnostic::error("root-slot binding requires exactly one slot path and one implementation path or description expression").with_source_span(span));
+                }
+                match (&binding.implementation, operation) {
+                    (_, "prepare") | (RootBindingOperand::AuthoredPath(_), "bind") => 1,
+                    (RootBindingOperand::Description, "bind_description") => 2,
+                    _ => {
+                        return Err(Diagnostic::error(
+                            "root binding operation disagrees with its designated product operands",
+                        )
+                        .with_source_span(span));
+                    }
+                }
+            }
+            BuildSelectionRequest::Declaration(binding) => {
+                use language_semantics::declaration_selection::BuildOperation;
+                if !matches!(
+                    binding.operation,
+                    BuildOperation::ProviderSelection | BuildOperation::RepresentationSelection
+                ) || binding.operands.len() != 2
+                    || binding.operands.iter().any(|operand| {
+                        operand.path.is_empty()
+                            || operand.source_span.span.start >= operand.source_span.span.end
+                    })
+                {
+                    return Err(Diagnostic::error(
+                        "Product selection lost its admitted declaration operand shape",
+                    )
+                    .with_source_span(span));
+                }
+                match operation {
+                    "prepare" | "select" => 1,
+                    "select_mode" if binding.operation == BuildOperation::ProviderSelection => 2,
+                    _ => {
+                        return Err(Diagnostic::error(
+                            "Product selection commit disagrees with its declaration operation",
+                        )
+                        .with_source_span(span));
+                    }
+                }
             }
         };
         if arguments.len() != expected {
             return Err(
                 Diagnostic::error("root binding operation lost its ordinary arguments")
-                    .with_source_span(binding.source_span),
+                    .with_source_span(span),
             );
         }
-        for (machine, state, statement) in sites {
+        for (machine, state, statement) in owners.containing_statement_sites(expression) {
             let machine = &program.machines()[machine];
             let state = &program.machine_states(machine)[state];
             let argument_type = |argument| {
@@ -118,7 +144,7 @@ pub(super) fn validate(
                         return Err(Diagnostic::error(
                             "root binding requires a compiler-issued &mut Build place",
                         )
-                        .with_source_span(binding.source_span));
+                        .with_source_span(span));
                     }
                     explicit_mutable_borrow = true;
                     receiver = borrow.target;
@@ -143,7 +169,7 @@ pub(super) fn validate(
                     return Err(Diagnostic::error(
                         "root binding requires a compiler-issued &mut Build receiver",
                     )
-                    .with_source_span(binding.source_span));
+                    .with_source_span(span));
                 }
             } else if operation == "bind_description"
                 && !argument_type(arguments[1]).is_some_and(|reference| {
@@ -154,7 +180,7 @@ pub(super) fn validate(
                     )
                 })
             {
-                return Err(Diagnostic::error("delegated root binding requires an operand of the compiler-owned ProductEntryRef description type").with_source_span(binding.source_span));
+                return Err(Diagnostic::error("delegated root binding requires an operand of the compiler-owned ProductEntryRef description type").with_source_span(span));
             }
         }
     }
