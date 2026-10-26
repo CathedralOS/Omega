@@ -126,7 +126,11 @@ impl PreparedBuildExecution {
             ));
         }
         let artifact_only = matches!(declaration, build_declarations::BuildDeclaration::Application(application) if application.artifact_only);
-        if artifact_only && !completed.product_requests.is_empty() {
+        let selects_executable = completed.product_requests.iter().any(|request| match request {
+            language_semantics::declaration_selection::ExecutedBuildProductRequest::RootBinding(_) => true,
+            language_semantics::declaration_selection::ExecutedBuildProductRequest::DeclarationSelection(selection) => selection.request.operation == language_semantics::declaration_selection::BuildOperation::ProviderSelection,
+        });
+        if artifact_only && selects_executable {
             return Err(
                 self.refuse("artifact-only Build cannot select executable entries or providers")
             );
