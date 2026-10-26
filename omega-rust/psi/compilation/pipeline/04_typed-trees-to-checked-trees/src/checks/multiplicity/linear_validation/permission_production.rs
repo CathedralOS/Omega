@@ -291,6 +291,35 @@ pub(crate) fn evaluate_statement_permissions(
         statement: statement_index,
         evaluation,
     };
+    // Every produced occurrence leaves each departing scope through the same
+    // retirement route; the four occurrences (observe, arm-local move,
+    // complete, and the statement's own exit) each restated the same
+    // eleven-argument staging of it. The macro owns the tuple here, where the
+    // occurrences already are, so a site names only the branch route it keeps.
+    macro_rules! retire_produced {
+        ($route:expr) => {
+            enter_produced(
+                &mut selected,
+                $route,
+                &mut custody,
+                selection_site,
+                &mut facts.flow.ownership,
+                claim_identities,
+                |branch, current, ownership| {
+                    projected_scopes.retire_scope(
+                        program,
+                        selection_site,
+                        Some(branch),
+                        &mut current.0,
+                        &mut current.1,
+                        ownership,
+                        permission_events,
+                        cleanup_dispositions,
+                    )
+                },
+            )?
+        };
+    }
     // Calls are completion facts, not a second ordering authority. Grouping
     // them before construction moves delays anonymous custody past joins.
     for (occurrence_ordinal, occurrence) in occurrences.iter().enumerate() {
@@ -299,26 +328,7 @@ pub(crate) fn evaluate_statement_permissions(
                 ref place,
                 expression,
             } => {
-                enter_produced(
-                    &mut selected,
-                    &occurrence.route,
-                    &mut custody,
-                    selection_site,
-                    &mut facts.flow.ownership,
-                    claim_identities,
-                    |branch, current, ownership| {
-                        projected_scopes.retire_scope(
-                            program,
-                            selection_site,
-                            Some(branch),
-                            &mut current.0,
-                            &mut current.1,
-                            ownership,
-                            permission_events,
-                            cleanup_dispositions,
-                        )
-                    },
-                )?;
+                retire_produced!(&occurrence.route);
                 observations.push(ObservedCustody {
                     cut: CustodyCut {
                         occurrence_ordinal,
@@ -394,26 +404,7 @@ pub(crate) fn evaluate_statement_permissions(
                 // the join even when every arm transfers it. The route joins
                 // custody without publishing an unconditional move or losing
                 // the cleanup owed by an arm that did not transfer it.
-                enter_produced(
-                    &mut selected,
-                    &occurrence.route,
-                    &mut custody,
-                    selection_site,
-                    &mut facts.flow.ownership,
-                    claim_identities,
-                    |branch, current, ownership| {
-                        projected_scopes.retire_scope(
-                            program,
-                            selection_site,
-                            Some(branch),
-                            &mut current.0,
-                            &mut current.1,
-                            ownership,
-                            permission_events,
-                            cleanup_dispositions,
-                        )
-                    },
-                )?;
+                retire_produced!(&occurrence.route);
                 let (places, remaining) = &mut custody;
                 // The occurrence inventory includes copied observations. They
                 // still complete their evaluations, but transfer neither the
@@ -593,26 +584,7 @@ pub(crate) fn evaluate_statement_permissions(
             }
 
             StatementStep::Complete(expression) => {
-                enter_produced(
-                    &mut selected,
-                    &occurrence.route,
-                    &mut custody,
-                    selection_site,
-                    &mut facts.flow.ownership,
-                    claim_identities,
-                    |branch, current, ownership| {
-                        projected_scopes.retire_scope(
-                            program,
-                            selection_site,
-                            Some(branch),
-                            &mut current.0,
-                            &mut current.1,
-                            ownership,
-                            permission_events,
-                            cleanup_dispositions,
-                        )
-                    },
-                )?;
+                retire_produced!(&occurrence.route);
                 let (places, remaining) = &mut custody;
                 let composition_start = permission_events.len();
                 if !capture.is_some_and(|capture| capture.transported.contains(&expression)) {
@@ -908,26 +880,7 @@ pub(crate) fn evaluate_statement_permissions(
             }
         }
     }
-    enter_produced(
-        &mut selected,
-        &[],
-        &mut custody,
-        selection_site,
-        &mut facts.flow.ownership,
-        claim_identities,
-        |branch, current, ownership| {
-            projected_scopes.retire_scope(
-                program,
-                selection_site,
-                Some(branch),
-                &mut current.0,
-                &mut current.1,
-                ownership,
-                permission_events,
-                cleanup_dispositions,
-            )
-        },
-    )?;
+    retire_produced!(&[]);
     places.clone_from_slice(&custody.0);
     *remaining = custody.1;
     let stored_transfer_start = permission_events.len();
