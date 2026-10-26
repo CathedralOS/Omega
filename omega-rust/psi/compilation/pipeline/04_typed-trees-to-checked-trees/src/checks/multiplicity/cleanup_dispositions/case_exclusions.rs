@@ -14,23 +14,11 @@ pub(super) struct CaseExclusions {
 }
 
 impl CaseExclusions {
-    fn compare_observation_identity(
-        left: &CanonicalPlace,
-        right: &CanonicalPlace,
-    ) -> std::cmp::Ordering {
-        // Nested case paths often share a long prefix. Their lengths already
-        // distinguish identities; compare the complete coordinates only within
-        // one length. This private index never supplies publication order.
-        left.segments
-            .len()
-            .cmp(&right.segments.len())
-            .then_with(|| left.compare_identity(right))
-    }
-
     pub(super) fn insert(&mut self, place: &CanonicalPlace) {
-        let Err(position) = self.by_identity.binary_search_by(|&position| {
-            Self::compare_observation_identity(&self.observations[position], place)
-        }) else {
+        let Err(position) = self
+            .by_identity
+            .binary_search_by(|&position| self.observations[position].compare_identity(place))
+        else {
             return;
         };
         self.by_identity.insert(position, self.observations.len());
@@ -39,9 +27,7 @@ impl CaseExclusions {
 
     pub(super) fn contains(&self, place: &CanonicalPlace) -> bool {
         self.by_identity
-            .binary_search_by(|&position| {
-                Self::compare_observation_identity(&self.observations[position], place)
-            })
+            .binary_search_by(|&position| self.observations[position].compare_identity(place))
             .is_ok()
     }
 
