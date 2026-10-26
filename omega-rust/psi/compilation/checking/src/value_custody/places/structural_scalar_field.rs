@@ -45,6 +45,9 @@ pub struct StructuralScalarField {
     /// Data declaration containing the final scalar field or selected payload,
     /// or the fixed array holding a final scalar element.
     pub carrier_type_reference: TypeReferenceHandle,
+    /// Complete declared type of the selected scalar storage leaf, retaining
+    /// its refinements and arithmetic policy independently of the root.
+    pub result_type_reference: TypeReferenceHandle,
     /// Declared case and carrier-field identities, literal fixed-array
     /// selections and stored-reference crossings in authored order, excluding
     /// the final scalar field. A final literal element is the path's last
@@ -195,6 +198,7 @@ pub fn structural_scalar_field_at_coordinate(
                         statement_ordinal: 0,
                         type_reference: source_type,
                         carrier_type_reference: carrier,
+                        result_type_reference: field.type_reference,
                         path,
                         field: field.symbol,
                         field_identity: checked_trees::CheckedMemberIdentity::of_member(
@@ -459,6 +463,7 @@ fn structural_field_observation(
                 statement_ordinal: local.statement_ordinal,
                 type_reference: local.type_reference,
                 carrier_type_reference: carrier,
+                result_type_reference: *element_type,
                 path,
                 field: SymbolHandle::invalid(),
                 field_identity: checked_trees::CheckedMemberIdentity::default(),
@@ -502,6 +507,7 @@ fn structural_field_observation(
         statement_ordinal: local.statement_ordinal,
         type_reference: local.type_reference,
         carrier_type_reference: carrier,
+        result_type_reference: field.type_reference,
         path,
         field: field.symbol,
         field_identity: checked_trees::CheckedMemberIdentity::of_member(
