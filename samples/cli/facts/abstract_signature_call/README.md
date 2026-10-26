@@ -117,8 +117,11 @@ Both productions have premise-false twins and corpus pins. Their required
 repair carries the original binder on the shared call-occurrence view in every
 call position and retains one authored selection across recipe, materialized,
 expression and statement copies. Duplicate or inconsistent selections remain
-errors. The rejected C1 review and its raw independent observations are retained;
-these new productions remain unfinished until the repaired producer passes them.
+errors. The rejected C1 review and its raw independent observations are retained.
+At repaired source `74b572b3e1769346ef76cc50f24ce138b78a14b3`, both frozen
+productions execute with native exit 0 and Terminal exit 0, and both premise-false
+twins refuse the intended obligation. This is the same fact and transport row;
+the additional call positions do not create another nine-place matrix.
 
 ### Requirement accounting for this production
 
@@ -313,6 +316,29 @@ snapshots, and required independent review use `build/swarm/operator/`; the PR
 identifies their exact submitted candidate. Package preparation is completed for nested
 projects from leaves to root before frozen execution captures.
 
+### Statement and terminal repair observations
+
+The repaired optimized source generation is
+`74b572b3e1769346ef76cc50f24ce138b78a14b3`: CLI SHA-256
+`d96499467e1ac027b9a5b3f81c3dba187d08940aa48702cdd9ea15c5fc65a094`,
+corpus runner SHA-256
+`aa0fc7bdecd39ce7acf635f90840f1dfec90ae5d0d918182b512daa04ec3a70d`.
+The focused corpus checks 23 positives and rejects 24 intended-invalid controls
+with every expected refusal fragment. All 23 positive fixtures execute with
+native exit 0, Terminal exit 0 and engine agreement on `macos_x86_64`.
+The count includes the prior nine places, the constant root and nine places,
+forwarded and opposite-body controls, and the statement and terminal productions.
+The four affected crates pass scoped `mbx check` and `mbx clippy`.
+
+A bounded 42-fixture constants check also exercised the affected normalization
+consumer. Its three existing red or stale-control cases and its three semantic
+moves against the older golden were reproduced on the immutable fixed-AA CLI,
+with unchanged fixture and library inputs. Those baseline observations retain
+their own source identities; this change records no unrelated constants golden.
+These observations do not establish that the whole constants domain is green.
+The preserved ledger, exact producer receipts, raw baseline and current streams,
+accepted locks and independent review remain under `build/swarm/operator/`.
+
 ## What remains open
 
 - The rest of **OPERATOR-MACHINE-SUPPLY** is untouched: the static
@@ -320,7 +346,8 @@ projects from leaves to root before frozen execution captures.
   default predicates, citation/induction guarantees, the
   `OpenIndexOperationSelection` frontier, and the `operator` introducer
   retirement.
-- Native execution on the four authored hosted targets is measured through the
-  host the run executes (macOS arm64 here); `macos_arm64::ProgramEntry` is one
-  of the four bindings, and the other three bindings are authored but have no execution
-  observation on that host.
+- The current constant-production runtime evidence is from the Intel
+  `macos_x86_64` host, in addition to the historical Apple Silicon observations
+  above. All four required hosted bindings remain authored; their execution is
+  unobserved by the current Intel run. Other static-argument applications,
+  effects, authority and loans need their own demonstrated parent acceptance.

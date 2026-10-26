@@ -12,6 +12,8 @@ pass/borrows/returned_slice_record_reference_custody_exit built 14599ms exit:0 i
 pass/facts/abstract_signature_call_constant_initializer_exit built 6697ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
 pass/facts/abstract_signature_call_constant_initializer_forwarded_exit built 6935ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
 pass/facts/abstract_signature_call_constant_initializer_selected_entries_exit built 8996ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
+pass/facts/abstract_signature_call_constant_initializer_statement_explicit_discard_exit built 6727ms exit:0 interpreter-exit:0 interpreter:agrees @74b572b3e176+wt
+pass/facts/abstract_signature_call_constant_initializer_terminal_callback_exit built 6518ms exit:0 interpreter-exit:0 interpreter:agrees @74b572b3e176+wt
 pass/facts/abstract_signature_call_constant_initializer_through_call_result_exit built 6732ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
 pass/facts/abstract_signature_call_constant_initializer_through_const_name_exit built 9161ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
 pass/facts/abstract_signature_call_constant_initializer_through_field_exit built 6897ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt

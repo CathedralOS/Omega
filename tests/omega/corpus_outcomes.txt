@@ -4380,6 +4380,10 @@ fail/facts/abstract_signature_call_constant_initializer_rejected rejected 59ms e
 fail/facts/abstract_signature_call_constant_initializer_selected_entries_rejected rejected 58ms expected @289c0e2e2740+wt
 	machine `apply$specialized$b37cdd08ebba4760$0` state `entry` value call to `witness` violates required fact `premise(kept)`: the instantiated fact is structurally false
 	machine `apply$specialized$275d3a40695d70bf$1` state `entry` value call to `alternate` violates required fact `premise(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_constant_initializer_statement_explicit_discard_rejected rejected 67ms expected @74b572b3e176+wt
+	constant initializer: constant invocation of `apply$specialized$b37cdd08ebba4760$0` failed checking: machine `@const-invocation` state `@const-invocation` value call to `apply` violates required fact `premise(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_constant_initializer_terminal_callback_rejected rejected 67ms expected @74b572b3e176+wt
+	constant initializer: constant invocation of `apply$specialized$b37cdd08ebba4760$0` failed checking: machine `@const-invocation` state `@const-invocation` value call to `apply` violates required fact `premise(kept)`: the instantiated fact is structurally false
 fail/facts/abstract_signature_call_constant_initializer_through_call_result_rejected rejected 56ms expected @289c0e2e2740+wt
 	machine `apply$specialized$b37cdd08ebba4760$0` state `entry` value call to `witness` violates required fact `premise(kept)`: the instantiated fact is structurally false
 fail/facts/abstract_signature_call_constant_initializer_through_const_name_rejected rejected 58ms expected @289c0e2e2740+wt
@@ -23026,6 +23030,8 @@ pass/facts/abi_multi_arg_spill_through_target_body_exit checked 6219ms check-tar
 pass/facts/abstract_signature_call_constant_initializer_exit checked 6252ms check-target:macos_arm64 @289c0e2e2740+wt
 pass/facts/abstract_signature_call_constant_initializer_forwarded_exit checked 6253ms check-target:macos_arm64 @289c0e2e2740+wt
 pass/facts/abstract_signature_call_constant_initializer_selected_entries_exit checked 8183ms check-target:macos_arm64 @289c0e2e2740+wt
+pass/facts/abstract_signature_call_constant_initializer_statement_explicit_discard_exit checked 6322ms check-target:macos_arm64 @74b572b3e176+wt
+pass/facts/abstract_signature_call_constant_initializer_terminal_callback_exit checked 6323ms check-target:macos_arm64 @74b572b3e176+wt
 pass/facts/abstract_signature_call_constant_initializer_through_call_result_exit checked 6124ms check-target:macos_arm64 @289c0e2e2740+wt
 pass/facts/abstract_signature_call_constant_initializer_through_const_name_exit checked 8259ms check-target:macos_arm64 @289c0e2e2740+wt
 pass/facts/abstract_signature_call_constant_initializer_through_field_exit checked 6210ms check-target:macos_arm64 @289c0e2e2740+wt
