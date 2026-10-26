@@ -7,6 +7,7 @@ use selected_instructions::{SelectedConstraintKeys, SelectedInstructionKind};
 use semantic_vocabulary::{IntegerSign, ScalarType, ValueId};
 use terminal_psi::StructuralAccess;
 mod borrowed_argument;
+pub(in crate::selection) mod input_site;
 pub(crate) mod normalized_foreign;
 mod owned_argument;
 use borrowed_argument::validate_borrowed_argument;
@@ -165,6 +166,21 @@ pub(super) fn unit_key(
     call: &LegalizedScalarCall,
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Option<RegisterConstraintKey> {
+    invocation_key(call, false, environment)
+}
+
+pub(super) fn no_normal_key(
+    call: &LegalizedScalarCall,
+    environment: &ValidatedTargetRegisterEnvironment,
+) -> Option<RegisterConstraintKey> {
+    invocation_key(call, true, environment)
+}
+
+fn invocation_key(
+    call: &LegalizedScalarCall,
+    no_normal: bool,
+    environment: &ValidatedTargetRegisterEnvironment,
+) -> Option<RegisterConstraintKey> {
     let order = register_argument_order(call);
     let mut views = Vec::new();
     for index in &order {
@@ -203,7 +219,9 @@ pub(super) fn unit_key(
             .as_ref()
             .is_some_and(empty_aggregate_placement)
         && call.result_placement == call.call_plan.result;
-    let candidate_keys = if call.structural_result.is_some() && !empty_result {
+    let candidate_keys = if no_normal {
+        keys.invoke_no_normal.iter().collect::<Vec<_>>()
+    } else if call.structural_result.is_some() && !empty_result {
         keys.call_aggregate.iter().collect::<Vec<_>>()
     } else if call.result_placement.is_some() && !empty_result {
         keys.call_scalar.iter().collect::<Vec<_>>()
@@ -247,7 +265,13 @@ pub(super) fn validate(
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Result<(), SelectedInstructionError> {
     let invalid = || SelectedInstructionError::unsupported_shape(function);
-    call.validate_shape().map_err(|_| invalid())?;
+    let no_normal = matches!(owner, target_operations::CallSiteOwner::InvokeNoNormal(_));
+    if no_normal {
+        call.validate_no_normal_shape()
+    } else {
+        call.validate_shape()
+    }
+    .map_err(|_| invalid())?;
     // The retained call plan is producer evidence, not authority: replay the
     // declared ABI over the call's own signature so parameter locations,
     // result mechanics, clobbers, stack geometry, and entry control must equal
@@ -262,7 +286,18 @@ pub(super) fn validate(
         .iter()
         .any(|argument| matches!(argument, LegalizedScalarArgument::Structural { .. }))
     {
-        let operation = owner.operation().ok_or_else(invalid)?;
+        let operation = match owner {
+            target_operations::CallSiteOwner::Operation(operation) => {
+                semantic_vocabulary::InvocationSite::Operation(operation)
+            }
+            target_operations::CallSiteOwner::InvokeNoNormal(edge) => {
+                semantic_vocabulary::InvocationSite::InvokeNoNormal(edge)
+            }
+            target_operations::CallSiteOwner::ExternalCompletion(edge) => {
+                semantic_vocabulary::InvocationSite::ExternalCompletion(edge)
+            }
+            _ => return Err(invalid()),
+        };
         if source.call_plan.policy != CallingPolicy::native_for_target(environment.target()) {
             return Err(invalid());
         }
@@ -280,6 +315,18 @@ pub(super) fn validate(
                     })?;
             }
         }
+    }
+    if no_normal {
+        let expected = no_normal_key(call, environment).ok_or_else(invalid)?;
+        if expected != key
+            || row.key != key
+            || environment.constraint(key) != Some(row)
+            || call.structural_result.is_some()
+            || !call.descriptor_origins.is_empty()
+        {
+            return Err(invalid());
+        }
+        return Ok(());
     }
     if call.result_placement.as_ref().is_some_and(|placement| {
         crate::selection::aggregate_result_input::indirect_result(placement, call.call_plan.policy)

@@ -10,6 +10,7 @@ pub(crate) fn expected_provenance(
             Vec::new()
         }
         abstract_operations::return_or_return_unit_pattern!(psi_edge, ..)
+        | O::InvokeNoNormal { psi_edge, .. }
         | O::ExternalCompletion { psi_edge, .. }
         | O::Crash { psi_edge, .. } => {
             vec![PsiProvenance::Edge(*psi_edge)]

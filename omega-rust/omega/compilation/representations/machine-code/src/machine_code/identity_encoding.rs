@@ -58,6 +58,10 @@ pub(super) fn encode_call_owner(bytes: &mut impl MachineIdentityBytes, owner: Ca
             bytes.identity_bytes(&[0]);
             bytes.identity_bytes(&operation.get().to_le_bytes());
         }
+        CallSiteOwner::InvokeNoNormal(edge) => {
+            bytes.identity_bytes(&[3]);
+            bytes.identity_bytes(&edge.get().to_le_bytes());
+        }
         CallSiteOwner::ExternalCompletion(edge) => {
             bytes.identity_bytes(&[2]);
             bytes.identity_bytes(&edge.get().to_le_bytes());
@@ -78,6 +82,10 @@ pub(super) fn encode_invocation_site(bytes: &mut impl MachineIdentityBytes, site
         InvocationSite::Operation(operation) => {
             bytes.identity_bytes(&[0]);
             bytes.identity_bytes(&operation.get().to_le_bytes());
+        }
+        InvocationSite::InvokeNoNormal(edge) => {
+            bytes.identity_bytes(&[2]);
+            bytes.identity_bytes(&edge.get().to_le_bytes());
         }
         InvocationSite::ExternalCompletion(edge) => {
             bytes.identity_bytes(&[1]);

@@ -36,6 +36,15 @@ impl OutgoingArgumentSlotId {
 /// Owned input storage retains value bytes; it does not copy a borrowed referent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum LocalStorageSlotId {
+    /// Hidden declared-ABI result scratch; no semantic result place is published.
+    InvocationResult {
+        edge: EdgeId,
+    },
+    /// An edge-owned argument descriptor, independent of any source operation.
+    InvocationArgument {
+        edge: EdgeId,
+        argument_index: u32,
+    },
     /// Function-owned input storage identified by its exact parameter place.
     StructuralParameter {
         place: PlaceId,
@@ -78,7 +87,9 @@ impl LocalStorageSlotId {
             | Self::StructuralCallArgument { operation, .. }
             | Self::Boundary { operation }
             | Self::BoundaryResult { operation } => Some(operation),
-            Self::Spill { .. }
+            Self::InvocationResult { .. }
+            | Self::InvocationArgument { .. }
+            | Self::Spill { .. }
             | Self::EdgeSnapshot { .. }
             | Self::StructuralBlockParameter { .. }
             | Self::StructuralParameter { .. } => None,
@@ -90,7 +101,9 @@ impl LocalStorageSlotId {
             Self::Structural { place, .. }
             | Self::StructuralBlockParameter { place, .. }
             | Self::StructuralParameter { place } => Some(place),
-            Self::Boundary { .. }
+            Self::InvocationResult { .. }
+            | Self::InvocationArgument { .. }
+            | Self::Boundary { .. }
             | Self::BoundaryResult { .. }
             | Self::Spill { .. }
             | Self::StructuralCallArgument { .. }
@@ -101,6 +114,18 @@ impl LocalStorageSlotId {
     /// Tagged storage-origin identity; boundary scratch never fabricates a place.
     pub fn encode_identity(self, bytes: &mut Vec<u8>) {
         match self {
+            Self::InvocationResult { edge } => {
+                bytes.push(8);
+                crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
+            }
+            Self::InvocationArgument {
+                edge,
+                argument_index,
+            } => {
+                bytes.push(9);
+                crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, argument_index.to_le_bytes());
+            }
             Self::EdgeSnapshot {
                 edge,
                 binding_index,

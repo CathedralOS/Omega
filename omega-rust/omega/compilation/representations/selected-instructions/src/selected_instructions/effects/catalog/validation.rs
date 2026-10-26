@@ -105,6 +105,7 @@ pub(super) fn validate_declaration(
     } else if matches!(
         semantic,
         MachineSemanticKind::CallScalar
+            | MachineSemanticKind::InvokeNoNormal
             | MachineSemanticKind::CallUnit
             | MachineSemanticKind::CallAggregate
             | MachineSemanticKind::NormalizedForeignCall
@@ -277,6 +278,18 @@ pub(super) fn validate_declaration(
         ));
     }
     match (semantic, declaration.call) {
+        (
+            MachineSemanticKind::InvokeNoNormal,
+            crate::MachineCallEffect::InternalNoNormalV1 {
+                pre_call_stack_alignment,
+            },
+        ) if pre_call_stack_alignment.is_power_of_two()
+            && constraint.key.family == register_model::RegisterConstraintFamily::Call => {}
+        (MachineSemanticKind::InvokeNoNormal, _) => {
+            return Err(MachineEffectCatalogValidationError::InvalidEncodedEffects(
+                semantic,
+            ));
+        }
         (
             MachineSemanticKind::CallScalar
             | MachineSemanticKind::CallUnit
@@ -645,6 +658,41 @@ fn validate_encoded_effects(
             || encoded.control != MachineEncodedControlEffect::HostedWriteReturnOrTrapV1)
     {
         return Err(());
+    }
+    if declaration.semantic == MachineSemanticKind::InvokeNoNormal {
+        let input_count = constraint
+            .operands
+            .iter()
+            .take_while(|operand| operand.access == RegisterOperandAccess::Use)
+            .count();
+        let (arguments, results) = constraint.operands.split_at(input_count);
+        // Completion is independent of the declared return ABI. Preserve all
+        // physical result definitions even though no source value receives them.
+        if results
+            .iter()
+            .any(|operand| operand.access != RegisterOperandAccess::Def)
+            || constraint
+                .operands
+                .iter()
+                .any(|operand| operand.fixed_view.is_none())
+            || !encoded
+                .external_operand_reads
+                .iter()
+                .copied()
+                .eq(arguments.iter().map(|operand| operand.operand))
+            || !encoded
+                .external_operand_writes
+                .iter()
+                .copied()
+                .eq(results.iter().map(|operand| operand.operand))
+            || encoded.implicit_unit_uses != constraint.implicit_uses
+            || encoded.implicit_unit_defs != constraint.implicit_defs
+            || encoded.implicit_unit_clobbers != constraint.clobbers
+            || encoded.trap != MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+            || encoded.control != MachineEncodedControlEffect::DirectRelativeCallV1
+        {
+            return Err(());
+        }
     }
     if declaration.semantic == MachineSemanticKind::CallAggregate {
         let arity = constraint
@@ -1187,6 +1235,7 @@ fn validate_encoded_effects(
         ) if matches!(
             declaration.semantic,
             MachineSemanticKind::CallScalar
+                | MachineSemanticKind::InvokeNoNormal
                 | MachineSemanticKind::CallUnit
                 | MachineSemanticKind::CallAggregate
                 | MachineSemanticKind::NormalizedForeignCall

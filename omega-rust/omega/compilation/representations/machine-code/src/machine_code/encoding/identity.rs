@@ -208,6 +208,10 @@ fn encode_encoding_row(
                                     hasher.byte(0);
                                     hasher.raw(&operation.get().to_le_bytes());
                                 }
+                                semantic_vocabulary::InvocationSite::InvokeNoNormal(edge) => {
+                                    hasher.byte(2);
+                                    hasher.raw(&edge.get().to_le_bytes());
+                                }
                                 semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
                                     hasher.byte(1);
                                     hasher.raw(&edge.get().to_le_bytes());

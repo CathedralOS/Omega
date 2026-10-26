@@ -326,6 +326,7 @@ fn family_and_operand_count(
         | SelectedInstructionKind::HostedExitProcessI32
         | selected_instructions::hosted_slot_quad_pattern!(..)
         | SelectedInstructionKind::FrameAddress { .. }
+        | SelectedInstructionKind::InvokeNoNormal { .. }
         | SelectedInstructionKind::CallUnit { .. }
         | SelectedInstructionKind::Jump
         | SelectedInstructionKind::CallAggregate { .. }

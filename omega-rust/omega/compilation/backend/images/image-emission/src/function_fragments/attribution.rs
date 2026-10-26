@@ -391,6 +391,11 @@ pub(super) fn validate(
             Control::NormalizedForeignCall {
                 invocation_site, ..
             } => match invocation_site {
+                semantic_vocabulary::InvocationSite::InvokeNoNormal(_) => {
+                    return Err(Error::Mismatch(
+                        "foreign invocation names a module invocation edge",
+                    ));
+                }
                 semantic_vocabulary::InvocationSite::Operation(_) => Vec::new(),
                 semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
                     vec![*edge]

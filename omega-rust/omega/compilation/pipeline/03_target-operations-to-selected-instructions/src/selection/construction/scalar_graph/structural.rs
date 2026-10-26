@@ -224,16 +224,13 @@ pub(super) fn scaled_element_index(
 /// own custody before reaching this transport.
 pub(super) fn place_pointer(
     builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
+    row: &impl super::call_arguments::InvocationArgumentSource,
     place: PlaceId,
     byte_offset: u32,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     place_pointer_at_site(
         builder,
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            ..Default::default()
-        },
+        super::call_arguments::invocation_provenance(row),
         place,
         byte_offset,
     )
@@ -304,7 +301,7 @@ pub(super) fn place_pointer_at_site(
 pub(super) fn view_element_pointer(
     source: &LegalizedScalarFunction,
     builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
+    row: &impl super::call_arguments::InvocationArgumentSource,
     place: PlaceId,
     byte_offset: u32,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
@@ -318,10 +315,7 @@ pub(super) fn view_element_pointer(
         input,
         output,
         byte_offset,
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            ..Default::default()
-        },
+        super::call_arguments::invocation_provenance(row),
     )
 }
 
@@ -577,19 +571,17 @@ pub(super) fn operation(
     Ok(true)
 }
 
-pub(super) fn provenance(row: &LegalizedScalarInstruction) -> SelectedInstructionProvenance {
-    SelectedInstructionProvenance {
-        operations: vec![row.operation],
-        fuel: Vec::new(),
-        ..Default::default()
-    }
+pub(super) fn provenance(
+    row: &impl super::call_arguments::InvocationArgumentSource,
+) -> SelectedInstructionProvenance {
+    super::call_arguments::invocation_provenance(row)
 }
 /// Keep native displacement limits separate from semantic storage bounds.
 /// Address staging has no memory effect: callers record the original place
 /// offset on the following access, even when its encoded displacement is zero.
 fn memory_pointer(
     builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
+    row: &impl super::call_arguments::InvocationArgumentSource,
     place: PlaceId,
     pointer: VirtualRegisterId,
     byte_offset: u32,
@@ -629,7 +621,7 @@ pub(super) fn displaced_memory_pointer(
 
 fn memory(
     builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
+    row: &impl super::call_arguments::InvocationArgumentSource,
     place: PlaceId,
     byte_offset: u32,
     byte_count: u32,
@@ -637,7 +629,7 @@ fn memory(
 ) -> Result<(), SelectedInstructionError> {
     memory_at_origin(
         builder,
-        selected_instructions::SelectedMemoryAccessOrigin::Operation(row.operation),
+        super::call_arguments::invocation_memory_origin(row),
         place,
         byte_offset,
         byte_count,

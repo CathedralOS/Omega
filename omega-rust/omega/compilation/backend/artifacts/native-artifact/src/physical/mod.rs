@@ -901,6 +901,10 @@ impl std::fmt::Display for NativePhysicalEvidenceGap {
                         formatter,
                         "normalized foreign call on machine {machine} is owned by operation {operation}"
                     ),
+                    CallSiteOwner::InvokeNoNormal(edge) => write!(
+                        formatter,
+                        "normalized foreign call on machine {machine} incorrectly names module invocation edge {edge}"
+                    ),
                     CallSiteOwner::ExternalCompletion(edge) => write!(
                         formatter,
                         "normalized foreign call on machine {machine} is owned by completion edge {edge}"

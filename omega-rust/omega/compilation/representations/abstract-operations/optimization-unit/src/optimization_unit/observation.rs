@@ -441,6 +441,7 @@ fn operation_observations(
             No,
             No,
         ),
+        O::InvokeNoNormal { .. } => (vec![event(C::InternalCall)], May, May),
         O::ExternalCompletion { .. } => (vec![event(C::ExternalCompletion)], No, No),
         O::Crash { .. } => (vec![event(C::CrashExit)], Yes, No),
         // A Trapping primitive may leave through its own `Trap` crash: the

@@ -19,6 +19,23 @@ pub(super) fn view_argument(
     target: &target_operations::TargetStructuralArgument,
     indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
 ) -> Option<(u32, u64)> {
+    view_argument_at(
+        function,
+        semantic_vocabulary::InvocationSite::Operation(operation),
+        semantic,
+        target,
+        indices,
+    )
+}
+
+pub(super) fn view_argument_at(
+    function: &LegalizedScalarFunction,
+    site: semantic_vocabulary::InvocationSite,
+    semantic: &terminal_psi::StructuralArgument,
+    target: &target_operations::TargetStructuralArgument,
+    indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
+) -> Option<(u32, u64)> {
+    super::scalar_call_abi::input_site::use_cut(function, site)?;
     let signature = function.structural.as_ref()?;
     if !matches!(
         semantic.access,
@@ -32,7 +49,7 @@ pub(super) fn view_argument(
     {
         return None;
     }
-    let source = source_declaration(function, operation, semantic, target)?;
+    let source = source_declaration(function, site, semantic, target)?;
     if target.root_structural_type != source.structural_type {
         return None;
     }
@@ -62,7 +79,7 @@ pub(super) fn view_argument(
 /// substituted entry placement, block coordinate, or local producer.
 fn source_declaration(
     function: &LegalizedScalarFunction,
-    operation: semantic_vocabulary::OperationId,
+    site: semantic_vocabulary::InvocationSite,
     semantic: &terminal_psi::StructuralArgument,
     target: &target_operations::TargetStructuralArgument,
 ) -> Option<terminal_psi::StructuralParameterDeclaration> {
@@ -127,7 +144,8 @@ fn source_declaration(
         target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
             let (producer, result) = super::aggregate_result_input::home(function, semantic.place)?;
             if producer != *psi_operation
-                || producer == operation
+                || super::scalar_call_abi::input_site::producer_before_use(function, producer, site)
+                    .is_none()
                 || result.multiplicity != StructuralMultiplicity::Unrestricted
             {
                 return None;

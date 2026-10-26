@@ -450,6 +450,8 @@ pub(super) fn emit_invocation(
 fn completion_edges(site: InvocationSite) -> Vec<semantic_vocabulary::EdgeId> {
     match site {
         InvocationSite::Operation(_) => Vec::new(),
-        InvocationSite::ExternalCompletion(edge) => vec![edge],
+        InvocationSite::ExternalCompletion(edge) | InvocationSite::InvokeNoNormal(edge) => {
+            vec![edge]
+        }
     }
 }

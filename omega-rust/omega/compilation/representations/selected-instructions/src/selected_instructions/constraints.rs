@@ -72,6 +72,10 @@ pub struct SelectedConstraintKeys {
     pub call_scalar: Vec<RegisterConstraintKey>,
     /// Direct aggregate call rows, matched by their complete ABI operand roster.
     pub call_aggregate: Vec<RegisterConstraintKey>,
+    /// Ordinary declared ABI rows used with nonreturning completion. These
+    /// alias the complete Unit/scalar/aggregate physical contracts, including
+    /// hidden result inputs and unbound result-register definitions.
+    pub invoke_no_normal: Vec<RegisterConstraintKey>,
     /// Per-plan normalized foreign call rows, matched against the evaluated
     /// boundary-entry plan's complete fixed ABI operand views. The roster
     /// carries result-bearing and Unit-result arities alike; an empty roster

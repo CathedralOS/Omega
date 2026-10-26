@@ -66,6 +66,10 @@ pub(super) fn encode_static(bytes: &mut Vec<u8>, function: &SelectedFunction) {
                 bytes.push(0);
                 crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
             }
+            target_operations::CallSiteOwner::InvokeNoNormal(edge) => {
+                bytes.push(3);
+                crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
+            }
             target_operations::CallSiteOwner::ExternalCompletion(edge) => {
                 bytes.push(2);
 

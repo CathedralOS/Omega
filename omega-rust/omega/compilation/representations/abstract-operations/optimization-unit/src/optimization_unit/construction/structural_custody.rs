@@ -243,6 +243,9 @@ pub fn operation_ownership(operation: &AbstractOperation) -> Vec<OwnershipEvent>
     match operation {
         O::CallStructural {
             claim_transfers, ..
+        }
+        | O::InvokeNoNormal {
+            claim_transfers, ..
         } => vec![OwnershipEvent::ClaimTransfer(
             claim_transfers
                 .iter()

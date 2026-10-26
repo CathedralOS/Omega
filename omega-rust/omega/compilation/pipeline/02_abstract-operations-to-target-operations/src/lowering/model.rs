@@ -38,7 +38,7 @@ pub enum LoweringError {
     PlacedCallCustody {
         caller: MachineId,
         callee: MachineId,
-        operation: OperationId,
+        invocation: semantic_vocabulary::InvocationSite,
         runtime_position: usize,
         reason: PlacedCallCustodyError,
     },

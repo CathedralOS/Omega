@@ -43,6 +43,10 @@ pub(super) fn append_boundary_occurrence_identity(
             canonical.push(1);
             crate::codec_bytes::push_encoded(canonical, edge.get().to_le_bytes());
         }
+        semantic_vocabulary::InvocationSite::InvokeNoNormal(edge) => {
+            canonical.push(2);
+            crate::codec_bytes::push_encoded(canonical, edge.get().to_le_bytes());
+        }
     }
     crate::codec_bytes::push_encoded(canonical, boundary.get().to_le_bytes());
     canonical.extend_from_slice(&canonical_usize(operation_ordinal));

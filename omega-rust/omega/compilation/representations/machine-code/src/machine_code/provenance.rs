@@ -10,7 +10,8 @@ pub fn semantic_code_site(site: semantic_vocabulary::InvocationSite) -> Semantic
         semantic_vocabulary::InvocationSite::Operation(operation) => {
             SemanticCodeSite::Operation(operation)
         }
-        semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
+        semantic_vocabulary::InvocationSite::InvokeNoNormal(edge)
+        | semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
             SemanticCodeSite::Edge(edge)
         }
     }

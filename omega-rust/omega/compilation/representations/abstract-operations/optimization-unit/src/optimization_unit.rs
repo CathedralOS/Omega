@@ -197,7 +197,8 @@ impl PsiOptimizationUnit {
         operation: &'a AbstractOperation,
     ) -> impl Iterator<Item = MachineId> + 'a {
         let (machine, dynamic) = match operation {
-            AbstractOperation::Call { callee, .. } => (Some(*callee), None),
+            AbstractOperation::Call { callee, .. }
+            | AbstractOperation::InvokeNoNormal { callee, .. } => (Some(*callee), None),
             AbstractOperation::CallStructural { callee, .. } => match callee {
                 abstract_operations::AbstractCallTarget::Machine(machine) => (Some(*machine), None),
                 abstract_operations::AbstractCallTarget::Dynamic {

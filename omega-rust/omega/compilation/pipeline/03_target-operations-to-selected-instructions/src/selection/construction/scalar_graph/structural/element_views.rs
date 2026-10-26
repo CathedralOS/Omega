@@ -285,7 +285,7 @@ fn element_view_length(
 /// freshly established 16-byte descriptor.
 pub(super) fn element_backing_pointer(
     builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
+    row: &impl super::super::call_arguments::InvocationArgumentSource,
     source: PlaceId,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     if let Some(view) = builder.transport.element_view(source) {

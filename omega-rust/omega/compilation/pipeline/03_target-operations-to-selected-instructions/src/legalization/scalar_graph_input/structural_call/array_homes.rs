@@ -23,7 +23,7 @@ use terminal_psi::{StructuralMultiplicity, StructuralParameterDeclaration};
 /// such a view but fails its custody or placement replay rejects.
 pub(super) fn argument(
     semantic: &StructuralArgument,
-    call_operation: semantic_vocabulary::OperationId,
+    call_operation: semantic_vocabulary::InvocationSite,
     caller: &PsiOptimizationFunction,
     destination: &StructuralParameterDeclaration,
     call: &CallPlan,

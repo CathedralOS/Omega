@@ -19,6 +19,10 @@ pub(super) fn encode_call(bytes: &mut Vec<u8>, row: &SelectedCallContract) {
             bytes.push(0);
             crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
         }
+        target_operations::CallSiteOwner::InvokeNoNormal(edge) => {
+            bytes.push(3);
+            crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
+        }
         target_operations::CallSiteOwner::ExternalCompletion(edge) => {
             bytes.push(2);
 
@@ -117,6 +121,7 @@ pub(super) fn decode_call(
     let instruction = SelectedInstructionId(cursor.u32()?);
     let owner = match cursor.byte()? {
         0 => target_operations::CallSiteOwner::Operation(decode_id(cursor, OperationId::new)?),
+        3 => target_operations::CallSiteOwner::InvokeNoNormal(decode_id(cursor, EdgeId::new)?),
         2 => target_operations::CallSiteOwner::ExternalCompletion(decode_id(
             cursor,
             semantic_vocabulary::EdgeId::new,

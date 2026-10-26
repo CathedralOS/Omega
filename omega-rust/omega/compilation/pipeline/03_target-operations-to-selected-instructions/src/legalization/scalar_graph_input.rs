@@ -40,6 +40,7 @@ pub(super) mod read_byte;
 pub(super) mod scalar_arrays;
 pub(super) mod structural_case;
 pub(super) use hosted_scalar::hosted_realization;
+mod invocations;
 mod literals;
 pub(super) mod primitive_locals;
 pub(super) mod reference_custody;

@@ -33,7 +33,8 @@ pub(super) fn rejoin<'publication>(
         semantic_vocabulary::InvocationSite::Operation(operation) => {
             instruction.provenance.operations.contains(&operation)
         }
-        semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
+        semantic_vocabulary::InvocationSite::ExternalCompletion(edge)
+        | semantic_vocabulary::InvocationSite::InvokeNoNormal(edge) => {
             instruction.provenance.edges.contains(&edge)
         }
     };

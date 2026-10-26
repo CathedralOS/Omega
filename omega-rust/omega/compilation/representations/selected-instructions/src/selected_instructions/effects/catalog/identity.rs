@@ -43,7 +43,7 @@ pub fn machine_effect_catalog_identity(
     catalog: &MachineEffectCatalog,
 ) -> MachineEffectCatalogIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v33\0");
+    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v34\0");
     bytes.extend_from_slice(&catalog.target.identity_bytes());
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
     for key in [
@@ -86,6 +86,10 @@ pub fn machine_effect_catalog_identity(
     encode_len(&mut bytes, catalog.selected_keys.call_unit_mixed.len());
     encode_len(&mut bytes, catalog.selected_keys.call_scalar.len());
     encode_len(&mut bytes, catalog.selected_keys.call_aggregate.len());
+    encode_len(&mut bytes, catalog.selected_keys.invoke_no_normal.len());
+    for key in &catalog.selected_keys.invoke_no_normal {
+        encode_constraint_key(&mut bytes, *key);
+    }
     encode_len(
         &mut bytes,
         catalog.selected_keys.call_normalized_foreign.len(),
@@ -137,6 +141,15 @@ pub fn machine_effect_catalog_identity(
             MachineBarrier::Call => 2,
         });
         match declaration.call {
+            crate::MachineCallEffect::InternalNoNormalV1 {
+                pre_call_stack_alignment,
+            } => {
+                bytes.push(4);
+                crate::codec_bytes::push_encoded(
+                    &mut bytes,
+                    pre_call_stack_alignment.to_le_bytes(),
+                );
+            }
             crate::MachineCallEffect::NoneV1 => bytes.push(0),
             crate::MachineCallEffect::SupervisorNormalReturnV1 => bytes.push(3),
             crate::MachineCallEffect::InternalNormalReturnV1 {
@@ -614,6 +627,7 @@ macro_rules! effect_tag_arms {
             $enum::ControlRegisterRead => 254,
             $enum::ControlRegisterWrite => 255,
             $enum::InterruptControl => 256,
+            $enum::InvokeNoNormal => 257,
 
             $enum::AtomicFence => 238,
             $enum::AtomicAccess(form) => form.machine_tag() as u16,

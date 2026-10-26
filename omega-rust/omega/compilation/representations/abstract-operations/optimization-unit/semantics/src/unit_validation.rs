@@ -40,6 +40,7 @@ mod catalogs;
 pub(crate) mod derived_metadata;
 pub(crate) mod function_structure;
 mod identity_indexes;
+mod no_normal_calls;
 pub(crate) mod operation_contracts;
 pub(crate) mod references;
 mod runtime_evidence;
@@ -114,6 +115,7 @@ pub(crate) fn validate_psi_optimization_unit_with_control_cycles(
 ) -> Result<(), OptimizationUnitValidationError> {
     identity_indexes::validate_identity_and_fact_indexes(unit)?;
     let indexes = catalogs::index_and_validate_unit_catalogs(unit, cycle_policy)?;
+    no_normal_calls::validate(unit, &indexes.machines)?;
     runtime_evidence::validate(unit)?;
     affine_authority::validate_retained_ownership_authority(unit)?;
     catalogs::validate_final_authorities(unit, &indexes)

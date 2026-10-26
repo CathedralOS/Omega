@@ -3468,7 +3468,7 @@ pub(in crate::legalization) fn referent_argument(
     destination: &calling_conventions::ValuePlacement,
     caller: &PsiOptimizationFunction,
     native: &target_operations::TargetOperationPlan,
-    call_operation: semantic_vocabulary::OperationId,
+    call_operation: semantic_vocabulary::InvocationSite,
     custody: &Custody,
     types: &[StructuralTypeDeclaration],
 ) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
@@ -3554,7 +3554,7 @@ pub(in crate::legalization) fn referent_argument(
         indices: super::target::control_flow::sources::call_indices(
             native,
             caller,
-            target_operations::CallSiteOwner::Operation(call_operation),
+            target_operations::CallSiteOwner::from(call_operation),
             &projection.elements,
         )?,
         source,

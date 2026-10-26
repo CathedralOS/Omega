@@ -124,6 +124,9 @@ fn derive_optimized_scope(
                     identity,
                 ));
             }
+            // Only boundary invocations carry D41 selection authority. Ordinary
+            // module calls, including InvokeNoNormal, are replayed through the
+            // complete selected/object call graph retained by publication.
             let invocation = match operation {
                 AbstractOperation::BoundaryCall {
                     boundary,

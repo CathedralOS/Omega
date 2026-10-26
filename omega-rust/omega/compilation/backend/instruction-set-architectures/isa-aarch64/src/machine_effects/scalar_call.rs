@@ -24,8 +24,14 @@ pub(super) fn declaration(
         memory: MachineMemoryEffect::NoneV1,
         trap: MachineTrapBehavior::NeverV1,
         barrier: MachineBarrier::Call,
-        call: MachineCallEffect::InternalNormalReturnV1 {
-            pre_call_stack_alignment: 16,
+        call: if semantic == MachineSemanticKind::InvokeNoNormal {
+            MachineCallEffect::InternalNoNormalV1 {
+                pre_call_stack_alignment: 16,
+            }
+        } else {
+            MachineCallEffect::InternalNormalReturnV1 {
+                pre_call_stack_alignment: 16,
+            }
         },
         cleanup: MachineCleanupEffect::NoneV1,
         alternatives: vec![MachineAlternative {

@@ -36,7 +36,7 @@ const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
 // Version 72 retains indexed source evidence on structural edge snapshots.
 // Version 75 retains declaration-owned linear obligations beneath whole claims.
 // Version 78 distinguishes reads of operation-local storage from source places.
-const VERSION: u32 = 81;
+const VERSION: u32 = 82;
 const ENVELOPE: Envelope = Envelope::new(MAGIC, VERSION);
 impl FixedViewCopyPlan {
     /// Canonical self-authenticating artifact. Decoding returns plain content;

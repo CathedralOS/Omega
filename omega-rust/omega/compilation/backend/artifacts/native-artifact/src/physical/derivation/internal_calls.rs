@@ -183,6 +183,11 @@ pub(crate) fn derive_boundary_internal_call_child(
         return Err("selected boundary internal call does not rejoin one Terminal machine");
     };
     let (boundary, completion_receipts, semantic_site) = match occurrence.invocation_site() {
+        InvocationSite::InvokeNoNormal(_) => {
+            return Err(
+                "ordinary no-normal invocation cannot acquire boundary selection authority",
+            );
+        }
         InvocationSite::Operation(source_operation) => {
             let mut operations = machine
                 .operations()
@@ -243,7 +248,9 @@ pub(crate) fn derive_boundary_internal_call_child(
         .ok_or("selected boundary internal call names an absent object function")?;
     let retains_owner = match occurrence.invocation_site() {
         InvocationSite::Operation(operation) => function.provenance.operations.contains(&operation),
-        InvocationSite::ExternalCompletion(edge) => function.provenance.edges.contains(&edge),
+        InvocationSite::ExternalCompletion(edge) | InvocationSite::InvokeNoNormal(edge) => {
+            function.provenance.edges.contains(&edge)
+        }
     };
     if !retains_owner {
         return Err("selected boundary internal call left its function provenance");

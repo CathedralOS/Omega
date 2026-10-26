@@ -161,6 +161,11 @@ pub(crate) fn derive_physical_evidence(
             CallSiteOwner::ExternalCompletion(edge) => {
                 semantic_vocabulary::InvocationSite::ExternalCompletion(edge)
             }
+            CallSiteOwner::InvokeNoNormal(_) => {
+                return Err(
+                    "ordinary no-normal invocation cannot carry normalized foreign custody",
+                );
+            }
             CallSiteOwner::CleanupAction { .. } => {
                 return Ok(blocked(
                     NativePhysicalEvidenceGapSubject::ForeignCallSiteOwner {
@@ -767,6 +772,10 @@ pub(crate) fn physical_child_identity(
             }
             semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
                 digest.byte(1);
+                digest.raw(&edge.get().to_le_bytes());
+            }
+            semantic_vocabulary::InvocationSite::InvokeNoNormal(edge) => {
+                digest.byte(2);
                 digest.raw(&edge.get().to_le_bytes());
             }
         }

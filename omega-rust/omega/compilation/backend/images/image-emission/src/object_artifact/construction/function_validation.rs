@@ -303,7 +303,9 @@ fn validate_call_stacks(
             CallSiteOwner::Operation(operation) => {
                 function.provenance.operations.contains(&operation)
             }
-            CallSiteOwner::ExternalCompletion(edge) | CallSiteOwner::CleanupAction { edge, .. } => {
+            CallSiteOwner::InvokeNoNormal(edge)
+            | CallSiteOwner::ExternalCompletion(edge)
+            | CallSiteOwner::CleanupAction { edge, .. } => {
                 function.provenance.edges.contains(&edge)
             }
         };
@@ -1043,6 +1045,7 @@ fn validate_foreign_calls(
             CallSiteOwner::Operation(operation) => {
                 function.provenance.operations.contains(&operation)
             }
+            CallSiteOwner::InvokeNoNormal(_) => false,
             CallSiteOwner::ExternalCompletion(edge) => function.provenance.edges.contains(&edge),
             CallSiteOwner::CleanupAction { edge, .. } => function.provenance.edges.contains(&edge),
         };
@@ -1244,6 +1247,7 @@ fn validate_boundary_settlements(
             });
         }
         if !match settlement.invocation_site {
+            semantic_vocabulary::InvocationSite::InvokeNoNormal(_) => false,
             semantic_vocabulary::InvocationSite::Operation(operation) => {
                 function.provenance.operations.contains(&operation)
             }

@@ -27,7 +27,7 @@ use crate::physical::normalized_foreign_callback_relocation;
 use installation_evidence::ProviderExecutionEvidence;
 use object_file::RelocationKind;
 use object_file::SectionKind;
-use object_file::boundary_relocation_origin;
+use object_file::invocation_relocation_origin;
 use optimization_core::NativeOptimizationProjectionIdentity;
 use semantic_vocabulary::ScalarType;
 use target::Architecture;
@@ -55,6 +55,9 @@ pub(crate) fn derive_normalized_foreign_child(
     let source_operation = invocation_site.operation();
     let (boundary, arguments, structural_arguments, source_result, completion) =
         match invocation_site {
+            semantic_vocabulary::InvocationSite::InvokeNoNormal(_) => {
+                return Err("ordinary no-normal invocation cannot acquire foreign-call authority");
+            }
             semantic_vocabulary::InvocationSite::Operation(operation_id) => {
                 let mut operations = module
                     .machines
@@ -735,7 +738,8 @@ pub(crate) fn derive_normalized_foreign_child(
                     ),
                 )
             } else {
-                let expected_origin = boundary_relocation_origin(function.symbol, invocation_site);
+                let expected_origin =
+                    invocation_relocation_origin(function.symbol, invocation_site);
                 let import_records = object
                     .relocations()
                     .records()
@@ -917,7 +921,7 @@ pub(crate) fn derive_normalized_foreign_child(
                         && intervals.overlaps_object_span(relocation.offset, relocation.byte_width)
                 })
                 .collect::<Vec<_>>();
-            let expected_origin = boundary_relocation_origin(function.symbol, invocation_site);
+            let expected_origin = invocation_relocation_origin(function.symbol, invocation_site);
             let matching_import_relocations = overlapping_relocations
                 .iter()
                 .copied()

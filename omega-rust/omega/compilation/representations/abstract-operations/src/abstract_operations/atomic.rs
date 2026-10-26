@@ -806,6 +806,10 @@ fn invalidates_location(
     }
     let called_arguments = match operation {
         crate::boundary_or_structural_call_pair_pattern!(structural_arguments, ..)
+        | AbstractOperation::InvokeNoNormal {
+            structural_arguments,
+            ..
+        }
         | AbstractOperation::ExternalCompletion {
             structural_arguments,
             ..

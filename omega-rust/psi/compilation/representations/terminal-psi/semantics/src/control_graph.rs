@@ -45,13 +45,63 @@ pub enum CompletionGraphError {
 /// normal exit, but supplies no termination, disposal or abandonment authority.
 /// Ordinary prefix calls remain conservatively returning; an explicit
 /// no-normal invocation transfers this query to its exact callee entry.
-pub fn normal_completion_possible(
-    module: &terminal_psi::TerminalModule,
+/// Borrowed control views share one absence-of-normal-completion algorithm.
+/// Each adapter authenticates its current graph before exposing an entry.
+pub trait NormalCompletionGraph {
+    type Error;
+    fn entry(&mut self, machine: semantic_vocabulary::MachineId) -> Result<BlockId, Self::Error>;
+    fn disposition(
+        &self,
+        machine: semantic_vocabulary::MachineId,
+        block: BlockId,
+    ) -> Result<NormalCompletionDisposition, Self::Error>;
+}
+
+/// Analysis scratch describing one existing control point, not an executable IR.
+pub enum NormalCompletionDisposition {
+    Return,
+    Stop,
+    Invoke(semantic_vocabulary::MachineId),
+    Successors(Vec<BlockId>),
+}
+
+pub fn normal_completion_possible_in<Graph: NormalCompletionGraph>(
+    graph: &mut Graph,
     initial: semantic_vocabulary::MachineId,
-) -> Result<bool, CompletionGraphError> {
-    use terminal_psi::Terminator;
-    let exact_machine = |identity| {
-        let mut candidates = module
+) -> Result<bool, Graph::Error> {
+    let entry = graph.entry(initial)?;
+    let mut visited = BTreeSet::new();
+    let mut pending = vec![(initial, entry)];
+    while let Some((machine, block)) = pending.pop() {
+        if !visited.insert((machine, block)) {
+            continue;
+        }
+        match graph.disposition(machine, block)? {
+            NormalCompletionDisposition::Return => return Ok(true),
+            NormalCompletionDisposition::Stop => {}
+            NormalCompletionDisposition::Invoke(callee) => {
+                let entry = graph.entry(callee)?;
+                pending.push((callee, entry));
+            }
+            NormalCompletionDisposition::Successors(targets) => {
+                pending.extend(targets.into_iter().map(|target| (machine, target)))
+            }
+        }
+    }
+    Ok(false)
+}
+
+struct ModuleCompletionGraph<'a> {
+    module: &'a terminal_psi::TerminalModule,
+    validated: BTreeSet<semantic_vocabulary::MachineId>,
+}
+impl ModuleCompletionGraph<'_> {
+    fn machine(
+        &self,
+        identity: semantic_vocabulary::MachineId,
+    ) -> Result<&TerminalMachine, CompletionGraphError> {
+        let mut candidates = self
+            .module
             .machines
             .iter()
             .filter(|machine| machine.id == identity);
@@ -62,53 +112,65 @@ pub fn normal_completion_possible(
             return Err(CompletionGraphError::AmbiguousMachine(identity));
         }
         Ok(machine)
-    };
-    let entry = exact_machine(initial)?.entry;
-    let mut validated = BTreeSet::new();
-    let mut visited = BTreeSet::new();
-    let mut pending = vec![(initial, entry)];
-    while let Some((machine_id, block_id)) = pending.pop() {
-        if !visited.insert((machine_id, block_id)) {
-            continue;
-        }
-        let machine = exact_machine(machine_id)?;
-        if validated.insert(machine_id) {
-            validate_control_graph(machine).map_err(|error| {
+    }
+}
+impl NormalCompletionGraph for ModuleCompletionGraph<'_> {
+    type Error = CompletionGraphError;
+    fn entry(&mut self, identity: semantic_vocabulary::MachineId) -> Result<BlockId, Self::Error> {
+        if !self.validated.contains(&identity) {
+            validate_control_graph(self.machine(identity)?).map_err(|error| {
                 CompletionGraphError::InvalidControl {
-                    machine: machine_id,
+                    machine: identity,
                     error,
                 }
             })?;
+            self.validated.insert(identity);
         }
-        let block = machine
-            .block(&block_id)
-            .ok_or(CompletionGraphError::InvalidControl {
-                machine: machine_id,
-                error: ControlGraphError::UnknownTarget(block_id),
-            })?;
-        match &block.terminator {
+        Ok(self.machine(identity)?.entry)
+    }
+    fn disposition(
+        &self,
+        machine: semantic_vocabulary::MachineId,
+        block: BlockId,
+    ) -> Result<NormalCompletionDisposition, Self::Error> {
+        use terminal_psi::Terminator;
+        let block =
+            self.machine(machine)?
+                .block(&block)
+                .ok_or(CompletionGraphError::InvalidControl {
+                    machine,
+                    error: ControlGraphError::UnknownTarget(block),
+                })?;
+        Ok(match &block.terminator {
             Terminator::Return { .. }
             | Terminator::ReturnUnit { .. }
-            | Terminator::ReturnStructural { .. } => return Ok(true),
+            | Terminator::ReturnStructural { .. } => NormalCompletionDisposition::Return,
             Terminator::InvokeNoNormal { callee, .. } => {
-                let target = exact_machine(*callee)?;
-                pending.push((*callee, target.entry));
+                NormalCompletionDisposition::Invoke(*callee)
             }
-            Terminator::Crash { .. } | Terminator::ExternalCompletion { .. } => {}
+            Terminator::Crash { .. } | Terminator::ExternalCompletion { .. } => {
+                NormalCompletionDisposition::Stop
+            }
             Terminator::Jump { .. }
             | Terminator::Conditional { .. }
             | Terminator::StructuralCase { .. } => {
-                pending.extend(
-                    block
-                        .terminator
-                        .successor_targets()
-                        .into_iter()
-                        .map(|target| (machine_id, target)),
-                );
+                NormalCompletionDisposition::Successors(block.terminator.successor_targets())
             }
-        }
+        })
     }
-    Ok(false)
+}
+
+pub fn normal_completion_possible(
+    module: &terminal_psi::TerminalModule,
+    initial: semantic_vocabulary::MachineId,
+) -> Result<bool, CompletionGraphError> {
+    normal_completion_possible_in(
+        &mut ModuleCompletionGraph {
+            module,
+            validated: BTreeSet::new(),
+        },
+        initial,
+    )
 }
 
 /// Iterative DFS returning blocks in first-finished order — the shared

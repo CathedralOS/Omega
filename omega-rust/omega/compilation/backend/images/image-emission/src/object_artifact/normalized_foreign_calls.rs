@@ -1477,6 +1477,7 @@ pub fn foreign_invocation_provenance_matches(
     site: semantic_vocabulary::InvocationSite,
 ) -> bool {
     match site {
+        semantic_vocabulary::InvocationSite::InvokeNoNormal(_) => false,
         semantic_vocabulary::InvocationSite::Operation(operation) => {
             provenance.operations.last() == Some(&operation)
                 && provenance.edges.is_empty()

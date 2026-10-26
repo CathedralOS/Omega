@@ -704,7 +704,7 @@ pub(super) fn placed_formals(
 pub(super) fn placed_call_custody(
     caller: &AbstractFunction,
     callee: &AbstractFunction,
-    operation: semantic_vocabulary::OperationId,
+    invocation: semantic_vocabulary::InvocationSite,
     arguments: &[StructuralArgument],
     types: &StructuralTypeLookup<'_>,
     live: &LiveDefinitions,
@@ -722,7 +722,7 @@ pub(super) fn placed_call_custody(
         let invalid = |reason| LoweringError::PlacedCallCustody {
             caller: caller.machine,
             callee: callee.machine,
-            operation,
+            invocation,
             runtime_position,
             reason,
         };
