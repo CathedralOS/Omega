@@ -3658,6 +3658,10 @@ fail/domains/domain_pattern_match_bound_generic_equation_wrong_carrier_rejected 
 	generic machine `generic_ready` where equation on `Value` does not hold: the supplied `Value` argument is not `Cell`
 fail/domains/domain_pattern_match_bound_generic_open_wrong_carrier_rejected rejected 693ms expected @ee1410030dca
 	executable domain test `Other::Ready` expects subject carrier `Other`, got `Cell`
+fail/domains/domain_pattern_match_bound_generic_unconstrained_rejected rejected 206ms expected @a67f6abb9c80
+	executable domain test `Cell::Ready` expects subject carrier `Cell`, got `Value`
+fail/domains/domain_pattern_match_bound_generic_unrelated_equation_rejected rejected 231ms expected @a67f6abb9c80
+	executable domain test `Cell::Ready` expects subject carrier `Cell`, got `Value`
 fail/domains/domain_pattern_match_bound_inherited_routed_unproven_rejected rejected 2476ms expected @ee1410030dca
 	executable domain test `Cell::Ready` requires retained authorized provenance; a predicate test cannot establish it
 fail/domains/domain_pattern_match_bound_missing_coverage_rejected rejected 875ms expected @ee1410030dca
@@ -22653,6 +22657,7 @@ pass/domains/domain_pattern_match_bound_alias_routed_retained_exit checked 3497m
 pass/domains/domain_pattern_match_bound_full_width_field_exit checked 3238ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
 pass/domains/domain_pattern_match_bound_generic_equation_same_carrier_exit checked 3477ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
 pass/domains/domain_pattern_match_bound_generic_open_same_carrier_exit checked 3531ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
+pass/domains/domain_pattern_match_bound_generic_transitive_equation_exit checked 1275ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @a67f6abb9c80
 pass/domains/domain_pattern_match_bound_inherited_routed_retained_exit checked 3704ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
 pass/domains/domain_pattern_match_bound_nested_routed_retained_exit checked 3569ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
 pass/domains/domain_pattern_match_bound_ordered_effects_exit checked 3718ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
