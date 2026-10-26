@@ -53,8 +53,8 @@ pub use compile_request::{
     RequestedCompileProduct, SettledCheckReuse,
 };
 pub use evaluated_build::{
-    BuildAdmission, BuildConfig, ComputedBuildConfig, IndependentComponentDiscovery,
-    IndependentComponentSelection, ServiceAuditRegistration,
+    BuildAdmission, BuildConfig, ComputedBuildConfig, EvaluatedBuild,
+    IndependentComponentDiscovery, IndependentComponentSelection, ServiceAuditRegistration,
 };
 pub use independent_component::IndependentComponentProduct;
 pub use native_artifact::{
@@ -69,6 +69,7 @@ pub use package_build::PreparedPackageBuild;
 pub use package_compilation::RetainedBuildOutputs;
 pub use prepared_build::{
     BuiltTypedProgram, CheckedProductSource, PreparedBuild, PreparedProductSource,
+    SettledBuildSource, SettledPackageBuild,
 };
 pub use prepared_source::{
     PreparedCheckedSource, PreparedSourceFrontier, TypedCompilationFrontier,

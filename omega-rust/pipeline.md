@@ -257,6 +257,19 @@ targets; it must not discard execution obligations while converting occurrence
 plans into retained Product work. Build's execution profile remains independent
 of those targets.
 
+The compiler's `settle_package_build` consumes the exact returned activation and
+checks its source-request ledger and required outputs before returning opaque
+`CompletedBuild` custody. `prepare_package_product` admits each requested Product
+context from that settled output. Review proposals, accepted semantic bindings
+and compilation purpose belong to that context, not the executed Build. The
+source graph and execution observations remain fixed. Product source is resolved
+and typed under its own admissions; a sibling's typed declarations are never
+retagged. Default Builds retain immutable parsing for changed source-routing
+inputs. The ordinary `complete_package_build` route consumes the same settlement
+and Product-preparation sequence without forking a nonexistent sibling. An
+already prepared `PackageBuild::select_target` remains restricted to equal source
+and semantic inputs; it selects realization, not a new Product judgment.
+
 Each compiler entrance shows named representations and actual stage calls in
 execution order. A separate `pipeline.rs` is justified only if it owns meaningful
 sequencing rather than forwarding. Use ordinary locals, loops and matches for

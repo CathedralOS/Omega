@@ -1152,6 +1152,15 @@ narrows realization only.
   occurrences. Final Product context now chooses its target at source join;
   the SDK completes a foreign-target dependency graph after host discovery,
   then selects and executes the host product. Pre-admitted targets remain fixed.
+  Build settlement is now a separate opaque result before Product preparation:
+  source-request/output settlement consumes the actual return, while independent
+  Product contexts resolve and type from the same captured input under their own
+  admitted semantic bindings. The SDK exercises accepted review and executable
+  contexts after live-source deletion, refusing missing entry acceptance and a
+  replaced request graph without replay or additional Build fuel. Default Builds
+  reprepare changed compilation purposes from retained parsing. The ordinary
+  composite route consumes this same sequence; this phase boundary does not yet
+  complete the production retained-discovery cutover above.
   Execution-time profile, staging, snapshots/outputs, sponsors and grant guards
   now travel as one owned `BuildExecutionInputs` from package admission through
   the compiler facade into Build evaluation; repeated field-by-field forwarding

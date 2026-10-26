@@ -150,11 +150,22 @@ impl CompilationSession {
         invocation: super::checking::PreparedPackageInvocation,
         returned: Option<build_evaluation::ReturnedBuild>,
     ) -> Result<PreparedPackageBuild, CompileFailure> {
-        let prepared = invocation.complete(returned)?;
-        if let Some(check) = prepared.retained_build_check() {
+        let settled = self.settle_build(invocation, returned)?;
+        let target = settled.target;
+        let inputs = settled.inputs.clone();
+        super::checking::prepare_settled_package_product(settled, target, inputs)
+    }
+
+    pub(super) fn settle_build(
+        &mut self,
+        invocation: super::checking::PreparedPackageInvocation,
+        returned: Option<build_evaluation::ReturnedBuild>,
+    ) -> Result<compilation_products::SettledPackageBuild, CompileFailure> {
+        let settled = invocation.settle(returned)?;
+        if let Some(check) = &settled.source.evaluated.retained_check {
             retain_judgment(&mut self.checks.sibling_build_checks, check);
         }
-        Ok(prepared)
+        Ok(settled)
     }
 
     fn prepare_source(
