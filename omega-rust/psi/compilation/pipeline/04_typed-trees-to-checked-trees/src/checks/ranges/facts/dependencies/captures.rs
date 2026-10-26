@@ -321,7 +321,7 @@ pub(super) fn integer_value_identity(
         if local.symbol == value {
             return Some(value);
         }
-        expression = local.initial_value;
+        expression = local.ordinary_value_initializer()?;
     }
     None
 }

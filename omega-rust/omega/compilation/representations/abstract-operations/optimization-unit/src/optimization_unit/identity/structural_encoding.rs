@@ -868,6 +868,12 @@ pub(super) fn encode_scalar_restriction(
             encode_scalar_type(bytes, refinement.carrier());
             encode_proposition(bytes, refinement.predicate());
         }
+        StructuralFieldType::AtomicBoundedInteger(bounds) => {
+            bytes.u8(10);
+            encode_integer_type(bytes, bounds.integer_type());
+            encode_integer_value(bytes, bounds.minimum());
+            encode_integer_value(bytes, bounds.maximum());
+        }
         StructuralFieldType::Atomic(value) => {
             bytes.u8(8);
             encode_scalar_type(bytes, *value);

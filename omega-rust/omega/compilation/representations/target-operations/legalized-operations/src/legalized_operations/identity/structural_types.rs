@@ -609,6 +609,12 @@ fn encode_scalar_restriction(bytes: &mut Vec<u8>, field_type: &StructuralFieldTy
             encode_len(bytes, identity.len());
             bytes.extend_from_slice(&identity);
         }
+        StructuralFieldType::AtomicBoundedInteger(bounds) => {
+            bytes.push(10);
+            super::scalar::encode_integer_type(bytes, bounds.integer_type());
+            super::scalar::encode_integer(bytes, bounds.minimum());
+            super::scalar::encode_integer(bytes, bounds.maximum());
+        }
         StructuralFieldType::Atomic(scalar) => {
             bytes.push(8);
             encode_scalar_type(bytes, *scalar);

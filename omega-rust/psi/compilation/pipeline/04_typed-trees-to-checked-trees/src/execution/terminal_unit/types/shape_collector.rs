@@ -1566,6 +1566,7 @@ fn authored_field_storage(
         field_type,
         CheckedUnitStructuralFieldType::Scalar(_)
             | CheckedUnitStructuralFieldType::Atomic(_)
+            | CheckedUnitStructuralFieldType::AtomicBoundedInteger(_)
             | CheckedUnitStructuralFieldType::BoundedInteger(_)
             | CheckedUnitStructuralFieldType::RefinedScalar { .. }
     );

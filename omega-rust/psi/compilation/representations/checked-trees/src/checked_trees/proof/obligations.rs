@@ -59,6 +59,8 @@ pub enum ProofObligationOwner {
 /// and non-integer constraints confer no authority through this row.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedIntegerAssignmentDecision {
+    /// This judgment establishes an atomic resident, not an ordinary store.
+    pub atomic_resident: bool,
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
     pub statement_index: usize,

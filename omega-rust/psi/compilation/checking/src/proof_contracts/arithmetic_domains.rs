@@ -24,6 +24,9 @@
 //! derives range constraint intervals and containment and
 //! `return_ranges.rs` infers and enforces return ranges.
 
+mod atomic_observations;
+pub(crate) use atomic_observations::{atomic_resident_interval, atomic_result_interval};
+
 mod abstract_shift_count;
 mod declared_float_facts;
 pub(crate) use declared_float_facts::record_declared_float_fields;

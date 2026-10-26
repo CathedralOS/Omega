@@ -399,6 +399,7 @@ pub(super) fn validate_operation(
                     },
                 reads_from: None,
                 modification_after: None,
+                resident_obligation: None,
             },
         ) if psi_operation == expected_operation && ordering == expected_ordering => {}
         (

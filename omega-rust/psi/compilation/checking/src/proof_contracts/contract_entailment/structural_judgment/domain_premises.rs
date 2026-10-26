@@ -437,6 +437,54 @@ impl StructuralJudge<'_> {
         }
     }
 
+    /// A completed atomic load is a fresh snapshot of a declaration-valid
+    /// resident. Its bound belongs to this captured value, never to a cached
+    /// value of the cell or the receiving annotation's requested predicate.
+    pub(super) fn intake_atomic_observation_bounds(
+        &mut self,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        expression: ExpressionHandle,
+        reference: TypeReferenceHandle,
+        value: &StructuralTerm,
+    ) {
+        let program = self.program;
+        let Some(load) = crate::atomic_load_carrier(program, expression) else {
+            return;
+        };
+        let Some(bounds) = crate::proof_contracts::arithmetic_domains::atomic_resident_interval(
+            program, machine, Some(state), load.place,
+        ) else {
+            return;
+        };
+        let Some(meaning) =
+            crate::value_custody::expression_types::scalar_observation_meaning(program, reference)
+        else {
+            return;
+        };
+        if !meaning.0.is_fixed_integer()
+            || !super::super::structural_terms::scalar_operand_is_observed(program, reference, value)
+        {
+            return;
+        }
+        for (operator, bound) in [
+            (BinaryOperator::GreaterOrEqual, bounds.low()),
+            (BinaryOperator::LessOrEqual, bounds.high()),
+        ] {
+            let Some(bound) = bound else { continue };
+            let predicate = StructuralTerm::ScalarBinary {
+                references: [reference; 2],
+                operator,
+                meaning: [meaning; 2],
+                left: Box::new(value.clone()),
+                right: Box::new(StructuralTerm::Integer(
+                    numerics::bignum::BigInt::from_i64(bound),
+                )),
+            };
+            self.intake_equation(predicate, super::value_predicates::boolean_term(true), 0);
+        }
+    }
+
     /// Only admitted inputs and completed call results enter here. A pending
     /// constructor's receiving annotation is not evidence of its own `where`.
     /// Readable input references expose their entry value; produced reference

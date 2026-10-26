@@ -236,6 +236,8 @@ pub enum CheckedUnitStructuralFieldType {
     Scalar(PrimitiveType),
     /// Atomic storage retains its access contract separately from its carrier.
     Atomic(PrimitiveType),
+    /// Atomic authority and complete resident validity survive independently.
+    AtomicBoundedInteger(semantic_vocabulary::BoundedIntegerType),
     BoundedInteger(semantic_vocabulary::BoundedIntegerType),
     /// Complete scalar restriction over formal parameter zero. This coordinate
     /// names the field value, never an enclosing machine parameter.

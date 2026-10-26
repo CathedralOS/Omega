@@ -4,7 +4,8 @@ data Cell { counter: AtomicU64; }
 data Packet { first: &Cell; second: &Cell; counter: AtomicU64; }
 
 machine observe(cell: &Cell) -> u64 in Wrapping {
-    let value: u64 in Wrapping = cell.counter.load(NoOrdering);
+    let value_atomic_observed: u64 = cell.counter.load(NoOrdering);
+    let value: u64 in Wrapping = value_atomic_observed as u64 in Wrapping;
     transition { _ -> (value) }
 }
 
@@ -13,14 +14,18 @@ machine main() crashes Trap {
     let other: Cell = Cell { counter: 91 };
     let packet: Packet = Packet { first: &cell, second: &cell, counter: 7 };
     packet.first.counter.store(23, NoOrdering);
-    let captured: u64 in Wrapping = packet.first.counter.load(NoOrdering);
+    let captured_atomic_observed: u64 = packet.first.counter.load(NoOrdering);
+    let captured: u64 in Wrapping = captured_atomic_observed as u64 in Wrapping;
     let first: u64 in Wrapping = packet.first.counter.fetch_add(5, NoOrdering);
     packet.counter.store(11, NoOrdering);
     let second: u64 in Wrapping = packet.second.counter.fetch_add(7, NoOrdering);
-    let resident: u64 in Wrapping = packet.first.counter.load(NoOrdering);
+    let resident_atomic_observed: u64 = packet.first.counter.load(NoOrdering);
+    let resident: u64 in Wrapping = resident_atomic_observed as u64 in Wrapping;
     let reference: &Cell = packet.second;
-    let through_reference: u64 in Wrapping = reference.counter.load(NoOrdering);
-    let local: u64 in Wrapping = packet.counter.load(NoOrdering);
+    let through_reference_atomic_observed: u64 = reference.counter.load(NoOrdering);
+    let through_reference: u64 in Wrapping = through_reference_atomic_observed as u64 in Wrapping;
+    let local_atomic_observed: u64 = packet.counter.load(NoOrdering);
+    let local: u64 in Wrapping = local_atomic_observed as u64 in Wrapping;
     let original: u64 in Wrapping = observe(&cell);
     let untouched: u64 in Wrapping = observe(&other);
     transition captured == 23 && first == 23 && second == 28 && resident == 35

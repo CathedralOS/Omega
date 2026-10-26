@@ -7,7 +7,8 @@ machine main() crashes Trap {
     let cell: Cell in Cell::Label = make();
     let shared: &Cell = (&cell) as &Cell;
     shared.value.store(47, NoOrdering);
-    let observed: u64 in Wrapping = shared.value.load(NoOrdering);
+    let observed_atomic_observed: u64 = shared.value.load(NoOrdering);
+    let observed: u64 in Wrapping = observed_atomic_observed as u64 in Wrapping;
     transition observed == 47 {
         true -> done()
         false -> wrong()

@@ -875,6 +875,10 @@ fn encode_scalar_restriction(
             length(bytes, predicate.len());
             bytes.extend_from_slice(&predicate);
         }
+        StructuralFieldType::AtomicBoundedInteger(bounds) => {
+            bytes.push(10);
+            bounded_integer::encode(bytes, *bounds);
+        }
         StructuralFieldType::Atomic(scalar) => {
             bytes.push(8);
             encode_scalar(bytes, *scalar);
@@ -937,6 +941,13 @@ fn decode_scalar_restriction(
             field
                 .atomic_scalar_type()
                 .ok_or(FixedViewCopyDecodeError::UnknownStructuralFieldType(8))?;
+            field
+        }
+        10 => {
+            let field = StructuralFieldType::AtomicBoundedInteger(bounded_integer::decode(cursor)?);
+            field
+                .atomic_scalar_type()
+                .ok_or(FixedViewCopyDecodeError::UnknownStructuralFieldType(10))?;
             field
         }
         6 => StructuralFieldType::BoundedInteger(bounded_integer::decode(cursor)?),
