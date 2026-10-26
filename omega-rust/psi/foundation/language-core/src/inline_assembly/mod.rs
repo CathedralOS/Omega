@@ -1473,5 +1473,49 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
     Some(entry)
 }
 
+/// Receiving-host selected x86 processor flags, independent of host authority.
+/// The model supplies an architectural state, never an instruction callback.
+/// Arithmetic flag restores merge the six condition bits into this image.
+/// Reserved bits stay the bits captured from the host.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct X86FlagsEnvironment {
+    rflags: u64,
+}
+
+/// The supplied image violates x86 reserved-bit layout: bit 1 is always set,
+/// bits 3, 5, 15 and 22..63 are always clear.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct X86FlagsEnvironmentError;
+
+impl core::fmt::Display for X86FlagsEnvironmentError {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        formatter.write_str("invalid x86 flags environment: reserved RFLAGS bits")
+    }
+}
+
+impl X86FlagsEnvironment {
+    /// Reserved bits are fixed: bit 1 is set; bits 3, 5, 15 and 22..63 are
+    /// clear. RF/VM may exist in the state but PUSHFQ clears their image.
+    pub fn new(rflags: u64) -> Result<Self, X86FlagsEnvironmentError> {
+        if rflags & 2 == 0 || rflags & !0x3f7fd7 != 0 {
+            return Err(X86FlagsEnvironmentError);
+        }
+        Ok(Self { rflags })
+    }
+
+    /// The image a PUSHFQ observation of this environment reads.
+    pub fn snapshot(self) -> u64 {
+        self.rflags & !((1 << 16) | (1 << 17))
+    }
+
+    /// Keep reserved bits from the supplied image. The saved place carries the
+    /// arithmetic flags recorded by the producing instruction, not a complete
+    /// RFLAGS image, so only CF, PF, AF, ZF, SF and OF move.
+    pub fn restore_arithmetic_bits(&mut self, image: u64) {
+        const ARITHMETIC: u64 = 0x8d5;
+        self.rflags = (self.rflags & !ARITHMETIC) | (image & ARITHMETIC);
+    }
+}
+
 #[cfg(test)]
 mod tests;

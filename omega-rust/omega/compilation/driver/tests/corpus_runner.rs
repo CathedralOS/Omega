@@ -896,6 +896,16 @@ fn interpret_checked_fixture(
                 })
         })
         .collect();
+    // The same owner supplies the x86 flags environment for this check leg:
+    // when `target` is an x86 target the host's captured image is the modeled
+    // state `pushfq` observes and `popfq` restores, matching the environment
+    // Terminal execution receives.
+    let x86_flags = if terminal_psi::RegisterTargetApplicability::X86_64.accepts_target_name(target)
+    {
+        runtime_abi::capture_host_x86_flags()
+    } else {
+        None
+    };
     let outcome = checked_interpreter::interpret_entry(
         &checked.execution().program,
         checked_interpreter::BuildMachineEntry::Symbol(entry.machine_symbol()),
@@ -904,6 +914,7 @@ fn interpret_checked_fixture(
             boundary_adapters: &checked.execution().dispatch.boundary_adapters,
             float_comparisons: &checked.execution().dispatch.float_comparisons,
             machine_bodies: &machine_bodies,
+            x86_flags,
             ..checked_interpreter::InterpretOptions::default()
         },
     );
