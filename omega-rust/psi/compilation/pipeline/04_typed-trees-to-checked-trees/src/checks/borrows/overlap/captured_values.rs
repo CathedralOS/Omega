@@ -174,7 +174,7 @@ fn stored_call_source<'facts>(
             segments,
         },
         selector: value.projection.expression,
-        operand: value.operand,
+        operand: value.operand.row(),
         has_read_epoch: value.producer_epoch.is_some(),
     })
 }
