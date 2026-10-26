@@ -1,5 +1,0 @@
-machine unused<Context, machine Callback>()
-where machine Callback<'call>(context: Context, item: &'call u64) -> &'call mut u64;
-{}
-
-machine main() {}

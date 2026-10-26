@@ -1,7 +1,0 @@
-//! Argument parsing and console presentation; operations live in the library.
-
-pub(crate) mod arguments;
-pub(crate) mod compilation;
-pub(crate) mod execution;
-pub(crate) mod inspection;
-pub(crate) mod packages;

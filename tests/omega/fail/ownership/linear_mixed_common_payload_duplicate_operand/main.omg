@@ -1,8 +1,0 @@
-// Common and payload members cannot consume the same owner twice.
-data Receipt [linear] { code: i32; }
-machine Receipt::drop(receipt: &mut Receipt) {}
-data Event { common: Receipt; case Present(payload: Receipt); }
-machine main() {
-    let receipt: Receipt = Receipt { code: 7 };
-    let event: Event = Event::Present { common: receipt, payload: receipt };
-}

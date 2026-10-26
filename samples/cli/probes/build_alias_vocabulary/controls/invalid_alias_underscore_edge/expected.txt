@@ -1,1 +1,0 @@
-cannot project package dependencies: dependency alias `_kit` must use snake_case Omega identifier spelling

@@ -1,7 +1,0 @@
-use foreign::SELECTED;
-data Token [copy] {value:u64;}
-const ALIAS:foreign::Token=SELECTED;
-const AGAIN:foreign::Token=ALIAS;
-data Indexed<const N:foreign::Token> {value:u8;}
-machine keep(v:Indexed<AGAIN>)->Indexed<SELECTED>{v}
-machine main(){}

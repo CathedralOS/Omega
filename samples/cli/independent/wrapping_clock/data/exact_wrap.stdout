@@ -1,7 +1,0 @@
-row 1 raw 7 timestamp 7 elapsed 0 host 3
-row 2 raw 7 timestamp 263 elapsed 256 host 259
-row 3 raw 7 timestamp 519 elapsed 512 host 515
-wraps 2 dropped 0
-rate 327680/327680 host_units/tick
-drift 0/327680 ppm_vs_one
-max_residual 0/327680 host_units

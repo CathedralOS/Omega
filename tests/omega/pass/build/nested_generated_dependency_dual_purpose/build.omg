@@ -1,9 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "nested_generated_dependency_dual_purpose");
-    Build::build_depend_as(builder, "kit", Source::Path { location: "dependency" });
-    Build::depend_as(builder, "product_kit", Source::Path { location: "dependency" });
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-}

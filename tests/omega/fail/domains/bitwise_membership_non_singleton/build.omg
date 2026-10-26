@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "bitwise_membership_non_singleton");
-    builder.freestanding = true;
-}

@@ -1,5 +1,0 @@
-domain u64::Custom;
-machine > u64::Custom::always(left: u64 in Custom, right: u64) -> bool { true }
-machine read(values: &[i64 in Wrapping; 0]) -> i64 in Wrapping {
- transition (0u64 as u64 in Custom) > 0u64 { true -> (values[0]) _ -> (0) }
-}

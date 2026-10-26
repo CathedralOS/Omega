@@ -1,9 +1,0 @@
-data First { value: u64; }
-data Second { value: u64; }
-data Extraction<Value> { case Moved(value: Value); }
-machine unpack<Value>(result: Extraction<Value>) -> Value {
-    transition result { Extraction::Moved { value } -> value }
-}
-machine main(result: Extraction<First>) -> Second {
-    unpack<Second>(result)
-}

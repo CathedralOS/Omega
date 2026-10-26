@@ -1,9 +1,0 @@
-machine exactly_four(cells: &[i32]) -> bool { cells.len == 4 }
-data Grid where exactly_four(&cells) == true { cells: [i32; 4]; }
-machine count(cells: &[i32]) -> u64
-requires exactly_four(cells) == true
-{ cells.len }
-machine main() {
-    let mut grid: Grid;
-    let observed: u64 = count(&grid.cells[..2]);
-}

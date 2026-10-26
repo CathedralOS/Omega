@@ -1,2 +1,0 @@
-cannot use `resource`
-after `resource` was transferred or consumed

@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "nan_match_fallthrough");
-    builder.freestanding = true;
-}

@@ -1,2 +1,0 @@
-regions=000000001
-region start=000000002 end=000000006 area_milli=000028000 centroid_micro=504000000 candidates=000000003 nearest=000000002 status=ambiguous ids=000000001,000000002,000000003,

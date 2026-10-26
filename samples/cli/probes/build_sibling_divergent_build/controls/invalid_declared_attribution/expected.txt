@@ -1,2 +1,0 @@
-cannot check prepared project: checked compilation failed for package `declared_else` with 1 diagnostic(s)
-  error: required output `ghost.txt` of `build` failed: declared-name probe

@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "data `EvenLength` literal cannot prove the default domain"
-  ]
-}

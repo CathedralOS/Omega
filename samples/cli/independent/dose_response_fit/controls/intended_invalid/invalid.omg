@@ -1,6 +1,0 @@
-// Intended invalid: observation storage has exactly 32 elements.
-// Expected diagnostic contains: bounds
-machine main() -> f64 {
-    let observations: [f64; 32];
-    observations[32]
-}

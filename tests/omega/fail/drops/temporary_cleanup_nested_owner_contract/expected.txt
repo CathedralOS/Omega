@@ -1,1 +1,0 @@
-Outer.token does not establish Token::drop clause `token.value == 7`

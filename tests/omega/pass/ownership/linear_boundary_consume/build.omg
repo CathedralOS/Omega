@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "linear_boundary_consume");
-    builder.freestanding = true;
-}

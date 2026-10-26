@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "struct_literal_duplicate_field_rejected");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

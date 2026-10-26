@@ -1,8 +1,0 @@
-// A package may depend on a subdirectory of its own source tree:
-// the edge resolves `sub` as an independent package — only a
-// direct self-edge on the root directory itself conflicts.
-machine build(builder: &mut Build) {
-    Build::application(builder, "build_subdir_edge");
-    builder.freestanding = true;
-    Build::depend_as(builder, "selfsub", Source::Path { location: "sub" });
-}

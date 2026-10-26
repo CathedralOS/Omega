@@ -1,3 +1,0 @@
-let identity<A: core::Type<0> >(value: A): A = value;
-machine bad(value: i32) ensures identity<u8>(value) == 0u8 {}
-machine main() {}

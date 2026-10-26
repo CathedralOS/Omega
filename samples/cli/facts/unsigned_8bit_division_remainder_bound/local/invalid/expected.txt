@@ -1,1 +1,0 @@
-exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation).

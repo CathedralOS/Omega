@@ -1,1 +1,0 @@
-{"role":"intended-invalid","entry":"main.omg","rejection_contains":["convolution_sample","source >= 0 && source < 32","the instantiated fact is structurally false"]}

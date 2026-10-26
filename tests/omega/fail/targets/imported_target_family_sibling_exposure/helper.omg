@@ -1,2 +1,0 @@
-// A sibling carries Main's public field type but does not inherit its imports.
-machine read(main: &Main) -> u64 { Carrier::value(&main.carrier) }

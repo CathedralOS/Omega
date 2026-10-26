@@ -1,3 +1,0 @@
-// Authored seed the generated `value` forwards to: authored source never
-// selects declarations its own build generates.
-public machine seed() -> i32 { 7 }

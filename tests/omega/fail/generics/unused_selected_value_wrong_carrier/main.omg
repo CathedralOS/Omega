@@ -1,8 +1,0 @@
-// An uninstantiated wrapper still owes the public member's unused Value carrier.
-trait Reader {
-    machine read<Index: u32>() -> u32;
-}
-machine unused<Index: u64, Implementation satisfies Reader>() -> u32 {
-    Implementation::read<Index>()
-}
-machine main() {}

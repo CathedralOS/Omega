@@ -1,3 +1,0 @@
-use vendor::main;
-
-machine main() { }

@@ -1,2 +1,0 @@
-# Runtime input fixtures preserve EOF and CRLF bytes on every host.
-data/*.stdin -text

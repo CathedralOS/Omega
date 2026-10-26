@@ -1,7 +1,0 @@
-use omega::language::core::float_operations;
-
-machine main() {
-    let quiet: f32 = 16777217i32 as f32;
-    let saturated: f32 in Saturating = 16777217i32 as f32 in Saturating;
-    let trapping: f32 in Trapping = 16777217i32 as f32 in Trapping;
-}

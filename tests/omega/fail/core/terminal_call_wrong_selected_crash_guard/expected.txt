@@ -1,2 +1,0 @@
-call from `choose` to `stop`
-uncovered Trap crash route

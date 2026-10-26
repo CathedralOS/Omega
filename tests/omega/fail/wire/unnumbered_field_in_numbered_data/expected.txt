@@ -1,1 +1,0 @@
-stable identities are all-or-nothing for record fields

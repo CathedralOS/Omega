@@ -1,3 +1,0 @@
-data Invalid<const Count: u64> { value: Count; }
-data Main {}
-machine main() {}

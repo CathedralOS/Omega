@@ -1,2 +1,0 @@
-index compatibility condition `index-equality:Indexed:cannot_borrow_other_application::entry:statement-1:
-is not established

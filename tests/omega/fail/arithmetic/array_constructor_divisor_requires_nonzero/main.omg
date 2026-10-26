@@ -1,4 +1,0 @@
-data BoxedValues { values: [i64; 1]; }
-machine make(divisor: i64) -> BoxedValues {
-    BoxedValues { values: [1 / divisor] }
-}

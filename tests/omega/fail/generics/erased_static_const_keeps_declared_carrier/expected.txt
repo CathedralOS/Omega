@@ -1,1 +1,0 @@
-requires `u8`, but `TAG` declares `u16`

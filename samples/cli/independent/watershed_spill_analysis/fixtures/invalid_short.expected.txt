@@ -1,1 +1,0 @@
-ERROR: expected exactly 25 elevation digits (0-9)

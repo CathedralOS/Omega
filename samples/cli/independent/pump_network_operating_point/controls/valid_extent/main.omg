@@ -1,3 +1,0 @@
-// Positive counterpart: the borrowed fixed extent is exactly two.
-machine branch_total(branches: &[i64; 2]) -> i64 { branches[0] }
-machine main() { let total: i64 = branch_total(&[1, 2]); }

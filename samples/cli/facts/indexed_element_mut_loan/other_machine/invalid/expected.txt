@@ -1,1 +1,0 @@
-state `bump` receives `rooms[selected]` while local borrow `held` is still active

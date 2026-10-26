@@ -1,6 +1,0 @@
-public boundary trait Reading {
-    machine read() -> u32 reaches;
-}
-public Reader satisfies Reading {
-    machine read() -> u32 { 42 }
-}

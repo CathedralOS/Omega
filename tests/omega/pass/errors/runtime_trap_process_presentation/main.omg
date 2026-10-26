@@ -1,4 +1,0 @@
-// A typed Trap is not a normal process exit or an arbitrary native fault.
-machine main() crashes Trap {
-    crash Trap;
-}

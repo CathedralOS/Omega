@@ -1,6 +1,0 @@
-use omega::language::core::float_operations;
-trait ExactInteger {
-    machine form(value: f64) -> u8
-    requires value == 3.0
-    ensures (value as u8 in Wrapping) == 3u8;
-}

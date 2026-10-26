@@ -1,7 +1,0 @@
-domain [u8; 4]::Ascii(bytes) requires ascii_only(bytes);
-data Row { text: [u8; 4] in Ascii; sibling: u64; }
-
-machine main() {
-    let mut row: Row = Row { text: "Gate", sibling: 17 };
-    row.text = [195u8, 169u8, 0u8, 0u8];
-}

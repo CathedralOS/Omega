@@ -1,4 +1,0 @@
-// A good selected body cannot mask a bad body on another target.
-domain i64::Classified(value) requires value != -1 established by issue;
-macos_arm64 machine issue(value: i64) -> i64 in Classified requires value != -1 { value }
-windows_x86_64 machine issue(value: i64) -> i64 in Classified requires value != -1 { -1 }

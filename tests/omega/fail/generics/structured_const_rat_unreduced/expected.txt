@@ -1,1 +1,0 @@
-index numerator magnitude and denominator must be gcd-reduced

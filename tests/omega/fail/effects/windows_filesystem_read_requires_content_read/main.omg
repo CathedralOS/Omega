@@ -1,7 +1,0 @@
-// The raw family name cannot stand in for an operation's read capability.
-use omega_language_std::windows_filesystem_host;
-use omega::language::core::filesystem_authority;
-
-machine read_without_content_permission(handle: u64, buffer: &mut [u8], count: u64) -> i64
-reaches WindowsFilesystemHost
-{ block WindowsFilesystemHost::read_file(handle, buffer, count) }

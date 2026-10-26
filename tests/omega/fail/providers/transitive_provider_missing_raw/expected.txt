@@ -1,3 +1,0 @@
-reachable requirement
-RawMeasure::measure
-resolves to 0 selected provider rows

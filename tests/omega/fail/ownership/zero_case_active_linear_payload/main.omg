@@ -1,6 +1,0 @@
-data Token [linear] { value: u64; }
-data Slot { case Held(token: Token); case Empty; }
-machine invalid() -> Slot {
-    let slot: Slot;
-    slot
-}

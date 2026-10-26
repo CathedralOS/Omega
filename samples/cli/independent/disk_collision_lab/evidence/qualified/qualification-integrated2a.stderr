@@ -1,6 +1,0 @@
-Traceback (most recent call last):
-  File "/workspace/Omega/.codex/worktrees/new022/samples/cli/independent/disk_collision_lab/run_validation.py", line 36, in <module>
-    assert compile_result.returncode==0,compile_result.stderr.decode(errors='replace')
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-AssertionError: cannot realize accepted package production: [Diagnostic { severity: Error, message: "native artifact identity physical pipeline failed: common physical staging failed: RegisterAllocation(RuntimeSpill(Homes(UnresolvedEntryTransitions { function: 16, register: 25, count: 2 })))", exceeded_provision: None, source_span: None }]
-

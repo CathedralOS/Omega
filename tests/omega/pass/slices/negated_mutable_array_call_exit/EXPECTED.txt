@@ -1,1 +1,0 @@
-Frozen before execution: first change writes 7 and returns true; after_first=true observes that mutation before the second call. The negated second change writes 9 and returns true. first=true; inverted=false; final items[0]=9, independently witnessing the second call's mutation. Successful main completes with native/Terminal exit0.

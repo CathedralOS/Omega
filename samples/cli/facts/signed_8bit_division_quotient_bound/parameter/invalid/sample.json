@@ -1,8 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "cannot prove requires contract for call verify_i8_quotient",
-    "q >= 30 && q <= 30"
-  ]
-}

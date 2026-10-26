@@ -1,9 +1,0 @@
-let identity(value: u8): u8 = value;
-
-machine consume(value: u8) {}
-
-machine main() {
-    consume(identity(7u8));
-    transition { _ -> next(identity(9u8)) }
-    state next(value: u8) {}
-}

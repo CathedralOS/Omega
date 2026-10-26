@@ -1,1 +1,0 @@
-PASS: /dev/null is S_IFCHR (char device); regular file is S_IFREG

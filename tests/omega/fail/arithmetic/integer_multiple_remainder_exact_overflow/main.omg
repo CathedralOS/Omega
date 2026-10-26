@@ -1,4 +1,0 @@
-// A normalized zero remainder cannot waive multiplication formation.
-data Zero where value == 0 { value: u8; }
-machine invalid(value: u8) -> Zero { Zero { value: (value * 2) % 2 } }
-machine main() {}

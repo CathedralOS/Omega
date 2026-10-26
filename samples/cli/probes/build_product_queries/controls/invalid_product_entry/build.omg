@@ -1,6 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_product_entry");
-    Build::depend_as(builder, "kit", Source::Path { location: "../../dependency" });
-    builder.freestanding = true;
-    let entry: ProductEntryRef = BuildProduct::entry(&builder.product, "custody_kernel", "value");
-}

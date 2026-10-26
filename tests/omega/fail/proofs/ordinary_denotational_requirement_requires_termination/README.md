@@ -1,1 +1,0 @@
-A bodyless trait requirement omits its public termination promise. Repeating its call equality in Requires and Ensures does not make either application a total proof term. The exact requirement interface controls this judgment; no implementation body supplies a missing public promise.

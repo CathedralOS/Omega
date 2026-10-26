@@ -1,6 +1,0 @@
-machine restricted(value: i16) -> i16
-requires value >= 0i16
-ensures result == value { value }
-machine caller(value: i16) -> i16
-ensures (restricted(value) as i16 in Saturating) == result { value }
-machine main() {}

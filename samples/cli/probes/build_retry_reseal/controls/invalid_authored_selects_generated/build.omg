@@ -1,9 +1,0 @@
-// The dep's authored `value()` selects `generated_value()`, which the dep's
-// own build generates. Authored occurrences cannot select their package's
-// generated declarations (wiki/spec/build/execution.md, "Generated-source
-// boundary"); the consumer's check must reject this like the dep's own review.
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_authored_selects_generated");
-    Build::depend_as(builder, "kit", Source::Path { location: "dependency" });
-    builder.freestanding = true;
-}

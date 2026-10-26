@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_member_in_dep");
-    builder.freestanding = true;
-    Build::depend(builder, Source::Path { location: "dep" });
-}

@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "funnel_guard_one_edge_unguarded");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

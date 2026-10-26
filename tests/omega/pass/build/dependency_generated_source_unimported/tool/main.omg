@@ -1,2 +1,0 @@
-// Authored base the generated `offset` and `total` select.
-public machine seed() -> i32 { 7 }

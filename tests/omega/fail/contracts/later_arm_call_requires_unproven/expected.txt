@@ -1,1 +1,0 @@
-cannot prove requires contract for call walk from walk: index + 1 <= 4

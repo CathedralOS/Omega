@@ -1,6 +1,0 @@
-IND07 finite horizon controller: select 0..7
-candidates=27
-feasible=0
-boundary_rejected=27
-terminal_rejected=0
-INFEASIBLE: every sequence violates a step constraint or terminal equality

@@ -1,4 +1,0 @@
-`as ... in Four`
-`as ... in Issued` cannot establish a non-vacuous domain
-machine `fractional` state `entry` cannot prove Exact float-to-`i32`
-machine `lossy` state `entry` cannot prove Exact float-to-`f32`

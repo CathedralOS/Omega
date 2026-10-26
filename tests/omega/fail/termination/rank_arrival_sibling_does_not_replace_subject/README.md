@@ -1,1 +1,0 @@
-The authored rank remains on the held countdown. A decreasing auxiliary cannot become its successor merely because both have the same carrier or field selector. Unknown operand completion cannot establish absence of the original subject. This source-only control must reject before execution.

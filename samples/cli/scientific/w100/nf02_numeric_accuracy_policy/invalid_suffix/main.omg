@@ -1,4 +1,0 @@
-// Must reject: numeric destination retains the explicit f64 suffix.
-// No named conversion occurs at this incompatible f32 destination.
-machine incompatible() -> f32 { 1.0f64 }
-machine main() { let value: f32 = incompatible(); }

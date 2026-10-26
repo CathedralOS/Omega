@@ -1,8 +1,0 @@
-corpus_runner: 104 prior timings loaded
-corpus_runner: 2/2 done, 0 compile(s) in flight
-+ pass/slices/empty_fixed_array_slice_call_exit: new fixture (built)
-+ pass/slices/negated_mutable_array_call_exit: new fixture (built)
-corpus_gate: 2 structural move(s), 0 perf move(s) — 2 fixtures ({'built': 2}), 0 rejected without their expected fragment, 0 fail fixtures did not reject; executed 2 (exit codes {'0': 2}), 0 with stdout differing from expected; verdicts {'new': 2}
-corpus_gate: of those — 2 fixture added, golden not recorded
-corpus_gate: golden provenance: 0 rows stamped, 0 legacy (unstamped)
-corpus_gate: wrote 2 moved fixture(s) to /tmp/w100-portable-both-moves.json

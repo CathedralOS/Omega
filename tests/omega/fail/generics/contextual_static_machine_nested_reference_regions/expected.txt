@@ -1,1 +1,0 @@
-does not refine `Callback`: callable type does not preserve its region identity

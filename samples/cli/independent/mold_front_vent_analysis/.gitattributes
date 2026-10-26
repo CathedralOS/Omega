@@ -1,2 +1,0 @@
-# Preserve exact stdin bytes, including CRLF, EOF and bounded-buffer controls.
-data/*.in -text

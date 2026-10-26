@@ -1,8 +1,0 @@
-// Complete intended-invalid source: ordinary postcondition contradicts the result.
-// This is checked separately and must reject for the ensures rule.
-data CheckedWeight { value: u64; }
-machine impossible_weight() -> CheckedWeight
-ensures result.value == 2
-{ CheckedWeight { value: 1 } }
-data Main {}
-machine Main::main(main: &mut Main) { let weight: CheckedWeight = impossible_weight(); }

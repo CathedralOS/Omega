@@ -1,7 +1,0 @@
-use omega::language::core::assembly;
-linux_x86_64 machine observe() -> u64 reaches MachineControl {
-    let mut control: u64 = 0;
-    asm { read_cr0 control }
-    control
-}
-machine main() reaches MachineControl { let control: u64 = observe(); }

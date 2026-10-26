@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "equatable_synthesis");
-    builder.freestanding = true;
-}

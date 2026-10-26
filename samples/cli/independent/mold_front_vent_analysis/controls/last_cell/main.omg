@@ -1,5 +1,0 @@
-// Valid companion: the same sixteen-entry array permits index fifteen.
-machine main() {
-    let mut arrival: [i32; 16];
-    arrival[15] = 1;
-}

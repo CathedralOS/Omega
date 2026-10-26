@@ -1,9 +1,0 @@
-// FAIL CANARY -- the only visible `launch` declares an arrival parameter,
-// which the hosted ProgramEntry slot does not supply. The query checks the
-// complete slot signature before issuing a description, so discarding or
-// delegating the description cannot bypass it.
-machine build(builder: &mut Build) {
-    Build::application(builder, "product_entry_query_incompatible_signature");
-    let entry: ProductEntryRef = BuildProduct::entry(&builder.product, "launch", "windows_x86_64::ProgramEntry");
-    Build::bind(builder, windows_x86_64::ProgramEntry, entry);
-}

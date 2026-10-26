@@ -1,9 +1,0 @@
-// Deployable native canary: only windows_x86_64 binds kernel32 CloseHandle.
-
-machine build(builder: &mut Build) {
-    Build::application(builder, "boundary_call_nested_call_argument_exit");
-    Build::depend(builder, Source::Path {
-        location: "../../../../../source/library/std"
-    });
-    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
-}

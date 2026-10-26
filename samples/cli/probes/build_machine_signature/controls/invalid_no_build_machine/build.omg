@@ -1,4 +1,0 @@
-machine setup(builder: &mut Build) {
-    Build::application(builder, "invalid_no_build_machine");
-    builder.freestanding = true;
-}

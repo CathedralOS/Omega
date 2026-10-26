@@ -1,1 +1,0 @@
-The selected boundary operator publishes a Trap route. Repeating its equality in Requires and Ensures cannot establish crash-free proof term formation. The unused helper still requires validation; declaration admission must cover selected operators as well as concrete machines.

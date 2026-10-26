@@ -1,6 +1,0 @@
-IND22 offline laboratory protocol; deadline=5; capacity=64
-DENY input owner=00 phase=00 lid=open tick=00 completed=00 aborted=00
-DENY input owner=00 phase=00 lid=open tick=00 completed=00 aborted=00
-DENY input owner=00 phase=00 lid=open tick=00 completed=00 aborted=00
-ALLOW acquire owner=01 phase=01 lid=open tick=00 completed=00 aborted=00
-END

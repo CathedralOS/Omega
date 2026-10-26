@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "implements `Loose<>`, which neither is nor inherits `Reading`"
-  ]
-}

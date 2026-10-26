@@ -1,6 +1,0 @@
-// A type argument supplies declared structure; no runtime value supplies layout.
-machine capacity<Length, const Capacity: u64>() -> u64
-where Length == [u8; Capacity]
-{ Capacity }
-
-machine recovered() -> u64 { capacity<[u8; 257]>() }

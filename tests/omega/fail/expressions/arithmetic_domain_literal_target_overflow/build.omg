@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "arithmetic_domain_literal_target_overflow");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

@@ -1,6 +1,0 @@
-// Expected exit: 0
-data Index<const Limit:u32> [copy] where value<Limit {value:u32;}
-data Carrier<T [copy]> [copy] {inner:T;}
-machine bound()->u32 {9}
-machine read(value:Index<9>)->u32 {value.value}
-machine main() crashes Trap {let carrier:Carrier<Index<(bound())> > = Carrier{inner:Index{value:8}}; transition read(carrier.inner)==8 {true->done() _->bad()} machine done(){} machine bad() crashes Trap {crash Trap;}}

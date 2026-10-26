@@ -1,6 +1,0 @@
-machine probe<const value: u64>() requires value <= 100 {
-    let copied: u64 = value;
-    transition copied >= 48 { true -> bounded(value) false -> done() }
-    state bounded(delivered: u64) requires delivered >= 48 { }
-    state done() { }
-}

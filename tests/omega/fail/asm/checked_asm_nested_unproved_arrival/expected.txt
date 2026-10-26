@@ -1,1 +1,0 @@
-cannot prove requires contract for call received from left: 36 == 37

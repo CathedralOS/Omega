@@ -1,7 +1,0 @@
-module settings;
-use main;
-const ENABLED: bool = false;
-machine keep(value: Flag<ENABLED>) -> Flag<ENABLED> {
-    let local: Flag<ENABLED> = value;
-    local
-}

@@ -1,1 +1,0 @@
-actual `Issued<Word>` and expected `Issued<Other>` are distinct normalized instances

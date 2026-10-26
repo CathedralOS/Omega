@@ -1,9 +1,0 @@
-data Byte where value <= 1 { prefix: u64; value: u8; suffix: u32; }
-data Row { cells: [Byte; 3]; tag: u64; }
-data Main { rows: [Row; 2]; }
-machine change(main: &mut Main, row: u64, column: u64)
-requires row < 2, column < 3
-{
-    let selected_value: &mut u8 = &mut main.rows[row].cells[column].value;
-    selected_value = 2;
-}

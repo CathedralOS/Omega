@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "encoded_source_select");
-    builder.freestanding = true;
-}

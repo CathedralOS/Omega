@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "hfa_aggregate_entry");
-    builder.freestanding = true;
-}

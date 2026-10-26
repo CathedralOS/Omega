@@ -1,7 +1,0 @@
-// Equivalent geometry cannot strengthen the source reference's access.
-data Source { value: u32; }
-data View { value: i32; }
-
-machine inspect(source: &Source) {
-    let view: &mut View = source as &mut View;
-}

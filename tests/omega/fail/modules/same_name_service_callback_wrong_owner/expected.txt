@@ -1,1 +1,0 @@
-service reach `Sink` exceeds its authored ceiling

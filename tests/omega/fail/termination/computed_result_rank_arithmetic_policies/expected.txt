@@ -1,2 +1,0 @@
-terminating machine wrapping_countdown: cannot prove strict rank decrease on a recurrent arrival
-terminating machine saturating_countdown: cannot prove strict rank decrease on a recurrent arrival

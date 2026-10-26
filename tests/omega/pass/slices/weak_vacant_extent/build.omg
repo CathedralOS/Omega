@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "weak_vacant_extent");
-    builder.freestanding = true;
-}

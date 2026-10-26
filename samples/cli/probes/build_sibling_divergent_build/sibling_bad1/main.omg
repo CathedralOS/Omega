@@ -1,3 +1,0 @@
-public machine bad1_value() -> i32 {
-    0
-}

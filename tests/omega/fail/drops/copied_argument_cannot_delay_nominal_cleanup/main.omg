@@ -1,7 +1,0 @@
-data Room { count: u32 in Wrapping; }
-machine Room::drop(room: &mut Room) requires room.count == 10 { room.count = 99; }
-machine later(mut count: u32 in Wrapping) ensures count == 10 { count = 10; }
-machine main() {
- let room: Room = Room { count: 11 };
- transition { _ -> later(room.count) }
-}

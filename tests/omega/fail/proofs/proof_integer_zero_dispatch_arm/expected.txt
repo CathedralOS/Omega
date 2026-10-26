@@ -1,2 +1,0 @@
-partial exact division
-independently accepted prior facts

@@ -1,7 +1,0 @@
-Independent oracle derivation (no Omega execution):
-binary32(1 + 2^-24) = 1
-binary64(1 + 2^-24) = 16777217/16777216
-binary32(2^24 + 1) = 16777216
-binary64 addition error = 1/18014398509481984
-absolute dyadic difference = 1/8
-normalized opposite-extreme difference = 2

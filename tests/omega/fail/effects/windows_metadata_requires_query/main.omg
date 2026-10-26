@@ -1,8 +1,0 @@
-// Selecting a family is not permission to query an object's metadata.
-use omega_language_std::windows_filesystem_host;
-use omega::language::core::filesystem_authority;
-
-machine inspect_without_query(handle: u64) -> WindowsMetadataResult
-reaches WindowsFilesystemHost {
-    block WindowsFilesystemHost::metadata(handle)
-}

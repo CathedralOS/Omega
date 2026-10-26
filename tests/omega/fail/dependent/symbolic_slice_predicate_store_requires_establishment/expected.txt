@@ -1,6 +1,0 @@
-cannot prove ensures contract for exit from bad_replacement
-cannot prove ensures contract for exit from no_prior_predicate
-cannot prove ensures contract for exit from wrong_collection
-cannot prove ensures contract for exit from partial_restoration
-cannot prove ensures contract for exit from breaks_pair
-cannot prove requires contract for call consume

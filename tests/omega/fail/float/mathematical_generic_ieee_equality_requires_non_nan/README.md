@@ -1,1 +1,0 @@
-A typed f32 comparison remains IEEE Boolean equality through a generic mathematical application. An unknown f32 may be NaN, so its reflexive comparison does not establish the predicate. Main supplies the quiet NaN result of 0.0f32 / 0.0f32.

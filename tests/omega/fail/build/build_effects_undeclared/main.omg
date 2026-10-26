@@ -1,3 +1,0 @@
-use omega_language_std::console;
-data Main { }
-machine Main::main(main: &mut Main) reaches Console { Console::exit_process(70); }

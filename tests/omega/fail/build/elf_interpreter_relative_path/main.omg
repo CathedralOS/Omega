@@ -1,3 +1,0 @@
-// The rejection belongs to Build configuration, before any product is
-// realized; the program itself is deliberately empty and dependency-free.
-machine main() { }

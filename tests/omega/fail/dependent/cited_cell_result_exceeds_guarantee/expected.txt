@@ -1,2 +1,0 @@
-cannot prove ensures contract for exit from too_small
-cannot prove ensures contract for exit from changed_selector

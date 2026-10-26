@@ -1,2 +1,0 @@
-cannot check prepared project: checked compilation failed for package `invalid_swapped_output` with 1 diagnostic(s)
-  error: build-time evaluation of `build` failed: Build path operation received a different activation facet

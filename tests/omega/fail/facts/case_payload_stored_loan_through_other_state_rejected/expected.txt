@@ -1,1 +1,0 @@
-receives `backing` while local borrow `loan` is still active

@@ -1,6 +1,0 @@
-use kit::main;
-
-machine entry() -> i32 {
-    let x: i32 = hidden();
-    x
-}

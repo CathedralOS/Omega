@@ -1,9 +1,0 @@
-// Returning a stored pathname still queries metadata. No other filesystem
-// facet can substitute for that exact reach.
-use omega_language_std::windows_filesystem_host;
-use omega::language::core::filesystem_authority;
-
-machine missing_metadata(output: &mut [u8]) -> i64
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration {
-    block WindowsFilesystemHost::read_link("link", output, 1)
-}

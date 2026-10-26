@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "build_no_entry");
-    builder.freestanding = true;
-}

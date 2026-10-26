@@ -1,9 +1,0 @@
-// The saved condition describes the old value, not the revised ranked input.
-machine repeat(mut remaining: u64) terminates by remaining; -> u64 {
-    let one: bool = remaining == 1;
-    remaining = 0;
-    transition one {
-        true -> repeat(remaining + 1)
-        false -> remaining
-    }
-}

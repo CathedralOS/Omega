@@ -1,4 +1,0 @@
-// Authored declarations the generated stratum selects. Authored source never
-// names a declaration its own build generates.
-machine entry() -> i32 { 0 }
-public machine seed() -> i32 { 7 }

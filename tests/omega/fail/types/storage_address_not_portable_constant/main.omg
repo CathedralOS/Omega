@@ -1,8 +1,0 @@
-machine expose() -> addr {
-    let value: u64 = 7;
-    address_of(&value)
-}
-const EXPOSED: addr = expose();
-machine main() {
-    let observed: addr = EXPOSED;
-}

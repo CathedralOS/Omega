@@ -1,6 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_fabricated_inputs");
-    builder.freestanding = true;
-    let f: BuildInputs = BuildInputs {};
-    let s: BuildSource = BuildInputs::get(&f, "x");
-}

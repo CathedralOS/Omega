@@ -1,2 +1,0 @@
-checked compilation failed for package `invalid_nested_entry`
-main.omg:2:5: explicit nested `entry` / `pub entry` machine members are retired; put the callable signature on the `machine` head, put its entry statements directly in the machine body, and put visibility on the declaration as `pub machine`

@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "plan_laid_policy_without_plan_machine");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

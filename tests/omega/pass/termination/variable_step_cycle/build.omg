@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "variable_step_cycle");
-    builder.freestanding = true;
-}

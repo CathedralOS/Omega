@@ -1,2 +1,0 @@
-cannot check prepared project: checked compilation failed for package `invalid_unassigned_input` with 1 diagnostic(s)
-  error: build-time evaluation of `build` failed: named build input `toolchain-key` is not assigned to this activation

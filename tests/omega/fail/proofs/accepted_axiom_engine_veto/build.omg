@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "accepted_axiom_engine_veto");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

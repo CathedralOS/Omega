@@ -1,6 +1,0 @@
-// Darwin import provider canary: the supported target selects its exact entry.
-
-machine build(builder: &mut Build) {
-    Build::application(builder, "external_leaf_dllimport_compile");
-    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
-}

@@ -1,5 +1,0 @@
-module combat;
-
-public machine damage() -> u32 { 7 }
-
-public data Damage { amount: u32; }

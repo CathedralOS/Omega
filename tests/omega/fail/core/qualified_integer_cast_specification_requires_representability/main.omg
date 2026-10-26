@@ -1,5 +1,0 @@
-// Prop terms must form before their own predicate becomes a usable fact.
-domain i16::Invalid(value) requires (value as u8 in Saturating) == 0u8 {}
-domain u16::SelfBound(value) requires (value as u8 in Wrapping) <= 255u8 {}
-proposition invalid(value: i16) = (value as u8 in Trapping) == 0u8;
-machine premise(value: i16) requires (value as u8 in Wrapping) == 0u8 {}

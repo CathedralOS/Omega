@@ -1,2 +1,0 @@
-cannot check prepared project: checked compilation failed for package `invalid_product_provider` with 1 diagnostic(s)
-  error: build-time evaluation of `build` failed: product provider `omega::language::std` names no provider declaration in this build occurrence's package

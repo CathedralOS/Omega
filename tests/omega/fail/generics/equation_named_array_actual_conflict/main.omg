@@ -1,7 +1,0 @@
-data Counts {}
-const Counts::FIVE: u64 = 5;
-data Verified<Payload [copy]> [copy]
-where Payload == [u64; 4]
-{ value: Payload; }
-data Main { value: Verified<[u64; Counts::FIVE]>; }
-machine main() {}

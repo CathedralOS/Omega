@@ -1,1 +1,0 @@
-the transition from `inspect` to `forward` is not shown to strictly decrease the rank

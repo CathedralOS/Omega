@@ -1,1 +1,0 @@
-cannot prove requires contract for call pop from Main::main: main.b.count >= 1 && main.b.count <= 4

@@ -1,4 +1,0 @@
-public boundary trait Boundary {
-    machine operation() reaches;
-}
-machine main() {}

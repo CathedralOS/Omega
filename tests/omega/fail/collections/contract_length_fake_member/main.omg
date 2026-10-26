@@ -1,3 +1,0 @@
-data Counter { len: u64; }
-machine extent(values: &Counter) -> u64 ensures result == values.len { values.len }
-machine first(values: &[f64], counter: &Counter) -> f64 { let count: u64 = extent(counter); transition count > 0 { true -> (values[0]) false -> 0.0 } }

@@ -1,9 +1,0 @@
-// Expected exit: 0
-machine floating() -> f64 { 7.0f64 }
-const FIRST: f64 = floating();
-const SECOND: f64 = FIRST;
-machine main() crashes Trap {
-    transition SECOND == 7.0f64 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
-}

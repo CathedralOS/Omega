@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "const parameter `Count` of `Box` requires an integer literal argument or an in-scope const parameter, got `bool`"
-  ]
-}

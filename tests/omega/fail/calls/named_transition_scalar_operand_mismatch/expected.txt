@@ -1,1 +1,0 @@
-expects `f64`, got `bool`

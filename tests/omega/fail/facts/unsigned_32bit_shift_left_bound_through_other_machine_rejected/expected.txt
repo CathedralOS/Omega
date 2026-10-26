@@ -1,1 +1,0 @@
-cannot prove requires contract for call forward_shifted from probe: shifted >= 80 && shifted <= 80

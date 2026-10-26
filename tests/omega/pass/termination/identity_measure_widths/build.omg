@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "identity_measure_widths");
-    builder.freestanding = true;
-}

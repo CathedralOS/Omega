@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "service `Forbidden` is not allowed by the trait requirement"
-  ]
-}

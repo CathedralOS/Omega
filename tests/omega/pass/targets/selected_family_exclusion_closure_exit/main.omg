@@ -1,9 +1,0 @@
-// The public portable contract allows Trap. Only the unselected firmware
-// member contains a trap; the selected native compositions must remain usable.
-linux_x86_64 machine helper() crashes Trap {}
-windows_x86_64 machine helper() crashes Trap {}
-macos_arm64 machine helper() crashes Trap {}
-linux_arm64 machine helper() crashes Trap {}
-uefi_x86_64 machine helper() crashes Trap { crash Trap; }
-
-machine main() crashes Trap { helper(); }

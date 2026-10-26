@@ -1,2 +1,0 @@
-# Runtime input is an exact-byte oracle, including CRLF and absent final LF.
-data/*.stdin -text

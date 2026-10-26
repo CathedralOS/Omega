@@ -1,1 +1,0 @@
-error: terminal-artifact production failed: Lowering(Unsupported("recursive Unit call closure is not yet terminal"))

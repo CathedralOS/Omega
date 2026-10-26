@@ -1,2 +1,0 @@
-native exit 0
-interp exit: 0

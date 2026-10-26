@@ -1,8 +1,0 @@
-data Token { value: u64; }
-machine Token::drop(token: &mut Token)
-requires token.value == 7
-{
-    token.value = 0;
-}
-machine read(token: &Token) -> u64 { token.value }
-machine main() -> u64 { read(&Token { value: 8 }) }

@@ -1,1 +1,0 @@
-implicit domain weakening in argument `returned` for state `release::entry` drops `Resident<SlotPlacement, Slot>`

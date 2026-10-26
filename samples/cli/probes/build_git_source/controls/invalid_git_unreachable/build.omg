@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_git_unreachable");
-    builder.freestanding = true;
-    Build::depend(builder, Source::Git { repository: "https://example.invalid/kit.git", revision: "deadbeef", selection: PackageSelection::Named { package: "kit" } });
-}

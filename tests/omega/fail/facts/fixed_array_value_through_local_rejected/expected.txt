@@ -1,1 +1,0 @@
-cannot prove index `local_index` is within length 2

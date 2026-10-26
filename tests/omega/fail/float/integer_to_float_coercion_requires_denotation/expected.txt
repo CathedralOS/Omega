@@ -1,6 +1,0 @@
-machine `rounded32` state `entry` cannot prove integer-to-`f32` cast
-machine `rounded64` state `entry` cannot prove integer-to-`f64` cast
-machine `unsigned_loss` state `entry` cannot prove integer-to-`f64` cast
-machine `unknown` state `entry` cannot prove integer-to-`f64` cast
-machine `endpoints_are_not_enough` state `entry` cannot prove integer-to-`f64` cast
-machine `stale_guard` state `guarded` cannot prove integer-to-`f64` cast

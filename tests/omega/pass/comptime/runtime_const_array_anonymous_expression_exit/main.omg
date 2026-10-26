@@ -1,2 +1,0 @@
-// Expected exit: 0. The assertions observe extent, stored value and copy.
-machine main() crashes Trap { let mut cells: [u8; 2 * 3]; cells[5] = 7; transition cells.len == 6 && cells[5] == 7 { true -> done() _ -> bad() } state done() {} state bad() { crash Trap; } }

@@ -1,7 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_dup_build");
-    builder.freestanding = true;
-}
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_dup_build_second");
-}

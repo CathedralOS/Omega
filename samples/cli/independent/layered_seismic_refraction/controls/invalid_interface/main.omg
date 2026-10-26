@@ -1,5 +1,0 @@
-// Intended-invalid: only three finite interfaces exist in a four-layer model.
-data Control { interfaces: [f64; 3]; observed: f64; }
-machine Control::main(control: &mut Control) {
- control.observed = control.interfaces[3];
-}

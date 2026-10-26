@@ -1,4 +1,0 @@
-module helpers;
-public const VISIBLE: u64 = 0;
-public let hidden_geometry_predicate(base: addr, length: u64): core::Strict<0> =
-    embed(base) + embed(length) <= addr::Bound;

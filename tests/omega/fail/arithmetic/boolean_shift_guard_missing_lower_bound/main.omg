@@ -1,9 +1,0 @@
-machine shift(count: i32) -> u64 {
-    let valid: bool = count < 64i32;
-    transition valid {
-        true -> calculate(count)
-        false -> empty()
-    }
-    state calculate(count: i32) -> u64 { 8u64 >> count }
-    state empty() -> u64 { 0 }
-}

@@ -1,3 +1,0 @@
-// Expected rejection: reflection rank 8 is outside the eight-line window.
-data Control { lines: [u64; 8]; observed: u64; }
-machine Control::main(control: &mut Control) { control.observed = control.lines[8]; }

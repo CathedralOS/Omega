@@ -1,1 +1,0 @@
-an implementation evidence binder is already selected and takes no application arguments

@@ -1,4 +1,0 @@
-trait Fraction { machine get() -> f64; }
-data Value { code: u8; }
-const UNUSED: dyn Fraction = Value as dyn Fraction;
-machine main() {}

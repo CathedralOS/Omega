@@ -1,3 +1,0 @@
-checked compilation failed for package `invalid_depbuild_in_build`
-error: package import in 
-build.omg may not load dependency build file 

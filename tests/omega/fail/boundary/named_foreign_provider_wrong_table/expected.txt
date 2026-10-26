@@ -1,1 +1,0 @@
-first table parameter does not borrow the exact attached table type

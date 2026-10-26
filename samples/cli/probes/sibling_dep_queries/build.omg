@@ -1,9 +1,0 @@
-// A sibling path dependency is resolved by its declared package name:
-// `Build::depend(builder, Source::Path { location: "dependency" })`
-// composes `query_dependency`; its machines import as
-// `use query_dependency::value`.
-machine build(builder: &mut Build) {
-    Build::application(builder, "sibling_dep_queries");
-    Build::depend(builder, Source::Path { location: "dependency" });
-    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
-}

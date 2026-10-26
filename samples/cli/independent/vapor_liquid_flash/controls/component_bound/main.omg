@@ -1,7 +1,0 @@
-// Intended invalid: a ninth component cannot inhabit an eight-component feed.
-// Expected diagnostic: cannot prove index
-data Feed { fractions: [f64; 8]; }
-machine main() {
-    let mut feed: Feed;
-    feed.fractions[8] = 1.0;
-}

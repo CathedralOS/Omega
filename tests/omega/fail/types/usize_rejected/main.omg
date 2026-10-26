@@ -1,6 +1,0 @@
-// Counts and addresses have separate carriers; indexing accepts any integer
-// with the required bound (wiki/spec/language/counts_and_addresses.md).
-// `usize` does not resolve as a builtin type.
-use omega_language_std::console;
-data Main { n: usize; }
-machine Main::main(main: &mut Main) { Console::exit_process(70); }

@@ -1,1 +1,0 @@
-A standard Console input operation initializes a local fixed byte array. A case edge passes its shared loan to a state that reads the bytes. Input 0 LF exits 70. This retains the complete IND07 regression: bounded-byte view transfers must preserve their existing descriptor instead of registering a conflicting Reference carrier.

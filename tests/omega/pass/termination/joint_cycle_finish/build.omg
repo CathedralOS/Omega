@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "joint_cycle_finish");
-    builder.freestanding = true;
-}

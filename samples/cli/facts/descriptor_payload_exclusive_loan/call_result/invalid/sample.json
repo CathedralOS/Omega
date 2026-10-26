@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "mutates `chosen` while local borrow `selected` is still active"
-  ]
-}

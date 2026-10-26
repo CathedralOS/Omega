@@ -1,9 +1,0 @@
-// Replacing the saved predicate cannot retain its initializer's comparison.
-machine repeat(remaining: u64 in Wrapping) terminates by remaining; -> u64 in Wrapping {
-    let mut nonempty: bool = remaining > 0;
-    nonempty = true;
-    transition nonempty {
-        true -> repeat(remaining - 1)
-        false -> remaining
-    }
-}

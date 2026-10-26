@@ -1,1 +1,0 @@
-cannot prove requires contract for call verify_wide from probe: wide >= 30 && wide <= 100

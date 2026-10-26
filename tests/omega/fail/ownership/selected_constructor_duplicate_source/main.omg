@@ -1,8 +1,0 @@
-data Token { value: u64; }
-data Pair { left: Token; right: Token; }
-machine duplicate(selected: bool, token: Token) -> Pair {
-    match selected {
-        true -> Pair { left: token, right: token },
-        false -> Pair { left: token, right: token },
-    }
-}

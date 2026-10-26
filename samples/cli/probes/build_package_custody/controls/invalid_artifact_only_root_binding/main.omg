@@ -1,3 +1,0 @@
-machine main() -> i32 {
-    0
-}

@@ -1,1 +1,0 @@
-Run `omega run --both tests/omega/pass/control_flow/runtime_computed_index_state_loan_exit/main.omg`. Both engines must exit 0. Source and Build are byte-identical to the frozen state_computed_entry_borrow witness; its observable assertions remain unchanged.

@@ -1,8 +1,0 @@
-machine midpoint(mut lower: u64, upper: u64) -> u64
-requires lower < upper
-{
-    let step: u64 = (upper - lower) / 2;
-    lower = upper;
-    lower + step
-}
-machine main() {}

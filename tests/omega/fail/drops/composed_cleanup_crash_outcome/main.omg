@@ -1,6 +1,0 @@
-data Token { value: u64; }
-machine Token::drop(token: &mut Token) crashes Trap {
-    transition { _ -> bad() }
-    state bad() { crash Trap; }
-}
-machine main() { let token: Token = Token { value: 7 }; }

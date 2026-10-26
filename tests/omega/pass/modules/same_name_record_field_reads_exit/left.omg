@@ -1,5 +1,0 @@
-module left;
-
-public data Holder { value: u64; }
-
-public machine Holder::read(holder: &Holder) -> u64 { holder.value }

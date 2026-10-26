@@ -1,6 +1,0 @@
-use omega::language::core::extent;
-machine invent(storage: Extent in Granted) -> Extent
-ensures result in Granted & Vacant,
-        Granted::content(old(&storage)) == Granted::content(&result)
-{ storage }
-machine main() {}

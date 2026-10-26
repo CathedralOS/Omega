@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "zero_len_array");
-    builder.freestanding = true;
-}

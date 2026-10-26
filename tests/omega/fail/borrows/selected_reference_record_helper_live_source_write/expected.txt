@@ -1,5 +1,0 @@
-while local borrow `copied` is still active
-while local borrow `envelope` is still active
-statement 3 mutates `first.value` while local borrow `held` is still active
-statement 5 mutates `second.value` while local borrow `envelope` is still active
-statement 12 mutates `third.value` while local borrow `held` is still active

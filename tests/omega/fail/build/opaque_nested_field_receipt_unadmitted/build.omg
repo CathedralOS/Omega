@@ -1,6 +1,0 @@
-use token;
-
-machine build(builder: &mut Build) {
-    Build::application(builder, "opaque_nested_field_receipt_unadmitted");
-    Build::select_representation<Token, TokenRepresentation>(builder);
-}

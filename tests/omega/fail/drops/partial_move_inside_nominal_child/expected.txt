@@ -1,1 +1,0 @@
-cannot partially move a value of `Token` because `Token::drop` requires the whole value

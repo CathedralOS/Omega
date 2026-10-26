@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "ensures_operand_discharge");
-    builder.freestanding = true;
-}

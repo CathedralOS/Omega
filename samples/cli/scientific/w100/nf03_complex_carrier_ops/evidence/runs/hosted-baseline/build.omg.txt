@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "nf03_hosted_baseline");
-    Build::depend(builder, Source::Path { location: "/workspace/Omega/.codex/worktrees/nf03/source/library/std" });
-    Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
-}

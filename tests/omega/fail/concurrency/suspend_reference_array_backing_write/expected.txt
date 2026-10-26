@@ -1,1 +1,0 @@
-mutates `backing` while local borrow `references` is still active

@@ -1,1 +1,0 @@
-theorem citation `effectful_projection` must be effect-free

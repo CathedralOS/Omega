@@ -1,6 +1,0 @@
-{
-  "role": "intended-invalid",
-  "rejection_contains": [
-    "cannot prove ensures contract for exit from produced"
-  ]
-}

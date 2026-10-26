@@ -1,2 +1,0 @@
-cannot check prepared project: checked compilation failed for package `invalid_build_in_product` with 1 diagnostic(s)
-  error: machine `entry` state `entry`: `application(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local

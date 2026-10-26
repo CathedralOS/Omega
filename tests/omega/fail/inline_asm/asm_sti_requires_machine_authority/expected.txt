@@ -1,1 +1,0 @@
-asm instruction `sti`, which requires a FREESTANDING boundary root

@@ -1,2 +1,0 @@
-machine same<Length [copy], const Capacity: u64>(items: Length) -> Length where Length == [u8; Capacity] { items }
-machine main() { let items: [u8; 2] = [7, 11]; let conflicting: [u8; 3] = same(items); }

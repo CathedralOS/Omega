@@ -1,4 +1,0 @@
-module right;
-public boundary trait Sink {}
-
-public machine selected(value: u64) -> u64 reaches Sink { value }

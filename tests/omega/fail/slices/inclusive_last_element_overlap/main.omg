@@ -1,5 +1,0 @@
-machine overlap(values: &mut [u8; 4]) -> u64 {
-    let first: &mut [u8] = &mut values[0..=2];
-    let second: &mut [u8] = &mut values[2..3];
-    first.len + second.len
-}

@@ -1,6 +1,0 @@
-machine quotient(first: &[i64 in Wrapping; 2], second: &[i64 in Wrapping; 2]) -> i64 in Wrapping
-requires first[0] > 0 {
-    let numerator: i64 in Wrapping = 20;
-    numerator / second[0]
-}
-machine main() { }

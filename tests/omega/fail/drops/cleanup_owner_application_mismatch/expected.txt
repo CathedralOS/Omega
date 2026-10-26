@@ -1,2 +1,0 @@
-cleanup machine `Reversed::drop` must take exactly one exclusive loan of its own data
-cleanup machine `Specialized::drop` must take exactly one exclusive loan of its own data

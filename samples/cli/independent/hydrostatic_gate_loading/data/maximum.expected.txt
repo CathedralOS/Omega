@@ -1,4 +1,0 @@
-HYDROSTATIC_GATE_V1 micro_units
-LEVEL 0 water_um=100000000
-WET 0 lower_um=0 upper_um=100000000 lower_width_um=100000000 upper_width_um=100000000 area_micro_m2=10000000000 force_uN=10000000000000000 moment_uNm=-666666666666666667
-TOTAL wetted=1 area_micro_m2=10000000000 force_uN=10000000000000000 moment_uNm=-666666666666666667 center_um=33333333

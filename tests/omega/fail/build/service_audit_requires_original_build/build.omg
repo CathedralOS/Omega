@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::package(builder, "audit_original_build");
-    let mut other: Build;
-    Build::audit_service<MotorControl>(&mut other);
-}

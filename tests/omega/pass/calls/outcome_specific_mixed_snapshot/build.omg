@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
- Build::application(builder, "outcome_specific_mixed_snapshot");
- builder.freestanding = true;
-}

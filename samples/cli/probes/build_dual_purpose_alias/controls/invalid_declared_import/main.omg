@@ -1,8 +1,0 @@
-// The dep declares `custody_kernel` but the requesting alias is `kit` —
-// the declared name must not select the product edge.
-
-use custody_kernel::main;
-
-machine entry() -> i32 {
-    value()
-}

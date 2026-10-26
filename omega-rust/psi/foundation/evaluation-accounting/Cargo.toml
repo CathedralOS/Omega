@@ -1,8 +1,0 @@
-[package]
-name = "evaluation-accounting"
-edition.workspace = true
-license.workspace = true
-version.workspace = true
-
-[dependencies]
-semantic-vocabulary = { path = "../semantic-vocabulary" }

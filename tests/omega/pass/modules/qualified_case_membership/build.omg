@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::package(builder, "qualified_case_membership");
-    Build::depend_as(builder, "leaf", Source::Path { location: "leaf" });
-}

@@ -1,3 +1,0 @@
-module foreign;
-public data Token [copy] {value:u64;}
-public const SELECTED:Token=Token {value:7};

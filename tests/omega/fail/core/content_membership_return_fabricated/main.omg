@@ -1,6 +1,0 @@
-use omega::language::core::extent;
-machine fabricate() -> Extent
-ensures result in Granted {
-    Extent { base: 4096, length: 4096 }
-}
-machine main() {}

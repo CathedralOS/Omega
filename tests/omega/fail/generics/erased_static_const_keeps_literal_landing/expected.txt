@@ -1,1 +1,0 @@
-requires `u8`, but its literal already landed as `u16`

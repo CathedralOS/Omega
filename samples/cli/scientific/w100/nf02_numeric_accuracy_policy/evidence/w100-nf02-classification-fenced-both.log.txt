@@ -1,3 +1,0 @@
-native compile FAILED:
-  error: cannot compile accepted package inputs: checked compilation failed for package `nf02_classification` with 1 diagnostic(s)
-  error: accepted package `nf02_classification` compiler identity changed; run `omega update` for fresh review before compiling

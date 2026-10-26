@@ -1,1 +1,0 @@
-data `Counted` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)

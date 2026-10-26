@@ -1,1 +1,0 @@
-after `value.slot` was transferred or consumed

@@ -1,6 +1,0 @@
-// Expected rejection: detail coefficient index 64 is outside [0, 64).
-// Package-free source-invalid control isolates extent admission.
-data Control { details: [f64; 64]; observed: f64; }
-machine Control::main(control: &mut Control) {
-    control.observed = control.details[64];
-}

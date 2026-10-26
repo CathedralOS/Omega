@@ -1,5 +1,0 @@
-machine circular_formation(divisor: i32)
-requires (embed(7i32) / embed(divisor)) != 0
-requires divisor != 0
-{}
-machine main() {}

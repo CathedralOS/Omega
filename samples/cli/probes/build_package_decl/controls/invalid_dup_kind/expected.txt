@@ -1,1 +1,0 @@
-cannot resolve declared package closure: cannot resolve root package: cannot establish package declaration: application build declares its application name 2 times

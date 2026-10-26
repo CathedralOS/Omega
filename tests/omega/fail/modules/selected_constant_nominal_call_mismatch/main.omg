@@ -1,5 +1,0 @@
-use foreign::SELECTED;
-data Token [copy] {value:u64;}
-machine get()->foreign::Token{SELECTED}
-const ALIAS:Token=get();
-machine main(){}

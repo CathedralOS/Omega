@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "representation_selection_fabricated_activation");
-    let counterfeit: Build;
-    Build::select_representation<Token, TokenRepresentation>(&mut counterfeit);
-}

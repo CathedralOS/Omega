@@ -1,5 +1,0 @@
-machine first(value: i16) -> i16
-ensures (second(value) as i16 in Saturating) == result { value }
-machine second(value: i16) -> i16
-ensures (first(value) as i16 in Wrapping) == result { value }
-machine main() {}

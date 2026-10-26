@@ -1,4 +1,0 @@
-machine build(builder: &mut Build, extra: i32) {
-    Build::application(builder, "invalid_extra_param");
-    builder.freestanding = true;
-}

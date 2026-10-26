@@ -1,2 +1,0 @@
-machine paired<Length [copy], const Capacity: u64>(left: Length, right: Length) -> u64 where Length == [u8; Capacity] { Capacity }
-machine main() { let left: [u8; 2] = [7, 11]; let right: [u8; 3] = [13, 17, 19]; let observed: u64 = paired(left, right); }

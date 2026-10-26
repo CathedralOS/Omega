@@ -1,7 +1,0 @@
-// Complete reproduction of documented terminal call acknowledgements.
-// Expected process exit: 0; expected stdout and stderr: empty.
-public machine wait() -> bool blocks; { true }
-public machine relay() -> bool blocks; {
-    transition { _ -> block wait() }
-}
-machine main() { let observed: bool = block relay(); }

@@ -1,8 +1,0 @@
-data Receipt [linear] { code: u64; }
-machine Receipt::drop(receipt: &mut Receipt) requires receipt.code == 7 {}
-machine observe(receipt: &Receipt) {}
-domain u64::Index;
-machine [] u64::Index::at(items: &[u64; 1], position: u64 in Index) -> u64 { 6 }
-machine main(index: u64 in Index) requires index == 0 {
-    observe(&Receipt { code: [7u64][index] });
-}

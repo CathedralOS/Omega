@@ -1,7 +1,0 @@
-// Expected error: state `done` receives `control` as both mutable and read-only
-// Creating a new loan suspends the original access during later evaluation.
-data Control { value: i32; }
-machine transfer(control: &mut Control) {
-    transition { _ -> done(&mut control, control.value) }
-    state done(control: &mut Control, value: i32) { control.value = value; }
-}

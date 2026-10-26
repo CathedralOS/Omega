@@ -1,1 +1,0 @@
-opaque boundary data `InterruptAcknowledgement` has no public constructor

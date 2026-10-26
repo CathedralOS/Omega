@@ -1,3 +1,0 @@
-package candidate checking failed: checked compilation failed for package `nf01_mutable_consumer` with 1 diagnostic(s)
-  error: `Main::main` has no executable body: this compiler does not lower a statement of it yet (outer calls: ordered statement call)
-    source-unit 0, bytes 1065..1082

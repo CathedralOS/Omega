@@ -1,2 +1,0 @@
-main closed-conformance-controls
-main closed-reach-controls

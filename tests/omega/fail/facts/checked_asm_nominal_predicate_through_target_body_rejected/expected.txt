@@ -1,4 +1,0 @@
-cannot prove asm `requires` fact at block entry in move_selected state `entry` (statement 5): output == 9
-cannot prove asm `requires` fact at block entry in move_selected state `entry` (statement 5): output == 9
-cannot prove asm `requires` fact at block entry in move_selected state `entry` (statement 5): output == 9
-cannot prove asm `requires` fact at block entry in move_selected state `entry` (statement 5): output == 9

@@ -1,6 +1,0 @@
-use arrays::shape_layout_contract;
-use numeric::numeric_accuracy_policy;
-
-use linalg::dot_scaled_norm_axpy;
-
-use complex::complex_carrier_ops;

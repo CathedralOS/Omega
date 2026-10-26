@@ -1,2 +1,0 @@
-machine first<const Count: u64>(moments: &[i64 in Wrapping; Count]) -> i64 in Wrapping { transition Count > 0 { true -> (moments[-1]) _ -> (0) } }
-machine main() { let moments: [i64 in Wrapping; 5]; let value: i64 in Wrapping = first<5>(&moments); }

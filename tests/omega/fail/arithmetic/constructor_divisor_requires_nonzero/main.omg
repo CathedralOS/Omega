@@ -1,5 +1,0 @@
-// Constructing a field does not defer an integer operation's definedness.
-data QuotientBox { value: i64; }
-machine divide(divisor: i64) -> QuotientBox {
-    QuotientBox { value: 1 / divisor }
-}

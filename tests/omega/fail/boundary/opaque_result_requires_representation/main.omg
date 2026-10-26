@@ -1,7 +1,0 @@
-// A qualifier alone is not storage, but an explicit opaque boundary result is.
-public boundary data Token;
-public boundary requirement Token::acquire() -> Token;
-
-machine main() {
-    let token: Token = Token::acquire();
-}

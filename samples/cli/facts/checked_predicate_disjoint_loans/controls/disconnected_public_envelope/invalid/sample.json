@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "requires `sparse(value) == true`, which the requirement does not imply"
-  ]
-}

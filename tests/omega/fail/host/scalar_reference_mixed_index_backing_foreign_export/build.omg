@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "scalar_reference_mixed_index_backing_foreign_export");
-    Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
-}

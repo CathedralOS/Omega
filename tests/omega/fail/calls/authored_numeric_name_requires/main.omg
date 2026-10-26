@@ -1,7 +1,0 @@
-machine abs(value: i32) -> i32
-requires value >= -3i32 && value <= 3i32;
-{ 7i32 }
-
-machine main() {
-    _ = abs(100i32);
-}

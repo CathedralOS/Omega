@@ -1,9 +1,0 @@
-data Item { value: u64; }
-machine Item::make() -> Item { Item { value: 40 } }
-machine Item::forward(item: Item) -> Item { Item { value: item.value } }
-data Worker {}
-machine Worker::check() {
-    let item: Item = Item::make();
-    let first: Item = Item::forward(item);
-    let second: Item = Item::forward(item);
-}

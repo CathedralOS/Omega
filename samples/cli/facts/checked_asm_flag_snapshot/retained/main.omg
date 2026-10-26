@@ -1,8 +1,0 @@
-// Expected exit: 0.
-machine main() crashes Trap {
- let mut early:u64=0; let mut later:u64=0;
- asm { entry: mov eax,1; sub eax,1; pushfq early; mov eax,2; sub eax,1; pushfq later; jmp observed;
- observed requires (early &64u64)==64u64 requires (later&64u64)==0u64: nop }
- transition (early&64u64)==64u64 && (later&64u64)==0u64 {true ->done() false->bad()}
- state done() {} state bad(){crash Trap;}
-}

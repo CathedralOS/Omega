@@ -1,4 +1,0 @@
-domain u32::Issued(value) requires (value & 2) == 0 established by Issuer::issue;
-trait Issuer { machine issue() -> u32 ensures result in Issued; }
-machine accept(value: u32 in Issued) -> u32 { value as u32 }
-machine main() -> u32 { accept(128) }

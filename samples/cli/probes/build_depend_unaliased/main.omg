@@ -1,5 +1,0 @@
-use custody_kernel::main;
-
-machine entry() -> i32 {
-    seed()
-}

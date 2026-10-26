@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "index_signed_guard_below_zero");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

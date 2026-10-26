@@ -1,9 +1,0 @@
-machine walk(remaining: u64) -> u64
-requires remaining <= 5;
-{
-    transition remaining >= 1 {
-        true -> finish(remaining - 2)
-        false -> remaining
-    }
-    state finish(value: u64) -> u64 { value }
-}

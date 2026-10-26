@@ -1,3 +1,0 @@
-data Natural { case Zero; case Succ(previous: Natural); }
-machine selected(value: Natural) -> u64 { 7 }
-machine main() { code_layout<selected>(); }

@@ -1,1 +1,0 @@
-machine index operand must select a constant in its original lexical scope

@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "unbounded_offset_names_the_bound");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

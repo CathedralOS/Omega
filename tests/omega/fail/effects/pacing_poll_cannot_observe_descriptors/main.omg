@@ -1,6 +1,0 @@
-use omega_language_std::macos_gui;
-
-public macos_arm64 machine invalid_wait() -> i32
-reaches ExecutionDelay invokes DarwinClock; {
-    DarwinClock::poll(1, 1, 0)
-}

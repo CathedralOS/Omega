@@ -1,5 +1,0 @@
-let narrow(): u8 = ~0u8;
-let wide(): u16 = ~0u16;
-let same(): core::Strict<0> = narrow() == wide();
-machine bad() ensures same() {}
-machine main() {}

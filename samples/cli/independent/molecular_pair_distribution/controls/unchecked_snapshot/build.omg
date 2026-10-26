@@ -1,9 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "molecular_pair_distribution");
-    Build::depend(builder, Source::Path { location: "../../../../../../source/library/std" });
-    Build::bind(builder, linux_x86_64::ProgramEntry, invalid);
-    Build::bind(builder, linux_arm64::ProgramEntry, invalid);
-    Build::bind(builder, windows_x86_64::ProgramEntry, invalid);
-    Build::bind(builder, macos_arm64::ProgramEntry, invalid);
-    Build::bind(builder, macos_x86_64::ProgramEntry, invalid);
-}

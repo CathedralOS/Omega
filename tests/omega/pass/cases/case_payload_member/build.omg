@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "case_payload_member");
-    builder.freestanding = true;
-}

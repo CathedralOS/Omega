@@ -1,5 +1,0 @@
-machine capacity<Length [copy], const Capacity: u64>(items: Length) -> u64
-where Length == [u8; Capacity]
-{ Capacity }
-machine choose(flag: bool) -> u64 { let left: [u8; 2] = [7, 11]; let right: [u8; 3] = [13, 17, 19]; capacity(match flag { true -> left, false -> right }) }
-machine main() { let observed: u64 = choose(true); }

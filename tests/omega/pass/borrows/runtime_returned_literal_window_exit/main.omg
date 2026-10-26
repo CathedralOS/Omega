@@ -1,8 +1,0 @@
-// Expected exit: 0
-machine window() -> &[u8] { &"123456789"[1..8] }
-machine main() crashes Trap {
-    let selected: &[u8] = window();
-    transition selected.len == 7 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
-}

@@ -1,0 +1,22 @@
+{
+  "candidate": "f00821efc1436f458442cf687e471157d341538a",
+  "base": "16b381462327a3f7d1eb8c7218bdb81114a8a10a",
+  "public_producer": "13375dc5d9c41501f4be4584f52d9f8847823940",
+  "public_positive_engine_runs": 31,
+  "public_intended_rejects": 43,
+  "retained_corpus_producer": "16fbd2f862483ecc41ba2e7e44e6cb1a5cccbfd5",
+  "retained_native_terminal_engine_runs": 30,
+  "retained_check_outcomes": 73,
+  "retained_rejects": 43,
+  "focused_custody_tests": 7,
+  "historical_fixtures_compared": 5,
+  "baseline_losses": 0,
+  "metadata_since_final_producer": [
+    "TASKS.md",
+    "samples/cli/facts/checked_predicate_disjoint_loans/README.md",
+    "tests/omega/corpus_both_macos_arm64.txt",
+    "tests/omega/corpus_outcomes.txt"
+  ],
+  "remaining_parent_acceptance": "domain predicates, broader runtime projections, same-statement/theorem premise establishment",
+  "host": "macos_arm64; other hosted targets bound but not executed"
+}

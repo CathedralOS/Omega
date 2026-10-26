@@ -1,1 +1,0 @@
-A moved slice-bearing record enters a borrowed containing record. Each recurrent arrival renews the containing home and shortens its selected descriptor. Completed whole-home transfer withdraws cleanup of the departed source home while backing storage remains live. `omega run --both main.omg` must finish with native and Terminal exit 0.

@@ -1,7 +1,0 @@
-// Expected error: but the caller lends only immutable access
-data Control { value: i32; }
-data Carrier { body: &mut Control; }
-machine transfer(carrier: &Carrier) {
-    transition { _ -> done(carrier.body) }
-    state done(reference: &mut Control) { reference.value = 2; }
-}

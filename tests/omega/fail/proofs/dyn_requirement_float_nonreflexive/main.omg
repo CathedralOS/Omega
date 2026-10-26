@@ -1,3 +1,0 @@
-public let reflexive(value: f64): core::Strict<0> = value == value;
-machine claim(value: f64) ensures reflexive(value) {}
-machine main() {}

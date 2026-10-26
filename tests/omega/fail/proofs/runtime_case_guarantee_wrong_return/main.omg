@@ -1,9 +1,0 @@
-data Choice { case Cell(counter: AtomicU32); case Empty; }
-
-machine make() -> Choice ensures result in Choice::Cell {
-    Choice::Empty {}
-}
-
-machine main() {
-    let choice: Choice = make();
-}

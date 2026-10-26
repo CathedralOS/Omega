@@ -1,4 +1,0 @@
-data MutableRecord { bytes: &mut [u8]; }
-data MutableChoice { case Writable(bytes: &mut [u8]); }
-machine shared_container(value: &MutableRecord) { inspect(MutableChoice::Writable { bytes: value.bytes }); }
-machine inspect(value: MutableChoice) {}

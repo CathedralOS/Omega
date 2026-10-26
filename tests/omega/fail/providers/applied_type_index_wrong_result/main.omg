@@ -1,9 +1,0 @@
-data Payload { value: u64; }
-domain<Value> Payload::Tagged<Value>;
-data Left {}
-data Right {}
-machine wrong(value: Payload in Tagged<Left>) -> Payload in Tagged<Left>
-ensures result in Tagged<Right>;
-{
-    value
-}

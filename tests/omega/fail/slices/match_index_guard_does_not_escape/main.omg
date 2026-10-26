@@ -1,7 +1,0 @@
-machine observe(values: &[i32]) -> i32 {
-    let selected: i32 = match values.len > 0 {
-        true -> values[0],
-        false -> 0
-    };
-    values[0]
-}

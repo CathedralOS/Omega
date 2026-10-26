@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "target_family_control_authority");
-    builder.freestanding = false;
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-}

@@ -1,9 +1,0 @@
-// The native call may not read beyond its complete eight-byte input record.
-use omega_language_std::targets::windows_x86_64::windows_filesystem_file_control_native;
-use omega::language::core::filesystem_authority;
-
-machine widen_record() -> i32
-reaches FilesystemContentWrite + FilesystemMetadataMutation {
-    let input: WindowsNativeFileEndOfFileInfo = WindowsNativeFileEndOfFileInfo { length: 0 };
-    block WindowsFilesystemFileControlIo::end_of_file(0, 6, &input, 16)
-}

@@ -1,4 +1,0 @@
-machine main() {
- let value:u8 in Wrapping = 255 as u8 in Wrapping;
- asm { observed requires value == 255u8: nop }
-}

@@ -1,1 +1,0 @@
-cannot prove initializer of `scoped` in exercise is in domain `BelowIndex`; an annotation cannot establish routed qualification

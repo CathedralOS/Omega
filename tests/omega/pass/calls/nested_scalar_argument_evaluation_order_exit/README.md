@@ -1,1 +1,0 @@
-Two ordinary scalar calls form sibling operands of one call. The shared read completes before the second operand replaces that storage. A false short-circuit path evaluates neither nested call. Native and Terminal execution must return zero.

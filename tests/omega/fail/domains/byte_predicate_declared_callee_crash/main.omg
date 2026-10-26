@@ -1,3 +1,0 @@
-// A resolved declaration retains its crash contract despite reserved spelling.
-public machine valid_utf8(bytes: [u8; 4]) -> bool crashes Trap { crash Trap; }
-machine main() { let result: bool = valid_utf8([65u8, 0u8, 0u8, 0u8]); }

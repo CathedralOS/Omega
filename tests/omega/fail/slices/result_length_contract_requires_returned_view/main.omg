@@ -1,9 +1,0 @@
-// A length promise must hold for the returned descriptor before any caller
-// may use it as a bound for integer arithmetic or an Exact cast.
-machine bogus(items: &[u8]) -> &[u8]
-ensures result.len == 2
-{
-    items
-}
-
-machine main() {}

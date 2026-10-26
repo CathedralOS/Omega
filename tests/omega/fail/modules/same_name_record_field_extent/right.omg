@@ -1,3 +1,0 @@
-module right;
-
-public data Holder { items: [u8; 2]; }

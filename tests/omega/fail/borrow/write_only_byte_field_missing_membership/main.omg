@@ -1,6 +1,0 @@
-domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
-data Tagged { label: [u8; 8] in Utf8; }
-machine replace(tagged: &write Tagged, incoming: [u8; 8]) {
-    tagged.label = incoming;
-}
-machine main() {}

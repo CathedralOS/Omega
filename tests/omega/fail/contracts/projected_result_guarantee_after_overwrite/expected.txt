@@ -1,2 +1,0 @@
-cannot prove ensures contract
-elements[1].child.value == 9 && elements[1].child.ready

@@ -1,6 +1,0 @@
-heat_exchanger_balances midpoint counterflow; temperature=mdegC heat=mW
-node hot cold: 100000 14063
-stage heat: 239063
-node hot cold: 73438 0
-total heat: 239063
-PASS enthalpy and cold boundary tolerance=1e-7

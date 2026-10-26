@@ -1,9 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "saved_transition_subject");
-    Build::accept_boundary<Extract>(builder);
-    Build::select_provider<Extract, Provider>(builder);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-}

@@ -1,8 +1,0 @@
-// Synchronous raw I/O can occupy its worker, even for an empty request.
-use omega_language_std::windows_filesystem_host;
-use omega::language::core::filesystem_authority;
-
-machine read(handle: u64, buffer: &mut [u8]) -> i64
-reaches FilesystemContentRead {
-    WindowsFilesystemHost::read_file(handle, buffer, 0)
-}

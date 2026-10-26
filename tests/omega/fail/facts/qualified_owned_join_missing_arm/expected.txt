@@ -1,2 +1,0 @@
-match arms produce incompatible values
-exact arithmetic

@@ -1,5 +1,0 @@
-use product_kit::main;
-
-machine entry() -> i32 {
-    value()
-}

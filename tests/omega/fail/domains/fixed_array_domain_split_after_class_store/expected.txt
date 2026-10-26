@@ -1,2 +1,0 @@
-cannot prove default-domain field requirement for return from store
-buffer.label requires [u8; N]::Utf8

@@ -1,4 +1,0 @@
-module dungeon.combat;
-
-machine main() {
-}

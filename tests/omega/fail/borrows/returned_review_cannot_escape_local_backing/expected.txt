@@ -1,1 +1,0 @@
-machine `escape` returns a view borrowing the local `header`, which does not outlive the call

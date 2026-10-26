@@ -1,1 +1,0 @@
-callable input does not preserve its captured region identity

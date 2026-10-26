@@ -1,1 +1,0 @@
-Mutable fixed byte storage crosses repeated state edges, then attenuates to a shared bounded view. The full six-decimal formatter asserts its sign, digit, separator and trailing byte after writing through the mutable loan. Expected native and Terminal exit: 0.

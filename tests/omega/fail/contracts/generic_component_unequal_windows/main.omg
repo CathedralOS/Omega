@@ -1,7 +1,0 @@
-data Main { left: [u64; 2]; right: [u64; 2]; }
-machine pair(left: &mut [u64], right: &[u64])
-terminates;
-requires left.len == right.len {}
-machine Main::main(main: &mut Main) {
-    pair(&mut main.left[..2], &main.right[..1]);
-}

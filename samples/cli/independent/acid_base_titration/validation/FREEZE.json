@@ -1,7 +1,0 @@
-{
-  "oracle_sha256": "7faa6346e926f0052368bf1d2c971abeb6df0f2858220f0ac5d7e08da6b50456",
-  "reference_sha256": "7126035da8979b0891ec91386c27b12311ab0911040d5be842587949b77de06a",
-  "frozen_before_product_execution": true,
-  "endpoint_oracle_sha256": "db4504782ddca0829429af7a2e72984bad388bca732e69664996a1792d6f85f0",
-  "endpoint_note": "Additional reviewed decimal endpoint frozen before repaired product execution; original oracle unchanged."
-}

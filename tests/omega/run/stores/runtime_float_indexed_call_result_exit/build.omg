@@ -1,8 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "runtime_float_normalized_operand_single_evaluation_exit");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-    Build::bind(builder, macos_arm64::ProgramEntry, indexed_float_store::Main::main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, indexed_float_store::Main::main);
-    Build::bind(builder, linux_arm64::ProgramEntry, indexed_float_store::Main::main);
-    Build::bind(builder, windows_x86_64::ProgramEntry, indexed_float_store::Main::main);
-}

@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "wire_retired_field");
-    builder.freestanding = true;
-}

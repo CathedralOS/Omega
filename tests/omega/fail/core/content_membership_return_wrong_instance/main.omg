@@ -1,7 +1,0 @@
-use omega::language::core::extent;
-data First {}
-data Second {}
-data Value { number: u64; }
-machine change(storage: Extent in Granted & Resident<First, Value>) -> Extent
-ensures result in Granted & Resident<Second, Value> { storage }
-machine main() {}

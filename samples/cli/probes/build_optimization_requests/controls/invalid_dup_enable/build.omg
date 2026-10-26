@@ -1,6 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_dup_enable");
-    builder.freestanding = true;
-    Optimizations::enable(&mut builder.optimizations, Optimization::CopyPropagation);
-    Optimizations::enable(&mut builder.optimizations, Optimization::CopyPropagation);
-}

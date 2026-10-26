@@ -1,9 +1,0 @@
-data Cell where value >= 0 && value <= 9 { value: i32; }
-
-machine value() -> i32 ensures result == 12 { 12 }
-
-machine store(cells: &mut [Cell], selected: i64)
-requires selected >= 0 && selected < cells.len
-{
-    cells[selected].value = value();
-}

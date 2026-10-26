@@ -1,7 +1,0 @@
-domain<Carrier, const Index: u64> Carrier::Tagged<Index>;
-
-data Main { value: u64 in Tagged<8>; }
-
-machine main(main: &mut Main) {
-    main.value = 7 as u64 in Tagged<9>;
-}

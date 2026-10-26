@@ -1,8 +1,0 @@
-data Counter { value: u64; }
-domain Counter::One(counter) requires counter.value == 1;
-machine invalid(counter: Counter in One, other: Counter) -> u64
-ensures result == 1
-{
-    transition { _ -> replaced(other) }
-    state replaced(counter: Counter) -> u64 { counter.value }
-}

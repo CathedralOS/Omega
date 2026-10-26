@@ -1,3 +1,0 @@
-checked compilation failed for package `invalid_ghost_member`
-error: failed to resolve 
-ghost.omg: No such file or directory

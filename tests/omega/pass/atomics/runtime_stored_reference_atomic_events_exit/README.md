@@ -1,1 +1,0 @@
-Atomic events resolve current local homes and stored reference paths. Two descriptor fields alias the original cell; a third atomic field belongs to the descriptor record itself. Fetch results must be the instruction-observed prior and earlier load results remain snapshots. Native and Terminal execution must finish with exit 0.

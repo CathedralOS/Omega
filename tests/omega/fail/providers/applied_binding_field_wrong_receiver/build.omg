@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "applied_binding_field_wrong_receiver");
-    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
-}

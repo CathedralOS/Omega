@@ -1,9 +1,0 @@
-// Portable Windows filesystem entrance. Target-neutral callers retain one
-// FilesystemService slot; ordinary operation owners compose the real Windows
-// raw family below that slot, never call the portable boundary recursively.
-use filesystem;
-use targets::windows_x86_64::filesystem::provider;
-
-windows_x86_64 machine FilesystemProviderDefaults::provider_defaults(defaults: &mut FilesystemProviderDefaults) {
-    FilesystemProviderDefaults::select_provider<FilesystemService, FilesystemWindowsProvider>(defaults);
-}

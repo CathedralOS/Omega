@@ -1,6 +1,0 @@
-machine prefix(values: &[u8]) -> u64 {
-    let mut end: u64;
-    end = 18446744073709551615u64;
-    let view: &[u8] = &values[..=end];
-    view.len
-}

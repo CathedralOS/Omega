@@ -1,4 +1,0 @@
-checked compilation failed for package `invalid_private_import`
-error: package `invalid_private_import` (
-) selects private machine `hidden::entry`
-main.omg:3:5

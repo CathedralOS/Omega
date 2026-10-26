@@ -1,2 +1,0 @@
-requires `value in u64::Extra`
-which the requirement does not imply

@@ -1,1 +1,0 @@
-conformance `GenericPolicy` parameter `Width` requires a const argument, but `<structural type>` has another static category

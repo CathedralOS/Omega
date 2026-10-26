@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "addr_algebra");
-    builder.freestanding = true;
-}

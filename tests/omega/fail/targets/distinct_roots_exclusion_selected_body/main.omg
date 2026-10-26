@@ -1,5 +1,0 @@
-machine normal() {}
-
-machine trapping() crashes Trap {
-    crash Trap;
-}

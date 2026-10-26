@@ -1,9 +1,0 @@
-boundary machine == Integer::touch(value: &mut u64, marker: u64) -> bool;
-data Writer {}
-machine Writer::touch(value: &mut u64, marker: u64) -> bool satisfies Integer::touch { value = marker; true }
-machine keep(mut index: u64) -> u8 requires index < 4 {
-    let items: [u8; 4] = [4, 7, 8, 9];
-    let flag: bool = Integer::touch(&mut index, 9);
-    items[index]
-}
-machine main() { let result: u8 = keep(1); }

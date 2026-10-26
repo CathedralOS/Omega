@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation"
-  ]
-}

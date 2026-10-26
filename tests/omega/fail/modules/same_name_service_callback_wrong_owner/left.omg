@@ -1,9 +1,0 @@
-module left;
-use right::selected;
-public boundary trait Sink {}
-
-machine apply<machine Selected>(value: u64) -> u64
-where machine Selected(value: u64) -> u64 reaches Sink;
-{ Selected(value) }
-
-public machine run(value: u64) -> u64 { apply<selected>(value) }

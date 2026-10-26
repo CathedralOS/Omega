@@ -1,9 +1,0 @@
-// A transition's returned value answers the declared result carrier exactly
-// as a terminal expression does; element identity is part of that carrier.
-machine wrong<Input, Output>(items: &[Input]) -> &[Output] {
-    transition items.len > 0 {
-        true -> (items)
-        false -> (items)
-    }
-}
-machine main() {}

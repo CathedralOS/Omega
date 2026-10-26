@@ -1,2 +1,0 @@
-cannot check prepared project: checked compilation failed for package `invalid_subsystem_call` with 1 diagnostic(s)
-  error: machine `build` state `entry`: value call `Subsystem.Unspecified(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.

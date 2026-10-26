@@ -1,1 +1,0 @@
-integer literal `0` is outside that operand class

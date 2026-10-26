@@ -1,3 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::package(builder, "large_schema_field_outside_plan");
-}

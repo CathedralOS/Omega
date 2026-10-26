@@ -1,8 +1,0 @@
-domain i32::Bounded(v) requires v >= 0 && v <= 9;
-data Slot { value: &mut i32 in Bounded; }
-machine set(value: &write i32) { value = 23; }
-machine replace(slot: &mut Slot) { set(&write slot.value); }
-machine capture(slot: &mut Slot) {
-    let value: &write i32 = &write slot.value;
-    value = 23;
-}

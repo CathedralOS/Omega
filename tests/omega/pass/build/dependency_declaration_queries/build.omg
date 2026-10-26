@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::package(builder, "query_consumer");
-    Build::depend(builder, Source::Path { location: "dependency" });
-}

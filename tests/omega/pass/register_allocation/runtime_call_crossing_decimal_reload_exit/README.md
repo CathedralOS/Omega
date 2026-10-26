@@ -1,3 +1,0 @@
-Complete calibration and decimal-output composition reproducing a native allocation failure on main 8d22fd65. An output loop's block parameter crosses a Console call and later needs RAX for remainder. Every point has a legal register domain, but their intersection is empty. The admitted runtime recovery on main 239252d789da6dbd4231a467dc44a95b6309b457 splits or spills the range and reassigns homes under the existing legality and admission checks.
-
-The complete source has no sample imports. Input and exact rational CSV were frozen from an independent Fraction reference before execution. Both native and Terminal must emit the CSV and exit 0.

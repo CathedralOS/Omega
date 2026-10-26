@@ -1,1 +1,0 @@
-NoExecutor { optimization: Aarch64ElideSameViewCopyI64BeforeReturnV1 }

@@ -1,9 +1,0 @@
-data Values { actual: i32; }
-machine quotient(left: i32, right: i32) -> Values
-requires left > 0 && left <= 9 && right > 0 && right <= 9;
-ensures result.actual == right / 2;
-{ Values { actual: left / 2 } }
-machine remainder(left: i32, right: i32) -> Values
-requires left > 0 && left <= 9 && right > 0 && right <= 9;
-ensures result.actual == right % 2;
-{ Values { actual: left % 2 } }

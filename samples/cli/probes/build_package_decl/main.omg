@@ -1,4 +1,0 @@
-use build_package_decl::main;
-public machine w() -> i32 {
-    0
-}

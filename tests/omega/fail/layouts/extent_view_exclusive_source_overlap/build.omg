@@ -1,3 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::package(builder, "extent_view_exclusive_source_overlap");
-}

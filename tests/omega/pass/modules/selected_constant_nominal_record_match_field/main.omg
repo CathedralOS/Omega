@@ -1,5 +1,0 @@
-data Token [copy] {value:u64;}
-data Outer [copy] {inner:Token;}
-const SOURCE:Token=Token{value:7};
-const ALIAS:Outer=match true{true->Outer{inner:SOURCE},false->Outer{inner:Token{value:7}}};
-machine main(){}

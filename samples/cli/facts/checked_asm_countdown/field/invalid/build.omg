@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
- Build::application(builder, "checked_asm_countdown_field_invalid");
- Build::bind(builder, linux_x86_64::ProgramEntry, main);
-}

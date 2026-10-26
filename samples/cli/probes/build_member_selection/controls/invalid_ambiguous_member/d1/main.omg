@@ -1,3 +1,0 @@
-public machine shared() -> i32 {
-    1
-}

@@ -1,6 +1,0 @@
-// Expected exit: 0
-trait Arithmetic {machine + add(left:&mut u32,right:u32)->u32 ensures result==9;}
-Toggle satisfies Arithmetic {machine add(left:&mut u32,right:u32)->u32 ensures result==9 {left = left ^ 1u32; 9}}
-data Index<Limit:u32> [copy] where value<Limit {value:u32;}
-machine probe<Operations satisfies Arithmetic>()->bool {let mut flag:u32=0; let held:&u32=&flag; let indexed:u32=(&mut flag)+1u32; indexed==9 && flag==1u32 && held==0u32}
-machine main() crashes Trap {let observed:bool=probe<Toggle>(); transition observed {true->done() _->bad()} machine done(){} machine bad() crashes Trap{crash Trap;}}

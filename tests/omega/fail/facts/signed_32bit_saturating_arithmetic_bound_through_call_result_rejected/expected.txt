@@ -1,1 +1,0 @@
-cannot prove requires contract for call verify_sum from sat_call_result: sum >= 50 && sum <= 100

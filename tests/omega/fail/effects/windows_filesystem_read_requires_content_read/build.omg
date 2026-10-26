@@ -1,6 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "windows_filesystem_read_requires_content_read");
-    Build::depend(builder, Source::Path {
-        location: "../../../../../source/library/std"
-    });
-}

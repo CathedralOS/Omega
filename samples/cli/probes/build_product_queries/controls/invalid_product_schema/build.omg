@@ -1,8 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_product_schema");
-    Build::depend_as(builder, "kit", Source::Path { location: "../../dependency" });
-    builder.freestanding = true;
-    let schema: ProductTypeSchema = BuildProduct::schema(&builder.product, "kit");
-    let spath: &[u8] = ProductTypeSchema::path(&schema);
-    BuildLog::write_line(&mut builder.log, spath);
-}

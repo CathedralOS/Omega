@@ -1,9 +1,0 @@
-{
-  "promise": "native and Terminal exit 70; effectful unselected operands leave zero mutations",
-  "files": {
-    "tests/omega/pass/float/runtime_shared_float_lazy_branch_exit/build.omg": "223df22e1a7bd01a75829926816cc178515634a28383656f699144d991ca8037",
-    "tests/omega/pass/float/runtime_shared_float_lazy_branch_exit/expected_native_exit.txt": "6442bc26a7c562f5afe6467dab36365c709909f6a81afcecfc0c25cff0f1bab0",
-    "tests/omega/pass/float/runtime_shared_float_lazy_branch_exit/input.txt": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
-    "tests/omega/pass/float/runtime_shared_float_lazy_branch_exit/main.omg": "5c65503120e5179f6138aa0a9992a403a98a33005424aeb5057718a98f1b1429"
-  }
-}

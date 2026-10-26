@@ -1,2 +1,0 @@
-emitted_W,ambient_W,net_W,emission_fraction
-205368484e-6,148377037e-6,569914474e-7,375742293e-9

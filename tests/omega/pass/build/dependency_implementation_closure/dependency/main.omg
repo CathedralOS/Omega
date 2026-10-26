@@ -1,5 +1,0 @@
-use value;
-use unused;
-use same_spelling;
-
-public machine launch() {}

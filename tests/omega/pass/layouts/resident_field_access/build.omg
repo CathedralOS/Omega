@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::package(builder, "resident_view_probe");
-}
-

@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_dup_counter");
-    builder.freestanding = true;
-    builder.optimizations.copy_propagation = 2;
-}

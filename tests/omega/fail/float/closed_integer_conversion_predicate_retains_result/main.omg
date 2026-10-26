@@ -1,8 +1,0 @@
-use omega::language::core::float_operations;
-
-machine infinite_value(value: f32)
-requires F32::is_infinite(value) {}
-
-machine main() {
-    infinite_value(F32::from_i32(1i32));
-}

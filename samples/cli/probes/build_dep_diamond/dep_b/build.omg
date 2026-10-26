@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::package(builder, "right_kit");
-    Build::depend_as(builder, "kit", Source::Path { location: "../dep_c" });
-}

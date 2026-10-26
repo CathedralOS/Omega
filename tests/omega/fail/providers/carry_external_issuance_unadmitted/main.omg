@@ -1,6 +1,0 @@
-// Public opaque contracts remain reviewable even when no runtime call occurs.
-// The closed Carry fact has no nominal domain identity. Package acceptance
-// records this source risk; it supplies no host implementation or runtime grant.
-public data Token [linear] { value: u64; }
-public boundary machine issue() -> Token ensures result in Carry::AcrossSuspend;
-machine main() {}

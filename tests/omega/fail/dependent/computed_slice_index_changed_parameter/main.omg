@@ -1,9 +1,0 @@
-machine invalid(cells: &[i32], mut remaining: u64) -> i32
-requires remaining > 0 && remaining <= cells.len && cells.len < 10
-{
-    remaining = cells.len + 1;
-    let selected: u64 = remaining - 1;
-    let observed: i32 = cells[selected];
-    transition { _ -> observed }
-}
-machine main() {}

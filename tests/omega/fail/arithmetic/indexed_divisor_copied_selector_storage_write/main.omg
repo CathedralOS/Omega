@@ -1,9 +1,0 @@
-machine quotient(values: &mut [i64 in Wrapping; 2], index: u64) -> i64 in Wrapping
-requires index < 2
-requires values[index] != 0 {
-    let slot: u64 = index;
-    values[slot] = 0;
-    let numerator: i64 in Wrapping = 20;
-    numerator / values[slot]
-}
-machine main() { }

@@ -1,2 +1,0 @@
-cannot prove automatic cleanup requires
-OptionalReceipt::drop clause `owner.ready`

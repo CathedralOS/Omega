@@ -1,2 +1,0 @@
-reads write-only parameter `position`
-reads write-only parameter `source`

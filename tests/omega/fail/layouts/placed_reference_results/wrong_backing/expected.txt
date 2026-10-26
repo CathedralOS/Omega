@@ -1,1 +1,0 @@
-machine `borrow_view` returns a view borrowing input `other`, which is not permitted by the declared result lifetime relation

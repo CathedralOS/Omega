@@ -1,3 +1,0 @@
-Transparent mathematical predicates discharge ordinary machine postconditions through their checked application terms. The program exercises a direct argument, reserved result, public imported predicates, a returned function, a generic carrier, and a fixed-width result reused at its own carrier. Runtime calls complete normally and the returned value remains 11. The imported Wrapping predicate proves equality of two inline squares using their selected integer meaning and exact parameter.
-
-A same-carrier predicate is passed as a mathematical function argument. Its proof-only occurrence remains in the authored contract even when loaded runtime declarations have unrelated transition argument spans.

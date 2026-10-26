@@ -1,2 +1,0 @@
-cannot check prepared project: checked compilation failed for package `invalid_bool_text` with 1 diagnostic(s)
-  error: machine `build` state `entry` assignment stores text into a `bool` place, which holds a boolean

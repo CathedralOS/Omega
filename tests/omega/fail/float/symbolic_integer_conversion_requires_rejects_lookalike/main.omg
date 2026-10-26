@@ -1,4 +1,0 @@
-use omega::language::core::float_operations;
-machine from_i32(value: i32, other: f32) -> f32 { other }
-machine finite_value(value: f32) requires F32::is_finite(value) {}
-machine converted(value: i32, other: f32) { finite_value(from_i32(value, other)); }

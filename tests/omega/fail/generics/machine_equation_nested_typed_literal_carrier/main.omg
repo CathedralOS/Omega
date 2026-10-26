@@ -1,7 +1,0 @@
-data Mode<const Count: u64> [copy] { value: u64; }
-
-machine capacity<Payload, const Count: u64>() -> u64
-where Payload == Mode<Count>
-{ Count }
-
-machine selected() -> u64 { capacity<Mode<4u32>>() }

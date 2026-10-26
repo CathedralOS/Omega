@@ -1,8 +1,0 @@
-// The dependency location holds product source but no build declaration at
-// all, so the package row is malformed rather than merely unresolvable.
-
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_missing_build_declaration");
-    Build::depend_as(builder, "dep", Source::Path { location: "no_build" });
-    builder.freestanding = true;
-}

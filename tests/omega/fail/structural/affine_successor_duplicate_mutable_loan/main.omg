@@ -1,6 +1,0 @@
-data Record { value: i32; }
-machine main() {
-    let mut first: Record;
-    transition { _ -> consume(&mut first, &mut first) }
-    state consume(first: &mut Record, second: &mut Record) { first.value = 1; second.value = 2; }
-}

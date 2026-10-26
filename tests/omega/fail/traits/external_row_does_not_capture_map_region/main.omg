@@ -1,5 +1,0 @@
-// Selecting an external machine does not make it a child of the named map.
-trait Reading<Context> { machine read(context: Context) -> i32; }
-Reader<'storage> satisfies Reading<&'storage i32> { Reading::read = read; }
-machine read(context: &'storage i32) -> i32 { context as i32 }
-machine main() {}

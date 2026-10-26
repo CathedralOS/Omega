@@ -1,5 +1,0 @@
-domain i64::Classified(value) requires value != -1 established by issue;
-machine consume(value: i64 in Classified) -> i64 in Classified { value }
-macos_arm64 machine issue(value: i64) -> i64 in Classified requires value != -1 {
-    consume(value)
-}

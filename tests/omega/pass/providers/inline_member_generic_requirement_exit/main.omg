@@ -1,9 +1,0 @@
-// Expected exit: 0.
-boundary trait Forward<T> { machine call(value: T) -> T reaches; }
-data IdentityProvider {}
-machine IdentityProvider::call(value: u64) -> u64 satisfies Forward<u64>::call { value }
-machine main() reaches Forward crashes Trap {
-    transition Forward<u64>::call(41) == 41 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
-}

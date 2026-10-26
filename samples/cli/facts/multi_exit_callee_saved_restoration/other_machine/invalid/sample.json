@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "rejection_contains": [
-    "exact arithmetic in machine",
-    "may overflow"
-  ]
-}

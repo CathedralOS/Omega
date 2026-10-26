@@ -1,5 +1,0 @@
-// Frozen refusal: a synthetic return capture may not manufacture a positive
-// predicate for zero.
-domain i32::Positive(value) requires value > 0;
-machine zero() -> i32 { 0 }
-machine missing() -> i32 in Positive { zero() }

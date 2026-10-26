@@ -1,7 +1,0 @@
-// Expected error: state `done` receives `carrier.body` as mutable more than once
-data Control { value: i32; }
-data Carrier { body: &mut Control; }
-machine transfer(carrier: Carrier) {
-    transition { _ -> done(carrier.body, carrier.body) }
-    state done(first: &mut Control, second: &mut Control) { first.value = 2; second.value = 3; }
-}

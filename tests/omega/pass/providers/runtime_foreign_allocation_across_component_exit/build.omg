@@ -1,6 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "allocation_across_component");
-    Build::depend_as(builder, "producer", Source::Path { location: "producer" });
-    Build::select_provider<producer::RawAllocation, producer::RawAllocationProvider>(builder, CompositionMode::Independent);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-}

@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "filesystem_readonly_requires_metadata_query");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

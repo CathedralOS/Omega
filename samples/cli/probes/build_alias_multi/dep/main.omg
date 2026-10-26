@@ -1,6 +1,0 @@
-public machine v() -> i32 {
-    1
-}
-public machine w() -> i32 {
-    2
-}

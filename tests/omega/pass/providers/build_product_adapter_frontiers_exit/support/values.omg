@@ -1,5 +1,0 @@
-public data Value {}
-public boundary requirement Value::read() -> u64 ensures result == 42;
-public data ValueProvider {}
-public machine ValueProvider::read() -> u64
-satisfies Value::read ensures result == 42 { 42 }

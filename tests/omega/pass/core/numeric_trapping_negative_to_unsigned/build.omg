@@ -1,9 +1,0 @@
-// Deployable conversion trap: every hosted target selects its exact entry.
-
-machine build(builder: &mut Build) {
-    Build::application(builder, "numeric_trapping_negative_to_unsigned");
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-}

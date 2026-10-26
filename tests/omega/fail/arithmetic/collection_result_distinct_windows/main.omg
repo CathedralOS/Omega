@@ -1,9 +1,0 @@
-machine length(values: &[u8]) -> u64
-ensures result <= values.len && result >= values.len { values.len }
-machine rejected() -> u8 {
-    let backing: [u8; 4];
-    let small: &[u8] = &backing[0..1];
-    let large: &[u8] = &backing[0..3];
-    let count: u64 = length(large);
-    small[count]
-}

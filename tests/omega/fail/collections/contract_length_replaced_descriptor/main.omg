@@ -1,2 +1,0 @@
-machine extent(values: &[f64]) -> u64 ensures result == values.len { values.len }
-machine first(values: &[f64], other: &[f64]) -> f64 { let mut view: &[f64] = values; let count: u64 = extent(view); view = other; transition count > 0 { true -> (view[0]) false -> 0.0 } }

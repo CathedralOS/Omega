@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "write_projection_loan");
-    builder.freestanding = true;
-}

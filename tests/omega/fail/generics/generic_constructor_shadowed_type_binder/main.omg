@@ -1,9 +1,0 @@
-data Box<Value [copy]> [copy] { value: Value; }
-data Holder<Value> { value: Value; }
-data Nested<Payload [copy], Element [copy], Box>
-where Payload == [Element; 4] {
-    nested: Holder<Box<u64>>;
-    payload: Payload;
-}
-data Main { value: Nested<[u64; 4], u64, bool>; }
-machine main() {}

@@ -1,4 +1,0 @@
-machine invalid(value: u64) -> u64
-    ensures result >= 0 && result <= 9223372036854775807
-{ (value + 1u64) / 2u64 }
-machine main() {}

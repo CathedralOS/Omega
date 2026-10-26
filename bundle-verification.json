@@ -1,0 +1,100 @@
+{
+  "known_base": "16b381462327a3f7d1eb8c7218bdb81114a8a10a",
+  "isolated_bare": "/Volumes/Crucial/CathedralOS/Omega/.agents/worktree/p26b/build/p26b/bundle-restore.git",
+  "bundles": [
+    {
+      "source": "16fbd2f862483ecc41ba2e7e44e6cb1a5cccbfd5",
+      "bundle": "/Volumes/Crucial/CathedralOS/Omega/.agents/worktree/p26b/build/corpus-source/16fbd2f862483ecc41ba2e7e44e6cb1a5cccbfd5.bundle",
+      "sha256": "db5b00f82a10b391b8cc85f1a8e57585b91c85002b414690cb3e7dd9c3291898",
+      "bytes": 81397,
+      "restore": [
+        {
+          "command": [
+            "git",
+            "-C",
+            "/Volumes/Crucial/CathedralOS/Omega/.agents/worktree/p26b/build/p26b/bundle-restore.git",
+            "bundle",
+            "verify",
+            "/Volumes/Crucial/CathedralOS/Omega/.agents/worktree/p26b/build/corpus-source/16fbd2f862483ecc41ba2e7e44e6cb1a5cccbfd5.bundle"
+          ],
+          "exit": 0,
+          "stdout": "The bundle contains this ref:\n16fbd2f862483ecc41ba2e7e44e6cb1a5cccbfd5 refs/corpus-observations/16fbd2f862483ecc41ba2e7e44e6cb1a5cccbfd5\nThe bundle requires this ref:\n16b381462327a3f7d1eb8c7218bdb81114a8a10a \nThe bundle uses this hash algorithm: sha1\n",
+          "stderr": "/Volumes/Crucial/CathedralOS/Omega/.agents/worktree/p26b/build/corpus-source/16fbd2f862483ecc41ba2e7e44e6cb1a5cccbfd5.bundle is okay\n"
+        },
+        {
+          "command": [
+            "git",
+            "-C",
+            "/Volumes/Crucial/CathedralOS/Omega/.agents/worktree/p26b/build/p26b/bundle-restore.git",
+            "bundle",
+            "unbundle",
+            "/Volumes/Crucial/CathedralOS/Omega/.agents/worktree/p26b/build/corpus-source/16fbd2f862483ecc41ba2e7e44e6cb1a5cccbfd5.bundle"
+          ],
+          "exit": 0,
+          "stdout": "16fbd2f862483ecc41ba2e7e44e6cb1a5cccbfd5 refs/corpus-observations/16fbd2f862483ecc41ba2e7e44e6cb1a5cccbfd5\n",
+          "stderr": ""
+        },
+        {
+          "command": [
+            "git",
+            "-C",
+            "/Volumes/Crucial/CathedralOS/Omega/.agents/worktree/p26b/build/p26b/bundle-restore.git",
+            "cat-file",
+            "-t",
+            "16fbd2f862483ecc41ba2e7e44e6cb1a5cccbfd5"
+          ],
+          "exit": 0,
+          "stdout": "commit\n",
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "source": "4797c6edc0b852afd8d8d73083edc65675084f16",
+      "bundle": "/Volumes/Crucial/CathedralOS/Omega/.agents/worktree/p26b/build/corpus-source/4797c6edc0b852afd8d8d73083edc65675084f16.bundle",
+      "sha256": "dbe16c3f01073ae6a5d2b39406e7a918799cf23347b35dbcc1f4eca3fa19e428",
+      "bytes": 83744,
+      "restore": [
+        {
+          "command": [
+            "git",
+            "-C",
+            "/Volumes/Crucial/CathedralOS/Omega/.agents/worktree/p26b/build/p26b/bundle-restore.git",
+            "bundle",
+            "verify",
+            "/Volumes/Crucial/CathedralOS/Omega/.agents/worktree/p26b/build/corpus-source/4797c6edc0b852afd8d8d73083edc65675084f16.bundle"
+          ],
+          "exit": 0,
+          "stdout": "The bundle contains this ref:\n4797c6edc0b852afd8d8d73083edc65675084f16 refs/corpus-observations/4797c6edc0b852afd8d8d73083edc65675084f16\nThe bundle requires this ref:\n16b381462327a3f7d1eb8c7218bdb81114a8a10a \nThe bundle uses this hash algorithm: sha1\n",
+          "stderr": "/Volumes/Crucial/CathedralOS/Omega/.agents/worktree/p26b/build/corpus-source/4797c6edc0b852afd8d8d73083edc65675084f16.bundle is okay\n"
+        },
+        {
+          "command": [
+            "git",
+            "-C",
+            "/Volumes/Crucial/CathedralOS/Omega/.agents/worktree/p26b/build/p26b/bundle-restore.git",
+            "bundle",
+            "unbundle",
+            "/Volumes/Crucial/CathedralOS/Omega/.agents/worktree/p26b/build/corpus-source/4797c6edc0b852afd8d8d73083edc65675084f16.bundle"
+          ],
+          "exit": 0,
+          "stdout": "4797c6edc0b852afd8d8d73083edc65675084f16 refs/corpus-observations/4797c6edc0b852afd8d8d73083edc65675084f16\n",
+          "stderr": ""
+        },
+        {
+          "command": [
+            "git",
+            "-C",
+            "/Volumes/Crucial/CathedralOS/Omega/.agents/worktree/p26b/build/p26b/bundle-restore.git",
+            "cat-file",
+            "-t",
+            "4797c6edc0b852afd8d8d73083edc65675084f16"
+          ],
+          "exit": 0,
+          "stdout": "commit\n",
+          "stderr": ""
+        }
+      ]
+    }
+  ]
+}

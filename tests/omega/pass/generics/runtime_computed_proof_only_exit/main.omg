@@ -1,4 +1,0 @@
-// Expected exit: 0
-data Index<Limit:u32> [copy] where value<Limit {value:u32;}
-machine probe(limit:u32)->u32 requires limit>=3 && limit<=8 {let marker [erased]:Index<(limit+1u32)> = Index{value:2}; 7}
-machine main() crashes Trap {let observed:u32=probe(3); transition observed==7 {true->done() _->bad()} state done(){} state bad(){crash Trap;}}

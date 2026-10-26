@@ -1,2 +1,0 @@
-// A matching path and declaration name do not select an accepted contract.
-public boundary trait UefiApplication {}

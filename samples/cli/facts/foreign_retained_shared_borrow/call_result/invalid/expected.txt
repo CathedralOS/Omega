@@ -1,1 +1,0 @@
-mutates `buffer.value` while local borrow `routed` is still active

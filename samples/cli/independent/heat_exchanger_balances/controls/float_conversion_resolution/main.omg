@@ -1,3 +1,0 @@
-// Reduced package-scoped module reproduction. This should check.
-use conversion;
-machine main() { _ = conversion::convert(2.0); }

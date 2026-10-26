@@ -1,1 +1,0 @@
-it may block, but the requirement omits `blocks;`

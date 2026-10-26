@@ -1,1 +1,0 @@
-pub machine c_value() -> i32 { c_seed() }

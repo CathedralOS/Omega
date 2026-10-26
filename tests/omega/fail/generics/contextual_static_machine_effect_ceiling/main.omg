@@ -1,7 +1,0 @@
-machine crashing<Kind>(value: Kind) -> bool crashes Trap { true }
-
-machine apply<machine Selected>(value: u64) -> bool
-where machine Selected(value: u64) -> bool;
-{ Selected(value) }
-
-machine main() { let result: bool = apply<crashing>(3u64); }

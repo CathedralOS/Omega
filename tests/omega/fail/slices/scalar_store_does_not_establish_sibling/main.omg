@@ -1,7 +1,0 @@
-domain u64::Positive(value) requires value >= 1;
-
-machine main() {
-    let mut values: [u64 in Positive; 2];
-    values[0] = 42;
-    let observed: u64 in Positive = values[1];
-}

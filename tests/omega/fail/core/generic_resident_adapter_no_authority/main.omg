@@ -1,7 +1,0 @@
-use omega::language::core::extent;
-machine pretend<P, T>(storage: Extent in Granted) -> Extent
-satisfies ResidentContentTransfer<P, T>::transfer
-ensures result in Granted & Resident<P, T>,
-    Granted::content(old(&storage)) == Granted::content(&result)
-{ storage as Extent }
-machine main() {}

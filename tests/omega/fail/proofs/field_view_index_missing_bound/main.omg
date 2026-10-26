@@ -1,5 +1,0 @@
-use omega::language::core::slice;
-use omega::language::core::float_operations;
-data SpectrumView<'samples> [copy] { samples: &'samples [f64]; temperature: f64; }
-machine radiance<'samples>(spectrum: SpectrumView<'samples>, column: u64) -> f64
-{ spectrum.samples[column] }

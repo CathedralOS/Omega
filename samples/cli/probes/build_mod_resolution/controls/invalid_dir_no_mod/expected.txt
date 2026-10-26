@@ -1,3 +1,0 @@
-checked compilation failed for package `invalid_dir_no_mod`
-error: failed to resolve 
-util.omg: No such file or directory

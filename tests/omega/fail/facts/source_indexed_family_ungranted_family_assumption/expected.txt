@@ -1,1 +1,0 @@
-source indexed initializer depends on an assumption outside the audited integer safety roster

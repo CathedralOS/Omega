@@ -1,7 +1,0 @@
-data Receipt [linear] { code: i32; }
-machine observe(receipt: &Receipt) -> i32 { receipt.code }
-machine main() -> i32 {
-    let receipt: Receipt = Receipt { code: 70 };
-    let view: &Receipt = &receipt;
-    observe(view)
-}

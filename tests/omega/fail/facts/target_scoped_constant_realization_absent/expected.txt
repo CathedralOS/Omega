@@ -1,1 +1,0 @@
-slot `Answer` has 3 covering provider plans for the selected target

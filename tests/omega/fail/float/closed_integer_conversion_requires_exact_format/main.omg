@@ -1,8 +1,0 @@
-use omega::language::core::float_operations;
-
-machine finite_value(value: f32)
-requires F32::is_finite(value) {}
-
-machine main() {
-    finite_value((16777217i32 as f64) as f32);
-}

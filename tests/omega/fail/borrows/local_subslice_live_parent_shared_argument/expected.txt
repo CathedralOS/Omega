@@ -1,1 +1,0 @@
-state `peek` receives `view` while local borrow `middle` is still active

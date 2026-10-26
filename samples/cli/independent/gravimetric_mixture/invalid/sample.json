@@ -1,6 +1,0 @@
-{
-  "role": "intended-invalid",
-  "rejection_contains": [
-    "cannot prove initializer of `corrected` in Main::main is in domain `i32::Nonnegative`; an annotation cannot establish routed qualification"
-  ]
-}

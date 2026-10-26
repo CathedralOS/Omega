@@ -1,1 +1,0 @@
-argument `buffer` for state `capacity` expects `&FixedBuffer<Capacity>`

@@ -1,6 +1,0 @@
-// An acknowledgement on a nonblocking terminal call must still reject.
-machine ready() -> bool { true }
-machine relay() -> bool {
-    transition { _ -> block ready() }
-}
-machine main() { let observed: bool = relay(); }

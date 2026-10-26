@@ -1,3 +1,0 @@
-domain f64::Positive(value) requires value > 0.0;
-public let positive(value: f64 in Positive): core::Strict<0> = true;
-machine main() requires positive(0.0) {}

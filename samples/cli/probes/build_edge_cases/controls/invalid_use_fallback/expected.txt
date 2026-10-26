@@ -1,2 +1,0 @@
-checked compilation failed for package `invalid_use_fallback`
-ghost/main.omg: captured entry is absent: ghost

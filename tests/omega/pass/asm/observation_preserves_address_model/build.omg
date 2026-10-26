@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "observation_preserves_address_model");
-    builder.freestanding = true;
-}

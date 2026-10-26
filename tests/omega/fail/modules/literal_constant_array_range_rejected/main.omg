@@ -1,3 +1,0 @@
-data Element [copy] where value <= 2 { value: u64; }
-const BAD: [Element; 1] = [Element { value: 3 }];
-machine main() {}

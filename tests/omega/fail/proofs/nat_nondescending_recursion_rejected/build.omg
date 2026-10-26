@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "nat_nondescending_recursion_rejected");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

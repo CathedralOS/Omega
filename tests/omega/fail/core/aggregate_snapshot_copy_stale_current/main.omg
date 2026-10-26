@@ -1,8 +1,0 @@
-data Reading [copy] { value: u64; }
-machine mutate(mut whole: Reading) -> u64
-ensures result == whole.value
-{
-    let captured: Reading = whole;
-    whole.value = 0;
-    captured.value
-}

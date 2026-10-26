@@ -1,5 +1,0 @@
-use omega::language::core::float_operations;
-
-// No selected public result guarantee supplies the demanded singleton.
-machine unbounded() -> f32 { 0.1f32 }
-machine tail() -> f32 ensures result == 3.75f32 { unbounded() }

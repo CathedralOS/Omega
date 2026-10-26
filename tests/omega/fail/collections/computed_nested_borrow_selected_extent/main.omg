@@ -1,7 +1,0 @@
-// Outer extent three does not authorize the inner extent two.
-data Row { data: [i32 in Wrapping; 2]; }
-machine increment(value: &mut i32 in Wrapping) { value = value + 1; }
-machine visit(rows: &mut [Row; 3], index: u64)
-requires index < 3 {
-    increment(&mut rows[index + 0].data[index + 0]);
-}

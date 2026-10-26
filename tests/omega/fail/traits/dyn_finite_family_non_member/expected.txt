@@ -1,1 +1,0 @@
-requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row

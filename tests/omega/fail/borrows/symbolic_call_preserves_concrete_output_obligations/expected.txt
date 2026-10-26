@@ -1,2 +1,0 @@
-machine `symbolic_first` state `entry` statement 0: call stores a borrowed value without a complete destination/backing relation
-machine `concrete_first` state `entry` statement 0: call stores a borrowed value without a complete destination/backing relation

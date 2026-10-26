@@ -1,8 +1,0 @@
-domain u64::BuildPositive(value) requires value > 0;
-
-machine preserve(value: u64 in BuildPositive) -> u64 in BuildPositive { value }
-
-machine build(builder: &mut Build) {
-    Build::package(builder, "declaration_domain_context");
-    let retained: u64 in BuildPositive = preserve(7);
-}

@@ -1,8 +1,0 @@
-data Cell { value: u32; }
-domain<const Axis: u64> u32::Coordinate<Axis>;
-machine read(value: &u32 in Coordinate<7>) -> u32 { value ^ 0 }
-machine main() -> u32 {
-    let storage: Cell = Cell { value: 73 };
-    let coordinate: &u32 in Coordinate<9> = &storage.value;
-    read(coordinate)
-}

@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "wrapping_target_plain_operands_rejected");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

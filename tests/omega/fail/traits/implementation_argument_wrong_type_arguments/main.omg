@@ -1,8 +1,0 @@
-trait Reading<Value> { machine read(value: Value) -> Value; }
-SelectedReading satisfies Reading<bool> {
-    machine read(value: bool) -> bool { value }
-}
-trait Consumer<Value, Reader satisfies Reading<Value>> { }
-trait Concrete: Consumer<i32, SelectedReading> { }
-data Main { }
-machine Main::main() { }

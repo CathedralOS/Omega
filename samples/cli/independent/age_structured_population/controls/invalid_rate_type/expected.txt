@@ -1,1 +1,0 @@
-construction of `TransitionRate` field `thousandths` stores a boolean into a `i64` field, which holds a numeric value

@@ -1,5 +1,0 @@
-use left;
-use right;
-
-// A same-spelled boundary in another module is outside the selected ceiling.
-machine main() -> u64 { left::run(1u64) }

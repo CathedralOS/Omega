@@ -1,7 +1,0 @@
-// A mutable backing does not undo the recast's selected shared access.
-data Source { value: u32; }
-data View { value: i32; }
-
-machine inspect(source: &mut Source) {
-    let view: &mut View = source as &View;
-}

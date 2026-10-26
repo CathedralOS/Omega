@@ -1,9 +1,0 @@
-// Intended rejection: an arriving view retains its original byte footprint.
-data Word { value: u64; }
-machine main() -> u64 {
- let mut bytes: [u8; 8] = [37, 0, 0, 0, 0, 0, 0, 0];
- let view: &Word = &bytes[0] as &Word;
- bytes[0] = 99;
- transition { _ -> read(view) }
- state read(view: &Word) -> u64 { view.value }
-}

@@ -1,7 +1,0 @@
-machine write(value: &mut u8) { value = 42; }
-machine first(bytes: &[u8]) {
-    transition bytes.len > 0 { true -> change(bytes) _ -> done() }
-    state change(bytes: &[u8]) { write(&mut bytes[0]); }
-    state done() {}
-}
-machine main() {}

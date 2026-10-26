@@ -1,1 +1,0 @@
-require an admitted write-only boundary claim

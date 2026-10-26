@@ -1,2 +1,0 @@
-cannot check prepared project: checked compilation failed for package `invalid_nested_output` with 1 diagnostic(s)
-  error: required output `bin/app` of `build` was declared but never completed

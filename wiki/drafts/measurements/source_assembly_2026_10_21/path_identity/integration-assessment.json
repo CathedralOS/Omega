@@ -1,6 +1,0 @@
-{
-  "measured_base": "6cd22386cbb51240d17751e61d82b88632bbcd41",
-  "observed_main": "6cd22386cbb51240d17751e61d82b88632bbcd41",
-  "incoming_blobs": {},
-  "assessment": "Main remains at measured base; landing script checks again inside reservation."
-}

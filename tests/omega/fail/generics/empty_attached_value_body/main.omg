@@ -1,7 +1,0 @@
-data Box<Payload> { value: Payload; }
-machine Box::read(value: &Box<Payload>) -> Payload {}
-
-machine main() {
-    let value: Box<i32> = Box { value: 41 };
-    let result: i32 = Box::read(&value);
-}

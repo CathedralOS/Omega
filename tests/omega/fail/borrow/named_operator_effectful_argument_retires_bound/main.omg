@@ -1,8 +1,0 @@
-use omega::language::core::float_operations;
-machine change(index: &mut u64) -> f32 { index = 9; 1.0 }
-machine keep(mut index: u64) -> u8 requires index < 4 {
-    let items: [u8; 4] = [4, 7, 8, 9];
-    let value: f32 = F32::minimum(change(&mut index), 2.0);
-    items[index]
-}
-machine main() { let result: u8 = keep(1); }

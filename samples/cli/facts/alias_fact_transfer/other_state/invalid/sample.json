@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "cannot prove requires contract for call arrived from Main::main: copy in Player::Alive in state `main`"
-  ]
-}

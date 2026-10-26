@@ -1,3 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "zero_float_case_round_invalid");
-}

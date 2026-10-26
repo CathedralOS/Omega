@@ -1,2 +1,0 @@
-array literal element is not proven in domain `i32::Selected`
-a construction value must establish the domain

@@ -1,1 +1,0 @@
-Run `omega --check tests/omega/fail/borrows/state_index_bound/main.omg`. A state actual index whose declared range includes the fixed array length must remain unproved. This control differs from the passing parameter-index witness only in the index formal range.

@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "case_payload_domain_literal_out_of_range");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

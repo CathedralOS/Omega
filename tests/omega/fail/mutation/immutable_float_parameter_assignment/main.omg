@@ -1,6 +1,0 @@
-// Expected diagnostic: immutable
-machine replace(fraction: f64) -> f64 {
-    fraction = 0.5;
-    fraction
-}
-machine main() { let value: f64 = replace(0.25); }

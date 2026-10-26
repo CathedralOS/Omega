@@ -1,8 +1,0 @@
-use omega::language::core::float_operations;
-
-machine finite_right(left: f32, right: f32)
-requires F32::is_finite(right * 2.0f32) {}
-
-machine main() {
-    finite_right(1.5f32, 340282346638528859811704183484516925440.0f32);
-}

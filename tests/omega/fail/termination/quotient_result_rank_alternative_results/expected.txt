@@ -1,1 +1,0 @@
-terminating machine countdown: cannot prove rank range

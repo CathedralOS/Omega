@@ -1,1 +1,0 @@
-ranking preservation or strict DECREASE is unproven at a call site

@@ -1,7 +1,0 @@
-const SelectedCount: bool = true;
-
-machine capacity<Payload, const Count: u64>() -> u64
-where Payload == [u8; Count]
-{ Count }
-
-machine selected() -> u64 { capacity<[u8; 4], SelectedCount>() }

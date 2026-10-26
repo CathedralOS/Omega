@@ -1,7 +1,0 @@
-// Runtime reachability cannot remove source type admission.
-machine choose() -> u64 {
-    transition { _ -> (70) }
-    let invalid: u64 = true;
-    71
-}
-machine main() { let result: u64 = choose(); }

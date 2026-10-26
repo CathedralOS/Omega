@@ -1,7 +1,0 @@
-trait Select<Context> {
-    machine select<Value>(context: Context, value: Value) -> Value;
-}
-machine select<Context, Value [copy]>(context: Context, value: Value) -> Value
-satisfies Select<Context>::select {
-    value
-}

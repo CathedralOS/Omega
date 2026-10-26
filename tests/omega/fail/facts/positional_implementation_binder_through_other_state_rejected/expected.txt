@@ -1,1 +1,0 @@
-implements `Loose<>`, which neither is nor inherits `Reading`

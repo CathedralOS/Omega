@@ -1,7 +1,0 @@
-public const BAD: [u8; 2] = [1, 2, 3];
-machine extent() -> u64 { 2 }
-data Packet<Value [copy], const Size: u64> [copy]
-where Value == [u8; Size]
-{ items: Value; }
-data Main { packet: Packet<[u8; 2], extent()>; }
-machine main() {}

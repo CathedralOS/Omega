@@ -1,6 +1,0 @@
-// Retaining backing storage for a shared state loan grants no write access.
-machine main() {
-    let mut bytes: [u8; 4];
-    transition { _ -> damage(&bytes) }
-    state damage(bytes: &[u8; 4]) { bytes[1] = 0; }
-}

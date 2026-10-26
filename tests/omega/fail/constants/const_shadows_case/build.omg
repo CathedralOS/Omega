@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "const_shadows_case");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

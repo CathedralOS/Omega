@@ -1,3 +1,0 @@
-    30.880 ms  total elapsed
-cannot compile accepted package inputs: checked compilation failed for package `length_through_local` with 1 diagnostic(s)
-  error: accepted package `length_through_local` compiler identity changed; run `omega update` for fresh review before compiling

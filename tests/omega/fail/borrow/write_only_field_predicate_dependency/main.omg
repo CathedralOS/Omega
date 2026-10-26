@@ -1,4 +1,0 @@
-// A bare array loan must not discard a parent fact about its contents.
-data Main where values[0] <= position { values: [u64; 2]; position: u64; }
-machine replace(values: &write [u64; 2]) { values[0] = 7; }
-machine test(main: &mut Main) { replace(&write main.values); }

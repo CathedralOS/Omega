@@ -1,5 +1,0 @@
-use family_import_kit::carrier;
-machine inspect(carrier: &Carrier) -> u64 {
-    let family_import_kit: u64 = 0;
-    family_import_kit::Carrier::value(carrier)
-}

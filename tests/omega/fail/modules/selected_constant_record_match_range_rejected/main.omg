@@ -1,4 +1,0 @@
-data Token [copy] where value <= 2 { value: u64; }
-const GOOD: Token = Token { value: 1 };
-const ALIAS: Token = match true { true -> Token { value: 3 }, false -> GOOD };
-machine main() {}

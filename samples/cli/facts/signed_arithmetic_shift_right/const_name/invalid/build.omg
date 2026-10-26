@@ -1,3 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "signed_arithmetic_shift_right_const_name_invalid");
-}

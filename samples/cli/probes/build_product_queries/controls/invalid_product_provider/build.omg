@@ -1,7 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_product_provider");
-    builder.freestanding = true;
-    let provider: ProductProviderRef = BuildProduct::provider(&builder.product, "omega::language::std");
-    let ppath: &[u8] = ProductProviderRef::path(&provider);
-    BuildLog::write_line(&mut builder.log, ppath);
-}

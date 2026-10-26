@@ -1,8 +1,0 @@
-// Expected exit: 0
-machine capacity<Length [copy], const Capacity: u64>(items: Length) -> u64
-where Length == [u8; Capacity]
-{ Capacity }
-machine first() -> u64 { let items: [u8; 2] = [7, 11]; capacity(items) }
-machine second() -> u64 { let items: [u8; 2] = [13, 17]; capacity(items) }
-machine combined() -> bool { let left: u64 = first(); let right: u64 = second(); left == 2 && right == 2 }
-machine main() crashes Trap { let observed: bool = combined(); transition observed { true -> done() _ -> bad() } state done() {} state bad() { crash Trap; } }

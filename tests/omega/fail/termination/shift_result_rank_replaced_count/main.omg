@@ -1,9 +1,0 @@
-machine countdown(remaining: u64, count: u8 in Wrapping) -> u64
-requires remaining <= 2 && count >= 1 && count <= 3;
-terminates by remaining -> Nat::Descending in 0..=(16u64 >> count);
-{
- transition remaining > 0 {
- true -> countdown(remaining - 1, 2 as u8 in Wrapping)
- false -> 0
- }
-}

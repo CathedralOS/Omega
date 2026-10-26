@@ -1,6 +1,0 @@
-// `use <alias>::<module>` selects a specific source file inside the
-// dependency — non-`main` modules import under their file name.
-use kit::other;
-machine entry() -> i32 {
-    other_v()
-}

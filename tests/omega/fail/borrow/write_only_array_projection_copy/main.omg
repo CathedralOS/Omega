@@ -1,2 +1,0 @@
-machine invalid(rows: &write [[i32; 2]; 2]) -> [i32; 2] { rows[0] }
-machine empty(rows: &write [[i32; 0]; 2]) -> [i32; 0] { rows[0] }

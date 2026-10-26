@@ -1,7 +1,0 @@
-use omega::language::core::float_operations;
-
-data Reading { amount: f64 in Finite; }
-
-machine make(value: f64) -> Reading {
-    Reading { amount: value }
-}

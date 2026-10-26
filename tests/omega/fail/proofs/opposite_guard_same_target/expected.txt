@@ -1,2 +1,0 @@
-cannot prove requires contract
-1 == 0

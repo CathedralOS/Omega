@@ -1,6 +1,0 @@
-module configure;
-
-public machine configure(builder: &mut Build) {
-    let entry: ProductEntryRef = BuildProduct::entry(&builder.product, "launch", "windows_x86_64::ProgramEntry");
-    Build::bind(builder, windows_x86_64::ProgramEntry, entry);
-}

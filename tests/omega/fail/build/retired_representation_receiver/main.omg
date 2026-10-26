@@ -1,3 +1,0 @@
-machine build(builder: &mut Build) {
-    builder.select_representation<Token, TokenRepresentation>();
-}

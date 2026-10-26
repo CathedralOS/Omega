@@ -1,6 +1,0 @@
-data Inner [copy] { value: u64; }
-data Other [copy] { value: u64; }
-data Outer [copy] { inner: Inner; }
-const VALUE: Outer = Outer { inner: Other { value: 7 } };
-const SIZE: u64 = VALUE.inner.value;
-machine main() {}

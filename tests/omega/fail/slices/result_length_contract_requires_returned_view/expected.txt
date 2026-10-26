@@ -1,2 +1,0 @@
-cannot prove ensures contract for exit from bogus
-result.len == 2

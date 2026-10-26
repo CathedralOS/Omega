@@ -1,1 +1,0 @@
-bitwise, shift, and modulo operators are defined for integers only

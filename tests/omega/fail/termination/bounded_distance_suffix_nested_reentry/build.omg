@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
- Build::application(builder, "bounded_distance_suffix_nested_reentry");
- Build::bind(builder, macos_arm64::ProgramEntry, program);
-}

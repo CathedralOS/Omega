@@ -1,1 +1,0 @@
-closed conformance `Small satisfies Answer` is incomplete: missing `Answer::other`

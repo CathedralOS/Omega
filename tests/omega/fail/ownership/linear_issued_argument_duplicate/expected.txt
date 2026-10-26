@@ -1,2 +1,0 @@
-cannot use `token`
-after `token` was transferred or consumed

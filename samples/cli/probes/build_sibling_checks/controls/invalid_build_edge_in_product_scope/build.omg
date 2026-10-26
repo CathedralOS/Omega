@@ -1,8 +1,0 @@
-// `kit` is a Build scope edge only: no Product scope row exists for it, so
-// product source must not resolve the alias.
-
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_build_edge_in_product_scope");
-    Build::build_depend_as(builder, "kit", Source::Path { location: "../../sibling_a" });
-    builder.freestanding = true;
-}

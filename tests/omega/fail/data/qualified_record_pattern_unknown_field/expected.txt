@@ -1,1 +1,0 @@
-names `depth`, which is not a field of `Point`

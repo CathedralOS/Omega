@@ -1,2 +1,0 @@
-cannot prove ensures contract for exit from retain
-Owned.content(old(&retained)) == Owned.content(&result)

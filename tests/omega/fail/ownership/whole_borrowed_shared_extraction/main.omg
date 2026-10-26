@@ -1,9 +1,0 @@
-use omega::language::core::drop;
-
-data Inventory [linear] { slots: i32; }
-machine Inventory::drop(inventory: &mut Inventory) {}
-
-machine take_shared(inventory: &Inventory) {
-    let removed: Inventory = inventory;
-    drop(removed);
-}

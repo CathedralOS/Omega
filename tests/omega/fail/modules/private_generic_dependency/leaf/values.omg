@@ -1,4 +1,0 @@
-module values;
-public data Window<T> { marker: T; len: u64; }
-
-machine [..] Window::range<T>(window: &Window<T>, start: u64, end: u64) -> u64 { end }

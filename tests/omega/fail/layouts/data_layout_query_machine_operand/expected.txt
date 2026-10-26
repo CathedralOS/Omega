@@ -1,1 +1,0 @@
-`size_of` takes a data type; a machine declaration is not a data carrier

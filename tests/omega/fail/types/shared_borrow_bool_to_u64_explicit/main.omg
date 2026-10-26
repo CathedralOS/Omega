@@ -1,6 +1,0 @@
-machine read(value: &u64) -> u64 { value }
-machine main() {
-    let value: u64 = 7;
-    let raw: bool = true;
-    let observed: u64 = read(&raw);
-}

@@ -1,3 +1,0 @@
-public machine helper() -> i32 {
-    4
-}

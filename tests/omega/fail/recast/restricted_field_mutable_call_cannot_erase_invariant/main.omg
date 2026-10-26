@@ -1,9 +1,0 @@
-// An unrestricted mutable scalar formal could break the owner's standing bound.
-data Byte where value >= 0 && value <= 1 { value: u8; }
-
-machine write(value: &mut u8) { value = 2; }
-
-machine main() {
-    let mut byte: Byte = Byte { value: 0 };
-    write(&mut byte.value);
-}

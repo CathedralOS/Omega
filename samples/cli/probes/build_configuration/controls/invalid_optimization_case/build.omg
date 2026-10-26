@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_optimization_case");
-    builder.freestanding = true;
-    Optimizations::enable(&mut builder.optimizations, Optimization::NoSuchOpt);
-}

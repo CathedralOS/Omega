@@ -1,6 +1,0 @@
-proposition positive(value: i32) = value > 0;
-data Subject { value: i32; }
-machine change(subject: &mut Subject)
-requires positive(subject.value);
-{ asm where ensures positive(subject.value) { mov subject.value, 0 } }
-machine main() {}

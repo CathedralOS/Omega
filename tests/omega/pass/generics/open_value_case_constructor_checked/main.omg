@@ -1,3 +1,0 @@
-data Tagged<T,Limit:u64>{case At(value:T) where Limit<10;}
-machine make<T>(value:T){let item:Tagged<T,9> = Tagged::At{value:value};}
-machine main(){}

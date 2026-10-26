@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "wire_compatibility_fabricated_activation");
-    let mut counterfeit: Build;
-    Build::require_wire_compatibility<Edge, Lineage, Local, Peer, Readable>(&mut counterfeit);
-}

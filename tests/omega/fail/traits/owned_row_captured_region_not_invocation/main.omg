@@ -1,8 +1,0 @@
-// A map-captured region cannot replace a universally fresh input region.
-trait Reading<Context> {
-    machine read<'item>(context: Context, item: &'item i32) -> i32;
-}
-Reader<'storage> satisfies Reading<&'storage i32> {
-    machine read(context: &'storage i32, item: &'storage i32) -> i32 { item as i32 }
-}
-machine main() {}

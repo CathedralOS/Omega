@@ -1,3 +1,0 @@
-cannot use `receipt` in machine `main` state `entry` (statement 2)
-after `receipt` was transferred or consumed at statement 1
-it holds no value

@@ -1,1 +1,0 @@
-time 2.5 offset 25 alternate 4 default 2500

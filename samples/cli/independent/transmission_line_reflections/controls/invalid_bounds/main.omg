@@ -1,8 +1,0 @@
-// Intended rejection: the calendar has 64 slots, so selector 64 is invalid.
-// This complete source uses no packages; parsing/import failure is not a pass.
-data ArrivalCalendar { voltages: [i32; 64]; }
-machine main() {
-    let mut calendar: ArrivalCalendar;
-    let index: u64 = 64;
-    calendar.voltages[index] = 1;
-}

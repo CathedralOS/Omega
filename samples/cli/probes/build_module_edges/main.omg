@@ -1,4 +1,0 @@
-use kit::util;
-machine entry() -> i32 {
-    flat()
-}

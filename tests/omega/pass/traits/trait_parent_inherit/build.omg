@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "trait_parent_inherit");
-    builder.freestanding = true;
-}

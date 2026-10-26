@@ -1,7 +1,0 @@
-{
-  "source": "intended_invalid/control.omg",
-  "source_sha256": "92dbb1e6e9d59c04bad7f58ad43007650c84c2ec1c373152a8cedbcef610214b",
-  "expected_check_exit": 1,
-  "reason": "array index 64 is outside the 64-element labels array",
-  "independent_predicate": "0 <= index && index < length is false for index=64,length=64"
-}

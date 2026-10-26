@@ -1,3 +1,0 @@
-checked compilation failed for package `invalid_declared_import`
-main.omg: import `custody_kernel::main` names package `custody_kernel`
-declares no product dependency under that alias -- declare `Build::depend(builder, ...)` or `Build::depend_as(builder, \"custody_kernel\", ...)` in its build.omg to add that dependency edge for the product scope

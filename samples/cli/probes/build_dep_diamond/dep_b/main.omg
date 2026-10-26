@@ -1,4 +1,0 @@
-use kit::main;
-public machine right() -> i32 {
-    shared()
-}

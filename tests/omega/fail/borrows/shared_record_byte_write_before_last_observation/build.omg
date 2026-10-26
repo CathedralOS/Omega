@@ -1,3 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "shared_record_byte_write_before_last_observation");
-}

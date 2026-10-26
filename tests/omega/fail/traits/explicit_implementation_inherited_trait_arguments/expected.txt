@@ -1,1 +1,0 @@
-`CardDescending` implements `Descending<Card>`, not the `Ranked<Gem>`

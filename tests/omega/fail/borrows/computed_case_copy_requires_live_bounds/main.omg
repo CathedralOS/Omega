@@ -1,6 +1,0 @@
-// A backing array's capacity cannot authorize selecting outside a view.
-data Kind [copy] { case First; case Second; }
-machine select() -> u64 { 1 }
-machine consume(kind: Kind) {}
-machine copy(cells: &[Kind]) { consume(cells[select()]); }
-machine main() {}

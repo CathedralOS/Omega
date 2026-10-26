@@ -1,1 +1,0 @@
-machine read(values: &[i64 in Wrapping; 0], enabled: bool) -> i64 in Wrapping { transition 0u64 > 0u64 || enabled { true -> (values[0]) _ -> (0) } }

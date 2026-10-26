@@ -1,1 +1,0 @@
-Atomic::fence requires one proof-static FenceOrdering case at operand completion

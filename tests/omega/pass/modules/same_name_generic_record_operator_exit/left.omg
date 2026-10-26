@@ -1,3 +1,0 @@
-module left;
-
-public data Pair<T> { first: T; second: u64; }

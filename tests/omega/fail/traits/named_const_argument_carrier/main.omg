@@ -1,4 +1,0 @@
-const Upper: u64 = 100;
-trait Threshold<const Limit: u32> {}
-Wrong satisfies Threshold<Upper> {}
-machine main() {}

@@ -1,9 +1,0 @@
-// Deployable native canary: only windows_x86_64 provides WindowsFilesystemHost.
-
-machine build(builder: &mut Build) {
-    Build::application(builder, "windows_native_create_write_close_exit");
-    Build::depend(builder, Source::Path {
-        location: "../../../../../source/library/std"
-    });
-    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
-}

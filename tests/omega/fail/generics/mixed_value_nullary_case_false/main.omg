@@ -1,2 +1,0 @@
-data Tagged<T,Limit:u64>{case Empty where Limit<10;}
-machine main(){let item:Tagged<u64,10> = Tagged::Empty;}

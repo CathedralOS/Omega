@@ -1,1 +1,0 @@
-cannot prove index `selected` is within length 2 in replace::entry

@@ -1,3 +1,0 @@
-machine `invalid` state `entry` return value requires mutable source access; shared or immutable storage cannot supply it
-machine `explicit` state `entry` return value requires mutable source access; shared or immutable storage cannot supply it
-machine `generic` state `entry` return value requires mutable source access; shared or immutable storage cannot supply it

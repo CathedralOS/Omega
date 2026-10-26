@@ -1,6 +1,0 @@
-data Slot { scores: [i32; 2]; }
-machine store(slots: &mut [Slot])
-requires slots.len >= 1
-{
-    slots[0].scores[2] = 23;
-}

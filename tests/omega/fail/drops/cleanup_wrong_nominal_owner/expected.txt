@@ -1,1 +1,0 @@
-cleanup machine `Owner::drop` must take exactly one exclusive loan of its own data

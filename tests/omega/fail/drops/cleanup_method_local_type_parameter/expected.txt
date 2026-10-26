@@ -1,2 +1,0 @@
-cleanup machine `Envelope::drop` must take exactly one exclusive loan of its own data
-cleanup machine `Envelope::drop` may not declare method-local lifetime or type parameters

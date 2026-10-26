@@ -1,8 +1,0 @@
-const Count: u64 = 4;
-
-data Wrong<Element [copy], Count> {
-    values: [Element; Count];
-}
-
-data Main { wrong: Wrong<u64, u64>; }
-machine main() {}

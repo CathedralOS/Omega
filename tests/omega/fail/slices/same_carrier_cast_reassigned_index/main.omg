@@ -1,7 +1,0 @@
-machine read(items: &[u8], index: u64 in Wrapping) -> u8
-requires index < items.len;
-{
-    let mut position: u64 = index as u64;
-    position = items.len;
-    items[position]
-}

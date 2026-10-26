@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "materialized_reference_does_not_discharge_linear_owner");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

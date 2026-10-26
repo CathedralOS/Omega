@@ -1,9 +1,0 @@
-data Token { value: u64; }
-data Pair { left: Token; right: Token; }
-data Bundle { whole: Pair; part: Token; }
-machine overlap(selected: bool, pair: Pair) -> Bundle {
-    match selected {
-        true -> Bundle { whole: pair, part: pair.left },
-        false -> Bundle { whole: pair, part: pair.left },
-    }
-}

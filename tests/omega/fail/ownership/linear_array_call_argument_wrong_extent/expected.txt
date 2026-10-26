@@ -1,4 +1,0 @@
-array literal with 1 element(s) to a `[_; 2]` place
-array literal with 2 element(s) to a `[_; 1]` place
-argument `receipts` for state `entry` expects `[[Receipt; 1]; 1]`
-got `match expression`

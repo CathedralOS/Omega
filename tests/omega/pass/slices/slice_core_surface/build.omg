@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "slice_core_surface");
-    builder.freestanding = true;
-}

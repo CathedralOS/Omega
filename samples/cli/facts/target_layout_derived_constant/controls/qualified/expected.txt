@@ -1,1 +1,0 @@
-target-dependent constant evaluation requires an unqualified builtin scalar destination

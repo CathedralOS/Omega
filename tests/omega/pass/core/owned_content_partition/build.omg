@@ -1,3 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "owned_content_partition");
-}

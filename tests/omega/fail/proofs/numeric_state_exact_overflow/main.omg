@@ -1,5 +1,0 @@
-machine small(value: u8) requires value <= 1 { }
-
-machine wrong(value: u8) requires value == 255 {
-    small((value + 1) - 255);
-}

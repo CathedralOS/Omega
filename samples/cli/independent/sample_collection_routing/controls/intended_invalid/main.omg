@@ -1,6 +1,0 @@
-// Complete self-contained source control for the fixed-array bounds rule.
-// It has no package dependency; rejection cannot be confused with std review.
-public data InvalidRoute { events: [u64; 4]; }
-public machine InvalidRoute::main(route: &mut InvalidRoute) {
-    route.events[4] = 1;
-}

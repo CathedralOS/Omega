@@ -1,8 +1,0 @@
-{
-  "name": "wide_bands",
-  "exit": 0,
-  "input_sha256": "ae613619bc11515b54cfee92a0ee661609347c78cb24c1a5f89707617e97a605",
-  "stdout_sha256": "9a09a0d3a031919b2777e5e5c66a9e5e57dd39cb72e4e1f24d3002c0e0b0ba4c",
-  "count": 121,
-  "integer_output_tolerance": 0
-}

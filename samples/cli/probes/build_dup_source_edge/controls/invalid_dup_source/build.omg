@@ -1,6 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_dup_source");
-    builder.freestanding = true;
-    Build::depend(builder, Source::Path { location: "dep" });
-    Build::depend(builder, Source::Path { location: "dep" });
-}

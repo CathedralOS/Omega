@@ -1,9 +1,0 @@
-row=0000 cost=0002 score=0005 feasible=0001 code=0000
-row=0001 cost=0003 score=0008 feasible=0002 code=0004
-row=0002 cost=0004 score=0011 feasible=0003 code=0008
-row=0003 cost=0005 score=0014 feasible=0004 code=0012
-row=0004 cost=0006 score=0017 feasible=0005 code=0016
-row=0005 cost=0007 score=0020 feasible=0006 code=0020
-row=0006 cost=0008 score=0023 feasible=0007 code=0024
-row=0007 cost=0009 score=0026 feasible=0008 code=0028
-minimum=0012

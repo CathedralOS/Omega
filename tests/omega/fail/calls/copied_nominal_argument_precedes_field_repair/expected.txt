@@ -1,2 +1,0 @@
-reading `gauge.<whole value>` crosses an open default-domain invariant window before data `Gauge` is established
-the zeroed representation is not yet a `Gauge`

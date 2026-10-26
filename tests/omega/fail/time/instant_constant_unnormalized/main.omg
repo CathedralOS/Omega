@@ -1,4 +1,0 @@
-use omega_language_std::time;
-
-const INVALID: Instant = Instant { seconds: 0, subsecond_nanoseconds: 1000000000 };
-machine main() {}

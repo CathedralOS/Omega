@@ -1,1 +1,0 @@
-cannot prove requires contract for call subtract_from_15 from probe: rem <= 15

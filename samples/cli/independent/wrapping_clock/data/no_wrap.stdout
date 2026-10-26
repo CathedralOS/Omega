@@ -1,6 +1,0 @@
-row 1 raw 0 timestamp 0 elapsed 0 host 0
-row 2 raw 65535 timestamp 65535 elapsed 65535 host 65535
-wraps 0 dropped 0
-rate 4294836225/4294836225 host_units/tick
-drift 0/4294836225 ppm_vs_one
-max_residual 0/4294836225 host_units

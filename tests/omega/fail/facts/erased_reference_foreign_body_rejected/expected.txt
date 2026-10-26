@@ -1,2 +1,0 @@
-cannot prove requires contract for call keep from selected
-witness == 7

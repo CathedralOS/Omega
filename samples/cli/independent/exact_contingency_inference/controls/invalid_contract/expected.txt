@@ -1,2 +1,0 @@
-cannot prove ensures contract
-result.value == 2

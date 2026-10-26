@@ -1,4 +1,0 @@
-machine spin(remaining: u32)
-requires remaining <= 5
-terminates by remaining in 0..=5;
--> u32 { transition { _ -> spin(remaining) } }

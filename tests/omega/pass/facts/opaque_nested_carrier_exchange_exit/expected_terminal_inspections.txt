@@ -1,3 +1,0 @@
-observe runtime linux_x86_64 libc-inet 66051,513
-observe_replacement runtime linux_x86_64 libc-inet 66051,513,1027
-relay runtime linux_x86_64 opaque-entry

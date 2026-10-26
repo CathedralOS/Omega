@@ -1,1 +1,0 @@
-The encoded field loan crosses a named-state parameter and a forwarding machine before the invalid store. Each transfer must preserve its signed eight-bit physical width; the semantic `i64` loan remains legal.

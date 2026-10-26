@@ -1,9 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "owned_array_operand_epochs_exit");
-    Build::select_provider<ArrayReader::capture, ArrayReaderProvider>(builder);
-    Build::select_provider<ArrayReader::epochs, ArrayReaderProvider>(builder);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-}

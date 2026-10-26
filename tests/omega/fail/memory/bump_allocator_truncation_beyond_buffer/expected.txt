@@ -1,2 +1,0 @@
-cannot prove requires contract for call shrink from invalid
-17 <= vec.buffer.length

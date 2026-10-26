@@ -1,7 +1,0 @@
-// Expected exit: 0. The assertions observe extent, stored value and copy.
-machine size() -> u32 in Saturating { ((4294967295 as u32 in Saturating) + (1 as u32 in Saturating)) / (4294967295 as u32 in Saturating) }
-machine main() crashes Trap {
- let slots: [u8; size()];
- transition slots.len == 1 { true -> done() _ -> bad() }
- state done() { } state bad() { crash Trap; }
-}

@@ -1,3 +1,0 @@
-data Zero where value == 0 { value: u8 in Saturating; }
-machine invalid(value: u8 in Saturating) -> Zero { Zero { value: (value * 2) % 2 } }
-machine main() {}

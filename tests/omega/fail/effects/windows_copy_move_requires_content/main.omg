@@ -1,8 +1,0 @@
-// MOVEFILE_COPY_ALLOWED can copy file contents and attributes across volumes.
-// Namespace reach alone cannot satisfy this unconstrained raw operation.
-use omega_language_std::windows_filesystem_host;
-use omega::language::core::filesystem_authority;
-
-machine move_without_content(from: &[u8] in Path, to: &[u8] in Path) -> i32
-reaches FilesystemNamespaceMutation
-{ block WindowsFilesystemHost::move_file(from, to, 2) }

@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "atomic_order_surface");
-    builder.freestanding = true;
-}

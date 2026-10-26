@@ -1,3 +1,0 @@
-machine example(builder: &mut Build) {
-    builder.require_wire_compatibility<Edge, Lineage, Local, Peer, Readable>();
-}

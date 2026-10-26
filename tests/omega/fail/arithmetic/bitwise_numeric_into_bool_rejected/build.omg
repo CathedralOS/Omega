@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "bitwise_numeric_into_bool_rejected");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

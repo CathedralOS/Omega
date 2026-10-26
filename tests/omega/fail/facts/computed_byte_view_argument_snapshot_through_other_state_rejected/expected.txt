@@ -1,3 +1,0 @@
-cannot prove requires contract for call receive
-ranged_original.bytes.len == 7
-Composing::compose

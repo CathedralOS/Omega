@@ -1,7 +1,0 @@
-use a::main;
-use c::main;
-use e::main;
-
-machine entry() -> i64 {
-    a_value() + c_value() + e_value()
-}

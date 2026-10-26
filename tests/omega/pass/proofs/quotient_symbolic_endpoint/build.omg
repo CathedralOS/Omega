@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "quotient_symbolic_endpoint");
-    builder.freestanding = true;
-}

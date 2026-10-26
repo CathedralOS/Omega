@@ -1,5 +1,0 @@
-// Complete intended-invalid control: scalar index must be below array length.
-data Main { values: [i32; 16]; }
-machine Main::main(main: &mut Main) {
-    main.values[16] = 0;
-}

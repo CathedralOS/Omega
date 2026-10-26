@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "element_view_write");
-    builder.freestanding = true;
-}

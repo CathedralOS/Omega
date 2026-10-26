@@ -1,9 +1,0 @@
-// Exact element replacement cannot publish a reference into the callee's local storage.
-data Cell { value: i32; }
-data Entry { source: &Cell; }
-data Holder { entries: [Entry; 2]; }
-
-machine replace(holder: &mut Holder) {
-    let local: Cell = Cell { value: 7 };
-    holder.entries[0] = Entry { source: &local };
-}

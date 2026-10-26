@@ -1,2 +1,0 @@
-call from `choose` to `risky`
-uncovered Trap crash route

@@ -1,8 +1,0 @@
-// An authored local annotation is a store obligation, not the value's type:
-// a view of `Input` elements cannot be received as a view of `Output`.
-machine view<Element>(items: &[Element]) -> &[Element] { items }
-machine wrong<Input, Output>(items: &[Input]) -> &[Output] {
-    let viewed: &[Output] = view<Input>(items);
-    viewed
-}
-machine main() {}

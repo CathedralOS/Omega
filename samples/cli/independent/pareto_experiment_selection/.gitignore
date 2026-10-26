@@ -1,6 +1,0 @@
-/build/
-/omega.lock
-/omega.review*
-/__pycache__/
-/validation/target/
-/validation/Cargo.lock

@@ -1,8 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_helper_dep");
-    builder.freestanding = true;
-    wire(builder);
-}
-machine wire(builder: &mut Build) {
-    Build::depend_as(builder, "kit", Source::Path { location: "dep" });
-}

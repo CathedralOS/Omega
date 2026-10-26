@@ -1,6 +1,0 @@
-machine choose(flag: bool) -> u64 {
-    match flag {
-        _ -> 1
-        false -> 7 / 2
-    }
-}

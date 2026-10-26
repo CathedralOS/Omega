@@ -1,1 +1,0 @@
-mutates `bytes[7]` while local borrow `value` is still active

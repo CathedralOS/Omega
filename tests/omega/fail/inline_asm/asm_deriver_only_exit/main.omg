@@ -1,7 +1,0 @@
-// Return-from-interrupt is a catalogued instruction, but its availability is
-// deriver-only. A user block cannot bypass the entry StatePlan or manufacture
-// an exit that is absent from Omega's checked state graph.
-data Main {}
-machine Main::main() {
-    asm { iretq }
-}

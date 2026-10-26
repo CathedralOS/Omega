@@ -1,1 +1,0 @@
-A scalar tail observes a field of a call-produced record. Its owned input comes from a nested call or a named local. A third observation interleaves two record-producing arguments with a scalar-producing argument; their shared counter proves left-to-right execution exactly once. The returned fields and final count must agree, and both engines must exit zero.

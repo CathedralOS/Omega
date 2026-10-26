@@ -1,3 +1,0 @@
-package candidate checking failed: checked compilation failed for package `exact_contingency_inference` with 1 diagnostic(s)
-  error: `Main::main` calls `analyze`; `analyze` has no executable body: this compiler does not lower a statement of it yet (structural field store: destination parameter)
-    source-unit 5, bytes 489..504

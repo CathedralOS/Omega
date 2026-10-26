@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "explicit_lifetime_entry_context_unestablished_reference");
-    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
-}

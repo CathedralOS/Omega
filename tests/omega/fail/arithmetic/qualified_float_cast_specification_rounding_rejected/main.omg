@@ -1,5 +1,0 @@
-use omega::language::core::float_operations;
-data Carrier where value >= 0.1, value <= 0.1 {
-    value: f64;
-}
-proposition rounded(carrier: Carrier) = (carrier.value as f32) == 0.1f32;

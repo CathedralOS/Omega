@@ -1,6 +1,0 @@
-{
-  "role": "intended-invalid",
-  "rejection_contains": [
-    "state `receive` receives `holder.line` while local borrow `held` is still active"
-  ]
-}

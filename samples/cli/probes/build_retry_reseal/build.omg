@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "build_retry_reseal");
-    Build::depend_as(builder, "kit", Source::Path { location: "dependency" });
-    builder.freestanding = true;
-}

@@ -1,9 +1,0 @@
-machine collide(left: &mut [i32], right: &[i32]) -> bool
-requires left.len == 1 && right.len == 1 {
-    left[0] = 7;
-    right[0] == 7
-}
-machine main() -> bool {
-    let mut items: [i32; 1] = [1];
-    !collide(&mut items, &items)
-}

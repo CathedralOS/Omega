@@ -1,6 +1,0 @@
-// Zero mathematical remainder cannot waive the unrepresentable common quotient.
-data Zero where value == 0 { value: i8; }
-machine invalid(value: i8) -> Zero requires value == -128 {
-    Zero { value: value % -1 }
-}
-machine main() {}

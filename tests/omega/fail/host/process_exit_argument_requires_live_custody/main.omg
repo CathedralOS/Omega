@@ -1,7 +1,0 @@
-use omega::language::core::process_exit;
-data Token [linear] { value: i32; }
-machine main() reaches ProcessExit {
-    let token: Token = Token { value: 0 };
-    let moved: Token = token;
-    ProcessExit::exit_process(token.value);
-}

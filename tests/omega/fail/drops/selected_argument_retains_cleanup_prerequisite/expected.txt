@@ -1,2 +1,0 @@
-cannot prove automatic cleanup requires
-missing retained.ready == true required by Token::drop

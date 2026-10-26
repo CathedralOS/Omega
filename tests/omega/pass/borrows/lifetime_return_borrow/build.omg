@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "lifetime_return_borrow");
-    builder.freestanding = true;
-}

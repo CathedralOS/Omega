@@ -1,5 +1,0 @@
-data Cell { counter: u64; }
-data Packet { reference: &Cell; }
-machine reject(packet: &Packet) {
-    packet.reference.counter.store(23, NoOrdering);
-}

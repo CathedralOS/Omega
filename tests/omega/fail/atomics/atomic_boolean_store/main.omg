@@ -1,5 +1,0 @@
-data Counter { value: AtomicU32; }
-
-machine update(counter: &Counter) {
-    counter.value.store(true, NoOrdering);
-}

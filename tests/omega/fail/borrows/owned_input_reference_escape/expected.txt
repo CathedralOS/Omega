@@ -1,1 +1,0 @@
-returns a view borrowing the owned input `owned`, which does not outlive the call

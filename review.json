@@ -1,0 +1,46 @@
+{
+  "accepted": true,
+  "candidate": "f00821efc1436f458442cf687e471157d341538a",
+  "reviewer": "/root/fact_a",
+  "decision": "Accept the exact candidate for the demonstrated checked scalar-predicate, unary-bound, dynamic-index and exclusive-call fact mechanism. No unresolved semantic or standards finding remains in the reviewed change.",
+  "scope": [
+    "Nine transport places and their fact-sensitive rejects for checked_predicate_disjoint_loans, including three productions of the same obligation",
+    "Full-carrier necessary relation extraction; independent converse before whole-predicate replacement; exact recursive conclusion substitution",
+    "Exact captured actual identity, bounded equality transport and original proof-formal admission",
+    "Retained audit rejects demonstrated duplicate permissions and preserves target argument correspondence, access, lifetime, parent lineage, moves and descriptor dependencies"
+  ],
+  "evidence": {
+    "public": {
+      "producer": "13375dc5d9c41501f4be4584f52d9f8847823940",
+      "omega_sha256": "4ec7bd6d87f2fafd5217ec1dec209826d72ff901a1b40802d83a0709b3a54353",
+      "native_terminal_agreements": 31,
+      "intended_rejects": 43,
+      "raw": "row-13375dc5d9c41501f4be4584f52d9f8847823940/summary.json",
+      "applicability": "Later semantic delta is retained-audit-only and does not run on the default public compilation path; final delta after16f is metadata and scoped goldens only."
+    },
+    "retained": {
+      "producer": "16fbd2f862483ecc41ba2e7e44e6cb1a5cccbfd5",
+      "checking": {
+        "checked": 30,
+        "intended_rejected": 43,
+        "wrong_reason": 0
+      },
+      "native_terminal_agreements": 30,
+      "custody_unit_tests_passed": 7,
+      "historical_fixture_comparison": {
+        "fixtures": 5,
+        "losses": 0,
+        "gains": 0
+      },
+      "raw": "corpus-16fbd2f862483ecc41ba2e7e44e6cb1a5cccbfd5"
+    },
+    "recursive_regression": "Identical frozen ranked theorem-core source9db3f8d3229f8ab5b1d512951f77483b18ce4f56302b05094222540ada289ee3 checks on baseline16b and candidate133; checking-only evidence.",
+    "integrity": "Independently verified all452 source hashes against their specified133/16f Git objects and current bytes, plus all241 raw-stream/receipt/producer hashes in frozen-evidence.json; no mismatch. Inspected final metadata/golden-only delta and clean status."
+  },
+  "limitations": [
+    "Actual execution observed on macos_arm64 only; other hosted targets are bound but not claimed executed.",
+    "Parent BORROW-PROOF-CONVERGENCE remains open for domain predicates, broader runtime projections and same-statement/theorem premise establishment.",
+    "This acceptance does not claim main landing or remote verification; implementation owner retains publication responsibility.",
+    "Earlier false-start producers and control adaptations remain historical; they are not substituted for final valid-source evidence."
+  ]
+}

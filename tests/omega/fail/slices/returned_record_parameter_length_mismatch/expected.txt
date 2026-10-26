@@ -1,2 +1,0 @@
-cannot prove requires contract for call need from main
-held.values.len == 3

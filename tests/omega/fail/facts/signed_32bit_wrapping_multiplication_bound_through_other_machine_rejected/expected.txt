@@ -1,1 +1,0 @@
-cannot prove requires contract for call forward_prod from probe: prod >= 50 && prod <= 200 (needs fact `mid >= 50 && mid <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`

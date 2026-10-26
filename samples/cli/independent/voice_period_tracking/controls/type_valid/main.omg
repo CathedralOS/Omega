@@ -1,5 +1,0 @@
-// Positive twin: the intended-invalid control differs only at the value.
-data Main { period: i32; }
-machine Main::main(main: &mut Main) {
-    main.period = 3;
-}

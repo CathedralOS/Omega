@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "float_catalog_calls");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-    builder.freestanding = true;
-}

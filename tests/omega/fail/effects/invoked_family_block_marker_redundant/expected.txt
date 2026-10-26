@@ -1,1 +1,0 @@
-call to `emit` has operational envelope neither suspension nor blocking but acknowledges `block`

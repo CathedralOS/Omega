@@ -1,5 +1,0 @@
-machine value(remaining: u64) -> u64
-terminates by remaining -> Nat::Descending
-{
-    remaining
-}

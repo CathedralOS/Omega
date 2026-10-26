@@ -1,6 +1,0 @@
-machine count(small: &[u8], large: &[u8]) -> u64
-ensures result <= large.len { large.len }
-machine rejected(large: &[u8]) -> u64 {
-    let small: [u8; 3];
-    count(&small[..], large) + 1
-}

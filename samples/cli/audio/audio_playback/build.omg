@@ -1,9 +1,0 @@
-// audio_playback: the portable play-a-WAV-buffer-on-the-host boundary shared
-// by the audio samples.
-
-machine build(builder: &mut Build) {
-    Build::package(builder, "audio_playback");
-    Build::depend(builder, Source::Path {
-        location: "../../../../source/library/std"
-    });
-}

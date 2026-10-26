@@ -1,3 +1,0 @@
-domain u32::Clear(value) requires (value & 2) == 0;
-machine accept(value: u32 in Clear) -> u32 { value as u32 }
-machine main() -> u32 { accept(130) }

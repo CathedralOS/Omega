@@ -1,8 +1,0 @@
-// Importing a constant does not expose a sibling's unqualified name.
-use helpers::VISIBLE;
-data Region { base: addr; length: u64; }
-domain Region::Bounded(region)
-requires hidden_geometry_predicate(region.base, region.length);
-machine cut(whole: Region in Bounded, requested: u64) -> addr
-requires requested < whole.length
-{ whole.base + requested }

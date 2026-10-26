@@ -1,1 +1,0 @@
-cannot prove requires contract for call checked from Reader::read: 0 in u64::Positive

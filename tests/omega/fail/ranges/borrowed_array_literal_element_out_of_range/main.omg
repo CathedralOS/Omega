@@ -1,7 +1,0 @@
-// Lending a temporary array does not prove its elements' receiving bounds.
-data Bounded [copy] where value <= 2 {
-    value: u64;
-}
-
-machine accept(values: &[Bounded; 2]) {}
-machine bad() { accept(&[Bounded { value: 0 }, Bounded { value: 3 }]); }

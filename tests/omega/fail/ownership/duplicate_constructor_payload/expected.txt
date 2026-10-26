@@ -1,2 +1,0 @@
-cannot use `choice::Present.value`
-after `choice::Present.value` was transferred or consumed

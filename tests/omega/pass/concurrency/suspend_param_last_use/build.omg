@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "suspend_param_last_use");
-    builder.freestanding = true;
-}

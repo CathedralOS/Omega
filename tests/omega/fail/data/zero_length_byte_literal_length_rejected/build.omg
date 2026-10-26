@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "zero_length_byte_literal_length_rejected");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

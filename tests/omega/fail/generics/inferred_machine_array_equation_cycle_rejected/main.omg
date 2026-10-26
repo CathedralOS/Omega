@@ -1,2 +1,0 @@
-machine circular<Left [copy], Right [copy]>() -> u64 where Left == [Right; 2], Right == [Left; 2] { 0 }
-machine main() { let observed: u64 = circular(); }

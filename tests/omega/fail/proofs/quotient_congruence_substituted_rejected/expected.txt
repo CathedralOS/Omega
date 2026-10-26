@@ -1,1 +1,0 @@
-the selected theorem's requires fact count does not exactly match all relation and representative-legality premises

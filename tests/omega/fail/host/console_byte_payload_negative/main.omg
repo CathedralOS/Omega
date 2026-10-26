@@ -1,5 +1,0 @@
-use omega_language_std::console;
-
-machine main() {
-    let invalid: ByteRead = ByteRead::Byte { value: -1 };
-}

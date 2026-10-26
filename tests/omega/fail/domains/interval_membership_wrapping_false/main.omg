@@ -1,3 +1,0 @@
-domain u8::Small(value) requires value <= 10;
-machine keep(value: u8 in Small & Wrapping) -> u8 { value as u8 }
-machine main() -> u8 { keep(11) }

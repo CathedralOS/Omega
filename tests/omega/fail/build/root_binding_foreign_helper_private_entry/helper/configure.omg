@@ -1,5 +1,0 @@
-module configure;
-
-public machine configure(builder: &mut Build) {
-    Build::bind(builder, windows_x86_64::ProgramEntry, launch);
-}

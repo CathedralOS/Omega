@@ -1,1 +1,0 @@
-Establishing a child cannot discharge the parent's independent `start <= end` constraint. An unfinished container remains unestablished; a previously valid container retains its open invariant window after a child replacement. Both whole-value borrows must reject.

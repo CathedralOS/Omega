@@ -1,2 +1,0 @@
-cannot check prepared project: checked compilation failed for package `invalid_source_move` with 1 diagnostic(s)
-  error: cannot transfer a non-copy value out of borrowed storage without replacing its owner in `build`, state `entry` (statement 2): `builder.source` must hold a value again before this state's exits consume the borrow

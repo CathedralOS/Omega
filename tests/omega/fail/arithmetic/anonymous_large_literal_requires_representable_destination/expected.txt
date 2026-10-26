@@ -1,3 +1,0 @@
-anonymous integer value `18446744073709551615` does not fit destination `u32`
-anonymous integer value `18446744073709551616` does not fit destination `u64`
-anonymous integer value `18446744073709551615` does not fit destination `i64`

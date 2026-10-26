@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_file_source");
-    Build::depend_as(builder, "kit", Source::Path { location: "../../dependency/main.omg" });
-    builder.freestanding = true;
-}

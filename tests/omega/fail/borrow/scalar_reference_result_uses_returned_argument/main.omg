@@ -1,6 +1,0 @@
-machine select<'input>(bounded: &'input u64, other: &'input u64) -> &'input u64 { other }
-machine test(values: &[i64; 2], position: u64, other: u64) -> i64
-requires position <= 1
-{
-    values[select(&position, &other)]
-}

@@ -1,2 +1,0 @@
-machine `read` state `entry` value call to `private_value` violates required fact `input == 2`
-the instantiated fact is structurally false

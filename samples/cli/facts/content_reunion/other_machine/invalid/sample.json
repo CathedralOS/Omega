@@ -1,8 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "result in Region::Owned",
-    "Owned.content(old(&whole)) == Owned.content(&result)"
-  ]
-}

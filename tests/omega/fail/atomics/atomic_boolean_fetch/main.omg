@@ -1,5 +1,0 @@
-data Counter { value: AtomicU32; }
-
-machine update(counter: &Counter) {
-    let prior: u32 in Wrapping = counter.value.fetch_add(true, NoOrdering);
-}

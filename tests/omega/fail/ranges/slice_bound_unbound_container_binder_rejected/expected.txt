@@ -1,2 +1,0 @@
-cannot prove subslice range end bound `..N` is within const extent `M`
-cannot prove subslice range end bound `..Other` is within const extent `Extent`

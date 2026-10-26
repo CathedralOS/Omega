@@ -1,1 +1,0 @@
-statement 4 mutates `view` while local borrow `borrowed` is still active

@@ -1,6 +1,0 @@
-// A float destination does not select IEEE operations for anonymous arithmetic.
-use omega::language::core::float_operations;
-
-machine main() {
-    let value: f64 = 0.0 / 0.0;
-}

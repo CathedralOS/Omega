@@ -1,1 +1,0 @@
-cannot prove ensures contract for exit from perform_shift at statement 0: result >= 80 && result <= 80

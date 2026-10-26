@@ -1,9 +1,0 @@
-// Expected exit: 0. Policy is preserved inside a public structural recipe.
-public data Cells<const Count: u32> [copy] where Count <= 4 {
-    bytes: [u8; ((Count as u32 in Wrapping) + (1 as u32 in Wrapping)) as u32];
-}
-machine main() crashes Trap {
-    let cells: Cells<3>;
-    transition cells.bytes.len == 4 { true -> done() _ -> bad() }
-    state done() {} state bad() { crash Trap; }
-}

@@ -1,7 +1,0 @@
-data Cell [copy] { value: i32; }
-machine reject() -> &mut Cell {
-    let mut items: [Cell; 3];
-    let mut view: &mut [Cell] = &mut items[0..1];
-    view = &mut items[1..2];
-    &mut view[0]
-}

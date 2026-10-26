@@ -1,1 +1,0 @@
-mutates `main.source.second` while local borrow `held` is still active

@@ -1,9 +1,0 @@
-data Receipt { counter: &mut [u64; 1]; value: u64; }
-machine issue(counter: &mut [u64; 1], value: u64) -> Receipt {
-    Receipt { counter: counter, value: value }
-}
-machine main() {
-    let mut counter: [u64; 1] = [0];
-    let borrowed: &Receipt = &issue(&mut counter, 17);
-    let last_use: bool = borrowed.value == 17 && counter[0] == 0;
-}

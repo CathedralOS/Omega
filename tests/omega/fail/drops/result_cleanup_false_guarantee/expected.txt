@@ -1,1 +1,0 @@
-cannot prove ensures contract for exit from make_token

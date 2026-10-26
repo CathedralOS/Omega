@@ -1,5 +1,0 @@
-data Token { ready: bool; value: u64; }
-machine Token::drop(token: &mut Token) requires token.ready { token.ready = false; }
-machine make_token() -> Token ensures result.ready == true { Token { ready: true, value: 7 } }
-machine read(token: &Token) -> u64 { token.value }
-machine main() { let good: Token = make_token(); let bad: Token = Token { ready: false, value: 1 }; }

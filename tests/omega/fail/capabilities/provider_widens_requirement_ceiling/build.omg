@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "provider_widens_requirement_ceiling");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-}

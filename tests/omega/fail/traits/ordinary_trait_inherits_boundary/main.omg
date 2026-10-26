@@ -1,8 +1,0 @@
-boundary trait Device {
-}
-
-trait HiddenDevice: Device {
-}
-
-machine main() {
-}

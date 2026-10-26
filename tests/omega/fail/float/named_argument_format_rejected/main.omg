@@ -1,5 +1,0 @@
-machine take(value: f32) {}
-
-machine run(value: f64) {
-    take(value);
-}

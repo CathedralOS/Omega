@@ -1,1 +1,0 @@
-implicit domain strengthening in argument `c` for state `later` assumes `Ready`

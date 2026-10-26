@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_alias_upper");
-    builder.freestanding = true;
-    Build::depend_as(builder, "KIT", Source::Path { location: "dep" });
-}

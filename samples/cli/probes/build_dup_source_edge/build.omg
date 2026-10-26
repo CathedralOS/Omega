@@ -1,6 +1,0 @@
-// `public` on the build machine is legal — visibility does not change
-// the activation contract.
-public machine build(builder: &mut Build) {
-    Build::application(builder, "build_dup_source_edge");
-    builder.freestanding = true;
-}

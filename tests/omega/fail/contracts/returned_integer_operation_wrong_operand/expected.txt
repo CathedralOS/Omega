@@ -1,2 +1,0 @@
-cannot prove ensures contract for exit from quotient
-cannot prove ensures contract for exit from remainder

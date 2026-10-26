@@ -1,1 +1,0 @@
-assignment expects `Box<u64>`, but the value is delivered as `Box<u32>`

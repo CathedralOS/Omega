@@ -1,3 +1,0 @@
-data Atomic {}
-data FenceOrdering [copy] { case Receive; case Publish; case ReceivePublish; }
-public machine Atomic::fence(ordering: FenceOrdering);

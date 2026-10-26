@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::package(builder, "resident_array_probe");
-    Build::accept_boundary<ResourceProfileSupply>(builder);
-    Build::select_provider<ResourceProfileSupply, MemorySupply>(builder);
-}

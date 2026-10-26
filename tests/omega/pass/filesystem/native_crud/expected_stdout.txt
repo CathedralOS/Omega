@@ -1,1 +1,0 @@
-PASS: native fs CRUD round-trip (create+write+read 17B+close+remove)

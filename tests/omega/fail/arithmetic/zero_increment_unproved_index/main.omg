@@ -1,8 +1,0 @@
-// A zero increment cannot supply an array operand's missing bounds proof.
-machine select(values: &[u64; 3], position: u64) -> u64 {
-    values[position] + 0
-}
-machine main() {
-    let values: [u64; 3] = [1, 2, 3];
-    let selected: u64 = select(&values, 0);
-}

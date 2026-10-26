@@ -1,7 +1,0 @@
-data Bundle<'storage> { value: &'storage i32; }
-machine main() -> i32 {
-    let mut backing: i32 = 42;
-    let bundle: Bundle = Bundle { value: &backing };
-    backing = 39;
-    bundle.value
-}

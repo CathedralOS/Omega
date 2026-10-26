@@ -1,6 +1,0 @@
-const Count: u64 = 8;
-data Storage {
-    Count: u64;
-    bytes: [u8; Count];
-}
-machine main() {}

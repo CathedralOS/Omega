@@ -1,8 +1,0 @@
-// Plain application root for the member-row family. `Build::member`
-// declares a workspace, and a workspace cannot mix with an application
-// or package kind — both directions are pinned under controls/.
-
-machine build(builder: &mut Build) {
-    Build::application(builder, "build_member_rows");
-    builder.freestanding = true;
-}

@@ -1,7 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "semantic_gui_reach");
-    builder.identifier = "com.omega.semantic-gui-reach";
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    builder.subsystem = Subsystem::Gui;
-}

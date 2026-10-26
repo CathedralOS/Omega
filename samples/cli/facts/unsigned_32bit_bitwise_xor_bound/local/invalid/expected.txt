@@ -1,1 +1,0 @@
-cannot prove requires contract for call verify_xored from probe: local_res >= 40 && local_res <= 63

@@ -1,2 +1,0 @@
-# The expected decimal protocol ends each field with a deliberate space.
-expected_stdout.txt -whitespace

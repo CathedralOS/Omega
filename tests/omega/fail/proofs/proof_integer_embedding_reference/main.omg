@@ -1,8 +1,0 @@
-use omega::language::core::float_operations;
-
-// Knowing embed's result type does not make a reference an integer operand.
-machine invalid(value: &u64)
-requires embed(value) >= 0
-{}
-
-machine main() {}

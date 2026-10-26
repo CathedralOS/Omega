@@ -1,7 +1,0 @@
-// A mutable owned formal does not authorize writes under a live shared loan.
-machine replace(mut fraction: f64) -> f64 {
-    let observed: &f64 = &fraction;
-    fraction = 0.5;
-    observed
-}
-machine main() { let value: f64 = replace(0.25); }

@@ -1,8 +1,0 @@
-data Batch<T,const Capacity: u64> { values: [T;Capacity]; }
-machine borrow_batch<'input,T,const Capacity: u64>(batch: &'input Batch<T,Capacity>) -> &'input Batch<T,Capacity> { batch }
-machine mutate(values: &mut [i32]) requires values.len > 0; { values[0] = 7; }
-machine main() {
- let batch: Batch<i32,3> = Batch { values: [0,1,2] };
- let returned: &Batch<i32,3> = borrow_batch(&batch);
- mutate(&mut returned.values);
-}

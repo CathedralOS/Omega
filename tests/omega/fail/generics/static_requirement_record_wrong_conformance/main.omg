@@ -1,8 +1,0 @@
-use omega::language::core::float_operations;
-data Observation<Value [copy]> [copy] { value: Value; }
-trait Arithmetic<Value [copy]> { machine plus(left: Value, right: Value) -> Value; }
-Integer satisfies Arithmetic<i32> { machine plus(left: i32, right: i32) -> i32 { left + right } }
-machine wrap<Value [copy], Operations satisfies Arithmetic<Value>>(value: Value) -> Observation<Value> {
-    Observation { value: Arithmetic::plus<Value, Operations>(value, value) }
-}
-machine main() { let result: Observation<f64> = wrap<f64, Integer>(0.25); }

@@ -1,7 +1,0 @@
-proposition valid<const Length: u64>(value: &[u8; Length]);
-
-machine inspect(value: &[u8; 4])
-requires valid<3u64>(value);
-{}
-
-machine main() {}

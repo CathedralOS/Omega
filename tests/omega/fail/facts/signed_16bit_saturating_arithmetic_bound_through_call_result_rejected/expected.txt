@@ -1,1 +1,0 @@
-cannot prove requires contract for call verify_sum from exercise: sum >= 350 && sum <= 600

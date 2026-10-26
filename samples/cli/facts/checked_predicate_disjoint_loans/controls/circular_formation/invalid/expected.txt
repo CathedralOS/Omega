@@ -1,2 +1,0 @@
-cannot prove requires contract for specification call `distinct`
-independently formed prior requires fact

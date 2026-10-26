@@ -1,5 +1,0 @@
-const payload: u64 = 0;
-data Inner [copy] { value: u64; }
-data Packet [copy] where payload.value <= 7 { payload: Inner; }
-const INVALID: Packet = Packet { payload: Inner { value: 8 } };
-machine main() -> u64 { 0 }

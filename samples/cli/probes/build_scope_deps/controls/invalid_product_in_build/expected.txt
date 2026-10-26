@@ -1,3 +1,0 @@
-checked compilation failed for package `invalid_product_in_build`
-build.omg names product dependency `kit` (package `scope_kernel`
-a build import may only select build dependencies -- declare `builder.build_depend_as(\"kit\", ...)` in the root build.omg to select that package for the build scope

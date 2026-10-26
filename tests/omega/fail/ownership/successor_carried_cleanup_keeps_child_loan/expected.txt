@@ -1,1 +1,0 @@
-state `entered` receives `counter` while local borrow `cleanup` is still active

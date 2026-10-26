@@ -1,7 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_declared_attribution");
-    Build::depend_as(builder, "a", Source::Path { location: "../../sibling_a" });
-    Build::depend_as(builder, "bad", Source::Path { location: "../../sibling_declared" });
-    Build::depend_as(builder, "c", Source::Path { location: "../../sibling_c" });
-    builder.freestanding = true;
-}

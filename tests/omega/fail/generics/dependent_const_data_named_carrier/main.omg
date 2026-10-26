@@ -1,3 +1,0 @@
-const Upper: u32 = 4;
-data Token<Value, const Count: Value> {}
-data Uses { value: Token<u64, Upper>; }

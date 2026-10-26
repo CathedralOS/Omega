@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "trait_member_effects");
-    Build::select_provider<Sink, SinkProvider>(builder);
-    builder.freestanding = true;
-}

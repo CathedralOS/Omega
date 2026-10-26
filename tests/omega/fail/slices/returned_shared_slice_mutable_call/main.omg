@@ -1,9 +1,0 @@
-machine middle(items: &mut [i32; 3]) -> &[i32] { &items[1..2] }
-machine write(items: &mut [i32]) requires items.len > 0 { items[0] = 27; }
-machine main() crashes Trap {
- let mut items: [i32; 3]; items[0]=11; items[1]=39; items[2]=13;
- let selected: &[i32] = middle(&mut items);
- write(selected);
- transition items[0]==11 && items[1]==27 && items[2]==13 { true -> done() _ -> bad() }
- state done() {} state bad() { crash Trap; }
-}
