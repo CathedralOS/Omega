@@ -40,6 +40,8 @@ pub(crate) struct CallAccesses<'unit> {
     boundaries: Vec<&'unit BoundaryMachineDeclaration>,
     pub(crate) dynamic_dispatch: &'unit terminal_psi::TerminalDynamicDispatchCatalog,
     pub(super) references: super::references::call_effects::ReferenceCallEffects,
+    view_graph: Option<Vec<terminal_semantics::descriptor_results::DescriptorMachine>>,
+    borrowed_origins: std::cell::RefCell<BTreeMap<MachineId, BorrowedRegions>>,
 }
 
 impl<'unit> CallAccesses<'unit> {
@@ -56,16 +58,51 @@ impl<'unit> CallAccesses<'unit> {
             dynamic_dispatch,
             types,
         );
+        let declarations = types.values().copied().cloned().collect::<Vec<_>>();
+        let view_graph = crate::descriptor_results::optimized_catalog_graph(
+            functions.values().copied(),
+            boundaries.iter().copied(),
+            &declarations,
+            dynamic_dispatch,
+            |_, node| Some(std::borrow::Cow::Borrowed(&node.operation)),
+        );
+        let mut analysis = view_graph.as_ref().map(|graph| {
+            terminal_semantics::descriptor_results::DescriptorAnalysis::new(&declarations, graph)
+        });
+        let borrowed_origins = functions
+            .iter()
+            .map(|(machine, function)| {
+                (
+                    *machine,
+                    BorrowedRegions::origins_with_analysis(
+                        function,
+                        &declarations,
+                        view_graph.as_deref(),
+                        analysis.as_mut(),
+                        types,
+                    ),
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
         let mut result = Self {
             functions: BTreeMap::new(),
             boundaries,
             dynamic_dispatch,
             references,
+            view_graph,
+            borrowed_origins: std::cell::RefCell::new(BTreeMap::new()),
         };
         let mut closed_storage = BTreeMap::new();
         for machine in functions.keys() {
-            result.reconstruct(*machine, functions, types, &mut closed_storage);
+            result.reconstruct(
+                *machine,
+                functions,
+                types,
+                &borrowed_origins,
+                &mut closed_storage,
+            );
         }
+        *result.borrowed_origins.borrow_mut() = borrowed_origins;
         result
     }
 
@@ -73,11 +110,33 @@ impl<'unit> CallAccesses<'unit> {
         &self.boundaries
     }
 
+    pub(crate) fn view_graph(
+        &self,
+    ) -> Option<&[terminal_semantics::descriptor_results::DescriptorMachine]> {
+        self.view_graph.as_deref()
+    }
+
+    pub(crate) fn has_descriptor_call_origins(
+        &self,
+        caller: MachineId,
+        result: PlaceId,
+    ) -> Option<bool> {
+        self.borrowed_origins
+            .borrow()
+            .get(&caller)
+            .map(|origins| origins.has_returned_call_origins(result))
+    }
+
+    pub(super) fn take_borrowed_origins(&self, machine: MachineId) -> Option<BorrowedRegions> {
+        self.borrowed_origins.borrow_mut().remove(&machine)
+    }
+
     fn reconstruct(
         &mut self,
         machine: MachineId,
         functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+        borrowed_origins: &BTreeMap<MachineId, BorrowedRegions>,
         closed_storage: &mut BTreeMap<StructuralTypeId, bool>,
     ) {
         if self.functions.contains_key(&machine) {
@@ -85,23 +144,17 @@ impl<'unit> CallAccesses<'unit> {
         }
         // An in-progress recursive closure has no proved summary yet.
         self.functions.insert(machine, None);
-        let Some(function) = functions.get(&machine) else {
+        let (Some(function), Some(origins)) = (functions.get(&machine), borrowed_origins.get(&machine))
+        else {
             return;
         };
-        let origins = BorrowedRegions::origins(
-            function,
-            functions,
-            &self.boundaries,
-            self.dynamic_dispatch,
-            types,
-        );
         let mut writes = Vec::<ParameterMutation>::new();
         for node in function.block_nodes() {
             if let O::CallStructural { callee, .. } = &node.operation {
                 let Some(machine) = callee.machine() else {
                     return;
                 };
-                self.reconstruct(machine, functions, types, closed_storage);
+                self.reconstruct(machine, functions, types, borrowed_origins, closed_storage);
                 if !self.functions.get(&machine).is_some_and(Option::is_some) {
                     return;
                 }

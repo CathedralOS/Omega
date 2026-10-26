@@ -137,7 +137,11 @@ pub(super) fn index_and_validate_unit_catalogs<'unit>(
         super::activation_storage::validate(unit, function)?;
         validate_structural_field_range_authority(unit, function, &structural_types)?;
     }
-    crate::current_ownership::validate_descriptor_compatibility(unit, &descriptor_requirements)?;
+    crate::current_ownership::validate_descriptor_compatibility(
+        unit,
+        &descriptor_requirements,
+        call_accesses.view_graph(),
+    )?;
     Ok(UnitIndexes {
         machines,
         boundary_machines,

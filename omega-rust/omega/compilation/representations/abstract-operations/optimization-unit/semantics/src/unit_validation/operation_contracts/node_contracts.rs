@@ -22,6 +22,7 @@ pub(super) fn validate_node_operation_contracts(
     services: &BTreeMap<ServiceId, &terminal_psi::ServiceDeclaration>,
     structural_types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     structural_domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
+    call_accesses: &crate::current_ownership::CallAccesses,
 ) -> Result<(), OptimizationUnitValidationError> {
     if !operation_scalar_types_match(
         unit,
@@ -47,6 +48,7 @@ pub(super) fn validate_node_operation_contracts(
         boundary_machines,
         structural_types,
         structural_domains,
+        call_accesses,
     ) {
         return Err(
             OptimizationUnitValidationError::StructuralCallContractMismatch(OperationSite::new(

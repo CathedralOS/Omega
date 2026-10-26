@@ -14,8 +14,9 @@ pub fn identity(plan: &LegalizedOperationPlan) -> LegalizedOperationPlanIdentity
     crate::codec_bytes::push_encoded(&mut bytes, plan.entry.get().to_le_bytes());
     bytes.extend_from_slice(b"ordinary-scalar-graph.v33\0");
     encode_len(&mut bytes, plan.scalar_functions.len());
+    let mut cached_catalog = None;
     for function in &plan.scalar_functions {
-        super::scalar_graph::encode(&mut bytes, function);
+        super::scalar_graph::encode(&mut bytes, function, &mut cached_catalog);
     }
     LegalizedOperationPlanIdentity::from_canonical_bytes(&bytes)
 }
