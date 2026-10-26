@@ -11464,6 +11464,27 @@ fail/facts/shared_borrow_field_projection_through_target_body_rejected rejected 
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/shared_byte_view_rebinding_through_call_result_rejected rejected 522ms expected @5fe2ed4548de
+	machine `replace` state `entry` assignment requires mutable source access through every reference crossed by its destination
+fail/facts/shared_byte_view_rebinding_through_const_name_rejected rejected 514ms expected @5fe2ed4548de
+	machine `replace` state `entry` assignment requires mutable source access through every reference crossed by its destination
+fail/facts/shared_byte_view_rebinding_through_field_rejected rejected 507ms expected @5fe2ed4548de
+	machine `replace` state `entry` assignment requires mutable source access through every reference crossed by its destination
+fail/facts/shared_byte_view_rebinding_through_local_rejected rejected 582ms expected @5fe2ed4548de
+	machine `replace` state `entry` assignment requires mutable source access through every reference crossed by its destination
+fail/facts/shared_byte_view_rebinding_through_match_join_rejected rejected 542ms expected @5fe2ed4548de
+	machine `replace` state `entry` assignment requires mutable source access through every reference crossed by its destination
+fail/facts/shared_byte_view_rebinding_through_other_machine_rejected rejected 511ms expected @5fe2ed4548de
+	machine `replace` state `entry` assignment requires mutable source access through every reference crossed by its destination
+fail/facts/shared_byte_view_rebinding_through_other_state_rejected rejected 545ms expected @5fe2ed4548de
+	machine `replace` state `entry` assignment requires mutable source access through every reference crossed by its destination
+fail/facts/shared_byte_view_rebinding_through_parameter_rejected rejected 532ms expected @5fe2ed4548de
+	machine `replace` state `entry` assignment requires mutable source access through every reference crossed by its destination
+fail/facts/shared_byte_view_rebinding_through_target_body_rejected rejected 579ms expected @5fe2ed4548de
+	machine `replace` state `entry` assignment requires mutable source access through every reference crossed by its destination
+	machine `replace` state `entry` assignment requires mutable source access through every reference crossed by its destination
+	machine `replace` state `entry` assignment requires mutable source access through every reference crossed by its destination
+	machine `replace` state `entry` assignment requires mutable source access through every reference crossed by its destination
 fail/facts/shared_qualification_erasure_through_call_result_rejected rejected 981ms expected @a92f16431042
 	machine `main` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
 fail/facts/shared_qualification_erasure_through_const_name_rejected rejected 133ms expected @a92f16431042
@@ -25088,6 +25109,15 @@ pass/facts/shared_borrow_field_projection_through_other_machine_exit checked 342
 pass/facts/shared_borrow_field_projection_through_other_state_exit checked 3257ms check-target:macos_arm64 @a92f16431042
 pass/facts/shared_borrow_field_projection_through_parameter_exit checked 3079ms check-target:macos_arm64 @a92f16431042
 pass/facts/shared_borrow_field_projection_through_target_body_exit checked 2939ms check-target:macos_arm64 @a92f16431042
+pass/facts/shared_byte_view_rebinding_through_call_result_exit checked 1573ms check-target:macos_arm64 @5fe2ed4548de
+pass/facts/shared_byte_view_rebinding_through_const_name_exit checked 1556ms check-target:macos_arm64 @5fe2ed4548de
+pass/facts/shared_byte_view_rebinding_through_field_exit checked 1591ms check-target:macos_arm64 @5fe2ed4548de
+pass/facts/shared_byte_view_rebinding_through_local_exit checked 1567ms check-target:macos_arm64 @5fe2ed4548de
+pass/facts/shared_byte_view_rebinding_through_match_join_exit checked 1572ms check-target:macos_arm64 @5fe2ed4548de
+pass/facts/shared_byte_view_rebinding_through_other_machine_exit checked 1561ms check-target:macos_arm64 @5fe2ed4548de
+pass/facts/shared_byte_view_rebinding_through_other_state_exit checked 1552ms check-target:macos_arm64 @5fe2ed4548de
+pass/facts/shared_byte_view_rebinding_through_parameter_exit checked 1665ms check-target:macos_arm64 @5fe2ed4548de
+pass/facts/shared_byte_view_rebinding_through_target_body_exit checked 1671ms check-target:macos_arm64 @5fe2ed4548de
 pass/facts/shared_qualification_erasure_through_call_result_exit checked 2328ms check-target:macos_arm64 @a92f16431042
 pass/facts/shared_qualification_erasure_through_const_name_exit checked 15458ms check-target:macos_arm64 @a92f16431042
 pass/facts/shared_qualification_erasure_through_field_exit checked 4082ms check-target:macos_arm64 @a92f16431042

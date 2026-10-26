@@ -35,6 +35,7 @@ replacement's new loan, and a descriptor used for a write-through operation.
 An effectful selector returns zero once, changes a cursor to one, and an RHS
 producer changes it to three; both engines must still replace element zero.
 
-Nine-place execution and final independent review are in progress. Only Linux
-x86-64 is available here; other target bindings do not claim native execution on
-those hosts. The whole TASKS.md outcome remains open.
+All nine development positives execute native 0 and Terminal 0 on Linux x86-64;
+all nine wrong-slot twins reject the intended active loan. Final qualification
+and independent receipt review accompany the PR. Other target bindings do not
+claim native execution on those hosts. The whole TASKS.md outcome remains open.
