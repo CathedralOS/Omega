@@ -48,6 +48,8 @@ impl TypedTrees {
             source_subject
         };
         let mut application = CallableApplication {
+            // This is a logical theory view, not a fresh executable signature.
+            owned_signature: SymbolHandle::invalid(),
             region_scope: declaration,
             trait_region_application: None,
             lifetime_declaration: declaration,
