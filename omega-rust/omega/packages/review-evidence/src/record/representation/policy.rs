@@ -56,10 +56,7 @@ pub struct PackagePolicyRepresentationDemand {
 }
 
 impl PackagePolicyRepresentation {
-    pub const fn package(&self) -> PackageKeyIdentity {
-        self.package
-    }
-
+    crate::record::accessors::record_accessors!(package);
     pub const fn target(&self) -> PackageReviewRepresentationTarget {
         self.target
     }

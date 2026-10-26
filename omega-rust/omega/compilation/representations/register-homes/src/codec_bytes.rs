@@ -14,6 +14,31 @@ pub(crate) fn length(bytes: &mut Vec<u8>, value: usize, artifact: &'static str) 
     );
 }
 
+/// The v2 terminal target row bound by the fixed-view-copy codec and every
+/// fixed-precolored plan identity, in one canonical order: architecture,
+/// object format, then u64 pointer size and alignment.
+pub(crate) fn encode_target(bytes: &mut Vec<u8>, target: target::NativeTarget) {
+    bytes.push(match target.architecture {
+        target::Architecture::X86_64 => 0,
+        target::Architecture::Aarch64 => 1,
+    });
+    bytes.push(match target.object_format {
+        target::ObjectFormat::Elf => 0,
+        target::ObjectFormat::MachO => 1,
+        target::ObjectFormat::Coff => 2,
+    });
+    bytes.extend_from_slice(
+        &u64::try_from(target.pointer_size)
+            .expect("terminal target pointer size fits u64")
+            .to_le_bytes(),
+    );
+    bytes.extend_from_slice(
+        &u64::try_from(target.pointer_alignment)
+            .expect("terminal target pointer alignment fits u64")
+            .to_le_bytes(),
+    );
+}
+
 /// 0/1 tag followed by the payload only when present.
 pub(crate) fn option<T>(
     bytes: &mut Vec<u8>,

@@ -253,6 +253,9 @@ pub enum ScalarReadProjection {
     /// An explicit live descriptor crossing, never inline field geometry or
     /// permission to observe storage without its retained loan custody.
     Referent,
+    /// Observe the selected descriptor's current element/byte count. This is
+    /// a terminal observation, never an inline field or an index bound.
+    Extent,
     Static(CanonicalStructuralPathSegment),
     Index(Box<ScalarTerm>),
 }
@@ -990,7 +993,9 @@ impl ScalarTerm {
                 .iter()
                 .filter_map(|segment| match segment {
                     ScalarReadProjection::Index(index) => Some(index.as_ref()),
-                    ScalarReadProjection::Static(_) | ScalarReadProjection::Referent => None,
+                    ScalarReadProjection::Static(_)
+                    | ScalarReadProjection::Referent
+                    | ScalarReadProjection::Extent => None,
                 })
                 .collect();
         }
@@ -1004,7 +1009,9 @@ impl ScalarTerm {
                 .iter_mut()
                 .filter_map(|segment| match segment {
                     ScalarReadProjection::Index(index) => Some(index.as_mut()),
-                    ScalarReadProjection::Static(_) | ScalarReadProjection::Referent => None,
+                    ScalarReadProjection::Static(_)
+                    | ScalarReadProjection::Referent
+                    | ScalarReadProjection::Extent => None,
                 })
                 .collect();
         }

@@ -2,7 +2,7 @@
 
 use crate::byte_sequences::binding::ByteSequenceBinding;
 use semantic_vocabulary::{IntegerSign, IntegerType, ValueId};
-use terminal_psi::{Operation, OperationKind, StructuralAccess, StructuralMultiplicity};
+use terminal_psi::{Operation, OperationKind, StructuralAccess};
 
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
@@ -79,10 +79,8 @@ impl TerminalExecution<'_> {
             || !result.projected_qualifications.is_empty()
             || !result.qualification_establishments.is_empty()
             || !result.claims.is_empty()
-            || self
-                .live_claims
-                .values()
-                .any(|claim| claim.place == Some(source.place) || claim.place == Some(result.place))
+            || crate::custody::place_is_claimed(&self.live_claims, source.place)
+            || crate::custody::place_is_claimed(&self.live_claims, result.place)
             || self.live_affine_discard_at(result.place).is_some()
         {
             return Err(malformed());
@@ -103,12 +101,7 @@ impl TerminalExecution<'_> {
             _ => return Err(malformed()),
         }
         let mut identity_cursor = self.local_structural_identities.cursor();
-        let destination = TerminalStructuralValue::minted(
-            self.local_structural_identities
-                .allocate_staged(&mut identity_cursor)?,
-            result.structural_type,
-            Vec::new(),
-        );
+        let destination = self.mint_staged(&mut identity_cursor, result.structural_type)?;
         let (destination, view) = self.narrow_byte_sequence_binding(
             &binding,
             &source_value,
@@ -124,14 +117,7 @@ impl TerminalExecution<'_> {
             .commit_cursor(identity_cursor);
         self.byte_sequence_values.insert(result.place, view)?;
         self.structural_values.insert(result.place, destination)?;
-        if result.multiplicity == StructuralMultiplicity::Affine {
-            self.live_affine_frontier
-                .insert(terminal_psi::StructuralAffineDiscard {
-                    place: result.place,
-                    path: Vec::new(),
-                    structural_type: result.structural_type,
-                });
-        }
+        self.track_affine_result(result);
         Ok(())
     }
     /// Capture a window of an authenticated byte binding before publication.

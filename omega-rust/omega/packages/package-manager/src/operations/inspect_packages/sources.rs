@@ -28,7 +28,7 @@ pub(super) fn review(
     root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
     session: &mut PackageBuildSession,
     source_bindings: &mut PackageSourceBindings,
-    execute: crate::review::PackageReviewExecutor,
+    execute: &mut crate::review::PackageReviewExecutor<'_>,
 ) -> Result<
     (
         CanonicalSourceClosureSubject,

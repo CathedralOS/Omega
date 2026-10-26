@@ -12,7 +12,10 @@ pub(super) fn validate_owned_arguments(
 ) -> Option<()> {
     for argument in &call.arguments {
         let LegalizedScalarArgument::Structural {
-            semantic, target, ..
+            semantic,
+            target,
+            indices,
+            ..
         } = argument
         else {
             continue;
@@ -22,7 +25,7 @@ pub(super) fn validate_owned_arguments(
         }
         let shape = super::owned_value_shape(source, target.structural_type)?;
         let types = &source.structural.as_ref()?.structural_types;
-        let (selected, offset, indices) =
+        let (selected, offset, elements) =
             crate::structural_inputs::structural_reference_input::runtime_projection(
                 target.root_structural_type,
                 &semantic.path,
@@ -36,8 +39,19 @@ pub(super) fn validate_owned_arguments(
             || target.shape != shape
             || target.destination.shape != shape
             || target.source_byte_offset != offset
-            || !indices.is_empty()
-            || !target.indices.is_empty()
+            || !crate::structural_inputs::structural_reference_input::runtime_indices_match(
+                indices, &elements,
+            )
+            || target.indices.len() != indices.len()
+            || target
+                .indices
+                .iter()
+                .zip(indices)
+                .any(|(target, selected)| {
+                    target.operand.source_value() != selected.operand.value
+                        || target.operand.scalar_type() != selected.operand.scalar_type
+                        || target.stride != selected.stride
+                })
             || target.fixed_array_length.is_some()
             || target.element_stride.is_some()
             || !crate::selection::aggregate_result_input::owned_argument_placement(

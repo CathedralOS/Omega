@@ -38,6 +38,8 @@ pub struct TerminalBoundaryStorageValue {
 
 #[derive(Debug)]
 pub struct TerminalBoundaryStructuralBuffer {
+    pub(super) original_storage:
+        Option<crate::effects::original_storage::TerminalOriginalStorageLoan>,
     pub(super) identity: Arc<()>,
     pub(super) argument_index: usize,
     pub(super) access: StructuralAccess,
@@ -46,6 +48,11 @@ pub struct TerminalBoundaryStructuralBuffer {
 }
 
 impl TerminalBoundaryStructuralBuffer {
+    pub fn original_storage(
+        &self,
+    ) -> Option<&crate::effects::original_storage::TerminalOriginalStorageLoan> {
+        self.original_storage.as_ref()
+    }
     pub fn argument_index(&self) -> usize {
         self.argument_index
     }
@@ -418,6 +425,7 @@ pub(crate) fn capture(
     array_loan: Option<&crate::element_views::ElementView>,
     access: StructuralAccess,
     leaves: &[StorageLeaf],
+    normal_qualifications: &[semantic_vocabulary::StructuralDomainId],
 ) -> Result<(Vec<TerminalBoundaryStorageValue>, Vec<PinnedScalar>), TerminalInterpretError> {
     let mut values = Vec::new();
     let mut endpoints = Vec::new();
@@ -438,8 +446,12 @@ pub(crate) fn capture(
                 // Owned payload snapshots publish no replacement or loan. Their
                 // qualifications remain on the consumed argument; a read cannot
                 // weaken that owner or manufacture another qualified value.
-                if access != StructuralAccess::Owned {
-                    execution.validate_scalar_loan_qualifications(&storage)?;
+                if access == StructuralAccess::MutableBorrow {
+                    execution.validate_scalar_loan_restoration(
+                        &storage,
+                        &crate::values::StructuralRuntimePlace::from(referent),
+                        normal_qualifications,
+                    )?;
                 }
                 let value = execution.read_primitive_storage(
                     source,

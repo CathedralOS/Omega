@@ -26,8 +26,39 @@ pub struct PreparedPackageBuild {
 }
 
 impl PreparedPackageBuild {
+    /// Select a realization context from one completed Build. The source
+    /// continuation, executed effects and charges remain shared. Target-local
+    /// permissions are supplied by the product request, never copied here.
+    pub fn select_target(
+        &self,
+        target: TargetProfile,
+        inputs: PackageCompilationInputs,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let execution = self.prepared.build_sources.build_execution_profile;
+        inputs.validate_execution_context(Some(target), execution)?;
+        if package_compilation::SourceAssemblyInputs::new(Some(&inputs), execution)
+            != package_compilation::SourceAssemblyInputs::new(Some(&self.inputs), execution)
+            || inputs.semantic_role_discovery() != self.inputs.semantic_role_discovery()
+            || !inputs
+                .accepted_semantic_bindings()
+                .eq(self.inputs.accepted_semantic_bindings())
+        {
+            return Err(vec![Diagnostic::error(
+                "completed Build target selection cannot change its source or semantic admission",
+            )]);
+        }
+        Self::seal(
+            self.root_path.clone(),
+            target,
+            inputs,
+            self.rollback.clone(),
+            self.prepared.clone(),
+            self.permit_unsettled_fused_service_fields,
+        )
+    }
+
     /// Compare complete source-completion inputs after each activation has
-    /// independently admitted and executed Build. Target stamps, grants and
+    /// completed Build. Target stamps, grants and
     /// independent-component descriptions are realization inputs, not source.
     /// Pending typing/evaluation state must match, not merely Build's value.
     pub fn same_product_source(&self, other: &Self) -> bool {
@@ -39,8 +70,10 @@ impl PreparedPackageBuild {
             // Execution receipts and charges remain on each activation. They
             // cannot partition source work, nor be replaced by a sibling's.
             && build.config == other_build.config
+            && build.root_binding_requests == other_build.root_binding_requests
             && build.selected_build_machine_symbol == other_build.selected_build_machine_symbol
             && build.generated_sources == other_build.generated_sources
+            && build.project_declaration == other_build.project_declaration
             && self.prepared.built.admission.application
                 == other.prepared.built.admission.application
             && package_compilation::SourceAssemblyInputs::new(

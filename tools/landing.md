@@ -7,15 +7,18 @@ author rebase/review merely because main advanced.
 
 ## Submit a finished change
 
-Work in an isolated worktree. Finish focused checks and any explicitly required
-review on the submitted source. Record the actual revision, commands, results,
-known limitations and claim ticket in the PR. Required review follows changes to
-meaning, not each queue-generated SHA. Resolve actual conflicts or failed checks;
-do not repeatedly refresh an otherwise eligible PR against moving main.
+Work in an isolated detached-HEAD worktree (`git worktree add --detach .agents/worktree/<short-name> origin/main`).
+Never develop or edit files in the primary repository checkout, and never create local named branches.
+Finish focused checks and any explicitly required review on the submitted source.
+Never chase main by rebasing, rebuilding, or re-running gates: once the PR is submitted,
+GitHub Actions CI executes the integration build and checks in the merge queue.
+Record the actual revision, commands, results, known limitations and claim ticket in the PR.
+Required review follows changes to meaning, not each queue-generated SHA.
+Resolve actual conflicts or failed checks; do not repeatedly refresh an otherwise eligible PR against moving main.
 
 Python 3, Git and an authenticated GitHub CLI (`gh`) work on Windows, macOS and
 Linux. Commands below use `python`; use `python3` if that is its installed name.
-Choose a unique `work/NAME` branch and replace `NUMBER` and `FULL_HEAD_SHA` with
+Choose a unique remote ref name `work/NAME` and replace `NUMBER` and `FULL_HEAD_SHA` with
 the PR number and the full output of `git rev-parse HEAD`:
 
 ```text
@@ -79,15 +82,18 @@ compiler. A queue-created SHA alone does not require fresh author tests or
 review. Source edits, conflict resolutions and demonstrated changed assumptions
 do require affected validation. See [testing](testing.md#main-change-validation).
 
-The independent **Compiler regression** workflow runs executable Linux
-native/Terminal smoke and rejection controls after merge and nightly. It
-finishes its active run and coalesces pending pushes to the newest revision.
-Canceled superseded runs are unmeasured, not green. Its failures are visible CI
-failures, not admission failures retroactively assigned to every queued author.
-The author of the regressing PR owns repair or revert; until attributed, the
-first observing session records the failing run and takes triage ownership in
-claims. Prefer a focused repair; revert through the queue when repair is not
-promptly tractable. Do not disable the check, rewrite its oracle or call it green.
+The independent **Post-merge smoke** workflow (`.github/workflows/compiler-regression.yml`)
+runs executable Linux native/Terminal smoke and rejection controls after merge
+and nightly. It finishes its active run and coalesces pending pushes to the
+newest revision. Canceled superseded runs are unmeasured, not green, and an
+older failed run is resolved once a newer `main` commit succeeds. Its failures
+are visible CI failures, not admission failures retroactively assigned to every
+queued author. Sessions working on an active capability or sample ignore
+unrelated `main` failures and preserve their warm base. The author of the
+regressing PR owns repair or revert; otherwise at most one unassigned session
+claims the failure (`REGRESSION-<sha>`) in `claims.py` and drives a focused
+repair or revert through the queue. Do not disable the check, rewrite its
+oracle or call it green.
 Full release and other-host qualification remain separate. This initial hosted
 regression set is not full corpus, cross-host or Cathedral boot acceptance.
 
@@ -105,12 +111,13 @@ git merge-base --is-ancestor PUBLISHED_SHA origin/main
 
 Squash publication means the local source HEAD need not be an ancestor of main.
 The merged PR binds that source to publication. Preserve both IDs and the PR/run
-URLs. Only then release the work claim and remove task-owned, clean worktrees
-and branches if no processes or unique evidence still need them. Inspect status
-and ensure HEAD still equals the merged PR head before removal. Never clean
-another session's work, shared caches, dirty trees or unsubmitted later commits.
-For a squash-landed branch, deletion may need `git branch -D` after those checks;
-failure of `git branch -d` alone is not proof the work is unpublished.
+URLs. Only then release the work claim. Worktrees should generally be retained and
+reused as warm build workbenches (`git checkout --detach origin/main`) to accelerate
+future compilation. Remove task-owned worktrees (`git worktree remove <path>`) only
+when explicitly requested or reclaiming disk space. Because development uses
+detached-HEAD worktrees, no local branch deletion is needed. Inspect status and ensure
+HEAD still equals the merged PR head before any removal. Never clean another session's
+work, shared caches, dirty trees or unsubmitted later commits.
 
 Postlanding verification is read-only PR/commit/CI observation; it never requires
 a local rebuild or acceptance rerun. Leave the starting checkout at its recorded

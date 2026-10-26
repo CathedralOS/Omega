@@ -11,8 +11,7 @@ use compilation_products::compile_request::{
 use compiler::{CompileReport, OptimizationRollback};
 use diagnostics::Diagnostic;
 use package_manager::operations::{
-    PrepareLocalProjectError, PreparedLocalProject, ProjectCompilationAdmissionRequest,
-    ProjectCompilationError,
+    PrepareLocalProjectError, PreparedLocalProject, ProjectCompilationError,
 };
 use package_manager::review::CompileResolvedPackageReviewsError;
 use std::fmt;
@@ -193,7 +192,7 @@ pub fn compile_prepared_local_project_for_native_targets(
         timings,
         private_entry_ram,
     } = request;
-    crate::project_compilation::compile(ProjectCompilationAdmissionRequest {
+    crate::project_compilation::compile(crate::project_compilation::ProjectCompilationRequest {
         prepared,
         build_directory: &build_dir,
         target_profiles: &target_profiles,

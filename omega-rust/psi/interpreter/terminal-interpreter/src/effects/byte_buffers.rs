@@ -259,6 +259,7 @@ impl TerminalExecution<'_> {
         parameters: &[StructuralParameterDeclaration],
         arguments: &[StructuralArgument],
         storage_arguments: &[usize],
+        normal_qualifications: &[terminal_psi::StructuralDomainRequirement],
     ) -> Result<BoundaryArguments, TerminalInterpretError> {
         if parameters.len() != arguments.len() {
             return Err(malformed());
@@ -344,6 +345,7 @@ impl TerminalExecution<'_> {
                     &resolved.values[argument_index],
                     resolved.element_views[argument_index].as_ref(),
                     argument_index,
+                    normal_qualifications,
                 )?;
             }
         }
@@ -641,10 +643,7 @@ impl TerminalExecution<'_> {
         if argument.access != StructuralAccess::SharedBorrow
             || parameter.multiplicity != StructuralMultiplicity::Unrestricted
             || !parameter.projected_qualifications.is_empty()
-            || self
-                .live_claims
-                .values()
-                .any(|claim| claim.place == Some(argument.place))
+            || crate::custody::place_is_claimed(&self.live_claims, argument.place)
         {
             return Err(malformed());
         }

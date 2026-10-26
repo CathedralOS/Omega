@@ -25,6 +25,7 @@ static ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
 const COMPILER_STACK_SIZE: usize = 256 * 1024 * 1024;
 
 fn main() -> ExitCode {
+    terminal_runtime::run_native_provider_worker_if_requested();
     let invocation = match arguments::parse(std::env::args_os().skip(1)) {
         Ok(invocation) => invocation,
         Err(error) => {

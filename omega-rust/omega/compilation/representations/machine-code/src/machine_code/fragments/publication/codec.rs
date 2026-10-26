@@ -5,7 +5,7 @@ use optimization_core::{
     PostAllocationOptimizationManifestIdentity,
 };
 use semantic_vocabulary::FuelScheduleIdentity;
-use target::{Architecture, NativeTarget, ObjectFormat};
+use target::{NativeTarget, TargetWireIdentityError};
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 use crate::{SelectedFormEncodingIdentity, WholeFunctionExitContractIdentity};
@@ -182,25 +182,16 @@ fn encode_manifest_content(record: &FunctionFragmentEmissionManifest) -> Vec<u8>
 fn decode_target(
     cursor: &mut Cursor<'_>,
 ) -> Result<NativeTarget, FunctionFragmentEmissionManifestDecodeError> {
-    let architecture = match cursor.byte()? {
-        1 => Architecture::Aarch64,
-        2 => Architecture::X86_64,
-        tag => return Err(FunctionFragmentEmissionManifestDecodeError::UnknownArchitecture(tag)),
-    };
-    let object_format = match cursor.byte()? {
-        1 => ObjectFormat::Elf,
-        2 => ObjectFormat::MachO,
-        3 => ObjectFormat::Coff,
-        tag => return Err(FunctionFragmentEmissionManifestDecodeError::UnknownObjectFormat(tag)),
-    };
-    let pointer_size = usize::try_from(cursor.u64()?)
-        .map_err(|_| FunctionFragmentEmissionManifestDecodeError::TargetLayoutOverflow)?;
-    let pointer_alignment = usize::try_from(cursor.u64()?)
-        .map_err(|_| FunctionFragmentEmissionManifestDecodeError::TargetLayoutOverflow)?;
-    Ok(NativeTarget {
-        architecture,
-        object_format,
-        pointer_size,
-        pointer_alignment,
+    let encoded = cursor.array::<18>()?;
+    NativeTarget::from_wire_identity_bytes(&encoded).map_err(|error| match error {
+        TargetWireIdentityError::UnknownArchitecture(tag) => {
+            FunctionFragmentEmissionManifestDecodeError::UnknownArchitecture(tag)
+        }
+        TargetWireIdentityError::UnknownObjectFormat(tag) => {
+            FunctionFragmentEmissionManifestDecodeError::UnknownObjectFormat(tag)
+        }
+        TargetWireIdentityError::LayoutOverflow => {
+            FunctionFragmentEmissionManifestDecodeError::TargetLayoutOverflow
+        }
     })
 }

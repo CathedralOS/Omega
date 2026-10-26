@@ -43,6 +43,7 @@ pub(crate) fn validate_values_and_bindings(
     services: &BTreeMap<ServiceId, &terminal_psi::ServiceDeclaration>,
     structural_types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     structural_domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
+    call_accesses: &crate::current_ownership::CallAccesses,
 ) -> Result<(), OptimizationUnitValidationError> {
     let definitions = values::collect_value_definitions(function)?;
     let dominators = dominators(function.entry, blocks.keys().copied(), predecessors);
@@ -74,6 +75,7 @@ pub(crate) fn validate_values_and_bindings(
                 services,
                 structural_types,
                 structural_domains,
+                call_accesses,
             )?;
             values::validate_successor_bindings(
                 function,

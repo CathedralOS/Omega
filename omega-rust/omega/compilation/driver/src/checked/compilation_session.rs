@@ -1,7 +1,8 @@
 //! One compiler invocation owns reusable source and language judgments.
 //!
 //! Application Build schedules package occurrences and supplies their custody
-//! and consent; the compiler executes Builds and Product continuations. Callers never move parser
+//! and consent, and steps admitted Build activations. The compiler retains source
+//! continuations for Product preparation. Callers never move parser
 //! frontiers, checker snapshots or completed Pure Build values between calls.
 //! This owner keeps them across review rounds and target requests, and drops
 //! them with the invocation.
@@ -12,9 +13,7 @@
 //! pure-value owner independently requires exact inputs and fresh logical charge.
 
 use super::checking::compile_thread::run_on_compile_thread;
-use super::checking::{
-    prepare_checked_source, prepare_package_build_worker, select_checked_worker,
-};
+use super::checking::{begin_package_build_worker, prepare_checked_source, select_checked_worker};
 use crate::execution_settlement::SelectedCompileOutcome;
 use artifacts::compile_timings::counters;
 use compilation_products::{
@@ -37,6 +36,7 @@ pub struct CompilationSession {
 struct PreparedSource {
     root: PathBuf,
     inputs: Option<Arc<PackageCompilationSourceInputs>>,
+    capture: Option<package_compilation::CapturedLocalSource>,
     source: PreparedCheckedSource,
 }
 
@@ -135,19 +135,37 @@ impl CompilationSession {
         .unwrap_or_else(refusal)
     }
 
-    /// Execute a dependency Build. Its output can feed source assembly before
-    /// an actual independent Product request consumes the continuation.
-    pub(super) fn prepare_build(
+    /// Admit a dependency Build while retaining its pending Product source.
+    /// Execution proceeds independently before completion rejoins this session.
+    pub(super) fn begin_build(
         &mut self,
         request: CheckedCompileRequest,
-    ) -> Result<PreparedPackageBuild, CompileFailure> {
+    ) -> Result<super::checking::PreparedPackageInvocation, CompileFailure> {
         let source = self.prepare_source(&request)?;
-        let prepared =
-            prepare_package_build_worker(request, source, self.reuse(), &self.pure_builds)?;
-        if let Some(check) = prepared.retained_build_check() {
+        begin_package_build_worker(request, source, self.reuse(), &self.pure_builds)
+    }
+
+    pub(super) fn complete_build(
+        &mut self,
+        invocation: super::checking::PreparedPackageInvocation,
+        returned: Option<build_evaluation::ReturnedBuild>,
+    ) -> Result<PreparedPackageBuild, CompileFailure> {
+        let settled = self.settle_build(invocation, returned)?;
+        let target = settled.target;
+        let inputs = settled.inputs.clone();
+        super::checking::prepare_settled_package_product(settled, target, inputs)
+    }
+
+    pub(super) fn settle_build(
+        &mut self,
+        invocation: super::checking::PreparedPackageInvocation,
+        returned: Option<build_evaluation::ReturnedBuild>,
+    ) -> Result<compilation_products::SettledPackageBuild, CompileFailure> {
+        let settled = invocation.settle(returned)?;
+        if let Some(check) = &settled.source.evaluated.retained_check {
             retain_judgment(&mut self.checks.sibling_build_checks, check);
         }
-        Ok(prepared)
+        Ok(settled)
     }
 
     fn prepare_source(
@@ -164,26 +182,34 @@ impl CompilationSession {
             .package_inputs
             .as_ref()
             .map(PackageCompilationInputs::source_inputs);
-        self.prepare_source_with_inputs(&request.root_path, inputs, request.collect_timings)
+        self.prepare_source_with_inputs(
+            &request.root_path,
+            inputs,
+            request.source_capture.as_ref(),
+            request.collect_timings,
+        )
     }
 
     pub(crate) fn prepare_source_with_inputs(
         &mut self,
         root_path: &std::path::Path,
         inputs: Option<Arc<PackageCompilationSourceInputs>>,
+        capture: Option<&package_compilation::CapturedLocalSource>,
         collect_timings: bool,
     ) -> Result<PreparedCheckedSource, CompileFailure> {
-        if let Some(prepared) = self
-            .sources
-            .iter_mut()
-            .find(|prepared| prepared.root == root_path && prepared.inputs == inputs)
-        {
+        if let Some(prepared) = self.sources.iter_mut().find(|prepared| {
+            prepared.root == root_path
+                && prepared.inputs == inputs
+                && prepared.capture.as_ref() == capture
+        }) {
             return Ok(prepared.source.fork());
         }
-        let mut source = prepare_checked_source(root_path, inputs.clone(), collect_timings)?;
+        let mut source =
+            prepare_checked_source(root_path, inputs.clone(), capture, collect_timings)?;
         self.sources.push(PreparedSource {
             root: root_path.to_path_buf(),
             inputs,
+            capture: capture.cloned(),
             source: source.fork(),
         });
         Ok(source)
@@ -201,6 +227,7 @@ impl CompilationSession {
             .prepare_source_with_inputs(
                 &shared.root_path,
                 shared.package_sources.clone(),
+                None,
                 shared.timings,
             )
             .map_err(CompileFailure::into_diagnostics)?;

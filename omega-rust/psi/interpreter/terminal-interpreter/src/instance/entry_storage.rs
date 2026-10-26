@@ -69,6 +69,7 @@ impl TerminalInstance<'_, '_> {
                     None,
                     StructuralAccess::SharedBorrow,
                     std::slice::from_ref(&leaf),
+                    &[],
                 )?;
                 let observed = values.pop().ok_or(TerminalEntryStorageError::UnknownPath)?;
                 Ok(TerminalEntryStorageValue::Storage(observed.contents))

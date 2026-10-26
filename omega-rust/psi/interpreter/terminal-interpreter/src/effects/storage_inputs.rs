@@ -10,11 +10,12 @@
 
 mod borrowed_completion;
 pub(crate) mod contents;
+mod original_residence;
 
 use crate::effects::scalar_loans::{BoundaryScalarLoans, TerminalBoundaryScalarBuffer};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
-use crate::record::storage::ConstructorStorage;
+use crate::record::storage::PreparedConstructorReplacement;
 use crate::values::TerminalStructuralValue;
 use std::sync::Arc;
 use terminal_psi::{StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration};
@@ -32,15 +33,19 @@ pub enum TerminalBoundaryStorageBuffer {
 }
 
 struct StructuralLoanBinding {
+    direct_original: bool,
     identity: Arc<()>,
     argument_index: usize,
     source: semantic_vocabulary::PlaceId,
     access: terminal_psi::StructuralAccess,
     referent: TerminalStructuralValue,
+    /// Preservation promised for this exact formal, captured before dispatch.
+    /// It can retain an existing membership, never introduce one from C bytes.
+    normal_qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
     original: Vec<TerminalBoundaryStorageValue>,
     leaves: Vec<contents::StorageLeaf>,
     scalars: Vec<contents::PinnedScalar>,
-    replacement: Option<ConstructorStorage>,
+    replacement: Option<PreparedConstructorReplacement>,
     stores: Vec<(
         crate::primitive_storage::PrimitiveStorage,
         semantic_vocabulary::ScalarType,
@@ -102,6 +107,7 @@ impl BoundaryStorageInputs {
         referent: &TerminalStructuralValue,
         array_loan: Option<&crate::element_views::ElementView>,
         argument_index: usize,
+        normal_guarantees: &[terminal_psi::StructuralDomainRequirement],
     ) -> Result<(), TerminalInterpretError> {
         if parameter.access == terminal_psi::StructuralAccess::Owned {
             if argument.access != parameter.access
@@ -117,10 +123,12 @@ impl BoundaryStorageInputs {
                 array_loan,
                 parameter.access,
                 &leaves,
+                &[],
             )?;
             let identity = Arc::new(());
             self.buffers.push(TerminalBoundaryStorageBuffer::Structural(
                 TerminalBoundaryStructuralBuffer {
+                    original_storage: None,
                     identity: Arc::clone(&identity),
                     argument_index,
                     access: parameter.access,
@@ -139,16 +147,31 @@ impl BoundaryStorageInputs {
         if parameter.access != argument.access
             || parameter.structural_type != referent.structural_type
             || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-            || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
-            || !referent.qualifications.is_empty()
-            || !referent.projected_qualifications.is_empty()
         {
             return Err(malformed());
         }
-        execution.validate_storage_loan_qualifications(
-            &crate::values::StructuralRuntimePlace::from(referent),
-        )?;
+        let normal_qualifications = normal_guarantees
+            .iter()
+            .filter(|guarantee| guarantee.argument_index as usize == argument_index)
+            .map(|guarantee| guarantee.domain)
+            .collect::<Vec<_>>();
+        if parameter.access == terminal_psi::StructuralAccess::MutableBorrow {
+            if !parameter.projected_qualifications.is_empty()
+                || !referent.projected_qualifications.is_empty()
+                || parameter
+                    .qualifications
+                    .iter()
+                    .any(|domain| !normal_qualifications.contains(domain))
+            {
+                return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                    "mutable host storage lacks exact normal qualification preservation",
+                ));
+            }
+            execution.validate_storage_loan_restoration(
+                &crate::values::StructuralRuntimePlace::from(referent),
+                &normal_qualifications,
+            )?;
+        }
         let leaves = contents::describe(execution, referent, parameter.access, None)?;
         let (original, scalars) = contents::capture(
             execution,
@@ -157,10 +180,12 @@ impl BoundaryStorageInputs {
             array_loan,
             parameter.access,
             &leaves,
+            &normal_qualifications,
         )?;
         let identity = Arc::new(());
         self.buffers.push(TerminalBoundaryStorageBuffer::Structural(
             TerminalBoundaryStructuralBuffer {
+                original_storage: None,
                 identity: Arc::clone(&identity),
                 argument_index,
                 access: parameter.access,
@@ -169,11 +194,13 @@ impl BoundaryStorageInputs {
             },
         ));
         self.structural.push(StructuralLoanBinding {
+            direct_original: false,
             identity,
             argument_index,
             source: argument.place,
             access: parameter.access,
             referent: referent.clone(),
+            normal_qualifications,
             original,
             leaves,
             scalars,

@@ -49,7 +49,11 @@ fn artifact(root: &Path) -> CanonicalTerminalArtifact {
             CompilationProduct::Inspection("library::read".to_owned()),
         )
         .and_then(CompilationOutput::into_inspection)
-        .map(|produced| produced.into_artifact())
+        .map(|produced| {
+            produced
+                .into_artifact()
+                .expect("portable inspection product")
+        })
         .unwrap_or_else(|error| {
             panic!(
                 "anonymous Terminal publication: {:?}",
@@ -244,6 +248,7 @@ fn anonymous_owner_consumer_runs_nine_places_and_rejects_namespace_substitution(
         let reloaded = CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
             .expect("consumer artifact reload");
         let observation = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
+            native_provider: None,
             x86_flags: None,
             provider_proposal: None,
             artifact: &reloaded,

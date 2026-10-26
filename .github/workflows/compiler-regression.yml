@@ -1,4 +1,4 @@
-name: Compiler regression
+name: Post-merge smoke
 
 on:
   push:
@@ -58,7 +58,9 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.12'
-      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      - name: Restore compiler build cache
+        id: compiler-cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             ~/.cargo/registry
@@ -77,6 +79,9 @@ jobs:
       - name: Execute ordered cleanup with rejection controls
         if: ${{ inputs.cleanup && !inputs.foreign_records && !inputs.runtime_value_generics }}
         run: python tools/ci/compiler_cleanup.py
+      - name: Check native provider frames and retained mapped homes
+        if: inputs.foreign_records
+        run: cargo test --locked -p native-production -p machine-emission -p native-provider-runtime
       - name: Check typed scalar aggregate result boundaries
         if: ${{ inputs.foreign_records && !inputs.runtime_value_generics }}
         run: |
@@ -85,6 +90,12 @@ jobs:
           cargo test --locked -p terminal-runtime scalar_record
           cargo test --locked -p runtime-abi network_address
           cargo test --locked -p terminal-runtime network_address
+      - name: Check native provider record correspondence
+        if: inputs.foreign_records
+        run: cargo test --locked -p terminal-runtime native_provider
+      - name: Execute retained original foreign backing with rejection controls
+        if: inputs.foreign_records
+        run: python tools/ci/compiler_retained_foreign.py
       - name: Execute foreign scalar-record results with rejection controls
         if: ${{ inputs.foreign_records && !inputs.runtime_value_generics }}
         run: python tools/ci/compiler_foreign_records.py
@@ -99,7 +110,20 @@ jobs:
             build/compiler-pilot/
             build/compiler-cleanup/
             build/compiler-foreign-records/
+            build/compiler-retained-foreign/
             build/compiler-runtime-value-generics/
           if-no-files-found: warn
           compression-level: 0
           retention-days: 7
+      # A runtime rejection must not discard a successful cold Rust build.
+      # Every next observation still rebuilds through Cargo's content checks
+      # and validates the actual executable/profile before running programs.
+      - name: Preserve compiler build cache
+        if: ${{ always() && !cancelled() && steps.compiler-cache.outputs.cache-hit != 'true' && steps.compiler-cache.outputs.cache-primary-key != '' }}
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ${{ env.CARGO_TARGET_DIR }}
+          key: ${{ steps.compiler-cache.outputs.cache-primary-key }}

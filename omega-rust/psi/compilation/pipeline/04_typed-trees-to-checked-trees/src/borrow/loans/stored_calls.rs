@@ -125,15 +125,19 @@ pub(super) fn loans(
                         .into_iter()
                         .collect(),
                     lineage: if source.lifetime_access.is_some()
-                        || supplying.is_some_and(|source| source.lifetime_only)
+                        || supplying.is_some_and(|source| source.lifetime_access.is_some())
                     {
                         checked_trees::BorrowLoanLineage::LifetimeDependency
                     } else {
                         checked_trees::BorrowLoanLineage::UnretainedDerived
                     },
-                    kind: checked_trees::BorrowAccessKind::from(
-                        source.lifetime_access.unwrap_or(effect.access),
-                    ),
+                    kind: supplying
+                        .and_then(|source| source.lifetime_access.clone())
+                        .unwrap_or_else(|| {
+                            checked_trees::BorrowAccessKind::from(
+                                source.lifetime_access.unwrap_or(effect.access),
+                            )
+                        }),
                     call_result: true,
                 });
             }

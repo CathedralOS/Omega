@@ -231,8 +231,7 @@ pass/borrows/borrowed_array_loop checked 2370ms @5f668826adf3+wt
 pass/borrows/borrowed_case_leaf_copy_exit built 7104ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/borrows/borrowed_record_stack_parameter_writeback_exit built 7103ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/borrows/borrowed_sum_dispatch checked 2540ms @5f668826adf3+wt
-pass/borrows/borrowed_window_parameter_provenance_exit rejected 2625ms interpreter:unchecked @5f668826adf3+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "replace_via_borrowed_carrier_block_parameter", reason: "Unit graph state loan chain lender lends from two homes", gap: None })
+pass/borrows/borrowed_window_parameter_provenance_exit built 2625ms exit:0 interpreter-exit:0 interpreter:agrees @beacd47121d
 pass/borrows/boundary_scalar_slice_write_exit built 2790ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/borrows/branch_selected_record_composed_receiver_exit built 7563ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/borrows/branch_selected_record_receiver_exit built 7949ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
@@ -300,6 +299,7 @@ pass/borrows/opaque_reference_identity checked 2139ms @5f668826adf3+wt
 pass/borrows/opaque_region_known_calls checked 2156ms @5f668826adf3+wt
 pass/borrows/opaque_shared_writeonly_carrier checked 1725ms @5f668826adf3+wt
 pass/borrows/owned_byte_value_call_exit built 7804ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
+pass/borrows/owned_exclusive_call_writeback_exit built 1645ms exit:0 interpreter-exit:0 interpreter:agrees @c78aa93aba0a
 pass/borrows/owned_nested_record_copy_exit built 7505ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/borrows/owned_reference_arrival_projection_exit rejected 2669ms interpreter:unchecked @5f668826adf3+wt
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "selection transport requires a typed frontier entry for every live owned local", gap: None })
@@ -2854,6 +2854,17 @@ pass/facts/fifteen_variant_enum_payload_bound_through_other_machine_exit built 5
 pass/facts/fifteen_variant_enum_payload_bound_through_other_state_exit built 4949ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/fifteen_variant_enum_payload_bound_through_parameter_exit built 4516ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/fifteen_variant_enum_payload_bound_through_target_body_exit built 5676ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/facts/finite_family_exclusive_result/call_result built 1566ms exit:0 interpreter-exit:0 interpreter:agrees @c78aa93aba0a
+pass/facts/finite_family_exclusive_result/const_name built 2779ms exit:0 interpreter-exit:0 interpreter:agrees @c78aa93aba0a
+pass/facts/finite_family_exclusive_result/field built 2755ms exit:0 interpreter-exit:0 interpreter:agrees @c78aa93aba0a
+pass/facts/finite_family_exclusive_result/local built 3046ms exit:0 interpreter-exit:0 interpreter:agrees @c78aa93aba0a
+pass/facts/finite_family_exclusive_result/match_join built 2966ms exit:0 interpreter-exit:0 interpreter:agrees @c78aa93aba0a
+pass/facts/finite_family_exclusive_result/other_machine built 2504ms exit:0 interpreter-exit:0 interpreter:agrees @c78aa93aba0a
+pass/facts/finite_family_exclusive_result/other_state built 2386ms exit:0 interpreter-exit:0 interpreter:agrees @c78aa93aba0a
+pass/facts/finite_family_exclusive_result/parameter built 3060ms exit:0 interpreter-exit:0 interpreter:agrees @c78aa93aba0a
+pass/facts/finite_family_exclusive_result/target_body built 2899ms exit:0 interpreter-exit:0 interpreter:agrees @c78aa93aba0a
+pass/facts/finite_family_returned_descriptor/pointer_field built 3074ms exit:0 interpreter-exit:0 interpreter:agrees @c78aa93aba0a
+pass/facts/finite_family_returned_descriptor/replaced_source built 3068ms exit:0 interpreter-exit:0 interpreter:agrees @c78aa93aba0a
 pass/facts/five_variant_enum_payload_bound_through_call_result_exit built 4474ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/five_variant_enum_payload_bound_through_const_name_exit built 7117ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/five_variant_enum_payload_bound_through_field_exit built 5470ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
@@ -3236,6 +3247,16 @@ pass/facts/indexed_storage_address_identity_through_other_machine_exit built 187
 pass/facts/indexed_storage_address_identity_through_other_state_exit built 1904ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/indexed_storage_address_identity_through_parameter_exit built 1854ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/indexed_storage_address_identity_through_target_body_exit built 1864ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/facts/inferred_array_equation_call_mixed_binders_through_call_result_exit built 2630ms exit:0 interpreter-exit:0 interpreter:agrees @18cc4a3183a6
+pass/facts/inferred_array_equation_call_mixed_binders_through_const_name_exit built 2758ms exit:0 interpreter-exit:0 interpreter:agrees @18cc4a3183a6
+pass/facts/inferred_array_equation_call_mixed_binders_through_field_exit built 2794ms exit:0 interpreter-exit:0 interpreter:agrees @18cc4a3183a6
+pass/facts/inferred_array_equation_call_mixed_binders_through_local_exit built 2679ms exit:0 interpreter-exit:0 interpreter:agrees @18cc4a3183a6
+pass/facts/inferred_array_equation_call_mixed_binders_through_match_join_exit built 2540ms exit:0 interpreter-exit:0 interpreter:agrees @18cc4a3183a6
+pass/facts/inferred_array_equation_call_mixed_binders_through_other_machine_exit built 2691ms exit:0 interpreter-exit:0 interpreter:agrees @18cc4a3183a6
+pass/facts/inferred_array_equation_call_mixed_binders_through_other_state_exit built 2743ms exit:0 interpreter-exit:0 interpreter:agrees @18cc4a3183a6
+pass/facts/inferred_array_equation_call_mixed_binders_through_parameter_exit built 2642ms exit:0 interpreter-exit:0 interpreter:agrees @18cc4a3183a6
+pass/facts/inferred_array_equation_call_mixed_binders_through_target_body_exit built 2508ms exit:0 interpreter-exit:0 interpreter:agrees @18cc4a3183a6
+pass/facts/inferred_array_equation_call_mixed_binders_value_index_exit built 2560ms exit:0 interpreter-exit:0 interpreter:agrees @18cc4a3183a6
 pass/facts/inferred_array_equation_call_through_call_result_exit built 1816ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/inferred_array_equation_call_through_const_name_exit built 2295ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/inferred_array_equation_call_through_field_exit built 2247ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
@@ -7204,7 +7225,6 @@ pass/layouts/runtime_target_layout_queries_exit built 3386ms exit:0 interpreter-
 pass/layouts/runtime_transition_scalar_reference_codec_exit rejected 2167ms interpreter:unchecked @5f668826adf3+wt
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-pass/layouts/schema_field_at_declared_size checked 1525ms @5f668826adf3+wt
 pass/layouts/schema_identity_payload_within_predicate checked 1921ms @5f668826adf3+wt
 pass/layouts/single_bool_array_layout_compile checked 1280ms @5f668826adf3+wt
 pass/layouts/single_byte_member_layout_compile checked 1736ms @5f668826adf3+wt

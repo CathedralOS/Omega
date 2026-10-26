@@ -419,8 +419,8 @@ impl TerminalExecution<'_> {
             }
             _ => return Err(malformed()),
         }
-        .copied()
-        .ok_or(crate::errors::TerminalInterpretError::StructuralPrimitiveStorageMissing(source))?;
+        .ok_or(crate::errors::TerminalInterpretError::StructuralPrimitiveStorageMissing(source))?
+        .read()?;
         if !terminal_scalar_belongs_to_type(value) {
             return Err(malformed());
         }

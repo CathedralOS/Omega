@@ -4,18 +4,8 @@
 //! and product occurrences share those inputs, not checked output: each has its
 //! own target, generated sources, bindings and review. The same source-roster
 //! contract drives production, lock comparison and independent reconstruction.
-//!
-//! Named input assignments are reconciled across all incoming edges before
-//! running authored code. A shared package/purpose/profile node may reuse equal
-//! complete maps; unioning unequal maps would grant one requester another's
-//! inputs. A separate tool package would still need capture, grant issuance and
-//! checked generated-source handoff. Routing into these existing owners keeps
-//! that enforcement in one execution path without making aliases new instances.
 
-use crate::build_session::{
-    OccurrenceBuildInputs, PackageBuildSession, dependency_first_package_order,
-    reconcile_build_inputs,
-};
+use crate::build_session::{PackageBuildSession, dependency_first_package_order};
 use compilation_products::{CheckedCompileRequest, CompileFailure};
 
 use super::super::semantic_bindings::projection_error;
@@ -151,7 +141,7 @@ pub(super) enum TargetEntryDiscovery {
 }
 
 /// Application work for one policy-selected review pass. The package owner
-/// admits the roster, bindings and input assignments before any Build runs.
+/// admits the roster, bindings and root snapshot before any Build runs.
 pub struct PackageReviewPass<'pass> {
     closure: &'pass ResolvedPackageSourceClosure,
     packages: Vec<ReviewPackage<'pass>>,
@@ -162,7 +152,6 @@ pub struct PackageReviewPass<'pass> {
     root_build_snapshot: Option<&'pass build_evaluation::BuildSnapshotRequest>,
     discovery: TargetEntryDiscovery,
     prior: Option<&'pass RetainedPackageReviews>,
-    dependency_inputs: Vec<[Option<OccurrenceBuildInputs>; 2]>,
 }
 
 /// The dependency scope is prepared once for all of a package's purposes
@@ -176,12 +165,14 @@ struct ReviewPackage<'pass> {
 
 /// One complete dependency execution service supplied by application Build.
 /// Package management selects policy passes; it does not assemble compiler stages.
-pub type PackageReviewExecutor =
-    for<'pass> fn(
+/// The borrowed executor retains application state across passes without moving
+/// a compiler into package-owned resource accounting.
+pub type PackageReviewExecutor<'execution> = dyn for<'pass> FnMut(
         PackageReviewPass<'pass>,
         &mut PackageBuildSession,
         &mut PackageSourceBindings,
-    ) -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError>;
+    ) -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError>
+    + 'execution;
 
 impl<'pass> PackageReviewPass<'pass> {
     #[allow(clippy::too_many_arguments)]
@@ -211,13 +202,6 @@ impl<'pass> PackageReviewPass<'pass> {
                 },
             );
         }
-        let dependency_inputs = reconcile_build_inputs(target_closure, roster, root_build_snapshot)
-            .map_err(
-                |diagnostics| CompileResolvedPackageReviewsError::Compilation {
-                    package: closure.graph().root().clone(),
-                    diagnostics,
-                },
-            )?;
         let mut packages = Vec::new();
         for key in dependency_first_package_order(closure) {
             let missing = || CompileResolvedPackageReviewsError::IdentityMismatch {
@@ -254,7 +238,6 @@ impl<'pass> PackageReviewPass<'pass> {
             root_build_snapshot,
             discovery,
             prior,
-            dependency_inputs,
         })
     }
 
@@ -301,7 +284,6 @@ impl<'pass> PackageReviewPass<'pass> {
             discovery: self.discovery,
             prior: self.prior,
             source_bindings,
-            dependency_inputs: &self.dependency_inputs,
             fresh_components,
             recovered,
             reviews: Vec::with_capacity(self.roster.occurrence_count()),
@@ -332,9 +314,6 @@ pub struct PackageReviewRound<'pass> {
     discovery: TargetEntryDiscovery,
     prior: Option<&'pass RetainedPackageReviews>,
     source_bindings: &'pass mut PackageSourceBindings,
-    /// Named build inputs reconciled across every incoming edge, by graph
-    /// position and purpose slot.
-    dependency_inputs: &'pass [[Option<OccurrenceBuildInputs>; 2]],
     /// Dependency occurrences a consumer demanded a component description
     /// from that no carried record retained: they compile fresh and their
     /// replacement records carry the published description.
@@ -403,11 +382,14 @@ impl<'pass> PackageReviewRound<'pass> {
             return Ok(None);
         }
         let request = CheckedCompileRequest {
-            build_execution_profile: self.execution_profile,
             package_inputs: Some(inputs),
-            filesystem_sponsor: Some(session.filesystem_sponsor().clone()),
-            evaluation_sponsor: Some(session.evaluation_sponsor().clone()),
-            build_snapshot: Some(assembled.build_snapshot.clone()),
+            build: package_compilation::BuildExecutionInputs {
+                profile: self.execution_profile,
+                filesystem_sponsor: Some(session.filesystem_sponsor().clone()),
+                evaluation_sponsor: Some(session.evaluation_sponsor().clone()),
+                snapshot: Some(assembled.build_snapshot.clone()),
+                ..Default::default()
+            },
             collect_timings: self.source_bindings.collect_timings,
             permit_unsettled_fused_service_fields: self.discovery
                 == TargetEntryDiscovery::Dependencies,
@@ -582,7 +564,7 @@ impl<'pass> PackageReviewRound<'pass> {
         // inventory extent in the review's build observation. Only the root
         // may receive a caller-selected source inventory and fixed output
         // roster; dependency source inventories remain their own. Explicit
-        // named inputs are separate grants selected for this occurrence. Otherwise
+        // named inputs belong only to the root invocation. Otherwise
         // the outputs a package build must complete are declared through
         // `builder.output.require`, registered during evaluation, and settled
         // against sealed staged custody before the result publishes; package
@@ -591,13 +573,9 @@ impl<'pass> PackageReviewRound<'pass> {
         // that scoped execution forbids (a conditional branch omitting
         // `require` must not be reinterpreted as having checked the artifact).
         let build_snapshot = if key == closure.graph().root() {
-            self.root_build_snapshot
-                .cloned()
-                .map(build_evaluation::BuildSnapshotRequest::without_dependency_inputs)
+            self.root_build_snapshot.cloned()
         } else {
-            self.dependency_inputs[position][purpose_slot(purpose)]
-                .as_ref()
-                .map(|assignment| assignment.snapshot.clone())
+            None
         }
         .unwrap_or_else(|| {
             build_evaluation::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>())

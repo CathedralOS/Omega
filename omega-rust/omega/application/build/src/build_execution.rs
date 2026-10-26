@@ -9,6 +9,8 @@
 //! compiles that root through its own product request, stops after joining the
 //! dependencies' generated source into the root request.
 
+pub(crate) mod source_resolution;
+
 use build_declarations::DependencyPurpose;
 use compiler::{CheckedCompileRequest, CompileFailure, PackageBuild};
 use compiler::{CompilationSession, PackageCompileFailure};
@@ -56,6 +58,66 @@ struct PendingOccurrence<Owner> {
     failure: Option<CompileFailure>,
 }
 
+/// Run the admitted occurrence while keeping the compiler available for work
+/// requested between steps. Completion validates the entire retained request
+/// ledger; an ignored step cannot erase an outstanding dependency.
+pub(crate) fn execute_package_build(
+    compiler: &mut CompilationSession,
+    request: CheckedCompileRequest,
+) -> Result<PackageBuild, CompileFailure> {
+    execute_returned_build(compiler, request)?.complete(compiler)
+}
+
+/// Application work retained between normal return and the final source join.
+/// Keeping the invocation beside its return prevents the scheduler from
+/// discarding the source continuation and replaying Build after acquisition.
+pub(crate) struct ReturnedPackageBuild {
+    pub(crate) invocation: compiler::PackageBuildInvocation,
+    pub(crate) returned: Option<build_evaluation::ReturnedBuild>,
+}
+
+impl ReturnedPackageBuild {
+    pub(crate) fn complete(
+        self,
+        compiler: &mut CompilationSession,
+    ) -> Result<PackageBuild, CompileFailure> {
+        let Self {
+            invocation,
+            returned,
+        } = self;
+        compiler.complete_package_build(invocation, returned)
+    }
+}
+
+pub(crate) fn execute_returned_build(
+    compiler: &mut CompilationSession,
+    request: CheckedCompileRequest,
+) -> Result<ReturnedPackageBuild, CompileFailure> {
+    let mut invocation = compiler.begin_package_build(request)?;
+    let returned = if let Some(execution) = invocation.execution() {
+        let mut host = execution.host()?;
+        let refuse = |reason| {
+            vec![Diagnostic::error(format!(
+                "Terminal Build failed: {reason}"
+            ))]
+        };
+        let mut activation = host.start().map_err(refuse)?;
+        loop {
+            let step = activation.advance(1024).map_err(refuse)?;
+            if step.returned {
+                break;
+            }
+        }
+        Some(activation.complete().map_err(refuse)?)
+    } else {
+        None
+    };
+    Ok(ReturnedPackageBuild {
+        invocation,
+        returned,
+    })
+}
+
 pub(super) fn prepare_packages<Owner>(
     compiler: &mut CompilationSession,
     plans: Vec<(Owner, PackagePlan)>,
@@ -99,7 +161,7 @@ pub(super) fn prepare_packages<Owner>(
                     )]
                 })?;
                 let occurrence = join_generated_sources(occurrence, &frontier.products)?;
-                let build = compiler.prepare_package_build(occurrence)?;
+                let build = execute_package_build(compiler, occurrence)?;
                 let components = required_components(&build, &frontier.products)?;
                 Ok::<_, CompileFailure>((build, components))
             })();

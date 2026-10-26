@@ -34,6 +34,7 @@ pub use declared_float_facts::{DeclaredFloatFieldBound, declared_float_field_bou
 mod assignments;
 mod bigint_interval;
 mod bitwise;
+pub(crate) use bitwise::binary as bitwise_binary;
 mod referent_predicates;
 pub(crate) use referent_predicates::referent_predicates_preserved;
 mod call_result_bounds;

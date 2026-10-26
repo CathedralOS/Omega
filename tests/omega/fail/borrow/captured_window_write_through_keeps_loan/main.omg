@@ -1,0 +1,12 @@
+// Writing through a descriptor keeps its original loan alive.
+data Cell { value: u64; }
+data Held<'storage> { value: &'storage mut Cell; }
+machine main() crashes Trap {
+    let mut original: Cell = Cell { value: 7 };
+    let held: Held = Held { value: &mut original };
+    held.value.value = 9;
+    original.value = 3;
+    transition held.value.value == 9 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -19,6 +19,10 @@ pub(super) fn assign_machine_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
 ) -> Vec<Diagnostic> {
+    // The machine arena includes nested declarations; the symbol root does
+    // not. Positional zipping shifts every later boundary requirement when
+    // an earlier machine has children. Classification belongs to the exact
+    // declaration identity already assigned by the root/lexical traversal.
     let top_level_requirement_symbols = program
         .machines
         .iter()

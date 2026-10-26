@@ -11,14 +11,14 @@ mod statement_and_expression_snapshots;
 mod type_snapshots;
 
 pub use declaration_snapshots::{
-    ConstDeclarationSnapshot, DataDefinitionSnapshot, DataMemberSnapshot, DataPayloadFieldSnapshot,
-    DomainAliasConstituentSnapshot, DomainDefinitionSnapshot, DomainEstablishmentRouteSnapshot,
-    DomainSemanticRolesSnapshot, DomainTypeParameterSnapshot, EvaluatedConstantSnapshot,
-    MathematicalBinderSnapshot, MathematicalBodySnapshot, MathematicalDefinitionSnapshot,
-    MathematicalParameterSnapshot, MathematicalTypeSnapshot, MeasureDefinitionSnapshot,
-    OperatorDefinitionSnapshot, ProofFactSnapshot, PropositionBinderSnapshot,
-    PropositionBodySnapshot, PropositionFormulaSnapshot, PropositionSnapshot,
-    QuotientDefinitionSnapshot, QuotientEquivalenceSelectionSnapshot,
+    CleanupSelectionSnapshot, ConstDeclarationSnapshot, DataDefinitionSnapshot, DataMemberSnapshot,
+    DataPayloadFieldSnapshot, DomainAliasConstituentSnapshot, DomainDefinitionSnapshot,
+    DomainEstablishmentRouteSnapshot, DomainSemanticRolesSnapshot, DomainTypeParameterSnapshot,
+    EvaluatedConstantSnapshot, MathematicalBinderSnapshot, MathematicalBodySnapshot,
+    MathematicalDefinitionSnapshot, MathematicalParameterSnapshot, MathematicalTypeSnapshot,
+    MeasureDefinitionSnapshot, OperatorDefinitionSnapshot, ProofFactSnapshot,
+    PropositionBinderSnapshot, PropositionBodySnapshot, PropositionFormulaSnapshot,
+    PropositionSnapshot, QuotientDefinitionSnapshot, QuotientEquivalenceSelectionSnapshot,
 };
 pub use machine_snapshots::{
     ConformanceRowSnapshot, ConformanceSnapshot, GenericConformanceBoundSnapshot, MachineSnapshot,
@@ -137,6 +137,7 @@ fn authored_declaration_selection_kind_name(
         Kind::CaseMembership => "case_membership",
         Kind::DomainMembership => "domain_membership",
         Kind::DomainIssuerAuthorization => "domain_issuer_authorization",
+        Kind::DomainCleanupSelection => "domain_cleanup_selection",
         Kind::Call => "call",
         Kind::StaticArgument => "static_argument",
         Kind::Operator => "operator",

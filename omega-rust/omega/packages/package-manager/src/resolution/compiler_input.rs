@@ -2,8 +2,8 @@
 
 use crate::resolution::graph::ResolvedPackageSourceClosure;
 use package_compilation::{
-    PackageCompilationInputError, PackageCompilationInputs, PackageDependencyBinding,
-    PackageSourceBinding,
+    PackageCompilationInputError, PackageCompilationInputs, PackageDependencyAcquisition,
+    PackageDependencyBinding, PackageSourceBinding,
 };
 use std::collections::BTreeSet;
 
@@ -74,7 +74,17 @@ impl<'closure> PackageCompilationScope<'closure> {
                     *root_binding = Some(captured.clone());
                     Ok(captured)
                 } else {
-                    Ok(binding)
+                    if let Some(tree) = custody.captured_source() {
+                        binding
+                            .with_captured_source(std::sync::Arc::clone(tree))
+                            .map_err(|reason| PackageCompilationInputError::InvalidSourceRoot {
+                                identity: custody.key().identity(),
+                                path: custody.snapshot_root().to_path_buf(),
+                                reason,
+                            })
+                    } else {
+                        Ok(binding)
+                    }
                 }
             })
             .collect::<Result<Vec<_>, _>>()
@@ -113,7 +123,38 @@ impl<'closure> PackageCompilationScope<'closure> {
         } else {
             crate::declarations::BuildDeclarationKind::Package
         };
-        PackageCompilationInputs::new(root.identity(), root_role, packages, dependencies)
+        let invalid = |reason: String| {
+            vec![PackageCompilationInputError::InvalidDependencyAcquisition {
+                root: root.identity(),
+                reason,
+            }]
+        };
+        let custody = closure
+            .custody(root)
+            .ok_or_else(|| invalid("root source custody is missing".into()))?;
+        let node = closure
+            .graph()
+            .package(root)
+            .ok_or_else(|| invalid("root source node is missing".into()))?;
+        let mut acquisitions = Vec::with_capacity(node.dependencies().len());
+        for dependency in node.dependencies() {
+            let request = custody
+                .dependency_projections()
+                .requests(dependency.purpose())
+                .get(dependency.dependency_index())
+                .ok_or_else(|| {
+                    invalid("selected source has no originating dependency request".into())
+                })?;
+            acquisitions.push(PackageDependencyAcquisition {
+                request_ordinal: dependency.dependency_index(),
+                request: request
+                    .build_request(dependency.purpose())
+                    .map_err(invalid)?,
+                package: dependency.target().identity(),
+            });
+        }
+        PackageCompilationInputs::new(root.identity(), root_role, packages, dependencies)?
+            .with_dependency_acquisitions(acquisitions)
     }
 }
 

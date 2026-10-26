@@ -4,8 +4,7 @@ use super::ValidatedTargetCompilation;
 use crate::RetainedCompilationChecks;
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationRollback;
-use package_compilation::build_execution::RestrictedBuildGrants;
-use package_compilation::{BuildSnapshotRequest, PackageCompilationInputs};
+use package_compilation::{BuildExecutionInputs, PackageCompilationInputs};
 use std::path::Path;
 use target::TargetProfile;
 
@@ -16,20 +15,14 @@ pub struct CheckedCompileRequest {
     pub root_path: std::path::PathBuf,
     /// `None` preserves targetless semantic checking.
     pub target_name: Option<String>,
-    /// Build runs against this profile, separately from the product target.
-    /// `None` selects the host, or stays unprofiled on an uncatalogued host.
-    pub build_execution_profile: Option<TargetProfile>,
     pub package_inputs: Option<PackageCompilationInputs>,
-    /// Writable staging, separate from immutable package snapshots.
-    pub build_dir: Option<std::path::PathBuf>,
-    pub filesystem_sponsor: Option<build_time_evaluation::BuildMachineFilesystemSponsor>,
-    pub evaluation_sponsor: Option<build_time_evaluation::BuildEvaluationSponsor>,
-    /// Captured immutable source and required sealed outputs for this activation.
-    pub build_snapshot: Option<BuildSnapshotRequest>,
+    /// Acquired physical source before Build declares its package identity.
+    /// Mutually exclusive with a supplied package graph. No later live read may
+    /// replace these bytes, including Product imports after Build returns.
+    pub source_capture: Option<package_compilation::CapturedLocalSource>,
+    /// Execution obligations move together and must precede all Build effects.
+    pub build: BuildExecutionInputs,
     pub optimization_rollback: OptimizationRollback,
-    /// `None` reports restricted requests without executing them. Private
-    /// issued snapshot/staging work projects none and continues normally.
-    pub restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
     /// A reused preparation keeps the timing policy under which it was created.
     pub collect_timings: bool,
     /// Discovery leaves unsettled fields unestablished; the bound recompile must
@@ -50,14 +43,10 @@ impl CheckedCompileRequest {
         Self {
             root_path: root_path.to_owned(),
             target_name: target_name.map(str::to_owned),
-            build_execution_profile: None,
             package_inputs: None,
-            build_dir: None,
-            filesystem_sponsor: None,
-            evaluation_sponsor: None,
-            build_snapshot: None,
+            source_capture: None,
+            build: BuildExecutionInputs::default(),
             optimization_rollback: OptimizationRollback::default(),
-            restricted_build_grants: None,
             collect_timings: false,
             permit_unsettled_fused_service_fields: false,
         }
@@ -69,15 +58,9 @@ impl CheckedCompileRequest {
 /// guard is consumed by Build execution, never by input admission or reuse.
 pub struct CheckedExecutionRequest<'request> {
     pub selected_target_profile: Option<TargetProfile>,
-    /// `None` admits the compiler host without a catalogued profile.
-    pub build_execution_profile: Option<TargetProfile>,
     pub package_inputs: Option<&'request PackageCompilationInputs>,
-    pub build_dir: Option<&'request Path>,
-    pub filesystem_sponsor: Option<build_time_evaluation::BuildMachineFilesystemSponsor>,
-    pub evaluation_sponsor: Option<build_time_evaluation::BuildEvaluationSponsor>,
-    pub build_snapshot: Option<BuildSnapshotRequest>,
+    pub build: BuildExecutionInputs,
     pub optimization_rollback: OptimizationRollback,
-    pub restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
     /// Discovery leaves unsettled Service fields unestablished. The bound
     /// recompile must derive or diagnose every field under its own inputs.
     pub permit_unsettled_fused_service_fields: bool,
@@ -91,23 +74,19 @@ impl ValidatedTargetCompilation {
     /// package review's source custody; a binding without that index stays live.
     pub fn checked_execution<'request>(
         &'request self,
-        build_dir: &'request Path,
+        build_directory: &Path,
     ) -> CheckedExecutionRequest<'request> {
         let package_inputs = self.package_inputs();
         CheckedExecutionRequest {
             selected_target_profile: self.profile(),
-            build_execution_profile: TargetProfile::host_if_supported(),
             package_inputs,
-            build_dir: Some(build_dir),
-            filesystem_sponsor: None,
-            evaluation_sponsor: None,
-            // Explicit custody always wins; failed admission never falls back.
-            build_snapshot: self
-                .build_snapshot()
-                .cloned()
-                .or_else(|| BuildSnapshotRequest::automatic_package_inventory(package_inputs)),
+            build: BuildExecutionInputs {
+                directory: Some(build_directory.to_path_buf()),
+                snapshot: self.build_snapshot().cloned(),
+                ..BuildExecutionInputs::default()
+            }
+            .resolve_compilation_defaults(package_inputs),
             optimization_rollback: self.optimization_rollback().clone(),
-            restricted_build_grants: None,
             permit_unsettled_fused_service_fields: false,
             settled_check_reuse: SettledCheckReuse::default(),
         }
@@ -123,29 +102,6 @@ impl CheckedExecutionRequest<'_> {
         let Some(inputs) = self.package_inputs else {
             return Ok(());
         };
-        if inputs.compilation_purpose() == build_declarations::DependencyPurpose::Build
-            && (self.build_execution_profile.is_none()
-                || self.selected_target_profile != self.build_execution_profile)
-        {
-            return Err(vec![Diagnostic::error(
-                "build-purpose package compilation requires its target to equal the admitted build execution profile",
-            )]);
-        }
-        inputs
-            .validate_dependency_generated_source_execution_profile(self.build_execution_profile)
-            .map_err(|errors| {
-                errors
-                    .into_iter()
-                    .map(|error| Diagnostic::error(error.to_string()))
-                    .collect::<Vec<_>>()
-            })?;
-        inputs
-            .validate_dependency_generated_source_target(self.selected_target_profile)
-            .map_err(|errors| {
-                errors
-                    .into_iter()
-                    .map(|error| Diagnostic::error(error.to_string()))
-                    .collect::<Vec<_>>()
-            })
+        inputs.validate_execution_context(self.selected_target_profile, self.build.profile)
     }
 }

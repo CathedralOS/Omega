@@ -184,6 +184,7 @@ dependencies = [
  "diagnostics",
  "effects",
  "evaluation-accounting",
+ "filesystem-authority",
  "language-core",
  "language-semantics",
  "layout-plans",
@@ -199,6 +200,7 @@ dependencies = [
  "syntax-trees",
  "target",
  "terminal-codec",
+ "terminal-fuel",
  "terminal-interpreter",
  "terminal-psi",
  "trust-model",
@@ -475,6 +477,8 @@ dependencies = [
  "optimization-core",
  "package-compilation",
  "package-evidence",
+ "package-manager",
+ "package-source",
  "platform-custody",
  "proof-admission",
  "provider-planning",
@@ -1257,6 +1261,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "native-provider-runtime"
+version = "0.1.0"
+dependencies = [
+ "bounded-process",
+ "calling-conventions",
+ "image-emission",
+ "libc",
+ "machine-emission",
+ "native-artifact",
+ "runtime-abi",
+ "sha2",
+ "target",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "new087-terminal-validation"
 version = "0.1.0"
 dependencies = [
@@ -1336,6 +1356,7 @@ version = "0.1.0"
 dependencies = [
  "artifacts",
  "build-declarations",
+ "build-evaluation",
  "compilation-products",
  "compiler",
  "diagnostics",
@@ -1415,6 +1436,7 @@ dependencies = [
  "evaluation-accounting",
  "filesystem-authority",
  "flow-effects",
+ "language-semantics",
  "optimization-core",
  "package-source",
  "platform-custody",
@@ -1495,6 +1517,7 @@ dependencies = [
  "syntax-trees",
  "target",
  "terminal-codec",
+ "terminal-fuel",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
  "tokens",
@@ -2426,6 +2449,7 @@ dependencies = [
  "backend-plan",
  "calling-conventions",
  "native-artifact",
+ "native-provider-runtime",
  "numerics",
  "runtime-abi",
  "semantic-vocabulary",

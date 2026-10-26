@@ -1015,8 +1015,10 @@ pub(crate) fn call_claim_transfers(
         for (claim_identity, path) in owner_claim_crossings(
             program,
             &facts.flow,
+            &facts.values.scalar_computations,
             state,
             call,
+            argument_index,
             &events,
             root,
             &argument.path,
@@ -1089,8 +1091,10 @@ fn call_claim_events<'facts>(
 fn owner_claim_crossings(
     program: &dyn ::validation::CheckingInput,
     flow: &checked_trees::FlowFacts,
+    computations: &checked_trees::CheckedScalarComputationPlans,
     state: SymbolHandle,
     call: &checked_trees::FlowCallFact,
+    argument_index: usize,
     events: &[&checked_trees::FlowPermissionEventFact],
     root: facts::PlaceRoot,
     path: &[checked_trees::CheckedUnitStructuralPathSegment],
@@ -1109,8 +1113,17 @@ fn owner_claim_crossings(
         root,
         segments: Vec::new(),
     };
-    let completed_claims =
-        claim_crossings_at_place(program, flow, state, call, events, &evaluated, path)?;
+    let completed_claims = claim_crossings_at_place(
+        program,
+        flow,
+        computations,
+        state,
+        call,
+        argument_index,
+        events,
+        &evaluated,
+        path,
+    )?;
     let Some(expression) = root.as_expression() else {
         return Some(completed_claims);
     };
@@ -1127,7 +1140,17 @@ fn owner_claim_crossings(
     if owner == evaluated {
         return Some(completed_claims);
     }
-    let source_claims = claim_crossings_at_place(program, flow, state, call, events, &owner, path)?;
+    let source_claims = claim_crossings_at_place(
+        program,
+        flow,
+        computations,
+        state,
+        call,
+        argument_index,
+        events,
+        &owner,
+        path,
+    )?;
     match (completed_claims.is_empty(), source_claims.is_empty()) {
         (false, false) => None,
         (false, true) => Some(completed_claims),
@@ -1138,8 +1161,10 @@ fn owner_claim_crossings(
 fn claim_crossings_at_place(
     program: &dyn ::validation::CheckingInput,
     flow: &checked_trees::FlowFacts,
+    computations: &checked_trees::CheckedScalarComputationPlans,
     state: SymbolHandle,
     call: &checked_trees::FlowCallFact,
+    argument_index: usize,
     events: &[&checked_trees::FlowPermissionEventFact],
     owner: &validation::CanonicalPlace,
     path: &[checked_trees::CheckedUnitStructuralPathSegment],
@@ -1185,7 +1210,27 @@ fn claim_crossings_at_place(
             flow.ownership.segments.span_or_empty(event.segments),
         )
         .ok()?;
-        let Some(relative) = event_path.strip_prefix(selected_path.as_slice()) else {
+        let relative = if let Some(relative) = event_path.strip_prefix(selected_path.as_slice()) {
+            relative
+        } else if claim_operand_path_matches(
+            program,
+            computations,
+            state,
+            call,
+            argument_index,
+            owner.root,
+            event.expression,
+            &selected_path,
+        ) {
+            // Permission production selected this exact consuming expression's
+            // claim frontier using captured place containment. Rejoin that
+            // receipt to the emitted operand; do not infer numeric equality
+            // from the runtime path or replay a later selector observation.
+            let Some(relative) = event_path.get(selected_path.len()..) else {
+                return None;
+            };
+            relative
+        } else {
             continue;
         };
         // Disposal settles a claim without transferring it. It cannot supply
@@ -1203,6 +1248,61 @@ fn claim_crossings_at_place(
     Some(claims)
 }
 
+/// Authenticate the whole consuming operand against its already checked
+/// selector roots. Matching a path's length or an unrelated computed index is
+/// insufficient: every coordinate belongs to this exact invocation operand.
+#[allow(clippy::too_many_arguments)]
+fn claim_operand_path_matches(
+    program: &dyn validation::CheckingInput,
+    computations: &checked_trees::CheckedScalarComputationPlans,
+    state: SymbolHandle,
+    call: &checked_trees::FlowCallFact,
+    argument_index: usize,
+    owner: facts::PlaceRoot,
+    expression: typed_trees::expression::ExpressionHandle,
+    selected_path: &[checked_trees::CheckedUnitStructuralPathSegment],
+) -> bool {
+    let Some(actual) = validation::canonical_place_from_expression_in_state(
+        program,
+        state,
+        call.statement_index,
+        expression,
+    ) else {
+        return false;
+    };
+    if actual.root != owner {
+        return false;
+    }
+    let Some((machine, _)) = validation::find_state(program, state) else {
+        return false;
+    };
+    let selector = |expression| {
+        let root = computations.root_at(
+            state,
+            u32::try_from(call.statement_index).ok()?,
+            checked_trees::CheckedScalarExpressionRole::CallSelector {
+                call_ordinal: u32::try_from(call.call_ordinal).ok()?,
+                argument_ordinal: u32::try_from(argument_index).ok()?,
+                expression,
+            },
+        )?;
+        if root.machine != machine.symbol {
+            return None;
+        }
+        let segment = checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(root.root);
+        selected_path.contains(&segment).then_some(segment)
+    };
+    super::argument_paths::projected_evaluated_path(
+        program,
+        machine.symbol,
+        state,
+        call.statement_index,
+        &actual,
+        Some(&selector),
+    )
+    .is_some_and(|(_, path)| path == selected_path)
+}
+
 /// Join a computed call's owned operands to the call's complete linear
 /// permission-event set, exactly as an ordinary call operation's arguments
 /// join it. Each operand names its owner through the canonical place its
@@ -1213,6 +1313,7 @@ fn claim_crossings_at_place(
 pub(crate) fn computed_call_claim_transfers(
     program: &dyn ::validation::CheckingInput,
     flow: &checked_trees::FlowFacts,
+    computations: &checked_trees::CheckedScalarComputationPlans,
     machine: SymbolHandle,
     state: SymbolHandle,
     call: &checked_trees::FlowCallFact,
@@ -1241,9 +1342,17 @@ pub(crate) fn computed_call_claim_transfers(
                 .root
             }
         };
-        for (claim_identity, path) in
-            owner_claim_crossings(program, flow, state, call, &events, root, &argument.path)?
-        {
+        for (claim_identity, path) in owner_claim_crossings(
+            program,
+            flow,
+            computations,
+            state,
+            call,
+            argument_index,
+            &events,
+            root,
+            &argument.path,
+        )? {
             if output
                 .iter()
                 .any(|transfer: &CheckedUnitClaimTransferPlan| {

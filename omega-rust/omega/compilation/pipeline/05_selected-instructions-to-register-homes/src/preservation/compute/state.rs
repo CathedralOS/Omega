@@ -53,20 +53,24 @@ impl<'homes> HomeIndex<'homes> {
     }
 }
 
-pub(super) struct DirectTraversal<'model> {
-    physical: &'model ValidatedPhysicalRegisterModel,
-    callee_saved: &'model BTreeSet<RegisterUnitId>,
-    pub(super) functions: Vec<FunctionAllocatedCalleeSavedRequirements>,
-    pub(super) function_count: u64,
-    pub(super) block_count: u64,
-    pub(super) instruction_count: u64,
-    pub(super) operand_count: u64,
-    pub(super) write_count: u64,
-    pub(super) witness_count: u64,
+/// One callee-saved walk's state: the physical model and roster it reads, the
+/// requirements it derives, and the counts the pass budget is charged for.
+/// The direct and replay routes share it; they differ in how each home is
+/// found, never in what a step costs.
+pub(in crate::preservation) struct DirectTraversal<'model> {
+    pub(in crate::preservation) physical: &'model ValidatedPhysicalRegisterModel,
+    pub(in crate::preservation) callee_saved: &'model BTreeSet<RegisterUnitId>,
+    pub(in crate::preservation) functions: Vec<FunctionAllocatedCalleeSavedRequirements>,
+    pub(in crate::preservation) function_count: u64,
+    pub(in crate::preservation) block_count: u64,
+    pub(in crate::preservation) instruction_count: u64,
+    pub(in crate::preservation) operand_count: u64,
+    pub(in crate::preservation) write_count: u64,
+    pub(in crate::preservation) witness_count: u64,
 }
 
 impl<'model> DirectTraversal<'model> {
-    pub(super) fn new(
+    pub(in crate::preservation) fn new(
         physical: &'model ValidatedPhysicalRegisterModel,
         callee_saved: &'model BTreeSet<RegisterUnitId>,
     ) -> Self {
@@ -81,6 +85,26 @@ impl<'model> DirectTraversal<'model> {
             write_count: 0,
             witness_count: 0,
         }
+    }
+
+    /// Close one function's walk: its recorded unit witnesses become the
+    /// requirement row the plan publishes.
+    pub(in crate::preservation) fn finish(
+        &mut self,
+        machine: semantic_vocabulary::MachineId,
+        units: BTreeMap<RegisterUnitId, Vec<CalleeSavedModificationWitness>>,
+    ) {
+        self.functions
+            .push(FunctionAllocatedCalleeSavedRequirements {
+                machine,
+                modified_units: units
+                    .into_iter()
+                    .map(|(unit, witnesses)| AllocatedCalleeSavedUnitRequirement {
+                        unit,
+                        witnesses,
+                    })
+                    .collect(),
+            });
     }
 
     pub(super) fn scan_instruction(
@@ -164,16 +188,10 @@ impl<'model> DirectTraversal<'model> {
     }
 }
 
-pub(super) fn finish_units(
-    units: BTreeMap<RegisterUnitId, Vec<CalleeSavedModificationWitness>>,
-) -> Vec<AllocatedCalleeSavedUnitRequirement> {
-    units
-        .into_iter()
-        .map(|(unit, witnesses)| AllocatedCalleeSavedUnitRequirement { unit, witnesses })
-        .collect()
-}
-
-pub(super) fn add(value: u64, increment: u64) -> Result<u64, AllocatedCalleeSavedRequirementError> {
+pub(in crate::preservation) fn add(
+    value: u64,
+    increment: u64,
+) -> Result<u64, AllocatedCalleeSavedRequirementError> {
     value
         .checked_add(increment)
         .ok_or(AllocatedCalleeSavedRequirementError::WorkOverflow)

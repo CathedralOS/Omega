@@ -11,6 +11,7 @@ use terminal_psi::StructuralPathSegment;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum DisposalEvent {
     Operation(OperationId),
+    NormalCall(OperationId),
     Edge(EdgeId),
 }
 

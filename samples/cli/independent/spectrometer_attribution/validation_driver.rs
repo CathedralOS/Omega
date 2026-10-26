@@ -318,6 +318,7 @@ fn main() {
             }
         });
         let result = terminal_runtime::execute(TerminalRuntimeRequest {
+            native_provider: None,
             x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64").expect("host flags capture"),
             artifact: terminal,
             provisions: report.runtime_provisions(),

@@ -219,10 +219,7 @@ pub struct PackageReviewOperatorCoordinate {
 }
 
 impl PackageReviewOperatorCoordinate {
-    pub const fn identity(&self) -> &PackageReviewNominalIdentity {
-        &self.identity
-    }
-
+    crate::record::accessors::record_accessors!(identity);
     pub fn result_dispatch(&self) -> &str {
         &self.result_dispatch
     }

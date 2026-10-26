@@ -3,8 +3,8 @@ use std::collections::BTreeMap;
 use selected_instructions::terminator_instruction;
 
 use super::{
-    super::{AllocatedCalleeSavedRequirementError, FunctionAllocatedCalleeSavedRequirements},
-    state::{DirectTraversal, HomeIndex, add, finish_units},
+    super::AllocatedCalleeSavedRequirementError,
+    state::{DirectTraversal, HomeIndex, add},
 };
 
 pub(super) fn derive(
@@ -40,12 +40,7 @@ pub(super) fn derive(
                 )?;
             }
         }
-        traversal
-            .functions
-            .push(FunctionAllocatedCalleeSavedRequirements {
-                machine: function.machine,
-                modified_units: finish_units(units),
-            });
+        traversal.finish(function.machine, units);
     }
     Ok(())
 }

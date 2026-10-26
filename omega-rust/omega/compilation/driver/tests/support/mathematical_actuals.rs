@@ -113,7 +113,8 @@ pub(super) fn produce(
         &mut timings,
     )
     .map_err(|error| format!("mathematical actual Terminal production: {error:?}"))?
-    .into_artifact();
+    .into_artifact()
+    .map_err(|error| error.to_string())?;
     let expected = artifact.semantic_module();
     for carrier in &expected.mathematical_carriers {
         if !carriers.iter().any(|(identity, key)| {

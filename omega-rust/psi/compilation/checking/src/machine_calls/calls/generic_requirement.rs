@@ -184,20 +184,7 @@ pub fn named_conformance_target_requirement<'program>(
     machine: &'program Machine,
     target: symbols::SymbolHandle,
 ) -> Result<Option<crate::declarations::traits::GenericBoundRequirement<'program>>, String> {
-    if !target.is_valid() {
-        return Ok(None);
-    }
-    for bound in &machine.conformance_bounds {
-        let binder = bound.binder;
-        if program
-            .symbols
-            .child_handles(binder)
-            .is_some_and(|mut children| children.any(|child| child == target))
-        {
-            return named_conformance_requirement(program, machine, binder, target);
-        }
-    }
-    Ok(None)
+    program.conformance_target_requirement(machine, target)
 }
 
 pub(super) fn named_conformance_receiver(
@@ -236,101 +223,7 @@ pub(super) fn named_conformance_requirement<'program>(
     receiver: symbols::SymbolHandle,
     target: symbols::SymbolHandle,
 ) -> Result<Option<crate::declarations::traits::GenericBoundRequirement<'program>>, String> {
-    if !named_conformance_receiver(program, machine, receiver) {
-        return Ok(None);
-    }
-    let failure = || {
-        format!(
-            "machine `{}` conformance-evidence call has no unique exact requirement",
-            machine.name
-        )
-    };
-    let mut bounds = machine
-        .conformance_bounds
-        .iter()
-        .filter(|bound| bound.binder == receiver);
-    let bound = bounds
-        .next()
-        .ok_or_else(|| format!("{}: its receiver has no authored bound", failure()))?;
-    if bounds.next().is_some() {
-        return Err(format!(
-            "{}: its receiver has multiple authored bounds",
-            failure()
-        ));
-    }
-    if !target.is_valid() || program.symbols.get(target).kind != symbols::SymbolKind::State {
-        return Err(format!(
-            "{}: its selected target is not a requirement state",
-            failure()
-        ));
-    }
-    let prepared = program.closed_requirement_application(target);
-    if prepared.is_none()
-        && !program
-            .symbols
-            .child_handles(receiver)
-            .is_some_and(|mut children| children.any(|child| child == target))
-    {
-        return Err(format!(
-            "{}: its selected target is not owned by the receiver",
-            failure()
-        ));
-    }
-    let carrier = program
-        .trait_definition_by_symbol(bound.trait_symbol)
-        .ok_or_else(failure)?;
-    let root = typed_trees::trait_definition::AppliedTraitScope::new(
-        program,
-        carrier,
-        typed_trees::trait_definition::TraitApplicationArguments {
-            lexical_owner: machine.symbol,
-            enclosing_data_applications: &[],
-            arguments: &bound.arguments,
-            lifetimes: &[],
-        },
-    )
-    .ok_or_else(|| {
-        format!(
-            "{}: its complete trait application cannot be represented",
-            failure()
-        )
-    })?;
-    let mut selected: Option<crate::declarations::traits::GenericBoundRequirement<'program>> = None;
-    let mut ambiguous = false;
-    root.visit(program, &mut |application| {
-        for signature in program.trait_machine_signatures(application.declaration) {
-            let matches = if let Some(prepared) = &prepared {
-                prepared.template == signature.symbol
-                    && program.requirement_application_matches_scope(target, application)
-            } else {
-                signature.name.as_str() == program.symbols.name(target)
-            };
-            if !matches {
-                continue;
-            }
-            if let Some(known) = &selected {
-                ambiguous |= known.signature.symbol != signature.symbol
-                    || !known.application.same_application(program, application);
-                continue;
-            }
-            selected = Some(crate::declarations::traits::GenericBoundRequirement {
-                signature,
-                application: application.clone(),
-            });
-        }
-    });
-    if ambiguous {
-        return Err(format!(
-            "{}: reachable declarations disagree on the requirement application",
-            failure()
-        ));
-    }
-    selected.map(Some).ok_or_else(|| {
-        format!(
-            "{}: its selected name has no reachable authored requirement",
-            failure()
-        )
-    })
+    program.conformance_bound_requirement(machine, receiver, target)
 }
 
 #[allow(clippy::too_many_arguments)]

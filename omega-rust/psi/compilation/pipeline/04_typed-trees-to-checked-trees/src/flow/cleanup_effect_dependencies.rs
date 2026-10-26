@@ -336,6 +336,9 @@ fn visit(
     if removed.iter().any(|path| path.is_empty()) {
         return Some(());
     }
+    // Carrier traversal may peel qualifications; selecting its disposition
+    // must still use the owned occurrence's exact semantic interface.
+    let selected_reference = reference;
     reference = resolve_peeled_type_reference(program, reference, substitutions);
     if matches!(
         program.type_reference_table.type_reference(reference),
@@ -397,7 +400,7 @@ fn visit(
         TypeReferenceNode::Named { symbol, .. } => visit_owner(
             program,
             *symbol,
-            reference,
+            selected_reference,
             substitutions,
             removed,
             active,
@@ -429,7 +432,7 @@ fn visit(
             visit_owner(
                 program,
                 *base_symbol,
-                reference,
+                selected_reference,
                 &nested,
                 removed,
                 active,

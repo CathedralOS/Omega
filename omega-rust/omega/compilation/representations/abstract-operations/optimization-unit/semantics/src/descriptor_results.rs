@@ -254,21 +254,15 @@ pub fn call_origins(
 /// independently replayed nonlocal backing. Rebuild from current functions:
 /// an optimizer's changed constructor, arrival or callee cannot reuse Terminal
 /// provenance. Root descriptors and reference returns keep their own contracts.
-pub(crate) fn owned_aggregate_descriptor_returns<'function, 'boundary>(
+pub(crate) fn owned_aggregate_descriptor_returns_with_graph(
     function: &PsiOptimizationFunction,
-    functions: impl IntoIterator<Item = &'function PsiOptimizationFunction>,
-    boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
+    graph: Option<&[DescriptorMachine]>,
     types: &[StructuralTypeDeclaration],
-    dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
 ) -> bool {
-    let Some(graph) =
-        optimized_catalog_graph(functions, boundaries, types, dynamic_dispatch, |_, node| {
-            Some(Cow::Borrowed(&node.operation))
-        })
-    else {
+    let Some(graph) = graph else {
         return false;
     };
-    let Some(returns) = kernel::descriptor_machine(&graph, function.machine)
+    let Some(returns) = kernel::descriptor_machine(graph, function.machine)
         .and_then(|machine| machine.returns.as_ref())
     else {
         return false;
@@ -283,7 +277,7 @@ pub(crate) fn owned_aggregate_descriptor_returns<'function, 'boundary>(
                 .is_some_and(|source| source.access == StructuralAccess::Owned)
                 && kernel::reconstruct_return_slots_external(
                     types,
-                    &graph,
+                    graph,
                     function.machine,
                     *position,
                     location.root,

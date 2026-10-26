@@ -34,8 +34,9 @@ pub(crate) use package_change::{
 };
 pub(crate) use prepare_project::LOCAL_PROJECT_CONTEXT;
 pub use prepare_project::{
-    LocalProjectPreparationOptions, PrepareLocalProjectError, PreparedLocalProject,
-    prepare_local_project, prepare_local_project_for_targets,
+    LocalProjectPreparation, LocalProjectPreparationOptions, PrepareLocalProjectError,
+    PreparedLocalProject, begin_local_project_preparation, prepare_local_project,
+    prepare_local_project_for_targets,
 };
 pub(crate) use publication::{
     PackageFileTransaction, PackagePublicationError, PackagePublicationLimits,

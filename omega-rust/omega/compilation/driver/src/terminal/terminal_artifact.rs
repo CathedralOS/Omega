@@ -281,6 +281,7 @@ pub(crate) fn produce_retained_terminal_artifacts(
                         .map_or(default, |family| family.canonical);
                     produce_terminal_artifact(
                         terminal_production::TerminalProductionRequest {
+                            publication: terminal_codec::TerminalPublication::Portable,
                             checked: checked_program,
                             exact_toolchain_sources: first.view.sources.exact_toolchain_sources(),
                             machine: terminal_production::TerminalMachineSelection::Symbol(default),
@@ -321,7 +322,16 @@ pub(crate) fn produce_retained_terminal_artifacts(
                 }
             }
             Ok(produced) => {
-                let (artifact, applications) = produced.into_parts();
+                let (artifact, applications) = match produced.into_parts() {
+                    Ok(parts) => parts,
+                    Err(error) => {
+                        for request_index in group {
+                            results[request_index] =
+                                Some(Err(vec![Diagnostic::error(error.to_string())]));
+                        }
+                        continue;
+                    }
+                };
                 let artifact = Arc::new(artifact);
                 for (request_index, application) in group.into_iter().zip(applications) {
                     results[request_index] = Some(application.and_then(|receipt| {

@@ -1,9 +1,11 @@
 //! Build admission, execution, and checked result assembly.
 //!
-//! [`evaluate_build`] selects the source-owned entry before semantic admission,
-//! filesystem preparation, restricted-request consent, and execution. Its private admitted checkpoint
-//! binds the exact program and entry before effects. The returned [`EvaluatedBuild`]
-//! carries configuration, requested authority and source commitment together.
+//! [`prepare_build_evaluation`] selects the source-owned entry before semantic admission,
+//! filesystem preparation and restricted-request consent. Its private admitted checkpoint
+//! binds the exact program and entry before effects. The caller starts and steps
+//! one retained Terminal activation, then rejoins its normal return with the
+//! prepared evaluation. Only that completion produces [`EvaluatedBuild`], carrying
+//! configuration, requested authority and source commitment together.
 //! Selection and evidence operations remain with their domain owners.
 //! Every activation checks its helpers, independently of optional package inputs,
 //! then consumes that checker-transformed program without respecialization.
@@ -15,7 +17,7 @@
 //! invented config grammar. When the program (build.omg is ordinary source,
 //! auto-included next to main.omg) defines the conventionally-named free
 //! machine `build(build: &mut Build)`, the compiler evaluates it at build time
-//! (purity-gated, the L0 engine) with a ZII `Build` and reads the augmented
+//! through the admitted Terminal interpreter with a ZII `Build` and reads the augmented
 //! value back:
 //!
 //! ```omega
@@ -49,13 +51,19 @@
 //!   product declarations without executing them; target-default declarations
 //!   remain under their separate admitted target roster.
 //!
-//! Start at `build_evaluation.rs` for the complete activation protocol.
+//! Start at `build_evaluation.rs` for admission and completion;
+//! `terminal_execution.rs` owns the activation stepped by the caller.
 //! `completed_pure_build` owns invocation-local completed Pure values. Its
 //! insertion boundary is private to this evaluator: fresh admission precedes
 //! consumption, and each replaced evaluation receives a current-account logical
 //! charge without fabricating interpreter execution or live-resource peaks.
-//! `admitted_build_program.rs` fixes its private checkpoint; `execution` runs
-//! that checkpoint and assembles its checked result. `compilation_products` owns the
+//! `admitted_build_program.rs` fixes its private checkpoint; `execution` prepares
+//! its code and account, authenticates the returned invocation, and assembles its
+//! checked result. The activation retains every request through normal return;
+//! completion requires exact source-request settlement. Bound compilations can
+//! join retained acquisitions; anonymous discovery joins its returned requests
+//! after source acquisition. An alias graph alone never discharges the ledger.
+//! `compilation_products` owns the
 //! retained Build records; admission and execution produce them without making
 //! downstream product custody depend on this evaluator.
 //! Trust grants, component assumptions and executed exclusions are checked by
@@ -79,20 +87,24 @@ mod build_evaluation;
 mod completed_pure_build;
 mod execution;
 pub mod terminal_bindings;
+mod terminal_execution;
+mod terminal_filesystem;
+pub mod terminal_requests;
 pub mod terminal_settings;
 
 pub use admission::target_helpers::select_build_helpers;
 use admitted_build_program::{AdmittedBuildProgram, admit_build_program};
 pub use artifacts::compile_timings::counters::preliminary_check_totals;
 pub use build_evaluation::{
-    BuildEvaluationRequest, EvaluatedBuild, RestrictedBuildGrants, evaluate_build,
+    BuildEvaluationRequest, EvaluatedBuild, PreparedBuildEvaluation, RestrictedBuildGrants,
+    prepare_build_evaluation,
 };
 pub use build_output::BuildStagedOutputEntryKind;
 pub use build_time_evaluation::WireCompatibilityDemand;
 pub use compilation_products::{BuildConfig, ComputedBuildConfig};
 pub use completed_pure_build::PureBuildCompilation;
 pub use effects::AuthoredBehaviorExclusion;
-use execution::execute_admitted_build_program;
+pub use execution::PreparedBuildExecution;
 pub use package_compilation::build_execution::{
     BUILD_OBSERVATION_SCHEMA_VERSION, BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY,
     BuildActivation, BuildCanonicalSourceMetadataIdentity, BuildCapturedSourceInventory,
@@ -114,4 +126,8 @@ pub use provider_planning::program_entry::{
     validate_selected_program_entry_calling_plan,
 };
 pub use target::{ApplicationIdentifier, HostedApplicationIntent};
+pub use terminal_execution::{
+    BuildDependencySelection, ReturnedBuild, TerminalBuildActivation, TerminalBuildHost,
+    TerminalBuildStep,
+};
 pub use trust_model::AuthoredComponentAssumptionAcceptance;

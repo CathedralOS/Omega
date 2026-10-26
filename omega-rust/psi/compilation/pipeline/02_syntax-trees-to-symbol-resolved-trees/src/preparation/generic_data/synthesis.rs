@@ -233,6 +233,7 @@ pub(crate) fn desugar_generic_data_instances_in(
                 lifetime_parameters: definition.lifetime_parameters.clone(),
                 parameter_names,
                 const_parameter_types,
+                cleanup_selection: definition.cleanup_selection.clone(),
                 where_facts: definition.where_facts,
                 type_equations: super::equations::classify_type_equations(
                     syntax,
@@ -795,6 +796,8 @@ fn synthesize_instance(
     // loop above, so its `const` mentions land in the same rewritten
     // window as the data-level fact copies.
     replace_const_expression_names_from(syntax, fact_expression_watermark, &const_expressions);
+    let cleanup_selection = base_info.cleanup_selection.clone().map(|selection|
+        super::substitution::substitute_cleanup_selection(syntax, snapshot, selection, &substitution, &const_parameter_values, warnings));
     let declaration = syntax.push_root_item(Item::Data(DataDefinition {
         // The closed instance is compiler-generated, but its mandatory
         // derivation origin is the exact authored generic declaration.
@@ -809,6 +812,7 @@ fn synthesize_instance(
         lifetime_parameters: base_info.lifetime_parameters.clone(),
         type_parameters: HandleSpan::default(),
         generic_instance: Some(generic_instance),
+        cleanup_selection,
         properties,
         where_facts,
         members: HandleSpan::from_parts(first, count),

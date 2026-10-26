@@ -185,12 +185,14 @@ foundations, product reports and publication keep independent ownership.
 | `omega/application/cli/src/main.rs` | Parse and dispatch; display outcomes |
 | `omega/application/build/src/build.rs` | Request admission, Build lifecycle, requested products, required tests and publication |
 | `omega/application/build/src/build_execution.rs` | Dependency jobs and Build activation readiness; mandatory final join |
+| `omega/application/build/src/build_session.rs` | Invocation compiler lifetime beside independently package-owned staging and aggregate sponsors |
 | `omega/application/build/src/package_commands.rs` | Admitted install/update target-review work; complete findings returned to package-owned publication |
 | `omega/application/build/src/package_review.rs` | Admitted review dependency passes, compiler calls and suspended-Build cache recovery, shared with audit |
 | `omega/application/build/src/package_inspection.rs` | Read-only audit session lifetime and ordered target execution; package-owned pinned resolution and reporting |
 | `psi/compilation/driver/src/compiler.rs` | Source processing and checking through Terminal Psi |
 | `omega/compilation/driver/src/compiler.rs` | Terminal plus explicit realization inputs through native emission |
 | Terminal interpreter entrance | Load or borrow code, execute, suspend, install admitted bindings, resume |
+| `omega/application/native-provider-runtime/src/native_provider_runtime.rs` | Sponsor isolated native provider incarnations, immutable mapped homes and exact compiled frame adapters; consume source-free products |
 
 These are destination owners, not extra facades above the current compiler.
 Dismantle the existing product coordinator into its actual owners. Reuse the
@@ -223,6 +225,17 @@ Target/Build companion inputs travel explicitly; consumers cannot reopen checked
 source. Matching compilation inputs may share work; host Build and product
 contexts are not interchangeable merely because source bytes match.
 
+An anonymous Build runs before its final source graph has a declaration owner.
+The Psi production request therefore distinguishes invocation-only code from
+portable publication, using the same stages, Terminal representation and
+interpreter. Invocation-local coordinates retain their live code owner; neither
+artifact encoding nor native production accepts that private product. Build
+companions require both exact code semantics and the same invocation owner.
+After the dependency join, package coordination must establish the final owner
+before Product resolution and typing, as required by
+[anonymous owner identity](../wiki/spec/build/declarations.md#default-builds-and-anonymous-owner-identity).
+Retagging already-typed declarations or replaying Build is not that transition.
+
 ### Visible execution
 
 The Build entrance shows request admission, activation preparation, dependency
@@ -234,6 +247,28 @@ while Build runs; waiting resumes the same activation without replaying effects.
 Build return joins all requests before product completion. Product bindings are
 inert during Build. Generated source cannot change admitted authored meaning.
 Ordinary Build helpers need Psi execution, not native product compilation.
+
+Execution preparation and Product completion carry different inputs. Source
+inventories, named inputs, required outputs, resource sponsors and restricted
+grants must join the activation before its effects. A returned Build does not
+discharge a later execution request merely because its source graph matches.
+After return, the coordinator joins final source custody and chooses Product
+targets; it must not discard execution obligations while converting occurrence
+plans into retained Product work. Build's execution profile remains independent
+of those targets.
+
+The compiler's `settle_package_build` consumes the exact returned activation and
+checks its source-request ledger and required outputs before returning opaque
+`CompletedBuild` custody. `prepare_package_product` admits each requested Product
+context from that settled output. Review proposals, accepted semantic bindings
+and compilation purpose belong to that context, not the executed Build. The
+source graph and execution observations remain fixed. Product source is resolved
+and typed under its own admissions; a sibling's typed declarations are never
+retagged. Default Builds retain immutable parsing for changed source-routing
+inputs. The ordinary `complete_package_build` route consumes the same settlement
+and Product-preparation sequence without forking a nonexistent sibling. An
+already prepared `PackageBuild::select_target` remains restricted to equal source
+and semantic inputs; it selects realization, not a new Product judgment.
 
 Each compiler entrance shows named representations and actual stage calls in
 execution order. A separate `pipeline.rs` is justified only if it owns meaningful

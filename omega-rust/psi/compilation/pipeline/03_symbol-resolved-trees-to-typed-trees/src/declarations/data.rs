@@ -39,6 +39,7 @@ fn lower_data_definition_contents(
             .as_ref()
             .map(|origin| lower_type_reference_into_table(lowerer, origin))
             .transpose()?,
+        cleanup_selection: None,
         properties: typed::data::DataProperties {
             carry: data_definition.properties.carry,
             multiplicity: data_definition.properties.multiplicity,
@@ -123,6 +124,52 @@ fn lower_data_definition_contents(
     typed_data_definition.type_parameters =
         lower_type_parameters(lowerer, data_definition.type_parameters)?;
 
+    if let Some(selection) = &data_definition.cleanup_selection {
+        let subject = if let Some(origin) = typed_data_definition.generic_instance {
+            origin
+        } else if typed_data_definition.type_parameters.is_empty() {
+            lowerer.typed_trees.type_reference_table.insert(
+                typed::types::TypeReferenceNode::Named {
+                    symbol: typed_data_definition.symbol,
+                    name: typed_data_definition.name.clone(),
+                },
+            )
+        } else {
+            let parameters = lowerer
+                .typed_trees
+                .data_type_parameters(&typed_data_definition)
+                .to_vec();
+            let arguments = parameters
+                .iter()
+                .map(|parameter| {
+                    lowerer.typed_trees.type_reference_table.insert(
+                        typed::types::TypeReferenceNode::Named {
+                            symbol: parameter.symbol,
+                            name: parameter.name.clone(),
+                        },
+                    )
+                })
+                .collect::<Vec<_>>();
+            let arguments = lowerer
+                .typed_trees
+                .type_reference_table
+                .insert_type_reference_handles(arguments);
+            lowerer.typed_trees.type_reference_table.insert(
+                typed::types::TypeReferenceNode::Generic {
+                    base_symbol: typed_data_definition.symbol,
+                    base_name: typed_data_definition.name.clone(),
+                    lifetime_arguments: typed_data_definition.lifetime_parameters.clone(),
+                    arguments,
+                },
+            )
+        };
+        typed_data_definition.cleanup_selection = Some(super::domain::lower_cleanup_selection(
+            lowerer,
+            selection,
+            subject,
+            typed_data_definition.symbol,
+        )?);
+    }
     for member in lowerer.source_trees.data_members(data_definition.members) {
         let member = lower_data_member(lowerer, member)?;
         lowerer

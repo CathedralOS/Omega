@@ -8,6 +8,7 @@ mod terminal_mutable_boundary;
 use compiler::{CheckedCompileRequest, CompilationSession};
 use fixture_package_inputs::{repo_root, reviewed_repository_fixture_package_inputs};
 use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, IntegerValue};
+use terminal_codec::CanonicalTerminalArtifact;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     TerminalEntryStorageError, TerminalEntryStorageValue, TerminalExecutionResult,
@@ -18,7 +19,7 @@ use terminal_interpreter::{
 fn produce(
     machine: &str,
 ) -> (
-    psi_compiler::ProducedTerminalArtifact,
+    psi_compiler::ProducedTerminalProgram,
     package_compilation::build_execution::build_value::BuildValueAdmission,
     build_time_evaluation::BuildTimeValue,
 ) {
@@ -47,6 +48,7 @@ fn produce(
     let scope = package_compilation::build_execution::prepare_filesystem_scope(
         &prepared.root_path,
         None,
+        None,
         &source::SourceMap::default(),
         None,
         None,
@@ -66,13 +68,119 @@ fn produce(
 }
 
 #[test]
+fn invocation_code_cannot_publish_or_rejoin_another_owner() {
+    let (produced, _, _) = produce("empty_array_result");
+    let artifact = produced.artifact().expect("portable source fixture");
+    assert!(
+        terminal_codec::InvocationTerminalCode::new(artifact.semantic_module().clone()).is_err(),
+        "private code must retain a live owner even without local declarations"
+    );
+    let private = || {
+        let mut module = artifact.semantic_module().clone();
+        let mut identities = terminal_psi::TerminalIdentityTableBuilder::for_invocation();
+        for text in module.identities.entries() {
+            identities.intern(text);
+        }
+        module.identities = identities.snapshot();
+        assert!(
+            terminal_codec::encode_module(&module).is_err(),
+            "private code cannot export even when every declaration has a portable owner"
+        );
+        let local = identities
+            .intern_invocation_local("invocation-declaration(1:1)")
+            .unwrap();
+        module.identities = identities.build();
+        (
+            terminal_codec::InvocationTerminalCode::new(module).unwrap(),
+            terminal_psi::NominalDeclarationIdentity::new(local),
+        )
+    };
+    let (first, declaration) = private();
+    let (second, other_declaration) = private();
+    let first_view = first.view();
+    let second_view = second.view();
+    assert_eq!(
+        first_view.identity(),
+        second_view.identity(),
+        "code content is identical"
+    );
+    assert_ne!(
+        first_view.custody_identity(),
+        second_view.custody_identity(),
+        "private code owners are distinct"
+    );
+    assert!(declaration.same_identity_as(
+        &first_view.module().identities,
+        &declaration,
+        &first_view.module().identities
+    ));
+    assert!(!declaration.same_identity_as(
+        &first_view.module().identities,
+        &other_declaration,
+        &second_view.module().identities
+    ));
+    let mut left = first_view.module().identities.clone().into_builder();
+    let mut right = first_view.module().identities.clone().into_builder();
+    let left_declaration = terminal_psi::NominalDeclarationIdentity::new(
+        left.intern_invocation_local("invocation-declaration(2:1)")
+            .unwrap(),
+    );
+    let other_right_declaration = terminal_psi::NominalDeclarationIdentity::new(
+        right
+            .intern_invocation_local("invocation-declaration(3:1)")
+            .unwrap(),
+    );
+    let matching_right_declaration = terminal_psi::NominalDeclarationIdentity::new(
+        right
+            .intern_invocation_local("invocation-declaration(2:1)")
+            .unwrap(),
+    );
+    let left = left.build();
+    let right = right.build();
+    assert!(!left_declaration.same_identity_as(&left, &other_right_declaration, &right));
+    assert!(left_declaration.same_identity_as(&left, &matching_right_declaration, &right));
+    assert!(
+        terminal_codec::encode_module(first_view.module()).is_err(),
+        "raw semantic publication cannot launder local coordinates"
+    );
+    assert!(
+        CanonicalTerminalArtifact::from_parts(
+            first_view.module().clone(),
+            artifact.optimization().clone(),
+            None,
+        )
+        .is_err(),
+        "artifact construction cannot launder local coordinates"
+    );
+    let program = TerminalProgram::borrow(first_view);
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    assert!(matches!(
+        instance
+            .invoke(&mut TerminalFuelMeter::unbounded())
+            .unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarArray(_))
+    ));
+    instance.close().unwrap();
+    assert!(
+        terminal_codec::TerminalProgramProduct::Invocation(second)
+            .into_portable()
+            .is_err()
+    );
+}
+
+#[test]
 fn empty_array_descriptor_requires_a_live_cell() {
     use evaluation_accounting::{
         BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
         TerminalStorageScheduleIdentity,
     };
     let (produced, _, _) = produce("empty_array_result");
-    let program = TerminalProgram::borrow(produced.artifact().view());
+    let program = TerminalProgram::borrow(
+        produced
+            .artifact()
+            .expect("portable inspection product")
+            .view(),
+    );
     let measurement = EvaluationMeasurementIdentity::TerminalPsi {
         fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
         storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
@@ -136,7 +244,7 @@ fn array_result_storage_outlives_the_completed_instance() {
         TerminalStorageScheduleIdentity,
     };
     let (produced, _, _) = produce("array_result");
-    let artifact = produced.artifact();
+    let artifact = produced.artifact().expect("portable inspection product");
     let execute = |loaded, cell_limit, should_refuse| {
         let program = if loaded {
             TerminalProgram::load_envelope(&artifact.to_bytes()).unwrap()
@@ -238,7 +346,7 @@ fn completed_helpers_return_original_entry_storage_to_the_embedding() {
         ("configure_build_readback", b"com.example.omega".as_slice()),
     ] {
         let (produced, admission, initial) = produce(machine);
-        let artifact = produced.artifact();
+        let artifact = produced.artifact().expect("portable inspection product");
         let identifier_path = [terminal_mutable_boundary::field(artifact, "identifier")];
         for loaded in [false, true] {
             let program = if loaded {
@@ -406,7 +514,7 @@ fn assert_bytes(observed: TerminalEntryStorageValue<'_>, expected: &[u8]) {
 fn owned_inputs_and_failed_activations_do_not_return_borrowed_storage() {
     for machine in ["consume", "fail_after_write"] {
         let (produced, _, _) = produce(machine);
-        let artifact = produced.artifact();
+        let artifact = produced.artifact().expect("portable inspection product");
         let identifier_path = [terminal_mutable_boundary::field(artifact, "identifier")];
         let program = TerminalProgram::borrow(artifact.view());
         let arguments = [TerminalStructuralValue::minted(
@@ -466,7 +574,7 @@ fn build_settings_use_the_existing_validator_after_terminal_execution() {
         ),
     ] {
         let (produced, admission, initial) = produce(machine);
-        let artifact = produced.artifact();
+        let artifact = produced.artifact().expect("portable inspection product");
         for loaded in [false, true] {
             let program = if loaded {
                 TerminalProgram::load_envelope(&artifact.to_bytes()).unwrap()
@@ -479,7 +587,7 @@ fn build_settings_use_the_existing_validator_after_terminal_execution() {
                 Vec::new(),
             )];
             let host = build_evaluation::terminal_bindings::TerminalBuildBindingHost::new(
-                artifact,
+                artifact.view().into(),
                 produced.build_bindings(),
                 arguments[0].clone(),
             )
@@ -635,7 +743,7 @@ fn full_build_pays_its_shared_sponsor_before_each_semantic_site() {
         TerminalStorageScheduleIdentity,
     };
     let (produced, admission, initial) = produce("build");
-    let artifact = produced.artifact();
+    let artifact = produced.artifact().expect("portable inspection product");
     let program = TerminalProgram::load_envelope(&artifact.to_bytes()).unwrap();
     let execute = |meter: &mut TerminalFuelMeter, completes: bool| {
         let original = TerminalStructuralValue::minted(
@@ -644,7 +752,7 @@ fn full_build_pays_its_shared_sponsor_before_each_semantic_site() {
             Vec::new(),
         );
         let host = build_evaluation::terminal_bindings::TerminalBuildBindingHost::new(
-            artifact,
+            artifact.view().into(),
             produced.build_bindings(),
             original.clone(),
         )
@@ -747,7 +855,7 @@ fn full_build_reserves_owned_storage_and_retains_storage_faults() {
         TerminalStorageScheduleIdentity,
     };
     let (produced, admission, initial) = produce("build");
-    let artifact = produced.artifact();
+    let artifact = produced.artifact().expect("portable inspection product");
     let program = TerminalProgram::load_envelope(&artifact.to_bytes()).unwrap();
     let execute = |cell_limit, byte_limit, competing_cells, competing_bytes| {
         let measurement = EvaluationMeasurementIdentity::TerminalPsi {
@@ -775,7 +883,7 @@ fn full_build_reserves_owned_storage_and_retains_storage_faults() {
             Vec::new(),
         );
         let host = build_evaluation::terminal_bindings::TerminalBuildBindingHost::new(
-            artifact,
+            artifact.view().into(),
             produced.build_bindings(),
             original.clone(),
         )
@@ -900,7 +1008,7 @@ fn empty_frames_are_sponsored_before_entry_and_retire_after_nested_calls() {
         TerminalStorageScheduleIdentity,
     };
     let (produced, _, _) = produce("frame_sequence");
-    let artifact = produced.artifact();
+    let artifact = produced.artifact().expect("portable inspection product");
     let measurement = EvaluationMeasurementIdentity::TerminalPsi {
         fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
         storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
@@ -1014,7 +1122,7 @@ fn a_fault_after_a_host_effect_cannot_reenter_the_same_call() {
         }
     }
     let (produced, _, _) = produce("configure_build_boundary");
-    let artifact = produced.artifact();
+    let artifact = produced.artifact().expect("portable inspection product");
     let program = TerminalProgram::borrow(artifact.view());
     let arguments = [TerminalStructuralValue::minted(
         79,

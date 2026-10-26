@@ -32,6 +32,7 @@ use crate::values::{
 /// never a grant of access to the runtime or its qualifications.
 #[derive(Debug)]
 pub struct TerminalBoundaryScalarBuffer {
+    pub(super) original_storage: Option<super::original_storage::TerminalOriginalStorageLoan>,
     identity: Arc<()>,
     argument_index: usize,
     field_path: Vec<CanonicalStructuralPathSegment>,
@@ -43,6 +44,11 @@ pub struct TerminalBoundaryScalarBuffer {
 }
 
 impl TerminalBoundaryScalarBuffer {
+    pub fn original_storage(
+        &self,
+    ) -> Option<&super::original_storage::TerminalOriginalStorageLoan> {
+        self.original_storage.as_ref()
+    }
     /// Index in the structural argument lane, not the scalar argument lane.
     pub fn argument_index(&self) -> usize {
         self.argument_index
@@ -90,13 +96,14 @@ impl TerminalBoundaryScalarBuffer {
     }
 }
 
-struct ScalarLoanBinding {
+pub(super) struct ScalarLoanBinding {
     identity: Arc<()>,
-    argument_index: usize,
+    pub(super) argument_index: usize,
     field_path: Vec<CanonicalStructuralPathSegment>,
-    access: StructuralAccess,
+    pub(super) access: StructuralAccess,
     source: PlaceId,
-    storage: PrimitiveStorage,
+    pub(super) storage: PrimitiveStorage,
+    pub(super) direct_original: bool,
     scalar_type: ScalarType,
     shared_view: bool,
     original: TerminalScalarValue,
@@ -124,7 +131,7 @@ pub(crate) fn satisfies_source_restriction(
 #[derive(Default)]
 pub(crate) struct BoundaryScalarLoans {
     pub(crate) buffers: Vec<TerminalBoundaryScalarBuffer>,
-    bindings: Vec<ScalarLoanBinding>,
+    pub(super) bindings: Vec<ScalarLoanBinding>,
 }
 
 impl BoundaryScalarLoans {
@@ -155,8 +162,9 @@ impl BoundaryScalarLoans {
                 terminal_psi::reading_borrow_pair_pattern!()
             )
             || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-            || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
+            || (parameter.access == StructuralAccess::MutableBorrow
+                && (!parameter.qualifications.is_empty()
+                    || !parameter.projected_qualifications.is_empty()))
         {
             return Err(malformed());
         }
@@ -192,7 +200,9 @@ impl BoundaryScalarLoans {
         argument_index: usize,
         field_path: Vec<CanonicalStructuralPathSegment>,
     ) -> Result<(), TerminalInterpretError> {
-        execution.validate_scalar_loan_qualifications(&storage)?;
+        if access == StructuralAccess::MutableBorrow {
+            execution.validate_scalar_loan_qualifications(&storage)?;
+        }
         let original = execution.read_primitive_storage(
             source,
             storage.clone(),
@@ -218,6 +228,7 @@ impl BoundaryScalarLoans {
         }
         let identity = Arc::new(());
         self.buffers.push(TerminalBoundaryScalarBuffer {
+            original_storage: None,
             identity: Arc::clone(&identity),
             argument_index,
             field_path: field_path.clone(),
@@ -228,6 +239,7 @@ impl BoundaryScalarLoans {
             encoding: storage.encoding,
         });
         self.bindings.push(ScalarLoanBinding {
+            direct_original: false,
             identity,
             argument_index,
             field_path,
@@ -272,13 +284,19 @@ impl BoundaryScalarLoans {
             }
             // Validate the captured backing, never resolve a source path after
             // host code. Callback code receives no mutable execution reference.
-            if execution.read_primitive_storage(
+            let current = execution.read_primitive_storage(
                 binding.source,
                 binding.storage.clone(),
                 binding.scalar_type,
                 binding.scalar_type,
                 binding.shared_view,
-            )? != binding.original
+            )?;
+            let expected = if binding.direct_original {
+                buffer.value
+            } else {
+                binding.original
+            };
+            if (binding.direct_original && buffer.original_storage.is_none()) || current != expected
             {
                 return Err(malformed());
             }
@@ -298,12 +316,16 @@ impl BoundaryScalarLoans {
         // paths or introduce a later, partially committed validation phase.
         for (buffer, binding) in buffers.into_iter().zip(self.bindings) {
             if binding.access != StructuralAccess::SharedBorrow {
-                execution.store_primitive_storage(
-                    binding.source,
-                    binding.storage,
-                    binding.scalar_type,
-                    buffer.value,
-                )?;
+                if binding.direct_original {
+                    execution.record_original_scalar_write(&binding.storage)?;
+                } else {
+                    execution.store_primitive_storage(
+                        binding.source,
+                        binding.storage,
+                        binding.scalar_type,
+                        buffer.value,
+                    )?;
+                }
             }
         }
         Ok(())
@@ -311,32 +333,74 @@ impl BoundaryScalarLoans {
 }
 
 impl TerminalExecution<'_> {
-    /// A plain formal cannot erase a stronger qualification on its caller's
-    /// backing. This transport has no qualified replacement protocol, so it
-    /// conservatively refuses qualified roots and projected owner constraints.
+    /// An unqualified scalar replacement cannot erase a stronger caller owner.
     pub(crate) fn validate_scalar_loan_qualifications(
         &self,
         storage: &PrimitiveStorage,
     ) -> Result<(), TerminalInterpretError> {
-        let target: &StructuralRuntimePlace = match &storage.endpoint {
-            PrimitiveStorageEndpoint::Scalar(place) => place,
-            PrimitiveStorageEndpoint::ScalarField(field) => &field.parent,
-            PrimitiveStorageEndpoint::ArrayElement { array, .. } => &array.referent,
-            // The frame-home resolver already requires unqualified parameters
-            // and unqualified, claim-free structural results for array locals.
-            // An immutable view byte carries no replacement authority at all.
-            PrimitiveStorageEndpoint::OwnedArrayElement { .. }
-            | PrimitiveStorageEndpoint::ViewByte { .. } => return Ok(()),
+        let Some(target) = scalar_qualification_owner(storage) else {
+            return Ok(());
         };
         self.validate_storage_loan_qualifications(target)
+    }
+
+    /// A nested scalar uses the original formal's captured preservation scope;
+    /// its immediate parent never becomes a separately authorized formal.
+    pub(crate) fn validate_scalar_loan_restoration(
+        &self,
+        storage: &PrimitiveStorage,
+        owner: &StructuralRuntimePlace,
+        normal: &[semantic_vocabulary::StructuralDomainId],
+    ) -> Result<(), TerminalInterpretError> {
+        let Some(target) = scalar_qualification_owner(storage) else {
+            return Ok(());
+        };
+        self.validate_storage_loan_restoration_at(target, owner, normal)
     }
 
     pub(crate) fn validate_storage_loan_qualifications(
         &self,
         target: &StructuralRuntimePlace,
     ) -> Result<(), TerminalInterpretError> {
+        self.validate_storage_loan_restoration(target, &[])
+    }
+
+    /// Preserve only memberships promised on this exact mutable formal's
+    /// normal return. Stronger caller roots and projected constraints cannot
+    /// inherit that promise. This checks existing tags and never installs one.
+    pub(crate) fn validate_storage_loan_restoration(
+        &self,
+        target: &StructuralRuntimePlace,
+        normal: &[semantic_vocabulary::StructuralDomainId],
+    ) -> Result<(), TerminalInterpretError> {
+        self.validate_storage_loan_restoration_at(target, target, normal)
+    }
+
+    fn validate_storage_loan_restoration_at(
+        &self,
+        target: &StructuralRuntimePlace,
+        owner: &StructuralRuntimePlace,
+        normal: &[semantic_vocabulary::StructuralDomainId],
+    ) -> Result<(), TerminalInterpretError> {
+        if target.opaque_identity != owner.opaque_identity || !target.path.starts_with(&owner.path)
+        {
+            return Err(malformed());
+        }
         let owns_target = |value: &TerminalStructuralValue| {
             value.opaque_identity == target.opaque_identity && target.path.starts_with(&value.path)
+        };
+        let covered = |value: &TerminalStructuralValue,
+                       qualifications: &[semantic_vocabulary::StructuralDomainId],
+                       projected_empty: bool| {
+            projected_empty
+                && (qualifications.is_empty()
+                    || (value.path == owner.path
+                        && qualifications.iter().all(|domain| normal.contains(domain))))
+        };
+        let unsupported = || {
+            TerminalInterpretError::UnsupportedSemanticVariant(
+                "mutable host storage has an uncovered original qualification or owner",
+            )
         };
         for (machine_id, values) in std::iter::once((self.current_machine, &self.structural_values))
             .chain(
@@ -351,35 +415,47 @@ impl TerminalExecution<'_> {
                 .get(&machine_id)
                 .ok_or_else(malformed)?;
             for (place, value) in values.iter().filter(|(_, value)| owns_target(value)) {
-                if !value.qualifications.is_empty()
-                    || machine
-                        .structural_parameters
-                        .iter()
-                        .chain(machine.block_structural_parameters())
-                        .any(|parameter| {
-                            parameter.place == *place
-                                && (!parameter.qualifications.is_empty()
-                                    || !parameter.projected_qualifications.is_empty())
-                        })
+                if !covered(
+                    value,
+                    &value.qualifications,
+                    value.projected_qualifications.is_empty(),
+                ) || machine
+                    .structural_parameters
+                    .iter()
+                    .chain(machine.block_structural_parameters())
+                    .any(|parameter| {
+                        parameter.place == *place
+                            && !covered(
+                                value,
+                                &parameter.qualifications,
+                                parameter.projected_qualifications.is_empty(),
+                            )
+                    })
                     || machine
                         .operations()
                         .filter_map(|operation| operation.result.structural())
                         .any(|result| {
                             result.place == *place
-                                && (!result.qualifications.is_empty()
-                                    || !result.projected_qualifications.is_empty())
+                                && !covered(
+                                    value,
+                                    &result.qualifications,
+                                    result.projected_qualifications.is_empty(),
+                                )
                         })
                 {
-                    return Err(malformed());
+                    return Err(unsupported());
                 }
             }
         }
-        if self
-            .reference_referents
-            .values()
-            .any(|value| owns_target(&value.view) && !value.view.qualifications.is_empty())
-        {
-            return Err(malformed());
+        if self.reference_referents.values().any(|value| {
+            owns_target(&value.view)
+                && !covered(
+                    &value.view,
+                    &value.view.qualifications,
+                    value.view.projected_qualifications.is_empty(),
+                )
+        }) {
+            return Err(unsupported());
         }
         Ok(())
     }
@@ -437,5 +513,15 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         Ok(Some(field.field_type.clone()))
+    }
+}
+
+fn scalar_qualification_owner(storage: &PrimitiveStorage) -> Option<&StructuralRuntimePlace> {
+    match &storage.endpoint {
+        PrimitiveStorageEndpoint::Scalar(place) => Some(place),
+        PrimitiveStorageEndpoint::ScalarField(field) => Some(&field.parent),
+        PrimitiveStorageEndpoint::ArrayElement { array, .. } => Some(&array.referent),
+        PrimitiveStorageEndpoint::OwnedArrayElement { .. }
+        | PrimitiveStorageEndpoint::ViewByte { .. } => None,
     }
 }

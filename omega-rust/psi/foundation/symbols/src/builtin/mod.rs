@@ -64,11 +64,15 @@ impl BuiltinTypeAtom {
         Self::ALL.get(ordinal).copied()
     }
 
-    pub fn ordinal(self) -> usize {
-        Self::ALL
-            .iter()
-            .position(|candidate| *candidate == self)
-            .expect("builtin type atom belongs to its closed inventory")
+    /// The atom's slot ordinal: its position in [`Self::ALL`]. The loop
+    /// compares discriminant values (this vocabulary has no payload), so the
+    /// accessors below can index the roster in const context.
+    pub const fn ordinal(self) -> usize {
+        let mut index = 0;
+        while (Self::ALL[index] as usize) != (self as usize) {
+            index += 1;
+        }
+        index
     }
 
     /// Whether this atom is one of the dedicated atomic core types whose
@@ -106,58 +110,40 @@ impl BuiltinTypeAtom {
         )
     }
 
+    /// One roster row per member in [`Self::ALL`] order: the atom's
+    /// diagnostic identity and its installed symbol spelling. Both readers
+    /// index this roster instead of restating the variant list once each.
+    const SPELLINGS: [(Self, &'static str, &'static str); BUILTIN_TYPE_COUNT] = [
+        (Self::Bool, "bool", "bool"),
+        (Self::I8, "i8", "i8"),
+        (Self::I16, "i16", "i16"),
+        (Self::I32, "i32", "i32"),
+        (Self::I64, "i64", "i64"),
+        (Self::U8, "u8", "u8"),
+        (Self::U16, "u16", "u16"),
+        (Self::U32, "u32", "u32"),
+        (Self::U64, "u64", "u64"),
+        (Self::Address, "address", "addr"),
+        (Self::F32, "f32", "f32"),
+        (Self::F64, "f64", "f64"),
+        (Self::Slice, "slice", "Slice"),
+        (Self::Result, "result", "Result"),
+        (Self::SyscallResult, "syscall-result", "SyscallResult"),
+        (Self::Terminal, "terminal", "Terminal"),
+        (Self::Never, "never", "Never"),
+        (Self::UInt, "uint", "UInt"),
+        (Self::Int, "int", "Int"),
+        (Self::AtomicBool, "atomic-bool", "AtomicBool"),
+        (Self::AtomicU32, "atomic-u32", "AtomicU32"),
+        (Self::AtomicU64, "atomic-u64", "AtomicU64"),
+    ];
+
     pub const fn identity(self) -> &'static str {
-        match self {
-            Self::Bool => "bool",
-            Self::I8 => "i8",
-            Self::I16 => "i16",
-            Self::I32 => "i32",
-            Self::I64 => "i64",
-            Self::U8 => "u8",
-            Self::U16 => "u16",
-            Self::U32 => "u32",
-            Self::U64 => "u64",
-            Self::Address => "address",
-            Self::F32 => "f32",
-            Self::F64 => "f64",
-            Self::Slice => "slice",
-            Self::Result => "result",
-            Self::SyscallResult => "syscall-result",
-            Self::Terminal => "terminal",
-            Self::Never => "never",
-            Self::UInt => "uint",
-            Self::Int => "int",
-            Self::AtomicBool => "atomic-bool",
-            Self::AtomicU32 => "atomic-u32",
-            Self::AtomicU64 => "atomic-u64",
-        }
+        Self::SPELLINGS[self.ordinal()].1
     }
 
     pub const fn symbol_name(self) -> &'static str {
-        match self {
-            Self::Bool => "bool",
-            Self::I8 => "i8",
-            Self::I16 => "i16",
-            Self::I32 => "i32",
-            Self::I64 => "i64",
-            Self::U8 => "u8",
-            Self::U16 => "u16",
-            Self::U32 => "u32",
-            Self::U64 => "u64",
-            Self::Address => "addr",
-            Self::F32 => "f32",
-            Self::F64 => "f64",
-            Self::Slice => "Slice",
-            Self::Result => "Result",
-            Self::SyscallResult => "SyscallResult",
-            Self::Terminal => "Terminal",
-            Self::Never => "Never",
-            Self::UInt => "UInt",
-            Self::Int => "Int",
-            Self::AtomicBool => "AtomicBool",
-            Self::AtomicU32 => "AtomicU32",
-            Self::AtomicU64 => "AtomicU64",
-        }
+        Self::SPELLINGS[self.ordinal()].2
     }
 }
 
@@ -746,62 +732,10 @@ impl BuiltinFunction {
     }
 
     /// Whether this builtin is one of the instruction-bearing asm
-    /// intrinsics. Membership reads [`Self::asm_intrinsics`], the one asm
-    /// roster, instead of restating its variants.
+    /// intrinsics. Membership reads [`Self::ALL`]'s own spellings: every asm
+    /// intrinsic is installed with the unnameable `asm#` prefix.
     pub fn is_asm_intrinsic(self) -> bool {
-        Self::asm_intrinsics().contains(&self)
-    }
-
-    pub fn asm_intrinsics() -> [Self; 47] {
-        [
-            Self::AsmHlt,
-            Self::AsmPortOut,
-            Self::AsmPortIn,
-            Self::AsmLoadFence,
-            Self::AsmStoreFence,
-            Self::AsmFullFence,
-            Self::AsmDisableInterrupts,
-            Self::AsmEnableInterrupts,
-            Self::AsmSnapshotFlags,
-            Self::AsmRestoreFlags,
-            Self::AsmReadMsr,
-            Self::AsmWriteMsr,
-            Self::AsmReadCr0,
-            Self::AsmReadCr2,
-            Self::AsmReadCr3,
-            Self::AsmReadCr4,
-            Self::AsmWriteCr0,
-            Self::AsmWriteCr3,
-            Self::AsmWriteCr4,
-            Self::AsmSerialize,
-            Self::AsmInstructionSyncBarrier,
-            Self::AsmSpinPause,
-            Self::AsmYieldHint,
-            Self::AsmWriteBackInvalidate,
-            Self::AsmInvalidate,
-            Self::AsmWriteBackNoInvalidate,
-            Self::AsmNop,
-            Self::AsmWaitForEvent,
-            Self::AsmWaitForInterrupt,
-            Self::AsmSendEvent,
-            Self::AsmSendEventLocal,
-            Self::AsmReadSctlrEl1,
-            Self::AsmReadTcrEl1,
-            Self::AsmReadTtbr0El1,
-            Self::AsmReadTtbr1El1,
-            Self::AsmReadMairEl1,
-            Self::AsmReadVbarEl1,
-            Self::AsmReadTpidrEl1,
-            Self::AsmReadEsrEl1,
-            Self::AsmReadFarEl1,
-            Self::AsmWriteSctlrEl1,
-            Self::AsmWriteTcrEl1,
-            Self::AsmWriteTtbr0El1,
-            Self::AsmWriteTtbr1El1,
-            Self::AsmWriteMairEl1,
-            Self::AsmWriteVbarEl1,
-            Self::AsmWriteTpidrEl1,
-        ]
+        self.name().starts_with("asm#")
     }
 }
 
@@ -1085,7 +1019,17 @@ mod builtin_ordinal_tests {
         // so source code cannot reference it -- only the parser's asm-block
         // desugar can. Every member is recognized as an asm intrinsic even
         // when its service-reach effect component is empty (as for fences).
-        for function in BuiltinFunction::asm_intrinsics() {
+        let roster: Vec<BuiltinFunction> = BuiltinFunction::ALL
+            .into_iter()
+            .filter(|(_, spelling)| spelling.starts_with("asm#"))
+            .map(|(function, _)| function)
+            .collect();
+        assert_eq!(
+            roster.len(),
+            47,
+            "the unnameable instruction roster is closed"
+        );
+        for function in roster {
             assert!(
                 function.name().contains('#'),
                 "{:?} must be unnameable from source",
@@ -1117,9 +1061,9 @@ mod builtin_ordinal_tests {
             BuiltinFunction::AsmDisableInterrupts.asm_intrinsic_service_name(),
             Some("MachineControl")
         );
-        // The two remaining explicit asm lists must stay in step: every
-        // intrinsic whose classification reaches a boundary service is a
-        // member of the instruction-bearing roster.
+        // The service classification must stay in step with the instruction
+        // roster: every intrinsic whose classification reaches a boundary
+        // service is installed unnameable.
         for (function, _) in BuiltinFunction::ALL {
             assert!(
                 function.asm_intrinsic_service_name().is_none() || function.is_asm_intrinsic(),

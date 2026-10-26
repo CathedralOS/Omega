@@ -82,6 +82,7 @@ fn validate(namespace: &Path) -> Result<(), String> {
             .map_err(|error| error.to_string())?;
         let expected_exit = if label.starts_with("invalid_") { 2 } else { 0 };
         let observation = terminal_runtime::execute(TerminalRuntimeRequest {
+            native_provider: None,
             x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64").expect("host flags capture"),
             artifact,
             target: Some("linux_x86_64"),

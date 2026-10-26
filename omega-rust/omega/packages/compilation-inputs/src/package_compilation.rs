@@ -15,8 +15,7 @@ mod errors;
 mod generated_sources;
 
 pub use bindings::{
-    BuildDependencyOccurrence, IndependentComponentDescription, PackageDependencyBinding,
-    PackageSourceBinding,
+    IndependentComponentDescription, PackageDependencyBinding, PackageSourceBinding,
 };
 pub(crate) use construction::canonical_source_root;
 pub use dependency_graph::PackageDependencyClosure;
@@ -82,6 +81,16 @@ pub struct PackageCompilationSourceInputs {
     root: PackageKeyIdentity,
     root_role: BuildDeclarationKind,
     packages: BTreeMap<PackageKeyIdentity, PackageCompilationSourceRecord>,
+    dependency_acquisitions: Vec<PackageDependencyAcquisition>,
+}
+
+/// A package-owned acquisition for an exact, purpose-local dependency request.
+/// The request is inert data, not an issued execution receipt or a host grant.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageDependencyAcquisition {
+    pub request_ordinal: usize,
+    pub request: build_declarations::BuildRequest,
+    pub package: PackageKeyIdentity,
 }
 
 /// Source custody and requester-local routing owned by one package identity.
@@ -102,6 +111,107 @@ struct PackageCompilationSourceRecord {
 }
 
 impl PackageCompilationInputs {
+    /// Retain source acquisition's exact requests and selected package custody.
+    /// A later Build must issue these same values before the sources can settle
+    /// its ledger. Merely supplying an alias graph is not that evidence.
+    pub fn with_dependency_acquisitions(
+        mut self,
+        acquisitions: Vec<PackageDependencyAcquisition>,
+    ) -> Result<Self, Vec<PackageCompilationInputError>> {
+        let invalid = |reason: &str| {
+            vec![PackageCompilationInputError::InvalidDependencyAcquisition {
+                root: self.root(),
+                reason: reason.to_owned(),
+            }]
+        };
+        let mut counts = [0usize; 2];
+        for acquisition in &acquisitions {
+            let build_declarations::BuildRequest::Dependency { purpose, alias, .. } =
+                &acquisition.request
+            else {
+                return Err(invalid(
+                    "acquisition does not describe a dependency request",
+                ));
+            };
+            let position = if purpose.is_product() { 0 } else { 1 };
+            if acquisition.request_ordinal != counts[position] {
+                return Err(invalid(
+                    "acquisitions do not retain purpose-local request order",
+                ));
+            }
+            let selected_name = self
+                .package_name(acquisition.package)
+                .ok_or_else(|| invalid("selected dependency has no acquired source"))?;
+            let alias = alias.as_ref().map_or(selected_name, |name| name.as_str());
+            if self.dependency_target_for_purpose(self.root(), *purpose, alias)
+                != Some(acquisition.package)
+            {
+                return Err(invalid(
+                    "acquisition differs from its requester-local alias and purpose",
+                ));
+            }
+            counts[position] += 1;
+        }
+        if counts[0] != self.direct_dependencies(DependencyPurpose::Product).count()
+            || counts[1] != self.direct_dependencies(DependencyPurpose::Build).count()
+        {
+            return Err(invalid(
+                "acquisitions do not cover the exact direct source graph",
+            ));
+        }
+        Arc::make_mut(&mut self.source).dependency_acquisitions = acquisitions;
+        Ok(self)
+    }
+
+    pub fn dependency_acquisitions(&self) -> &[PackageDependencyAcquisition] {
+        &self.source.dependency_acquisitions
+    }
+
+    /// Admit the purpose and generated-source attachments of one compiler
+    /// occurrence, whether supplied initially or acquired during its Build.
+    pub fn validate_execution_context(
+        &self,
+        selected_target: Option<target::TargetProfile>,
+        build_profile: Option<target::TargetProfile>,
+    ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+        use diagnostics::Diagnostic;
+        if self.compilation_purpose() == DependencyPurpose::Build
+            && (build_profile.is_none() || selected_target != build_profile)
+        {
+            return Err(vec![Diagnostic::error(
+                "build-purpose package compilation requires its target to equal the admitted build execution profile",
+            )]);
+        }
+        let diagnostics = |errors: Vec<PackageCompilationInputError>| {
+            errors
+                .into_iter()
+                .map(|error| Diagnostic::error(error.to_string()))
+                .collect::<Vec<_>>()
+        };
+        self.validate_dependency_generated_source_execution_profile(build_profile)
+            .map_err(diagnostics)?;
+        self.validate_dependency_generated_source_target(selected_target)
+            .map_err(diagnostics)
+    }
+
+    /// Retain the original root bytes when final ownership joins. Executed
+    /// request settlement is checked by the Build continuation before assembly.
+    pub(crate) fn validate_unbound_source_join(
+        &self,
+        root: &Path,
+        capture: &source::CapturedSourceTree,
+    ) -> Result<(), String> {
+        let record = self
+            .source
+            .packages
+            .get(&self.source.root)
+            .ok_or("joined package inputs lost their root")?;
+        if record.source_root != root || record.captured_source.as_deref() != Some(capture) {
+            return Err("joined package source differs from the original Build capture".into());
+        }
+        Ok(())
+    }
+
     pub(crate) fn source_filesystem(&self) -> &source::SourceFileSystem {
         &self.source.filesystem
     }
@@ -364,4 +474,70 @@ impl build_time_evaluation::BuildTimeSelectionAuthority for PackageCompilationIn
 
 fn display_identity(identity: PackageKeyIdentity) -> String {
     crate::digest_encoder::hex(&identity.digest())
+}
+
+#[cfg(test)]
+mod acquisition_tests {
+    use super::*;
+    use build_declarations::{BuildDependencySource, BuildRequest, ProjectName};
+
+    #[test]
+    fn acquisition_order_and_aliases_are_scoped_by_purpose() {
+        let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+            "acquisition-inputs",
+            false,
+        )
+        .unwrap();
+        let root = PackageKeyIdentity::from_digest([1; 32]).unwrap();
+        let child = PackageKeyIdentity::from_digest([2; 32]).unwrap();
+        let root_path = temporary.path().join("root");
+        let child_path = temporary.path().join("child");
+        std::fs::create_dir(&root_path).unwrap();
+        std::fs::create_dir(&child_path).unwrap();
+        let purposes = [DependencyPurpose::Build, DependencyPurpose::Product];
+        let inputs = PackageCompilationInputs::new(
+            root,
+            BuildDeclarationKind::Application,
+            vec![
+                PackageSourceBinding::new(root, "root", root_path),
+                PackageSourceBinding::new(child, "child", child_path),
+            ],
+            purposes
+                .iter()
+                .map(|purpose| {
+                    PackageDependencyBinding::for_purpose(root, "shared", child, *purpose)
+                })
+                .collect(),
+        )
+        .unwrap();
+        let acquisitions = purposes
+            .iter()
+            .map(|purpose| PackageDependencyAcquisition {
+                request_ordinal: 0,
+                request: BuildRequest::Dependency {
+                    purpose: *purpose,
+                    alias: Some(ProjectName::parse("shared").unwrap()),
+                    source: BuildDependencySource::Path("../child".into()),
+                },
+                package: child,
+            })
+            .collect::<Vec<_>>();
+        let valid = inputs
+            .clone()
+            .with_dependency_acquisitions(acquisitions.clone())
+            .unwrap();
+        assert_eq!(valid.dependency_acquisitions(), acquisitions);
+        let mut missing = acquisitions.clone();
+        missing.pop();
+        assert!(inputs.clone().with_dependency_acquisitions(missing).unwrap_err().iter().any(|error| matches!(error,
+            PackageCompilationInputError::InvalidDependencyAcquisition { reason, .. } if reason.contains("exact direct source graph"))));
+        let mut wrong_order = acquisitions.clone();
+        wrong_order[1].request_ordinal = 1;
+        assert!(inputs.clone().with_dependency_acquisitions(wrong_order).unwrap_err().iter().any(|error| matches!(error,
+            PackageCompilationInputError::InvalidDependencyAcquisition { reason, .. } if reason.contains("purpose-local request order"))));
+        let mut wrong_package = acquisitions;
+        wrong_package[0].package = root;
+        assert!(inputs.with_dependency_acquisitions(wrong_package).unwrap_err().iter().any(|error| matches!(error,
+            PackageCompilationInputError::InvalidDependencyAcquisition { reason, .. } if reason.contains("alias and purpose"))));
+    }
 }

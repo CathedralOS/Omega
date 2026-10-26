@@ -218,7 +218,7 @@ pub(crate) fn ordinary_parameter_path(
         // membership, and execution rejoins the stored discriminator. The guard
         // does not change the move or its claim transfer contract.
         // The caller's scalar or Unit result does not change this custody.
-        ArgumentPathShape::Static { .. }
+        ArgumentPathShape::Static { .. } | ArgumentPathShape::RuntimeIndexed
             if checked_body
                 && custody.multiplicity == Multiplicity::Affine
                 && access == Owned
@@ -344,13 +344,13 @@ impl ParameterArgument<'_> {
     }
 
     fn exact_projection_path(self) -> Option<ArgumentPath> {
-        let (selected, path) = projected_argument_path(
+        let (selected, path) = projected_evaluated_path(
             self.program,
+            self.machine,
             self.state,
             self.statement_index,
             self.place,
-            None,
-            None,
+            self.selectors,
         )?;
         let (selected, path) = super::argument_paths::borrowed_argument_endpoint(
             self.program,

@@ -139,8 +139,10 @@ absent, report the missing runtime rather than pretending a shell is an agent.
    Skip already-owned outcomes and in-flight assignments; claims alone leave a race
    before a new worker claims. Record the returned handle after spawn succeeds.
 
-For implementation, create worktrees from the top-level checkout under
-`.agents/worktree/<wave>-<name>` and use local `swarm/<wave>-<name>` branches.
+For implementation, create worktrees from fetched `origin/main` under
+`.agents/worktree/<wave>-<name>` in detached HEAD mode:
+`git worktree add --detach .agents/worktree/<wave>-<name> origin/main`.
+Local branches are banned: do not create local named branches.
 Start fresh work from fetched `origin/main`; keep a continuation's worktree and
 warm build state. Never switch, reset, auto-stash, or clean another session's tree.
 Git's stash is shared across worktrees; use a separate baseline worktree instead.
@@ -310,8 +312,9 @@ cancellation; interruption alone does not prove child processes stopped.
 
 ## Integrate only within authorization
 
-Each implementation owner validates its submitted change, pushes an owned PR
-branch, and uses the native merge queue in tools/landing.md. GitHub integrates
+Each implementation owner validates its submitted change, pushes candidate HEAD
+directly to a remote ref (`git push origin HEAD:refs/heads/work/<name>`), and uses
+the native merge queue in tools/landing.md. GitHub integrates
 current main; do not recreate the old lease/rebase/build-receipt loop around it.
 Resolve actual conflicts or failed checks while preserving both intents.
 Substantive ambiguities require investigation, not a guessed merge.
@@ -340,7 +343,7 @@ they were not run. Do not claim compiler progress from an agent-count test.
 At the stopping condition, stop backfilling and drain every running assignment
 and relevant background check. Report named blockers requiring authorization or
 user input. Release only this wave's claims when permitted. Retain dirty or
-unpublished candidates; remove only clean, verified-landed worktrees/branches
+unpublished candidates; remove only clean, verified-landed worktrees
 owned by this wave. Native agents have no Devin archive step. Verify the starting
 checkout remains intact and report useful findings, actual validation, publication
 state, and any remaining dependency. A successful diagnostic wave proves dispatch,

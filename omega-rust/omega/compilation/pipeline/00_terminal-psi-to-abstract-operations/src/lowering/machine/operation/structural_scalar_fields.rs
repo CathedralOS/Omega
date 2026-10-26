@@ -28,6 +28,8 @@ use terminal_psi::{
 
 use crate::lowering::LoweringError;
 
+use super::unique_row;
+
 pub(super) fn lower(
     operation: &Operation,
     machine: &TerminalMachine,
@@ -71,21 +73,21 @@ pub(super) fn store_destination(
 ) -> Option<StructuralScalarStoreDestination> {
     exact_parameter(machine, destination)
         .or_else(|| {
-            let mut matches = machine.blocks.iter().flat_map(|block| {
-                block
-                    .structural_parameters
-                    .iter()
-                    .enumerate()
-                    .filter(move |(_, parameter)| parameter.place == destination)
-                    .map(move |(position, parameter)| (block.id, position, parameter))
-            });
-            let (owner, position, parameter) = matches.next()?;
+            let (owner, position, parameter) = unique_row(
+                machine.blocks.iter().flat_map(|block| {
+                    block
+                        .structural_parameters
+                        .iter()
+                        .enumerate()
+                        .map(move |(position, parameter)| (block.id, position, parameter))
+                }),
+                |(_, _, parameter)| parameter.place == destination,
+            )?;
             let expected_kind = StructuralPlaceKind::BlockParameter {
                 block: owner,
                 position: parameter.position,
             };
-            if matches.next().is_some()
-                || owner == machine.entry
+            if owner == machine.entry
                 || parameter.position as usize != position
                 // Named-state write-only arrivals retain store authority just
                 // as mutable arrivals do; neither permits descriptor reseating.
@@ -98,11 +100,8 @@ pub(super) fn store_destination(
             {
                 return None;
             }
-            let mut places = machine
-                .structural_places
-                .iter()
-                .filter(|row| row.id == destination);
-            if places.next()?.kind != expected_kind || places.next().is_some() {
+            let declaration = unique_row(&machine.structural_places, |row| row.id == destination)?;
+            if declaration.kind != expected_kind {
                 return None;
             }
             Some(parameter.clone())
@@ -273,22 +272,9 @@ pub(super) fn owned_storage_destination(
     machine: &TerminalMachine,
     place: PlaceId,
 ) -> Option<StructuralScalarStoreDestination> {
-    let mut declarations = machine
-        .structural_places
-        .iter()
-        .filter(|row| row.id == place);
-    let declaration = declarations.next()?;
-    if declarations.next().is_some() {
-        return None;
-    }
+    let declaration = unique_row(&machine.structural_places, |row| row.id == place)?;
     let (producer, structural_type) = declaration.kind.as_operation_result()?;
-    let mut operations = machine
-        .operations()
-        .filter(|operation| operation.id == producer);
-    let operation = operations.next()?;
-    if operations.next().is_some() {
-        return None;
-    }
+    let operation = unique_row(machine.operations(), |operation| operation.id == producer)?;
     let result = operation.result.structural()?;
     (result.place == place
         && result.structural_type == structural_type
@@ -408,29 +394,17 @@ pub(super) fn exact_parameter(
     machine: &TerminalMachine,
     place: PlaceId,
 ) -> Option<StructuralParameterDeclaration> {
-    let mut parameters = machine
-        .structural_parameters
-        .iter()
-        .filter(|parameter| parameter.place == place);
-    let parameter = parameters.next()?;
-    if parameters.next().is_some() {
-        return None;
-    }
-    let mut places = machine
-        .structural_places
-        .iter()
-        .filter(|declaration| declaration.id == place);
-    let declaration = places.next()?;
-    if places.next().is_some()
-        || !matches!(
-            declaration.kind,
-            StructuralPlaceKind::Parameter { position }
-                if position == parameter.position
-        )
-    {
-        return None;
-    }
-    Some(parameter.clone())
+    let parameter = unique_row(&machine.structural_parameters, |parameter| {
+        parameter.place == place
+    })?;
+    let declaration = unique_row(&machine.structural_places, |declaration| {
+        declaration.id == place
+    })?;
+    matches!(
+        declaration.kind,
+        StructuralPlaceKind::Parameter { position } if position == parameter.position
+    )
+    .then(|| parameter.clone())
 }
 
 fn resolve_structural_path(

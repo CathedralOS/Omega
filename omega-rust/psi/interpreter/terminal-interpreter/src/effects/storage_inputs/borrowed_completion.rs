@@ -30,16 +30,43 @@ pub(super) fn stage(
     {
         return Err(malformed());
     }
+    if binding.access == StructuralAccess::MutableBorrow {
+        execution.validate_storage_loan_restoration(
+            &StructuralRuntimePlace::from(&binding.referent),
+            &binding.normal_qualifications,
+        )?;
+    }
+    let owner = StructuralRuntimePlace::from(&binding.referent);
     for scalar in &binding.scalars {
-        execution.validate_scalar_loan_qualifications(&scalar.storage)?;
-        if execution.read_primitive_storage(
+        if binding.access == StructuralAccess::MutableBorrow {
+            execution.validate_scalar_loan_restoration(
+                &scalar.storage,
+                &owner,
+                &binding.normal_qualifications,
+            )?;
+        }
+        let current = execution.read_primitive_storage(
             binding.source,
             scalar.storage.clone(),
             scalar.scalar,
             scalar.scalar,
             scalar.shared,
-        )? != scalar.original
-        {
+        )?;
+        let expected = if binding.direct_original {
+            let value = buffer
+                .values
+                .binary_search_by(|value| value.path.cmp(&scalar.path))
+                .ok()
+                .and_then(|position| buffer.values.get(position))
+                .ok_or_else(malformed)?;
+            let TerminalStorageContents::Scalar { value, .. } = value.contents else {
+                return Err(malformed());
+            };
+            value
+        } else {
+            scalar.original
+        };
+        if (binding.direct_original && buffer.original_storage.is_none()) || current != expected {
             return Err(malformed());
         }
     }
@@ -231,7 +258,10 @@ pub(super) fn stage(
                 _ => {}
             }
         }
-        binding.replacement = Some(staged);
+        binding.replacement = Some(
+            staged
+                .prepare_replacement(execution, StructuralRuntimePlace::from(&binding.referent))?,
+        );
     }
     Ok(())
 }
@@ -244,14 +274,17 @@ pub(super) fn commit(
         return Ok(());
     }
     if let Some(replacement) = binding.replacement {
-        execution.prune_subtree(&StructuralRuntimePlace::from(&binding.referent));
         replacement.publish(execution)?;
         return Ok(());
     }
     // The case roster is unchanged. Preserve scalar-array homes and narrowed
     // byte codecs by writing through the pre-call backing, not a rebuilt root.
     for (storage, scalar, value) in binding.stores {
-        execution.store_primitive_storage(binding.source, storage, scalar, value)?;
+        if binding.direct_original {
+            execution.record_original_scalar_write(&storage)?;
+        } else {
+            execution.store_primitive_storage(binding.source, storage, scalar, value)?;
+        }
     }
     Ok(())
 }

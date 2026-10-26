@@ -536,10 +536,7 @@ pub(crate) fn closed_name_identity(
     selection: Option<&declaration_selection::ConstantSelection>,
     name: &Identifier,
 ) -> Option<ClosedArgumentIdentity> {
-    if let Some(atom) = symbols::BuiltinTypeAtom::ALL
-        .into_iter()
-        .find(|atom| atom.symbol_name() == name.as_str(syntax))
-    {
+    if let Some(atom) = crate::symbols::builtin_type_atom_by_symbol_name(name.as_str(syntax)) {
         return Some(ClosedArgumentIdentity::Builtin(atom));
     }
     if let Some(declaration) = selected_data_item(syntax, selection, name) {
@@ -1022,4 +1019,32 @@ pub(crate) fn type_reference_mentions_parameter(
         // rather than share a wrong type.
         _ => true,
     }
+}
+
+/// Substitute the complete static application selected by a data default
+/// domain. Arguments keep their structural kind, including nested applications;
+/// the declaration path itself remains an exact authored selection.
+pub(super) fn substitute_cleanup_selection(
+    syntax: &mut SyntaxTrees,
+    snapshot: &SyntaxTrees,
+    mut selection: syntax_trees::expression::StaticMachineArgument,
+    substitution: &HashMap<String, TypeReferenceHandle>,
+    const_values: &HashMap<String, i128>,
+    warnings: &mut Vec<Diagnostic>,
+) -> syntax_trees::expression::StaticMachineArgument {
+    if selection.type_reference.is_valid() {
+        selection.type_reference = substitute_type_reference(syntax, snapshot,
+            selection.type_reference, substitution, const_values, warnings);
+    } else if let [name] = selection.path.as_ref()
+        && selection.application.is_none()
+        && let Some(actual) = substitution.get(name.as_str(syntax)) {
+        selection.type_reference = *actual;
+        selection.path = Box::default();
+    }
+    if let Some(application) = &mut selection.application {
+        for argument in application.arguments.iter_mut() {
+            *argument = substitute_cleanup_selection(syntax, snapshot, argument.clone(), substitution, const_values, warnings);
+        }
+    }
+    selection
 }

@@ -16,6 +16,8 @@ use symbols::SymbolHandle;
 mod regions;
 use regions::AppliedDeclarationRegionScope;
 mod enclosing;
+mod evidence;
+pub use evidence::GenericBoundRequirement;
 mod retention;
 mod source_fields;
 pub(crate) use retention::RetainedTraitApplicationFrame;

@@ -23,10 +23,11 @@ use super::{
 /// post-run homes.
 pub(super) fn assign_register_homes_after_pre_allocation(
     run: &StagedPreAllocationOptimizationRun,
+    reuse: Option<&mut crate::assignment::home_assignment::compute::FunctionHomeReuse>,
 ) -> Result<ValidatedRegisterHomes, RegisterHomeError> {
     let (ranges, legality) = pre_allocation_final_analysis(run);
     let environment = run.source_legality_stage().register_environment();
-    assign_register_homes(
+    crate::assignment::home_assignment::assign_register_homes_reusing(
         legality,
         ranges,
         environment.identity(),
@@ -34,6 +35,7 @@ pub(super) fn assign_register_homes_after_pre_allocation(
         environment.constraints(),
         environment.reservations(),
         &environment.allocation_constraint_keys(),
+        reuse,
     )
 }
 
@@ -85,10 +87,11 @@ fn finish_register_homes_after_pre_allocation(
 /// post-run homes.
 pub(super) fn assign_register_homes_after_selected_lowering(
     run: &StagedSelectedLoweringOptimizationRun,
+    reuse: Option<&mut crate::assignment::home_assignment::compute::FunctionHomeReuse>,
 ) -> Result<ValidatedRegisterHomes, RegisterHomeError> {
     let (ranges, legality) = selected_lowering_final_analysis(run);
     let environment = run.source_legality_stage().register_environment();
-    assign_register_homes(
+    crate::assignment::home_assignment::assign_register_homes_reusing(
         legality,
         ranges,
         environment.identity(),
@@ -96,6 +99,7 @@ pub(super) fn assign_register_homes_after_selected_lowering(
         environment.constraints(),
         environment.reservations(),
         &environment.allocation_constraint_keys(),
+        reuse,
     )
 }
 

@@ -240,3 +240,20 @@ impl<'text> Encoder<'text> {
         }
     }
 }
+
+/// The `canonical_bytes` constructor every inert-policy component restates:
+/// bounded canonical bytes through the shared component envelope with the
+/// component's own magic, version, and payload writer. The record carries no
+/// acceptance decision, evaluation receipt, or executable authority.
+macro_rules! encode_canonical_component {
+    ($magic:expr, $version:expr, $policy:expr $(,)?) => {
+        /// Canonical component bytes: magic, version, this component's payload
+        /// writer, and the shared four-megabyte policy ceiling.
+        pub fn canonical_bytes(
+            &self,
+        ) -> Result<Vec<u8>, crate::encoding::PackageReviewEncodingError> {
+            crate::encoding::encode::encoder::Encoder::policy_bytes($magic, $version, self, $policy)
+        }
+    };
+}
+pub(crate) use encode_canonical_component;

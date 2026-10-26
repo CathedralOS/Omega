@@ -19,7 +19,7 @@ mod compiler;
 mod execution_settlement;
 mod identity;
 mod inspection;
-pub use terminal_production::ProducedTerminalArtifact;
+pub use terminal_production::ProducedTerminalProgram;
 mod product_execution;
 
 #[cfg(test)]
@@ -32,9 +32,10 @@ mod native;
 mod terminal;
 
 pub use crate::checked::{
-    CheckedCompilation, CheckedCompileRequest, CompilationSession, IndependentComponentDiscovery,
-    IndependentComponentSelection, OptimizationRollback, OptimizationRollbackInputError,
-    PackageBuild, PackageCompilationRequest, PackageCompileFailure, PreparedPackageProduct,
+    CheckedCompilation, CheckedCompileRequest, CompilationSession, CompletedBuild,
+    IndependentComponentDiscovery, IndependentComponentSelection, OptimizationRollback,
+    OptimizationRollbackInputError, PackageBuild, PackageBuildInvocation,
+    PackageCompilationRequest, PackageCompileFailure, PreparedPackageProduct,
     RestrictedBuildGrants, checked_compilation_call_count, preliminary_check_totals,
     settled_check_totals, source_assembly_invocation_count, typed_frontier_reuse_count,
 };
@@ -50,6 +51,7 @@ pub use compilation_products::{
 };
 pub use compiler::compile;
 pub use compiler::package::publish_checked_component;
+pub use package_compilation::BuildExecutionInputs;
 pub use product_execution::{CompilationOutput, CompilationProduct, CompilationProductError};
 pub use target::ExplicitTargetSet;
 pub use terminal_psi_to_abstract_operations::provider_admission::SourceEvaluatedImportSettlement;

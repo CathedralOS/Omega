@@ -397,7 +397,10 @@ pub enum FuelMeterError {
 
 impl std::fmt::Display for FuelMeterError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "{self:?}")
+        match self {
+            Self::InvocationCharge { site, reason } => write!(formatter, "{reason} at {site:?}"),
+            other => write!(formatter, "{other:?}"),
+        }
     }
 }
 

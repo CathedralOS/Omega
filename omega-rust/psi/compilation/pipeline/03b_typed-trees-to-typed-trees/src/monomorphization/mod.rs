@@ -39,7 +39,9 @@ mod application_lifetimes;
 mod applications;
 mod candidate;
 mod captured_rows;
+mod cleanup_applications;
 mod contextual_calls;
+mod domain_applications;
 mod explicit_arguments;
 mod native_query_lifetimes;
 mod placed_primitives;
@@ -61,7 +63,7 @@ pub(crate) use dynamic_slots::instantiate_dynamic_slots;
 mod requirement_applications;
 pub(crate) use requirement_applications::instantiate_requirement_applications;
 pub(crate) use requirement_providers::generate_requirement_provider_specializations;
-pub(crate) use type_reference_walk::{for_each_type_reference, type_reference_endpoints};
+pub(crate) use type_reference_walk::for_each_type_reference;
 mod const_values;
 pub(crate) use const_values::value as materialize_static_value;
 mod range_arguments;
@@ -143,6 +145,33 @@ pub(crate) enum CallSite {
     Expression(ExpressionHandle),
 }
 
+impl CallSite {
+    /// The authored static machine application this site's call node carries:
+    /// the retained application an ordinary call authored, or the zero handle
+    /// when the node authorizes no application. `None` when the site names no
+    /// call node at all, so every caller keeps its own missing-node behaviour.
+    pub(crate) fn authored_machine_application(
+        self,
+        program: &TypedTrees,
+    ) -> Option<typed_trees::static_applications::StaticMachineApplicationHandle> {
+        Some(match self {
+            CallSite::Expression(handle) => {
+                program
+                    .expression_table
+                    .call_node(handle)?
+                    .authored_machine_application
+            }
+            CallSite::Statement(handle) => {
+                program
+                    .statement_table
+                    .statement(handle)
+                    .as_call()?
+                    .authored_machine_application
+            }
+        })
+    }
+}
+
 #[derive(Clone)]
 struct CallSelection {
     site: CallSite,
@@ -220,7 +249,12 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         let unavailable = crate::constructed_results::retain_constructed_result_types(program);
         changed_owners.extend(result_locals::refresh(program, &unavailable)?);
         changed_owners.extend(result_locals::materialize_reference_observations(program)?);
+        domain_applications::materialize(program)?;
+        // Closing domain theories can produce new static cleanup operands.
+        // Inventory their literal/binder payloads before tuple selection, just
+        // as for operands already present on ordinary source calls.
         materialize_static_argument_types(program);
+        changed_owners.extend(cleanup_applications::materialize(program)?);
         native_query_lifetimes::retain(program)?;
         crate::preparation::elaborate_projected_receivers(program)?;
         changed_owners.extend(contextual_calls::close(program)?);
@@ -459,6 +493,17 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
                 }
             }
         }
+    }
+    // Declaration-owned cleanup applications have no ordinary source-call node.
+    for (handle, _) in program.expression_table.static_machine_applications() {
+        collect(
+            program,
+            program
+                .expression_table
+                .static_machine_application_arguments(handle),
+            &mut literals,
+            &mut types,
+        );
     }
     literals.extend(
         program
@@ -726,18 +771,12 @@ fn candidate_for_selection<'template>(
 ) -> Candidate<'template> {
     Candidate {
         template: std::borrow::Cow::Borrowed(&template.template),
-        binding_application: match selection.site {
-            CallSite::Expression(handle) => program.expression_table.call_node(handle).map_or(
-                typed_trees::static_applications::StaticMachineApplicationHandle::invalid(),
-                |call| call.authored_machine_application,
+        binding_application: selection
+            .site
+            .authored_machine_application(program)
+            .unwrap_or_else(
+                typed_trees::static_applications::StaticMachineApplicationHandle::invalid,
             ),
-            CallSite::Statement(handle) => {
-                program.statement_table.statement(handle).as_call().map_or(
-                    typed_trees::static_applications::StaticMachineApplicationHandle::invalid(),
-                    |call| call.authored_machine_application,
-                )
-            }
-        },
         type_bindings: selection.type_bindings.clone(),
         const_bindings: selection.const_bindings.clone(),
         runtime_value_bindings: selection.runtime_value_bindings.clone(),

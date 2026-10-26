@@ -23,12 +23,9 @@ pub struct PackagePolicyProviderRow {
 }
 
 impl PackagePolicyProviderRow {
+    crate::record::accessors::record_accessors!(requirement);
     pub fn method(&self) -> &str {
         &self.method
-    }
-
-    pub fn requirement(&self) -> &PackageReviewNominalIdentity {
-        &self.requirement
     }
 
     pub fn realization(&self) -> Option<&PackageReviewNominalIdentity> {

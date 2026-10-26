@@ -199,9 +199,13 @@ whose header documents `Expected exit` or `Expected output contains`. A
 passing witness completes that repair, not every requirement of its parent
 capability.
 
-1. **Choose the outcome, then its witness.** Repair known main regressions
-   first, honor explicit user scope, and otherwise retain the current capability
-   assignment. For new automatic work, choose an actionable `TASKS.md` outcome
+1. **Choose the outcome, then its witness.** Honor explicit user scope and
+   retain the current capability assignment first; sessions with an active
+   capability or user assignment never pivot to unrelated `main` regressions.
+   For new automatic work without a current assignment, repair an unclaimed
+   active `main` regression (where the newest completed `Post-merge smoke` run
+   on `main` failed and no live claim already covers it) before choosing an
+   actionable `TASKS.md` outcome
    by its stated priority and release dependencies, then discharge it inside
    `samples/cli/facts`. Read its full acceptance
    and verify its remaining gap with an optimized exact-source producer
@@ -246,8 +250,10 @@ capability.
    uncovered requirement needs one, not to manufacture a failure or fill a slot.
    Close the task only when its full acceptance passes. Switch capabilities on
    closure, explicit reprioritization, or a genuine external prerequisite after
-   exhausting feasible work on that outcome. Regressions may interrupt this
-   chain; return afterward. Respect user stops, budgets and explicitly bounded
+   exhausting feasible work on that outcome. Never interrupt an active
+   capability chain for an unrelated `main` regression, and keep chaining next
+   witnesses directly on the worktree's warm local commit rather than resetting
+   to `origin/main` between witnesses. Respect user stops, budgets and explicitly bounded
    assignments, preserving the parent outcome and next requirement for resumption.
    A green facts queue does not establish capability closure. Open-ended
    advancement stays inside `samples/cli/facts` and takes the next uncovered
@@ -427,7 +433,11 @@ profiles bound to the actual binary digests. See
 - Use `mbx` in place of Cargo for compile and test commands: `cargo check`
   becomes `mbx check`, `cargo test` becomes `mbx nextest run` (needs
   cargo-nextest 0.9.140 or newer). If `mbx` is unavailable, use Cargo without
-  asking. Nextest does not run doctests; use `mbx test --doc`.
+  asking. Nextest does not run doctests; use `mbx test --doc`. `mbx` manages a
+  shared cross-workspace compilation cache (under `AppData/Local/mbx` on Windows or
+  `~/.cache/mbx` on Unix), hardlinking pre-compiled objects across worktrees.
+  Update it via `cargo install mbx`. Running `mbx setup` configures plain Cargo
+  commands to leverage mbx caching automatically.
 - Wrap a lane's local build/test chain in one `tools/build_slot.py`
   hold; release it before waiting on GitHub. Nested holds short-circuit
   ([build slots](tools/build_slot.md#one-hold-for-a-whole-chain)).
@@ -604,26 +614,30 @@ are byte-sensitive.
   signal: two sessions are changing one decision point, so reconcile them into
   one implementation at rebase. Conflicts only show textual overlap; semantic
   breakage can still land without one; post-merge checks detect those regressions.
-- Keep regressions visible and repair or revert them. Required merge admission is
-  the small GitHub `compiler-check`, not the entire corpus or customer matrix.
-  The hosted Compiler regression workflow runs Linux native/Terminal smoke after
-  merge and nightly. The regressing PR's author owns repair/revert; until
-  attributed, the first observer records the failure and takes triage ownership.
-  No machine runs all three OSes, so each host with
-  a native golden runs `python tools/native_watch.py` on a
-  schedule ([testing](tools/testing.md#corpus-outcome-gate)). The watch runs
-  the corpus only, and admission checks compilation only, so the Windows
-  x86-64 development host also runs the full
+- Keep regressions visible without dogpiling or thrashing `main`. Required merge
+  admission is the small GitHub `compiler-check`, not the entire corpus or
+  customer matrix. The hosted `Post-merge smoke` workflow
+  (`.github/workflows/compiler-regression.yml`) runs Linux native/Terminal smoke
+  after merge and nightly. `pending`, `in_progress`, or `cancelled` runs are
+  never regressions, and an older failed run is already resolved once a newer
+  `main` commit succeeds. Only when the **newest completed** run on `main`
+  failed is `main` red. Sessions working on an assigned capability or sample
+  ignore unrelated `main` regressions and keep their warm base. The regressing
+  PR's author owns repair/revert; otherwise at most **one** unassigned session
+  claims the regression (`python tools/claims.py claim --item REGRESSION-<sha>`)
+  and drives a focused repair or revert through the queue. Once a live claim
+  exists for a regression, every other session skips it and takes normal
+  unassigned work. Never `git bisect` or check out historical `main` commits in
+  a warm worktree to attribute a regression (inspect the diff or CI log instead
+  so the compiler build cache stays warm). No machine runs all three OSes, so
+  each host with a native golden runs `python tools/native_watch.py` on a
+  schedule ([testing](tools/testing.md#corpus-outcome-gate)), and the Windows
+  x86-64 development host runs the full
   `python tools/sample_native_gate.py --programs-only` once a day from Task
-  Scheduler ([testing](tools/testing.md#corpus-outcome-gate)); a sample that
-  passed in the previous full record in `build/sample-gate-runs/` and fails
-  now is a regression. Agent sessions, local or cloud, never start a full
-  programs-only run for this check. Between 1483ea14d01 and 50ace165363, at
-  least 10 passing samples, including `basics/print_number`, stopped
-  building and no check saw it. Whoever sees a
-  regression attributes it to its first bad commit and drives a focused repair
-  or revert through the queue. Record it in `TASKS.md` only when it cannot be
-  repaired in that session, and say exactly what prevents the repair.
+  Scheduler ([testing](tools/testing.md#corpus-outcome-gate)). Agent sessions,
+  local or cloud, never start a full programs-only run for this check. Record a
+  regression in `TASKS.md` only when it cannot be repaired in that session, and
+  say exactly what prevents the repair.
 - After landing a sample, an agent may take a bounded
   iteration-performance or test-environment outcome based on an experienced
   obstruction. Record the workflow and adequate target before repair; return
@@ -645,21 +659,49 @@ are byte-sensitive.
 
 ## Sessions and subagents
 
+**The primary repository checkout is strictly an anchor pinned to `main`.**
+Never edit files, switch branches, commit, build, or run gates in the primary checkout.
+Other agents and background processes rely on the primary checkout remaining cleanly
+on `main` to pull from or use as a shared reference. All active development,
+repairs, experiments, and validations must take place in an isolated worktree under
+`<repository>/.agents/worktree/<short-name>`.
+
+**Local branches are banned.** Do not create local branches (`git branch <name>`,
+`git checkout -b <name>`, or `git worktree add -b <name>`). Local branches drift,
+accumulate clutter, and collide across sessions. Always create worktrees in
+detached HEAD mode directly from the fetched `origin/main` commit:
+`git worktree add --detach .agents/worktree/<short-name> origin/main`.
+That directory is gitignored local state. An existing checkout stays where it is.
+To publish a PR, push HEAD directly to origin:
+`git push origin HEAD:refs/heads/work/<short-name>`.
+
+**Retain and reuse warm worktrees as workbenches.** Teardown is never mandatory.
+Reusing an existing worktree preserves its pre-compiled `target/` directory and
+incremental build state, saving significant build time on subsequent tasks.
+To reuse a worktree for a new task, simply reset its detached HEAD to the latest
+`origin/main` commit:
+`git checkout --detach origin/main` (and `git clean -fd` to remove untracked scratch).
+Only remove worktrees (`git worktree remove .agents/worktree/<short-name>`) when
+explicitly requested or when reclaiming disk space.
+
 Before launching a new swarm or creating a new worker, successfully fetch remote
-`main` and record its exact commit. Fast-forward a clean checkout on `main`;
-preserve dirty or non-main checkouts and create new worktrees from the fetched
-commit. New worktrees go in `<repository>/.agents/worktree/<short-name>`.
-That directory is gitignored local state. An existing checkout stays where it is. Read `AGENTS.md` and the matching skills from that updated source before
-selecting or dispatching work. A failed fetch stops the new launch; a cached
-`origin/main` is never a fallback. Each independent cloud executor repeats this
-preflight before implementation. Existing outcomes retain their worktrees and
-unpublished work and their recorded fixed base, including after resumption or
-compaction. Main or queue SHA movement alone never triggers pull, rebase, build,
-requalification or review. Only a demonstrated actual merge conflict, a concrete
-prerequisite or changed affected source justifies targeted local integration and
-affected checks. Required PR/merge-group CI owns integration admission.
-Postlanding verification reads the merged PR, published commit and CI results;
-it does not rebuild or rerun acceptance. Offline plans and dry runs are previews,
+`main` (`git fetch origin main`) and record its exact commit. Do not modify, pull into,
+or fast-forward the primary checkout; preserve it intact as a stable reference.
+Create new worktrees directly from the fetched `origin/main` commit.
+Read `AGENTS.md` and the matching skills from that updated source before selecting or
+dispatching work. A failed fetch stops the new launch; a cached `origin/main` is never
+a fallback. Each independent cloud executor repeats this preflight before implementation.
+Existing outcomes retain their worktrees, unpublished work, and recorded fixed base,
+including after resumption or compaction.
+
+**Never chase main with gates or rebuilds.** Main or queue SHA movement alone never
+triggers pull, rebase, build, requalification, gate re-runs, or review. Once a PR is
+submitted, GitHub's native merge queue and Actions CI perform the integration build
+and admission check against current `main`. Authors only perform focused validation on
+their own change on their recorded worktree base. Only a demonstrated actual merge conflict,
+a concrete prerequisite or changed affected source justifies targeted local integration
+and affected checks. Postlanding verification reads the merged PR, published commit and
+CI results; it does not rebuild or rerun acceptance. Offline plans and dry runs are previews,
 not a completed launch preflight.
 
 - Give a session or subagent a complete piece of work, never a stage: the
@@ -768,6 +810,21 @@ Commit messages carry no tool attribution: no "Generated with ..." line, no
 
 ## Hard rules
 
+- **No work in primary checkout, no local branches, worktrees only.**
+  Never edit, switch branches, commit, build, or test in the primary repository checkout.
+  The primary checkout stays pinned to `main` as a pristine reference anchor. Other agents
+  and background processes rely on it remaining on `main` to pull into their worktrees.
+  All development, testing, and tool runs must take place in an isolated worktree under
+  `<repository>/.agents/worktree/<short-name>`.
+  Local branches are banned: do not create local branches (`git branch <name>`,
+  `git checkout -b <name>`, `git worktree add -b <name>`). Always create worktrees in
+  detached HEAD mode directly from the fetched `origin/main` commit:
+  `git worktree add --detach .agents/worktree/<short-name> origin/main`.
+  Submit PRs by pushing HEAD directly to origin:
+  `git push origin HEAD:refs/heads/work/<short-name>`.
+  Worktrees may be retained and reused as warm build workbenches (`git checkout --detach origin/main`)
+  to accelerate future builds, or removed (`git worktree remove <path>`) when explicitly requested
+  or reclaiming disk.
 - **Do not add required feature-combination special cases. Clean as you go.**
   Generalize the touched operation or representation and remove its superseded
   path in the same change; do not land another source-shape recognizer, fallback
@@ -780,17 +837,17 @@ Commit messages carry no tool attribution: no "Generated with ..." line, no
   replays or rebuilds output the same compile just produced. Verifiers stay
   exercised by the corpus runner and tests, off the default compile path. See
   [verification placement](omega-rust/pipeline.md#verification-placement).
-- **Never push to `main` directly.** Publish a finished branch as a PR and use
-  GitHub's native merge queue ([tools/landing.md](tools/landing.md)). The queue
-  checks the integrated candidate and squash-merges one PR into one main commit.
-  Do focused validation and any required review on the submitted change; do not
-  repeat author rebase/build/review merely because main or the integration SHA
-  moved. Resolve actual conflicts, failures and changed semantic premises.
-  `tools/landing.py` only observes/enqueues the native queue: no local lease,
+- **Never push to `main` directly and never chase `main` with gates.** Push candidate commits
+  directly from HEAD to a remote work branch ref (`git push origin HEAD:refs/heads/work/<name>`)
+  and open a PR using GitHub's native merge queue ([tools/landing.md](tools/landing.md)). The queue
+  integrates the candidate with latest `main`, and GitHub Actions CI performs the build and checks.
+  Do focused validation only on the author's own changes against the recorded worktree base;
+  never chase main by rebasing, rebuilding, or re-running gates merely because main or the integration
+  SHA advanced. `tools/landing.py` only observes/enqueues the native queue: no local lease,
   exact-SHA build receipt or direct-publication path remains. An open PR is not
   completion. Verify MERGED, its exact submitted head and published main commit,
-  then remove only task-owned clean worktrees/branches without later unpublished
-  edits. Preserve run identities; CI admission is not full runtime qualification.
+  then retain the worktree as a warm workbench or remove clean task-owned worktrees
+  if teardown is explicitly requested. Preserve run identities; CI admission is not full runtime qualification.
 - Before editing shared paths, check `python tools/claims.py status` and
   record a claim for your work ([tools/claims](tools/claims.md)) so other
   sessions can see it. Claims never grant or block work. If coordination is

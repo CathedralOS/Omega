@@ -1,18 +1,40 @@
 //! Execute an admitted package batch; package management never calls back here.
 //!
-//! Admission retains source/consent identity and owns staging until completion.
-//! The application owns the compiler session and submits all accepted targets
-//! together, preserving shared source work and invocation-wide resource budgets.
+//! Admission retains source/consent identity. The application retains the
+//! package session through scheduling, then returns it for disposal. Accepted
+//! targets run together, sharing source work and invocation-wide budgets.
 
+use crate::BuildSession;
 use package_manager::operations::{
     ProjectCompilationAdmissionRequest, ProjectCompilationOutcome, admit_project_compilation,
 };
+use std::path::Path;
 
-pub(crate) fn compile(
-    request: ProjectCompilationAdmissionRequest<'_>,
-) -> Vec<ProjectCompilationOutcome> {
-    let admitted = admit_project_compilation(request);
-    let mut compiler = compiler::CompilationSession::default();
-    let products = crate::compile_packages(&mut compiler, admitted.requests);
-    admitted.completion.complete(products)
+pub(crate) struct ProjectCompilationRequest<'request> {
+    pub prepared: package_manager::operations::PreparedLocalProject,
+    pub build_directory: &'request Path,
+    pub target_profiles: &'request [target::TargetProfile],
+    pub snapshot: Option<&'request build_evaluation::BuildSnapshotRequest>,
+    pub verify: bool,
+    pub timings: bool,
+    pub product: compiler::CompilationProduct,
+}
+
+pub(crate) fn compile(request: ProjectCompilationRequest<'_>) -> Vec<ProjectCompilationOutcome> {
+    let session = BuildSession::create(request.build_directory);
+    let request = ProjectCompilationAdmissionRequest {
+        prepared: request.prepared,
+        target_profiles: request.target_profiles,
+        snapshot: request.snapshot,
+        verify: request.verify,
+        timings: request.timings,
+        product: request.product,
+    };
+    let mut session = match session {
+        Ok(session) => session,
+        Err(error) => return request.refuse(error.to_string()),
+    };
+    let admitted = admit_project_compilation(request, &mut session.packages);
+    let products = crate::compile_packages(&mut session.compiler, admitted.requests);
+    admitted.completion.complete(products, session.packages)
 }

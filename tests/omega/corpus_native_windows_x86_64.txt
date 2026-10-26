@@ -232,8 +232,7 @@ pass/borrows/borrowed_array_loop checked 2285ms @5f668826adf3+wt
 pass/borrows/borrowed_case_leaf_copy_exit built 8733ms exit:70 @5f668826adf3+wt
 pass/borrows/borrowed_record_stack_parameter_writeback_exit built 9442ms exit:70 @5f668826adf3+wt
 pass/borrows/borrowed_sum_dispatch checked 2779ms @5f668826adf3+wt
-pass/borrows/borrowed_window_parameter_provenance_exit rejected 2871ms regressed-from:built+exit:0 @5f668826adf3+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "replace_via_borrowed_carrier_block_parameter", reason: "Unit graph state loan chain lender lends from two homes", gap: None })
+pass/borrows/borrowed_window_parameter_provenance_exit built 2871ms exit:0 @beacd47121d
 pass/borrows/boundary_scalar_slice_write_exit built 3049ms exit:0 @5f668826adf3+wt
 pass/borrows/branch_selected_record_composed_receiver_exit built 8015ms exit:70 @5f668826adf3+wt
 pass/borrows/branch_selected_record_receiver_exit built 8436ms exit:70 @5f668826adf3+wt
@@ -7260,7 +7259,6 @@ pass/layouts/runtime_target_layout_queries_exit built 3540ms exit:0 @5f668826adf
 pass/layouts/runtime_transition_scalar_reference_codec_exit rejected 1914ms @5f668826adf3+wt
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-pass/layouts/schema_field_at_declared_size checked 1796ms @5f668826adf3+wt
 pass/layouts/schema_identity_payload_within_predicate checked 1763ms @5f668826adf3+wt
 pass/layouts/single_bool_array_layout_compile checked 1487ms @5f668826adf3+wt
 pass/layouts/single_byte_member_layout_compile checked 1584ms @5f668826adf3+wt

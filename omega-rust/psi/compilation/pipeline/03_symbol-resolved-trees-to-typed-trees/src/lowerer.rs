@@ -653,6 +653,9 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
         service_reach_rows,
         authored_service_reach_rows,
         semantic_domains,
+        // Applied domain theories are derived after authored typing, alongside
+        // specialization; the fresh source entrance regenerates them later.
+        applied_domain_applications: _,
         external_bindings,
         plan_laid_layouts: _,
         plan_laid_target_layouts: _,

@@ -285,17 +285,18 @@ impl TerminalExecution<'_> {
                             StructuralRuntimePlace::from(&original.allocation),
                             field.field,
                         ))
-                        .ok_or_else(malformed)?;
+                        .ok_or_else(malformed)?
+                        .read()?;
                     let bits = match value {
-                        crate::TerminalScalarValue::Boolean(value) => u128::from(*value),
+                        crate::TerminalScalarValue::Boolean(value) => u128::from(value),
                         crate::TerminalScalarValue::Integer {
                             value: semantic_vocabulary::IntegerValue::Unsigned(value),
                             ..
-                        } => *value,
+                        } => value,
                         crate::TerminalScalarValue::Integer {
                             value: semantic_vocabulary::IntegerValue::Signed(value),
                             ..
-                        } => *value as u128,
+                        } => value as u128,
                         _ => return Err(malformed()),
                     };
                     let end = field
@@ -318,71 +319,18 @@ impl TerminalExecution<'_> {
         access: StructuralAccess,
         correspondence: terminal_semantics::PlacedRamCorrespondence,
     ) -> Result<PlacedReference, TerminalInterpretError> {
-        // Prefer the actual enclosing allocation. A projected logical referee
-        // cannot supply its parent's alignment or prove the available extent.
-        let homes = self
-            .call_stack
-            .iter()
-            .enumerate()
-            .map(|(depth, frame)| (depth, frame.current_machine, &frame.structural_values))
-            .chain(std::iter::once((
-                self.call_stack.len(),
-                self.current_machine,
-                &self.structural_values,
-            )));
-        let mut candidates = Vec::new();
-        for (depth, machine_id, values) in homes {
-            let machine = self
-                .program
-                .machines()
-                .get(&machine_id)
-                .ok_or_else(malformed)?;
-            for (place, allocation) in values {
-                if allocation.opaque_identity != source.opaque_identity
-                    || !source.path.starts_with(&allocation.path)
-                {
-                    continue;
-                }
-                let owned = machine
-                    .structural_parameter(*place)
-                    .is_some_and(|parameter| {
-                        parameter.access == StructuralAccess::Owned
-                            && parameter.structural_type == allocation.structural_type
-                    })
-                    || machine
-                        .producing_operation(*place)
-                        .is_some_and(|(operation, ty)| {
-                            operation.result.structural().is_some_and(|result| {
-                                result.structural_type == ty && ty == allocation.structural_type
-                            })
-                        });
-                if !owned
-                    || terminal_semantics::contains_placed_carrier(
-                        &self.program.catalogs,
-                        allocation.structural_type,
-                    )
-                {
-                    continue;
-                }
-                candidates.push((depth, machine_id, *place, allocation.clone()));
-            }
-        }
-        // Choose the original enclosing owner before considering geometry.
-        // A child presentation must not hide its unaligned parent by offering
-        // a stronger logical alignment. Competing original owners are invalid.
-        candidates.sort_by_key(|(_, _, _, allocation)| allocation.path.len());
-        let mut candidates = candidates.into_iter();
-        let (depth, machine, place, allocation) =
-            candidates
-                .next()
-                .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
-                    "placed RAM source has no live supplying allocation",
-                ))?;
-        if candidates
-            .next()
-            .is_some_and(|(_, _, _, other)| other.path.len() == allocation.path.len())
-        {
-            return Err(malformed());
+        let original = self.original_owned_allocation(&source)?;
+        let depth = original.depth;
+        let machine = original.machine;
+        let place = original.place;
+        let allocation = original.value;
+        if terminal_semantics::contains_placed_carrier(
+            &self.program.catalogs,
+            allocation.structural_type,
+        ) {
+            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                "placed RAM original allocation contains placed backing",
+            ));
         }
         let path = &source.path[allocation.path.len()..];
         let types = self.program.structural_types();
@@ -506,7 +454,8 @@ impl TerminalExecution<'_> {
                     StructuralRuntimePlace::from(&source),
                     field.id,
                 ))
-                .ok_or_else(malformed)?;
+                .ok_or_else(malformed)?
+                .read()?;
             if value.scalar_type() != scalar || !value.satisfies_field(&field.field_type) {
                 return Err(malformed());
             }
@@ -576,7 +525,7 @@ impl TerminalExecution<'_> {
             &initialized.storage,
             base,
             binding.length,
-        ) {
+        )? {
             return Err(TerminalInterpretError::ContentTransformationMismatch(
                 "resident reference changed its original allocation geometry",
             ));

@@ -258,8 +258,7 @@ pass/borrows/borrowed_array_loop checked 10020ms @a92f16431042
 pass/borrows/borrowed_case_leaf_copy_exit built 23646ms exit:70 @a92f16431042
 pass/borrows/borrowed_record_stack_parameter_writeback_exit built 23700ms exit:70 @a92f16431042
 pass/borrows/borrowed_sum_dispatch checked 11277ms @a92f16431042
-pass/borrows/borrowed_window_parameter_provenance_exit rejected 10133ms @a92f16431042
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "replace_via_borrowed_carrier_block_parameter", reason: "Unit graph state loan chain lender lends from two homes", gap: None })
+pass/borrows/borrowed_window_parameter_provenance_exit built 10133ms exit:0 @beacd47121d
 pass/borrows/boundary_scalar_slice_write_exit built 10189ms exit:0 @a92f16431042
 pass/borrows/branch_selected_record_composed_receiver_exit built 23738ms exit:70 @a92f16431042
 pass/borrows/branch_selected_record_receiver_exit built 23729ms exit:70 @a92f16431042
@@ -7338,7 +7337,6 @@ pass/layouts/runtime_target_layout_queries_exit built 3635ms exit:0 @a92f1643104
 pass/layouts/runtime_transition_scalar_reference_codec_exit rejected 1819ms regressed-from:built+exit:0 @a92f16431042
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-pass/layouts/schema_field_at_declared_size checked 1764ms @a92f16431042
 pass/layouts/schema_identity_payload_within_predicate checked 1334ms @a92f16431042
 pass/layouts/single_bool_array_layout_compile checked 1431ms @a92f16431042
 pass/layouts/single_byte_member_layout_compile checked 1379ms @a92f16431042
@@ -7692,6 +7690,9 @@ pass/ownership/runtime_first_match_pattern_consumption_exit built 4099ms exit:0 
 pass/ownership/runtime_generic_borrowed_case_restore_exit built 2830ms exit:0 @a92f16431042
 pass/ownership/runtime_generic_linear_case_restore_exit built 3875ms exit:0 @a92f16431042
 pass/ownership/runtime_inactive_case_carrier_transfer_exit built 6048ms exit:0 @a92f16431042
+pass/ownership/runtime_indexed_recoverable_replacement_exit built 2518ms exit:0 @036605466510+wt
+pass/ownership/runtime_indexed_replacement_effectful_singleton_exit built 2479ms exit:0 @036605466510+wt
+pass/ownership/runtime_indexed_replacement_index_one_exit built 2394ms exit:0 @036605466510+wt
 pass/ownership/runtime_known_case_scalar_call_exit built 3377ms exit:0 @a92f16431042
 pass/ownership/runtime_linear_case_payload_forward_exit built 4189ms exit:0 @a92f16431042
 pass/ownership/runtime_local_subslice_element_window_exit built 3289ms exit:0 @a92f16431042

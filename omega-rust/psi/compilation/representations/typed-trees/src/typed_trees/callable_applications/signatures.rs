@@ -305,7 +305,7 @@ impl CallableApplication {
         Ok(parameters)
     }
 
-    fn facts(
+    pub(super) fn facts(
         &mut self,
         program: &mut TypedTrees,
         declared: HandleSpan<domain::ProofFact>,

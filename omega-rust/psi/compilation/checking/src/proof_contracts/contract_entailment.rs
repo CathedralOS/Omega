@@ -80,12 +80,15 @@ mod call_requirements;
 mod citations;
 mod collection_bounds;
 pub use collection_bounds::CollectionBoundsObservations;
+mod statement_predicates;
+pub use statement_predicates::StatementPredicateObservations;
 mod completed_domains;
 mod completed_observations;
 mod completed_values;
 mod construction_predicates;
 pub use completed_domains::{
-    completed_value_proves_domain_predicate, completed_value_refutes_domain,
+    completed_value_proves_bound_domain_predicate, completed_value_proves_domain_predicate,
+    completed_value_refutes_domain,
 };
 pub(crate) use construction_predicates::construction_predicate_judgments;
 mod call_projection_identity;

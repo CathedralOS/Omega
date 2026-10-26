@@ -22,8 +22,8 @@ use diagnostics::Diagnostic;
 /// observation evidence; `build.rs` publication still re-derives the file
 /// from staged custody.
 pub(super) fn settle_build_output_obligations(
-    obligations: &[checked_interpreter::BuildOutputObligation],
-    receipts: &[checked_interpreter::BuildOutputReceipt],
+    obligations: &[filesystem_authority::BuildOutputObligation],
+    receipts: &[filesystem_authority::BuildOutputReceipt],
     staged_output_tree: Option<&BuildStagedOutputTree>,
     machine_name: &str,
 ) -> Result<Vec<BuildRequiredOutputSettlement>, Vec<Diagnostic>> {
@@ -35,22 +35,22 @@ pub(super) fn settle_build_output_obligations(
                 "build-time evaluation of `{machine_name}` issued required output `{name}` outside the compiler-issued Output root"
             ))]);
         }
-        let checked_interpreter::BuildOutputObligationState::Completed {
+        let filesystem_authority::BuildOutputObligationState::Completed {
             receipt: receipt_index,
             ..
         } = obligation.state()
         else {
             let message = match obligation.state() {
-                checked_interpreter::BuildOutputObligationState::Pending => format!(
+                filesystem_authority::BuildOutputObligationState::Pending => format!(
                     "required output `{name}` of `{machine_name}` was declared but never completed"
                 ),
-                checked_interpreter::BuildOutputObligationState::Failed { diagnostic, .. } => {
+                filesystem_authority::BuildOutputObligationState::Failed { diagnostic, .. } => {
                     format!(
                         "required output `{name}` of `{machine_name}` failed: {}",
                         String::from_utf8_lossy(diagnostic)
                     )
                 }
-                checked_interpreter::BuildOutputObligationState::Completed { .. } => {
+                filesystem_authority::BuildOutputObligationState::Completed { .. } => {
                     unreachable!("completed obligations settle")
                 }
             };

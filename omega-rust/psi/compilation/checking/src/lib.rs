@@ -97,9 +97,9 @@ pub use proof_contracts::contract_entailment::{
     captured_call_subject_identity, captured_collection_length, captured_integer_value,
     captured_scalar_observations, closed_collection_length, closed_collection_length_at_place,
     closed_collection_length_under_matches, completed_value_is_bounded_by_static,
-    completed_value_preserves_entry_projection, completed_value_proves_content_conservation,
-    completed_value_proves_domain_predicate, completed_value_refutes_domain,
-    owned_contract_subject, unique_literal_field,
+    completed_value_preserves_entry_projection, completed_value_proves_bound_domain_predicate,
+    completed_value_proves_content_conservation, completed_value_proves_domain_predicate,
+    completed_value_refutes_domain, owned_contract_subject, unique_literal_field,
 };
 pub use proof_contracts::contract_results::{
     ReservedResultPlace, reserved_result_owner, reserved_result_place,
@@ -406,7 +406,9 @@ pub use proof_contracts::arithmetic_domains::{
     stored_integer_source_projection, stored_integer_source_projections,
     stored_integer_source_reach,
 };
-pub use proof_contracts::contract_entailment::CollectionBoundsObservations;
+pub use proof_contracts::contract_entailment::{
+    CollectionBoundsObservations, StatementPredicateObservations,
+};
 pub use proof_contracts::contract_entailment::integer_embedding_sources_equal;
 pub use proof_contracts::contract_entailment::is_arm_pattern_marker;
 pub use proof_contracts::contract_entailment::selected_value_call_requirement_entailed;
@@ -587,7 +589,9 @@ pub use proof_contracts::arithmetic_domains::{
 pub use machine_calls::contract_dependencies::{
     independent_call_application, independent_call_site,
 };
-pub use value_custody::type_references::normalize_closed_const_expression;
+pub use value_custody::type_references::{
+    check_closed_const_expression, normalize_closed_const_expression,
+};
 
 pub use value_custody::const_expressions::{
     ImmutableConstRecordProjection, immutable_record_projection,

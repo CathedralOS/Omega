@@ -124,6 +124,18 @@ pub struct FixturePathDependency {
     pub purpose: DependencyPurpose,
 }
 
+impl FixturePathDependency {
+    fn build_request(&self) -> build_declarations::BuildRequest {
+        build_declarations::BuildRequest::Dependency {
+            purpose: self.purpose,
+            alias: self.explicit_alias.then(|| {
+                build_declarations::ProjectName::parse(&self.alias).expect("authored fixture alias")
+            }),
+            source: build_declarations::BuildDependencySource::Path(self.authored_location.clone()),
+        }
+    }
+}
+
 /// The reader's entry to fixture package mode: exactly the dependencies a
 /// fixture authored, read through the build vocabulary that owns them.
 ///
@@ -420,7 +432,14 @@ struct FixtureGraphPackage {
     authored_root: PathBuf,
     role: BuildDeclarationKind,
     /// The authored edges this package declares, each naming its target.
-    edges: Vec<(DependencyPurpose, String, PackageKeyIdentity)>,
+    edges: Vec<FixtureGraphDependency>,
+}
+
+struct FixtureGraphDependency {
+    purpose: DependencyPurpose,
+    alias: String,
+    target: PackageKeyIdentity,
+    request: build_declarations::BuildRequest,
 }
 
 /// Every package a fixture's dependency rows reach, transitively, including
@@ -518,18 +537,18 @@ impl FixturePackageGraph {
         let mut cursor = 0;
         while let Some(&requester) = reached.get(cursor) {
             cursor += 1;
-            for (purpose, alias, target) in &self.package(requester).edges {
-                if !purpose.is_product() && requester != root {
+            for dependency in &self.package(requester).edges {
+                if !dependency.purpose.is_product() && requester != root {
                     continue;
                 }
                 dependencies.push(PackageDependencyBinding::for_purpose(
                     requester,
-                    alias.as_str(),
-                    *target,
-                    *purpose,
+                    dependency.alias.as_str(),
+                    dependency.target,
+                    dependency.purpose,
                 ));
-                if !reached.contains(target) {
-                    reached.push(*target);
+                if !reached.contains(&dependency.target) {
+                    reached.push(dependency.target);
                 }
             }
         }
@@ -544,7 +563,27 @@ impl FixturePackageGraph {
                     .map(|package| package.binding.clone()),
             )
             .collect();
+        let mut counts = [0usize; 2];
+        let acquisitions = root_package
+            .edges
+            .iter()
+            .map(|dependency| {
+                let position = if dependency.purpose.is_product() {
+                    0
+                } else {
+                    1
+                };
+                let request_ordinal = counts[position];
+                counts[position] += 1;
+                package_compilation::PackageDependencyAcquisition {
+                    request_ordinal,
+                    request: dependency.request.clone(),
+                    package: dependency.target,
+                }
+            })
+            .collect();
         PackageCompilationInputs::new(root, root_package.role, packages, dependencies)
+            .and_then(|inputs| inputs.with_dependency_acquisitions(acquisitions))
             .unwrap_or_else(|errors| {
                 panic!(
                     "fixture package graph rooted at {}: {errors:#?}",
@@ -637,6 +676,7 @@ struct FixtureGraphWalk {
 
 impl FixtureGraphWalk {
     fn add_edge(&mut self, requester: PackageKeyIdentity, dependency: FixturePathDependency) {
+        let request = dependency.build_request();
         let target = match self.bound.get(&dependency.location) {
             Some(bound_target) => *bound_target,
             None => {
@@ -682,7 +722,12 @@ impl FixtureGraphWalk {
             .find(|package| package.identity == requester)
             .expect("fixture graph requester is bound")
             .edges
-            .push((dependency.purpose, dependency.alias, target));
+            .push(FixtureGraphDependency {
+                purpose: dependency.purpose,
+                alias: dependency.alias,
+                target,
+                request,
+            });
     }
 }
 
@@ -764,6 +809,7 @@ fn derive_program_entry_binding(
             standard_library_root.to_path_buf(),
         )],
         Vec::new(),
+        Vec::new(),
     )
 }
 
@@ -778,6 +824,7 @@ fn derive_supplier_program_entry_binding(
     supplier_root: &Path,
     packages: Vec<PackageSourceBinding>,
     dependencies: Vec<PackageDependencyBinding>,
+    acquisitions: Vec<package_compilation::PackageDependencyAcquisition>,
 ) -> Result<Option<AcceptedSemanticBinding>, Vec<Diagnostic>> {
     let profile = TargetProfile::from_canonical_target_name(target_name)
         .map_err(|diagnostic| vec![diagnostic])?;
@@ -818,13 +865,13 @@ fn derive_supplier_program_entry_binding(
     };
     // Check the package-owned target contract independently on every derivation;
     // application discovery alone cannot authorize the program-entry role.
-    let inputs = PackageCompilationInputs::new_package(supplier, packages, dependencies).map_err(
-        |errors| {
+    let inputs = PackageCompilationInputs::new_package(supplier, packages, dependencies)
+        .and_then(|inputs| inputs.with_dependency_acquisitions(acquisitions))
+        .map_err(|errors| {
             vec![Diagnostic::error(format!(
                 "entry fixture inputs: {errors:?}"
             ))]
-        },
-    )?;
+        })?;
     let checked = compiler::CompilationSession::default()
         .check(CheckedCompileRequest {
             package_inputs: Some(inputs),
@@ -876,8 +923,8 @@ pub fn accepted_fixture_product_request(
     let snapshot = fixture_build_snapshot(&prepared.root_path)?;
     let mut request = CheckedCompileRequest::new(&prepared.root_path, target);
     request.package_inputs = prepared.package_inputs.take();
-    request.build_snapshot = snapshot;
-    request.build_dir = Some(build_dir);
+    request.build.snapshot = snapshot;
+    request.build.directory = Some(build_dir);
     Ok(compiler::PackageCompilationRequest {
         occurrences: fixture_occurrences(prepared, request)?,
         product,
@@ -1061,11 +1108,14 @@ pub fn reviewed_repository_fixture_package_inputs(
     let request = CheckedCompileRequest {
         package_inputs: Some(package_inputs.clone().with_semantic_role_discovery(true)),
         permit_unsettled_fused_service_fields: true,
-        build_snapshot: fixture_build_snapshot(&root_path)?,
-        build_dir: Some(sealed_fixture_staging::fresh_staging_build_dir(
-            &repo_root(),
-            authored_project_root,
-        )),
+        build: package_compilation::BuildExecutionInputs {
+            snapshot: fixture_build_snapshot(&root_path)?,
+            directory: Some(sealed_fixture_staging::fresh_staging_build_dir(
+                &repo_root(),
+                authored_project_root,
+            )),
+            ..Default::default()
+        },
         ..CheckedCompileRequest::new(&root_path, target_name)
     };
     let preliminary = if target_name.is_some()
@@ -1205,7 +1255,7 @@ fn join_dependency_builds(
     }
     let mut root_request = CheckedCompileRequest::new(root_path, target_name);
     root_request.package_inputs = Some(inputs.clone());
-    root_request.build_execution_profile = TargetProfile::host_if_supported();
+    root_request.build.profile = TargetProfile::host_if_supported();
     let requests = dependency_requests(graph, &inputs, authored_project_root, root_request)?;
     with_dependency_build_session(|session| omega_build::join_dependency_builds(session, requests))
         .map_err(|failure| failure.failure.into_diagnostics())
@@ -1266,19 +1316,22 @@ fn dependency_requests(
         let entry = if main.is_file() { main } else { build };
         requests.push(CheckedCompileRequest {
             package_inputs: Some(occurrence_inputs),
-            build_execution_profile: execution_profile,
-            build_dir: Some(staging.join(format!(
-                "{}-{}",
-                requests.len(),
-                if purpose.is_product() {
-                    "product"
-                } else {
-                    "build"
-                }
-            ))),
-            build_snapshot: Some(package_compilation::BuildSnapshotRequest::new(
-                std::iter::empty::<Vec<u8>>(),
-            )),
+            build: package_compilation::BuildExecutionInputs {
+                profile: execution_profile,
+                directory: Some(staging.join(format!(
+                    "{}-{}",
+                    requests.len(),
+                    if purpose.is_product() {
+                        "product"
+                    } else {
+                        "build"
+                    }
+                ))),
+                snapshot: Some(package_compilation::BuildSnapshotRequest::new(
+                    std::iter::empty::<Vec<u8>>(),
+                )),
+                ..Default::default()
+            },
             ..CheckedCompileRequest::new(&entry, occurrence_target.as_deref())
         });
     }
@@ -1404,6 +1457,8 @@ fn accepted_supplier_program_entry_binding(
         supplier_root.to_path_buf(),
     )];
     let mut dependencies = Vec::new();
+    let mut acquisitions = Vec::new();
+    let mut counts = [0usize; 2];
     for sub_dependency in fixture_path_dependencies(&dependency.location) {
         let (sub_identity, sub_root) = package_inputs
             .packages()
@@ -1418,6 +1473,17 @@ fn accepted_supplier_program_entry_binding(
                     sub_dependency.package_name
                 )
             });
+        let position = if sub_dependency.purpose.is_product() {
+            0
+        } else {
+            1
+        };
+        acquisitions.push(package_compilation::PackageDependencyAcquisition {
+            request_ordinal: counts[position],
+            request: sub_dependency.build_request(),
+            package: sub_identity,
+        });
+        counts[position] += 1;
         packages.push(PackageSourceBinding::new(
             sub_identity,
             sub_dependency.package_name,
@@ -1436,6 +1502,7 @@ fn accepted_supplier_program_entry_binding(
         supplier_root,
         packages,
         dependencies,
+        acquisitions,
     )?
     .ok_or_else(|| {
         vec![Diagnostic::error(format!(

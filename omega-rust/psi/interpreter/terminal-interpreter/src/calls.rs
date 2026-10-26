@@ -578,6 +578,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             &boundary_declaration.structural_parameters,
             structural_arguments,
             handler.storage_arguments(boundary),
+            &boundary_declaration.normal_qualifications,
         )?;
         bind_active_structural_arguments(
             &boundary_declaration.structural_parameters,
@@ -596,6 +597,9 @@ impl<'artifact> TerminalExecution<'artifact> {
             completion_receipts,
             &boundary_declaration.structural_parameters,
         )?;
+        boundary_arguments
+            .storage_inputs
+            .prepare_original_storage(self, handler, boundary)?;
         // Complete ordinary storage/custody checking above before presenting
         // exact admitted abstract payloads to the host. Borrowed arguments keep
         // their original storage/descriptor route; an atom grants no loan.

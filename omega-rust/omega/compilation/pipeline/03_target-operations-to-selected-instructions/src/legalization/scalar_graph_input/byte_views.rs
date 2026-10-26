@@ -372,87 +372,134 @@ pub(in crate::legalization) fn descriptor_result(
         .then_some((producer, result.structural_type))
 }
 
-/// Derive the current call's complete backing roster, rather than trusting the
-/// physical result home or a signature-only lifetime claim.
-pub(in crate::legalization) fn call_descriptor_origins(
-    unit: &optimization_unit::PsiOptimizationUnit,
-    caller: semantic_vocabulary::MachineId,
-    result: &terminal_psi::StructuralOperationResult,
-    native: &target_operations::TargetOperationPlan,
-    plan: &abstract_operations::AbstractOperationPlan,
-) -> Result<Vec<legalized_operations::LegalizedDescriptorOrigin>, LegalizationError> {
-    if !matches!(
-        result.multiplicity,
-        terminal_psi::nonlinear_multiplicity_pair_pattern!()
-    ) {
-        return Ok(Vec::new());
-    }
-    let slots = terminal_semantics::descriptor_results::DescriptorSlotKind::Views
-        .owned_slots(&unit.structural_types, result.place, result.structural_type)
-        .ok_or_else(LegalizationError::custody)?;
-    // Only descriptors owned by this returned value belong to its view result
-    // summary. Reference carriers have separately validated target origin rows;
-    // their pointees are observed through those references, never returned as
-    // additional owned descriptor fields. This makes no view-free claim about
-    // opaque referents and preserves every actual owned view in mixed records.
-    if slots.is_empty() {
-        return Ok(Vec::new());
-    }
-    // Source and installed calls share one origin replay over current bodies.
-    // Authenticate selection with the existing call-origin join before exposing
-    // its callee; unresolved foreign calls retain their boundary semantics.
-    let graph = optimization_unit_semantics::descriptor_results::optimized_catalog_graph(
-        unit.functions.iter(),
-        &unit.boundary_machines,
-        &unit.structural_types,
-        &unit.dynamic_dispatch,
-        |function, node| {
-            super::call_origin::selected_boundary_operation(node, function, native, plan)
-                .ok()
-                .map(|selected| match selected {
-                    Some((operation, _)) => std::borrow::Cow::Owned(operation),
-                    None => std::borrow::Cow::Borrowed(&node.operation),
-                })
-        },
-    )
-    .ok_or(LegalizationError::custody())?;
-    terminal_semantics::descriptor_results::reconstruct_call_origins(
-        &unit.structural_types,
-        &graph,
-        caller,
-        result.place,
-    )
-    .ok_or(LegalizationError::custody())?
-    .into_iter()
-    .map(|origin| match origin {
-        terminal_semantics::descriptor_results::DescriptorCallOrigin::Invocation { .. } => {
-            Err(LegalizationError::custody())
+pub(in crate::legalization) struct CallDescriptorOrigins<'a, 'g> {
+    unit: &'a optimization_unit::PsiOptimizationUnit,
+    native: &'a target_operations::TargetOperationPlan,
+    plan: &'a abstract_operations::AbstractOperationPlan,
+    graph: &'g std::cell::OnceCell<
+        Option<Vec<terminal_semantics::descriptor_results::DescriptorMachine>>,
+    >,
+    analysis: Option<terminal_semantics::descriptor_results::DescriptorAnalysis<'g>>,
+}
+
+impl<'a, 'g> CallDescriptorOrigins<'a, 'g>
+where
+    'a: 'g,
+{
+    pub(in crate::legalization) fn new(
+        unit: &'a optimization_unit::PsiOptimizationUnit,
+        native: &'a target_operations::TargetOperationPlan,
+        plan: &'a abstract_operations::AbstractOperationPlan,
+        graph: &'g std::cell::OnceCell<
+            Option<Vec<terminal_semantics::descriptor_results::DescriptorMachine>>,
+        >,
+    ) -> Self {
+        Self {
+            unit,
+            native,
+            plan,
+            graph,
+            analysis: None,
         }
-        terminal_semantics::descriptor_results::DescriptorCallOrigin::PlacedFormation {
-            ..
-        } => Err(LegalizationError::custody()),
-        terminal_semantics::descriptor_results::DescriptorCallOrigin::Empty => {
-            Ok(legalized_operations::LegalizedDescriptorOrigin::Empty)
+    }
+
+    /// Derive the current call's complete backing roster, rather than trusting the
+    /// physical result home or a signature-only lifetime claim.
+    pub(in crate::legalization) fn resolve(
+        &mut self,
+        caller: semantic_vocabulary::MachineId,
+        result: &terminal_psi::StructuralOperationResult,
+    ) -> Result<Vec<legalized_operations::LegalizedDescriptorOrigin>, LegalizationError> {
+        if !matches!(
+            result.multiplicity,
+            terminal_psi::nonlinear_multiplicity_pair_pattern!()
+        ) {
+            return Ok(Vec::new());
         }
-        terminal_semantics::descriptor_results::DescriptorCallOrigin::Argument {
-            source,
-            projection,
-        } => {
-            let projection = projection.without_runtime_coordinates();
-            Ok(legalized_operations::LegalizedDescriptorOrigin::Argument {
-                source: terminal_psi::StructuralArgument {
-                    place: source,
-                    path: projection.path,
-                    access: terminal_psi::StructuralAccess::SharedBorrow,
-                },
-                exact: projection.exact,
-                indirect: projection.indirect,
+        let slots = terminal_semantics::descriptor_results::DescriptorSlotKind::Views
+            .owned_slots(&self.unit.structural_types, result.place, result.structural_type)
+            .ok_or_else(LegalizationError::custody)?;
+        // Only descriptors owned by this returned value belong to its view result
+        // summary. Reference carriers have separately validated target origin rows;
+        // their pointees are observed through those references, never returned as
+        // additional owned descriptor fields. This makes no view-free claim about
+        // opaque referents and preserves every actual owned view in mixed records.
+        if slots.is_empty() {
+            return Ok(Vec::new());
+        }
+        // Source and installed calls share one origin replay over current bodies.
+        // Authenticate selection with the existing call-origin join before exposing
+        // its callee; unresolved foreign calls retain their boundary semantics.
+        let analysis = match &mut self.analysis {
+            Some(analysis) => analysis,
+            None => {
+                let unit = self.unit;
+                let native = self.native;
+                let plan = self.plan;
+                let graph = self
+                    .graph
+                    .get_or_init(|| {
+                        optimization_unit_semantics::descriptor_results::optimized_catalog_graph(
+                            unit.functions.iter(),
+                            &unit.boundary_machines,
+                            &unit.structural_types,
+                            &unit.dynamic_dispatch,
+                            |function, node| {
+                                super::call_origin::selected_boundary_operation(
+                                    node, function, native, plan,
+                                )
+                                .ok()
+                                .map(|selected| match selected {
+                                    Some((operation, _)) => std::borrow::Cow::Owned(operation),
+                                    None => std::borrow::Cow::Borrowed(&node.operation),
+                                })
+                            },
+                        )
+                    })
+                    .as_deref()
+                    .ok_or_else(LegalizationError::custody)?;
+                self.analysis.insert(
+                    terminal_semantics::descriptor_results::DescriptorAnalysis::new(
+                        &self.unit.structural_types,
+                        graph,
+                    ),
+                )
+            }
+        };
+        analysis
+            .call_origins(caller, result.place)
+            .ok_or(LegalizationError::custody())?
+            .into_iter()
+            .map(|origin| match origin {
+                terminal_semantics::descriptor_results::DescriptorCallOrigin::Invocation { .. } => {
+                    Err(LegalizationError::custody())
+                }
+                terminal_semantics::descriptor_results::DescriptorCallOrigin::PlacedFormation {
+                    ..
+                } => Err(LegalizationError::custody()),
+                terminal_semantics::descriptor_results::DescriptorCallOrigin::Empty => {
+                    Ok(legalized_operations::LegalizedDescriptorOrigin::Empty)
+                }
+                terminal_semantics::descriptor_results::DescriptorCallOrigin::Argument {
+                    source,
+                    projection,
+                } => {
+                    let projection = projection.without_runtime_coordinates();
+                    Ok(legalized_operations::LegalizedDescriptorOrigin::Argument {
+                        source: terminal_psi::StructuralArgument {
+                            place: source,
+                            path: projection.path,
+                            access: terminal_psi::StructuralAccess::SharedBorrow,
+                        },
+                        exact: projection.exact,
+                        indirect: projection.indirect,
+                    })
+                }
+                terminal_semantics::descriptor_results::DescriptorCallOrigin::Literal {
+                    machine,
+                    place,
+                } => Ok(legalized_operations::LegalizedDescriptorOrigin::Literal { machine, place }),
             })
-        }
-        terminal_semantics::descriptor_results::DescriptorCallOrigin::Literal {
-            machine,
-            place,
-        } => Ok(legalized_operations::LegalizedDescriptorOrigin::Literal { machine, place }),
-    })
-    .collect()
+            .collect()
+    }
 }

@@ -2,7 +2,10 @@ mod recovery;
 pub(crate) use recovery::recover_cached_external_local_source;
 
 use super::projection::project_package_build;
-use super::{ResolvePackageSourceError, ResolvedPackageSource, SourceRootRole};
+use super::{
+    AcquiredBuildSource, BuildSourceAcquisitionError, ResolvePackageSourceError,
+    ResolvedPackageSource, SourceRootRole,
+};
 use crate::declarations::PackageKey;
 use package_source::local::operations::resolve_local_source_snapshot_in_lane;
 use package_source::local::staging::StagedLocalSnapshot;
@@ -14,6 +17,21 @@ use package_source::{
 use package_source::{LocalSourceLimits, ResolvedLocalSnapshot, SourceResolver};
 use std::path::Path;
 
+pub(crate) fn external_local_dependency_root(
+    requester_root: &Path,
+    location: &str,
+) -> Result<std::path::PathBuf, String> {
+    if location.is_empty() || location.bytes().any(|byte| byte.is_ascii_control()) {
+        return Err("external-local path must be nonempty and contain no control bytes".into());
+    }
+    let authored = Path::new(location);
+    Ok(if authored.is_absolute() {
+        authored.to_path_buf()
+    } else {
+        requester_root.join(authored)
+    })
+}
+
 /// Ordinary local compilation owns a closed in-memory capture. Transaction
 /// candidates and foreign review continue to request persisted custody below.
 pub(crate) fn capture_external_local_project_source(
@@ -21,17 +39,15 @@ pub(crate) fn capture_external_local_project_source(
     limits: LocalSourceLimits,
     context: ExternalSourceContext,
 ) -> Result<super::PackageSourceCustody, ResolvePackageSourceError> {
-    let limits = limits.compiler_bounded();
-    let captured = package_source::local::operations::capture_local_source_input(root, limits)?;
-    let canonical_path = captured.canonical_live_root().to_str().ok_or_else(|| {
-        package_source::IdentityError::UnsupportedNonUtf8Path(
-            captured.canonical_live_root().to_path_buf(),
-        )
+    let AcquiredBuildSource {
+        capture: captured,
+        lineage,
+        limits,
+        ..
+    } = AcquiredBuildSource::capture_local(root, limits, context).map_err(|error| match error {
+        BuildSourceAcquisitionError::Source(error) => ResolvePackageSourceError::Source(error),
+        BuildSourceAcquisitionError::Identity(error) => ResolvePackageSourceError::Identity(error),
     })?;
-    let lineage = SourceLineage::ExternalLocal(ExternalLocalLineage::from_canonical_path(
-        canonical_path.to_owned(),
-        context,
-    )?);
     let declaration = super::projection::project_captured_package_build(
         captured.canonical_live_root(),
         captured.tree(),

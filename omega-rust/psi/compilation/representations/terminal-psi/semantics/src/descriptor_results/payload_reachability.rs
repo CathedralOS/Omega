@@ -22,6 +22,7 @@ impl Reachability {
     /// Reuse an earlier fixed point only when its entire incoming graph is
     /// unchanged. Query-specific Boolean pruning may reopen an earlier edge;
     /// that requires a fresh solve, even if the new query is later in the body.
+    #[cfg(test)]
     pub(super) fn extension_frontier(
         &self,
         previous: &Self,
@@ -54,6 +55,46 @@ impl Reachability {
         )
     }
 
+    pub(super) fn compatible_frontier(
+        &self,
+        previous: &Self,
+        flow: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
+    ) -> Option<VecDeque<DescriptorPosition>> {
+        for &(position, ordinal) in &self.edges {
+            let edge = flow.get(&position)?.successors.get(ordinal)?;
+            if previous.contains(edge.target) && !previous.includes_edge(position, ordinal) {
+                return None;
+            }
+        }
+        for &(position, ordinal) in &previous.edges {
+            let edge = flow.get(&position)?.successors.get(ordinal)?;
+            if self.contains(edge.target) && !self.includes_edge(position, ordinal) {
+                return None;
+            }
+        }
+        Some(
+            previous
+                .positions
+                .iter()
+                .copied()
+                .filter(|position| {
+                    self.contains(*position)
+                        && flow.get(position).is_some_and(|step| {
+                            step.successors.iter().enumerate().any(|(ordinal, edge)| {
+                                self.includes_edge(*position, ordinal)
+                                    && !previous.contains(edge.target)
+                            })
+                        })
+                })
+                .collect(),
+        )
+    }
+
+    pub(super) fn merge(&mut self, mut previous: Self) {
+        self.positions.append(&mut previous.positions);
+        self.edges.append(&mut previous.edges);
+    }
+
     pub(super) fn contains(&self, position: DescriptorPosition) -> bool {
         self.positions.contains(&position)
     }
@@ -63,8 +104,35 @@ impl Reachability {
     }
 }
 
+pub(super) type IncomingFlow = BTreeMap<DescriptorPosition, Vec<(DescriptorPosition, usize)>>;
+
+pub(super) fn incoming_flow(
+    flow: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
+) -> Option<IncomingFlow> {
+    let mut incoming = BTreeMap::<_, Vec<_>>::new();
+    for (&position, step) in flow {
+        for (ordinal, edge) in step.successors.iter().enumerate() {
+            flow.get(&edge.target)?;
+            incoming
+                .entry(edge.target)
+                .or_default()
+                .push((position, ordinal));
+        }
+    }
+    Some(incoming)
+}
+
 pub(super) fn predecessors(
     machine: &DescriptorMachine,
+    query: DescriptorPosition,
+) -> Option<Reachability> {
+    let incoming = incoming_flow(&machine.flow)?;
+    predecessors_with_incoming(machine, &incoming, query)
+}
+
+pub(super) fn predecessors_with_incoming(
+    machine: &DescriptorMachine,
+    incoming: &IncomingFlow,
     query: DescriptorPosition,
 ) -> Option<Reachability> {
     QueryFlow {
@@ -74,7 +142,7 @@ pub(super) fn predecessors(
         parameters: &machine.payload_scalar_parameters,
         definitions: &machine.payload_scalar_definitions,
     }
-    .predecessors(query)
+    .predecessors_with_incoming(incoming, query)
 }
 
 struct QueryFlow<'flow> {
@@ -86,18 +154,18 @@ struct QueryFlow<'flow> {
 }
 
 impl QueryFlow<'_> {
+    #[cfg(test)]
     fn predecessors(&self, query: DescriptorPosition) -> Option<Reachability> {
+        let incoming = incoming_flow(self.flow)?;
+        self.predecessors_with_incoming(&incoming, query)
+    }
+
+    fn predecessors_with_incoming(
+        &self,
+        incoming: &IncomingFlow,
+        query: DescriptorPosition,
+    ) -> Option<Reachability> {
         self.flow.get(&query)?;
-        let mut incoming = BTreeMap::<_, Vec<_>>::new();
-        for (&position, step) in self.flow {
-            for (ordinal, edge) in step.successors.iter().enumerate() {
-                self.flow.get(&edge.target)?;
-                incoming
-                    .entry(edge.target)
-                    .or_default()
-                    .push((position, ordinal));
-            }
-        }
         let mut conditions = BTreeMap::from([(query, Conditions::new())]);
         let mut edges = BTreeSet::new();
         let mut pending = VecDeque::from([query]);

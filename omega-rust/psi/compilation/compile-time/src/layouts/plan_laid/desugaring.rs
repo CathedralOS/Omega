@@ -201,6 +201,7 @@ pub fn desugar_plan_laid_value_types(
             count += 1;
         }
         syntax.push_root_item(Item::Data(DataDefinition {
+            cleanup_selection: None,
             // The shell belongs to the authored application that created it,
             // as with placed views. Its spelling is generated, but an absent
             // span would orphan the symbol from managed source ownership and

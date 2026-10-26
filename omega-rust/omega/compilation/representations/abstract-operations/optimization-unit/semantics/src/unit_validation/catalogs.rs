@@ -137,7 +137,11 @@ pub(super) fn index_and_validate_unit_catalogs<'unit>(
         super::activation_storage::validate(unit, function)?;
         validate_structural_field_range_authority(unit, function, &structural_types)?;
     }
-    crate::current_ownership::validate_descriptor_compatibility(unit, &descriptor_requirements)?;
+    crate::current_ownership::validate_descriptor_compatibility(
+        unit,
+        &descriptor_requirements,
+        call_accesses.view_graph(),
+    )?;
     Ok(UnitIndexes {
         machines,
         boundary_machines,
@@ -905,9 +909,18 @@ fn validate_structural_field_range_authority(
                     );
                 }
                 if requires {
-                    let value = event.replacement().ok_or(
-                        OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch,
-                    )?;
+                    let value = event
+                        .replacement()
+                        .or_else(|| match event {
+                            abstract_operations::AbstractAtomicEvent::ReadModifyWrite {
+                                operand,
+                                ..
+                            } => Some(*operand),
+                            _ => None,
+                        })
+                        .ok_or(
+                            OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch,
+                        )?;
                     let requirement = terminal_semantics::atomic_resident_requirement(
                         &declaration.field_type,
                         value,

@@ -168,7 +168,18 @@ pub(super) fn target_installations(
                 continue;
             }
         };
+        let executable = match std::env::current_exe() {
+            Ok(executable) => executable,
+            Err(error) => {
+                observation
+                    .diagnostics
+                    .push(format!("native sponsor executable: {error}"));
+                matched = false;
+                continue;
+            }
+        };
         let result = terminal_runtime::execute(TerminalRuntimeRequest {
+            native_provider: Some(std::process::Command::new(executable)),
             x86_flags,
             artifact,
             target: Some(&target),
@@ -291,7 +302,12 @@ pub(super) fn interpret(
         Ok(flags) => flags.flatten(),
         Err(error) => return Observation::failure(error),
     };
+    let executable = match std::env::current_exe() {
+        Ok(executable) => executable,
+        Err(error) => return Observation::failure(format!("native sponsor executable: {error}")),
+    };
     let result = match terminal_runtime::execute(TerminalRuntimeRequest {
+        native_provider: Some(std::process::Command::new(executable)),
         x86_flags,
         provider_proposal: None,
         artifact,

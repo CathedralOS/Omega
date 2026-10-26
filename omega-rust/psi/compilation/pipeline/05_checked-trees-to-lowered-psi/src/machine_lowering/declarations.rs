@@ -12,6 +12,9 @@ pub(crate) fn nominal(
     sources: &[(source::SourceId, [u8; 32])],
     symbol: SymbolHandle,
 ) -> Result<NominalDeclarationIdentity, &'static str> {
+    if let Some(identity) = invocation_local(identities, checked, symbol)? {
+        return Ok(NominalDeclarationIdentity::new(identity));
+    }
     let identity = checked
         .exact_owner_nominal_identity(symbol, sources)
         .ok_or("checked declaration has no exact package or toolchain owner")?;
@@ -21,12 +24,46 @@ pub(crate) fn nominal(
     Ok(NominalDeclarationIdentity::new(identities.intern(&text)))
 }
 
+/// Missing package ownership is permitted only for an explicitly private code
+/// product. The checked symbol coordinate stays local to that code's live owner;
+/// it is never reclassified as a package or toolchain declaration.
+fn invocation_local(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    symbol: SymbolHandle,
+) -> Result<Option<terminal_psi::TerminalIdentityIndex>, &'static str> {
+    if !symbol.is_valid()
+        || !identities.is_invocation_scoped()
+        || checked.symbols.symbol_package_identity(symbol).is_some()
+        || checked.symbols.symbol_source_origin(symbol) != Some(source::SourceOrigin::User)
+    {
+        return Ok(None);
+    }
+    let coordinate = format!(
+        "invocation-declaration({}:{})",
+        symbol.arena_index(),
+        symbol.generation()
+    );
+    identities.intern_invocation_local(&coordinate).map(Some)
+}
+
+pub(crate) fn semantic_identity(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    symbol: SymbolHandle,
+) -> Result<terminal_psi::TerminalIdentityIndex, String> {
+    if let Some(identity) = invocation_local(identities, checked, symbol)? {
+        return Ok(identity);
+    }
+    Ok(identities.intern(&checked.normalized_hermetic_symbol_identity(symbol)?))
+}
+
 pub(crate) fn identity(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     sources: &[(source::SourceId, [u8; 32])],
     machine: SymbolHandle,
-) -> Result<CheckedMachineDeclaration, &'static str> {
+) -> Result<CheckedMachineDeclaration, String> {
     let declaration = checked
         .machine(machine)
         .ok_or("checked machine declaration is absent")?;
@@ -40,11 +77,8 @@ pub(crate) fn identity(
     for parameter in checked.state_parameters(entry) {
         identities.intern(&checked.normalized_type_identity_text(parameter.type_reference));
     }
-    let semantic_declaration = identities.intern(
-        &checked
-            .normalized_hermetic_symbol_identity(machine)
-            .map_err(|_| "checked machine has no hermetic declaration identity")?,
-    );
+    let semantic_declaration = semantic_identity(identities, checked, machine)
+        .map_err(|reason| format!("checked machine identity: {reason}"))?;
     let parameter_types = checked
         .state_parameters(entry)
         .iter()
@@ -160,7 +194,7 @@ pub(crate) fn boundary_identity(
     checked: &CheckedTrees,
     sources: &[(source::SourceId, [u8; 32])],
     target: SymbolHandle,
-) -> Result<Option<CheckedMachineDeclaration>, &'static str> {
+) -> Result<Option<CheckedMachineDeclaration>, String> {
     if checked.machine(target).is_some() {
         return identity(identities, checked, sources, target).map(Some);
     }
@@ -176,7 +210,7 @@ pub(crate) fn boundary_identity(
         return Ok(None);
     };
     if requirements.next().is_some() {
-        return Err("boundary requirement has multiple checked declaration owners");
+        return Err("boundary requirement has multiple checked declaration owners".into());
     }
     let capsule = checked
         .facts
@@ -185,7 +219,7 @@ pub(crate) fn boundary_identity(
         .ok_or("boundary requirement lost its complete checked contract capsule")?;
     let contract = capsule.target_contract_commitment();
     if contract.is_zero() {
-        return Err("boundary requirement has an empty checked contract commitment");
+        return Err("boundary requirement has an empty checked contract commitment".into());
     }
     let parameter_types = program
         .state_signature_parameters(signature)
@@ -198,11 +232,8 @@ pub(crate) fn boundary_identity(
     Ok(Some(CheckedMachineDeclaration {
         machine: nominal(identities, checked, sources, owner.symbol)?,
         state: nominal(identities, checked, sources, signature.symbol)?,
-        semantic_declaration: identities.intern(
-            &program
-                .normalized_hermetic_symbol_identity(signature.symbol)
-                .map_err(|_| "boundary requirement has no hermetic declaration identity")?,
-        ),
+        semantic_declaration: semantic_identity(identities, checked, signature.symbol)
+            .map_err(|reason| format!("boundary requirement identity: {reason}"))?,
         parameter_types,
         callable: identities
             .intern(&program.trait_requirement_callable_identity_text(owner, signature)),
@@ -219,7 +250,7 @@ pub(super) fn retain(
     sources: &[(source::SourceId, [u8; 32])],
     owners: &[(SymbolHandle, semantic_vocabulary::MachineId)],
     module: &mut terminal_psi::TerminalModule,
-) -> Result<(), &'static str> {
+) -> Result<(), String> {
     // Producer ownership rows follow emitted-machine order. Advance through
     // the output once instead of rebuilding an index or restarting each search.
     let mut machines = module.machines.iter_mut();
