@@ -314,12 +314,6 @@ helper that passes does not close an item.
       execution (zero selections retain structural eligibility; repeated
       identical selections invoke once; distinct inherited/conjoined selections
       reject).
-    - Red place on main: `samples/cli/facts/domain_selected_cleanup/erased_predicates`
-      (explicit predicate erasure) refuses native compilation since its landing
-      (#165, `f8645229c43`); the probe at the landing commit fails too, so the
-      place never ran green. Terminal Psi lowering reports `InvalidUnitMachinePlan`
-      — "resident membership home has no exact source projection"
-      (`pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/structural_values/emission/current_memberships.rs`).
   Acceptance: a nine-place fact row for `dropped by` with observable cleanup side
   effects passes `omega run --both` (with reject twins for conflicting machine
   applications, erasure bypass, missing inherited obligations, unauthorized
