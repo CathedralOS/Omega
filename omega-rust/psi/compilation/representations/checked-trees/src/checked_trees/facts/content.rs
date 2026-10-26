@@ -31,8 +31,8 @@ pub struct ContentProjectionFacts {
     pub body_claim_bindings: arena::Arena<ContentBodyClaimBinding>,
     pub body_available_inputs: arena::Arena<ContentBodyAvailableInput>,
     /// Atomic owned transformations selected at an actual value completion.
-    /// Their derivations retain parent bindings as well as the common lineage
-    /// anchor: the anchor alone is not qualification or backing evidence.
+    /// Their derivations retain exact parent bindings and the complete existing
+    /// root roster; root identity alone is not qualification or backing evidence.
     pub body_transformations: arena::Arena<ContentBodyTransformation>,
     pub body_derivations: arena::Arena<ContentBodyDerivation>,
     /// Conditional checked-provider custody laws. These are not theorem roots

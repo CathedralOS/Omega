@@ -29,6 +29,7 @@ mod collection_backing;
 pub mod control_graph;
 pub mod descriptor_results;
 pub(crate) use optimization::digest_encoder;
+pub mod nominal_cleanup;
 pub mod owned_structure;
 mod partial_affine;
 mod placed_ram_correspondence;

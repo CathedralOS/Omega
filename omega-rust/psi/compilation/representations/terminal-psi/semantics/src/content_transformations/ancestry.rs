@@ -11,6 +11,8 @@ use terminal_psi::{
     TerminalModule,
 };
 
+mod retirement;
+
 type OriginKey = (MachineId, ClaimId, ContentProjectionIdentity);
 
 /// Invocation-local receiving work, shared across all ancestry steps. Completed
@@ -21,6 +23,8 @@ struct OriginTraversal {
     active: Vec<OriginKey>,
     completed: Vec<(OriginKey, Vec<ClaimId>)>,
     remaining: usize,
+    retirement_active: Vec<(MachineId, ClaimId)>,
+    retired: Vec<((MachineId, ClaimId), bool)>,
 }
 
 impl OriginTraversal {
@@ -29,6 +33,8 @@ impl OriginTraversal {
             active: Vec::new(),
             completed: Vec::new(),
             remaining: 65_536,
+            retirement_active: Vec::new(),
+            retired: Vec::new(),
         }
     }
 
@@ -165,6 +171,13 @@ fn authenticate_step(
             }
         }
     }
+    for input in &step.inputs {
+        if !inputs.contains(input)
+            && retirement::call_input_is_retired(module, producer, *input, projection, traversal)?
+        {
+            inputs.push(*input);
+        }
+    }
     inputs.sort();
     if inputs != step.inputs {
         return Err("content ancestry call inputs differ from its exact returned claim origins");
@@ -189,15 +202,7 @@ fn call_input_origins(
                 .find(|machine| machine.id == identity)
         })
         .ok_or("content ancestry requires an authenticated returning callable")?;
-    let transfers = match &operation.kind {
-        OperationKind::CallStructural {
-            claim_transfers, ..
-        }
-        | OperationKind::CallStructuralWithScalarArguments {
-            claim_transfers, ..
-        } => claim_transfers,
-        _ => return Err("content ancestry call has no structural claim transfers"),
-    };
+    let transfers = operation.kind.claim_transfers();
     let result = operation
         .result
         .as_structural()

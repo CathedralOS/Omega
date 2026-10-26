@@ -14,6 +14,37 @@ ensures result.base == 10, result.length == 48
 machine Region::drop(region: &mut Region) {}
 data Holder { parts: Parts; }
 data Parts { left: Region in Owned; right: Region in Owned; }
+machine rebuild_region(region: Region in Owned) -> Region in Owned
+requires region.base <= 58 && region.length <= 58 - region.base
+ensures result.base == region.base, result.length == region.length,
+    Owned::content(old(&region)) == Owned::content(&result)
+{
+    let { base, length } = region;
+    Region { base: base, length: length }
+}
+
+machine retire_empty_tail(left: Region in Owned, right: Region in Owned) -> Region in Owned
+requires left.base <= 58 && left.length <= 58 - left.base
+    && right.base == left.base + left.length && right.length == 0
+ensures result.base == left.base, result.length == left.length,
+    separate(Owned::content(old(&left)), Owned::content(old(&right))) == Owned::content(&result)
+{
+    drop(right);
+    let rebuilt: Region in Owned = rebuild_region(left);
+    rebuilt
+}
+
+machine finish_reunion(whole: Region in Owned) -> Region in Owned
+requires whole.base == 10 && whole.length == 48
+ensures result.base == whole.base, result.length == whole.length,
+    Owned::content(old(&whole)) == Owned::content(&result)
+{
+    let parts: Parts = partition(whole, 48);
+    let joined: Region in Owned = retire_empty_tail(parts.left, parts.right);
+    let { base, length } = joined;
+    Region { base: base, length: length }
+}
+
 machine merge(left: Region in Owned, right: Region in Owned) -> Region in Owned
 requires left.base <= 58 && left.length <= 58 - left.base
     && right.base == left.base + left.length && right.length <= 58 - right.base
@@ -46,7 +77,8 @@ ensures result in Owned,
 {
     let parts: Parts = partition(whole, requested);
     let joined: Region in Owned = merge(parts.left, parts.right);
-    let { base, length } = joined;
+    let finished: Region in Owned = finish_reunion(joined);
+    let { base, length } = finished;
     let reunited: Region = Region { base: base, length: length };
     reunited
 }
@@ -58,7 +90,8 @@ ensures result in Owned,
 {
     let holder: Holder = Holder { parts: partition(whole, requested) };
     let joined: Region in Owned = merge(holder.parts.left, holder.parts.right);
-    let { base, length } = joined;
+    let finished: Region in Owned = finish_reunion(joined);
+    let { base, length } = finished;
     let reunited: Region = Region { base: base, length: length };
     reunited
 }
@@ -74,7 +107,8 @@ ensures result in Owned,
     {
     let parts: Parts = partition(whole, requested);
     let joined: Region in Owned = merge(parts.left, parts.right);
-    let { base, length } = joined;
+    let finished: Region in Owned = finish_reunion(joined);
+    let { base, length } = finished;
     let reunited: Region = Region { base: base, length: length };
     reunited
     }
@@ -89,7 +123,8 @@ ensures result in Owned,
     let tail: Parts = partition(parts.right, 0);
     let reunited_tail: Region in Owned = merge(tail.left, tail.right);
     let joined: Region in Owned = merge(parts.left, reunited_tail);
-    let { base, length } = joined;
+    let finished: Region in Owned = finish_reunion(joined);
+    let { base, length } = finished;
     let reunited: Region = Region { base: base, length: length };
     reunited
 }
@@ -102,7 +137,8 @@ ensures result in Owned,
     let returned: Region in Owned = rejoin_state(whole, requested);
     let parts: Parts = partition(returned, requested);
     let joined: Region in Owned = merge(parts.left, parts.right);
-    let { base, length } = joined;
+    let finished: Region in Owned = finish_reunion(joined);
+    let { base, length } = finished;
     let reunited: Region = Region { base: base, length: length };
     reunited
 }
@@ -114,7 +150,8 @@ ensures result in Owned,
 {
     let parts: Parts = partition(whole, requested);
     let joined: Region in Owned = merge(parts.left, parts.right);
-    let { base, length } = joined;
+    let finished: Region in Owned = finish_reunion(joined);
+    let { base, length } = finished;
     let result: Region = Region { base: base, length: length };
     result
 }
@@ -128,7 +165,8 @@ ensures result in Owned,
     let left: Region in Owned = parts.left;
     let right: Region in Owned = parts.right;
     let joined: Region in Owned = merge(left, right);
-    let { base, length } = joined;
+    let finished: Region in Owned = finish_reunion(joined);
+    let { base, length } = finished;
     let reunited: Region = Region { base: base, length: length };
     reunited
 }

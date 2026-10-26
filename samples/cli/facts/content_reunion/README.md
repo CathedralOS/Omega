@@ -13,7 +13,11 @@ Every place now calls a separately checked `merge(left, right)` whose two
 owned parameters are its complete input frontier. The merge has no parent root
 in scope. Its authored separated-content equation and ordinary bounds establish
 one owned output. The caller then reconstructs a raw region and must derive its
-qualification from the original root's complete live descendants. The other
+qualification from the original root's complete live descendants. After each merge, the same fact is carried through a separately checked finisher:
+it partitions the reunited root at its full length, explicitly disposes the empty
+tail with the owner-designated cleanup, and rebuilds the remaining region. The
+complete input roster is accounted for by returned origins and exact disposal,
+without treating numeric emptiness as ownership authority. The other
 machine also composes a two-parameter wrapper, selects both call alternatives,
 and reverses the formal order in one helper.
 
@@ -139,3 +143,13 @@ remain unfinished. A joint ancestry roster is not an original-to-current backing
 address or per-input projection correspondence. Cross-owner boundary bodies still
 require that exact correspondence and refuse unsupported multi-origin substitutions
 without consuming inputs or publishing a qualification.
+
+The disposal finisher exposed a canonical-artifact mismatch: native and Terminal
+execution returned 0, while `inspect-terminal` rejected the retained `program.oterm`
+because the disposed tail had no returned claim origin. Terminal ancestry now
+accounts for exact nominal disposal separately from returned origins. Its bounded
+replay follows the complete claim frontier on every normal path and accepts only
+the uniquely designated leaf cleanup at the current typed storage. Home retirement,
+retaining hooks, unaccounted descendants and opaque custody exits do not establish
+disposal. Qualification therefore checks canonical reload of every retained
+Terminal artifact in addition to both execution engines.

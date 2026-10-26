@@ -296,10 +296,12 @@ pub(crate) fn validate_nominal_cleanup_action(
     let invalid = || TerminalInterpretError::AffineFrontierMismatch;
     let root = values.get(&cleanup.place).ok_or_else(invalid)?;
     let value = project_structural_value(structural_types, root, &cleanup.path)?;
-    let target = machines.get(&cleanup.cleanup_machine).ok_or_else(invalid)?;
-    if !structural_types.contains_key(&cleanup.structural_type) {
-        return Err(invalid());
-    }
+    terminal_semantics::nominal_cleanup::target(
+        structural_types.values(),
+        machines.values(),
+        cleanup,
+    )
+    .map_err(|_| invalid())?;
     let retains_descendants = cleanup.retains_descendants;
     let source_claims = claims
         .iter()
@@ -313,22 +315,6 @@ pub(crate) fn validate_nominal_cleanup_action(
         })
         .collect::<Vec<_>>();
     if value.structural_type != cleanup.structural_type
-        || target.attachment != Some(cleanup.structural_type)
-        || target.nominal_cleanup_subject != Some(cleanup.structural_type)
-        || machines
-            .values()
-            .filter(|candidate| candidate.nominal_cleanup_subject == Some(cleanup.structural_type))
-            .count()
-            != 1
-        || target.result != terminal_psi::TerminalMachineResult::Unit
-        || !target.parameters.is_empty()
-        || !target.entry_claims.is_empty()
-        || !target.content_entry_claims.is_empty()
-        || target.structural_parameters.len() > 1
-        || target
-            .structural_parameters
-            .iter()
-            .any(|parameter| !parameter.is_cleanup_receiver(cleanup))
         || cleanup.consumed_claims
             != source_claims
                 .iter()
