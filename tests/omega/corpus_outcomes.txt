@@ -1882,16 +1882,16 @@ fail/build/native_table_write_only_dispatch rejected 1325ms expected @a92f164310
 	machine `Table::invoke` state `invoke` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; bodyless boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
 fail/build/opaque_by_value_without_selection rejected 2512ms expected @a92f16431042
 	`Main::main` uses opaque boundary data `Token` by value, but the build selects no `OpaqueRepresentation<Token, _>` application; add `Build::select_representation<Token, <conformance>>(builder)`
-fail/build/opaque_descriptor_host_type_use rejected 190ms expected @a92f16431042
+fail/build/opaque_descriptor_host_type_use rejected 25ms expected @7530b1177ef5
 	opaque boundary data `Token` cannot claim `[copy]` without an admitted property receipt
-fail/build/opaque_descriptor_invalid_carrier rejected 232ms expected @a92f16431042
+fail/build/opaque_descriptor_invalid_carrier rejected 106ms expected @7530b1177ef5
 	opaque representation carrier graph at `TokenBytes` is affine; a copyable opaque datum requires every carrier declaration to be structurally `[copy]`; v1 carriers must be inert storage
 fail/build/opaque_field_without_selection rejected 1891ms expected @a92f16431042
 	`Main::main` uses opaque boundary data `Token` by value, but the build selects no `OpaqueRepresentation<Token, _>` application; add `Build::select_representation<Token, <conformance>>(builder)`
 fail/build/opaque_nested_field_receipt_unadmitted rejected 288ms expected @a92f16431042
 	opaque boundary data `Token` cannot claim `[copy]` without an admitted property receipt
-fail/build/opaque_representation_double_selection rejected 277ms expected @a92f16431042
-	build selects opaque representation `Token` more than once (first selection uses `TokenRepresentation`)
+fail/build/opaque_representation_double_selection rejected 98ms expected @7530b1177ef5
+	build selects opaque representation `Token` more than once
 fail/build/package_local_calling_copy rejected 5516ms expected @a92f16431042
 	duplicate data `SystemVEightbyteClass`
 	duplicate data `ValueClass`
@@ -1953,13 +1953,17 @@ fail/build/product_provider_requires_satisfier rejected 809ms expected @a92f1643
 	build-time evaluation of `build` failed: product provider `Plain` names no provider declaration in this build occurrence's package
 fail/build/product_schema_missing_declaration rejected 808ms expected @a92f16431042
 	build-time evaluation of `build` failed: product schema `absent` names no data declaration in this build occurrence's package
+fail/build/product_selection_repeated_helper rejected 96ms expected @7530b1177ef5
+	build selects opaque representation `Token` more than once
+fail/build/product_selection_unused_invalid_carrier rejected 94ms expected @7530b1177ef5
+	opaque representation carrier graph at `TokenBytes` is affine; a copyable opaque datum requires every carrier declaration to be structurally `[copy]`; v1 carriers must be inert storage
 fail/build/program_entry_binding_outside_build rejected 2708ms expected @a92f16431042
 	root binding requires a compiler-issued &mut Build receiver
 fail/build/program_entry_receiver_not_zii rejected 825ms expected @a92f16431042
 	entry machine `Application::launch` requests a provisioned `Application` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
 fail/build/program_entry_returns_value rejected 3930ms expected @a92f16431042
 	entry machine `launch` returns a value, but `ProgramEntry` has no result
-fail/build/representation_selection_fabricated_activation rejected 346ms expected @a92f16431042
+fail/build/representation_selection_fabricated_activation rejected 8ms expected @7530b1177ef5
 	the compiler-owned Build activation cannot be copied into local `counterfeit`
 fail/build/retained_domain_and_service_rows_invalid_index rejected 68ms expected @a92f16431042
 	cannot prove scalar result domain for return from @const-qualification-INDEX-0 at statement 0: Below
@@ -19336,8 +19340,8 @@ fail/providers/consuming_requirement_without_provider rejected 5518ms expected @
 	no provider is selected for boundary requirement `Receipt::ack`, which the program entry reaches on target `windows_x86_64`
 fail/providers/consuming_trait_requirement_without_provider rejected 1676ms expected @a92f16431042
 	no provider is selected for boundary requirement `Acknowledgement::ack`, which the program entry reaches on target `windows_x86_64`
-fail/providers/cross_package_private_slot_rejected rejected 415ms expected @a92f16431042
-	Build declaration operand does not resolve to one visible product declaration of the required kind
+fail/providers/cross_package_private_slot_rejected rejected 189ms expected @7530b1177ef5
+	Product provider operand `support::values::Hidden` does not resolve to one visible declaration of role BoundarySubject
 fail/providers/demanded_unavailable_target_provider rejected 10000ms expected @a92f16431042
 	no provider is selected for boundary requirement `Value::read`, which the program entry reaches on target `macos_arm64`
 fail/providers/direct_foreign_missing_reach rejected 1779ms expected @a92f16431042
@@ -21563,6 +21567,8 @@ pass/build/package_batch_distinct_builds checked 2291ms check-target:macos_arm64
 pass/build/policy_array_entry_context_exit checked 2274ms check-target:macos_arm64 @a92f16431042
 pass/build/product_description_paths_exit checked 2258ms check-target:macos_arm64 @a92f16431042
 pass/build/product_entry_named_user_machine_exit checked 2112ms check-target:macos_arm64 @a92f16431042
+pass/build/product_selection_conditional_exit checked 686ms check-target:macos_arm64 @7530b1177ef5+wt
+pass/build/product_selection_helper_exit checked 686ms check-target:macos_arm64 @7530b1177ef5+wt
 pass/build/receiver_view_writeback_exit checked 4122ms check-target:macos_arm64 terminal-runtime.configure_build_boundary:unrequested terminal-inspections:match @5f1191d43438+wt
 pass/build/retained_domain_and_service_rows_exit checked 2113ms check-target:macos_arm64 @a92f16431042
 pass/build/runtime_calling_register_copy_exit checked 9302ms check-target:macos_arm64 @a92f16431042

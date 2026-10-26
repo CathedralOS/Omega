@@ -274,6 +274,8 @@ pass/boundary/static_opaque_qualifier_exit built 762ms exit:0 interpreter-exit:0
 pass/build/discarded_provider_selection_exit built 6550ms exit:70 interpreter-exit:70 interpreter:agrees @ac7fc986d407+wt
 pass/build/installed_entry_ram_two_occurrences_exit built 1578ms exit:0 entry-ram:match interpreter-exit:0 interpreter-entry-ram:match interpreter:agrees @0360a23ad5f5+wt
 pass/build/nested_generated_dependency_dual_purpose built 983ms exit:0 interpreter-exit:0 interpreter:agrees @9176336860d9
+pass/build/product_selection_conditional_exit built 931ms exit:0 interpreter-exit:0 interpreter:agrees @7530b1177ef5+wt
+pass/build/product_selection_helper_exit built 1003ms exit:0 interpreter-exit:0 interpreter:agrees @7530b1177ef5+wt
 pass/build/receiver_view_writeback_exit built 4759ms exit:0 interpreter-exit:0 interpreter:agrees terminal-runtime.configure_build_boundary:unrequested terminal-inspections:match @5f1191d43438+wt
 pass/build/retained_domain_and_service_rows_exit built 10968ms exit:0 interpreter-exit:0 interpreter:agrees @a27b9f3d3f39
 pass/build/runtime_opaque_by_value_selected_exit built 18387ms exit:72 interpreter-exit:72 interpreter:agrees @35f5679f7d28
