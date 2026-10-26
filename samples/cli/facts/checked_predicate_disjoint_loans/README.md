@@ -20,15 +20,22 @@ That weaker fact permits equal indices and must reject the same loans.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| local | [program](local/main.omg) | [insufficient predicate](local/invalid/main.omg) |
-| field | [program](field/main.omg) | [insufficient predicate](field/invalid/main.omg) |
-| parameter | [program](parameter/main.omg) | [insufficient predicate](parameter/invalid/main.omg) |
-| call_result | [program](call_result/main.omg) | [insufficient predicate](call_result/invalid/main.omg) |
-| match_join | [program](match_join/main.omg) | [insufficient predicate](match_join/invalid/main.omg) |
-| const_name | [program](const_name/main.omg) | [insufficient predicate](const_name/invalid/main.omg) |
-| other_state | [program](other_state/main.omg) | [insufficient predicate](other_state/invalid/main.omg) |
-| other_machine | [program](other_machine/main.omg) | [insufficient predicate](other_machine/invalid/main.omg) |
-| target_body | [program](target_body/main.omg) | [insufficient predicate](target_body/invalid/main.omg) |
+| local | [program](local/main.omg), [exclusive call](local/exclusive_call/main.omg) | [insufficient predicate](local/invalid/main.omg), [call twin](local/exclusive_call/invalid/main.omg) |
+| field | [program](field/main.omg), [exclusive call](field/exclusive_call/main.omg) | [insufficient predicate](field/invalid/main.omg), [call twin](field/exclusive_call/invalid/main.omg) |
+| parameter | [program](parameter/main.omg), [exclusive call](parameter/exclusive_call/main.omg) | [insufficient predicate](parameter/invalid/main.omg), [call twin](parameter/exclusive_call/invalid/main.omg) |
+| call_result | [program](call_result/main.omg), [exclusive call](call_result/exclusive_call/main.omg) | [insufficient predicate](call_result/invalid/main.omg), [call twin](call_result/exclusive_call/invalid/main.omg) |
+| match_join | [program](match_join/main.omg), [exclusive call](match_join/exclusive_call/main.omg) | [insufficient predicate](match_join/invalid/main.omg), [call twin](match_join/exclusive_call/invalid/main.omg) |
+| const_name | [program](const_name/main.omg), [exclusive call](const_name/exclusive_call/main.omg) | [insufficient predicate](const_name/invalid/main.omg), [call twin](const_name/exclusive_call/invalid/main.omg) |
+| other_state | [program](other_state/main.omg), [exclusive call](other_state/exclusive_call/main.omg) | [insufficient predicate](other_state/invalid/main.omg), [call twin](other_state/exclusive_call/invalid/main.omg) |
+| other_machine | [program](other_machine/main.omg), [exclusive call](other_machine/exclusive_call/main.omg) | [insufficient predicate](other_machine/invalid/main.omg), [call twin](other_machine/exclusive_call/invalid/main.omg) |
+| target_body | [program](target_body/main.omg), [exclusive call](target_body/exclusive_call/main.omg) | [insufficient predicate](target_body/invalid/main.omg), [call twin](target_body/exclusive_call/invalid/main.omg) |
+
+Each place also contains an `exclusive_call/` production with the same
+predicate, indices, writes and oracle. Instead of retaining local element
+loans, it forms both exclusive arguments for `write_pair` in one call. Its
+reject twin weakens only the same predicate body; a callee argument roster
+must consume the same established separation as local loan formation.
+These pairs are pinned as `_through_<place>_exclusive_call_{exit,rejected}`.
 
 The pairs are pinned under `tests/omega/{pass,fail}/facts/` as
 `checked_predicate_disjoint_loans_through_<place>_{exit,rejected}`.
@@ -86,7 +93,8 @@ Canonical authority: [loan compatibility and captured premises](../../../../wiki
 ## Recorded baseline and acceptance
 
 Fresh optimized producer `16b381462327a3f7d1eb8c7218bdb81114a8a10a` rejects all nine
-positive places with overlapping-loan diagnostics. A source-identical scratch
+local-loan places with overlapping-loan diagnostics and all nine exclusive-call
+places with `as mutable more than once`. A source-identical scratch
 control changing only the predicate requirement to direct `first_index != second_index`
 checks and runs with native/Terminal exit 0 on macOS ARM64. Frozen source,
 producer hashes and raw observations are retained in the lane qualification and
