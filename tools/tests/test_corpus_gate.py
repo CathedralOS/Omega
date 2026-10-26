@@ -1537,6 +1537,17 @@ class StampProvenance(unittest.TestCase):
         self.assertEqual(self.run_gate("--record"), 2)
         self.assertEqual(bundle.read_bytes(), b"damaged evidence")
 
+    def test_truncated_pack_refuses_even_when_header_still_verifies(self):
+        self.assertEqual(self.run_gate("--record"), 0)
+        bundle = self.root / "build/corpus-source" / (self.candidate + ".bundle")
+        damaged = bundle.read_bytes()[:-24]
+        bundle.write_bytes(damaged)
+        # Git's header-only verification cannot establish source restorability.
+        self.git("bundle", "verify", str(bundle))
+        self.assertEqual(self.run_gate("--record"), 2)
+        self.assertEqual(bundle.read_bytes(), damaged)
+        self.assertIn("cannot retain stamped source evidence", self.errors.getvalue())
+
     def test_missing_commit_still_refuses_and_dirty_marker_is_honest(self):
         with patch.object(corpus_gate, "ROOT", self.root):
             self.assertIsNone(corpus_gate.stamp_provenance_problem(self.base[:12]))

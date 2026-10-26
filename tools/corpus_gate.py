@@ -1281,8 +1281,11 @@ def retain_record_source(revision: str) -> str | None:
                 os.link(temporary, bundle)
             except FileExistsError:
                 pass
-        run("bundle", "verify", str(bundle))
-        heads = run("bundle", "list-heads", str(bundle)).stdout.splitlines()
+        # verify/list-heads check only the header and prerequisites. Unbundle
+        # also authenticates the full pack (including its checksum), so a
+        # truncated/corrupt export cannot be recorded as retained provenance.
+        # It imports objects only; it moves no branch, checkout or source.
+        heads = run("bundle", "unbundle", str(bundle)).stdout.splitlines()
         if f"{revision} {ref}" not in heads:
             return "retained source bundle does not bind the stamped revision"
         print(f"corpus_gate: retained source evidence {bundle}; publish with PR evidence",
