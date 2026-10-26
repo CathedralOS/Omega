@@ -534,6 +534,44 @@ impl OperationBuffer {
         Ok(())
     }
 
+    /// Add domain qualifications restored on a structural home, including
+    /// guarantees published by completed calls on borrowed parameters.
+    pub(crate) fn add_structural_qualifications(
+        &mut self,
+        place: PlaceId,
+        qualifications: &[semantic_vocabulary::StructuralDomainId],
+        projected_qualifications: &[terminal_psi::StructuralPathQualification],
+    ) {
+        for operation in self.operations.iter_mut().rev() {
+            if let OperationResult::Structural(result) = &mut operation.result {
+                if result.place == place {
+                    result.qualifications.extend_from_slice(qualifications);
+                    result.qualifications.sort();
+                    result.qualifications.dedup();
+                    result
+                        .projected_qualifications
+                        .extend_from_slice(projected_qualifications);
+                    result.projected_qualifications.sort();
+                    result.projected_qualifications.dedup();
+                }
+            }
+        }
+        for (_, binding) in &mut self.structural_values {
+            if let StructuralBinding::OperationResult(result) = binding {
+                if result.place == place {
+                    result.qualifications.extend_from_slice(qualifications);
+                    result.qualifications.sort();
+                    result.qualifications.dedup();
+                    result
+                        .projected_qualifications
+                        .extend_from_slice(projected_qualifications);
+                    result.projected_qualifications.sort();
+                    result.projected_qualifications.dedup();
+                }
+            }
+        }
+    }
+
     /// Allocate the read obligation that canonically certifies the next
     /// operation's bounds, recording it when `bound_decided` requires proof.
     pub(crate) fn push_read_obligation(

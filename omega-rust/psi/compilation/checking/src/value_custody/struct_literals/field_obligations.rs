@@ -631,13 +631,30 @@ pub(crate) fn construction_application(
     let required = program
         .expression_table
         .construction_required_type_reference(expression);
+    let constructed = program
+        .expression_table
+        .constructed_value_type_reference(expression);
     if required.is_valid() {
-        required
-    } else {
-        program
-            .expression_table
-            .constructed_value_type_reference(expression)
+        return required;
     }
+    if constructed.is_valid() {
+        return constructed;
+    }
+    for occurrence in program
+        .expression_table
+        .authored_selection_occurrences(expression)
+    {
+        if let Some(selection) = program.authored_declaration_selections().get(occurrence) {
+            if let Some(selected) = selection.target().as_resolved() {
+                if let Some(declaration) =
+                    program.const_declaration_by_symbol(selected.selected_symbol())
+                {
+                    return declaration.declared_type;
+                }
+            }
+        }
+    }
+    TypeReferenceHandle::invalid()
 }
 
 pub(super) fn selected_construction_definition<'a>(

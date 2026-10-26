@@ -651,9 +651,12 @@ fn validate_const_binding(
 ) {
     if let TypeReferenceNode::ConstExpression(expression) =
         program.type_reference_table.type_reference(actual)
-        && let TypeParameterKind::Const {
+        && let (TypeParameterKind::Const {
             type_reference: expected,
-        } = parameter.kind
+        }
+        | TypeParameterKind::Value {
+            type_reference: expected,
+        }) = parameter.kind
         && let Some(caller) = program.machine_by_symbol(application.lexical_owner)
         && let Some(entry) = program.machine_states(caller).first()
         && crate::value_custody::const_expressions::has_carrier(

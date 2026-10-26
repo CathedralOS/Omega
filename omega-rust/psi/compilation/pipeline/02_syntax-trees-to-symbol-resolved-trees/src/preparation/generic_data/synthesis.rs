@@ -179,7 +179,7 @@ pub(crate) fn desugar_generic_data_instances_in(
                 .map(|parameter| {
                     (
                         parameter.name.as_str(syntax).to_string(),
-                        matches!(parameter.kind, TypeParameterKind::Const { .. }),
+                        parameter.kind.is_const_or_value(),
                     )
                 })
                 .collect();
@@ -219,7 +219,8 @@ pub(crate) fn desugar_generic_data_instances_in(
         let const_parameter_types = definition_parameters
             .iter()
             .map(|parameter| match parameter.kind {
-                TypeParameterKind::Const { type_reference } => Some(type_reference),
+                TypeParameterKind::Const { type_reference }
+                | TypeParameterKind::Value { type_reference } => Some(type_reference),
                 _ => None,
             })
             .collect();

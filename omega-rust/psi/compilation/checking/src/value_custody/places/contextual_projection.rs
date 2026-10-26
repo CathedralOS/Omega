@@ -30,7 +30,12 @@ pub fn contextual_canonical_place_from_expression(
             inner.target,
         ),
         // A borrow recast denotes the operand's storage, not a fresh rvalue.
-        ExpressionNode::Cast(cast) if cast.form.is_recast() => {
+        // Same-carrier qualification and erasure casts preserve the operand's
+        // storage place.
+        ExpressionNode::Cast(cast)
+            if cast.form.is_recast()
+                || super::canonical_projection::cast_preserves_place(program, cast) =>
+        {
             contextual_canonical_place_from_expression(
                 program,
                 state_symbol,

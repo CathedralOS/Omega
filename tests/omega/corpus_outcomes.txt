@@ -21832,8 +21832,7 @@ pass/calls/runtime_authored_numeric_names_exit checked 2151ms check-target:macos
 pass/calls/runtime_boolean_result_across_console_exit checked 6834ms check-target:macos_arm64 @a92f16431042
 pass/calls/runtime_borrowed_binding_field_state_loan_exit checked 6758ms check-target:macos_arm64 @a92f16431042
 pass/calls/runtime_borrowed_float_formal_exchange_exit checked 10727ms check-target:macos_arm64 @a92f16431042
-pass/calls/runtime_borrowed_parameter_ensures_issuer_exit rejected 1759ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "owned membership transport cannot establish routed authority", gap: None })
+pass/calls/runtime_borrowed_parameter_ensures_issuer_exit checked 1759ms @daf1a576211
 pass/calls/runtime_boundary_computed_selector_order_exit checked 6995ms check-target:macos_arm64 @a92f16431042
 pass/calls/runtime_boundary_loop_projected_subslice_exit checked 6583ms check-target:macos_arm64 @a92f16431042
 pass/calls/runtime_boundary_projected_mutable_subslice_exit checked 7192ms check-target:macos_arm64 @a92f16431042

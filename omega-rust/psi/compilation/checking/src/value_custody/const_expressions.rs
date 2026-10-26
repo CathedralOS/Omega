@@ -40,9 +40,24 @@ pub(crate) fn validate_formation(
         &mut decisions,
     );
     formation_obligations.extend(decisions.integer_range_obligations);
-    if !crate::expression_result_type_reference(program, caller, state, expression).is_some_and(
-        |actual| super::type_references::type_references_match(program, actual, expected),
-    ) {
+    let anonymous_integer = program
+        .primitive_type_reference(expected)
+        .is_some_and(|primitive| primitive.accepts_integer_literal())
+        && typed_trees::const_integer::is_integer_expression(
+            &program.expression_table,
+            expression,
+            &|symbol, _| {
+                program.data_type_parameter_by_symbol(symbol).is_some_and(|binder| {
+                    matches!(binder.kind, TypeParameterKind::Const { type_reference } | TypeParameterKind::Value { type_reference }
+                        if super::type_references::type_references_match(program, type_reference, expected))
+                })
+            },
+        );
+    if !anonymous_integer
+        && !crate::expression_result_type_reference(program, caller, state, expression).is_some_and(
+            |actual| super::type_references::type_references_match(program, actual, expected),
+        )
+    {
         diagnostics.push(diagnostics::Diagnostic::error(format!(
             "{owner} has no selected result with its declared carrier"
         )));

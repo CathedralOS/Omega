@@ -227,6 +227,36 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic
             &mut diagnostics,
         );
     }
+    let const_declarations: Vec<_> = program
+        .const_declarations()
+        .iter()
+        .flat_map(|declaration| {
+            [
+                (
+                    declaration.materialized_initializer,
+                    declaration.declared_type,
+                ),
+                (declaration.authored_initializer, declaration.declared_type),
+            ]
+        })
+        .collect();
+    let const_effects = CallerEffects {
+        machine: SymbolHandle::invalid(),
+        no_write_calls: Vec::new(),
+    };
+    for (value, declared_type) in const_declarations {
+        if value.is_valid() {
+            fill(
+                program,
+                value,
+                declared_type,
+                &Vec::new(),
+                &const_effects,
+                false,
+                &mut diagnostics,
+            );
+        }
+    }
     if diagnostics.is_empty() {
         Ok(())
     } else {

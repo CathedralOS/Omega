@@ -1,17 +1,12 @@
 // The canonical std `Clock` provider: a `reaches Console + Clock`
 // multi-service ceiling, and `Clock::sleep(200)` blocks through the
 // selected provider.
+//
+// Expected exit: 70
 use omega_language_std::console;
 use omega_language_std::clock;
-data Main {
-}
-machine Main::main(context: &mut Main) reaches Console + Clock {
+
+machine entry_start() reaches Console + Clock {
     Clock::sleep(200);
     Console::exit_process(70);
-}
-
-// The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console + Clock {
-    let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
 }
