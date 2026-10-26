@@ -86,12 +86,12 @@ impl SyntaxTrees {
     }
 
     /// Copy a signature and default body without splitting shared occurrences.
-    pub fn copy_state_signature_node_from(
+    pub fn copy_state_signature_from(
         &mut self,
         other: &SyntaxTrees,
-        signature: &crate::item::StateSignatureNode,
-    ) -> crate::item::StateSignatureNode {
-        SyntaxCopy::new(self, other).copy_state_signature_node_from(other, signature)
+        signature: &crate::item::StateSignature,
+    ) -> crate::item::StateSignature {
+        SyntaxCopy::new(self, other).copy_state_signature(other, signature)
     }
 
     /// Copy an application and all nested arguments in one independent transaction.
@@ -162,39 +162,6 @@ impl SyntaxCopy<'_> {
             self.items.set_proof_fact_source_span(copied, source_span);
         }
         copied
-    }
-
-    /// Deep-copy one trait signature and its authored default body from a
-    /// snapshot. Pre-resolution generic-default synthesis uses this to keep
-    /// substitutions isolated from the source trait template.
-    pub fn copy_state_signature_node_from(
-        &mut self,
-        other: &SyntaxTrees,
-        signature: &crate::item::StateSignatureNode,
-    ) -> crate::item::StateSignatureNode {
-        let copied = self.copy_state_signature_node(other, signature);
-        crate::item::StateSignatureNode {
-            name: copied.name,
-            spelling: copied.spelling,
-            lifetime_parameters: copied.lifetime_parameters,
-            type_parameters: copied.type_parameters,
-            is_default: copied.is_default,
-            parameters: copied.parameters,
-            native_callback_parameters: copied.native_callback_parameters,
-            return_type: copied.return_type,
-            service_reach_is_installation_bound: copied.service_reach_is_installation_bound,
-            service_reach_keyword_source_spans: copied.service_reach_keyword_source_spans,
-            service_reaches: copied.service_reaches,
-            invokes: copied.invokes,
-            suspends_keyword_source_spans: copied.suspends_keyword_source_spans,
-            blocks_keyword_source_spans: copied.blocks_keyword_source_spans,
-            suspends: copied.suspends,
-            blocks: copied.blocks,
-            contracts: copied.contracts,
-            default_body: copied.default_body,
-            terminates_guarantee: copied.terminates_guarantee,
-            where_facts: copied.where_facts,
-        }
     }
 
     /// Deep-copy one top-level `let`/`boundary let` declaration from another
@@ -385,6 +352,10 @@ impl SyntaxCopy<'_> {
                             .map(|constituent| self.copy_item_identifier_span(other, *constituent))
                             .collect(),
                     }),
+                cleanup_selection: domain
+                    .cleanup_selection
+                    .as_ref()
+                    .map(|selection| self.copy_static_machine_argument(other, selection)),
                 authored_routes: domain.authored_routes.clone(),
                 classification: domain.classification,
                 predicate_body: domain.predicate_body,
@@ -457,6 +428,10 @@ impl SyntaxCopy<'_> {
         DataDefinition {
             name: data.name.clone(),
             is_public: data.is_public,
+            cleanup_selection: data
+                .cleanup_selection
+                .as_ref()
+                .map(|selection| self.copy_static_machine_argument(other, selection)),
             supply_mode: data.supply_mode,
             lifetime_parameters: data.lifetime_parameters.clone(),
             type_parameters: self.copy_type_parameter_span(other, data.type_parameters),
@@ -547,6 +522,16 @@ impl SyntaxCopy<'_> {
     }
 
     fn copy_machine(&mut self, other: &SyntaxTrees, machine: &Machine) -> Machine {
+        let children = machine
+            .nested_machines
+            .handles()
+            .map(|handle| self.copy_item(other, other.items.item(handle)))
+            .collect::<Vec<_>>();
+        let mut nested_machines = HandleSpan::empty();
+        for child in children {
+            let handle = self.items.append_item(child);
+            nested_machines.push_contiguous(handle);
+        }
         Machine {
             target_family_interface: machine.target_family_interface,
             name: machine.name.clone(),
@@ -611,6 +596,7 @@ impl SyntaxCopy<'_> {
             admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
             contracts: self.copy_capability_contract_span(other, machine.contracts),
             states: self.copy_state_handle_span(other, machine.states),
+            nested_machines,
         }
     }
 
@@ -645,7 +631,7 @@ impl SyntaxCopy<'_> {
                 .iter()
                 .map(|clause| crate::item::TraitRefinementClause {
                     requirement: clause.requirement.clone(),
-                    signature: self.copy_state_signature_value(other, &clause.signature),
+                    signature: self.copy_state_signature(other, &clause.signature),
                 })
                 .collect(),
         }
@@ -682,7 +668,7 @@ impl SyntaxCopy<'_> {
                                 }
                                 crate::item::MachineParameterContract::Structural(signature) => {
                                     crate::item::MachineParameterContract::Structural(
-                                        this.copy_state_signature_value(other, signature),
+                                        this.copy_state_signature(other, signature),
                                     )
                                 }
                                 crate::item::MachineParameterContract::Nominal {
@@ -734,7 +720,7 @@ impl SyntaxCopy<'_> {
                     type_reference: this.copy_type_reference_handle(other, field.type_reference),
                 }),
                 CapabilityMember::State(state) => CapabilityMember::State(CapabilityState {
-                    signature: this.copy_state_signature_value(other, &state.signature),
+                    signature: this.copy_state_signature(other, &state.signature),
                     contracts: this.copy_capability_contract_span(other, state.contracts),
                 }),
             },

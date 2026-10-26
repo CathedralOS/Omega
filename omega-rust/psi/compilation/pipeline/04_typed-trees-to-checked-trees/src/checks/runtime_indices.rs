@@ -144,7 +144,11 @@ impl Scope<'_> {
         {
             return self
                 .values(application.formation)?
-                .application_value(expression, &application.arguments)
+                .application_value_with_captured(
+                    expression,
+                    &application.arguments,
+                    &application.substitutions,
+                )
                 .map(ScopedArithmeticValue::Term);
         }
         let TypeReferenceNode::Named { symbol, name } =
@@ -259,9 +263,73 @@ impl Scope<'_> {
                     .program
                     .expression_table
                     .expression_handles(call.arguments);
-                let (substitutions, captured_arguments) =
+                let (mut substitutions, captured_arguments) =
                     self.argument_substitutions(parameters, arguments);
+                let inert = arguments.iter().all(|argument| {
+                    self.frames.is_some_and(|frames| {
+                        frames
+                            .expression_write_frame(self.machine, *argument)
+                            .complete_paths()
+                            .is_some_and(|paths| paths.is_empty())
+                    })
+                });
+                if let Some(signature) = self
+                    .program
+                    .dynamic_slot_by_symbol(call.target_symbol)
+                    .and_then(|slot| self.program.dynamic_slot_requirement(slot))
+                    .or_else(|| {
+                        self.program
+                            .trait_machine_signature(call.target_symbol)
+                            .map(|(_, signature)| signature)
+                    })
+                {
+                    let locals = self.program.state_signature_type_parameters(signature);
+                    if locals.len() == call.machine_arguments.len() {
+                        let values = self.values(self.statement);
+                        for (formal, actual) in locals.iter().zip(call.machine_arguments.iter()) {
+                            if matches!(
+                                formal.kind,
+                                TypeParameterKind::Value { .. } | TypeParameterKind::Const { .. }
+                            ) {
+                                substitutions.push((
+                                    formal.symbol,
+                                    inert
+                                        .then(|| values.as_ref()?.static_argument_value(actual))
+                                        .flatten(),
+                                ));
+                            }
+                        }
+                    }
+                }
+                let site = validation::CallSite::Expression { expression, call };
+                if let Some(callee) = self
+                    .program
+                    .machine_by_own_or_state_symbol(call.target_symbol)
+                    && let Some(values) = self.values(self.statement)
+                    && let Some(bindings) = values.machine_value_bindings(callee, site)
+                {
+                    // Generic value coordinates share the ordinary call's
+                    // substitution. Effectful operands require the completed
+                    // operand projection rather than a current-home read.
+                    let inert = arguments.iter().all(|argument| {
+                        self.frames.is_some_and(|frames| {
+                            frames
+                                .expression_write_frame(self.machine, *argument)
+                                .complete_paths()
+                                .is_some_and(|paths| paths.is_empty())
+                        })
+                    });
+                    substitutions.extend(
+                        bindings
+                            .into_iter()
+                            .map(|(symbol, value)| (symbol, inert.then_some(value))),
+                    );
+                }
+
                 Some(Application {
+                    // Interpret the declaration under captured formal bindings.
+                    // A caller-applied index could otherwise bypass the prefix
+                    // guard by ceasing to name any of those formal binders.
                     reference: validation::call_target_return_type(
                         self.program,
                         call.target_symbol,
@@ -269,7 +337,7 @@ impl Scope<'_> {
                     formation: self.statement,
                     substitutions,
                     arguments: captured_arguments,
-                    call: Some(validation::CallSite::Expression { expression, call }),
+                    call: Some(site),
                     position: None,
                 })
             }
@@ -384,6 +452,19 @@ impl Scope<'_> {
                             {
                                 return left == right;
                             }
+                            // Parameter types retain their arrival subjects. A
+                            // forwarded reference can prove the exact scalar
+                            // relation directly; a missing descriptor-capture
+                            // proof must not discard that independent evidence.
+                            if let (Some(left), Some(right)) =
+                                (self.index(*left, actual), self.index(*right, required))
+                                && (left == right || self.values(self.statement).is_some_and(|values| {
+                                    values.proves_values_relation(self.program, self.machine,
+                                        BinaryOperator::Equal, &left, &right)
+                                }))
+                            {
+                                return true;
+                            }
                             let closed_requirement = self.static_index(*right).is_some()
                                 || matches!(self.program.type_reference_table.type_reference(*right),
                                     TypeReferenceNode::ConstExpression(expression)
@@ -415,22 +496,7 @@ impl Scope<'_> {
                                     *right,
                                 );
                             }
-                            let Some(left) = self.index(*left, actual) else {
-                                return false;
-                            };
-                            let Some(right) = self.index(*right, required) else {
-                                return false;
-                            };
-                            left == right
-                                || self.values(self.statement).is_some_and(|values| {
-                                    values.proves_values_relation(
-                                        self.program,
-                                        self.machine,
-                                        BinaryOperator::Equal,
-                                        &left,
-                                        &right,
-                                    )
-                                })
+                            false
                         } else if matches!(parameter.kind, TypeParameterKind::Const { .. }) {
                             let left = typed_trees::type_identity::applied_index_identity(
                                 self.program,

@@ -16,6 +16,8 @@ pub struct DomainDefinition {
     pub target_type: TypeReferenceHandle,
     pub index_arguments: Vec<TypeReferenceHandle>,
     pub is_public: bool,
+    /// Selected machine identity and its full declaration-site application.
+    pub cleanup_selection: Option<CleanupSelection>,
     /// Authored transparent alias theory. Semantic consumers expand this
     /// record before normalization rather than treating the alias as evidence.
     pub alias: Option<DomainAliasDefinition>,
@@ -49,6 +51,7 @@ impl Default for DomainDefinition {
             target_type: TypeReferenceHandle::invalid(),
             index_arguments: Vec::new(),
             is_public: false,
+            cleanup_selection: None,
             alias: None,
             classification: None,
             predicate_body: language_semantics::DomainPredicateBody::Bodyless,
@@ -363,10 +366,19 @@ impl Default for ProofMembershipFact {
 /// Carrier-only generic parameters remain eligible. This is a fail-closed
 /// proof-reader fence, not an identity or metadata-normalization judgment.
 pub fn has_symbol_only_proof(program: &TypedTrees, domain_symbol: SymbolHandle) -> bool {
-    fn visit(program: &TypedTrees, symbol: SymbolHandle, visited: &mut Vec<SymbolHandle>) -> bool {
-        let Some(domain) = domain_by_symbol(program, symbol) else {
-            return false;
-        };
+    domain_by_symbol(program, domain_symbol)
+        .is_some_and(|domain| has_bound_symbol_only_proof(program, domain))
+}
+
+/// Complete applied theories have no free index slots. Read the selected
+/// definition itself; falling back to its generic source would lose that tuple.
+pub fn has_bound_symbol_only_proof(program: &TypedTrees, domain: &DomainDefinition) -> bool {
+    fn visit(
+        program: &TypedTrees,
+        domain: &DomainDefinition,
+        visited: &mut Vec<(SymbolHandle, language_semantics::SemanticDomainId)>,
+    ) -> bool {
+        let symbol = (domain.symbol, domain.semantic_id);
         if !index_parameters(program, domain).is_empty() || !domain.index_arguments.is_empty() {
             return false;
         }
@@ -375,19 +387,21 @@ pub fn has_symbol_only_proof(program: &TypedTrees, domain_symbol: SymbolHandle) 
         }
         visited.push(symbol);
         domain.alias.as_ref().is_none_or(|alias| {
-            alias
-                .constituents
-                .iter()
-                .all(|constituent| visit(program, constituent.domain_symbol, visited))
+            alias.constituents.iter().all(|constituent| {
+                domain_by_symbol(program, constituent.domain_symbol)
+                    .is_some_and(|domain| visit(program, domain, visited))
+            })
         }) && program.proof_facts(domain).iter().all(|fact| match fact {
-            ProofFact::Membership(membership) => {
-                membership.domain_arguments.is_empty()
-                    && visit(program, membership.domain_symbol, visited)
-            }
+            ProofFact::Membership(membership) => program
+                .domain_definition_for_instance(
+                    membership.domain_symbol,
+                    membership.semantic_domain,
+                )
+                .is_some_and(|domain| visit(program, domain, visited)),
             _ => true,
         })
     }
-    visit(program, domain_symbol, &mut Vec::new())
+    visit(program, domain, &mut Vec::new())
 }
 
 /// Matches the declaration-owned subject, independently of its authored name.
@@ -402,7 +416,23 @@ pub fn domain_subject_reference(
         return false;
     }
     let subject = program.symbols.get(domain.subject_symbol);
-    if subject.kind != symbols::SymbolKind::Parameter || subject.parent != domain.symbol {
+    let applied_subject = program
+        .applied_domain_applications
+        .iter()
+        .any(|application| {
+            application.declaration == domain.symbol
+                && application.theory.semantic_id == domain.semantic_id
+                && application.theory.subject_symbol == domain.subject_symbol
+                && program
+                    .domain_definition(domain.symbol)
+                    .is_some_and(|declared| {
+                        program.symbols.authored_origin(domain.subject_symbol)
+                            == declared.subject_symbol
+                    })
+        });
+    if subject.kind != symbols::SymbolKind::Parameter
+        || (subject.parent != domain.symbol && !applied_subject)
+    {
         return false;
     }
     let crate::expression::ExpressionNode::Name(path) =
@@ -526,5 +556,46 @@ pub fn type_selects_semantic_domain(
                 _ => false,
             }),
         _ => false,
+    }
+}
+
+/// One owner-authored cleanup interface. The canonical application retains its
+/// supplying declaration, static tuple and bounds; executable retargeting never
+/// replaces that source identity. The exact subject prevents one shared helper
+/// from borrowing the first carrier that happened to select it.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct CleanupSelection {
+    pub application: crate::static_applications::StaticMachineApplicationHandle,
+    pub authorization:
+        Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId>,
+    pub subject: TypeReferenceHandle,
+    pub executable: SymbolHandle,
+}
+
+/// A complete explicit index telescope applied to one immutable authored theory.
+/// Original constraints retain their argument pack and ordinary formation checks.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AppliedDomainApplication {
+    pub declaration: SymbolHandle,
+    pub arguments: Vec<TypeReferenceHandle>,
+    pub theory: DomainDefinition,
+}
+
+impl TypedTrees {
+    pub fn domain_definition_for_instance(
+        &self,
+        symbol: SymbolHandle,
+        identity: language_semantics::SemanticDomainId,
+    ) -> Option<&DomainDefinition> {
+        let declared = self.domain_definition(symbol)?;
+        if declared.semantic_id == identity {
+            return Some(declared);
+        }
+        self.applied_domain_applications
+            .iter()
+            .find(|application| {
+                application.declaration == symbol && application.theory.semantic_id == identity
+            })
+            .map(|application| &application.theory)
     }
 }

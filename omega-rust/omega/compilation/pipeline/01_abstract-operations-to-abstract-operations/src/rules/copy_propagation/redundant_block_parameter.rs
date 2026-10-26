@@ -132,13 +132,7 @@ pub(super) fn propose(
                         }
                     }
                 }
-                provenance.sort_by_key(|row| {
-                    (
-                        row.input,
-                        row.disposition.canonical_tag(),
-                        row.disposition.site(),
-                    )
-                });
+                provenance.sort_by_key(optimization_unit::ProvenanceRewrite::canonical_sort_key);
                 candidates.push(
                     PsiRewriteCandidate::new_redundant_block_parameter(
                         unit.identity,

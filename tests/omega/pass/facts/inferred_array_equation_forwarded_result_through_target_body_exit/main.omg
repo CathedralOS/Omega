@@ -1,0 +1,16 @@
+// Fact: an omitted Capacity is inferred as 2 from the actual [u8; 2] type and Length == [u8; Capacity], independently of element values.
+// Expected exit: 0
+machine capacity<Length [copy], const Capacity: u64>(items: Length) -> u64
+where Length == [u8; Capacity]
+{ Capacity }
+linux_x86_64 machine consume(items: [u8; 2]) -> u64 { capacity(forward(items)) }
+windows_x86_64 machine consume(items: [u8; 2]) -> u64 { capacity(forward(items)) }
+macos_arm64 machine consume(items: [u8; 2]) -> u64 { capacity(forward(items)) }
+linux_arm64 machine consume(items: [u8; 2]) -> u64 { capacity(forward(items)) }
+machine forward<Value [copy]>(value: Value) -> Value { value }
+machine main() crashes Trap {
+    let items: [u8; 2] = [7, 11];
+    let observed: u64 = consume(items);
+    transition observed == 2 { true -> done() _ -> bad() }
+    state done() {} state bad() { crash Trap; }
+}

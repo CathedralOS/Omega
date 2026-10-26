@@ -2,25 +2,21 @@
 //! fresh owned home. Its read descriptor never changes ownership of that home.
 //! Capacity sizes backing storage; only the checked live lengths authorize reads.
 
-use super::LiveDefinitions;
+use super::RowSite;
 use crate::LoweringError;
 use crate::lowering::function_signature::PreparedFunctionSignature;
-use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{AbstractFunction, AbstractOperation};
+use abstract_operations::AbstractOperation;
 use semantic_vocabulary::IntegerSign;
-use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
+use target_operations::TargetUnitOperation;
 use terminal_psi::control_flow::ByteSequenceOperand;
 use terminal_psi::{StructuralAccess, StructuralMultiplicity};
 
 pub(super) fn lower(
     operation: &AbstractOperation,
-    function: &AbstractFunction,
-    types: &StructuralTypeLookup<'_>,
+    site: &mut RowSite<'_>,
     prepared: &PreparedFunctionSignature,
-    live: &mut LiveDefinitions,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
+    let (function, types, live, operations, provenance) = site.parts();
     let AbstractOperation::EstablishByteSequenceConcatenation {
         psi_operation,
         result,

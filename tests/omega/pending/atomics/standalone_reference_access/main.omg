@@ -14,7 +14,8 @@ machine main() crashes Trap {
     let cell: Cell = Cell { value: 31 };
     let shared: &AtomicU64 = (&cell.value) as &AtomicU64;
     shared.store(47, NoOrdering);
-    let observed: u64 in Wrapping = shared.load(NoOrdering);
+    let observed_atomic_observed: u64 = shared.load(NoOrdering);
+    let observed: u64 in Wrapping = observed_atomic_observed as u64 in Wrapping;
     transition bits == 23 && observed == 47 {
         true -> done()
         false -> wrong()

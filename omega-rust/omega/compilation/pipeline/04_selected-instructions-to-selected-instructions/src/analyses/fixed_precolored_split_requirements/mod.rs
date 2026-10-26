@@ -29,7 +29,7 @@ pub(crate) fn analyze_fixed_precolored_split_requirements(
     budget: optimization_core::OptimizationWorkBudget,
 ) -> Result<ValidatedFixedPrecoloredSplitRequirements, FixedPrecoloredSplitRequirementError> {
     let plan = compute::compute(ranges, legality, fixed, policy, budget)?;
-    validation::seal_fixed_precolored_split_requirements(legality, plan)
+    validation::seal_fixed_precolored_split_requirements(plan)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,66 +45,17 @@ pub struct FixedPrecoloredSplitRequirementValidationReceipt {
     pub(crate) target: NativeTarget,
     pub(crate) policy: FixedPrecoloredSplitRequirementPolicy,
     pub(crate) usage: OptimizationWorkUsage,
-    pub(crate) function_count: usize,
-    pub(crate) register_count: usize,
-    pub(crate) fragment_count: usize,
-    pub(crate) source_point_count: usize,
-    pub(crate) segment_count: usize,
-    pub(crate) incompatible_fixed_use_boundary_count: usize,
 }
 
 impl FixedPrecoloredSplitRequirementValidationReceipt {
-    pub const fn identity(self) -> FixedPrecoloredSplitRequirementPlanIdentity {
-        self.identity
-    }
-    pub const fn fixed_intervals(self) -> FixedPrecoloredIntervalPlanIdentity {
-        self.fixed_intervals
-    }
-    pub const fn ranges(self) -> LiveRangeIdentity {
-        self.ranges
-    }
-    pub const fn legality(self) -> AllocationLegalityIdentity {
-        self.legality
-    }
-    pub const fn register_environment(self) -> TargetRegisterEnvironmentIdentity {
-        self.register_environment
-    }
-    pub const fn allocator_availability(self) -> AllocatorAvailabilityIdentity {
-        self.allocator_availability
-    }
-    pub const fn optimization_unit(self) -> OptimizationUnitIdentity {
-        self.optimization_unit
-    }
-    pub const fn fuel_schedule(self) -> FuelScheduleIdentity {
-        self.fuel_schedule
-    }
-    pub const fn target(self) -> NativeTarget {
-        self.target
-    }
-    pub const fn policy(self) -> FixedPrecoloredSplitRequirementPolicy {
-        self.policy
-    }
-    pub const fn usage(self) -> OptimizationWorkUsage {
-        self.usage
-    }
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-    pub const fn register_count(self) -> usize {
-        self.register_count
-    }
-    pub const fn fragment_count(self) -> usize {
-        self.fragment_count
-    }
-    pub const fn source_point_count(self) -> usize {
-        self.source_point_count
-    }
-    pub const fn segment_count(self) -> usize {
-        self.segment_count
-    }
-    pub const fn incompatible_fixed_use_boundary_count(self) -> usize {
-        self.incompatible_fixed_use_boundary_count
-    }
+    receipt_accessor_rows!(FixedPrecoloredSplitRequirementValidationReceipt {
+        identity: FixedPrecoloredSplitRequirementPlanIdentity,
+        fixed_intervals: FixedPrecoloredIntervalPlanIdentity,
+        target: NativeTarget,
+        policy: FixedPrecoloredSplitRequirementPolicy,
+        usage: OptimizationWorkUsage,
+    });
+    shared_analysis_identity_accessors!(pub);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -117,9 +68,9 @@ impl ValidatedFixedPrecoloredSplitRequirements {
     pub const fn plan(&self) -> &FixedPrecoloredSplitRequirementPlan {
         &self.plan
     }
-    pub const fn receipt(&self) -> FixedPrecoloredSplitRequirementValidationReceipt {
-        self.receipt
-    }
+    receipt_accessor_rows!(ref ValidatedFixedPrecoloredSplitRequirements {
+        receipt: FixedPrecoloredSplitRequirementValidationReceipt,
+    });
 }
 
 /// Sort key for a virtual fixed-constraint site — the total order both the

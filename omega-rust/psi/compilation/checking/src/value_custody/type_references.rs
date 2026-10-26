@@ -39,16 +39,17 @@
 
 mod const_predicates;
 mod constraint_validation;
+mod formation;
 mod generic_arguments;
 mod open_index_expressions;
 
 use constraint_validation::validate_type_constraints_node;
-pub use generic_arguments::normalize_closed_const_expression;
 pub(crate) use generic_arguments::{
     AppliedValueCarrier, const_argument_matches_parameter, const_integer_value_fits_primitive,
     exact_const_carrier_is_eligible, validate_const_binder_carriers, validate_exact_const_identity,
     validate_exact_typed_structured_const_argument,
 };
+pub use generic_arguments::{check_closed_const_expression, normalize_closed_const_expression};
 use generic_arguments::{
     machine_argument_name, validate_const_data_argument, validate_generic_argument_bounds,
     validate_machine_data_argument, validate_symbolic_array_length,
@@ -114,17 +115,21 @@ pub(crate) enum TypeReferenceOwner<'program> {
     },
     StateLocalData {
         machine: &'program typed_trees::machine::Machine,
+        current_state: Option<&'program typed_trees::state::State>,
+        value_environment: &'program crate::proof_contracts::arithmetic_domains::ValueEnvironment,
         state: &'program str,
         local: &'program str,
         generic_depth: usize,
     },
     StateParameter {
+        signature: symbols::SymbolHandle,
         owner: StateSignatureOwner<'program>,
         state: &'program str,
         parameter: &'program str,
         generic_depth: usize,
     },
     StateReturn {
+        signature: symbols::SymbolHandle,
         owner: StateSignatureOwner<'program>,
         state: &'program str,
         generic_depth: usize,
@@ -153,21 +158,7 @@ pub(crate) enum TypeReferenceOwner<'program> {
 }
 
 impl TypeReferenceOwner<'_> {
-    fn allows_direct_routed_service_carrier(&self) -> bool {
-        matches!(
-            self,
-            Self::DataField {
-                generic_depth: 0,
-                ..
-            } | Self::StateParameter {
-                owner: StateSignatureOwner::Machine(_),
-                generic_depth: 0,
-                ..
-            }
-        )
-    }
-
-    fn allows_borrowed_routed_service_carrier(&self) -> bool {
+    fn is_direct_runtime_value_position(&self) -> bool {
         matches!(
             self,
             Self::DataField {
@@ -224,31 +215,39 @@ impl TypeReferenceOwner<'_> {
             },
             Self::StateLocalData {
                 machine,
+                current_state,
+                value_environment,
                 state,
                 local,
                 generic_depth,
             } => Self::StateLocalData {
                 machine,
+                current_state,
+                value_environment,
                 state,
                 local,
                 generic_depth: generic_depth + 1,
             },
             Self::StateParameter {
+                signature,
                 owner,
                 state,
                 parameter,
                 generic_depth,
             } => Self::StateParameter {
+                signature,
                 owner,
                 state,
                 parameter,
                 generic_depth: generic_depth + 1,
             },
             Self::StateReturn {
+                signature,
                 owner,
                 state,
                 generic_depth,
             } => Self::StateReturn {
+                signature,
                 owner,
                 state,
                 generic_depth: generic_depth + 1,
@@ -334,6 +333,8 @@ impl fmt::Display for TypeReferenceOwner<'_> {
             }
             Self::StateLocalData {
                 machine,
+                current_state: _,
+                value_environment: _,
                 state,
                 local,
                 generic_depth,
@@ -346,6 +347,7 @@ impl fmt::Display for TypeReferenceOwner<'_> {
                 *generic_depth
             }
             Self::StateParameter {
+                signature: _,
                 owner,
                 state,
                 parameter,
@@ -355,6 +357,7 @@ impl fmt::Display for TypeReferenceOwner<'_> {
                 *generic_depth
             }
             Self::StateReturn {
+                signature: _,
                 owner,
                 state,
                 generic_depth,
@@ -457,14 +460,7 @@ pub(crate) fn validate_type_reference_handle(
     owner: TypeReferenceOwner<'_>,
     type_parameter_scope: TypeParameterScope<'_>,
 ) {
-    validate_routed_service_carrier_placement(
-        program,
-        type_reference,
-        owner,
-        type_parameter_scope.lexical_owner,
-        true,
-        diagnostics,
-    );
+    validate_boundary_trait_value_placement(program, type_reference, owner, diagnostics);
     // `range-constraints-require-exact-domain`: a range constraint under a
     // non-Exact domain is ill-formed
     // (checked once per declared handle; the accessors walk nested
@@ -486,97 +482,36 @@ pub(crate) fn validate_type_reference_handle(
     );
 }
 
-/// Find routed Binding carriers recursively rather than relying on the outer
-/// type shell. Concrete-machine parameters may own or borrow one exact
-/// carrier. Borrowing preserves its identity; it does not establish another
-/// binding. Borrowed locals and fields retain the same existing loan. Aggregate/generic
-/// nesting, owned locals, owned returns,
-/// traits, requirements, and operators retain their implementation fences.
-fn validate_routed_service_carrier_placement(
+/// Boundary traits describe operation requirements, not runtime values. Keep
+/// this check through borrowed shells and nominal applications after retiring
+/// Binding recognition; deleting the old carrier path must not admit provider
+/// objects or implicit receiving authority.
+fn validate_boundary_trait_value_placement(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     owner: TypeReferenceOwner<'_>,
-    lexical_owner: symbols::SymbolHandle,
-    direct: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    // A declaration is checked under its own telescope, not under the closed
-    // receiver of a future invocation. Concrete carrier consumers separately
-    // require transitive closure; this check cannot issue an exact identity.
-    match typed_trees::service::inspect_service_parameter_contract(program, type_reference) {
-        Err(error) => {
-            diagnostics.push(Diagnostic::error(format!(
-                "{owner} uses an invalid routed service carrier: {error}"
-            )));
-            return;
-        }
-        Ok(Some(parameter)) => {
-            if let Err(error) = parameter
-                .carrier
-                .require_declared_operands(program, lexical_owner)
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "{owner} uses an invalid routed service carrier: {error}"
-                )));
-            }
-            let allowed = if parameter.access.is_some() {
-                owner.allows_borrowed_routed_service_carrier()
-            } else {
-                owner.allows_direct_routed_service_carrier()
-            };
-            if !direct || !allowed {
-                diagnostics.push(Diagnostic::error(format!(
-                    "{owner} places the routed `Binding<R>` carrier outside the first direct field/owned concrete-machine-parameter rung"
-                )));
-            }
-            return;
-        }
-        Ok(None) => {}
-    }
-
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => {
-            validate_routed_service_carrier_placement(
-                program,
-                *referee,
-                owner,
-                lexical_owner,
-                false,
-                diagnostics,
-            );
+            validate_boundary_trait_value_placement(program, *referee, owner, diagnostics);
         }
         TypeReferenceNode::Constrained { base_type, .. } => {
-            validate_routed_service_carrier_placement(
-                program,
-                *base_type,
-                owner,
-                lexical_owner,
-                direct,
-                diagnostics,
-            );
+            validate_boundary_trait_value_placement(program, *base_type, owner, diagnostics);
         }
         TypeReferenceNode::FixedArray { element_type, .. }
         | TypeReferenceNode::Slice { element_type } => {
-            validate_routed_service_carrier_placement(
-                program,
-                *element_type,
-                owner,
-                lexical_owner,
-                false,
-                diagnostics,
-            );
+            validate_boundary_trait_value_placement(program, *element_type, owner, diagnostics);
         }
         TypeReferenceNode::Generic { arguments, .. } => {
             for argument in program
                 .type_reference_table
                 .type_reference_handles(*arguments)
             {
-                validate_routed_service_carrier_placement(
+                validate_boundary_trait_value_placement(
                     program,
                     *argument,
                     owner.generic_argument(),
-                    lexical_owner,
-                    false,
                     diagnostics,
                 );
             }
@@ -587,7 +522,7 @@ fn validate_routed_service_carrier_placement(
             // the surviving vocabulary: call the requirement directly, or
             // carry an ordinary handle, session, or `dyn` value when runtime
             // multiplicity is what the program needs.
-            if owner.allows_borrowed_routed_service_carrier()
+            if owner.is_direct_runtime_value_position()
                 && program
                     .traits()
                     .iter()
@@ -602,12 +537,10 @@ fn validate_routed_service_carrier_placement(
                 crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)
                     .and_then(|definition| definition.generic_instance)
             {
-                validate_routed_service_carrier_placement(
+                validate_boundary_trait_value_placement(
                     program,
                     origin,
                     owner.generic_argument(),
-                    lexical_owner,
-                    false,
                     diagnostics,
                 );
             }
@@ -875,6 +808,8 @@ fn validate_type_reference_node(
                                 ),
                                 *argument,
                                 type_parameter_scope,
+                                &owner.value_formation_facts(program),
+                                owner.local_value_formation(),
                                 diagnostics,
                             );
                         }

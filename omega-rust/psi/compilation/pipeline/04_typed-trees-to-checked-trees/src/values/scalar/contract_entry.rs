@@ -14,7 +14,8 @@ mod crash_entry;
 pub(crate) use crash_entry::lower_operator_crash_contract_expression;
 pub(crate) use crash_entry::lower_signature_crash_contract_expression;
 pub(crate) use crash_entry::{
-    lower_entry_predicate, lower_entry_scalar, lower_machine_entry_crash_contract_expression,
+    lower_current_state_predicate, lower_entry_predicate, lower_entry_scalar,
+    lower_machine_entry_crash_contract_expression,
 };
 
 /// Scalar contracts and structural crash predicates share exact authored

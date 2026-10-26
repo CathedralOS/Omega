@@ -1055,6 +1055,7 @@ fn syntax_trees_extend_from_preserves_root_payload_handles() {
     });
     let state = file.items.append_state_handle(state);
     file.push_root_item(Item::Machine(Machine {
+        nested_machines: HandleSpan::empty(),
         name: Identifier::generated("main"),
         generic_data_template: Default::default(),
         default_body_trait: Default::default(),
@@ -1158,8 +1159,8 @@ fn syntax_signature_copy_preserves_operational_keyword_sources() {
     });
 
     let mut copied_trees = SyntaxTrees::new(Default::default());
-    let copied = copied_trees
-        .copy_state_signature_node_from(&source, source.items.state_signature(signature));
+    let copied =
+        copied_trees.copy_state_signature_from(&source, source.items.state_signature(signature));
 
     assert_eq!(
         copied.suspends_keyword_source_spans,

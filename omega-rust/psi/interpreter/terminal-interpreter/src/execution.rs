@@ -35,7 +35,7 @@ use crate::values::{
 use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, PlaceId,
-    ValueId,
+    StructuralTypeId, ValueId,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_fuel::TerminalFuelMeter;
@@ -107,12 +107,19 @@ pub struct TerminalExecution<'artifact> {
         RuntimeRows<PlaceId, crate::reference::AggregateBacking>,
     /// A reference carrier owns this descriptor, never the referent's backing.
     /// Carrier identities survive structural call/return moves across frames.
+    /// Original physical-allocation association of a complete owned subtree.
+    /// Only constructor custody transfer relocates this seal; copies and
+    /// projected pieces cannot infer a new whole allocation from resident bits.
+    pub(crate) original_storage_roots: RuntimeRows<
+        StructuralRuntimePlace,
+        crate::effects::original_storage::TerminalOriginalStorageRoot,
+    >,
     pub(crate) reference_referents:
         RuntimeRows<StructuralRuntimePlace, crate::reference::ReferenceReferent>,
     /// Mutable primitive contents live outside call frames. Machine-local
     /// place maps are only views into this stable logical storage arena.
     pub(crate) structural_primitive_storage:
-        RuntimeRows<StructuralRuntimePlace, TerminalScalarValue>,
+        crate::scalar_storage::ScalarStorageRows<StructuralRuntimePlace>,
     pub(crate) structural_primitive_entry_places: RuntimeRows<u32, StructuralRuntimePlace>,
     pub(crate) local_structural_identities: LocalStructuralIdentities,
     /// Amortized scalar-only storage reclamation, never an ownership frontier.
@@ -121,7 +128,7 @@ pub struct TerminalExecution<'artifact> {
     /// invocation-independent opaque identity and resolved parent path, so a
     /// projected call observes the same field without native layout claims.
     pub(crate) structural_scalar_fields:
-        RuntimeRows<StructuralScalarRuntimeField, TerminalScalarValue>,
+        crate::scalar_storage::ScalarStorageRows<StructuralScalarRuntimeField>,
     /// Byte fields retain either owned payloads or borrowed descriptors. Moving
     /// a record relocates the slot, never the descriptor's backing/window.
     pub(crate) structural_byte_sequence_fields: RuntimeRows<
@@ -231,6 +238,36 @@ pub(crate) struct LiveClaim {
     pub(crate) place: Option<PlaceId>,
     pub(crate) path: Vec<StructuralPathSegment>,
     pub(crate) multiplicity: Option<StructuralMultiplicity>,
+}
+
+impl LiveClaim {
+    /// The multiplicity a claim carried at `path` takes from a binding
+    /// declared at `declared`: a non-empty path already resolves the claim to
+    /// exactly one value, so it always carries Linear multiplicity.
+    pub(crate) fn path_multiplicity(
+        path: &[StructuralPathSegment],
+        declared: StructuralMultiplicity,
+    ) -> StructuralMultiplicity {
+        if path.is_empty() {
+            declared
+        } else {
+            StructuralMultiplicity::Linear
+        }
+    }
+
+    /// Bind one claim at `place`, taking its multiplicity from its path.
+    pub(crate) fn at(
+        place: PlaceId,
+        path: Vec<StructuralPathSegment>,
+        declared: StructuralMultiplicity,
+    ) -> Self {
+        let multiplicity = Self::path_multiplicity(&path, declared);
+        Self {
+            place: Some(place),
+            path,
+            multiplicity: Some(multiplicity),
+        }
+    }
 }
 
 /// Where the claims a structural call result binds come from on return.
@@ -506,14 +543,19 @@ impl<'artifact> TerminalExecution<'artifact> {
             borrowed_entry_storage,
             structural_values,
             aggregate_argument_backings: RuntimeRows::new(account.as_ref()),
+            original_storage_roots: RuntimeRows::new(account.as_ref()),
             reference_referents: RuntimeRows::new(account.as_ref()),
             structural_element_view_fields: RuntimeRows::new(account.as_ref()),
             structural_byte_descriptors: RuntimeRows::new(account.as_ref()),
-            structural_primitive_storage: RuntimeRows::new(account.as_ref()),
+            structural_primitive_storage: crate::scalar_storage::ScalarStorageRows::new(
+                account.as_ref(),
+            ),
             structural_primitive_entry_places: RuntimeRows::new(account.as_ref()),
             local_structural_identities,
             next_scalar_collection_identity: 1024,
-            structural_scalar_fields: RuntimeRows::new(account.as_ref()),
+            structural_scalar_fields: crate::scalar_storage::ScalarStorageRows::new(
+                account.as_ref(),
+            ),
             private_entry_ram: Vec::new(),
             provider_storage: crate::provider_storage::RuntimeProviderStorage::new(
                 account.as_ref(),
@@ -752,23 +794,24 @@ impl<'artifact> TerminalExecution<'artifact> {
 
     /// Final values of direct primitive structural entry arguments, ordered by
     /// their dense structural-argument positions.
-    pub fn structural_primitive_values(&self) -> Vec<TerminalStructuralPrimitiveValue> {
+    pub fn structural_primitive_values(
+        &self,
+    ) -> Result<Vec<TerminalStructuralPrimitiveValue>, TerminalInterpretError> {
         self.final_structural_primitive_values()
     }
 
     pub(crate) fn final_structural_primitive_values(
         &self,
-    ) -> Vec<TerminalStructuralPrimitiveValue> {
+    ) -> Result<Vec<TerminalStructuralPrimitiveValue>, TerminalInterpretError> {
         self.structural_primitive_entry_places
             .iter()
             .filter_map(|(argument_index, place)| {
-                self.structural_primitive_storage
-                    .get(place)
-                    .copied()
-                    .map(|value| TerminalStructuralPrimitiveValue {
+                self.structural_primitive_storage.get(place).map(|cell| {
+                    cell.read().map(|value| TerminalStructuralPrimitiveValue {
                         argument_index: *argument_index,
                         value,
                     })
+                })
             })
             .collect()
     }
@@ -784,6 +827,22 @@ impl<'artifact> TerminalExecution<'artifact> {
         self.live_affine_frontier
             .iter()
             .find(|entry| entry.place == place)
+    }
+
+    /// A fresh structural destination for `structural_type`, staged at `cursor`.
+    /// Publication commits the cursor with the payload this value belongs to,
+    /// so a refusal between staging and publication consumes no identity and
+    /// leaves no half-minted placeholder behind.
+    pub(crate) fn mint_staged(
+        &self,
+        cursor: &mut Option<u64>,
+        structural_type: StructuralTypeId,
+    ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
+        Ok(TerminalStructuralValue::minted(
+            self.local_structural_identities.allocate_staged(cursor)?,
+            structural_type,
+            Vec::new(),
+        ))
     }
 
     /// Drive this execution's loop with no component roster: the raw lane.
@@ -1009,6 +1068,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                                         ref path,
                                         field,
                                         event,
+                                        ..
                                     } => {
                                         self.execute_atomic_access(operation, place, path, field, event)?;
                                         OperationFlow::Advance

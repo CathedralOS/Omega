@@ -1,5 +1,5 @@
-//! Local dispatch results retain the slot's admitted enclosing regions.
-//! Every table realization must refine that public WithinRegion contract;
+//! Completed results retain body-derived or public local-dispatch regions.
+//! Every table realization must refine its public WithinRegion contract;
 //! lifetime tags alone, particularly provider-owned views, promise no such
 //! geometry. Keep these regions separate from exact descriptor suppliers:
 //! exclusion and write invalidation may use them, but scalar identity, contents
@@ -26,16 +26,8 @@ impl Execution<'_, '_, '_> {
         retention: Handle<FlowOperandRetention>,
         source_snapshot: Handle<checked_trees::FlowStorageSnapshot>,
     ) -> Option<Handle<FlowOperandFact>> {
-        // Local dyn has an independently enforced result-region interface.
-        // Opaque/boundary calls do not acquire it from lifetime correspondence.
-        let target = validation::call_target_symbol(self.program, call);
-        let slot = self.program.dynamic_slot_by_symbol(target)?;
-        let origins = validation::reference_result_custody::declared_return_sources(
-            self.program,
-            &slot.parameters,
-            slot.return_type,
-        )
-        .ok()?;
+        let (parameters, origins) =
+            region_sources(self.program, call, self.context.call_frames, returned, path)?;
         let reference =
             validation::project_type_reference_from_segments(self.program, returned, path)?;
         validation::reference_shell(self.program, reference)?;
@@ -55,8 +47,7 @@ impl Execution<'_, '_, '_> {
             let CheckedReferenceOriginRoot::Parameter { index } = origin.source.root else {
                 return None;
             };
-            let (position, parameter) = slot
-                .parameters
+            let (position, parameter) = parameters
                 .iter()
                 .enumerate()
                 .filter(|(_, parameter)| {
@@ -151,6 +142,114 @@ impl Execution<'_, '_, '_> {
             ..Default::default()
         }))
     }
+}
+
+/// Choose geometric authority before binding it to completed actuals. A public
+/// local slot supplies its admitted interface; an ordinary call supplies its
+/// complete body relation. An opaque/provider signature supplies neither.
+fn region_sources<'program>(
+    program: &'program dyn validation::CheckingInput,
+    call: &TableCallExpression,
+    frames: Option<&validation::CallFrameResolver<'_>>,
+    returned: TypeReferenceHandle,
+    requested_path: &[PlaceSegment],
+) -> Option<(
+    &'program [typed_trees::signature::StateParameter],
+    Vec<checked_trees::CheckedReturnedReferencePlan>,
+)> {
+    let target = validation::call_target_symbol(program, call);
+    if let Some(slot) = program.dynamic_slot_by_symbol(target) {
+        return Some((
+            &slot.parameters,
+            validation::reference_result_custody::declared_return_sources(
+                program,
+                &slot.parameters,
+                slot.return_type,
+            )
+            .ok()?,
+        ));
+    }
+    let state = validation::call_target_state(program, target)?;
+    let machine = program.machine_holding_state(state.symbol)?;
+    if !machine.body_is_present
+        || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+    {
+        return None;
+    }
+    let parameters = program.state_parameters(state);
+    let mut origins = Vec::new();
+    for origin in frames?.reference_result_leaf_origins(state.symbol)? {
+        let (output, selected, _) = validation::reference_result_custody::reference_origin_path(
+            program,
+            state.return_type,
+            &origin.result_path,
+        )?;
+        let output = output
+            .into_iter()
+            .map(|projection| match projection {
+                CheckedReferenceOriginProjection::Exact(segment) => Some(segment),
+                _ => None,
+            })
+            .collect::<Option<Vec<_>>>()?;
+        // Coverage belongs to one returned leaf. Another field's image or
+        // missing relation cannot veto it; every matching alternative can.
+        if validation::reference_result_custody::loan_place_segments(program, returned, &output)?
+            != requested_path
+        {
+            continue;
+        }
+
+        // A presentation or unresolved alternative needs its own evidence.
+        // Lifetime correspondence cannot fill in the missing geometry.
+        if origin.source.is_image_storage
+            || !origin.source.recasts.is_empty()
+            || origin.source.representation.is_some()
+        {
+            return None;
+        }
+        let (index, parameter) = parameters
+            .iter()
+            .filter(|parameter| {
+                !parameter.is_const
+                    && program
+                        .primitive_type_reference(parameter.type_reference)
+                        .is_none()
+            })
+            .enumerate()
+            .find(|(_, parameter)| parameter.symbol == origin.source.root)?;
+        let (projection, endpoint, extent) =
+            validation::reference_result_custody::reference_origin_path(
+                program,
+                parameter.type_reference,
+                &origin.source.segments,
+            )?;
+        let extent = match extent {
+            ReferenceOriginExtent::WithinRegion => extent,
+            // An exact descriptor also lies in its own enclosing footprint.
+            // Weakening it here establishes no pointer or scalar equality.
+            ReferenceOriginExtent::Projected
+                if validation::reference_shell(program, endpoint).is_some() =>
+            {
+                ReferenceOriginExtent::WithinRegion
+            }
+            _ => return None,
+        };
+        origins.push(checked_trees::CheckedReturnedReferencePlan {
+            path: output,
+            source: checked_trees::CheckedReferenceOriginSourcePlan {
+                root: CheckedReferenceOriginRoot::Parameter {
+                    index: u32::try_from(index).ok()?,
+                },
+                path: projection,
+                extent,
+                type_identity: program.normalized_type_identity(endpoint),
+                access: validation::reference_shell(program, selected)?
+                    .access
+                    .into(),
+            },
+        });
+    }
+    Some((parameters, origins))
 }
 
 /// A regional source may end at a descriptor or its referent. Preserve every

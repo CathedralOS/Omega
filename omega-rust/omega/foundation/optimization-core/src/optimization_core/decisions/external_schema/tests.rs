@@ -3,12 +3,14 @@ use super::{
     ExternalDecisionLog, ExternalDecisionPoint, ExternalDecisionSchemaError,
     external_psi_decision_schema_v2_identity, psi_target_neutral_decision_target_v2_identity,
 };
+use crate::optimization_core::manifest::tests::{
+    fact, obligation_fact, ownership_fact, range_fact,
+};
 use crate::{
-    AcceptedObligationFactIdentity, AnalysisKind, AnalysisSet, CoreContractDecodeError,
-    OptimizationCandidateIdentity, OptimizationFactReference, OptimizationFactReferenceDecodeError,
-    OptimizationReasonCode, OptimizationRuleIdentity, OptimizationRuleSetIdentity,
-    OptimizationSelectionIdentity, OptimizationUnitIdentity, OwnershipFrontierFactIdentity,
-    ScalarConstantFactIdentity, TargetCostModelIdentity, ValueRangeFactIdentity,
+    AnalysisKind, AnalysisSet, CoreContractDecodeError, OptimizationCandidateIdentity,
+    OptimizationFactReference, OptimizationFactReferenceDecodeError, OptimizationReasonCode,
+    OptimizationRuleIdentity, OptimizationRuleSetIdentity, OptimizationSelectionIdentity,
+    OptimizationUnitIdentity, TargetCostModelIdentity,
 };
 
 use crate::{BaselineDecisionOutcome, ValidatedCandidateSummary};
@@ -21,28 +23,6 @@ fn summary(name: &[u8], cost: i64) -> ValidatedCandidateSummary {
         candidate: OptimizationCandidateIdentity::from_canonical_bytes(name),
         predicted_cost_delta: cost,
     }
-}
-
-fn scalar_fact(name: &[u8]) -> OptimizationFactReference {
-    OptimizationFactReference::ScalarConstant(ScalarConstantFactIdentity::from_canonical_bytes(
-        name,
-    ))
-}
-
-fn obligation_fact(name: &[u8]) -> OptimizationFactReference {
-    OptimizationFactReference::AcceptedObligation(
-        AcceptedObligationFactIdentity::from_canonical_bytes(name),
-    )
-}
-
-fn ownership_fact(name: &[u8]) -> OptimizationFactReference {
-    OptimizationFactReference::OwnershipFrontier(
-        OwnershipFrontierFactIdentity::from_canonical_bytes(name),
-    )
-}
-
-fn range_fact(name: &[u8]) -> OptimizationFactReference {
-    OptimizationFactReference::ValueRange(ValueRangeFactIdentity::from_canonical_bytes(name))
 }
 
 fn features(
@@ -71,7 +51,7 @@ fn point() -> ExternalDecisionPoint {
         b"first",
         -1,
         AnalysisSet::new([AnalysisKind::ScalarConstants, AnalysisKind::ValueRanges]),
-        [scalar_fact(b"constant"), range_fact(b"range")],
+        [fact(b"constant"), range_fact(b"range")],
     );
     let second = features(
         b"second",
@@ -95,14 +75,14 @@ fn point_canonicalizes_candidates_and_facts_without_changing_policy_outcome() {
     let slow = ExternalCandidateFeatures::new(
         summaries[0],
         AnalysisSet::new([AnalysisKind::EffectSummaries]),
-        [range_fact(b"z"), scalar_fact(b"a")],
+        [range_fact(b"z"), fact(b"a")],
     )
     .unwrap();
     let fast = features(
         b"fast",
         -3,
         AnalysisSet::new([AnalysisKind::ScalarConstants]),
-        [scalar_fact(b"fast-fact")],
+        [fact(b"fast-fact")],
     );
     let point = ExternalDecisionPoint::new(
         OptimizationUnitIdentity::from_canonical_bytes(b"input"),
@@ -160,19 +140,19 @@ fn strict_v2_round_trip_binds_context_point_order_and_authoritative_features() {
         b"feature-identity",
         -1,
         AnalysisSet::new([AnalysisKind::ScalarConstants]),
-        [scalar_fact(b"one")],
+        [fact(b"one")],
     );
     let changed_analysis = features(
         b"feature-identity",
         -1,
         AnalysisSet::new([AnalysisKind::ValueRanges]),
-        [scalar_fact(b"one")],
+        [fact(b"one")],
     );
     let changed_fact = features(
         b"feature-identity",
         -1,
         AnalysisSet::new([AnalysisKind::ScalarConstants]),
-        [scalar_fact(b"two")],
+        [fact(b"two")],
     );
     let make = |candidate| {
         ExternalDecisionPoint::new(
@@ -221,7 +201,7 @@ fn v1_wire_versions_are_rejected_before_payload_admission() {
 
 #[test]
 fn duplicate_and_noncanonical_candidate_or_fact_rows_reject() {
-    let duplicate_fact = scalar_fact(b"duplicate");
+    let duplicate_fact = fact(b"duplicate");
     assert_eq!(
         ExternalCandidateFeatures::new(
             summary(b"candidate", -1),
@@ -231,12 +211,7 @@ fn duplicate_and_noncanonical_candidate_or_fact_rows_reject() {
         Err(ExternalDecisionSchemaError::DuplicateCandidateFact)
     );
 
-    let candidate = features(
-        b"candidate",
-        -1,
-        AnalysisSet::default(),
-        [scalar_fact(b"one")],
-    );
+    let candidate = features(b"candidate", -1, AnalysisSet::default(), [fact(b"one")]);
     assert_eq!(
         ExternalDecisionPoint::new(
             OptimizationUnitIdentity::from_canonical_bytes(b"input"),
@@ -289,7 +264,7 @@ fn duplicate_and_noncanonical_candidate_or_fact_rows_reject() {
         b"facts",
         -1,
         AnalysisSet::default(),
-        [scalar_fact(b"a"), range_fact(b"z")],
+        [fact(b"a"), range_fact(b"z")],
     );
     let mut noncanonical_facts = ExternalDecisionPoint::new(
         OptimizationUnitIdentity::from_canonical_bytes(b"input"),
@@ -332,7 +307,7 @@ fn codec_rejects_unknown_feature_bits_tags_and_framing_tamper() {
         ))
     );
 
-    let one_fact = features(b"one", -1, AnalysisSet::default(), [scalar_fact(b"fact")]);
+    let one_fact = features(b"one", -1, AnalysisSet::default(), [fact(b"fact")]);
     let mut unknown_fact = ExternalDecisionPoint::new(
         OptimizationUnitIdentity::from_canonical_bytes(b"input"),
         OptimizationRuleIdentity::from_canonical_bytes(b"rule"),

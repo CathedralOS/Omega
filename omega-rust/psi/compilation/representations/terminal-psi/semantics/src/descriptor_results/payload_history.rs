@@ -144,11 +144,13 @@ struct CachedHistory {
 pub struct PayloadMembershipHistory<'input> {
     types: &'input [StructuralTypeDeclaration],
     domains: &'input [terminal_psi::StructuralDomainDeclaration],
+    graph: &'input [DescriptorMachine],
     descriptor: Option<&'input DescriptorMachine>,
     machine: &'input TerminalMachine,
+    incoming: Option<Option<super::payload_reachability::IncomingFlow>>,
     // Every query prepares this same machine's immutable pre-operation replay.
     // Share it with payload transfer instead of retaining two complete replays.
-    analysis: DescriptorAnalysis<'input>,
+    analysis: Option<DescriptorAnalysis<'input>>,
     cached: Option<CachedHistory>,
 }
 impl<'input> PayloadMembershipHistory<'input> {
@@ -161,9 +163,11 @@ impl<'input> PayloadMembershipHistory<'input> {
         Self {
             types,
             domains,
+            graph,
             descriptor: descriptor_machine(graph, machine.id),
             machine,
-            analysis: DescriptorAnalysis::new(types, graph),
+            incoming: None,
+            analysis: None,
             cached: None,
         }
     }
@@ -173,23 +177,46 @@ impl<'input> PayloadMembershipHistory<'input> {
         root: PlaceId,
         path: &[StructuralPathSegment],
     ) -> Result<PayloadMembershipContract, &'static str> {
+        let types = self.types;
+        let graph = self.graph;
+        let mut analysis = self
+            .analysis
+            .take()
+            .unwrap_or_else(|| DescriptorAnalysis::new(types, graph));
+        let result = self.current_selected_payload_contract_in(&mut analysis, position, root, path);
+        self.analysis = Some(analysis);
+        result
+    }
+    pub fn current_selected_payload_contract_in(
+        &mut self,
+        analysis: &mut DescriptorAnalysis<'_>,
+        position: DescriptorPosition,
+        root: PlaceId,
+        path: &[StructuralPathSegment],
+    ) -> Result<PayloadMembershipContract, &'static str> {
         let machine = self.machine;
         let source = |place| super::terminal_payload_contract(machine, place);
         let root_contract = source(root).ok_or("selected payload root is absent")?;
         let query = descriptor_contents_query(self.types, root, root_contract.carrier, path, None)
             .ok_or("selected payload path has no typed coordinate")?;
-        let targets = self
-            .analysis
+        let targets = analysis
             .payload_targets(machine.id, position, &query)
             .ok_or("selected payload backing is unresolved")?;
+        let descriptor = self.descriptor;
+        let incoming = self
+            .incoming
+            .get_or_insert_with(|| {
+                descriptor.and_then(|machine| super::payload_reachability::incoming_flow(&machine.flow))
+            })
+            .as_ref();
         let mut failure = None;
         let cached = &mut self.cached;
-        let analysis = &mut self.analysis;
         let contract = payload_memberships(self.types, self.domains, targets, |place| {
             current_payload_contract_reusing(
                 self.types,
                 self.domains,
-                self.descriptor,
+                descriptor,
+                incoming,
                 analysis,
                 position,
                 place,
@@ -210,12 +237,36 @@ impl<'input> PayloadMembershipHistory<'input> {
         position: DescriptorPosition,
         root: PlaceId,
     ) -> Result<PayloadMembershipContract, &'static str> {
+        let types = self.types;
+        let graph = self.graph;
+        let mut analysis = self
+            .analysis
+            .take()
+            .unwrap_or_else(|| DescriptorAnalysis::new(types, graph));
+        let result = self.current_payload_contract_in(&mut analysis, position, root);
+        self.analysis = Some(analysis);
+        result
+    }
+    pub fn current_payload_contract_in(
+        &mut self,
+        analysis: &mut DescriptorAnalysis<'_>,
+        position: DescriptorPosition,
+        root: PlaceId,
+    ) -> Result<PayloadMembershipContract, &'static str> {
         let machine = self.machine;
+        let descriptor = self.descriptor;
+        let incoming = self
+            .incoming
+            .get_or_insert_with(|| {
+                descriptor.and_then(|machine| super::payload_reachability::incoming_flow(&machine.flow))
+            })
+            .as_ref();
         current_payload_contract_reusing(
             self.types,
             self.domains,
-            self.descriptor,
-            &mut self.analysis,
+            descriptor,
+            incoming,
+            analysis,
             position,
             root,
             &|place| super::terminal_payload_contract(machine, place),
@@ -244,17 +295,22 @@ pub fn current_selected_payload_contract(
     let targets = analysis
         .payload_targets(identity, position, &query)
         .ok_or("selected payload backing is unresolved")?;
+    let descriptor = descriptor_machine(graph, identity);
+    let incoming =
+        descriptor.and_then(|machine| super::payload_reachability::incoming_flow(&machine.flow));
+    let mut cached = None;
     let mut history_failure = None;
     let contract = payload_memberships(types, domains, targets, |place| {
         current_payload_contract_reusing(
             types,
             domains,
-            descriptor_machine(graph, identity),
+            descriptor,
+            incoming.as_ref(),
             &mut analysis,
             position,
             place,
             source,
-            &mut None,
+            &mut cached,
         )
         .map_err(|reason| history_failure = Some(reason))
         .ok()
@@ -276,10 +332,14 @@ pub fn current_payload_contract(
     source: &impl Fn(PlaceId) -> Option<PayloadMembershipContract>,
 ) -> Result<PayloadMembershipContract, &'static str> {
     let mut analysis = DescriptorAnalysis::new(types, graph);
+    let descriptor = descriptor_machine(graph, identity);
+    let incoming =
+        descriptor.and_then(|machine| super::payload_reachability::incoming_flow(&machine.flow));
     current_payload_contract_reusing(
         types,
         domains,
-        descriptor_machine(graph, identity),
+        descriptor,
+        incoming.as_ref(),
         &mut analysis,
         position,
         root,
@@ -292,6 +352,7 @@ fn current_payload_contract_reusing(
     types: &[StructuralTypeDeclaration],
     domains: &[terminal_psi::StructuralDomainDeclaration],
     descriptor: Option<&DescriptorMachine>,
+    incoming: Option<&super::payload_reachability::IncomingFlow>,
     analysis: &mut DescriptorAnalysis<'_>,
     position: DescriptorPosition,
     root: PlaceId,
@@ -303,18 +364,19 @@ fn current_payload_contract_reusing(
         let machine = descriptor?;
         let identity = machine.id;
         failure = "payload query reachability is invalid or exceeds its finite budget";
-        let relevant = super::payload_reachability::predecessors(machine, position)?;
+        let mut relevant = match incoming {
+            Some(incoming) => {
+                super::payload_reachability::predecessors_with_incoming(machine, incoming, position)?
+            }
+            None => super::payload_reachability::predecessors(machine, position)?,
+        };
         let previous = cached.take();
         let frontier = previous
             .as_ref()
-            .and_then(|previous| relevant.extension_frontier(&previous.relevant, &machine.flow));
-        let (mut snapshots, mut pending) = if let Some(frontier) = frontier {
-            (
-                previous
-                    .expect("frontier owns the preceding immutable history")
-                    .snapshots,
-                frontier,
-            )
+            .and_then(|previous| relevant.compatible_frontier(&previous.relevant, &machine.flow));
+        let (mut snapshots, mut pending, previous_relevant) = if let Some(frontier) = frontier {
+            let previous = previous.expect("frontier owns the preceding immutable history");
+            (previous.snapshots, frontier, Some(previous.relevant))
         } else {
             // Release an incompatible prefix before constructing its replacement.
             drop(previous);
@@ -347,6 +409,7 @@ fn current_payload_contract_reusing(
             (
                 BTreeMap::from([(machine.entry, initial)]),
                 VecDeque::from([machine.entry]),
+                None,
             )
         };
         let mut remaining = 65_536usize;
@@ -622,7 +685,12 @@ fn current_payload_contract_reusing(
                 .successors
                 .iter()
                 .enumerate()
-                .filter(|(ordinal, _)| relevant.includes_edge(current, *ordinal))
+                .filter(|(ordinal, edge)| {
+                    relevant.includes_edge(current, *ordinal)
+                        && !previous_relevant
+                            .as_ref()
+                            .is_some_and(|previous| previous.contains(edge.target))
+                })
                 .peekable();
             while let Some((ordinal, edge)) = successors.next() {
                 let mut arrival = if successors.peek().is_some() {
@@ -797,6 +865,9 @@ fn current_payload_contract_reusing(
                     pending.push_back(edge.target);
                 }
             }
+        }
+        if let Some(previous) = previous_relevant {
+            relevant.merge(previous);
         }
         *cached = Some(CachedHistory {
             relevant,

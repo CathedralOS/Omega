@@ -27,6 +27,19 @@ pub(super) fn declaration_type_scope(
     parameters
 }
 
+/// Machine evidence has its own durable binder roster. Reuse these exact
+/// handles wherever source signatures need the complete lexical type scope.
+pub(super) fn evidence_type_parameters(
+    bounds: &[symbol_resolved_trees::machine::GenericConformanceBound],
+) -> impl Iterator<Item = TypeParameter> + '_ {
+    bounds.iter().map(|bound| TypeParameter {
+        symbol: bound.binder,
+        name: bound.binder_name.clone(),
+        kind: symbol_resolved_trees::data::TypeParameterKind::Implementation,
+        bounds: Default::default(),
+    })
+}
+
 /// Resolve the construction ordinal and finalized declaration through the same
 /// exact row owner. Inline member machines are root declarations; their symbol
 /// parent is not the conformance's lexical ownership roster.
@@ -91,13 +104,14 @@ pub(crate) fn owned_conformance_namespace(
     Ok(owner)
 }
 
-/// Source lexical captures of owned map rows. Invocation binders remain in
-/// the machine's own telescope; an ordinary referenced row captures nothing.
-pub(super) struct ConformanceTypeScopes {
+/// Static declaration context of owned map rows and nested machines. These
+/// exact binders are visible during formation without becoming runtime captures
+/// or fresh invocation parameters. Referenced map rows capture nothing.
+pub(super) struct DeclarationTypeScopes {
     owned: Vec<(SymbolHandle, Vec<TypeParameter>)>,
 }
 
-impl ConformanceTypeScopes {
+impl DeclarationTypeScopes {
     pub(super) fn of(
         program: &symbol_resolved_trees::SymbolResolvedTrees,
     ) -> Result<Self, Vec<diagnostics::Diagnostic>> {
@@ -128,6 +142,38 @@ impl ConformanceTypeScopes {
                         .data_type_parameters(conformance.type_parameters)
                         .to_vec(),
                 ));
+            }
+        }
+        // The lowered roster is parent-first. Each child inherits its parent's
+        // already collected static context, with nearer declarations shadowing
+        // names while retaining the original binder identities.
+        for machine in program
+            .machines
+            .iter()
+            .filter(|machine| machine.lexical_parent.is_valid())
+        {
+            let parent = program.machines.get(machine.lexical_parent);
+            let mut parameters = program.machine_type_parameters(parent).to_vec();
+            parameters.extend(evidence_type_parameters(&parent.conformance_bounds));
+            if let Some((_, inherited)) = owned.iter().find(|(owner, _)| *owner == parent.symbol) {
+                parameters = declaration_type_scope(&parameters, inherited);
+            }
+            if let Some(data) = program
+                .data_definitions
+                .iter()
+                .find(|data| data.symbol == parent.attached_data_symbol)
+            {
+                parameters = declaration_type_scope(
+                    &parameters,
+                    program.data_type_parameters(data.type_parameters),
+                );
+            }
+            if let Some((_, inherited)) =
+                owned.iter_mut().find(|(owner, _)| *owner == machine.symbol)
+            {
+                *inherited = declaration_type_scope(inherited, &parameters);
+            } else {
+                owned.push((machine.symbol, parameters));
             }
         }
         if diagnostics.is_empty() {

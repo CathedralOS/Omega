@@ -1,6 +1,11 @@
 //! Local snapshot staging, publication, reuse, and topology checks.
 
+mod address;
 mod materialize;
+pub(crate) use address::LocalSnapshotAddress;
+pub(super) use address::{
+    is_legacy_snapshot_name, legacy_snapshot_publication_name, snapshot_lock_name,
+};
 #[cfg(test)]
 use materialize::materialize_local_snapshot;
 use materialize::materialize_local_snapshot_from_open_parent;
@@ -19,13 +24,13 @@ use crate::custody::tree::verify_local_cache_custody;
 #[cfg(test)]
 use crate::custody::tree::verify_local_cache_root_custody;
 use crate::error::local_snapshot_invalid;
-use crate::identity::digest::format_sha256;
+use crate::identity::SourceContentDigest;
 use crate::limits::LOCAL_SNAPSHOT_LOCK_TIMEOUT;
-use crate::limits::{LOCAL_CACHE_SNAPSHOTS, LOCAL_SNAPSHOT_CUSTODY_POLICY, LocalSourceLimits};
+use crate::limits::{LOCAL_CACHE_SNAPSHOTS, LocalSourceLimits};
 use crate::snapshot::metadata::verify_local_snapshot;
 use crate::storage::RetainedStorageLane;
 use crate::tree::capture::CapturedLocalTree;
-use crate::tree::filesystem::{io_error, raw_os_bytes};
+use crate::tree::filesystem::io_error;
 
 #[cfg(test)]
 pub(crate) fn publish_local_snapshot(
@@ -44,12 +49,10 @@ pub(crate) fn publish_local_snapshot(
     verify_local_cache_root_custody(&snapshots)?;
 
     let identity = captured.normalized.content_identity.clone();
-    let custody_identity = local_snapshot_custody_identity(
-        &captured.normalized.root,
-        &captured.normalized.content_identity,
-    );
-    let publication = snapshots.join(format!("source-{custody_identity}"));
-    let lock_path = snapshots.join(format!("source-{custody_identity}.lock"));
+    let content = SourceContentDigest::derive(identity.as_bytes());
+    let address = LocalSnapshotAddress::new(&captured.normalized.root, &content);
+    let publication = snapshots.join(address.publication_name());
+    let lock_path = snapshots.join(address.lock_name());
     let entry_lock = CacheEntryLock::acquire_local(&lock_path, LOCAL_SNAPSHOT_LOCK_TIMEOUT)?;
 
     let normalized = if publication.exists() {
@@ -141,13 +144,11 @@ fn publish_local_snapshot_in_retained_collection(
 ) -> Result<ResolvedLocalSource, SourceResolveError> {
     snapshots.verify_path_identity()?;
     let identity = captured.normalized.content_identity.clone();
-    let custody_identity = local_snapshot_custody_identity(
-        &captured.normalized.root,
-        &captured.normalized.content_identity,
-    );
-    let publication_name = format!("source-{custody_identity}");
+    let content = SourceContentDigest::derive(identity.as_bytes());
+    let address = LocalSnapshotAddress::new(&captured.normalized.root, &content);
+    let publication_name = address.publication_name();
     let publication = snapshots.path().join(&publication_name);
-    let lock_name = format!("source-{custody_identity}.lock");
+    let lock_name = address.lock_name();
     let result = (|| {
         let entry_lock = CacheEntryLock::acquire_local_from_parent(
             snapshots.path(),
@@ -310,17 +311,6 @@ fn validate_retained_local_snapshot_topology(
         });
     }
     Ok(())
-}
-
-pub(crate) fn local_snapshot_custody_identity(
-    canonical_live_root: &Path,
-    content_identity: &str,
-) -> String {
-    let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(b"");
-    hasher.bytes(LOCAL_SNAPSHOT_CUSTODY_POLICY);
-    hasher.bytes(raw_os_bytes(canonical_live_root.as_os_str()).as_slice());
-    hasher.bytes(content_identity.as_bytes());
-    format_sha256(&hasher.finish())
 }
 
 #[cfg(test)]

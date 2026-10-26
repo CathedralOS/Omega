@@ -1,12 +1,9 @@
 //! Validate each retained span and byte against the admitted frame and ISA codec.
 //! No producer arena packing or function-row construction participates here.
 
-use isa_aarch64::Aarch64FrameSlot;
-use isa_x86_64::X86_64FrameSlot;
-
 use crate::frame_layout::frame_unwind_policy;
 
-use super::codec::{FrameProtocolCodec, frame_protocol_codec};
+use super::codec::frame_protocol_codec;
 use super::{
     FrameProtocolByteSpan, TargetFrameProtocolEncodingError as Error,
     TargetFrameProtocolEncodingPlan, TargetFrameProtocolEncodingPolicy, ValidatedTargetFrameLayout,
@@ -64,58 +61,9 @@ pub(super) fn validate_bytes(
             return Err(Error::UnsupportedReturnAddressCustody);
         }
         // The submitted bytes must be the encoding of exactly the validated
-        // unwind roster: the declared codec's save list runs in reverse
-        // roster order so its epilogue restores in roster order — a saved
-        // link register first, then preservation slots in descending frame
-        // offset.
-        let (prologue, epilogue) = match codec {
-            FrameProtocolCodec::X86_64 => {
-                let slots = function
-                    .unwind
-                    .restores
-                    .iter()
-                    .rev()
-                    .map(|restore| X86_64FrameSlot {
-                        view: restore.view,
-                        offset_bytes: restore.frame_offset_bytes,
-                        size_bytes: restore.size_bytes,
-                    })
-                    .collect::<Vec<_>>();
-                isa_x86_64::encode_system_v_amd64_frame_protocol(
-                    environment.physical(),
-                    committed_bytes,
-                    isa_x86_64::X86_64StackProbe {
-                        interval_bytes: function.stack_probe.interval_bytes,
-                        touches: function.stack_probe.touches,
-                    },
-                    &slots,
-                )
-                .map_err(Error::X86)?
-            }
-            FrameProtocolCodec::Aarch64 => {
-                let slots = function
-                    .unwind
-                    .restores
-                    .iter()
-                    .rev()
-                    .map(|restore| Aarch64FrameSlot {
-                        view: restore.view,
-                        offset_bytes: restore.frame_offset_bytes,
-                        size_bytes: restore.size_bytes,
-                    })
-                    .collect::<Vec<_>>();
-                isa_aarch64::encode_aapcs64_frame_protocol(
-                    environment.physical(),
-                    committed_bytes,
-                    isa_aarch64::Aarch64StackProbe {
-                        interval_bytes: function.stack_probe.interval_bytes,
-                        touches: function.stack_probe.touches,
-                    },
-                    &slots,
-                )
-                .map_err(Error::Aarch64)?
-            }
-        };
+        // unwind roster.
+        let (prologue, epilogue) =
+            super::encode_frame_function(codec, environment, function, committed_bytes)?;
         cursor = validate_span(&candidate.bytes, cursor, row.prologue, &prologue)?;
         cursor = validate_span(&candidate.bytes, cursor, row.epilogue, &epilogue)?;
     }

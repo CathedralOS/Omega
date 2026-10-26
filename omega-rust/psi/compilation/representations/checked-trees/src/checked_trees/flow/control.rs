@@ -27,6 +27,9 @@ pub struct FlowOperatorInvocationFact {
 pub struct FlowCallFact {
     pub statement_index: usize,
     pub call_ordinal: usize,
+    /// Exact storage after every operand completes and before the call runs.
+    /// Borrowed observations use this cut, never an earlier actual's pointee.
+    pub invocation_storage: arena::Handle<super::FlowStorageSnapshot>,
     /// Actuals in authored evaluation order, captured at their own completion.
     pub operands: HandleSpan<super::FlowOperandFact>,
     /// Exact expression occurrence captured by the semantic call traversal.

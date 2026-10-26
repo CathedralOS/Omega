@@ -4,21 +4,7 @@
 //! domain, exact callable, result value or normal return edge.
 
 use super::{CodecError, TerminalModule, Terminator, malformed};
-use terminal_psi::{
-    ScalarDomainEstablishmentRoute, ScalarReturnOrigin, ScalarReturnSite, ValueDeclaration,
-};
-
-fn values(machine: &terminal_psi::TerminalMachine) -> impl Iterator<Item = &ValueDeclaration> {
-    machine
-        .parameters
-        .iter()
-        .chain(machine.block_parameters())
-        .chain(
-            machine
-                .operations()
-                .filter_map(|operation| operation.result.scalar_ref()),
-        )
-}
+use terminal_psi::{ScalarDomainEstablishmentRoute, ScalarReturnOrigin, ScalarReturnSite};
 
 pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
     let catalog = &module.scalar_qualifications;
@@ -74,33 +60,23 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
             .ok_or(CodecError::MalformedStructuralFoundation(
                 "scalar coercion lost its machine",
             ))?;
-        let source = values(machine)
+        let source = super::values(machine)
             .find(|value| value.id == coercion.source)
             .ok_or(CodecError::MalformedStructuralFoundation(
                 "scalar coercion lost its source",
             ))?;
-        let destination = values(machine)
+        let destination = super::values(machine)
             .find(|value| value.id == coercion.destination)
             .ok_or(CodecError::MalformedStructuralFoundation(
                 "scalar coercion lost its destination",
             ))?;
-        let members = |set: semantic_vocabulary::ScalarQualificationSetId| {
-            if set.is_empty() {
-                Some(&[][..])
-            } else {
-                catalog
-                    .sets
-                    .iter()
-                    .find(|candidate| candidate.id == set)
-                    .map(|set| set.domains.as_slice())
-            }
-        };
-        let source_domains = members(source.qualifications).ok_or(
+        let source_domains = super::qualification_domains(module, source.qualifications).ok_or(
             CodecError::MalformedStructuralFoundation("scalar coercion lost its source set"),
         )?;
-        let destination_domains = members(destination.qualifications).ok_or(
-            CodecError::MalformedStructuralFoundation("scalar coercion lost its destination set"),
-        )?;
+        let destination_domains = super::qualification_domains(module, destination.qualifications)
+            .ok_or(CodecError::MalformedStructuralFoundation(
+                "scalar coercion lost its destination set",
+            ))?;
         if destination_domains.iter().any(|id| {
             !source_domains.contains(id)
                 && catalog.domains.iter().any(|domain| {
@@ -125,18 +101,14 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
             .result
             .scalar_ref()
             .into_iter()
-            .chain(values(machine))
+            .chain(super::values(machine))
             .find(|result| result.id == returned.result)
             .ok_or(CodecError::MalformedStructuralFoundation(
                 "scalar return lost its result",
             ))?;
-        let domain = catalog
-            .domains
-            .iter()
-            .find(|domain| domain.id == returned.domain)
-            .ok_or(CodecError::MalformedStructuralFoundation(
-                "scalar return lost its domain",
-            ))?;
+        let domain = super::scalar_domain(module, returned.domain).ok_or(
+            CodecError::MalformedStructuralFoundation("scalar return lost its domain"),
+        )?;
         let bound = match returned.site {
             ScalarReturnSite::NormalExit => machine.result.scalar_ref().is_some_and(|result| result.id == returned.result)
                 && machine.blocks.iter().any(|block| matches!(block.terminator,
@@ -184,7 +156,7 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
                 return malformed("scalar result contract lost its domain predicate");
             }
         }
-        let source = values(machine)
+        let source = super::values(machine)
             .find(|source| source.id == returned.source && source.scalar_type == result.scalar_type)
             .ok_or(CodecError::MalformedStructuralFoundation(
                 "scalar return lost its same-carrier source",
@@ -284,11 +256,11 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
                 for (ordinal, (argument, destination)) in
                     arguments.iter().zip(&target.parameters).enumerate()
                 {
-                    let source = values(machine).find(|value| value.id == *argument).ok_or(
-                        CodecError::MalformedStructuralFoundation(
+                    let source = super::values(machine)
+                        .find(|value| value.id == *argument)
+                        .ok_or(CodecError::MalformedStructuralFoundation(
                             "scalar successor source is absent",
-                        ),
-                    )?;
+                        ))?;
                     for domain in &catalog.domains {
                         let contains = |qualification| {
                             catalog.sets.iter().any(|set| {

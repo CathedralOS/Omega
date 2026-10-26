@@ -150,8 +150,10 @@ pub(in crate::lowering) fn direct_scalar_field_geometry(
             && let Some(semantic_vocabulary::AuthoredFieldStorage::Fragmented(fragments)) =
                 candidate.storage.as_ref()
         {
-            if matches!(candidate.field_type, StructuralFieldType::Atomic(_))
-                || candidate.field_type.scalar_type() != Some(expected_type)
+            if matches!(
+                candidate.field_type,
+                StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_)
+            ) || candidate.field_type.scalar_type() != Some(expected_type)
             {
                 return Err(LoweringError::UnknownStructuralType(structural_type));
             }

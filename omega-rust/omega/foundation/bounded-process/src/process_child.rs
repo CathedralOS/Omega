@@ -31,6 +31,19 @@ pub struct BoundedProcessChild {
 }
 
 impl BoundedProcessChild {
+    /// The actual primary process, for OS-authenticated private endpoint joins.
+    /// A numeric process identity alone grants no invocation or call authority.
+    pub fn id(&mut self) -> u32 {
+        #[cfg(windows)]
+        {
+            self.child.id()
+        }
+        #[cfg(not(windows))]
+        {
+            self.inner().id()
+        }
+    }
+
     /// Spawn a configured command inside the platform process
     /// container before any child code may execute.
     pub fn spawn(prepared: BoundedProcessPrepared) -> io::Result<Self> {

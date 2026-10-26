@@ -1,0 +1,5 @@
+data Indexed<Limit:u32,const Tag:u32>{value:u32;}
+machine read(limit:u32,item:&mut Indexed<limit,2>) {}
+machine example(a:u32) { let mut item:Indexed<a,1> = Indexed{value:8}; read(a,&mut item); }
+
+machine main() {}

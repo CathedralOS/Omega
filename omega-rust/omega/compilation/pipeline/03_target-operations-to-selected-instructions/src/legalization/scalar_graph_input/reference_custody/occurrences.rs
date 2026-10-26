@@ -173,6 +173,25 @@ pub(super) struct Formation {
 }
 
 impl Leaf {
+    /// An external anchor retains its original borrowed entry slot. Extraction,
+    /// receiving parameters and replacements cannot inherit that scope.
+    pub(super) fn is_external_entry_anchor(
+        &self,
+        function: &PsiOptimizationFunction,
+        carrier: PlaceId,
+        path: &[StructuralPathSegment],
+    ) -> bool {
+        let CarrierContract::Parameter(parameter) = &self.contract else {
+            return false;
+        };
+        parameter.access != StructuralAccess::Owned
+            && self.identity.place == parameter.place
+            && self.identity.place == carrier
+            && self.identity.path.as_slice() == path
+            && matches!(self.identity.formation, OccurrenceFormation::Parameter)
+            && function.structural_parameter(parameter.place) == Some(parameter)
+    }
+
     pub(super) fn formed(
         identity: (PlaceId, Vec<StructuralPathSegment>),
         root: Root,

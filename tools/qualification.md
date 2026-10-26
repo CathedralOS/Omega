@@ -1,7 +1,8 @@
 # Pinned qualification
 
-Qualify one clean checkpoint coherently. Fetch and integrate main near
-publication, then assess the actual dependency changes before repeating work.
+Qualify one clean checkpoint on its fixed recorded base through publication.
+Only actual merge conflicts, concrete prerequisites or changed affected source
+justify local integration; assess those dependency changes before repeating work.
 `qualification.py` runs validators and records their identities; it does not
 decide scientific correctness, infer a complete dependency closure, approve
 packages, or replace independent review and the normal landing protocol.
@@ -249,7 +250,7 @@ If its parent's historical journal cannot be located, use the explicit
 to obtain a generated same-thread prompt. It repeats focused context and records
 the missing history without declaring uncommitted repairs accepted or clean.
 
-## Run once, then integrate
+## Run once on the fixed base
 
 All mutations require the latest returned state `revision`; a concurrent writer
 or running command causes refusal, never last-writer-wins replacement. Separate
@@ -275,9 +276,11 @@ detached projections, and a snapshot is consumed once, including on failure.
 This avoids repeated decoding of large histories while preserving the complete
 canonical state, immutable receipts and ordinary capture checks.
 
-Retain this revision while qualifying. Another main commit is not a reason to
-rebase in the middle of a capture. Once ready, fetch main, inspect incoming
-changes, rebase and assess the new candidate **outside the landing queue**:
+Retain this revision and its base through publication. Main/queue SHA movement
+alone never requires a pull, rebase, rebuild or requalification. Assess the
+submitted candidate against its recorded base. Only after justified local source
+integration for an actual conflict, prerequisite or changed affected source,
+assess with the corresponding integrated base:
 
 ```text
 python3 tools/qualification.py assess --state build/qualification.json --revision LAST_REVISION --base FETCHED_MAIN_SHA

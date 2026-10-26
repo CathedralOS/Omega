@@ -158,6 +158,11 @@ fn check_stored_output_relations(
                 // selected patterns. A missing summary cannot erase their
                 // installed loans merely because the outer result is scalar.
                 let requires_relation = calls.iter().any(|call| {
+                    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some()
+                        && call.statement_index == statement_index
+                    {
+                        eprintln!("STRUCT stored-output machine={} state={} statement={} resolver={} target={:?}", machine.name, state.name, statement_index, frames.is_some(), call.target_symbol);
+                    }
                     call.statement_index == statement_index
                         && (frames.is_none_or(|frames| {
                             frames.provider_output_relation_required(

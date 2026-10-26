@@ -15,6 +15,8 @@ pub struct DomainDefinition {
     pub target_type: TypeReference,
     pub index_arguments: HandleSpan<TypeReference>,
     pub is_public: bool,
+    /// Selected machine identity and its full declaration-site application.
+    pub cleanup_selection: Option<crate::expression::StaticMachineArgument>,
     /// Authored transparent alias theory, independent from predicate facts.
     pub alias: Option<DomainAliasDefinition>,
     /// Authored exact trait-requirement paths. Normalization resolves these

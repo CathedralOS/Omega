@@ -178,6 +178,7 @@ pub(in crate::execution::terminal_unit) fn signature(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn scalar_completion(
     program: &dyn ::validation::CheckingInput,
+    fused: &super::fused::FusedStates<'_>,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -188,6 +189,21 @@ pub(super) fn scalar_completion(
 ) -> Option<checked_trees::CheckedScalarReturnPlan> {
     trace.phase("state graph: terminator: scalar completion");
     let statements = program.statement_table.statements(state.statement_nodes);
+    if statements[terminator_index..]
+        .iter()
+        .any(|statement| match statement {
+            StatementNode::Transition(transition) => transition.targets().any(|target| {
+                validation::completing_transition_transfer(program, target).is_some_and(
+                    |transfer| {
+                        super::fused::fused_target_index(program, fused, transfer.target).is_some()
+                    },
+                )
+            }),
+            _ => false,
+        })
+    {
+        return None;
+    }
     if let Some(binding) = returned_binding {
         // The state's final expression. A closing terminal machine call's
         // bound result completes through `terminal_calls::completion`.
@@ -214,6 +230,7 @@ pub(super) fn scalar_completion(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn guarded(
     program: &dyn ::validation::CheckingInput,
+    fused: &super::fused::FusedStates<'_>,
     facts: &CheckFacts,
     scalar_callees: ScalarCalleeClosure,
     shapes: &mut ShapeCollector<'_>,
@@ -287,6 +304,11 @@ pub(super) fn guarded(
             }
             _ => return None,
         };
+        if validation::completing_call_transfer(program, expression).is_some_and(|transfer| {
+            super::fused::fused_target_index(program, fused, transfer.target).is_some()
+        }) {
+            return None;
+        }
         let (operation, operand_calls) = return_value_operation(
             program,
             facts,

@@ -221,7 +221,7 @@ impl BlockBindings {
                         place,
                     )
                     .map(|value| value.structural_type)?;
-                    if claims.values().any(|claim| claim.place == Some(place))
+                    if crate::custody::place_is_claimed(&claims, place)
                         || frontier
                             .iter()
                             .filter(|entry| entry.place == place)
@@ -715,10 +715,7 @@ impl TerminalExecution<'_> {
         // A destination may already name a source of this simultaneous move,
         // but may not overwrite any independently held claim or owned value.
         for parameter in &block.structural_parameters {
-            if self
-                .live_claims
-                .values()
-                .any(|claim| claim.place == Some(parameter.place))
+            if crate::custody::place_is_claimed(&self.live_claims, parameter.place)
                 && !owned_sources.contains(&parameter.place)
             {
                 return Err(malformed());
@@ -829,11 +826,8 @@ impl TerminalExecution<'_> {
                         .position(|binding| binding.path == claim.path)
                         .ok_or(TerminalInterpretError::ClaimTransferMismatch)?;
                     let binding = active.swap_remove(matching);
-                    let expected_multiplicity = if binding.path.is_empty() {
-                        parameter.multiplicity
-                    } else {
-                        StructuralMultiplicity::Linear
-                    };
+                    let expected_multiplicity =
+                        LiveClaim::path_multiplicity(&binding.path, parameter.multiplicity);
                     if claim.multiplicity != Some(expected_multiplicity) {
                         return Err(TerminalInterpretError::ClaimTransferMismatch);
                     }

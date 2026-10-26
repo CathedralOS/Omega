@@ -141,6 +141,7 @@ fn collects_bounded_type_sites() {
     });
     let state_handle = syntax_trees.items.append_state_handle(state);
     syntax_trees.push_root_item(Item::Machine(Machine {
+        nested_machines: HandleSpan::empty(),
         name: Identifier::generated("main"),
         generic_data_template: Default::default(),
         default_body_trait: Default::default(),

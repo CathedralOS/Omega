@@ -1,8 +1,10 @@
 //! Explicit host bindings for exact admitted native host operation slots.
 //! A slot's realization selects semantics; its complete declaration selects
-//! the typed adapter. Every family's offer first passes the shared
-//! `admit_exact_foreign_call` premise; the family then owns its own shape
-//! rules. No source-name dispatch or stdout-driven exit exists.
+//! the typed adapter. Modeled services pass the shared
+//! `admit_exact_foreign_call` premise and their exact shape rules. A separately
+//! sponsored native provider joins the complete produced ABI and original
+//! homes, with semantic completion still owned by Psi. No source-name
+//! dispatch or stdout-driven exit exists.
 //! Output stays buffered; input consumes only the caller's finite replay stream
 //! with an instance-private cursor. Checked compound operations remain guest code.
 
@@ -26,15 +28,19 @@ mod buffered_output;
 pub(super) mod clock;
 mod descriptor_io;
 mod descriptor_mode;
+mod integer_absolute;
 mod integer_division;
+mod native_provider;
 mod native_word;
 mod network_address;
 mod numeric;
+mod scalar_codec;
 mod scalar_record;
 mod standard_input;
 
 use native_artifact::TerminalRuntimeHostProvisions;
 use semantic_vocabulary::{BoundaryMachineId, IntegerSign, ScalarType};
+use target::TargetProfile;
 use target_operations::{BoundaryRealization, BoundarySettlementRealization};
 use terminal_interpreter::{TerminalImportSignature, TerminalInstance, TerminalProgram};
 use terminal_psi::BoundaryCompletion;
@@ -109,6 +115,86 @@ pub(super) fn admit_exact_foreign_call(
     Ok(())
 }
 
+/// Whether this host actually supplies the selected target's runtime: another
+/// host's libc/CRT supply is never borrowed for an offer.
+fn host_supplies_target(target: TargetProfile) -> bool {
+    match target {
+        TargetProfile::LinuxX64 => cfg!(all(target_os = "linux", target_arch = "x86_64")),
+        TargetProfile::LinuxArm64 => cfg!(all(target_os = "linux", target_arch = "aarch64")),
+        TargetProfile::MacosArm64 => cfg!(all(target_os = "macos", target_arch = "aarch64")),
+        TargetProfile::MacosX64 => cfg!(all(target_os = "macos", target_arch = "x86_64")),
+        TargetProfile::WindowsX64 => cfg!(all(target_os = "windows", target_arch = "x86_64")),
+        _ => false,
+    }
+}
+
+/// Match one hosted C-runtime symbol against a binding's normalized locator.
+///
+/// How the platform spells an ordinary C symbol is target data, not operation
+/// data: `libc.so.6` at the profile's GLIBC version, the Mach-O load identity,
+/// or a provider DLL export. `darwin_install_names` carries the accepted
+/// load-identity spellings; `windows_library` names the DLL that exports
+/// `symbol` on Windows, or `None` for an operation this runtime does not
+/// supply there. One table owns this identity so no operation family
+/// restates it. The offer is refused — not errored — when this host supplies
+/// no runtime for the selected target.
+pub(super) fn matches_platform_c_symbol(
+    binding: &target_operations::NormalizedForeignCallBinding,
+    symbol: &[u8],
+    darwin_install_names: &[&[u8]],
+    windows_library: Option<&[u8]>,
+) -> Result<bool, TerminalRuntimeError> {
+    let Some((locator, _)) = binding.import() else {
+        return Ok(false);
+    };
+    let target = locator.target();
+    if !host_supplies_target(target) {
+        return Ok(false);
+    }
+    let matches = |candidate| {
+        target::normalize_foreign_locator(candidate, target)
+            .map(|offered| offered == *locator)
+            .map_err(|_| {
+                TerminalRuntimeError::InvalidProvision(
+                    "a hosted C symbol spelling is not a valid locator for its target",
+                )
+            })
+    };
+    match target {
+        TargetProfile::LinuxX64 | TargetProfile::LinuxArm64 => {
+            matches(target::ForeignLocatorCandidate::ElfVersioned {
+                object: b"libc.so.6".to_vec(),
+                symbol: symbol.to_vec(),
+                version: if target == TargetProfile::LinuxX64 {
+                    b"GLIBC_2.2.5".to_vec()
+                } else {
+                    b"GLIBC_2.17".to_vec()
+                },
+            })
+        }
+        TargetProfile::MacosArm64 | TargetProfile::MacosX64 => {
+            let darwin_symbol = [b"_".as_slice(), symbol].concat();
+            for install_name in darwin_install_names {
+                if matches(target::ForeignLocatorCandidate::MachODylibSymbol {
+                    install_name: install_name.to_vec(),
+                    symbol: darwin_symbol.clone(),
+                })? {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
+        }
+        TargetProfile::WindowsX64 => match windows_library {
+            Some(library) => matches(target::ForeignLocatorCandidate::PeByName {
+                library: library.to_vec(),
+                export: symbol.to_vec(),
+            }),
+            None => Ok(false),
+        },
+        _ => Ok(false),
+    }
+}
+
 /// One explicitly supplied host capability root shared by the receiver and
 /// real component instances of this invocation. Tokens and stream cursors keep
 /// their same owned stores across a checked cross-artifact call.
@@ -117,14 +203,22 @@ pub(super) struct HostContext<'host> {
     input: Option<std::sync::Arc<std::sync::Mutex<Box<dyn std::io::Read + Send + 'host>>>>,
     clock: Option<std::sync::Arc<std::sync::Mutex<clock::TerminalClockSnapshot>>>,
     addresses: std::sync::Arc<std::sync::Mutex<network_address::AddressValues>>,
+    native: native_provider::NativeContext,
     allocations: std::sync::Arc<std::sync::Mutex<allocation::AllocationValues>>,
 }
 impl<'host> HostContext<'host> {
+    pub(super) fn finish_native_provider(&self) -> Result<(), TerminalRuntimeError> {
+        self.native.finish().map_err(|error| {
+            TerminalRuntimeError::missing("native-provider-retirement", error.reason)
+        })
+    }
     pub(super) fn new(
         input: Option<Box<dyn std::io::Read + Send + 'host>>,
         clock: Option<clock::TerminalClockSnapshot>,
+        native_provider: Option<std::process::Command>,
     ) -> Self {
         Self {
+            native: native_provider::NativeContext::new(native_provider),
             output: buffered_output::BufferedStreams::new(),
             input: input.map(|reader| std::sync::Arc::new(std::sync::Mutex::new(reader))),
             clock: clock.map(|snapshot| std::sync::Arc::new(std::sync::Mutex::new(snapshot))),
@@ -304,6 +398,15 @@ pub(super) fn bind<'host>(
                     instance.bind_import(*slot, adapter)?;
                     continue;
                 }
+                if let Some(adapter) = integer_absolute::IntegerAbsoluteImport::admit(
+                    program,
+                    declaration,
+                    binding,
+                    provisions.and_then(|provisions| provisions.host_calling_application(*slot)),
+                )? {
+                    instance.bind_import(*slot, adapter)?;
+                    continue;
+                }
                 if let Some(adapter) = integer_division::IntegerDivisionImport::admit(
                     program,
                     declaration,
@@ -322,16 +425,26 @@ pub(super) fn bind<'host>(
                     instance.bind_import(*slot, adapter)?;
                     continue;
                 }
-                let Some(adapter) =
+                if let Some(adapter) =
                     descriptor_mode::DescriptorModeImport::admit(declaration, binding)?
-                else {
-                    return Err(TerminalRuntimeError::missing(
-                        "runtime-host-import-bindings",
-                        "no trusted host implementation matches this exact foreign binding",
-                    ));
-                };
-                instance.bind_import(*slot, adapter)?;
-                continue;
+                {
+                    instance.bind_import(*slot, adapter)?;
+                    continue;
+                }
+                if let Some(adapter) = native_provider::NativeImport::admit(
+                    program,
+                    declaration,
+                    binding,
+                    provisions,
+                    &context.native,
+                )? {
+                    instance.bind_import(*slot, adapter)?;
+                    continue;
+                }
+                return Err(TerminalRuntimeError::missing(
+                    "runtime-host-import-bindings",
+                    "no trusted host implementation matches this exact foreign binding",
+                ));
             }
             _ => {
                 return Err(TerminalRuntimeError::missing(

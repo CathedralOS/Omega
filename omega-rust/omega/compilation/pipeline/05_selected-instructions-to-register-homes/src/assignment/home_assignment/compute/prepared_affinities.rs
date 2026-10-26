@@ -82,6 +82,11 @@ impl PreparedAffinities {
         Self { offsets, entries }
     }
 
+    #[inline]
+    pub(super) fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
     pub(super) fn get_domain_affinities(&self, domain: usize) -> &[DomainAffinity] {
         let start = self.offsets[domain] as usize;
         let end = self.offsets[domain + 1] as usize;

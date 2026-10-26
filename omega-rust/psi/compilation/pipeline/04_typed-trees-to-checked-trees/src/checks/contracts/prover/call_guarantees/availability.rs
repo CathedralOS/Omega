@@ -179,25 +179,16 @@ pub(in crate::checks) fn available<'program>(
         let Some(supplied) = invocation(program, caller, statement_index, call_ordinal) else {
             continue;
         };
-        let selection = match &supplied.site {
-            CallSite::Expression { expression, call } => {
-                typed_trees::references::StaticArgumentCall::Expression(*expression, call)
-            }
-            CallSite::Statement(call) => {
-                typed_trees::references::StaticArgumentCall::Statement(call)
-            }
-            CallSite::TransitionNamed { .. } => continue,
-        };
         // A surviving normal-return observation is not an independent proof
         // source when its selected declaration depends on this caller. Keep
         // exact retained callback selections in this shared availability owner
         // before any numeric, Boolean, borrow or copied-result consumer imports
         // the guarantee. Strict recursive induction has a separate edge owner.
-        if !validation::independent_call_application(
+        if !validation::independent_call_site(
             program,
             caller.machine_symbol,
             supplied.callable.owner_symbol(),
-            selection,
+            &supplied.site,
         ) {
             continue;
         }
@@ -205,6 +196,7 @@ pub(in crate::checks) fn available<'program>(
             || !stable_predicate_inputs(program, facts, caller, &supplied, expression)
             || !capture_preserved(
                 program,
+                &facts.operators,
                 &facts.borrow,
                 caller_machine,
                 &supplied,

@@ -21,13 +21,27 @@ pub(in crate::machine_calls::calls::write_frames) fn provider_output_relation_re
     target: symbols::SymbolHandle,
     call_expression: ExpressionHandle,
 ) -> bool {
+    let trace = std::env::var_os("OMEGA_STRUCT_TRACE").is_some();
     let parameters = if let Some(slot) = program.dynamic_slot_by_symbol(target) {
         &slot.parameters
     } else if let Some((_, signature)) = crate::selected_requirement_signature(program, target) {
         // A complete empty output frontier needs no call-site relation. In an
         // open generic body the applied callable may not exist yet; that cannot
         // invent a borrowed output for a reference-free public signature.
-        if parameter_destination_inventory(program, program.state_signature_parameters(signature))
+        let inventory =
+            parameter_destination_inventory(program, program.state_signature_parameters(signature));
+        if trace {
+            eprintln!(
+                "STRUCT output-frontier machine={machine:?} target={target:?} source={} slots={:?} symbolic={:?}",
+                signature.name,
+                inventory.as_ref().map(|inventory| inventory.slots.len()),
+                inventory
+                    .as_ref()
+                    .map(|inventory| inventory.template_dependent)
+            );
+        }
+        if inventory
+            .as_ref()
             .is_some_and(|inventory| inventory.slots.is_empty() && !inventory.template_dependent)
         {
             return false;
@@ -36,12 +50,27 @@ pub(in crate::machine_calls::calls::write_frames) fn provider_output_relation_re
             let Some(call) = program.expression_table.call_node(call_expression) else {
                 return true;
             };
-            if call.target_symbol != target {
+            // Flow topology may retain the exact public operator while the
+            // occurrence names its evidence child. Use the same resolved-call
+            // join as flow construction; a merely same-spelled target cannot
+            // donate another application's output contract.
+            if call.target_symbol != target && crate::call_target_symbol(program, call) != target {
                 return true;
             }
             let Some(signature) = program.requirement_call_signature(machine, call) else {
+                if trace {
+                    eprintln!(
+                        "STRUCT output-frontier machine={machine:?} target={target:?} applied-signature=missing"
+                    );
+                }
                 return true;
             };
+            if trace {
+                eprintln!(
+                    "STRUCT output-frontier machine={machine:?} target={target:?} applied-signature={}",
+                    signature.name
+                );
+            }
             signature
         } else {
             signature
@@ -66,8 +95,17 @@ pub(in crate::machine_calls::calls::write_frames) fn provider_output_relation_re
     // relation beside symbolic leaves, and an uncomputable inventory fails
     // closed. Exact applied parameters above prevent concrete calls from
     // borrowing this deferral from an open declaration.
-    parameter_destination_inventory(program, parameters)
-        .is_none_or(|inventory| !inventory.slots.is_empty())
+    let inventory = parameter_destination_inventory(program, parameters);
+    if trace {
+        eprintln!(
+            "STRUCT output-frontier machine={machine:?} target={target:?} selected-slots={:?} symbolic={:?}",
+            inventory.as_ref().map(|inventory| inventory.slots.len()),
+            inventory
+                .as_ref()
+                .map(|inventory| inventory.template_dependent)
+        );
+    }
+    inventory.is_none_or(|inventory| !inventory.slots.is_empty())
 }
 
 fn parameter_destination_inventory(

@@ -13,8 +13,7 @@ use semantic_vocabulary::{
 use crate::proofs::float_meaning_projection::FloatMeaningProjectionLoweringError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum LoweringError {
-    MachineNotFound(String),
+pub enum LoweringError {    MachineNotFound(String),
     AmbiguousMachineName(String),
     /// A closure names storage absent from its retained type catalog.
     MissingUnitStructuralType(String),
@@ -44,7 +43,6 @@ pub enum LoweringError {
     DebugSemanticCodec(terminal_codec::CodecError),
     InvalidDebugMap(terminal_codec::DebugMapError),
     InvalidControlGraph(terminal_semantics::control_graph::ControlGraphError),
-    InvalidServiceParameterShape(checked_trees::CheckedServiceParameterError),
     InvalidServiceIdentity(String),
     InvalidFloatMeaningProjection(FloatMeaningProjectionLoweringError),
     InvalidQuotientCorrespondence(Vec<String>),

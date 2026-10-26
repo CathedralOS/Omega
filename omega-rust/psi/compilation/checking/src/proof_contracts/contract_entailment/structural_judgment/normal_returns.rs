@@ -434,6 +434,39 @@ impl<'program> StructuralJudge<'program> {
             &mut NormalObservation::None,
             NormalValueDemand::Location,
         )?;
+        if let Some(event) = crate::value_custody::atomic_operations::atomic_assignment_carrier(
+            self.program,
+            assignment,
+        ) {
+            // An atomic event evaluates its authored operands, never the
+            // synthetic resident-update expression. Its write retires storage
+            // observations but establishes no stable ordinary-store equation.
+            let frame = self
+                .frame_resolver()?
+                .assignment_write_frame(scope.0, statement);
+            let mut paths = destinations;
+            for operand in event.operands {
+                let mut next = Vec::new();
+                for path in paths {
+                    next.extend(path.judge.evaluate_normal_paths(
+                        operand,
+                        environment,
+                        scope,
+                        0,
+                        &mut NormalObservation::None,
+                        NormalValueDemand::Value,
+                    )?);
+                }
+                paths = next;
+            }
+            for path in &mut paths {
+                path.judge
+                    .observe_storage_effects(scope.1, frame.complete_paths())?;
+            }
+            // Statement assignment consumers discard the last operand value;
+            // an observed prior is owned separately by the event result carrier.
+            return Some(paths);
+        }
         let mut paths = Vec::new();
         for destination in destinations {
             let captured = destination
@@ -1433,6 +1466,13 @@ impl<'program> StructuralJudge<'program> {
         self.intake_current_storage_fields(scope.0, scope.1, expression, &value);
         if let StructuralTerm::CapturedValue { result_type, .. } = &value {
             self.intake_admitted_scalar_bounds(*result_type, &value);
+            self.intake_atomic_observation_bounds(
+                scope.0,
+                scope.1,
+                expression,
+                *result_type,
+                &value,
+            );
         }
         if let ExpressionNode::String(bytes) = self.program.expression_table.expression(expression)
             && let StructuralTerm::CapturedValue { result_type, .. } = &value
@@ -1673,8 +1713,9 @@ impl<'program> StructuralJudge<'program> {
             return None;
         }
         let site = crate::CallSite::Expression { expression, call };
-        let static_bindings = super::super::specification_calls::call_scalar_substitution(
+        let static_bindings = super::super::specification_calls::call_contract_scalar_substitution(
             program,
+            scope.0.symbol,
             &owner,
             site,
             |subject| self.completed_scalar_subject(subject, site, actuals?, scope.0, scope.1),
@@ -1835,6 +1876,10 @@ impl<'program> StructuralJudge<'program> {
             } else {
                 value.clone()
             };
+            // A checked call restores the declared referent invariant at its
+            // normal boundary. Attach those predicates to these fresh returned
+            // contents, independently of the retired pre-call observation.
+            self.intake_admitted_value_predicates(subject.type_reference, value.clone());
             bindings.push((subject.parameter, observed));
             post_storage.push((coordinate, value));
         }
@@ -1954,7 +1999,43 @@ impl<'program> StructuralJudge<'program> {
             );
         }
         self.intake_admitted_value_predicates(result_type, captured.clone());
-        self.intake_result_indices(result_type, &captured, callable, parameters, &bindings);
+        // The signature's indices are declared in its formal telescope. Bind
+        // them to the operands captured for this invocation, before importing
+        // equations about its detached result. The applied result type names
+        // caller storage for type checking; rereading those names here loses
+        // the operand epoch after a later sibling writes the original home.
+        let mut result_parameters = parameters;
+        let mut result_callable = callable;
+        let mut result_bindings = std::borrow::Cow::Borrowed(bindings.as_slice());
+        if let SelectedCallContract::DynamicSlot { slot, .. } = &owner {
+            // Public guarantees keep declaration binders; the instantiated
+            // result carrier keeps the slot's invocation binders. Rejoin that
+            // same admitted positional telescope before interpreting indices.
+            result_parameters = slot.data_parameters();
+            if result_parameters.len() != parameters.len() {
+                return None;
+            }
+            result_callable = slot.symbol;
+            result_bindings = std::borrow::Cow::Owned(
+                bindings
+                    .iter()
+                    .map(|(symbol, value)| {
+                        let actual = parameters
+                            .iter()
+                            .position(|parameter| parameter.symbol == *symbol)
+                            .map_or(*symbol, |position| result_parameters[position].symbol);
+                        (actual, value.clone())
+                    })
+                    .collect::<Vec<_>>(),
+            );
+        }
+        self.intake_admitted_value_indices(
+            owner_return_type(&owner),
+            &captured,
+            result_callable,
+            result_parameters,
+            &result_bindings,
+        );
         if let SelectedCallContract::Concrete(callee, selected_state) = &owner {
             equations.extend(self.returned_field_equations(
                 callee,

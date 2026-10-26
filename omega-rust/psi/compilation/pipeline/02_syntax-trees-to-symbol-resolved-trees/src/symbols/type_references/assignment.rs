@@ -66,10 +66,158 @@ fn trait_parameter_slots(
         .collect::<Vec<_>>()
 }
 
+/// Resolve nominal bound arguments in the same lexical declaration scopes as
+/// signatures and bodies. A symbol's parent is not a capture ownership proof.
+pub(crate) fn assign_nominal_machine_requirement_arguments(
+    program: &mut SymbolResolvedTrees,
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    use super::super::scope::{DeclarationTypeScopes, declaration_type_scope};
+    use symbol_resolved_trees::data::{MachineParameterContract, TypeParameter, TypeParameterKind};
+    struct ArgumentScope {
+        trait_definition: SymbolHandle,
+        arguments: HandleSpan<symbol_resolved_trees::types::TypeReference>,
+        parameters: Vec<TypeParameter>,
+    }
+    fn collect(
+        program: &SymbolResolvedTrees,
+        parameters: &[TypeParameter],
+        inherited: &[TypeParameter],
+        scopes: &mut Vec<ArgumentScope>,
+    ) {
+        let lexical = declaration_type_scope(parameters, inherited);
+        for parameter in parameters {
+            match &parameter.kind {
+                TypeParameterKind::Machine {
+                    contract:
+                        MachineParameterContract::Nominal {
+                            trait_definition,
+                            trait_arguments,
+                            ..
+                        },
+                } => scopes.push(ArgumentScope {
+                    trait_definition: *trait_definition,
+                    arguments: *trait_arguments,
+                    parameters: lexical.clone(),
+                }),
+                TypeParameterKind::Machine {
+                    contract: MachineParameterContract::Structural(signature),
+                } => {
+                    collect(
+                        program,
+                        program.data_type_parameters(signature.type_parameters),
+                        &lexical,
+                        scopes,
+                    );
+                }
+                _ => {}
+            }
+        }
+    }
+    let captures = DeclarationTypeScopes::of(program)?;
+    let mut scopes = Vec::new();
+    for machine in program.machines.iter() {
+        let attached = program
+            .data_definitions
+            .iter()
+            .find(|data| data.symbol == machine.attached_data_symbol)
+            .map_or(&[][..], |data| {
+                program.data_type_parameters(data.type_parameters)
+            });
+        let mut inherited = declaration_type_scope(captures.parameters(machine.symbol), attached);
+        inherited.extend(super::super::scope::evidence_type_parameters(
+            &machine.conformance_bounds,
+        ));
+        collect(
+            program,
+            program.machine_type_parameters(machine),
+            &inherited,
+            &mut scopes,
+        );
+    }
+    for owner in program.traits.iter() {
+        let parameters = program.trait_type_parameters(owner);
+        collect(program, parameters, &[], &mut scopes);
+        for signature in program.trait_machine_signatures(owner.machines) {
+            collect(
+                program,
+                program.data_type_parameters(signature.type_parameters),
+                parameters,
+                &mut scopes,
+            );
+        }
+    }
+    for owner in program.conformances.iter() {
+        collect(
+            program,
+            program.data_type_parameters(owner.type_parameters),
+            &[],
+            &mut scopes,
+        );
+    }
+    for owner in program.data_definitions.iter() {
+        collect(
+            program,
+            program.data_type_parameters(owner.type_parameters),
+            &[],
+            &mut scopes,
+        );
+    }
+    for owner in program.domain_definitions.iter() {
+        collect(
+            program,
+            program.data_type_parameters(owner.type_parameters),
+            &[],
+            &mut scopes,
+        );
+    }
+    let propositions = trait_parameter_slots(program, |parameter| {
+        matches!(parameter.kind, TypeParameterKind::Proposition { .. })
+    });
+    let machines = trait_parameter_slots(program, |parameter| {
+        matches!(
+            parameter.kind,
+            TypeParameterKind::Machine {
+                contract: MachineParameterContract::RequirementIdentity
+            }
+        )
+    });
+    for scope in scopes {
+        assign_type_reference_argument_symbols_with_constraints(
+            &program.symbols,
+            &mut program.tables.declarations.child_type_references,
+            &program.tables.types.constraints,
+            &scope.parameters,
+            scope.arguments,
+        );
+        assign_trait_bound_slot_argument_symbols(
+            &program.symbols,
+            &mut program.tables.declarations.child_type_references,
+            &scope.parameters,
+            scope.trait_definition,
+            scope.arguments,
+            &propositions,
+            &machines,
+        );
+    }
+    Ok(())
+}
+
 pub(in crate::symbols) fn assign_type_reference_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
 ) {
+    // Static operands resolve callable entries. A domain cleanup clause owns
+    // the independent machine application, not an arbitrary state inside it.
+    // Normalize only actual entry-state selections; non-entry states retain
+    // their identity so ordinary cleanup validation can reject them.
+    let cleanup_entries = program
+        .machines
+        .iter()
+        .filter_map(|machine| {
+            let entry = program.machine_state_handles(machine.states).first()?;
+            Some((program.machine_state(*entry).symbol, machine.symbol))
+        })
+        .collect::<Vec<_>>();
     let trait_proposition_slots = trait_parameter_slots(program, |parameter| {
         matches!(
             parameter.kind,
@@ -109,6 +257,29 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
             let type_parameters = data_type_parameters
                 .span_or_empty(data_definition.type_parameters)
                 .to_vec();
+            let declaration_symbol = data_definition.symbol;
+            if let Some(selection) = &mut data_definition.cleanup_selection {
+                assign_cleanup_operand_types(
+                    symbols,
+                    child_type_references,
+                    type_constraints,
+                    &type_parameters,
+                    selection,
+                );
+                crate::symbols::targets::assign_static_argument_symbols(
+                    symbols,
+                    declaration_symbol,
+                    &type_parameters,
+                    selection,
+                    false,
+                );
+                if let Some((_, machine)) = cleanup_entries
+                    .iter()
+                    .find(|(entry, _)| *entry == selection.symbol)
+                {
+                    selection.symbol = *machine;
+                }
+            }
             assign_type_parameter_constraint_symbols(
                 symbols,
                 child_type_references,
@@ -253,6 +424,28 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
         let type_parameters = data_type_parameters
             .span_or_empty(domain.type_parameters)
             .to_vec();
+        if let Some(selection) = &mut domain.cleanup_selection {
+            assign_cleanup_operand_types(
+                symbols,
+                child_type_references,
+                type_constraints,
+                &type_parameters,
+                selection,
+            );
+            crate::symbols::targets::assign_static_argument_symbols(
+                symbols,
+                domain.symbol,
+                &type_parameters,
+                selection,
+                false,
+            );
+            if let Some((_, machine)) = cleanup_entries
+                .iter()
+                .find(|(entry, _)| *entry == selection.symbol)
+            {
+                selection.symbol = *machine;
+            }
+        }
         assign_type_parameter_constraint_symbols(
             symbols,
             child_type_references,
@@ -512,10 +705,6 @@ pub(in crate::symbols) fn assign_machine_declaration_identity_argument_symbols(
             .iter()
             .find(|parameter| {
                 parameter.name.as_str() == name.as_str()
-                    && matches!(
-                        parameter.kind,
-                        symbol_resolved_trees::data::TypeParameterKind::Machine { .. }
-                    )
             })
             .map(|parameter| parameter.symbol)
             .unwrap_or_else(SymbolHandle::invalid);
@@ -567,10 +756,6 @@ pub(in crate::symbols) fn assign_proposition_family_argument_symbols(
             .iter()
             .find(|parameter| {
                 parameter.name.as_str() == name.as_str()
-                    && matches!(
-                        parameter.kind,
-                        symbol_resolved_trees::data::TypeParameterKind::Proposition { .. }
-                    )
             })
             .map(|parameter| parameter.symbol)
             .unwrap_or_else(SymbolHandle::invalid);
@@ -841,4 +1026,32 @@ fn resolve_type_symbol(
         .find(|parameter| parameter.name.as_str() == name.as_str())
         .map(|parameter| parameter.symbol)
         .unwrap_or_else(|| top_level_type_symbol_for_source(symbols, name))
+}
+
+/// Structural operands introduced by generic data substitution retain type
+/// handles instead of declaration paths. Resolve their entire type graph in
+/// the selecting declaration's telescope before static argument selection.
+fn assign_cleanup_operand_types(
+    symbols: &SymbolTable,
+    types: &mut Arena<symbol_resolved_trees::types::TypeReference>,
+    constraints: &Arena<symbol_resolved_trees::types::TypeConstraint>,
+    parameters: &[symbol_resolved_trees::data::TypeParameter],
+    argument: &mut symbol_resolved_trees::expression::StaticMachineArgument,
+) {
+    if argument.type_reference.is_valid() {
+        let mut reference = std::mem::take(types.get_mut(argument.type_reference));
+        assign_type_reference_symbol_with_locals_and_constraints(
+            symbols,
+            types,
+            constraints,
+            parameters,
+            &mut reference,
+        );
+        *types.get_mut(argument.type_reference) = reference;
+    }
+    if let Some(application) = &mut argument.application {
+        for nested in &mut application.arguments {
+            assign_cleanup_operand_types(symbols, types, constraints, parameters, nested);
+        }
+    }
 }

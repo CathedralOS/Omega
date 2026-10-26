@@ -91,6 +91,7 @@ pub(crate) fn lower(
             },
         });
     }
+    let target_requirement = graph.target_requirement;
     let source_primitives = declarations
         .assembly_expressions
         .span_or_empty(graph.primitives)
@@ -137,6 +138,7 @@ pub(crate) fn lower(
     let statement_count = u32::try_from(body.len())
         .map_err(|_| Diagnostic::error("assembly statement window exceeds u32"))?;
     let graph = table.insert_assembly(AssemblyControlFlow {
+        target_requirement,
         blocks,
         statement_count,
         scratch,

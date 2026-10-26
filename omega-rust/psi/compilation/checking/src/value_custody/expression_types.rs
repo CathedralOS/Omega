@@ -62,7 +62,9 @@ mod shape_validation;
 mod value_classification;
 
 // Shared vocabulary: result types, delivered types and reference type matching.
+mod call_carriers;
 mod delivered_types;
+pub(crate) use call_carriers::argument_matches_call_carrier;
 mod reference_values;
 mod result_type;
 mod scalar_observations;
@@ -173,52 +175,6 @@ pub(crate) fn argument_matches_carrier(
         type_reference,
         required_substitutions,
     );
-    // The opaque service shell does not erase its requirement identity. Normal
-    // generic carrier matching may defer an open data argument, but a Binding
-    // value must carry the same closed requirement identity.
-    // This only compares denotation: borrowing and establishment remain with
-    // their independent source custody checks.
-    let required_service = match typed_trees::service::classify_exact_service_parameter_carrier(
-        program,
-        typed_trees::service::ServiceCarrierOccurrence {
-            type_reference,
-            lexical_owner: scope,
-            enclosing_data_applications: &[],
-        },
-    ) {
-        Ok(service) => service,
-        Err(_) => return false,
-    };
-    if let Some(required) = required_service {
-        let source = program
-            .expression_table
-            .borrow_expression(argument)
-            .map_or(argument, |borrow| borrow.target);
-        let mut substitutions = Vec::new();
-        let Some(actual) =
-            reference_values::declared_value_type(program, source, &mut substitutions)
-                .and_then(|reference| {
-                    reference_values::substituted_reference(program, reference, &substitutions)
-                })
-                .and_then(|reference| {
-                    typed_trees::service::classify_exact_service_parameter_carrier(
-                        program,
-                        typed_trees::service::ServiceCarrierOccurrence {
-                            type_reference: reference,
-                            lexical_owner: scope,
-                            enclosing_data_applications: &[],
-                        },
-                    )
-                    .ok()
-                    .flatten()
-                })
-        else {
-            return false;
-        };
-        if actual.carrier != required.carrier {
-            return false;
-        }
-    }
     // A call may attenuate an explicit mutable borrow to shared access. The
     // referent still passes through ordinary carrier matching; the caller
     // separately proves required domains and validates loan exclusivity.
@@ -462,17 +418,33 @@ fn argument_matches_type_reference_using(
     // the machine making the call is rigid there and equal only to itself,
     // and applied data arguments are part of the type; the formal has
     // already taken the call's simultaneous application.
-    if let Some(actual) = delivered_types::delivered_value_type(program, argument)
-        && delivered_types::delivered_carrier_conflict(
+    if let Some(actual) = delivered_types::delivered_value_type(program, argument) {
+        if delivered_types::delivered_carrier_conflict(
             program,
             scope,
             actual.reference,
             &actual.substitutions,
             type_reference,
             required_substitutions,
-        )
-    {
-        return false;
+        ) {
+            return false;
+        }
+        // A producer's complete type establishes correspondence independently
+        // of the expression's arrangement. In particular an atomic observation
+        // delivers its resident value, not the dedicated cell or its receiver.
+        let delivered_identity = program.type_identity(TypeIdentityRequest {
+            substitutions: &actual.substitutions,
+            ..TypeIdentityRequest::ordinary(actual.reference)
+        });
+        if delivered_identity.is_valid()
+            && delivered_identity
+                == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+                    substitutions: required_substitutions,
+                    ..TypeIdentityRequest::ordinary(type_reference)
+                })
+        {
+            return true;
+        }
     }
 
     let argument_node = program.expression_table.expression(argument);

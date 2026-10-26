@@ -455,7 +455,7 @@ fn machine_transitions(machine: &terminal_psi::TerminalMachine) -> Vec<MachineId
         );
     }
     if let Some(application) = &machine.closed_reach_application {
-        for parameter in &application.telescope {
+        for parameter in application.parameters() {
             if let terminal_psi::ClosedReachParameter::Machine(binding) = parameter
                 && let Some(callee) = binding.callee
             {

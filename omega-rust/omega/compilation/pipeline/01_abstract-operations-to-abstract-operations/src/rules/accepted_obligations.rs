@@ -30,17 +30,15 @@ pub(super) fn accepted_obligation_fact(
             obligation: None,
         });
     };
-    unit.accepted_obligation_facts
-        .iter()
-        .find(|fact| {
-            fact.machine == machine
-                && fact.owner == optimization_unit::PsiProvenance::Operation(operation)
-                && fact.obligation == obligation
-        })
-        .map(|fact| fact.identity)
-        .ok_or(RuleProposalError::MissingAcceptedObligation {
-            machine,
-            operation,
-            obligation: Some(obligation),
-        })
+    unit.accepted_obligation_fact(
+        machine,
+        optimization_unit::PsiProvenance::Operation(operation),
+        Some(obligation),
+    )
+    .map(|fact| fact.identity)
+    .ok_or(RuleProposalError::MissingAcceptedObligation {
+        machine,
+        operation,
+        obligation: Some(obligation),
+    })
 }

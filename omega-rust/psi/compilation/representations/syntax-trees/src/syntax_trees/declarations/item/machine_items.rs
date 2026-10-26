@@ -92,9 +92,12 @@ pub struct Machine {
     pub admitted_same_stack_bytes: u64,
     pub contracts: HandleSpan<CapabilityContract>,
     pub states: HandleSpan<StateHandle>,
+    /// Trailing lexical declarations, retaining complete ordinary machine heads.
+    /// Children are item-arena handles, not executable members of the entry.
+    pub nested_machines: HandleSpan<Item>,
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
 pub struct State {
     pub name: Identifier,
     pub parameters: HandleSpan<StateParameterHandle>,
@@ -147,7 +150,7 @@ pub struct TraitRefinementClause {
     pub signature: StateSignature,
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
 pub struct StateSignature {
     pub name: Identifier,
     /// Fixed token owned by this trait requirement, when any. Implementing

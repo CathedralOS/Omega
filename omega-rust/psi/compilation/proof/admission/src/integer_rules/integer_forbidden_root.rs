@@ -513,19 +513,7 @@ fn selected_signature_bounds(
     })
 }
 
-fn checked_axiom<'a>(
-    context: &PropositionContext,
-    semantic_axioms: &'a [Proposition],
-    index: usize,
-) -> Result<&'a Proposition, IntegerCorrelatedForbiddenRootWitnessError> {
-    let proposition = semantic_axioms
-        .get(index)
-        .ok_or(IntegerCorrelatedForbiddenRootWitnessError::UnknownSemanticAxiom(index))?;
-    context
-        .validate(proposition)
-        .map_err(IntegerCorrelatedForbiddenRootWitnessError::MalformedProposition)?;
-    Ok(proposition)
-}
+crate::checked_axiom!(IntegerCorrelatedForbiddenRootWitnessError);
 
 fn signed_literal(term: &ScalarTerm, integer_type: IntegerType) -> Option<i128> {
     match term.integer_value()? {

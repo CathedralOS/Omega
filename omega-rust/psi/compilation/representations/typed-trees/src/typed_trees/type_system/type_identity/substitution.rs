@@ -110,7 +110,7 @@ pub(super) fn index_argument(
                 return index_name(program, argument.symbol, spelling.as_str(), context);
             }
             if let Some(identity) =
-                super::identity_context::static_type_argument_identity(program, argument, context)
+                super::identity_context::static_nominal_argument_identity(program, argument, context)
             {
                 return identity;
             }

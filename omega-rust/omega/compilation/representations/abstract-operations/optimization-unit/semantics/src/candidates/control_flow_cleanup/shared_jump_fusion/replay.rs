@@ -1,5 +1,8 @@
 //! Independent shared terminal-jump fusion replay mechanics.
 use crate::candidates::accept_region_rewrite;
+use crate::candidates::control_flow_cleanup::{
+    checked_scalar_substitutions, patched_jump_bindings, require_scalar_bindings,
+};
 use crate::candidates::rewrite_accounting::adjacent_merge::reconstruct_adjacent_merge_ownership_is_identity;
 use crate::candidates::rewrite_accounting::rewrite_scalar_substitutions;
 use crate::candidates::rewrite_accounting::terminal_fusion::reconstruct_shared_terminal_fusion_accounting;
@@ -7,10 +10,9 @@ use crate::unit_validation::derived_metadata::{
     expected_definitions, expected_edges, expected_ownership, expected_uses,
 };
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
-use abstract_operations::AbstractOperation as O;
 use optimization_unit::{
     PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, PsiRewriteCandidate,
-    PsiRewritePatch, ScalarSubstitution,
+    PsiRewritePatch,
 };
 use semantic_vocabulary::BlockId;
 use std::collections::{BTreeMap, BTreeSet};
@@ -28,14 +30,7 @@ pub(super) fn validate(
     let function = input
         .function(patch.predecessor.machine)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    // These rewrites substitute scalar bindings only.
-    if function
-        .blocks
-        .iter()
-        .any(|block| !block.structural_parameters.is_empty())
-    {
-        return Err(OptimizationUnitValidationError::CandidateIncomingBindingMismatch);
-    }
+    require_scalar_bindings(function)?;
 
     let predecessor = function
         .block(patch.predecessor.block)
@@ -46,22 +41,7 @@ pub(super) fn validate(
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
     let predecessor_node = crate::candidates::candidate_node(predecessor, patch.predecessor.node)?;
-    let O::Jump {
-        structural_bindings: _,
-        psi_edge,
-        target: jump_target,
-        bindings,
-        cleanup_actions,
-    } = &predecessor_node.operation
-    else {
-        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
-    };
-    if !cleanup_actions.is_empty()
-        || *psi_edge != patch.incoming_edge
-        || *jump_target != patch.target
-    {
-        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
-    }
+    let bindings = patched_jump_bindings(predecessor_node, patch.incoming_edge, patch.target)?;
     let target = function
         .block(patch.target)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
@@ -96,27 +76,9 @@ pub(super) fn validate(
     if !independently_post_dominates(function, patch.predecessor.block, patch.target) {
         return Err(OptimizationUnitValidationError::CandidateReachabilityMismatch);
     }
-    if target.parameters.len() != bindings.len() {
-        return Err(OptimizationUnitValidationError::CandidateIncomingBindingMismatch);
-    }
-    let mut substitutions = target
-        .parameters
-        .iter()
-        .zip(bindings)
-        .map(|(parameter, binding)| {
-            (binding.parameter == parameter.value && binding.scalar_type == parameter.scalar_type)
-                .then_some(ScalarSubstitution {
-                    from: parameter.value,
-                    to: binding.argument,
-                    scalar_type: parameter.scalar_type,
-                })
-        })
-        .collect::<Option<Vec<_>>>()
-        .ok_or(OptimizationUnitValidationError::CandidateIncomingBindingMismatch)?;
-    substitutions.sort();
-    if candidate.substitutions() != substitutions {
-        return Err(OptimizationUnitValidationError::CandidateSubstitutionMismatch);
-    }
+    // The fused jump admits every binding that names its parameter's value.
+    let substitutions =
+        checked_scalar_substitutions(candidate, &target.parameters, bindings, |_, _| true)?;
     if !reconstruct_adjacent_merge_ownership_is_identity(
         input,
         function,

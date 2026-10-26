@@ -35,25 +35,18 @@ impl OptimizationWorkUsage {
     }
 
     pub fn decode(encoded: &[u8]) -> Result<Self, OptimizationManifestDecodeError> {
-        if encoded.len() != 40 {
+        let Some(fields) = crate::optimization_core::decode_work_counters(encoded) else {
             return Err(OptimizationManifestDecodeError::WrongLength {
                 expected: 40,
                 actual: encoded.len(),
             });
-        }
-        let value = |index: usize| {
-            u64::from_le_bytes(
-                encoded[index * 8..index * 8 + 8]
-                    .try_into()
-                    .expect("checked work-usage width"),
-            )
         };
         Ok(Self {
-            rule_evaluations: value(0),
-            candidates: value(1),
-            validation_steps: value(2),
-            commits: value(3),
-            iterations: value(4),
+            rule_evaluations: fields[0],
+            candidates: fields[1],
+            validation_steps: fields[2],
+            commits: fields[3],
+            iterations: fields[4],
         })
     }
 }

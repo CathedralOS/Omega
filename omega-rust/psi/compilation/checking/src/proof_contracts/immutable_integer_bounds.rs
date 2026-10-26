@@ -382,7 +382,7 @@ fn bound_leaf_initializer(
     let LocalLookup::Found(local) = local_by_symbol(lookup, symbol) else {
         return None;
     };
-    if local.is_mutable || !local.initial_value.is_valid() {
+    if local.is_mutable || local.ordinary_value_initializer().is_none() {
         return None;
     }
     let binary = program.expression_table.binary_node(local.initial_value)?;
@@ -730,6 +730,9 @@ fn normalize_local(
     }
     if local.is_mutable {
         return Some(NormalizedBound::MutableValue);
+    }
+    if !local.role.has_ordinary_initializer() {
+        return Some(NormalizedBound::LocalValue(local.symbol));
     }
     seen_aliases.push(local.symbol);
     let normalized = match program.expression_table.expression(local.initial_value) {

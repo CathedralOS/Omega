@@ -105,20 +105,18 @@ pub(crate) fn normalize_closed_conformance_blocks(
         })
         .collect::<Vec<_>>();
     let mut ordinals = Vec::with_capacity(program.machines.len());
-    let mut retained_machines = Vec::with_capacity(program.machines.len());
+    let mut retained_count = 0;
+    program.machines.retain(|machine| {
+        let retain = !synthesized_default_candidates.contains(&machine.symbol)
+            || selected_realizations.contains(&machine.symbol);
+        ordinals.push(retain.then_some(retained_count));
+        retained_count += usize::from(retain);
+        retain
+    });
     for machine in program.machines.iter() {
-        if !synthesized_default_candidates.contains(&machine.symbol)
-            || selected_realizations.contains(&machine.symbol)
-        {
-            ordinals.push(Some(retained_machines.len()));
-            retained_machines.push(machine.clone());
-        } else {
-            ordinals.push(None);
+        if machine.lexical_parent.is_valid() && !program.machines.contains(machine.lexical_parent) {
+            return Err(Diagnostic::error("retained nested machine lost its enclosing declaration"));
         }
-    }
-    program.machines = Default::default();
-    for machine in retained_machines {
-        program.machines.push(machine);
     }
     Ok(ordinals)
 }

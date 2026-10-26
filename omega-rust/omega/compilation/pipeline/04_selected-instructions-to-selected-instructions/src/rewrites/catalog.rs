@@ -58,13 +58,10 @@ impl SelectedStageRuleCatalogSlice {
         Self { phase, rows }
     }
 
-    pub const fn phase(&self) -> OptimizationExecutionPhase {
-        self.phase
-    }
-
-    pub const fn rows(&self) -> SelectedStageRuleRows {
-        self.rows
-    }
+    receipt_accessor_rows!(ref SelectedStageRuleCatalogSlice {
+        phase: OptimizationExecutionPhase,
+        rows: SelectedStageRuleRows,
+    });
 }
 
 /// The stage's one ordered catalog, in dispatch order: selected-lowering

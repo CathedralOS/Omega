@@ -11,6 +11,14 @@ pub(super) fn slot(bytes: &mut Vec<u8>, slot: OutgoingArgumentSlotId) {
 fn local_slot(bytes: &mut Vec<u8>, slot: crate::LocalStorageSlotId) {
     slot.encode_identity(bytes);
 }
+pub(super) fn encode_local_storage_slot(
+    bytes: &mut Vec<u8>,
+    row: &crate::SelectedLocalStorageSlot,
+) {
+    local_slot(bytes, row.id);
+    crate::codec_bytes::push_encoded(bytes, row.byte_size.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, row.alignment.to_le_bytes());
+}
 pub(super) fn frame_slot(bytes: &mut Vec<u8>, slot: crate::FrameStorageSlotId) {
     match slot {
         crate::FrameStorageSlotId::Incoming {
@@ -269,10 +277,12 @@ pub(super) fn encode_static(bytes: &mut Vec<u8>, function: &SelectedFunction) {
 pub(super) fn encode_dynamic(bytes: &mut Vec<u8>, function: &SelectedFunction) {
     encode_len(bytes, function.local_storage_slots.len());
     for row in &function.local_storage_slots {
-        local_slot(bytes, row.id);
-        crate::codec_bytes::push_encoded(bytes, row.byte_size.to_le_bytes());
-        crate::codec_bytes::push_encoded(bytes, row.alignment.to_le_bytes());
+        encode_local_storage_slot(bytes, row);
     }
+    encode_boundary_settlements(bytes, function);
+}
+
+pub(super) fn encode_boundary_settlements(bytes: &mut Vec<u8>, function: &SelectedFunction) {
     encode_len(bytes, function.boundary_settlements.len());
     for row in &function.boundary_settlements {
         crate::codec_bytes::push_encoded(bytes, row.block.0.to_le_bytes());

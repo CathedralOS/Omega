@@ -1118,7 +1118,22 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             scheduled.push(pending.remove(index).1);
             continue;
         }
-        let releases = retirement.backing_releases()?;
+        let mut releases = retirement.backing_releases()?;
+        // A final store can establish a new named descriptor after the last
+        // ordinary statement boundary. Its RHS transferred into that home;
+        // retiring only result carriers would strand the receiving occurrence
+        // until after its backing's source-state death. Reuse the same exact
+        // formation groups and dependency checks at this selected completion.
+        for operation in operations
+            .iter()
+            .rev()
+            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+        {
+            releases.extend(super::reference_retirement::stores::releases(
+                &retirement,
+                operation,
+            )?);
+        }
         if releases.is_empty() {
             if !pending.is_empty() {
                 return None;

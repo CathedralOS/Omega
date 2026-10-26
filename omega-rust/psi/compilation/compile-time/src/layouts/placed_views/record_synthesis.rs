@@ -149,6 +149,7 @@ pub(super) fn synthesize_exact_records(
             let accessor_name = accessor_name(syntax, application, field, entry.access())?;
             let is_exported = access_is_exported(entry.access());
             syntax.push_root_item(Item::Data(DataDefinition {
+            cleanup_selection: None,
                 name: generated_identifier(accessor_name.clone(), provenance),
                 // A published shell must be well-formed even when one field's
                 // operations are binding-private. The opaque carrier itself
@@ -190,7 +191,10 @@ pub(super) fn synthesize_exact_records(
             let field_type = syntax
                 .tables
                 .type_references
-                .insert_named(Identifier::generated(accessor_name));
+                // The accessor reference must resolve in the same source-owned
+                // namespace as the declaration emitted above. A source-free
+                // reference loses that exact binding during symbol resolution.
+                .insert_named(generated_identifier(accessor_name, provenance));
             let field_type = projection_shape(syntax, field.type_reference, field_type);
             members.push(DataMember::Field(DataField {
                 identity: field.identity,
@@ -442,6 +446,7 @@ fn push_record(
         count += 1;
     }
     syntax.push_root_item(Item::Data(DataDefinition {
+            cleanup_selection: None,
         // The shell is compiler-owned rather than a declaration published by
         // either input package. Discovery has already retained the exact
         // policy/schema identities and enforced their visibility; field

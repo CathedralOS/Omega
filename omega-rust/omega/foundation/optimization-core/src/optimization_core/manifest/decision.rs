@@ -77,11 +77,7 @@ impl OptimizationDecisionRecord {
         encoded.extend_from_slice(&self.rule.bytes());
         encoded.extend_from_slice(&self.verdict.encode());
         encoded.extend_from_slice(&self.consumed_analyses.encode());
-        encoded.extend_from_slice(
-            &u32::try_from(self.consumed_facts.len())
-                .expect("consumed fact count fits u32")
-                .to_le_bytes(),
-        );
+        crate::codec_bytes::push_count_u32(&mut encoded, self.consumed_facts.len());
         for fact in &self.consumed_facts {
             encoded.extend_from_slice(&fact.encode());
         }
@@ -205,11 +201,7 @@ fn decision_identity(
     canonical.extend_from_slice(&rule.bytes());
     canonical.extend_from_slice(&verdict.encode());
     canonical.extend_from_slice(&consumed_analyses.encode());
-    canonical.extend_from_slice(
-        &u64::try_from(consumed_facts.len())
-            .expect("consumed fact count fits u64")
-            .to_le_bytes(),
-    );
+    crate::codec_bytes::push_count_u64(&mut canonical, consumed_facts.len());
     for fact in consumed_facts {
         canonical.extend_from_slice(&fact.encode());
     }

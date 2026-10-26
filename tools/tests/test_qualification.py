@@ -345,6 +345,25 @@ class QualificationTests(unittest.TestCase):
         self.assertGreaterEqual(record["runs"][0]["duration_seconds"], 0)
         qualification.validate(self.repository, self.state, incoming, incoming)
 
+    def test_remote_main_movement_keeps_fixed_source_review_and_receipt(self):
+        config = copy.deepcopy(self.config)
+        config["checks"][0].update(kind="review", final=True)
+        qualification.amend(self.state, 0, config, "required independent source review")
+        observed, accepted = self.run_check()
+        self.assertTrue(accepted)
+        receipt = observed["runs"][-1]["receipt"]
+        original = Path(receipt["path"]).read_bytes()
+        self.git("checkout", "-b", "unrelated-main")
+        incoming = self.commit("README.md", "other owner's source")
+        self.git("update-ref", "refs/remotes/origin/main", incoming)
+        self.git("checkout", "--detach", self.base)
+        record = self.assess()  # The recorded base, not the latest remote SHA.
+        self.assertEqual(record["assessments"][-1]["checks"][0]["action"], "reuse")
+        self.assertEqual(record["runs"][-1]["receipt"], receipt)
+        self.assertEqual(Path(receipt["path"]).read_bytes(), original)
+        self.assertEqual(len(record["runs"]), 1)
+        qualification.validate(self.repository, self.state, self.base, self.base)
+
     def test_affected_addition_and_deletion_invalidate_whole_dependency_tree(self):
         self.run_check()
         incoming = self.commit("src/added", "new behavior")

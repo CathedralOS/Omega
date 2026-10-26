@@ -9,7 +9,7 @@ mod const_item;
 mod data;
 mod domain;
 mod let_definition;
-mod machines;
+pub(crate) mod machines;
 mod measure;
 mod namespace;
 mod operator;

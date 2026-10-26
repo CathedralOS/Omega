@@ -42,8 +42,10 @@ pub enum Statement {
 
 /// One source assembly scope, retained until typed elaboration can close its
 /// captured value frontier. Local edges bind block handles, never names.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssemblyControlFlow {
+    /// The intersection of instruction and register-view catalog demands.
+    pub target_requirement: language_core::inline_assembly::AsmTargetApplicability,
     /// Catalog-generated arithmetic and ZF operations: their selected meaning
     /// must remain builtin, independently of authored token overloads.
     pub primitives: HandleSpan<crate::expression::ExpressionHandle>,
@@ -51,6 +53,17 @@ pub struct AssemblyControlFlow {
     pub scratch: [crate::expression::ExpressionHandle;
         language_core::inline_assembly::ASM_SCRATCH_SLOT_COUNT],
     pub blocks: HandleSpan<AssemblyBlock>,
+}
+impl Default for AssemblyControlFlow {
+    fn default() -> Self {
+        Self {
+            target_requirement: Default::default(),
+            primitives: Default::default(),
+            scratch: [crate::expression::ExpressionHandle::invalid();
+                language_core::inline_assembly::ASM_SCRATCH_SLOT_COUNT],
+            blocks: Default::default(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

@@ -46,6 +46,7 @@ pub(crate) fn validate_callable_state_signatures(
                 .machine_states(machine)
                 .iter()
                 .map(|state| StateSignatureView {
+                    symbol: state.symbol,
                     name: state.name.as_str(),
                     lifetime_parameters: &[],
                     parameters: program.state_parameters(state),
@@ -118,6 +119,7 @@ pub(crate) fn validate_callable_state_signatures(
             lifetime_parameters.extend_from_slice(&machine.lifetime_parameters);
             validate_state_signature_types(
                 std::iter::once(StateSignatureView {
+                    symbol: machine.symbol,
                     name: machine.name.as_str(),
                     lifetime_parameters: &machine.lifetime_parameters,
                     parameters: program.state_signature_parameters(machine),
@@ -193,6 +195,7 @@ fn validate_machine_state_result_agreement(
 
 #[derive(Debug, Clone, Copy)]
 struct StateSignatureView<'program> {
+    symbol: symbols::SymbolHandle,
     name: &'program str,
     lifetime_parameters: &'program [Identifier],
     parameters: &'program [StateParameter],
@@ -269,6 +272,7 @@ fn validate_machine_parameter_signatures<'program>(
         }
         validate_state_signature_types(
             std::iter::once(StateSignatureView {
+                symbol: contract.symbol,
                 name: contract.name.as_str(),
                 lifetime_parameters: &contract.lifetime_parameters,
                 parameters: program.state_signature_parameters(contract),
@@ -320,29 +324,13 @@ fn validate_state_signature_types<'program>(
         validate_state_signature_contracts(program, signature, owner, diagnostics);
 
         for parameter in signature.parameters {
-            if matches!(owner, StateSignatureOwner::Machine(_))
-                && typed_trees::service::service_requirement_declaration(
-                    program,
-                    parameter.type_reference,
-                )
-                .is_some()
-                && (parameter.is_const
-                    || parameter.is_mutable
-                    || !type_parameter_scope.type_parameters.is_empty()
-                    || !signature.lifetime_parameters.is_empty())
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "{owner} state `{}` parameter `{}` uses the routed `Binding<R>` carrier outside the first immutable, nongeneric, lifetime-free owned-parameter rung",
-                    signature.name, parameter.name,
-                )));
-            }
-
             validate_type_reference_handle(
                 program,
                 parameter.type_reference,
                 symbols,
                 diagnostics,
                 TypeReferenceOwner::StateParameter {
+                    signature: signature.symbol,
                     owner,
                     state: signature.name,
                     parameter: parameter.name.as_str(),
@@ -362,6 +350,7 @@ fn validate_state_signature_types<'program>(
                 symbols,
                 diagnostics,
                 TypeReferenceOwner::StateReturn {
+                    signature: signature.symbol,
                     owner,
                     state: signature.name,
                     generic_depth: 0,
@@ -451,7 +440,7 @@ pub(crate) fn validate_machine_contracts(
             program.proof_facts.span_or_empty(contract.facts),
             diagnostics,
             ProofFactOwner::MachineContract {
-                machine: machine.name.as_str(),
+                machine,
                 kind: contract_kind_label(&contract.kind),
             },
         );

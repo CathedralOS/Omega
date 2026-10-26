@@ -53,37 +53,17 @@ pub struct RecoveryClassificationValidationReceipt {
     pub(crate) fuel_schedule: FuelScheduleIdentity,
     pub(crate) policy: RecoveryClassificationPolicy,
     pub(crate) usage: OptimizationWorkUsage,
-    pub(crate) function_count: usize,
-    pub(crate) classification_count: usize,
-    pub(crate) immediate_candidate_count: usize,
 }
 
 impl RecoveryClassificationValidationReceipt {
-    pub const fn identity(self) -> RecoveryClassificationIdentity {
-        self.identity
-    }
-    pub const fn selected(self) -> SelectedInstructionPlanIdentity {
-        self.selected
-    }
-    pub const fn spill_choices(self) -> SpillChoiceIdentity {
-        self.spill_choices
-    }
+    receipt_accessor_rows!(RecoveryClassificationValidationReceipt {
+        identity: RecoveryClassificationIdentity,
+        selected: SelectedInstructionPlanIdentity,
+        spill_choices: SpillChoiceIdentity,
+        policy: RecoveryClassificationPolicy,
+        usage: OptimizationWorkUsage,
+    });
     shared_analysis_identity_accessors!(pub);
-    pub const fn policy(self) -> RecoveryClassificationPolicy {
-        self.policy
-    }
-    pub const fn usage(self) -> OptimizationWorkUsage {
-        self.usage
-    }
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-    pub const fn classification_count(self) -> usize {
-        self.classification_count
-    }
-    pub const fn immediate_candidate_count(self) -> usize {
-        self.immediate_candidate_count
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -96,9 +76,9 @@ impl ValidatedRecoveryClassifications {
     pub const fn plan(&self) -> &RecoveryClassificationPlan {
         &self.plan
     }
-    pub const fn receipt(&self) -> RecoveryClassificationValidationReceipt {
-        self.receipt
-    }
+    receipt_accessor_rows!(ref ValidatedRecoveryClassifications {
+        receipt: RecoveryClassificationValidationReceipt,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

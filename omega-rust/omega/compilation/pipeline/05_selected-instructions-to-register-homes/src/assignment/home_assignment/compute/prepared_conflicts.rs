@@ -4,6 +4,7 @@ use register_model::{RegisterView, RegisterViewId, ValidatedPhysicalRegisterMode
 use selected_instructions::{FunctionLiveRanges, VirtualRegisterId};
 
 use super::domain::AllocationDomain;
+use super::prepared_affinities::PreparedAffinities;
 use crate::RegisterHomeError;
 
 #[derive(Clone, Copy, Default)]
@@ -33,7 +34,11 @@ pub(super) struct PreparedConflicts {
     entries: Vec<(u32, DomainPair)>,
     view_count: usize,
     physical_counts: Vec<u16>,
+    max_any_physical_conflicts: usize,
+    uniform_physical_conflicts: bool,
     physical_matrix: Vec<u8>,
+    conflict_masks: Vec<[u64; 8]>,
+    neighbor_has_affinity_bits: Vec<u64>,
 }
 
 const MASK_INTERFERES: u8 = 1;
@@ -64,6 +69,7 @@ impl PreparedConflicts {
         domain_of: &[u32],
         ranges: &FunctionLiveRanges,
         physical: &ValidatedPhysicalRegisterModel,
+        affinities: &PreparedAffinities,
     ) -> Result<Self, RegisterHomeError> {
         let lookup = |id: VirtualRegisterId| -> Option<usize> {
             domain_of
@@ -103,7 +109,26 @@ impl PreparedConflicts {
         // The live-range representation already stores these relationships sparsely.
         // Record each authored fact once on both of its domains instead of rescanning
         // every fact and every domain member for every ordered domain pair.
+        let mut neighbors_strictly_sorted = ranges.early_clobbers.is_empty()
+            && domains
+                .iter()
+                .all(|d| d.extra_members.is_empty())
+            && domains
+                .windows(2)
+                .all(|w| w[0].leader() < w[1].leader());
+        let mut prev_pair = (VirtualRegisterId(0), VirtualRegisterId(0));
+        let mut first_pair = true;
         for interference in &ranges.interference {
+            if neighbors_strictly_sorted {
+                if interference.lower >= interference.higher
+                    || (!first_pair
+                        && (interference.lower, interference.higher) <= prev_pair)
+                {
+                    neighbors_strictly_sorted = false;
+                }
+                prev_pair = (interference.lower, interference.higher);
+                first_pair = false;
+            }
             let (Some(left), Some(right)) = (
                 lookup(interference.lower),
                 lookup(interference.higher),
@@ -152,67 +177,181 @@ impl PreparedConflicts {
                 *uc += 1;
             }
         }
-        let mut write_pos = 0usize;
-        for domain in 0..domain_count {
-            let start = offsets[domain] as usize;
-            let end = cursors[domain] as usize;
-            offsets[domain] = write_pos as u32;
-            let row = &mut entries[start..end];
-            if row.len() > 1 {
-                if row.windows(2).any(|w| w[0].0 >= w[1].0) {
-                    row.sort_unstable_by_key(|&(other, _)| other);
+        if !neighbors_strictly_sorted {
+            let mut write_pos = 0usize;
+            let mut domain_offset = vec![u32::MAX; domain_count];
+            for domain in 0..domain_count {
+                let start = offsets[domain] as usize;
+                let end = cursors[domain] as usize;
+                offsets[domain] = write_pos as u32;
+                let len = end - start;
+                if len == 0 {
+                    continue;
                 }
-                let mut kept = 0usize;
-                for idx in 1..row.len() {
-                    if row[kept].0 == row[idx].0 {
-                        row[kept].1.interferes |= row[idx].1.interferes;
-                        row[kept].1.left_defines |= row[idx].1.left_defines;
-                        row[kept].1.right_defines |= row[idx].1.right_defines;
-                    } else {
-                        kept += 1;
-                        if kept != idx {
-                            row[kept] = row[idx];
+                if len == 1 {
+                    if write_pos != start {
+                        entries[write_pos] = entries[start];
+                    }
+                    write_pos += 1;
+                    continue;
+                }
+                let row = &mut entries[start..end];
+                if len <= 32 {
+                    if row.windows(2).any(|w| w[0].0 >= w[1].0) {
+                        row.sort_unstable_by_key(|&(other, _)| other);
+                    }
+                    let mut kept = 0usize;
+                    for idx in 1..len {
+                        if row[kept].0 == row[idx].0 {
+                            row[kept].1.interferes |= row[idx].1.interferes;
+                            row[kept].1.left_defines |= row[idx].1.left_defines;
+                            row[kept].1.right_defines |= row[idx].1.right_defines;
+                        } else {
+                            kept += 1;
+                            if kept != idx {
+                                row[kept] = row[idx];
+                            }
                         }
                     }
+                    let new_len = kept + 1;
+                    if write_pos != start {
+                        entries.copy_within(start..start + new_len, write_pos);
+                    }
+                    write_pos += new_len;
+                } else {
+                    let mut unique = 0usize;
+                    let mut monotonic = true;
+                    let mut prev = 0u32;
+                    for idx in 0..len {
+                        let (other, pair) = row[idx];
+                        let off = domain_offset[other as usize];
+                        if off == u32::MAX {
+                            domain_offset[other as usize] = unique as u32;
+                            if unique > 0 && other < prev {
+                                monotonic = false;
+                            }
+                            prev = other;
+                            row[unique] = (other, pair);
+                            unique += 1;
+                        } else {
+                            let existing = &mut row[off as usize].1;
+                            existing.interferes |= pair.interferes;
+                            existing.left_defines |= pair.left_defines;
+                            existing.right_defines |= pair.right_defines;
+                        }
+                    }
+                    for idx in 0..unique {
+                        domain_offset[row[idx].0 as usize] = u32::MAX;
+                    }
+                    if !monotonic {
+                        row[..unique].sort_unstable_by_key(|&(other, _)| other);
+                    }
+                    if write_pos != start {
+                        entries.copy_within(start..start + unique, write_pos);
+                    }
+                    write_pos += unique;
                 }
-                let new_len = kept + 1;
-                if write_pos != start {
-                    entries.copy_within(start..start + new_len, write_pos);
-                }
-                write_pos += new_len;
-            } else if row.len() == 1 {
-                if write_pos != start {
-                    entries[write_pos] = entries[start];
-                }
-                write_pos += 1;
             }
+            offsets[domain_count] = write_pos as u32;
+            entries.truncate(write_pos);
         }
-        offsets[domain_count] = write_pos as u32;
-        entries.truncate(write_pos);
         // This is the original placement preflight order. Every later candidate
         // comes from these domains (or a subset), so neither class lookup nor
         // typed view admission belongs inside a candidate/neighbor loop.
         let model = physical.model();
         let view_count = model.views.len();
         let mut used_views = vec![false; view_count];
-        for domain in domains {
-            for candidate in &domain.candidates {
-                let view = model
-                    .views
-                    .get(usize::from(candidate.0))
-                    .filter(|view| view.class == domain.members[0].class)
-                    .ok_or(RegisterHomeError::UnknownOrIncompatibleView {
-                        function,
-                        register: domain.members[0].virtual_register.0,
-                        view: candidate.0,
-                    })?;
-                used_views[usize::from(view.id.0)] = true;
+        let dense_view_ids = view_count <= 64
+            && model
+                .views
+                .iter()
+                .enumerate()
+                .all(|(idx, view)| usize::from(view.id.0) == idx);
+        if dense_view_ids {
+            let max_class = model
+                .views
+                .iter()
+                .map(|v| usize::from(v.class.0))
+                .max()
+                .unwrap_or(0);
+            let mut class_masks = vec![0u64; max_class + 1];
+            for (idx, view) in model.views.iter().enumerate() {
+                class_masks[usize::from(view.class.0)] |= 1u64 << idx;
+            }
+            let mut used_views_mask = 0u64;
+            for domain in domains {
+                let class_idx = usize::from(domain.leader_member.class.0);
+                let valid_mask = class_masks.get(class_idx).copied().unwrap_or(0);
+                if domain.candidates.is_empty() {
+                    let invalid = domain.candidates_mask & !valid_mask;
+                    if invalid != 0 {
+                        return Err(RegisterHomeError::UnknownOrIncompatibleView {
+                            function,
+                            register: domain.leader_member.virtual_register.0,
+                            view: invalid.trailing_zeros() as u16,
+                        });
+                    }
+                    used_views_mask |= domain.candidates_mask;
+                } else {
+                    for candidate in &domain.candidates {
+                        let bit = usize::from(candidate.0);
+                        if bit >= 64 || (valid_mask & (1u64 << bit)) == 0 {
+                            return Err(RegisterHomeError::UnknownOrIncompatibleView {
+                                function,
+                                register: domain.leader_member.virtual_register.0,
+                                view: candidate.0,
+                            });
+                        }
+                        used_views_mask |= 1u64 << bit;
+                    }
+                }
+            }
+            for (idx, slot) in used_views.iter_mut().enumerate() {
+                *slot = (used_views_mask & (1u64 << idx)) != 0;
+            }
+        } else {
+            for domain in domains {
+                if domain.candidates.is_empty() {
+                    let mut mask = domain.candidates_mask;
+                    while mask != 0 {
+                        let bit = mask.trailing_zeros() as u16;
+                        mask &= mask - 1;
+                        let view = model
+                            .views
+                            .get(usize::from(bit))
+                            .filter(|view| view.class == domain.leader_member.class)
+                            .ok_or(RegisterHomeError::UnknownOrIncompatibleView {
+                                function,
+                                register: domain.leader_member.virtual_register.0,
+                                view: bit,
+                            })?;
+                        used_views[usize::from(view.id.0)] = true;
+                    }
+                } else {
+                    for candidate in &domain.candidates {
+                        let view = model
+                            .views
+                            .get(usize::from(candidate.0))
+                            .filter(|view| view.class == domain.leader_member.class)
+                            .ok_or(RegisterHomeError::UnknownOrIncompatibleView {
+                                function,
+                                register: domain.leader_member.virtual_register.0,
+                                view: candidate.0,
+                            })?;
+                        used_views[usize::from(view.id.0)] = true;
+                    }
+                }
             }
         }
         // Hardware view relationships do not depend on virtual values. Store
         // a compact view_count x view_count byte matrix for O(1) conflict tests.
         let mut physical_counts = vec![0u16; view_count];
         let mut physical_matrix = vec![0u8; view_count * view_count];
+        let mut conflict_masks = if view_count <= 64 {
+            vec![[0u64; 8]; view_count]
+        } else {
+            Vec::new()
+        };
         for left in &model.views {
             let left_idx = usize::from(left.id.0);
             if !used_views[left_idx] {
@@ -234,17 +373,92 @@ impl PreparedConflicts {
                 if mask != 0 {
                     physical_matrix[row_base + right_idx] = mask;
                     count += 1;
+                    if view_count <= 64 {
+                        let bit = 1u64 << left_idx;
+                        let right_masks = &mut conflict_masks[right_idx];
+                        for pm in 1..8u8 {
+                            if (mask & pm) != 0 {
+                                right_masks[pm as usize] |= bit;
+                            }
+                        }
+                    }
                 }
             }
             physical_counts[left_idx] = count;
+        }
+        let mut max_any_physical_conflicts = 0usize;
+        let mut first_used_count = None::<usize>;
+        let mut uniform_physical_conflicts = true;
+        for (idx, &used) in used_views.iter().enumerate() {
+            if used {
+                let c = physical_counts[idx] as usize;
+                max_any_physical_conflicts = max_any_physical_conflicts.max(c);
+                if let Some(first) = first_used_count {
+                    if c != first {
+                        uniform_physical_conflicts = false;
+                    }
+                } else {
+                    first_used_count = Some(c);
+                }
+            }
+        }
+        let mut neighbor_has_affinity_bits = if affinities.is_empty() {
+            Vec::new()
+        } else {
+            vec![0u64; domain_count.div_ceil(64)]
+        };
+        if !affinities.is_empty() {
+            for domain in 0..domain_count {
+                if !affinities.get_domain_affinities(domain).is_empty() {
+                    let start = offsets[domain] as usize;
+                    let end = offsets[domain + 1] as usize;
+                    for &(neighbor, _) in &entries[start..end] {
+                        let n_idx = neighbor as usize;
+                        if n_idx != domain {
+                            neighbor_has_affinity_bits[n_idx >> 6] |= 1u64 << (n_idx & 63);
+                        }
+                    }
+                }
+            }
         }
         Ok(Self {
             offsets,
             entries,
             view_count,
             physical_counts,
+            max_any_physical_conflicts,
+            uniform_physical_conflicts,
             physical_matrix,
+            conflict_masks,
+            neighbor_has_affinity_bits,
         })
+    }
+
+    #[inline]
+    pub(super) fn uses_bitmasks(&self) -> bool {
+        !self.conflict_masks.is_empty()
+    }
+
+    #[inline]
+    pub(super) fn max_any_physical_conflicts(&self) -> usize {
+        self.max_any_physical_conflicts
+    }
+
+    #[inline]
+    pub(super) fn uniform_physical_conflicts(&self) -> bool {
+        self.uniform_physical_conflicts
+    }
+
+    #[inline]
+    pub(super) fn has_affinity_neighbor(&self, domain: usize) -> bool {
+        self.neighbor_has_affinity_bits
+            .get(domain >> 6)
+            .is_some_and(|&bits| (bits & (1u64 << (domain & 63))) != 0)
+    }
+
+    #[inline]
+    pub(super) fn conflict_mask(&self, pair: DomainPair, other_view: RegisterViewId) -> u64 {
+        self.conflict_masks[usize::from(other_view.0)][pair.to_mask() as usize]
     }
 
     #[inline]

@@ -43,7 +43,15 @@ fn selected_transition_premise<'program>(
     // inside the target expression, or on the continuation arm -- which holds
     // the guard's negation -- is not this edge.
     let selects_this_call = match &call_site {
-        validation::CallSite::TransitionNamed { .. } => true,
+        validation::CallSite::TransitionNamed { .. } => {
+            validation::transition_call_target(
+                program,
+                machine,
+                caller_state,
+                call_flow.statement_index,
+                call_flow.call_ordinal,
+            ) == Some(transition.target)
+        }
         validation::CallSite::Expression { expression, .. } => {
             matches!(
                 program.statement_table.transition_target(transition.target),
@@ -84,6 +92,42 @@ fn selected_transition_premise<'program>(
         }))
         .collect();
     Some((call_site, target_parameters, premises))
+}
+
+/// Bind the actual selected edge for a conditional proof goal. Its reads
+/// must survive the guard and every arm operand. Recovered subpredicates do
+/// not replace this guard: their truth is conditional on this exact selection.
+pub(in crate::checks::contracts) fn selected_guard_predicate(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    call_flow: &FlowCallFact,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<crate::facts::boolean_predicates::BoundPredicate> {
+    let (_, _, guards) =
+        selected_transition_premise(program, facts, state_flow, call_flow, call_frames)?;
+    let guard = *guards.first()?;
+    let (machine, _, _, _) = super::call_coordinates(program, state_flow, call_flow)?;
+    if !guard_preserves_values(machine, guard, call_frames)
+        || !super::super::guard_operands::premise_reads_survive_arm_operand_writes(
+            program,
+            facts,
+            state_flow,
+            call_flow,
+            guard,
+            call_frames,
+        )
+    {
+        return None;
+    }
+    crate::facts::boolean_predicates::bind_current_guard(
+        program,
+        &facts.operators,
+        state_flow.state_symbol,
+        call_flow.statement_index,
+        guard,
+        true,
+    )
 }
 
 /// Query one original Boolean conjunct through the same selected-arm and

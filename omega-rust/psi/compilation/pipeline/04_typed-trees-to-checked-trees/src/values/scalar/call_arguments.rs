@@ -283,12 +283,17 @@ pub(crate) fn nested_structural_call_return_type(
         // their roster and retains the exact call ordinal; they do not change
         // whether this result can be consumed as a structural operand.
         slot.return_type
-    } else if let Some((owner, target)) =
-        program.unique_machine_by_entry_state_symbol(call.target_symbol)
+    } else if let Some((owner, target)) = validation::find_machine_head(program, call.target_symbol)
     {
+        // Portable target-family calls may name the machine head rather than
+        // its entry-state symbol. This rejoins the common result signature,
+        // not any target body. Only an absent receiver on that exact head is
+        // unconditionally receiver-free; all other shapes retain the ordinary
+        // exact receiver judgment and downstream call/custody admission.
+        let receiver_free_head = call.target_symbol == owner.symbol && !call.receiver.is_valid();
         if !call.carries_only_positional_arguments()
             || !(owner.supplies_checked_body() || owner.has_bodyless_signature())
-            || !program.call_has_no_runtime_receiver(call, owner, target)
+            || !(receiver_free_head || program.call_has_no_runtime_receiver(call, owner, target))
         {
             return None;
         }

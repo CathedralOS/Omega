@@ -16,7 +16,7 @@ use crate::declarations::symbols::TopLevelSymbols;
 use crate::proof_contracts::arithmetic_domains::ValueEnvironment;
 use crate::value_custody::expression_types::declared_reference_access;
 use crate::value_custody::expression_types::{
-    argument_matches_carrier, expression_type_name_handle, report_cross_class_store,
+    argument_matches_call_carrier, expression_type_name_handle, report_cross_class_store,
     report_data_type_conflict,
 };
 use crate::value_custody::locals::WritableRoots;
@@ -807,7 +807,7 @@ fn validate_value_call_arguments(
         selected_float_operation_retains_argument_policy(program, callee_machine.symbol),
         &[],
         |argument, required| {
-            argument_matches_carrier(
+            crate::value_custody::expression_types::argument_matches_call_carrier(
                 program,
                 current_machine.symbol,
                 argument,
@@ -822,8 +822,9 @@ fn validate_value_call_arguments(
 mod topology;
 pub use topology::target_family_members;
 pub use topology::{
-    call_target_has_checked_body_contract, call_target_parameters, call_target_return_type,
-    call_target_state, call_target_symbol, call_target_type_parameters, find_machine,
+    CompletingTransfer, call_target_has_checked_body_contract, call_target_parameters,
+    call_target_return_type, call_target_state, call_target_symbol, call_target_type_parameters,
+    completing_call_transfer, completing_transition_invocation, completing_transition_transfer, find_machine,
     find_machine_by_entry_state, find_machine_head, find_state, find_state_for_exit,
     find_state_in_machine, find_state_on_machine, machine_state_by_symbols, machine_state_count,
     normal_completion_possible, terminal_callable_target,

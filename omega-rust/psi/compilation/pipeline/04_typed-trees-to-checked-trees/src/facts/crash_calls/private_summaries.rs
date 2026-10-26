@@ -512,6 +512,13 @@ fn machine_invocation_sites(
             {
                 continue;
             }
+            // A sealed fence is one total ordering event, not a bodyless
+            // machine dependency. Exact declaration identity supplies this
+            // classification; calls evaluating its ordering retain their own
+            // flow rows and therefore their ordinary crash obligations.
+            if crate::checks::atomic_fences::contract(program, call).is_some() {
+                continue;
+            }
             // Reserved byte observations are total primitive operations, not
             // machine dependencies. Their operand calls still have independent
             // flow rows and must retain their own crash summaries.

@@ -106,14 +106,12 @@ pub struct EquivalentCompareReceipt {
 }
 
 impl EquivalentCompareReceipt {
+    receipt_accessor_rows!(ref EquivalentCompareReceipt {
     /// The transformed function index that carried the removed compare.
-    pub const fn function_index(&self) -> usize {
-        self.function_index
-    }
+        function_index: usize,
     /// The removed equivalent compare instruction.
-    pub const fn compare(&self) -> SelectedInstructionId {
-        self.compare
-    }
+        compare: SelectedInstructionId,
+    });
     /// The durable transformation identity the post-allocation manifest
     /// ledger records: the receipt's exact fields under the
     /// equivalent-compare domain separator.

@@ -167,8 +167,14 @@ pub(super) fn available_target(
             return None;
         }
         let mut shapes = ShapeCollector::new(program);
-        let signature = free_structural_scalar_signature(program, &mut shapes, state, &[])
-            .map(|(structural, scalar)| (None, structural, scalar));
+        let signature = super::calls::free_structural_scalar_entry_signature_traced(
+            program,
+            &mut shapes,
+            state,
+            &[],
+            &super::control::LocalConstructionTrace::default(),
+        )
+        .map(|(structural, scalar)| (None, structural, scalar));
         let (attachment, structural, scalar) = signature?;
         if attachment != plan.attachment_type_identity
             || structural != entry.structural_parameters

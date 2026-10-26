@@ -49,17 +49,11 @@ pub struct ElfSharedComponentEmissionError {
     diagnostic: Diagnostic,
 }
 
-impl ElfSharedComponentEmissionError {
-    pub const fn diagnostic(&self) -> &Diagnostic {
-        &self.diagnostic
-    }
-    pub fn into_parts(self) -> (FinalImage, Vec<ElfComponentExport>, Diagnostic) {
-        (self.image, self.exports, self.diagnostic)
-    }
-}
-
-diagnostics::diagnostic_display!(ElfSharedComponentEmissionError);
-impl std::error::Error for ElfSharedComponentEmissionError {}
+image::rejection_carrier!(
+    ElfSharedComponentEmissionError;
+    image: FinalImage,
+    exports: Vec<ElfComponentExport>,
+);
 
 /// Emit a separately loadable component without borrowing process-entry
 /// authority or relabeling a dynamic executable. Failure retains both complete

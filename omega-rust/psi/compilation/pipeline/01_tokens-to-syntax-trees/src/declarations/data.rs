@@ -6,7 +6,7 @@ use crate::type_syntax::parse_type::{
     parse_type_reference_handle, parse_type_reference_handle_allowing_borrow,
 };
 use crate::type_syntax::properties::parse_property_brackets;
-use arena::{Handle, HandleSpan};
+use arena::HandleSpan;
 use std::collections::HashSet;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{
@@ -43,6 +43,8 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
         type_parameters,
         input,
     )?;
+    input = next;
+    let (cleanup_selection, next) = super::domain::parse_cleanup_selection(syntax_trees, input)?;
     input = next;
     // N6: a quotient is the bodyless data form
     // `data Real = CauchySeq % converges_together;`. The carrier remains a
@@ -101,6 +103,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
                 type_parameters,
                 generic_instance: None,
                 properties,
+                cleanup_selection,
                 quotient: Some(QuotientDefinition {
                     carrier,
                     relation,
@@ -146,6 +149,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
             type_parameters,
             generic_instance: None,
             properties,
+            cleanup_selection,
             quotient: None,
             where_facts,
             members,
@@ -188,6 +192,7 @@ pub(super) fn parse_boundary_data_definition<'tokens, 'source>(
         DataDefinition {
             name,
             is_public: false,
+            cleanup_selection: None,
             supply_mode: language_core::DataSupplyMode::BoundaryOpaque,
             lifetime_parameters,
             type_parameters,
@@ -211,22 +216,15 @@ fn parse_data_members<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, HandleSpan<DataMember>> {
-    let mut member_start = Handle::invalid();
-    let mut member_count = 0u32;
+    let mut members = crate::handle_spans::HandleSpanBuilder::new();
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         let (member, next) = parse_data_member(syntax_trees, input)?;
         input = next;
-        let handle = syntax_trees.items.append_data_member(member);
-        if member_count == 0 {
-            member_start = handle;
-        }
-        member_count = member_count
-            .checked_add(1)
-            .expect("data member span count overflow");
+        members.push(syntax_trees.items.append_data_member(member));
     }
 
-    let members = HandleSpan::from_parts_or_empty(member_start, member_count);
+    let members = members.finish();
     validate_data_identity_modes(syntax_trees.items.data_members(members), input)?;
     Ok((members, input))
 }
@@ -483,8 +481,7 @@ fn parse_case_payload_fields<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, (HandleSpan<DataField>, Vec<u64>)> {
     let mut input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
-    let mut payload_start = Handle::invalid();
-    let mut payload_count = 0u32;
+    let mut payload = crate::handle_spans::HandleSpanBuilder::new();
 
     let mut retired_identities = Vec::new();
     while !input.at_punctuation(PunctuationKind::RightParen) {
@@ -522,12 +519,7 @@ fn parse_case_payload_fields<'tokens, 'source>(
             relevance,
             type_reference,
         });
-        if payload_count == 0 {
-            payload_start = handle;
-        }
-        payload_count = payload_count
-            .checked_add(1)
-            .expect("case payload field span count overflow");
+        payload.push(handle);
 
         if input.at_punctuation(PunctuationKind::Comma) {
             input = input.take_punctuation(PunctuationKind::Comma, ",")?;
@@ -537,7 +529,7 @@ fn parse_case_payload_fields<'tokens, 'source>(
     }
 
     let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
-    let payload = HandleSpan::from_parts_or_empty(payload_start, payload_count);
+    let payload = payload.finish();
     let identities: Vec<Option<u64>> = syntax_trees
         .items
         .data_payload_fields(payload)

@@ -1,21 +1,19 @@
 //! The proof-certified exact integer-cast constant fold: the rule, and the
-//! traversal that joins a constant operand to its accepted cast obligation.
+//! classification that joins a constant operand to its accepted cast
+//! obligation.
 
 use abstract_operations::AbstractOperation as O;
 use optimization_core::{
-    AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass, ScalarConstantFactIdentity,
+    OptimizationRuleContract, OptimizationSafetyClass, ScalarConstantFactIdentity,
 };
-use optimization_unit::{
-    IntegerConstantRewrite, IntegerEvaluationWitness, PsiOptimizationUnit, PsiRealizationSite,
-    PsiRewriteCandidate,
-};
+use optimization_unit::{IntegerEvaluationWitness, PsiOptimizationUnit, PsiRewriteCandidate};
 use semantic_vocabulary::{MachineId, OperationId};
 
 use crate::rules::accepted_obligations::accepted_obligation_fact;
 use crate::rules::sparse_conditional_constant_propagation::{
-    constant_evaluation_contract, integer_constant, node_location,
+    constant_evaluation_contract, integer_constant,
 };
-use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
+use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 psi_rule_contract!(
     ExactIntegerCastConstantsRule,
@@ -31,64 +29,38 @@ fn propose(
     analyses: RuleAnalysisView<'_>,
     contract: OptimizationRuleContract,
 ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-    required_analysis!(analyses, AnalysisKind::ScalarConstants => Some(AnalysisProduct::ScalarConstants(constants)));
-    let mut candidates = Vec::new();
-    for function in &unit.functions {
-        for block in &function.blocks {
-            for (node_index, node) in block.nodes.iter().enumerate() {
-                let O::IntegerExactCast {
-                    psi_operation,
-                    result,
-                    source_type,
-                    target_type,
-                    operand,
-                    ..
-                } = node.operation
-                else {
-                    continue;
-                };
-                let Some((operand_value, operand_fact)) =
-                    integer_constant(constants, function.machine, operand)
-                else {
-                    continue;
-                };
-                let Some(constant) = source_type.exact_cast_value_to(target_type, operand_value)
-                else {
-                    continue;
-                };
-                let location = node_location(
-                    function.machine,
-                    block.id,
-                    u32::try_from(node_index).expect("optimization node indices are u32"),
-                );
-                candidates.push(
-                    PsiRewriteCandidate::new_integer_evaluation(
-                        unit.identity,
-                        contract,
-                        vec![block.id],
-                        Vec::new(),
-                        vec![realized_node_provenance!(location, node)],
-                        proof_certified_unary_witness(
-                            unit,
-                            function.machine,
-                            psi_operation,
-                            operand_fact,
-                        )?,
-                        -1,
-                        IntegerConstantRewrite {
-                            location,
-                            source_operation: psi_operation,
-                            result,
-                            scalar_type: target_type,
-                            constant,
-                        },
-                    )
-                    .map_err(RuleProposalError::InvalidCandidate)?,
-                );
-            }
-        }
-    }
-    Ok(candidates)
+    super::propose_integer_constant_folds(
+        unit,
+        analyses,
+        contract,
+        |unit, machine, node, constants| {
+            let O::IntegerExactCast {
+                psi_operation,
+                result,
+                source_type,
+                target_type,
+                operand,
+                ..
+            } = node.operation
+            else {
+                return Ok(None);
+            };
+            let Some((operand_value, operand_fact)) = integer_constant(constants, machine, operand)
+            else {
+                return Ok(None);
+            };
+            let Some(constant) = source_type.exact_cast_value_to(target_type, operand_value) else {
+                return Ok(None);
+            };
+            Ok(Some(super::IntegerConstantFold {
+                source_operation: psi_operation,
+                result,
+                scalar_type: target_type,
+                constant,
+                witness: proof_certified_unary_witness(unit, machine, psi_operation, operand_fact)?,
+            }))
+        },
+    )
 }
 
 fn proof_certified_unary_witness(

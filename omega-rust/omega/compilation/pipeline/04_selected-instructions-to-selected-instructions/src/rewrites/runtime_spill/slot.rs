@@ -149,16 +149,18 @@ impl Assignment {
     /// `private` for a position the use scan never admitted, which no caller
     /// reaches.
     pub(super) fn load_slot(&self, block: usize, index: usize) -> LocalStorageSlotId {
-        self.loads[block]
-            .instructions
-            .get(&index)
-            .copied()
+        self.loads
+            .get(block)
+            .and_then(|loads| loads.instructions.get(&index).copied())
             .unwrap_or(self.private)
     }
 
     /// The slot an end-of-block reload pair in `block` must name.
     pub(super) fn end_of_block_slot(&self, block: usize) -> LocalStorageSlotId {
-        self.loads[block].end_of_block.unwrap_or(self.private)
+        self.loads
+            .get(block)
+            .and_then(|loads| loads.end_of_block)
+            .unwrap_or(self.private)
     }
 }
 
@@ -246,39 +248,41 @@ pub(super) fn assign(
         }
     }
     if candidate_slots.is_empty() {
-        let mut loads: Vec<BlockLoads> = (0..block_count).map(|_| BlockLoads::default()).collect();
         let mut any_emitted_load = false;
-        for (block_index, block) in function.blocks.iter().enumerate() {
-            let positions = &uses[block_index];
-            if positions.end_of_block {
-                loads[block_index].end_of_block = Some(private);
-                any_emitted_load = true;
-            }
-            if positions.unpinned.is_empty()
-                && positions.pinned.is_empty()
-                && positions.dedicated.is_empty()
-            {
-                continue;
-            }
-            for &index in positions
-                .unpinned
-                .iter()
-                .chain(&positions.pinned)
-                .chain(&positions.dedicated)
-            {
-                if index < block.instructions.len() {
-                    loads[block_index].instructions.insert(index, private);
-                    if !any_emitted_load
+        if definitions.is_empty() {
+            for (block_index, block) in function.blocks.iter().enumerate() {
+                let positions = &uses[block_index];
+                if positions.end_of_block {
+                    any_emitted_load = true;
+                    break;
+                }
+                if positions.unpinned.is_empty()
+                    && positions.pinned.is_empty()
+                    && positions.dedicated.is_empty()
+                {
+                    continue;
+                }
+                for &index in positions
+                    .unpinned
+                    .iter()
+                    .chain(&positions.pinned)
+                    .chain(&positions.dedicated)
+                {
+                    if index < block.instructions.len()
                         && loads_before(uses, shared_reload, span_closes, block_index, index)
                     {
                         any_emitted_load = true;
+                        break;
                     }
+                }
+                if any_emitted_load {
+                    break;
                 }
             }
         }
         return Assignment {
             stores: vec![private; definitions.len()],
-            loads,
+            loads: Vec::new(),
             declares_private: !definitions.is_empty() || any_emitted_load,
             private,
         };
@@ -408,10 +412,11 @@ pub(super) fn assign(
         Some(first)
     }
     let mut parent: Vec<usize> = (0..definitions.len()).collect();
-    let mut window_of_position: std::collections::BTreeMap<(usize, usize), Option<usize>> =
-        std::collections::BTreeMap::new();
+    let mut window_of_position: Vec<(usize, usize, Option<usize>)> = Vec::new();
     let mut window_of_end: Vec<Option<usize>> = vec![None; block_count];
     let mut state = entries.scratch();
+    let mut sampled: Vec<usize> = Vec::new();
+    let mut event_positions: Vec<usize> = Vec::new();
     for (block_index, block) in function.blocks.iter().enumerate() {
         let positions = &uses[block_index];
         if positions.unpinned.is_empty()
@@ -421,28 +426,34 @@ pub(super) fn assign(
         {
             continue;
         }
-        let sampled = positions
-            .unpinned
-            .iter()
-            .chain(&positions.pinned)
-            .chain(&positions.dedicated)
-            .copied()
-            .collect::<std::collections::BTreeSet<usize>>();
+        sampled.clear();
+        sampled.extend(
+            positions
+                .unpinned
+                .iter()
+                .chain(&positions.pinned)
+                .chain(&positions.dedicated)
+                .copied(),
+        );
+        sampled.sort_unstable();
+        sampled.dedup();
         entries.copy_into(block_index, &mut state);
         for &definition in &boundary[block_index] {
             reaching::replace(&mut state, definition);
         }
-        let mut event_positions: Vec<_> = sampled
-            .iter()
-            .chain(anchored[block_index].keys())
-            .copied()
-            .filter(|index| *index < block.instructions.len())
-            .collect();
+        event_positions.clear();
+        event_positions.extend(
+            sampled
+                .iter()
+                .chain(anchored[block_index].keys())
+                .copied()
+                .filter(|index| *index < block.instructions.len()),
+        );
         event_positions.sort_unstable();
         event_positions.dedup();
-        for index in event_positions {
-            if sampled.contains(&index) {
-                window_of_position.insert((block_index, index), merge(&mut parent, &state));
+        for &index in &event_positions {
+            if sampled.binary_search(&index).is_ok() {
+                window_of_position.push((block_index, index, merge(&mut parent, &state)));
             }
             if let Some(definitions_here) = anchored[block_index].get(&index) {
                 for &definition in definitions_here {
@@ -456,7 +467,7 @@ pub(super) fn assign(
     }
     // Resolve the merged root for every recorded position after unioning —
     // the first member's root at visit time is not necessarily the window's.
-    for mapped in window_of_position.values_mut() {
+    for (_, _, mapped) in &mut window_of_position {
         *mapped = mapped.map(|definition| find(&mut parent, definition));
     }
     for mapped in &mut window_of_end {
@@ -466,14 +477,17 @@ pub(super) fn assign(
     // bind identically; the store-free pseudo-window (empty reaching sets)
     // sorts last.
     let mut windows: Vec<std::collections::BTreeSet<usize>> = Vec::new();
-    let mut window_index: std::collections::BTreeMap<usize, usize> =
-        std::collections::BTreeMap::new();
+    let mut window_index: Vec<usize> = vec![usize::MAX; definitions.len()];
     for definition in 0..definitions.len() {
         let root = find(&mut parent, definition);
-        let window = *window_index.entry(root).or_insert_with(|| {
+        let window = if window_index[root] != usize::MAX {
+            window_index[root]
+        } else {
             windows.push(std::collections::BTreeSet::new());
-            windows.len() - 1
-        });
+            let w = windows.len() - 1;
+            window_index[root] = w;
+            w
+        };
         windows[window].insert(definition);
     }
     let windowless = windows.len();
@@ -491,9 +505,10 @@ pub(super) fn assign(
         // This window's emitted load positions.
         let mut load_marks: Vec<Vec<usize>> = vec![Vec::new(); block_count];
         let mut end_marks = vec![false; block_count];
-        for (&(block_index, index), &mapped) in &window_of_position {
+        for &(block_index, index, mapped) in &window_of_position {
             let member = mapped
-                .map(|root| *window_index.get(&root).unwrap_or(&windowless))
+                .and_then(|root| window_index.get(root).copied())
+                .filter(|&w| w != usize::MAX)
                 .unwrap_or(windowless);
             if member == window && emitted[block_index].binary_search(&index).is_ok() {
                 load_marks[block_index].push(index);
@@ -510,7 +525,8 @@ pub(super) fn assign(
                 continue;
             }
             let member = mapped
-                .map(|root| *window_index.get(&root).unwrap_or(&windowless))
+                .and_then(|root| window_index.get(root).copied())
+                .filter(|&w| w != usize::MAX)
                 .unwrap_or(windowless);
             if member == window {
                 end_marks[block_index] = true;
@@ -565,12 +581,17 @@ pub(super) fn assign(
     }
     for definition in 0..definitions.len() {
         let root = find(&mut parent, definition);
-        let window = *window_index.get(&root).unwrap_or(&windowless);
+        let window = window_index
+            .get(root)
+            .copied()
+            .filter(|&w| w != usize::MAX)
+            .unwrap_or(windowless);
         assignment.stores[definition] = window_slot[window];
     }
-    for (&(block_index, index), &mapped) in &window_of_position {
+    for &(block_index, index, mapped) in &window_of_position {
         let window = mapped
-            .map(|root| *window_index.get(&root).unwrap_or(&windowless))
+            .and_then(|root| window_index.get(root).copied())
+            .filter(|&w| w != usize::MAX)
             .unwrap_or(windowless);
         assignment.loads[block_index]
             .instructions
@@ -579,7 +600,8 @@ pub(super) fn assign(
     for (block_index, &mapped) in window_of_end.iter().enumerate() {
         if uses[block_index].end_of_block {
             let window = mapped
-                .map(|root| *window_index.get(&root).unwrap_or(&windowless))
+                .and_then(|root| window_index.get(root).copied())
+                .filter(|&w| w != usize::MAX)
                 .unwrap_or(windowless);
             assignment.loads[block_index].end_of_block = Some(window_slot[window]);
         }
@@ -646,9 +668,10 @@ fn summarize_window(
 }
 
 struct RawCandidateSlots {
+    block_count: usize,
     invalid: Vec<bool>,
-    accesses: Vec<Vec<Vec<(usize, Event)>>>,
-    terminal_loads: Vec<Vec<bool>>,
+    accesses: Vec<Vec<(usize, usize, Event)>>,
+    terminal_loads: Vec<Vec<usize>>,
     finalized: Vec<Option<CandidateAccesses>>,
 }
 
@@ -658,15 +681,16 @@ impl RawCandidateSlots {
     /// `get(slot_idx)` is queried.
     fn scan(function: &SelectedFunction, candidates: &[LocalStorageSlotId]) -> Self {
         let count = candidates.len();
+        let block_count = function.blocks.len();
         if count == 0 {
             return Self {
+                block_count,
                 invalid: Vec::new(),
                 accesses: Vec::new(),
                 terminal_loads: Vec::new(),
                 finalized: Vec::new(),
             };
         }
-        let block_count = function.blocks.len();
         let max_spill_reg = candidates
             .iter()
             .filter_map(|slot| match slot {
@@ -693,8 +717,8 @@ impl RawCandidateSlots {
         };
 
         let mut invalid = vec![false; count];
-        let mut accesses: Vec<Vec<Vec<(usize, Event)>>> = vec![vec![Vec::new(); block_count]; count];
-        let mut terminal_loads = vec![vec![false; block_count]; count];
+        let mut accesses: Vec<Vec<(usize, usize, Event)>> = vec![Vec::new(); count];
+        let mut terminal_loads: Vec<Vec<usize>> = vec![Vec::new(); count];
         const NO_OWNER: u32 = u32::MAX;
         const MULTI_OWNER: u32 = u32::MAX - 1;
         let mut address_owner: Vec<u32> = Vec::new();
@@ -720,7 +744,7 @@ impl RawCandidateSlots {
                         if let Some(slot_idx) = lookup_slot(target)
                             && !invalid[slot_idx]
                         {
-                            accesses[slot_idx][block_index].push((index, Event::ExistingStore));
+                            accesses[slot_idx].push((block_index, index, Event::ExistingStore));
                         }
                     }
                     selected_instructions::BlockSlotEvent::FrameAddress {
@@ -798,15 +822,16 @@ impl RawCandidateSlots {
                         continue;
                     }
                     if index == usize::MAX {
-                        terminal_loads[slot_idx][block_index] = true;
+                        terminal_loads[slot_idx].push(block_index);
                     } else {
-                        accesses[slot_idx][block_index].push((index, Event::ExistingLoad));
+                        accesses[slot_idx].push((block_index, index, Event::ExistingLoad));
                     }
                 }
             }
         }
 
         Self {
+            block_count,
             invalid,
             accesses,
             terminal_loads,
@@ -819,8 +844,16 @@ impl RawCandidateSlots {
             return None;
         }
         if self.finalized[slot_idx].is_none() {
-            let mut slot_accesses = std::mem::take(&mut self.accesses[slot_idx]);
-            let slot_terminal_loads = std::mem::take(&mut self.terminal_loads[slot_idx]);
+            let raw_accesses = std::mem::take(&mut self.accesses[slot_idx]);
+            let raw_terminal_loads = std::mem::take(&mut self.terminal_loads[slot_idx]);
+            let mut slot_accesses = vec![Vec::new(); self.block_count];
+            for (block_index, index, event) in raw_accesses {
+                slot_accesses[block_index].push((index, event));
+            }
+            let mut slot_terminal_loads = vec![false; self.block_count];
+            for block_index in raw_terminal_loads {
+                slot_terminal_loads[block_index] = true;
+            }
             for block_accesses in &mut slot_accesses {
                 if block_accesses.len() > 1 {
                     block_accesses.sort_by_key(|&(idx, _)| idx);

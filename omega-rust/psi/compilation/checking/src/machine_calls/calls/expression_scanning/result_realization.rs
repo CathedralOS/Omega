@@ -345,7 +345,14 @@ fn local_initializer_has_operand_evaluation(
     let Some(call) = program.expression_table.call_node(value) else {
         return false;
     };
-    if !call.carries_only_positional_arguments() {
+    // A prepared dynamic slot already retains the exact closed method call
+    // contract. Its static family coordinates do not change the local result's
+    // ordered operand owner. Evidence arguments retain their separate fence;
+    // ordinary call validation still owns all generic/type/effect obligations.
+    if !call.evidence_arguments.is_empty()
+        || (!call.machine_arguments.is_empty()
+            && program.dynamic_slot_by_symbol(call.target_symbol).is_none())
+    {
         return false;
     }
     // An explicit implementation map retains its selection syntax, but that

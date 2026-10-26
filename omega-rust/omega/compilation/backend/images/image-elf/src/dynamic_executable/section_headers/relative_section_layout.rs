@@ -99,19 +99,10 @@ pub struct ElfRelativeSectionPayloadLayoutError {
     diagnostic: Diagnostic,
 }
 
-impl ElfRelativeSectionPayloadLayoutError {
-    pub const fn diagnostic(&self) -> &Diagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (ValidatedElfIndexedSectionPayloadPlan, Diagnostic) {
-        (self.payloads, self.diagnostic)
-    }
-}
-
-diagnostics::diagnostic_display!(ElfRelativeSectionPayloadLayoutError);
-
-impl std::error::Error for ElfRelativeSectionPayloadLayoutError {}
+image::rejection_carrier!(
+    ElfRelativeSectionPayloadLayoutError;
+    payloads: ValidatedElfIndexedSectionPayloadPlan,
+);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ElfRelativeSectionPayloadLayoutContents {
@@ -417,14 +408,14 @@ mod tests {
             1,
         );
         let symbol_handle = crate::test_support::versioned_import(
-        &mut image,
-        "__omega_relative_layout_import",
-        b"liblayout.so",
-        b"layout_call",
-        b"LAYOUT_1",
-        target,
-        "versioned import locator",
-    );
+            &mut image,
+            "__omega_relative_layout_import",
+            b"liblayout.so",
+            b"layout_call",
+            b"LAYOUT_1",
+            target,
+            "versioned import locator",
+        );
         crate::test_support::import_call_indexed_payloads(image, symbol_handle, target)
     }
 

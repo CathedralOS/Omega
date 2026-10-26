@@ -1,5 +1,5 @@
 //! Provenance uniqueness, logical fuel, and effect-chain replay.
-use crate::OptimizationUnitValidationError;
+use crate::{OperationSite, OptimizationUnitValidationError};
 use optimization_unit::{PsiOptimizationFunction, PsiProvenance};
 use semantic_vocabulary::{BlockId, EdgeId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -17,11 +17,9 @@ pub(crate) fn validate_provenance_fuel_effects(
         for (index, node) in block.nodes.iter().enumerate() {
             let index = u32::try_from(index).expect("unit node index was built as u32");
             if node.provenance.is_empty() && node.successors.is_empty() {
-                return Err(OptimizationUnitValidationError::IncompleteProvenance {
-                    machine: function.machine,
-                    block: block.id,
-                    node: index,
-                });
+                return Err(OptimizationUnitValidationError::IncompleteProvenance(
+                    OperationSite::new(function.machine, block.id, index),
+                ));
             }
             let unique_node_sources = node.provenance.iter().copied().collect::<BTreeSet<_>>();
             if unique_node_sources.len() != node.provenance.len() {
@@ -61,13 +59,9 @@ pub(crate) fn validate_provenance_fuel_effects(
                     .zip(&node.provenance)
                     .any(|(settlement, source)| settlement.site != *source || settlement.units != 1)
             {
-                return Err(
-                    OptimizationUnitValidationError::FuelDoesNotMatchProvenance {
-                        machine: function.machine,
-                        block: block.id,
-                        node: index,
-                    },
-                );
+                return Err(OptimizationUnitValidationError::FuelDoesNotMatchProvenance(
+                    OperationSite::new(function.machine, block.id, index),
+                ));
             }
             for settlement in &node.fuel {
                 let _ = settlement;
@@ -81,11 +75,9 @@ pub(crate) fn validate_provenance_fuel_effects(
                         .iter()
                         .any(|site| !matches!(site, PsiProvenance::Edge(_)))
                 {
-                    return Err(OptimizationUnitValidationError::IncompleteProvenance {
-                        machine: function.machine,
-                        block: block.id,
-                        node: index,
-                    });
+                    return Err(OptimizationUnitValidationError::IncompleteProvenance(
+                        OperationSite::new(function.machine, block.id, index),
+                    ));
                 }
                 let source_sites = edge.provenance.iter().copied().collect::<BTreeSet<_>>();
                 if source_sites.len() != edge.provenance.len()
@@ -109,13 +101,9 @@ pub(crate) fn validate_provenance_fuel_effects(
                             settlement.site != *source || settlement.units != 1
                         })
                 {
-                    return Err(
-                        OptimizationUnitValidationError::FuelDoesNotMatchProvenance {
-                            machine: function.machine,
-                            block: block.id,
-                            node: index,
-                        },
-                    );
+                    return Err(OptimizationUnitValidationError::FuelDoesNotMatchProvenance(
+                        OperationSite::new(function.machine, block.id, index),
+                    ));
                 }
                 for source in &edge.provenance {
                     edge_provenance

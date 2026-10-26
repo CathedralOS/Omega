@@ -197,13 +197,4 @@ optimization_core::truncated_from_adapter!(FixedViewCopyDecodeError);
 
 optimization_core::take_error_from_adapter!(FixedViewCopyDecodeError);
 
-impl std::fmt::Display for FixedViewCopyDecodeError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "invalid Terminal fixed-view-copy artifact: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for FixedViewCopyDecodeError {}
+crate::decode_error_display! { FixedViewCopyDecodeError, "invalid Terminal fixed-view-copy artifact" }

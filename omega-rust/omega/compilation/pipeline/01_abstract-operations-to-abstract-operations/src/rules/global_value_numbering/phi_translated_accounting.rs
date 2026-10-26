@@ -3,7 +3,9 @@
 use std::collections::BTreeSet;
 
 use crate::analyses::block_dominates;
-use crate::rules::control_flow_cleanup::provenance_realized_at;
+use crate::rules::control_flow_cleanup::{
+    node_realized_provenance, provenance_realized_at, record_node_provenance,
+};
 use optimization_unit::{
     NodeLocation, PhiTranslatedScalarIncoming, ProvenanceRewrite, PsiOptimizationFunction,
     PsiRealizationSite,
@@ -25,12 +27,7 @@ pub(super) fn phi_translated_cse_accounting(
         .map(|row| row.source)
         .chain([block.id])
         .collect::<BTreeSet<_>>();
-    let mut provenance = vec![provenance_realized_at(
-        PsiRealizationSite::Node(redundant),
-        PsiRealizationSite::Node(redundant),
-        &removed.provenance,
-        &removed.fuel,
-    )];
+    let mut provenance = vec![node_realized_provenance(redundant, removed)];
     for row in incoming {
         let source = function.block(row.source)?;
         let edge = source
@@ -71,30 +68,14 @@ pub(super) fn phi_translated_cse_accounting(
     }
     for later in function.blocks.iter().skip(block_position + 1) {
         affected.insert(later.id);
-        for (index, node) in later.nodes.iter().enumerate() {
-            if node.provenance.is_empty() {
-                continue;
-            }
-            let site = PsiRealizationSite::Node(NodeLocation {
-                machine: function.machine,
-                block: later.id,
-                node: u32::try_from(index).ok()?,
-            });
-            provenance.push(provenance_realized_at(
-                site,
-                site,
-                &node.provenance,
-                &node.fuel,
-            ));
-        }
+        record_node_provenance(
+            function.machine,
+            later,
+            later.nodes.iter().enumerate(),
+            &mut provenance,
+        )?;
     }
-    provenance.sort_by_key(|row| {
-        (
-            row.input,
-            row.disposition.canonical_tag(),
-            row.disposition.site(),
-        )
-    });
+    provenance.sort_by_key(ProvenanceRewrite::canonical_sort_key);
     Some((affected.into_iter().collect(), provenance))
 }
 
@@ -105,8 +86,7 @@ use std::collections::BTreeMap;
 /// the key references, whose result is used, and whose provenance does not
 /// leak into the receiver; then every incoming edge must translate the key to
 /// an existing in-scope leader or the candidate is incomplete. `None` plays
-/// the per-redundant `continue`; `reject_entry_block` additionally refuses a
-/// redundant at the function entry, as the compatible-policy rule requires.
+/// the per-redundant `continue`.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn collect_phi_translated_incoming<K>(
     function: &PsiOptimizationFunction,
@@ -119,7 +99,6 @@ pub(super) fn collect_phi_translated_incoming<K>(
     leaders: &[(K, NodeLocation, OperationId, ValueId, ScalarType)],
     key_references_parameters: impl Fn(&BTreeSet<ValueId>) -> bool,
     translate: impl Fn(&BTreeMap<ValueId, ValueId>) -> Option<K>,
-    reject_entry_block: bool,
 ) -> Option<(
     Vec<PhiTranslatedScalarIncoming>,
     Vec<BlockId>,
@@ -135,8 +114,7 @@ where
         .iter()
         .map(|parameter| parameter.value)
         .collect::<BTreeSet<_>>();
-    if (reject_entry_block && block.id == function.entry)
-        || parameter_values.is_empty()
+    if parameter_values.is_empty()
         || !key_references_parameters(&parameter_values)
         || !use_definitions.uses.iter().any(|(machine, use_site)| {
             *machine == function.machine && use_site.value == redundant_result

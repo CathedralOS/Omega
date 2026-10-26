@@ -42,21 +42,6 @@ macro_rules! constant_fold_rules {
     )*};
 }
 
-/// A `ProvenanceRewrite` whose candidate realizes its input node in place:
-/// both sites name the same location and the node's provenance and fuel
-/// carry over. `location` must be `Copy` — every family already names it
-/// twice.
-macro_rules! realized_node_provenance {
-    ($location:expr, $node:expr) => {
-        $crate::rules::control_flow_cleanup::provenance_realized_at(
-            PsiRealizationSite::Node($location),
-            PsiRealizationSite::Node($location),
-            &$node.provenance,
-            &$node.fuel,
-        )
-    };
-}
-
 pub(crate) mod boolean_constants;
 pub(crate) mod integer_binary_constants;
 pub(crate) mod integer_binary_shapes;
@@ -97,13 +82,19 @@ use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleContract,
     OptimizationSafetyClass, ScalarConstantFactIdentity,
 };
-use optimization_unit::NodeLocation;
-use semantic_vocabulary::BlockId;
-use semantic_vocabulary::{IntegerValue, MachineId, ValueId};
+use optimization_unit::{
+    IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation, PsiOptimizationUnit,
+    PsiRewriteCandidate,
+};
+use semantic_vocabulary::{BlockId, IntegerType, IntegerValue, MachineId, OperationId, ValueId};
 
 use crate::rules::SCCP_PASS_NAME;
 use crate::rules::catalog::BuiltInRuleRegistration;
-use crate::{ScalarConstantAnalysis, ScalarConstantValue};
+use crate::rules::control_flow_cleanup::node_realized_provenance;
+use crate::{
+    AnalysisProduct, RuleAnalysisView, RuleProposalError, ScalarConstantAnalysis,
+    ScalarConstantValue,
+};
 
 /// The exact local rule order for this pass.
 pub(super) fn built_in_registrations() -> Vec<BuiltInRuleRegistration> {
@@ -162,6 +153,70 @@ pub(super) fn constant_evaluation_contract(
         AnalysisInvalidationSet::new([AnalysisKind::UseDefinition]),
         safety_class,
     )
+}
+
+/// One integer constant-fold row: the exact operation and result the rewrite
+/// replaces, the folded constant, and the evaluation witness the rule's own
+/// classification admits.
+pub(super) struct IntegerConstantFold {
+    pub(super) source_operation: OperationId,
+    pub(super) result: ValueId,
+    pub(super) scalar_type: IntegerType,
+    pub(super) constant: IntegerValue,
+    pub(super) witness: IntegerEvaluationWitness,
+}
+
+/// The family's one integer constant-fold traversal: every node is offered to
+/// the invoking rule's own classification and folding, and each accepted fold
+/// emits its `IntegerConstantRewrite` candidate with the node's in-place
+/// provenance. `fold` owns the rule's operand lookup, safety gate and witness.
+pub(super) fn propose_integer_constant_folds(
+    unit: &PsiOptimizationUnit,
+    analyses: RuleAnalysisView<'_>,
+    contract: OptimizationRuleContract,
+    fold: impl Fn(
+        &PsiOptimizationUnit,
+        MachineId,
+        &optimization_unit::OptimizationNode,
+        &ScalarConstantAnalysis,
+    ) -> Result<Option<IntegerConstantFold>, RuleProposalError>,
+) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+    required_analysis!(analyses, AnalysisKind::ScalarConstants => Some(AnalysisProduct::ScalarConstants(constants)));
+    let mut candidates = Vec::new();
+    for function in &unit.functions {
+        for block in &function.blocks {
+            for (node_index, node) in block.nodes.iter().enumerate() {
+                let Some(row) = fold(unit, function.machine, node, constants)? else {
+                    continue;
+                };
+                let location = node_location(
+                    function.machine,
+                    block.id,
+                    u32::try_from(node_index).expect("optimization node indices are u32"),
+                );
+                candidates.push(
+                    PsiRewriteCandidate::new_integer_evaluation(
+                        unit.identity,
+                        contract,
+                        vec![block.id],
+                        Vec::new(),
+                        vec![node_realized_provenance(location, node)],
+                        row.witness,
+                        -1,
+                        IntegerConstantRewrite {
+                            location,
+                            source_operation: row.source_operation,
+                            result: row.result,
+                            scalar_type: row.scalar_type,
+                            constant: row.constant,
+                        },
+                    )
+                    .map_err(RuleProposalError::InvalidCandidate)?,
+                );
+            }
+        }
+    }
+    Ok(candidates)
 }
 
 /// The contract shared by the range-comparison families: proof-certified,

@@ -1,0 +1,4 @@
+// Selecting a named operator never removes a genuine runtime receiver.
+data Payload { value: &mut i32; }
+boundary operator Payload::touch(payload: Payload) -> ();
+machine exercise(payload: Payload) { payload.touch(); }

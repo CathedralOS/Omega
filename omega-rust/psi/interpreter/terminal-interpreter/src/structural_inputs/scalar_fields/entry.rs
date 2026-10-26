@@ -4,7 +4,7 @@ use crate::errors::malformed;
 use crate::runtime_rows::RuntimeRows;
 use crate::structural_inputs::scalar_fields::{
     PlaceId, StructuralScalarRuntimeField, StructuralTypeDeclaration, StructuralTypeId,
-    TerminalInterpretError, TerminalMachine, TerminalScalarValue, TerminalStructuralValue,
+    TerminalInterpretError, TerminalMachine, TerminalStructuralValue,
 };
 use crate::values::StructuralRuntimePlace;
 use std::collections::BTreeSet;
@@ -15,7 +15,7 @@ pub(crate) fn validate(
     machine: &TerminalMachine,
     types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     roots: &RuntimeRows<PlaceId, TerminalStructuralValue>,
-    values: &RuntimeRows<StructuralScalarRuntimeField, TerminalScalarValue>,
+    values: &crate::scalar_storage::ScalarStorageRows<StructuralScalarRuntimeField>,
     zero_initialized_arguments: &[u32],
 ) -> Result<(), TerminalInterpretError> {
     for (position, parameter) in machine.structural_parameters.iter().enumerate() {
@@ -42,7 +42,7 @@ fn validate_type(
     types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     current: StructuralTypeId,
     parent: &mut StructuralRuntimePlace,
-    values: &RuntimeRows<StructuralScalarRuntimeField, TerminalScalarValue>,
+    values: &crate::scalar_storage::ScalarStorageRows<StructuralScalarRuntimeField>,
     argument_index: u32,
     active: &mut Vec<StructuralTypeId>,
 ) -> Result<(), TerminalInterpretError> {
@@ -67,6 +67,8 @@ fn validate_type(
                         let key = StructuralScalarRuntimeField::member(parent.clone(), field.id);
                         if !values
                             .get(&key)
+                            .map(crate::scalar_storage::ScalarCell::read)
+                            .transpose()?
                             .is_some_and(|value| value.satisfies_field(field_type))
                         {
                             return Err(

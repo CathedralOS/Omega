@@ -18,11 +18,6 @@ pub(super) fn declaration(
         .catalog()
         .constraint(constraint)
         .expect("canonical AArch64 catalog contains its scalar-call constraint");
-    let arity = row
-        .operands
-        .iter()
-        .take_while(|operand| operand.access == register_model::RegisterOperandAccess::Use)
-        .count();
     MachineEffectDeclaration {
         semantic,
         constraint,
@@ -42,8 +37,8 @@ pub(super) fn declaration(
             size: MachineSizeKnowledge::ExactBytes(4),
             latency: MachineLatencyKnowledge::StableBaselineUnavailable,
             encoded: MachineEncodedEffects {
-                external_operand_reads: (0..arity as u16).collect(),
-                external_operand_writes: (arity as u16..row.operands.len() as u16).collect(),
+                external_operand_reads: row.operand_reads(),
+                external_operand_writes: row.operand_writes(),
                 implicit_unit_uses: row.implicit_uses.clone(),
                 implicit_unit_defs: row.implicit_defs.clone(),
                 implicit_unit_clobbers: row.clobbers.clone(),
@@ -154,18 +149,8 @@ pub fn aarch64_normalized_foreign_call_declaration(
             size: MachineSizeKnowledge::ExactBytes(byte_count),
             latency: MachineLatencyKnowledge::StableBaselineUnavailable,
             encoded: MachineEncodedEffects {
-                external_operand_reads: row
-                    .operands
-                    .iter()
-                    .filter(|operand| operand.access == register_model::RegisterOperandAccess::Use)
-                    .map(|operand| operand.operand)
-                    .collect(),
-                external_operand_writes: row
-                    .operands
-                    .iter()
-                    .filter(|operand| operand.access == register_model::RegisterOperandAccess::Def)
-                    .map(|operand| operand.operand)
-                    .collect(),
+                external_operand_reads: row.operand_reads(),
+                external_operand_writes: row.operand_writes(),
                 implicit_unit_uses: row.implicit_uses.clone(),
                 implicit_unit_defs: row.implicit_defs.clone(),
                 implicit_unit_clobbers: row.clobbers.clone(),

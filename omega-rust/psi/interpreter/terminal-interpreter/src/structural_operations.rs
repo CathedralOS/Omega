@@ -69,6 +69,9 @@ impl TerminalExecution<'_> {
     /// Import scalar aggregate contents into ordinary placed record/sum storage.
     /// The external payload supplies no identity,
     /// so publication allocates one home only after validating all contents.
+    /// The caller owns custody admission: source case construction checks its
+    /// bare result, while boundary completion rejoins the admitted issuer and
+    /// result declaration before publishing fields or binding its live claims.
     pub(crate) fn publish_scalar_aggregate(
         &mut self,
         result: &terminal_psi::StructuralOperationResult,
@@ -77,13 +80,8 @@ impl TerminalExecution<'_> {
         if aggregate.structural_type != result.structural_type
             || self.structural_values.contains_key(&result.place)
             || self.scalar_array_values.contains_key(&result.place)
-            || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
-            || !result.claims.is_empty()
-            || !matches!(
-                result.multiplicity,
-                terminal_psi::nonlinear_multiplicity_pair_pattern!()
-            )
+            || (!result.claims.is_empty() && result.multiplicity != StructuralMultiplicity::Linear)
         {
             return Err(malformed());
         }
@@ -96,7 +94,7 @@ impl TerminalExecution<'_> {
         let value = TerminalStructuralValue::minted(
             self.local_structural_identities.allocate()?,
             result.structural_type,
-            Vec::new(),
+            result.qualifications.clone(),
         );
         let root = StructuralRuntimePlace::from(&value);
         let mut storage = ConstructorStorage::new(self.account.as_ref());
@@ -122,7 +120,7 @@ impl TerminalExecution<'_> {
     }
 
     /// Record the affine debt a fresh affine result owes the live frontier.
-    fn track_affine_result(&mut self, result: &terminal_psi::StructuralOperationResult) {
+    pub(crate) fn track_affine_result(&mut self, result: &terminal_psi::StructuralOperationResult) {
         if result.multiplicity == StructuralMultiplicity::Affine {
             self.live_affine_frontier.insert(StructuralAffineDiscard {
                 place: result.place,
@@ -308,18 +306,19 @@ impl TerminalExecution<'_> {
 
     /// Retire precisely the consumed subtree after its cells have been staged.
     pub(crate) fn prune_subtree(&mut self, from: &StructuralRuntimePlace) {
+        crate::structural_storage::prune_rows(&mut self.original_storage_roots, from);
         crate::structural_storage::prune_rows(&mut self.provider_storage.descriptors, from);
         crate::structural_storage::prune_rows(&mut self.activation_storage.claim_descriptors, from);
         self.invalidate_stored_provenance(from);
         crate::structural_storage::prune_rows(&mut self.structural_host_atoms, from);
-        crate::structural_storage::prune_rows(&mut self.structural_scalar_fields, from);
+        self.structural_scalar_fields.prune(from);
         crate::structural_storage::prune_rows(&mut self.structural_byte_sequence_fields, from);
         crate::structural_storage::prune_rows(&mut self.structural_byte_descriptors, from);
         crate::structural_storage::prune_rows(&mut self.structural_byte_storage, from);
         crate::structural_storage::prune_rows(&mut self.structural_cases, from);
         crate::structural_storage::prune_rows(&mut self.reference_referents, from);
         crate::structural_storage::prune_rows(&mut self.structural_element_view_fields, from);
-        crate::structural_storage::prune_rows(&mut self.structural_primitive_storage, from);
+        self.structural_primitive_storage.prune(from);
     }
 
     pub(crate) fn execute_establish_byte_sequence_literal(
@@ -396,10 +395,7 @@ impl TerminalExecution<'_> {
     pub(crate) fn result_place_in_use(&self, place: semantic_vocabulary::PlaceId) -> bool {
         self.structural_values.contains_key(&place)
             || self.scalar_array_values.contains_key(&place)
-            || self
-                .live_claims
-                .values()
-                .any(|claim| claim.place == Some(place))
+            || crate::custody::place_is_claimed(&self.live_claims, place)
     }
 
     pub(crate) fn execute_establish_zeroed_structural(
@@ -1232,6 +1228,7 @@ impl TerminalExecution<'_> {
                 ConstructorValue::Placed(child) => Some(StructuralRuntimePlace::from(&child)),
                 ConstructorValue::PackedScalars { .. } => None,
             };
+            storage.preserve_replaced_residents(self, &hole)?;
             self.prune_subtree(&hole);
             if !copies_storage && let Some(source) = source {
                 self.prune_subtree(&source);
@@ -1474,113 +1471,20 @@ impl TerminalExecution<'_> {
         to: &StructuralRuntimePlace,
         vacate: bool,
     ) -> Result<(), TerminalInterpretError> {
-        let retarget = |parent: &StructuralRuntimePlace| {
-            (parent.opaque_identity == from.opaque_identity && parent.path.starts_with(&from.path))
-                .then(|| StructuralRuntimePlace {
-                    opaque_identity: to.opaque_identity,
-                    path: to
-                        .path
-                        .iter()
-                        .chain(&parent.path[from.path.len()..])
-                        .cloned()
-                        .collect(),
-                })
-        };
-        let mut staged_scalars = crate::runtime_rows::RuntimeRows::from_rows(
-            self.account.as_ref(),
-            crate::structural_storage::cells(&self.structural_scalar_fields, from).filter_map(
-                |(cell, scalar)| {
-                    retarget(&cell.parent).map(|parent| (cell.relocated(parent), *scalar))
-                },
-            ),
-        )?;
-        let mut staged_byte_fields = crate::runtime_rows::RuntimeRows::from_rows(
-            self.account.as_ref(),
-            crate::structural_storage::cells(&self.structural_byte_sequence_fields, from)
-                .filter_map(|(cell, view)| {
-                    retarget(&cell.parent).map(|parent| (cell.relocated(parent), view.clone()))
-                }),
-        )?;
-        let mut staged_arrays = crate::runtime_rows::RuntimeRows::from_rows(
-            self.account.as_ref(),
-            crate::structural_storage::cells(&self.structural_byte_storage, from)
-                .filter_map(|(carrier, view)| retarget(carrier).map(|place| (place, view.clone()))),
-        )?;
-        let mut staged_byte_descriptors =
-            crate::runtime_rows::RuntimeRows::new(self.account.as_ref());
-        for (home, binding) in
-            crate::structural_storage::cells(&self.structural_byte_descriptors, from)
-        {
-            if !vacate && !matches!(binding, ByteSequenceBinding::Immutable(_)) {
-                return Err(malformed());
-            }
-            let target = retarget(home).ok_or_else(malformed)?;
-            let binding = binding.relocated_descriptor(home, &target)?;
-            staged_byte_descriptors.insert(target, binding)?;
-        }
-        let mut staged_atoms = crate::runtime_rows::RuntimeRows::from_rows(
-            self.account.as_ref(),
-            crate::structural_storage::cells(&self.structural_host_atoms, from)
-                .filter_map(|(home, atom)| retarget(home).map(|home| (home, *atom))),
-        )?;
-        let mut staged_cases = crate::runtime_rows::RuntimeRows::from_rows(
-            self.account.as_ref(),
-            crate::structural_storage::cells(&self.structural_cases, from).filter_map(
-                |(carrier, contents)| retarget(carrier).map(|place| (place, *contents)),
-            ),
-        )?;
-        let mut staged_element_views = crate::runtime_rows::RuntimeRows::from_rows(
-            self.account.as_ref(),
-            crate::structural_storage::cells(&self.structural_element_view_fields, from)
-                .filter_map(|(carrier, descriptor)| {
-                    retarget(carrier).map(|place| (place, descriptor.clone()))
-                }),
-        )?;
-        let mut staged_referents = crate::runtime_rows::RuntimeRows::from_rows(
-            self.account.as_ref(),
-            crate::structural_storage::cells(&self.reference_referents, from).filter_map(
-                |(carrier, referent)| retarget(carrier).map(|place| (place, referent.clone())),
-            ),
-        )?;
-        let mut staged_primitives = crate::runtime_rows::RuntimeRows::from_rows(
-            self.account.as_ref(),
-            crate::structural_storage::cells(&self.structural_primitive_storage, from)
-                .filter_map(|(carrier, scalar)| retarget(carrier).map(|place| (place, *scalar))),
-        )?;
-        self.structural_scalar_fields
-            .validate_append(&staged_scalars)?;
-        self.structural_primitive_storage
-            .validate_append(&staged_primitives)?;
-        self.structural_byte_sequence_fields
-            .validate_append(&staged_byte_fields)?;
-        self.structural_byte_storage
-            .validate_append(&staged_arrays)?;
-        self.structural_byte_descriptors
-            .validate_append(&staged_byte_descriptors)?;
-        self.structural_cases.validate_append(&staged_cases)?;
-        self.structural_host_atoms.validate_append(&staged_atoms)?;
-        self.reference_referents
-            .validate_append(&staged_referents)?;
-        self.structural_element_view_fields
-            .validate_append(&staged_element_views)?;
+        // Leaf moves/copies and constructors must transport the same complete
+        // typed storage. A second row-by-row inventory lost original allocation
+        // seals while retaining scalar residents, detaching their provenance.
+        // The shared constructor transaction stages and funds every cell before
+        // pruning, snapshots copies, and retains whole allocation custody only
+        // on an authorized move.
+        let mut storage = crate::record::storage::ConstructorStorage::new(self.account.as_ref());
+        storage.stage_subtree(self, from, to, vacate)?;
+        storage.preserve_replaced_residents(self, to)?;
         self.prune_subtree(to);
         if vacate {
             self.prune_subtree(from);
         }
-        self.structural_scalar_fields.append(&mut staged_scalars)?;
-        self.structural_byte_sequence_fields
-            .append(&mut staged_byte_fields)?;
-        self.structural_byte_storage.append(&mut staged_arrays)?;
-        self.structural_byte_descriptors
-            .append(&mut staged_byte_descriptors)?;
-        self.structural_cases.append(&mut staged_cases)?;
-        self.structural_host_atoms.append(&mut staged_atoms)?;
-        self.reference_referents.append(&mut staged_referents)?;
-        self.structural_element_view_fields
-            .append(&mut staged_element_views)?;
-        self.structural_primitive_storage
-            .append(&mut staged_primitives)?;
-        Ok(())
+        storage.publish(self)
     }
 
     /// Move every runtime cell under `from` to the same subtree suffix under
@@ -2218,9 +2122,7 @@ impl TerminalExecution<'_> {
         else {
             unreachable!("dispatched execute_boolean_structural_field")
         };
-        if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
-            return Err(malformed());
-        }
+        self.require_boolean_result(operation)?;
         let value = self.read_observed_field(source, path, field, ScalarType::Boolean)?;
         self.store_scalar(operation, value)
     }
@@ -2310,13 +2212,16 @@ impl TerminalExecution<'_> {
                 );
             }
         }
-        let value = self.structural_scalar_fields.get(&cell).copied().ok_or(
-            if scalar_type == ScalarType::Boolean {
+        let value = self
+            .structural_scalar_fields
+            .get(&cell)
+            .map(crate::scalar_storage::ScalarCell::read)
+            .transpose()?
+            .ok_or(if scalar_type == ScalarType::Boolean {
                 TerminalInterpretError::StructuralBooleanFieldMissing { source, field }
             } else {
                 TerminalInterpretError::StructuralScalarFieldMissing { source, field }
-            },
-        )?;
+            })?;
         if value.scalar_type() != scalar_type {
             return Err(malformed());
         }

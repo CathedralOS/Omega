@@ -273,19 +273,7 @@ fn checked_count(
     }
 }
 
-fn checked_axiom<'a>(
-    context: &PropositionContext,
-    semantic_axioms: &'a [Proposition],
-    index: usize,
-) -> Result<&'a Proposition, IntegerShiftChainWitnessError> {
-    let proposition = semantic_axioms
-        .get(index)
-        .ok_or(IntegerShiftChainWitnessError::UnknownSemanticAxiom(index))?;
-    context
-        .validate(proposition)
-        .map_err(IntegerShiftChainWitnessError::MalformedProposition)?;
-    Ok(proposition)
-}
+crate::checked_axiom!(IntegerShiftChainWitnessError);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IntegerShiftChainWitnessError {

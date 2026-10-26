@@ -57,7 +57,7 @@ mod qualified_cleanup_receiving_tests;
 use proposition_wire::{decode_proposition, encode_proposition};
 use scalar_term_wire::{decode_scalar_term, encode_scalar_term};
 use terminal_psi::{SemanticFingerprint, TerminalModule, TerminalPsiIdentity};
-use wire::{Reader, Writer, decode_counted};
+use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
@@ -111,7 +111,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Whole-value placement demands retain normalized geometry without requiring a view.
 // Content reunion retains completed producer operations and exact claim frontiers.
 // Logical source copy permission is separate from descriptor retirement.
-pub(crate) const FORMAT_MARKER: u16 = 184;
+pub(crate) const FORMAT_MARKER: u16 = 187;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -203,30 +203,20 @@ pub fn encode_crash_route_buckets(
 pub fn decode_crash_route_buckets(
     bytes: &[u8],
 ) -> Result<Vec<terminal_psi::CrashRouteBucket>, CodecError> {
-    let mut reader = Reader::new(bytes);
-    let routes = decode_crash_routes(&mut reader)?;
-    if reader.remaining() != 0 {
-        return Err(CodecError::TrailingBytes(reader.remaining()));
-    }
-    if encode_crash_route_buckets(&routes)? != bytes {
-        return Err(CodecError::NonCanonicalEncoding);
-    }
-    Ok(routes)
+    decode_canonical(bytes, decode_crash_routes, |routes| {
+        encode_crash_route_buckets(routes)
+    })
 }
 
 /// Decode a complete canonical proposition ordering key.
 pub fn decode_canonical_proposition(
     bytes: &[u8],
 ) -> Result<semantic_vocabulary::Proposition, CodecError> {
-    let mut reader = Reader::new(bytes);
-    let proposition = decode_proposition(&mut reader, 0)?;
-    if reader.remaining() != 0 {
-        return Err(CodecError::TrailingBytes(reader.remaining()));
-    }
-    if canonical_proposition_order_key(&proposition)? != bytes {
-        return Err(CodecError::NonCanonicalEncoding);
-    }
-    Ok(proposition)
+    decode_canonical(
+        bytes,
+        |reader| decode_proposition(reader, 0),
+        canonical_proposition_order_key,
+    )
 }
 
 pub fn semantic_fingerprint(module: &TerminalModule) -> Result<SemanticFingerprint, CodecError> {

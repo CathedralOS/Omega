@@ -11,7 +11,6 @@ use syntax_trees::identifier::Identifier;
 use syntax_trees::item::Machine;
 use tokens::PunctuationKind;
 
-use crate::bodies::tail_calls::rewrite_terminal_tail_calls;
 use crate::contracts::conformance::parse_conformance::parse_satisfies_traits;
 use crate::contracts::parse_contract_clauses::parse_machine_clauses;
 use crate::parameters::contracts::parse_machine_parameter_contracts;
@@ -69,29 +68,7 @@ pub(crate) fn parse_machine<'tokens, 'source>(
              `satisfies Trait::machine via Binding::Case(...)`",
         ));
     }
-    let (
-        (
-            terminates_guarantee,
-            ranking_subjects,
-            ranking_view,
-            ranking_view_arguments,
-            ranking_range,
-            service_reach_keyword_source_spans,
-            service_reach_is_installation_bound,
-            service_reaches,
-            invokes,
-            suspends_keyword_source_spans,
-            blocks_keyword_source_spans,
-            suspends,
-            blocks,
-            contracts,
-            clauses_return_type,
-            where_facts,
-            admitted_same_stack_bytes,
-            same_stack_clause_span,
-        ),
-        next,
-    ) = parse_machine_clauses(syntax_trees, next)?;
+    let (clauses, next) = parse_machine_clauses(syntax_trees, next)?;
     let conformance_bounds = generic_parameters.conformance_bounds;
     input = next;
     // `-> T` is written either before the clauses or after them
@@ -99,7 +76,7 @@ pub(crate) fn parse_machine<'tokens, 'source>(
     let machine_return_type = if machine_return_type.is_valid() {
         machine_return_type
     } else {
-        clauses_return_type
+        clauses.return_type
     };
     let MachinePath {
         name,
@@ -107,26 +84,20 @@ pub(crate) fn parse_machine<'tokens, 'source>(
         entry_name,
     } = split_machine_path(syntax_trees, path);
 
-    let ((states, bodyless), input) = body::parse_body::parse_body(
+    let (body::parse_body::ParsedMachineBody { states, nested_machines, bodyless }, input) = body::parse_body::parse_body(
         syntax_trees,
         input,
         entry_name.clone(),
         machine_parameters,
         machine_return_type,
     )?;
-    // Measured recursion MR2: a MEASURED machine's state whose TERMINAL
-    // expression is a bare call to the machine's own entry (`sum(n - 1, acc + n)`) is TAIL
-    // recursion -- rewrite it to the loop-back transition `{ _ ->
-    // <entry>(args) }` here, so every downstream pass (termination decrease
-    // proof, loop-carried arg staging, both engines) sees the same bare
-    // back-edge the arm spelling produces. Unmeasured machines keep the
-    // call; validation names the missing measure.
-    if !bodyless && !ranking_subjects.is_empty() {
-        let entry_callable = entry_name.clone().unwrap_or_else(|| name.clone());
-        rewrite_terminal_tail_calls(syntax_trees, states, &entry_callable);
-    }
-    if admitted_same_stack_bytes != 0 {
-        let span = same_stack_clause_span.expect("a positive stack demand records its clause span");
+    // Tail normalization belongs to resolved machine identity. Parsing a
+    // same-spelled call as a backedge here loses generic applications and can
+    // choose a different callable before binding has established its target.
+    if clauses.admitted_same_stack_bytes != 0 {
+        let span = clauses
+            .same_stack_clause_span
+            .expect("a positive stack demand records its clause span");
         if !bodyless {
             return Err(crate::diagnostics::parse_error::ParseError::at_source_span(
                 "`stack N bytes` admits demand only on a bodyless external realization",
@@ -163,23 +134,24 @@ pub(crate) fn parse_machine<'tokens, 'source>(
             type_parameters,
             satisfies,
             conformance_bounds,
-            where_facts,
-            terminates_guarantee,
-            ranking_subjects,
-            ranking_view,
-            ranking_view_arguments,
-            ranking_range,
-            service_reach_keyword_source_spans,
-            service_reach_is_installation_bound,
-            service_reaches,
-            invokes,
-            suspends_keyword_source_spans,
-            blocks_keyword_source_spans,
-            suspends,
-            blocks,
-            admitted_same_stack_bytes,
-            contracts,
+            where_facts: clauses.where_facts,
+            terminates_guarantee: clauses.terminates_guarantee,
+            ranking_subjects: clauses.ranking_subjects,
+            ranking_view: clauses.ranking_view,
+            ranking_view_arguments: clauses.ranking_view_arguments,
+            ranking_range: clauses.ranking_range,
+            service_reach_keyword_source_spans: clauses.service_reach_keyword_source_spans,
+            service_reach_is_installation_bound: clauses.service_reach_is_installation_bound,
+            service_reaches: clauses.service_reaches,
+            invokes: clauses.invokes,
+            suspends_keyword_source_spans: clauses.suspends_keyword_source_spans,
+            blocks_keyword_source_spans: clauses.blocks_keyword_source_spans,
+            suspends: clauses.suspends,
+            blocks: clauses.blocks,
+            admitted_same_stack_bytes: clauses.admitted_same_stack_bytes,
+            contracts: clauses.contracts,
             states,
+            nested_machines,
         },
         input,
     ))

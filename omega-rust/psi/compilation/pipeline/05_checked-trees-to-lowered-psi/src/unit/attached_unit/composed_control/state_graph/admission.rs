@@ -38,16 +38,6 @@ pub(in crate::unit::attached_unit) struct AdmittedGraph<'a> {
         Vec<(&'a CheckedBoundaryMachinePlan, BoundaryIdentity)>,
 }
 
-impl AdmittedGraph<'_> {
-    /// Exact declaration owners of the retained state roster. Fusing a call
-    /// component changes its dispatch head, never its scalar formal owners.
-    pub(in crate::unit::attached_unit) fn source_machines(
-        &self,
-    ) -> impl Iterator<Item = symbols::SymbolHandle> + '_ {
-        self.authored.iter().map(|(machine, _)| machine.symbol)
-    }
-}
-
 pub(in crate::unit::attached_unit) fn admit<'a>(
     checked: &'a CheckedTrees,
     plan: &'a CheckedComposedUnitControlMachinePlan,

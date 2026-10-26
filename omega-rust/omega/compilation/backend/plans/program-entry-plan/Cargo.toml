@@ -32,3 +32,7 @@ target = { path = "../../target" }
 diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
 layout-plans = { path = "../../../../../psi/foundation/layout-plans" }
 language-semantics = { path = "../../../../../psi/foundation/language-semantics" }
+
+[dev-dependencies]
+# The source guards delegate their scan to the shared audit crate.
+source-audit = { path = "../../../../../psi/foundation/source-audit" }

@@ -407,11 +407,14 @@ fn validate_structural_field_range_authority(
                 .iter()
                 .filter_map(terminal_psi::StructuralPathSegment::runtime_index)
             {
-                if !unit.accepted_obligation_facts.iter().any(|fact| {
-                    fact.machine == function.machine
-                        && fact.owner == optimization_unit::PsiProvenance::Edge(edge)
-                        && fact.obligation == obligation
-                }) {
+                if unit
+                    .accepted_obligation_fact(
+                        function.machine,
+                        optimization_unit::PsiProvenance::Edge(edge),
+                        Some(obligation),
+                    )
+                    .is_none()
+                {
                     return Err(
                         OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch,
                     );
@@ -463,18 +466,12 @@ fn validate_structural_field_range_authority(
                 // Rewrites retain the accepted bounds and tiling fact only
                 // when it still proves this operation's exact current region.
                 if unit
-                    .accepted_obligation_facts
-                    .iter()
-                    .filter(|fact| {
-                        fact.machine == function.machine
-                            && fact.owner
-                                == optimization_unit::PsiProvenance::Operation(*psi_operation)
-                            && fact.obligation == *obligation
-                            && fact.psi == unit.psi
-                            && fact.has_canonical_identity()
-                    })
-                    .count()
-                    != 1
+                    .accepted_obligation_fact(
+                        function.machine,
+                        optimization_unit::PsiProvenance::Operation(*psi_operation),
+                        Some(*obligation),
+                    )
+                    .is_none()
                 {
                     return Err(invalid);
                 }
@@ -536,18 +533,12 @@ fn validate_structural_field_range_authority(
                 terminal_codec::canonical_proposition_order_key(&goal)
                     .map_err(|_| invalid.clone())?;
                 if unit
-                    .accepted_obligation_facts
-                    .iter()
-                    .filter(|fact| {
-                        fact.machine == function.machine
-                            && fact.owner
-                                == optimization_unit::PsiProvenance::Operation(*psi_operation)
-                            && fact.obligation == *obligation
-                            && fact.psi == unit.psi
-                            && fact.has_canonical_identity()
-                    })
-                    .count()
-                    != 1
+                    .accepted_obligation_fact(
+                        function.machine,
+                        optimization_unit::PsiProvenance::Operation(*psi_operation),
+                        Some(*obligation),
+                    )
+                    .is_none()
                 {
                     return Err(invalid);
                 }
@@ -610,18 +601,12 @@ fn validate_structural_field_range_authority(
                 terminal_codec::canonical_proposition_order_key(&goal)
                     .map_err(|_| invalid.clone())?;
                 if unit
-                    .accepted_obligation_facts
-                    .iter()
-                    .filter(|fact| {
-                        fact.machine == function.machine
-                            && fact.owner
-                                == optimization_unit::PsiProvenance::Operation(*psi_operation)
-                            && fact.obligation == *obligation
-                            && fact.psi == unit.psi
-                            && fact.has_canonical_identity()
-                    })
-                    .count()
-                    != 1
+                    .accepted_obligation_fact(
+                        function.machine,
+                        optimization_unit::PsiProvenance::Operation(*psi_operation),
+                        Some(*obligation),
+                    )
+                    .is_none()
                 {
                     return Err(invalid);
                 }
@@ -673,18 +658,12 @@ fn validate_structural_field_range_authority(
                 )
                 .map_err(|_| invalid.clone())?;
                 if unit
-                    .accepted_obligation_facts
-                    .iter()
-                    .filter(|fact| {
-                        fact.machine == function.machine
-                            && fact.owner
-                                == optimization_unit::PsiProvenance::Operation(*psi_operation)
-                            && fact.obligation == *capacity_obligation
-                            && fact.psi == unit.psi
-                            && fact.has_canonical_identity()
-                    })
-                    .count()
-                    != 1
+                    .accepted_obligation_fact(
+                        function.machine,
+                        optimization_unit::PsiProvenance::Operation(*psi_operation),
+                        Some(*capacity_obligation),
+                    )
+                    .is_none()
                 {
                     return Err(invalid);
                 }
@@ -720,18 +699,12 @@ fn validate_structural_field_range_authority(
                 ))
                 .map_err(|_| invalid.clone())?;
                 if unit
-                    .accepted_obligation_facts
-                    .iter()
-                    .filter(|fact| {
-                        fact.machine == function.machine
-                            && fact.owner
-                                == optimization_unit::PsiProvenance::Operation(*psi_operation)
-                            && fact.obligation == *obligation
-                            && fact.psi == unit.psi
-                            && fact.has_canonical_identity()
-                    })
-                    .count()
-                    != 1
+                    .accepted_obligation_fact(
+                        function.machine,
+                        optimization_unit::PsiProvenance::Operation(*psi_operation),
+                        Some(*obligation),
+                    )
+                    .is_none()
                 {
                     return Err(invalid);
                 }
@@ -787,18 +760,12 @@ fn validate_structural_field_range_authority(
                     terminal_codec::canonical_proposition_order_key(&goal)
                         .map_err(|_| invalid.clone())?;
                     if unit
-                        .accepted_obligation_facts
-                        .iter()
-                        .filter(|fact| {
-                            fact.machine == function.machine
-                                && fact.owner
-                                    == optimization_unit::PsiProvenance::Operation(*psi_operation)
-                                && fact.obligation == *obligation
-                                && fact.psi == unit.psi
-                                && fact.has_canonical_identity()
-                        })
-                        .count()
-                        != 1
+                        .accepted_obligation_fact(
+                            function.machine,
+                            optimization_unit::PsiProvenance::Operation(*psi_operation),
+                            Some(*obligation),
+                        )
+                        .is_none()
                     {
                         return Err(invalid);
                     }
@@ -827,19 +794,13 @@ fn validate_structural_field_range_authority(
                         restriction: restriction.clone(),
                     };
                     if unit
-                        .accepted_obligation_facts
-                        .iter()
-                        .filter(|fact| {
-                            fact.machine == function.machine
-                                && fact.owner
-                                    == optimization_unit::PsiProvenance::Operation(*psi_operation)
-                                && Some(fact.obligation) == *range_obligation
-                                && fact.psi == unit.psi
-                                && fact.has_canonical_identity()
-                                && fact.scalar_receiving.as_ref() == Some(&receiving)
-                        })
-                        .count()
-                        != 1
+                        .accepted_obligation_fact(
+                            function.machine,
+                            optimization_unit::PsiProvenance::Operation(*psi_operation),
+                            *range_obligation,
+                        )
+                        .and_then(|fact| fact.scalar_receiving.as_ref())
+                        != Some(&receiving)
                     {
                         return Err(
                             OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch,
@@ -887,19 +848,13 @@ fn validate_structural_field_range_authority(
                         restriction: restriction.clone(),
                     };
                     if unit
-                        .accepted_obligation_facts
-                        .iter()
-                        .filter(|fact| {
-                            fact.machine == function.machine
-                                && fact.owner
-                                    == optimization_unit::PsiProvenance::Operation(*psi_operation)
-                                && Some(fact.obligation) == *range_obligation
-                                && fact.psi == unit.psi
-                                && fact.has_canonical_identity()
-                                && fact.scalar_receiving.as_ref() == Some(&receiving)
-                        })
-                        .count()
-                        != 1
+                        .accepted_obligation_fact(
+                            function.machine,
+                            optimization_unit::PsiProvenance::Operation(*psi_operation),
+                            *range_obligation,
+                        )
+                        .and_then(|fact| fact.scalar_receiving.as_ref())
+                        != Some(&receiving)
                     {
                         return Err(
                             OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch,
@@ -913,6 +868,77 @@ fn validate_structural_field_range_authority(
                         value.value,
                         *range_obligation,
                     )?;
+                }
+            }
+            O::AtomicEvent {
+                psi_operation,
+                event,
+                resident_obligation,
+                ..
+            } => {
+                let Some(location) = event.location() else {
+                    if resident_obligation.is_some() {
+                        return Err(
+                            OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch,
+                        );
+                    }
+                    continue;
+                };
+                let root = optimization_unit::field_evidence(function, location.root)
+                    .and_then(|row| row.root_type)
+                    .ok_or(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)?;
+                let declaration = terminal_semantics::projected_field_declaration(
+                    types.values().copied(),
+                    root,
+                    &location.path,
+                    location.field,
+                )
+                .ok_or(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)?;
+                let bounded = matches!(
+                    declaration.field_type,
+                    terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
+                );
+                let requires = bounded && event.joins_modification_order();
+                if requires != resident_obligation.is_some() {
+                    return Err(
+                        OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch,
+                    );
+                }
+                if requires {
+                    let value = event.replacement().ok_or(
+                        OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch,
+                    )?;
+                    let requirement = terminal_semantics::atomic_resident_requirement(
+                        &declaration.field_type,
+                        value,
+                    )
+                    .ok_or(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)?;
+                    terminal_codec::canonical_proposition_order_key(&requirement).map_err(
+                        |_| OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch,
+                    )?;
+                    let receiving = optimization_unit::SourceCheckedScalarReceiving {
+                        value,
+                        restriction: declaration.field_type.clone(),
+                    };
+                    if unit
+                        .accepted_obligation_facts
+                        .iter()
+                        .filter(|fact| {
+                            fact.machine == function.machine
+                                && fact.owner
+                                    == optimization_unit::PsiProvenance::Operation(*psi_operation)
+                                && Some(fact.obligation) == *resident_obligation
+                                && fact.psi == unit.psi
+                                && fact.has_canonical_identity()
+                                && fact.scalar_receiving.as_ref() == Some(&receiving)
+                        })
+                        .count()
+                        != 1
+                    {
+                        return Err(
+                            OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch,
+                        );
+                    }
                 }
             }
             O::StructuralScalarFieldStore {
@@ -1042,7 +1068,7 @@ fn validate_field_range_authority(
     value: ValueId,
     obligation: Option<semantic_vocabulary::ObligationId>,
 ) -> Result<(), OptimizationUnitValidationError> {
-    validate_scalar_range_authority(
+    validate_initialization_range_authority(
         unit,
         machine,
         operation,
@@ -1060,23 +1086,51 @@ fn validate_scalar_range_authority(
     value: ValueId,
     obligation: Option<semantic_vocabulary::ObligationId>,
 ) -> Result<(), OptimizationUnitValidationError> {
-    let Some(requirement) = terminal_semantics::scalar_field_requirement(restriction, value) else {
+    validate_range_fact(
+        unit,
+        machine,
+        operation,
+        terminal_semantics::scalar_field_requirement(restriction, value),
+        obligation,
+    )
+}
+
+fn validate_initialization_range_authority(
+    unit: &PsiOptimizationUnit,
+    machine: MachineId,
+    operation: OperationId,
+    restriction: &terminal_psi::StructuralFieldType,
+    value: ValueId,
+    obligation: Option<semantic_vocabulary::ObligationId>,
+) -> Result<(), OptimizationUnitValidationError> {
+    validate_range_fact(
+        unit,
+        machine,
+        operation,
+        terminal_semantics::scalar_field_initialization_requirement(restriction, value),
+        obligation,
+    )
+}
+
+fn validate_range_fact(
+    unit: &PsiOptimizationUnit,
+    machine: MachineId,
+    operation: OperationId,
+    requirement: Option<semantic_vocabulary::Proposition>,
+    obligation: Option<semantic_vocabulary::ObligationId>,
+) -> Result<(), OptimizationUnitValidationError> {
+    let Some(requirement) = requirement else {
         return Ok(());
     };
     terminal_codec::canonical_proposition_order_key(&requirement)
         .map_err(|_| OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)?;
     if unit
-        .accepted_obligation_facts
-        .iter()
-        .filter(|fact| {
-            fact.machine == machine
-                && fact.owner == optimization_unit::PsiProvenance::Operation(operation)
-                && Some(fact.obligation) == obligation
-                && fact.psi == unit.psi
-                && fact.has_canonical_identity()
-        })
-        .count()
-        != 1
+        .accepted_obligation_fact(
+            machine,
+            optimization_unit::PsiProvenance::Operation(operation),
+            obligation,
+        )
+        .is_none()
     {
         return Err(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch);
     }

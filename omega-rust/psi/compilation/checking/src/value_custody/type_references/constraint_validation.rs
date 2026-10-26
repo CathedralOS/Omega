@@ -650,6 +650,7 @@ fn scoped_maximum_error(
             state: state_name,
             local,
             generic_depth,
+            ..
         } => (*machine, *state_name, Some(*local), *generic_depth),
         _ => {
             return Some(format!(

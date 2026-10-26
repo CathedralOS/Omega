@@ -66,3 +66,15 @@ pub use captures::{
 };
 pub use descriptor_suppliers::descriptor_suppliers;
 pub use reference_captures::reference_captures_at_path;
+mod descriptor_extents;
+pub use descriptor_extents::descriptor_extent;
+
+mod predecessors;
+pub use predecessors::{
+    predecessors, predecessors_in_control, predecessors_in_flow, terminal_alternatives,
+};
+mod memberships;
+pub use memberships::completed_membership;
+
+mod occurrences;
+pub use occurrences::consumer_captures;

@@ -8,8 +8,6 @@ pub(crate) struct FunctionCounts {
     pub(super) virtual_register_count: usize,
     pub(super) point_count: usize,
     pub(super) candidate_count: usize,
-    pub(super) early_clobber_point_count: usize,
-    pub(super) early_clobber_candidate_count: usize,
     pub(super) entry_transition_count: usize,
 }
 
@@ -41,17 +39,6 @@ impl FunctionCounts {
             virtual_register_count: function.virtual_registers.len(),
             point_count,
             candidate_count,
-            early_clobber_point_count: function
-                .virtual_registers
-                .iter()
-                .map(|register| register.early_clobber_points.len())
-                .sum(),
-            early_clobber_candidate_count: function
-                .virtual_registers
-                .iter()
-                .flat_map(|register| &register.early_clobber_points)
-                .map(|point| point.candidates.len())
-                .sum(),
             entry_transition_count: function
                 .virtual_registers
                 .iter()

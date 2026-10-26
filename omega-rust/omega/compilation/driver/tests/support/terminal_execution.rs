@@ -7,7 +7,26 @@ use terminal_runtime::{
     TerminalDomainExitDelegation, TerminalRuntimeError, TerminalRuntimeRequest,
 };
 
+#[path = "component_claim_resume.rs"]
+mod component_claim_resume;
+
 pub(super) const TARGET_ORACLE: &str = "expected_terminal_targets.txt";
+
+/// Long executable witnesses may author a larger sponsor allowance without
+/// changing their program or weakening exhaustion into a successful outcome.
+pub(super) fn fuel_allowance(fixture_dir: &std::path::Path) -> Result<u64, String> {
+    let name = "terminal_fuel_allowance.txt";
+    match std::fs::read_to_string(fixture_dir.join(name)) {
+        Ok(text) => text
+            .trim()
+            .parse::<u64>()
+            .ok()
+            .filter(|value| *value > 0)
+            .ok_or_else(|| format!("{name}: expected one positive u64 allowance")),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(1_000_000),
+        Err(error) => Err(format!("cannot read {name}: {error}")),
+    }
+}
 
 #[derive(Clone, Copy)]
 enum ExpectedTargetOutcome {
@@ -149,7 +168,18 @@ pub(super) fn target_installations(
                 continue;
             }
         };
+        let executable = match std::env::current_exe() {
+            Ok(executable) => executable,
+            Err(error) => {
+                observation
+                    .diagnostics
+                    .push(format!("native sponsor executable: {error}"));
+                matched = false;
+                continue;
+            }
+        };
         let result = terminal_runtime::execute(TerminalRuntimeRequest {
+            native_provider: Some(std::process::Command::new(executable)),
             x86_flags,
             artifact,
             target: Some(&target),
@@ -272,7 +302,12 @@ pub(super) fn interpret(
         Ok(flags) => flags.flatten(),
         Err(error) => return Observation::failure(error),
     };
+    let executable = match std::env::current_exe() {
+        Ok(executable) => executable,
+        Err(error) => return Observation::failure(format!("native sponsor executable: {error}")),
+    };
     let result = match terminal_runtime::execute(TerminalRuntimeRequest {
+        native_provider: Some(std::process::Command::new(executable)),
         x86_flags,
         provider_proposal: None,
         artifact,
@@ -289,6 +324,16 @@ pub(super) fn interpret(
         }
         Err(error) => return Observation::failure(error),
     };
+    if let Err(error) = component_claim_resume::observe(
+        fixture_dir,
+        artifact,
+        provisions,
+        target,
+        &result,
+        fuel_allowance,
+    ) {
+        return Observation::failure(error);
+    }
     let mut observation = match result.status {
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => Observation {
             facts: vec!["interpreter-exit:0".to_owned()],

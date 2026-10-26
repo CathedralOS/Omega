@@ -14,6 +14,18 @@ use psi::tokens::tokens;
 public data ParserHarness {
 }
 
+// Hosted entry has no source arrival parameters. The gate owns its ordinary
+// context storage and passes that borrow explicitly to the harness.
+public machine parser_entry_start()
+reaches Console
+invokes Console;
+crashes Trap
+blocks;
+{
+    let mut parser_harness: ParserHarness;
+    block ParserHarness::main(&mut parser_harness);
+}
+
 public machine ParserHarness::main(parser_harness: &mut ParserHarness)
 reaches Console
 invokes Console;

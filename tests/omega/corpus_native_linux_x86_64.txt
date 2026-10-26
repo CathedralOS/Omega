@@ -137,14 +137,14 @@ pass/arrays/runtime_index_recast rejected 1863ms regressed-from:checked @a92f164
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 pass/arrays/subject_field_where_index checked 2496ms @a92f16431042
 pass/asm/atomic_release_boolean_disposition checked 2459ms @a92f16431042
-pass/asm/atomic_release_disposition_exit built 2481ms exit:0 @a92f16431042
-pass/asm/atomic_release_disposition_generic_exit built 2474ms exit:0 @a92f16431042
-pass/asm/atomic_release_disposition_literal_exit built 2502ms exit:0 @a92f16431042
-pass/asm/atomic_release_disposition_pair_exit built 2660ms exit:0 @a92f16431042
-pass/asm/atomic_release_disposition_reference_exit built 2098ms exit:0 @a92f16431042
-pass/asm/atomic_release_disposition_replaced_contents_exit built 2081ms exit:0 @a92f16431042
-pass/asm/atomic_release_disposition_returned_view_exit built 2046ms exit:0 @a92f16431042
-pass/asm/atomic_release_disposition_state_exit built 2070ms exit:0 @a92f16431042
+pass/asm/atomic_release_disposition_exit built 1904ms exit:0 @2e70a865669c+wt
+pass/asm/atomic_release_disposition_generic_exit built 1996ms exit:0 @2e70a865669c+wt
+pass/asm/atomic_release_disposition_literal_exit built 2299ms exit:0 @2e70a865669c+wt
+pass/asm/atomic_release_disposition_pair_exit built 1692ms exit:0 @2e70a865669c+wt
+pass/asm/atomic_release_disposition_reference_exit built 1890ms exit:0 @2e70a865669c+wt
+pass/asm/atomic_release_disposition_replaced_contents_exit built 2027ms exit:0 @2e70a865669c+wt
+pass/asm/atomic_release_disposition_returned_view_exit built 1906ms exit:0 @2e70a865669c+wt
+pass/asm/atomic_release_disposition_state_exit built 1934ms exit:0 @2e70a865669c+wt
 pass/asm/checked_countdown_literal_exit built 2024ms exit:0 @a92f16431042
 pass/asm/checked_label_borrow_last_use_exit built 2320ms exit:0 @a92f16431042
 pass/asm/checked_label_call_result_exit built 2480ms exit:0 @a92f16431042
@@ -170,21 +170,21 @@ pass/atomics/atomic_global_order_operations checked 1679ms @a92f16431042
 pass/atomics/atomic_order_surface checked 2214ms @a92f16431042
 pass/atomics/runtime_atomic_after_quoted_write_exit built 6108ms exit:70 @a92f16431042
 pass/atomics/runtime_atomic_bitwise_widths_exit built 6092ms exit:70 @a92f16431042
-pass/atomics/runtime_atomic_case_field_state_exit built 2200ms exit:0 @a92f16431042
+pass/atomics/runtime_atomic_case_field_state_exit built 1920ms exit:0 @2e70a865669c+wt
 pass/atomics/runtime_atomic_compare_exchange_exit built 6311ms exit:70 @a92f16431042
 pass/atomics/runtime_atomic_computed_operands_exit built 2594ms exit:0 @a92f16431042
 pass/atomics/runtime_atomic_computed_updates_exit built 2451ms exit:0 @a92f16431042
 pass/atomics/runtime_atomic_fence_captured_ordering_exit built 2311ms exit:0 @a92f16431042
-pass/atomics/runtime_atomic_fences_exit built 2255ms exit:0 @a92f16431042
+pass/atomics/runtime_atomic_fences_exit built 1972ms exit:0 @2e70a865669c+wt
 pass/atomics/runtime_atomic_fetch_add_exit built 5808ms exit:70 @a92f16431042
 pass/atomics/runtime_atomic_operand_order_exit built 2478ms exit:0 @a92f16431042
 pass/atomics/runtime_authored_fence_name_exit built 2403ms exit:0 @a92f16431042
-pass/atomics/runtime_case_payload_atomic_events_exit built 1858ms exit:0 @a92f16431042
-pass/atomics/runtime_mixed_common_atomic_cell_exit built 1864ms exit:0 @a92f16431042
-pass/atomics/runtime_nested_case_payload_atomic_event_exit built 1863ms exit:0 @a92f16431042
-pass/atomics/runtime_projected_state_operands_exit built 2786ms exit:0 @a92f16431042
+pass/atomics/runtime_case_payload_atomic_events_exit built 1913ms exit:0 @2e70a865669c+wt
+pass/atomics/runtime_mixed_common_atomic_cell_exit built 2232ms exit:0 @2e70a865669c+wt
+pass/atomics/runtime_nested_case_payload_atomic_event_exit built 2070ms exit:0 @2e70a865669c+wt
+pass/atomics/runtime_projected_state_operands_exit built 1991ms exit:0 @2e70a865669c+wt
 pass/atomics/runtime_shared_case_waived_atomic_exit built 6247ms exit:70 @a92f16431042
-pass/atomics/runtime_stored_reference_atomic_events_exit built 2406ms exit:0 @a92f16431042
+pass/atomics/runtime_stored_reference_atomic_events_exit built 2239ms exit:0 @2e70a865669c+wt
 pass/atomics/selected_reference_atomic_provider built 2067ms @a92f16431042
 pass/atomics/shared_receiver_atomic_store built 7016ms exit:70 @a92f16431042
 pass/blockexec/blocking_executor_custody_claims_compile built 2608ms exit:0 @a92f16431042
@@ -7132,7 +7132,7 @@ pass/host/runtime_descriptor_output_streams_exit built 4563ms exit:0 stdout:matc
 pass/host/runtime_descriptor_padded_prefix_loans_exit built 2739ms exit:0 stdout:match @a92f16431042
 pass/host/runtime_descriptor_record_array_input_exit built 18785ms exit:0 stdout:match @a92f16431042
 pass/host/runtime_descriptor_record_loan_input_exit built 4552ms exit:0 stdout:match @a92f16431042
-pass/host/runtime_descriptor_reference_record_prefix_exit built 4761ms exit:0 stdout:match @a92f16431042
+pass/host/runtime_descriptor_reference_record_prefix_exit built 2351ms exit:0 stdout:match @2e70a865669c+wt
 pass/host/runtime_descriptor_scalar_input_exit rejected 3613ms regressed-from:built+exit:0+stdout:match+stderr:match @a92f16431042
 	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(1)), operation: None, site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
 pass/host/runtime_encoded_record_view_observation_exit rejected 2724ms regressed-from:built+exit:0+stdout:match @a92f16431042
@@ -8083,7 +8083,7 @@ pass/ranges/subject_unsigned_computed_index_lower_bound checked 1665ms @a92f1643
 pass/ranges/sum_payload_range_arith_narrowed_exit rejected 6851ms regressed-from:built+exit:70 @a92f16431042
 	cannot prove default-domain field requirement for call main from Main::main$entry_context::entry: parameter main.c::Dim.amount requires i32::Ten
 pass/recast/address_model_preserves_state_bounds built 2077ms @a92f16431042
-pass/recast/atomic_qualification_view_exit built 2478ms exit:0 @a92f16431042
+pass/recast/atomic_qualification_view_exit built 1782ms exit:0 @2e70a865669c+wt
 pass/recast/bool_byte_view_compile checked 3091ms @a92f16431042
 pass/recast/borrowed_byte_scalar_views_exit built 6907ms exit:0 @a92f16431042
 pass/recast/boundary_postcondition_backing_scalar_exit built 2204ms exit:0 @a92f16431042

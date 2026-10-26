@@ -51,6 +51,37 @@ pub struct ValidatedRuntimeNaturalComponent {
     pub edges: Vec<ValidatedRuntimeNaturalEdge>,
 }
 
+/// Runtime recurrence requires a terminal transfer at every exact internal
+/// occurrence, independently of whether the author promises termination.
+pub(super) fn require_tail_component(
+    program: &dyn crate::CheckingInput,
+    component: &[usize],
+) -> Result<(), &'static str> {
+    let dispatched = dispatched_implementations(program);
+    for position in component {
+        let machine = &program.machines()[*position];
+        for state in program.machine_states(machine) {
+            for (ordinal, statement) in program
+                .statement_table
+                .indexed_statements(state.statement_nodes)
+            {
+                if matches!(statement, StatementNode::AssemblyFact(_)) {
+                    continue;
+                }
+                occurrences::require_classified_tail_occurrences(
+                    program,
+                    machine,
+                    state,
+                    ordinal,
+                    component,
+                    &dispatched,
+                )?;
+            }
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn extend_runtime_adjacency(
     program: &dyn crate::CheckingInput,
     proof_only: &ProofOnlyClassification,
@@ -325,14 +356,6 @@ pub(super) fn project_component(
                 if !relevance.requires_rank(state.symbol) {
                     continue;
                 }
-                occurrences::require_classified_tail_occurrences(
-                    program,
-                    machine,
-                    state,
-                    statement_ordinal,
-                    component,
-                    &dispatched,
-                )?;
                 let Some(transition) = statement.as_transition() else {
                     if prefix::preserves_rank(
                         program,
@@ -418,39 +441,17 @@ pub(super) fn project_component(
                     site_guards.push((guard, true));
                     guards.push((guard, false));
                 }
-                // `-> callee(..)` and `-> (callee(..))` denote the same tail
-                // arrival. An ATTACHED machine must spell a foreign tail call
-                // with the value-call parentheses, so a ranked component now
-                // meets the parenthesized form where it used to meet the named
-                // one. Read both as the same arrival instead of letting the
-                // parenthesized spelling reach the unclassified-effect
-                // rejection below; a call nested inside an operator or
-                // aggregate is not a top-level Call node and still rejects.
+                // Use the same resolved completion boundary as operand-frame
+                // preparation and lowering: a nested call is still an operand,
+                // while a complete outer invocation is the arrival itself.
                 let target_node = program.statement_table.transition_target(transition.target);
-                let tail_arrival = match target_node {
-                    TransitionTargetNode::Named {
-                        path, arguments, ..
-                    } => Some((
-                        path.symbol,
-                        program.statement_table.expression_handles(*arguments),
-                    )),
-                    TransitionTargetNode::Value(value) => {
-                        match program.expression_table.expression(*value) {
-                            ExpressionNode::Call(call) if !call.receiver.is_valid() => Some((
-                                call.target_symbol,
-                                program.expression_table.expression_handles(call.arguments),
-                            )),
-                            _ => None,
-                        }
-                    }
-                    _ => None,
-                };
+                let tail_arrival =
+                    crate::completing_transition_invocation(program, transition.target)
+                        .map(|transfer| (transfer.target, transfer.arguments));
                 match tail_arrival {
                     Some((target_symbol, arguments)) => {
-                        let Some(callee) = target_machine(program, target_symbol) else {
-                            return Err("a call target has no exact machine identity");
-                        };
-                        if callee == index
+                        let callee = target_machine(program, target_symbol);
+                        if callee == Some(index)
                             && internal_state_index(program, machine, target_symbol).is_some()
                         {
                             if let Some(retained) = &mut natural
@@ -475,6 +476,34 @@ pub(super) fn project_component(
                             // hypothesis edge here.
                             continue;
                         }
+                        if !arguments.iter().all(|argument| {
+                            prefix::operand_has_admitted_meaning(program, machine, state, *argument)
+                        }) {
+                            return Err(
+                                "a call argument has effects or non-builtin operator meaning",
+                            );
+                        }
+                        let Some(callee) = callee else {
+                            // An abstract callable is not an executable member
+                            // of this component. Its public promise closes this
+                            // leaf; concrete selections still enter the complete
+                            // selected graph and owe every recursive edge below.
+                            let signature = program
+                                .retained_static_machine_contract(target_symbol)
+                                .map(|contract| contract.signature())
+                                .or_else(|| {
+                                    crate::selected_requirement_signature(program, target_symbol)
+                                        .map(|(_, signature)| signature)
+                                });
+                            if !signature.is_some_and(|signature| matches!(
+                                &signature.termination_guarantee,
+                                language_semantics::TerminationGuarantee::Terminates { premises }
+                                    if premises.is_empty()
+                            )) {
+                                return Err("an abstract call has no unconditional public termination contract");
+                            }
+                            continue;
+                        };
                         let callee_machine = &program.machines()[callee];
                         let Some(callee_entry) = program.machine_states(callee_machine).first()
                         else {
@@ -484,13 +513,6 @@ pub(super) fn project_component(
                             && target_symbol != callee_entry.symbol
                         {
                             return Err("a subordinate-state call needs its own arrival evidence");
-                        }
-                        if !arguments.iter().all(|argument| {
-                            prefix::operand_has_admitted_meaning(program, machine, state, *argument)
-                        }) {
-                            return Err(
-                                "a call argument has effects or non-builtin operator meaning",
-                            );
                         }
                         observed.push(callee);
                         let Some(callee_position) =

@@ -18,6 +18,7 @@ mod claim_transfers;
 pub(crate) use claim_transfers::{function_entry_claim_paths, validate_slot_claim_transfers};
 mod node_contracts;
 mod payloadless_cases;
+mod plain_calls;
 mod records;
 mod scalar_arrays;
 mod scalar_types;

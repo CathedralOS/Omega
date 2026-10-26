@@ -1,7 +1,5 @@
 //! Physical-view availability, reservation, and fixed-view filtering.
 
-use std::collections::BTreeMap;
-
 use register_model::{
     RegisterClass, RegisterClassId, RegisterView, RegisterViewId, ValidatedPhysicalRegisterModel,
     ValidatedRegisterReservationProfile,
@@ -23,8 +21,8 @@ pub(super) struct CandidateViews<'a> {
     function: &'a FunctionLiveRanges,
     physical: &'a ValidatedPhysicalRegisterModel,
     reservations: &'a ValidatedRegisterReservationProfile,
-    candidates: BTreeMap<(RegisterClassId, SelectedBlockId, usize), Vec<RegisterViewId>>,
-    boundaries_by_class: BTreeMap<RegisterClassId, Vec<LiveRangePoint>>,
+    candidates_by_class: Vec<Vec<Vec<(SelectedBlockId, Vec<RegisterViewId>)>>>,
+    boundaries_by_class: Vec<Vec<LiveRangePoint>>,
 }
 
 impl<'a> CandidateViews<'a> {
@@ -42,7 +40,14 @@ impl<'a> CandidateViews<'a> {
         // identical cells.
         let model = physical.model();
         let reserved = reservations.reserved_units();
-        let mut boundaries_by_class = BTreeMap::new();
+        let max_class_id = model
+            .classes
+            .iter()
+            .map(|c| usize::from(c.id.0))
+            .max()
+            .unwrap_or(0);
+        let mut boundaries_by_class = vec![Vec::new(); max_class_id + 1];
+        let mut candidates_by_class = vec![Vec::new(); max_class_id + 1];
         for class in &model.classes {
             let mut class_units = std::collections::BTreeSet::new();
             for &view_id in &class.views {
@@ -74,20 +79,23 @@ impl<'a> CandidateViews<'a> {
             }
             boundaries.sort_unstable();
             boundaries.dedup();
-            boundaries_by_class.insert(class.id, boundaries);
+            let class_idx = usize::from(class.id.0);
+            candidates_by_class[class_idx] = vec![Vec::new(); boundaries.len() + 1];
+            boundaries_by_class[class_idx] = boundaries;
         }
         Self {
             function,
             physical,
             reservations,
-            candidates: BTreeMap::new(),
+            candidates_by_class,
             boundaries_by_class,
         }
     }
 
+    #[inline]
     pub(super) fn boundaries_for(&self, class: RegisterClassId) -> &[LiveRangePoint] {
         self.boundaries_by_class
-            .get(&class)
+            .get(usize::from(class.0))
             .map(Vec::as_slice)
             .unwrap_or(&[])
     }
@@ -107,23 +115,51 @@ impl<'a> CandidateViews<'a> {
         point: LiveRangePoint,
         fixed: Option<RegisterViewId>,
     ) -> Result<&[RegisterViewId], AllocationLegalityError> {
-        let cell = self
-            .boundaries_for(class.id)
+        let class_idx = usize::from(class.id.0);
+        let cell = self.boundaries_by_class[class_idx]
             .partition_point(|boundary| *boundary <= point);
-        let candidates = self
-            .candidates
-            .entry((class.id, block, cell))
-            .or_insert_with(|| {
-                unconstrained(
-                    class,
-                    available,
-                    block,
-                    point,
-                    self.function,
-                    self.physical,
-                    self.reservations,
-                )
-            });
+        self.candidates_at_cell(
+            function_index,
+            register,
+            class,
+            available,
+            block,
+            point,
+            cell,
+            fixed,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn candidates_at_cell(
+        &mut self,
+        function_index: usize,
+        register: &VirtualLiveRange,
+        class: &RegisterClass,
+        available: &[RegisterViewId],
+        block: SelectedBlockId,
+        point: LiveRangePoint,
+        cell: usize,
+        fixed: Option<RegisterViewId>,
+    ) -> Result<&[RegisterViewId], AllocationLegalityError> {
+        let class_idx = usize::from(class.id.0);
+        let bucket = &mut self.candidates_by_class[class_idx][cell];
+        let pos = if let Some(pos) = bucket.iter().position(|(b, _)| *b == block) {
+            pos
+        } else {
+            let computed = unconstrained(
+                class,
+                available,
+                block,
+                point,
+                self.function,
+                self.physical,
+                self.reservations,
+            );
+            bucket.push((block, computed));
+            bucket.len() - 1
+        };
+        let candidates = bucket[pos].1.as_slice();
         let Some(fixed) = fixed else {
             return Ok(candidates);
         };

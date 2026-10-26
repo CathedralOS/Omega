@@ -20,6 +20,10 @@ pub enum MachineBodyStatus {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Machine {
     pub symbol: SymbolHandle,
+    /// Exact enclosing declaration before symbol assignment. Zero for a module
+    /// declaration. Binding makes this the symbol's lexical parent; execution
+    /// uses flat machine identities and never an enclosing runtime activation.
+    pub lexical_parent: Handle<Machine>,
     pub name: DiagnosticName,
     pub generic_data_origin: GenericDataMachineOrigin,
     pub trait_default_origin: TraitDefaultOrigin,
@@ -264,6 +268,7 @@ pub(crate) fn test_program_with_guarded_transition()
 #[cfg(test)]
 pub(crate) fn test_machine(states: HandleSpan<Handle<State>>) -> Machine {
     Machine {
+        lexical_parent: Handle::invalid(),
         symbol: SymbolHandle::invalid(),
         generic_data_origin: Default::default(),
         trait_default_origin: Default::default(),

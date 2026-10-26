@@ -56,6 +56,7 @@ pub(super) fn direct_context_proves_boolean_expression(
 pub(super) fn direct_context_proves_instantiated_boolean_expression(
     program: &dyn ::validation::CheckingInput,
     facts: &checked_trees::CheckFacts,
+    call_flow: &checked_trees::FlowCallFact,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     context: &facts::FactContext,
     contexts: &[facts::FactContextHandle],
@@ -107,7 +108,8 @@ pub(super) fn direct_context_proves_instantiated_boolean_expression(
     }
     if instantiated_live_value_proves(
         program,
-        semantic,
+        facts,
+        call_flow,
         context,
         contexts,
         caller_state_symbol,
@@ -193,7 +195,8 @@ pub(super) fn direct_context_proves_instantiated_boolean_expression(
 #[allow(clippy::too_many_arguments)]
 fn instantiated_live_value_proves(
     program: &dyn ::validation::CheckingInput,
-    semantic: &facts::FactPlan,
+    facts: &checked_trees::CheckFacts,
+    call_flow: &checked_trees::FlowCallFact,
     context: &facts::FactContext,
     contexts: &[facts::FactContextHandle],
     caller_state_symbol: SymbolHandle,
@@ -205,6 +208,7 @@ fn instantiated_live_value_proves(
     use super::prover::{ScalarValue, evaluate_scalar};
     use typed_trees::expression::ExpressionNode;
 
+    let semantic = &facts.semantic;
     let parameters = target.contract_parameters(program);
     let arguments = validation::call_site_argument_expressions(program, call_site);
     evaluate_scalar(
@@ -231,7 +235,8 @@ fn instantiated_live_value_proves(
                 _ => {
                     return projected_formal_leaf_value(
                         program,
-                        semantic,
+                        facts,
+                        call_flow,
                         contexts,
                         caller_state_symbol,
                         statement_index,
@@ -301,7 +306,8 @@ fn instantiated_live_value_proves(
 #[allow(clippy::too_many_arguments)]
 fn projected_formal_leaf_value(
     program: &dyn ::validation::CheckingInput,
-    semantic: &facts::FactPlan,
+    facts: &checked_trees::CheckFacts,
+    call_flow: &checked_trees::FlowCallFact,
     contexts: &[facts::FactContextHandle],
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
@@ -309,19 +315,22 @@ fn projected_formal_leaf_value(
     arguments: &[typed_trees::expression::ExpressionHandle],
     leaf: typed_trees::expression::ExpressionHandle,
 ) -> Option<facts::ScalarValue> {
-    // `room.exits.len` selects no storage: `len` on a fixed array is the
-    // declared type's literal extent, so the receiver only has to be the
-    // same checked projection of an explicit formal. A declared `len` field,
-    // a slice's runtime length, or an unresolved extent keeps the storage
-    // read below (or refuses there) — this route owns no other evidence.
-    if let Some(member) = program.expression_table.member_node(leaf)
-        && member.case_variant.is_none()
-        && !member.member_symbol.is_valid()
-        && CollectionMeasure::from_authored_spelling(member.member.as_str())
-            == Some(CollectionMeasure::Length)
-    {
-        return projected_collection_extent(program, parameters, member.receiver);
-    }
+    let semantic = &facts.semantic;
+    // A collection measure observes the receiver's exact current descriptor.
+    // Keep substitution and selector narrowing identical to ordinary scalar
+    // reads; a declared extent and a surviving value snapshot are distinct
+    // sources of evidence, and neither replays a local initializer.
+    let length_receiver = program
+        .expression_table
+        .member_node(leaf)
+        .filter(|member| {
+            member.case_variant.is_none()
+                && !member.member_symbol.is_valid()
+                && CollectionMeasure::from_authored_spelling(member.member.as_str())
+                    == Some(CollectionMeasure::Length)
+        })
+        .map(|member| member.receiver);
+    let leaf = length_receiver.unwrap_or(leaf);
     let mut required = crate::flow::projected_leaf_place(program, leaf)?;
     let formal = required.root.as_symbol()?;
     // `self`'s projections stay with the receiver's own substitution owner;
@@ -339,6 +348,7 @@ fn projected_formal_leaf_value(
         statement_index,
         argument,
     )?;
+    let actual_prefix_length = actual.segments.len();
     actual.segments.append(&mut required.segments);
     for segment in &mut actual.segments {
         let facts::PlaceSegment::Index { expression } = *segment else {
@@ -375,6 +385,46 @@ fn projected_formal_leaf_value(
             *segment = facts::PlaceSegment::FixedIndex { index };
         }
     }
+    if length_receiver.is_some() {
+        if let Some(length) = validation::fixed_array_type_length(program, observed_type) {
+            return Some(facts::ScalarValue::Integer(
+                numerics::bignum::BigInt::from_u64(u64::try_from(length).ok()?),
+            ));
+        }
+        if !observation_carriers_agree(
+            program,
+            caller_state_symbol,
+            statement_index,
+            observed_type,
+            &actual,
+        ) {
+            return None;
+        }
+        let capture = call_flow
+            .argument_operands()
+            .handle_at(u32::try_from(position).ok()?);
+        let length = validation::completed_storage::descriptor_extent(
+            program,
+            &facts.flow.control,
+            capture,
+            &actual.segments[actual_prefix_length..],
+            call_flow.invocation_storage,
+        )
+        .or_else(|| {
+            let literal = crate::values::literal_at_place(
+                program,
+                semantic,
+                contexts
+                    .iter()
+                    .map(|context| semantic.contexts.get(*context)),
+                &actual,
+            )?;
+            u64::try_from(typed_trees::byte_predicates::literal_bytes(program, literal)?.len()).ok()
+        })?;
+        return Some(facts::ScalarValue::Integer(
+            numerics::bignum::BigInt::from_u64(length),
+        ));
+    }
     scalar_value_at_observation(
         program,
         semantic,
@@ -398,14 +448,7 @@ fn scalar_value_at_observation(
     observed_type: typed_trees::types::TypeReferenceHandle,
     place: &validation::CanonicalPlace,
 ) -> Option<facts::ScalarValue> {
-    let stored_type =
-        validation::canonical_place_type_reference(program, state, statement_index, place)?;
-    let referee = |reference| {
-        validation::reference_shell(program, reference).map_or(reference, |shell| shell.referee)
-    };
-    if program.normalized_type_identity(referee(stored_type))
-        != program.normalized_type_identity(referee(observed_type))
-    {
+    if !observation_carriers_agree(program, state, statement_index, observed_type, place) {
         return None;
     }
     super::prover::scalar_value_at_place(
@@ -418,29 +461,23 @@ fn scalar_value_at_observation(
     )
 }
 
-/// The static extent a `.len` member names: `room.exits.len` under
-/// `requires room.exit_count < room.exits.len` is `[Exit; 4]`'s literal
-/// length, carried by the declared type rather than by any live snapshot.
-/// The receiver keeps the projected-place contract — an explicit formal
-/// root reached through checked member hops — and only a fixed array's
-/// literal extent resolves; a slice or const-parameter length stays runtime
-/// evidence this route does not own.
-fn projected_collection_extent(
+/// A stored observation retains its declaration's interpretation across the
+/// exact actual/formal substitution. Equal addresses or widths do not suffice.
+fn observation_carriers_agree(
     program: &dyn ::validation::CheckingInput,
-    parameters: &[typed_trees::signature::StateParameter],
-    receiver: typed_trees::expression::ExpressionHandle,
-) -> Option<facts::ScalarValue> {
-    let required = crate::flow::projected_leaf_place(program, receiver)?;
-    let formal = required.root.as_symbol()?;
-    if !parameters
-        .iter()
-        .any(|parameter| parameter.symbol == formal)
-    {
-        return None;
-    }
-    let reference = validation::expression_place_type_reference(program, receiver, &[])?;
-    let length = crate::checks::ranges::fixed_array_type_length(program, reference)?;
-    Some(facts::ScalarValue::Integer(
-        numerics::bignum::BigInt::from_u64(u64::try_from(length).ok()?),
-    ))
+    state: SymbolHandle,
+    statement_index: usize,
+    observed_type: typed_trees::types::TypeReferenceHandle,
+    place: &validation::CanonicalPlace,
+) -> bool {
+    let Some(stored_type) =
+        validation::canonical_place_type_reference(program, state, statement_index, place)
+    else {
+        return false;
+    };
+    let referee = |reference| {
+        validation::reference_shell(program, reference).map_or(reference, |shell| shell.referee)
+    };
+    program.normalized_type_identity(referee(stored_type))
+        == program.normalized_type_identity(referee(observed_type))
 }

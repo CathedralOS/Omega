@@ -274,18 +274,7 @@ pub(super) fn validate_establish_reference(
             &result.projected_qualifications,
         );
     if let Some(storage) = storage {
-        let offset_type = machine
-            .parameters
-            .iter()
-            .chain(machine.result.scalar_ref())
-            .chain(machine.block_parameters())
-            .chain(
-                machine
-                    .operations()
-                    .filter_map(|candidate| candidate.result.scalar_ref()),
-            )
-            .find(|value| value.id == storage.byte_offset)
-            .map(|value| value.scalar_type);
+        let offset_type = declared_scalar_type(machine, storage.byte_offset);
         let offset_is_u64 = matches!(offset_type, Some(semantic_vocabulary::ScalarType::Integer(integer))
             if !integer.is_address() && integer.bits() == 64
                 && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned);

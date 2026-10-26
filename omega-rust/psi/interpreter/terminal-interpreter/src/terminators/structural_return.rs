@@ -431,7 +431,8 @@ impl TerminalExecution<'_> {
                 crate::values::StructuralScalarRuntimeField::case_payload(root.clone(), field.id);
             self.structural_scalar_fields
                 .get(&cell)
-                .copied()
+                .map(crate::scalar_storage::ScalarCell::read)
+                .transpose()?
                 .map(|scalar| (field.id, scalar))
                 .ok_or_else(malformed)
         });

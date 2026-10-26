@@ -490,12 +490,15 @@ pub(super) fn lower(
                 source: source.clone(),
             })
         }
-        OperationKind::EstablishElementView {
+        terminal_psi::element_view_establish_pair_pattern!(
             destination,
             source,
             element,
             region,
-        } => {
+        ) => {
+            // One descriptor derivation for both spellings; the argument's
+            // `MutableBorrow` access keeps the exclusive-loan distinction
+            // consumers must see.
             let result = operation
                 .result
                 .structural()
@@ -547,32 +550,6 @@ pub(super) fn lower(
                 length: *length,
                 obligation: *obligation,
                 path: path.clone(),
-            })
-        }
-        OperationKind::EstablishMutableElementView {
-            destination,
-            source,
-            element,
-            region,
-        } => {
-            // A mutable establishment is the same descriptor derivation; the
-            // argument's `MutableBorrow` access keeps the exclusive-loan
-            // distinction consumers must see.
-            let result = operation
-                .result
-                .structural()
-                .cloned()
-                .ok_or(LoweringError::InvalidElementViewEstablishment(operation.id))?;
-            if result.place != *destination {
-                return Err(LoweringError::InvalidElementViewEstablishment(operation.id));
-            }
-            Ok(AbstractOperation::EstablishElementView {
-                psi_operation: operation.id,
-                result,
-                destination: *destination,
-                source: source.clone(),
-                element: *element,
-                region: *region,
             })
         }
         OperationKind::ElementViewWrite {
@@ -745,6 +722,7 @@ pub(super) fn lower(
                 event: abstract_operations::AbstractAtomicEvent::Fence {
                     ordering: *ordering,
                 },
+                resident_obligation: None,
                 reads_from: None,
                 modification_after: None,
             })

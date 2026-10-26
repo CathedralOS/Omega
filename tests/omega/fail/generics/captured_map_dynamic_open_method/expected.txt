@@ -1,1 +1,1 @@
-supplies static machine arguments, but the requirement declares no finite family
+requirement `Generic::code` is absent from `dyn Generic`: the requirement has requirement-local generic parameters outside one finite family

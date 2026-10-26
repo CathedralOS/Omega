@@ -49,21 +49,20 @@ pub(crate) fn bind_result_claim(
     if live_claims
         .insert(
             binding.claim,
-            crate::execution::LiveClaim {
-                place: Some(place),
-                path: binding.path.clone(),
-                multiplicity: Some(if binding.path.is_empty() {
-                    multiplicity
-                } else {
-                    StructuralMultiplicity::Linear
-                }),
-            },
+            crate::execution::LiveClaim::at(place, binding.path.clone(), multiplicity),
         )
         .is_some()
     {
         return Err(malformed());
     }
     Ok(())
+}
+
+/// Whether a live claim still holds `place`. Claim rows are the only runtime
+/// table that names a place without owning its cell, so every route that frees
+/// or reuses a place asks this exact question of the claim table.
+pub(crate) fn place_is_claimed(claims: &BTreeMap<ClaimId, LiveClaim>, place: PlaceId) -> bool {
+    claims.values().any(|claim| claim.place == Some(place))
 }
 
 /// A loan follows backing identity, not the descriptor carrier's location.
@@ -98,10 +97,7 @@ pub(crate) fn commit_cleanup_action(
 ) -> Result<Option<(NominalAffineCleanup, TerminalStructuralValue)>, TerminalInterpretError> {
     match action {
         TerminalAffineCleanupAction::DiscardRoot(place) => {
-            if live_claims
-                .values()
-                .any(|claim| claim.place == Some(*place))
-            {
+            if place_is_claimed(live_claims, *place) {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }
             if reference::discard_structural_value(
@@ -382,7 +378,7 @@ pub(crate) fn retire_cleanup_home(
     claims: &BTreeMap<ClaimId, LiveClaim>,
     place: PlaceId,
 ) -> Result<(), TerminalInterpretError> {
-    if claims.values().any(|claim| claim.place == Some(place)) {
+    if place_is_claimed(claims, place) {
         return Err(TerminalInterpretError::AffineFrontierMismatch);
     }
     if values.remove(&place).is_none() {
@@ -666,12 +662,12 @@ pub(crate) fn bind_structural_primitive_values(
     structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     structural_values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
     arguments: &[TerminalStructuralPrimitiveValue],
-    mut storage: RuntimeRows<StructuralRuntimePlace, TerminalScalarValue>,
+    mut storage: crate::scalar_storage::ScalarStorageRows<StructuralRuntimePlace>,
     zero_initialized_arguments: &[u32],
     account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
 ) -> Result<
     (
-        RuntimeRows<StructuralRuntimePlace, TerminalScalarValue>,
+        crate::scalar_storage::ScalarStorageRows<StructuralRuntimePlace>,
         RuntimeRows<u32, StructuralRuntimePlace>,
     ),
     TerminalInterpretError,
@@ -1305,15 +1301,11 @@ pub(crate) fn bind_entry_claims(
             || claims
                 .insert(
                     entry_claim.claim,
-                    LiveClaim {
-                        place: Some(parameter.place),
-                        path: entry_claim.path.clone(),
-                        multiplicity: Some(if entry_claim.path.is_empty() {
-                            parameter.multiplicity
-                        } else {
-                            StructuralMultiplicity::Linear
-                        }),
-                    },
+                    LiveClaim::at(
+                        parameter.place,
+                        entry_claim.path.clone(),
+                        parameter.multiplicity,
+                    ),
                 )
                 .is_some()
         {
@@ -1587,15 +1579,11 @@ pub(crate) fn transfer_claims(
             if callee_claims
                 .insert(
                     entry_claim.claim,
-                    LiveClaim {
-                        place: Some(parameter.place),
-                        path: entry_claim.path.clone(),
-                        multiplicity: Some(if entry_claim.path.is_empty() {
-                            parameter.multiplicity
-                        } else {
-                            StructuralMultiplicity::Linear
-                        }),
-                    },
+                    LiveClaim::at(
+                        parameter.place,
+                        entry_claim.path.clone(),
+                        parameter.multiplicity,
+                    ),
                 )
                 .is_some()
             {
@@ -1647,11 +1635,8 @@ pub(crate) fn rebind_structural_result_claims(
     }
     let mut rebound = caller_claims.clone();
     for binding in &result.claims {
-        let expected_multiplicity = if binding.path.is_empty() {
-            result.multiplicity
-        } else {
-            StructuralMultiplicity::Linear
-        };
+        let expected_multiplicity =
+            LiveClaim::path_multiplicity(&binding.path, result.multiplicity);
         let mut held = returned_claims.iter().filter(|returned| {
             returned.path == binding.path
                 && callee_claims
@@ -1669,11 +1654,7 @@ pub(crate) fn rebind_structural_result_claims(
             || rebound
                 .insert(
                     binding.claim,
-                    LiveClaim {
-                        place: Some(result.place),
-                        path: binding.path.clone(),
-                        multiplicity: Some(expected_multiplicity),
-                    },
+                    LiveClaim::at(result.place, binding.path.clone(), result.multiplicity),
                 )
                 .is_some()
         {

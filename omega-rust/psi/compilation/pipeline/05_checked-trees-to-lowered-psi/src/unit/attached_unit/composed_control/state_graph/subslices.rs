@@ -6,9 +6,7 @@
 //! module only resolves the transfer's source place in the state's frontier.
 use super::super::super::super::StructuralParameterDeclaration;
 use super::super::super::view_ranges::{self, ViewRangeSite};
-use super::super::super::{
-    PlaceId, StructuralPlaceDeclaration, ValueDeclaration, allocate_dense, place_id, unsupported,
-};
+use super::super::super::{PlaceId, StructuralPlaceDeclaration, ValueDeclaration, unsupported};
 use super::super::catalogs::ComposedCatalogs;
 use super::super::{CheckedTrees, LoweringError};
 use super::CheckedComposedUnitControlStatePlan;
@@ -65,33 +63,21 @@ pub(super) fn emit(
     let range = view_ranges::range(argument).ok_or(LoweringError::Unsupported(
         "Unit graph subslice transfer lost its range",
     ))?;
-    let storage = view_ranges::storage(
+    let (source, establishment) = view_ranges::stage_source(
         identities,
         checked,
         state.state,
         statement_ordinal,
         argument,
-        &catalogs.structural_types,
-    )?;
-    let whole = storage
-        .requires_establishment()
-        .then(|| allocate_dense(&mut catalogs.next_place).map(place_id))
-        .transpose()?;
-    let (source, establishment) = storage.bind(
-        identities,
-        checked,
-        state.state,
-        bindings,
-        whole,
         catalogs.structural_types.as_ref(),
+        bindings,
+        &mut catalogs.next_place,
+        values,
+        next_value,
+        operations,
     )?;
-    if let Some(establishment) = establishment {
-        places.push(view_ranges::establish(
-            &establishment,
-            values,
-            next_value,
-            operations,
-        )?);
+    if let Some(declaration) = establishment {
+        places.push(declaration);
     }
     let site = ViewRangeSite {
         state: state.state,

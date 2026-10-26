@@ -10,7 +10,7 @@ use register_model::encode_constraint_key;
 
 use super::{
     primitives::{Cursor, decode_id, decode_list, length},
-    values::{decode_constraint_key, decode_definition_site, decode_fixed_site, encode_fixed_site},
+    values::{decode_constraint_key, decode_definition_site, decode_fixed_site},
 };
 
 pub(super) fn encode_copy(bytes: &mut Vec<u8>, copy: &FixedViewCopy) {
@@ -25,7 +25,7 @@ pub(super) fn encode_copy(bytes: &mut Vec<u8>, copy: &FixedViewCopy) {
     crate::codec_bytes::push_encoded(bytes, copy.before_instruction.0.to_le_bytes());
     length(bytes, copy.destinations.len());
     for destination in &copy.destinations {
-        encode_fixed_site(bytes, destination.site);
+        crate::identity::encode_fixed_constraint_site_identity(bytes, destination.site);
         crate::codec_bytes::push_encoded(bytes, destination.block.0.to_le_bytes());
         crate::codec_bytes::push_encoded(bytes, destination.view.0.to_le_bytes());
     }

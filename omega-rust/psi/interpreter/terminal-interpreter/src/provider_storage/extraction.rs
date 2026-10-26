@@ -6,11 +6,11 @@
 //! and non-byte bindings travel separately. Every refusing operation precedes
 //! retirement. The original allocation and its unused tail are never replaced.
 
-use super::{ProviderStorageBinding, ProviderStorageSlot, ResidentStorageSlot};
+use super::ProviderStorageBinding;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::record::storage::{ConstructorStorage, ConstructorValue};
-use crate::values::{StructuralRuntimePlace, TerminalStructuralValue};
+use crate::values::StructuralRuntimePlace;
 use std::collections::BTreeSet;
 use terminal_psi::{
     BoundaryMachineDeclaration, Operation, OperationKind, StructuralAffineDiscard,
@@ -115,21 +115,7 @@ impl TerminalExecution<'_> {
                 "extraction has no live resident custody",
             ));
         }
-        let ResidentStorageSlot::Live {
-            initialized_by,
-            custody,
-            compatibility,
-            ..
-        } = self.provider_storage.residents.get(binding.resident)
-        else {
-            return Err(malformed());
-        };
-        let initialized = program
-            .catalogs
-            .placement_lifecycle_plans
-            .iter()
-            .find(|row| row.boundary == *initialized_by)
-            .ok_or_else(malformed)?;
+        let (initialized, custody, compatibility) = self.live_resident_custody(binding.resident)?;
         if initialized.schema != plan.schema
             || custody.value.structural_type != plan.schema
             || initialized.schema_identity != plan.schema_identity
@@ -143,20 +129,9 @@ impl TerminalExecution<'_> {
                 "extraction changed the original resident policy or schema",
             ));
         }
-        let ProviderStorageSlot::Live {
-            allocation,
-            profile,
-            ..
-        } = self.provider_storage.allocations.get(binding.allocation)
-        else {
-            return Err(malformed());
-        };
-        let base = allocation
-            .extent
-            .base()
-            .checked_add(binding.offset)
-            .ok_or_else(malformed)?;
-        if !self.provider_storage_geometry_matches(&home, &plan.storage, base, binding.length) {
+        let (allocation, profile, base) =
+            self.provider_storage.live_provider_allocation(&binding)?;
+        if !self.provider_storage_geometry_matches(&home, &plan.storage, base, binding.length)? {
             return Err(TerminalInterpretError::ContentTransformationMismatch(
                 "extraction changed the original allocation geometry",
             ));
@@ -217,12 +192,7 @@ impl TerminalExecution<'_> {
             .and_then(|end| usize::try_from(end).ok())
             .ok_or_else(malformed)?;
         let image = allocation.bytes.get(start..end).ok_or_else(malformed)?;
-        let mut value = TerminalStructuralValue::minted(
-            self.local_structural_identities
-                .allocate_staged(&mut identity_cursor)?,
-            result.structural_type,
-            Vec::new(),
-        );
+        let mut value = self.mint_staged(&mut identity_cursor, result.structural_type)?;
         let extent_path = vec![
             StructuralPathSegment::Case(moved.id),
             StructuralPathSegment::Field(extent_field.identity),

@@ -1,7 +1,7 @@
 //! Complete stores consume a checked supplier roster at one invocation cut.
 //!
-//! A concrete entry owns its body summary. A dynamic slot joins every qualified
-//! realization in its closed selector roster, remapping only formal coordinates.
+//! A concrete entry or authenticated selector occurrence owns its body summary.
+//! A visible implementation roster is not source selection evidence.
 //! Incomplete suppliers retain their lifetime debts but publish no geometry.
 //! Logical postconditions still come only from the public contract.
 
@@ -22,23 +22,12 @@ impl Execution<'_, '_, '_> {
         let Some(frames) = self.context.call_frames else {
             return Vec::new();
         };
-        let (parameters, effects) =
-            if let Some(state) = validation::call_target_state(self.program, call.target_symbol) {
-                let Some(machine) = self.program.machine_holding_state(state.symbol) else {
-                    return Vec::new();
-                };
-                let Some(effects) = frames.state_stored_reference_effects(machine, state) else {
-                    return Vec::new();
-                };
-                (self.program.state_parameters(state), effects)
-            } else if let Some(slot) = self.program.dynamic_slot_by_symbol(call.target_symbol) {
-                let Some(effects) = frames.dynamic_stored_reference_effects(slot.symbol) else {
-                    return Vec::new();
-                };
-                (slot.parameters.as_slice(), effects)
-            } else {
-                return Vec::new();
-            };
-        self.capture_stored_suppliers(parameters, &effects, actuals)
+        let Some((machine, state, actuals)) = self.selected_store_target(call, actuals) else {
+            return Vec::new();
+        };
+        let Some(effects) = frames.state_stored_reference_effects(machine, state) else {
+            return Vec::new();
+        };
+        self.capture_stored_suppliers(self.program.state_parameters(state), &effects, &actuals)
     }
 }

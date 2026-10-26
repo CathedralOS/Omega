@@ -238,6 +238,7 @@ pub(crate) fn backing_scalar_path(
         if matches!(
             field.field_type,
             terminal_psi::StructuralFieldType::Atomic(_)
+                | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
         ) {
             return None;
         }

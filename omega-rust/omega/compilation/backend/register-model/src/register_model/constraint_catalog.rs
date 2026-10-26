@@ -278,6 +278,28 @@ impl RegisterInstructionConstraint {
     pub fn operand(&self, operand: u16) -> Option<&RegisterOperandConstraint> {
         self.operands.iter().find(|row| row.operand == operand)
     }
+
+    /// The row's read contract: the numbered operands whose incoming values
+    /// the form reads, in declared order. Admission checks an encoded
+    /// alternative's external reads against exactly this list.
+    pub fn operand_reads(&self) -> Vec<u16> {
+        self.operands
+            .iter()
+            .filter(|operand| operand.access.reads())
+            .map(|operand| operand.operand)
+            .collect()
+    }
+
+    /// The row's write contract: the numbered operands whose homes the form
+    /// defines, in declared order. Admission checks an encoded alternative's
+    /// external writes against exactly this list.
+    pub fn operand_writes(&self) -> Vec<u16> {
+        self.operands
+            .iter()
+            .filter(|operand| operand.access.writes())
+            .map(|operand| operand.operand)
+            .collect()
+    }
 }
 
 /// A target register-constraint inventory and its keyed definitions.

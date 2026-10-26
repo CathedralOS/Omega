@@ -97,6 +97,14 @@ pub(super) fn live_contexts_prove_boolean_expression(
         expression,
         typed_trees::types::PrimitiveType::Bool,
     ) == Some(ScalarValue::Boolean(true))
+        || current_bound_boolean_is_proven(
+            program,
+            facts,
+            state,
+            statement_index,
+            contexts,
+            expression,
+        )
         || facts
             .flow
             .control
@@ -117,6 +125,51 @@ pub(super) fn live_contexts_prove_boolean_expression(
                 Some(values.proves(program, machine, &goal))
             })
             == Some(true)
+}
+
+/// Form the requested current predicate as a goal only. Its observations are
+/// resolved against the same invalidation-adjusted contexts as scalar reads;
+/// neither the goal nor its match subject contributes an assumed premise.
+fn current_bound_boolean_is_proven(
+    program: &dyn validation::CheckingInput,
+    facts: &checked_trees::CheckFacts,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    contexts: &[facts::FactContextHandle],
+    expression: typed_trees::expression::ExpressionHandle,
+) -> bool {
+    let Some(required) = crate::facts::boolean_predicates::bind_current_guard(
+        program,
+        &facts.operators,
+        state.symbol,
+        statement_index,
+        expression,
+        true,
+    ) else {
+        return false;
+    };
+    let point = facts::ProgramPoint::Statement {
+        machine_symbol: required.machine,
+        state_symbol: state.symbol,
+        statement_index,
+    };
+    let retained = crate::facts::boolean_predicates::retained(
+        program,
+        &facts.operators,
+        &facts.semantic,
+        contexts,
+        point,
+    );
+    crate::facts::boolean_predicates::proves(&retained, &required, |place| {
+        scalar_value_at_place(
+            program,
+            &facts.semantic,
+            contexts
+                .iter()
+                .map(|context| facts.semantic.contexts.get(*context)),
+            place,
+        )
+    })
 }
 
 fn live_scalar_value(
@@ -236,6 +289,7 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
             semantic_context_proves_instantiated_boolean_expression(
                 program,
                 facts,
+                call_flow,
                 call_frames,
                 context,
                 entry_contexts,

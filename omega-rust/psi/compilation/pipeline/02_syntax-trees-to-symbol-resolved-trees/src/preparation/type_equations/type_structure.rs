@@ -50,8 +50,14 @@ pub(super) fn collect_binder_mentions(
             element_type,
             length,
         } => {
-            if let FixedArrayLength::ConstParameter(name) = length {
-                name_mention(name.as_str(syntax));
+            match length {
+                FixedArrayLength::ConstParameter(name) | FixedArrayLength::ConstCall(name) => {
+                    name_mention(name.as_str(syntax));
+                }
+                FixedArrayLength::Expression(reference) => {
+                    collect_binder_mentions(syntax, *reference, parameters, mentions);
+                }
+                FixedArrayLength::Literal(_) => {}
             }
             collect_binder_mentions(syntax, *element_type, parameters, mentions);
         }
@@ -85,6 +91,12 @@ pub(super) fn collect_binder_mentions(
                         collect_expression_binder_mentions(syntax, *maximum, parameters, mentions);
                     }
                     TypeConstraintNode::Domain(domain) => {
+                        if let Some(position) = parameters
+                            .iter()
+                            .position(|name| name == domain.name.as_str(syntax))
+                        {
+                            mentions.push(position);
+                        }
                         for argument in syntax
                             .type_references
                             .type_reference_handles(domain.arguments)
@@ -92,7 +104,15 @@ pub(super) fn collect_binder_mentions(
                             collect_binder_mentions(syntax, *argument, parameters, mentions);
                         }
                     }
-                    TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {}
+                    TypeConstraintNode::Named(name) => {
+                        if let Some(position) = parameters
+                            .iter()
+                            .position(|parameter| parameter == name.as_str(syntax))
+                        {
+                            mentions.push(position);
+                        }
+                    }
+                    TypeConstraintNode::ArithmeticDomain(_) => {}
                 }
             }
         }

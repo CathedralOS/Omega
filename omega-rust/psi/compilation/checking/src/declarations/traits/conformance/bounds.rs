@@ -6,15 +6,10 @@ use crate::declarations::traits::conformance::trait_applications::validate_trait
 use crate::declarations::traits::trait_definition_by_symbol;
 use diagnostics::Diagnostic;
 use typed_trees::machine::Machine;
-use typed_trees::signature::StateSignature;
 use typed_trees::trait_definition::{AppliedTraitScope, TraitDefinition};
 use typed_trees::types::TypeReferenceHandle;
 
-#[derive(Clone)]
-pub struct GenericBoundRequirement<'program> {
-    pub signature: &'program StateSignature,
-    pub application: AppliedTraitScope<'program>,
-}
+pub use typed_trees::trait_definition::GenericBoundRequirement;
 
 /// Whether an actual argument type matches a requirement parameter of the
 /// binder's trait. The binder's trait arguments substitute the trait's own

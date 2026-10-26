@@ -68,8 +68,11 @@ impl Captures<'_> {
         }
         let mut origins = Vec::new();
         for candidate in relative {
-            let (result_path, _) =
-                self.structural_path(target.return_type, &candidate.result_path)?;
+            let (result_path, _) = super::super::source_paths::structural_path(
+                self.program,
+                target.return_type,
+                &candidate.result_path,
+            )?;
             if !leaves.iter().any(|leaf| leaf.path == result_path) {
                 return None;
             }
@@ -326,7 +329,8 @@ impl Captures<'_> {
                 .operand_children
                 .span(operand.children)?
             {
-                let (destination, _) = self.structural_path(
+                let (destination, _) = super::super::source_paths::structural_path(
+                    self.program,
                     operand.type_reference,
                     self.facts
                         .flow

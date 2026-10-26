@@ -7,12 +7,13 @@ use optimization_core::{
     AnalysisKind, AnalysisSet, OptimizationRuleContract, OptimizationSafetyClass,
 };
 use optimization_unit::{
-    BooleanConstantRewrite, IntegerEvaluationWitness, PsiOptimizationUnit, PsiRealizationSite,
-    PsiRewriteCandidate, ValueRangeSupport,
+    BooleanConstantRewrite, IntegerEvaluationWitness, PsiOptimizationUnit, PsiRewriteCandidate,
+    ValueRangeSupport,
 };
 use semantic_vocabulary::{IntegerType, IntegerValue};
 
 use super::IntegerRangePairComparisonKind;
+use crate::rules::control_flow_cleanup::node_realized_provenance;
 use crate::rules::sparse_conditional_constant_propagation::{
     integer_value_type, node_location, range_comparison_contract,
 };
@@ -128,7 +129,7 @@ fn propose_over(
                         contract,
                         vec![block.id],
                         Vec::new(),
-                        vec![realized_node_provenance!(location, node)],
+                        vec![node_realized_provenance(location, node)],
                         IntegerEvaluationWitness::RangeAgainstRange {
                             left_range_fact: left_range.identity,
                             right_range_fact: right_range.identity,

@@ -1,5 +1,7 @@
 use super::contract_facts::validate_contract_facts;
-use super::type_refinement::{BinderBinding, TypeBinding, required_type_matches};
+use super::type_refinement::{
+    BinderBinding, TypeBinding, corresponding_types_match, required_type_matches,
+};
 use super::{
     MachineBlockingRow, MachineStateIndex, MachineSuspensionRow, machine_and_state,
     machine_parameter_contract, machine_parameter_signature,
@@ -518,24 +520,7 @@ fn complete_callable_type_matches(
     if !actual.is_valid() || !required.is_valid() {
         return actual.is_valid() == required.is_valid();
     }
-    let mut positional = Vec::with_capacity(binder_bindings.len() * 2);
-    for (position, binding) in binder_bindings.iter().enumerate() {
-        let label = format!("$formation{position}");
-        positional.push((binding.required, label.clone()));
-        positional.push((binding.actual, label));
-    }
-    let substitutions = bindings
-        .iter()
-        .map(|binding| (binding.symbol, binding.actual))
-        .collect::<Vec<_>>();
-    let identity = |reference| {
-        program.type_identity(typed_trees::type_identity::TypeIdentityRequest {
-            binders: &positional,
-            substitutions: &substitutions,
-            ..typed_trees::type_identity::TypeIdentityRequest::ordinary(reference)
-        })
-    };
-    identity(required) == identity(actual)
+    corresponding_types_match(program, actual, required, bindings, binder_bindings)
 }
 
 #[allow(clippy::too_many_arguments)]

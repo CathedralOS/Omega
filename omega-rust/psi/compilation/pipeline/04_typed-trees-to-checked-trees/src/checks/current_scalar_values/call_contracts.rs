@@ -40,7 +40,7 @@ impl CurrentScalarValues<'_> {
         )
     }
 
-    fn machine_value_bindings(
+    pub(crate) fn machine_value_bindings(
         &self,
         callee: &Machine,
         site: CallSite<'_>,
@@ -111,7 +111,7 @@ impl CurrentScalarValues<'_> {
         Some(values)
     }
 
-    fn static_argument_value(
+    pub(crate) fn static_argument_value(
         &self,
         argument: &StaticMachineArgument,
     ) -> Option<ScopedArithmeticValue> {

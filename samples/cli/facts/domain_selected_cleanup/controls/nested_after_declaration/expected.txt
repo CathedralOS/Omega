@@ -1,0 +1,1 @@
+executable statements cannot follow nested machine declarations

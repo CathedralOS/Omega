@@ -1,0 +1,25 @@
+// Expected exit: 0.
+// A single-attempt exchange reports success or the instruction-observed failure value at its exact atomic cell.
+data Cells where selected <= 100 { selected: AtomicU32; }
+data Proposal where value <= 100 { value: u32; calls: u32 in Wrapping; }
+machine expected(proposal: &mut Proposal) -> u32 {
+    proposal.value = 70;
+    proposal.calls = proposal.calls + 1;
+    10
+}
+machine probe(cells: &Cells) -> bool {
+    cells.selected.store(10, NoOrdering);
+    let mut proposal: Proposal = Proposal { value: 99, calls: 0 };
+    let outcome: AtomicCompareExchangeOnceOutcome<u32> = cells.selected.compare_exchange_once(expected(&mut proposal), proposal.value, ReceivePublish, Receive);
+    transition outcome {
+        AtomicCompareExchangeOnceOutcome::Exchanged -> (cells.selected.load(Receive) == 70 && proposal.calls == 1)
+        AtomicCompareExchangeOnceOutcome::Mismatched { observed } -> (false)
+        AtomicCompareExchangeOnceOutcome::Uncommitted { observed } -> (observed == 10 && cells.selected.load(Receive) == 10 && proposal.calls == 1)
+    }
+}
+machine main() crashes Trap {
+    let cells: Cells;
+    transition probe(&cells) { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

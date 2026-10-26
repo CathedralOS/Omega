@@ -1,19 +1,7 @@
 //! Canonical home and fixed-site identity bytes; callers own their wire domains.
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct RegisterHomeIdentity(pub(crate) [u8; 32]);
+crate::identity_newtype! { pub struct RegisterHomeIdentity(pub(crate) [u8; 32]); }
 
-impl RegisterHomeIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
-
-use register_model::RegisterOperandAccess;
 use selected_instructions::VirtualFixedConstraintSite;
 
 use crate::RegisterHomePlan;
@@ -51,18 +39,7 @@ pub(crate) fn encode_terminal_register_home_content(plan: &RegisterHomePlan) -> 
     bytes
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct AbstractSpillAccessConstraintPlanIdentity([u8; 32]);
-
-impl AbstractSpillAccessConstraintPlanIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
+crate::identity_newtype! { pub struct AbstractSpillAccessConstraintPlanIdentity([u8; 32]); }
 
 pub(crate) fn encode_fixed_constraint_site_identity(
     bytes: &mut Vec<u8>,
@@ -82,11 +59,7 @@ pub(crate) fn encode_fixed_constraint_site_identity(
             crate::codec_bytes::push_encoded(bytes, point.0.to_le_bytes());
             crate::codec_bytes::push_encoded(bytes, instruction.0.to_le_bytes());
             crate::codec_bytes::push_encoded(bytes, operand.to_le_bytes());
-            bytes.push(match access {
-                RegisterOperandAccess::Use => 0,
-                RegisterOperandAccess::Def => 1,
-                RegisterOperandAccess::UseDef => 2,
-            });
+            bytes.push(access.access_tag());
         }
     }
 }

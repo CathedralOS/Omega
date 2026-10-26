@@ -4,6 +4,8 @@
 
 mod assembly_fact_statements;
 mod assignment_statements;
+mod atomic_establishment;
+mod integer_establishment;
 mod call_statements;
 mod expression_statements;
 mod local_data_statements;

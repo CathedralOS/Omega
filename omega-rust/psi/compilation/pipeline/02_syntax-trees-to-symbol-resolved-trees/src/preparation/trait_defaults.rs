@@ -41,7 +41,7 @@ use syntax_trees::expression::{
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{
     ConformanceItem, ConformanceMember, Item, ItemHandle, Machine, SatisfiesClause, State,
-    StateSignatureNode,
+    StateSignature,
 };
 use syntax_trees::statement::StatementNode;
 use syntax_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
@@ -61,7 +61,7 @@ struct TraitDefaultsInput {
 #[derive(Clone)]
 struct TraitSignatureInput {
     ordinal: usize,
-    signature: StateSignatureNode,
+    signature: StateSignature,
 }
 
 #[derive(Clone)]
@@ -83,7 +83,7 @@ struct ConformanceInput {
 struct RequirementInstance {
     declaring_trait: SymbolHandle,
     requirement_ordinal: usize,
-    signature: StateSignatureNode,
+    signature: StateSignature,
     substitution: HashMap<String, TypeReferenceHandle>,
 }
 
@@ -650,16 +650,16 @@ fn substitute_type_reference(
 /// keep their source custody.
 fn instantiate_default_signature(
     syntax: &mut SyntaxTrees,
-    signature: &StateSignatureNode,
+    signature: &StateSignature,
     substitution: &HashMap<String, TypeReferenceHandle>,
     supplying_declaration: ItemHandle,
-) -> StateSignatureNode {
+) -> StateSignature {
     if substitution.is_empty() {
         return signature.clone();
     }
     let snapshot = syntax.clone();
     let type_watermark = syntax.type_references.node_count();
-    let copied = syntax.copy_state_signature_node_from(&snapshot, signature);
+    let copied = syntax.copy_state_signature_from(&snapshot, signature);
     for (handle, name) in syntax
         .type_references
         .named_nodes_from(type_watermark, syntax)
@@ -1064,7 +1064,7 @@ fn exact_unargumented_requirement_owner(
 fn machine_from_signature(
     syntax: &mut SyntaxTrees,
     machine_name: Identifier,
-    signature: &StateSignatureNode,
+    signature: &StateSignature,
     requirement_owner: Option<&str>,
     default_body_trait: Identifier,
 ) -> Machine {
@@ -1135,5 +1135,6 @@ fn machine_from_signature(
         admitted_same_stack_bytes: 0,
         contracts: signature.contracts,
         states: HandleSpan::from_parts(state, 1),
+        nested_machines: HandleSpan::empty(),
     }
 }

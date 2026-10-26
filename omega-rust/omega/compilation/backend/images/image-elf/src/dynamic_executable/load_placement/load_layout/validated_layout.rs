@@ -104,16 +104,7 @@ pub struct ElfDynamicLoadLayoutError {
     pub(crate) diagnostic: Diagnostic,
 }
 
-impl ElfDynamicLoadLayoutError {
-    pub const fn diagnostic(&self) -> &Diagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (ValidatedElfRelativeSectionPayloadLayout, Diagnostic) {
-        (self.relative, self.diagnostic)
-    }
-}
-
-diagnostics::diagnostic_display!(ElfDynamicLoadLayoutError);
-
-impl std::error::Error for ElfDynamicLoadLayoutError {}
+image::rejection_carrier!(
+    ElfDynamicLoadLayoutError;
+    relative: ValidatedElfRelativeSectionPayloadLayout,
+);

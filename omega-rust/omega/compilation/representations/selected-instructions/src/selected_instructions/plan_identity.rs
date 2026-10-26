@@ -115,6 +115,8 @@ struct CachedRegisterPage {
 pub(crate) struct CachedFunctionPrefix {
     header: std::sync::Arc<CachedHeader>,
     pages: Vec<std::sync::Arc<CachedRegisterPage>>,
+    slot_count: usize,
+    slot_bytes: std::sync::Arc<Vec<u8>>,
 }
 
 fn encode_static_header(bytes: &mut Vec<u8>, function: &SelectedFunction) {
@@ -234,14 +236,55 @@ pub(crate) fn selected_function_digest_with_prefix(
             hasher: hasher.clone(),
         }));
     }
+    let slot_count = function.local_storage_slots.len();
+    let slot_bytes = if prefix_verified
+        && let Some(prev) = previous
+        && slot_count >= prev.slot_count
+    {
+        if slot_count == prev.slot_count {
+            std::sync::Arc::clone(&prev.slot_bytes)
+        } else {
+            let mut slot_vec = prev.slot_bytes.clone();
+            let buf = std::sync::Arc::make_mut(&mut slot_vec);
+            for row in &function.local_storage_slots[prev.slot_count..] {
+                contracts::encode_local_storage_slot(buf, row);
+            }
+            slot_vec
+        }
+    } else {
+        let mut buf = Vec::with_capacity(slot_count * 25);
+        for row in &function.local_storage_slots {
+            contracts::encode_local_storage_slot(&mut buf, row);
+        }
+        std::sync::Arc::new(buf)
+    };
     let tail = &function.virtual_registers[full_pages * REGISTER_PAGE_SIZE..];
     let mut trailer_bytes = Vec::with_capacity(256 + tail.len() * 40 + function.blocks.len() * 32);
-    encode_registers_and_trailer(&mut trailer_bytes, tail, function);
+    for register in tail {
+        trailer_bytes.push(1);
+        register::encode(&mut trailer_bytes, register);
+    }
+    trailer_bytes.push(0);
+    crate::codec_bytes::encode_len(&mut trailer_bytes, function.virtual_registers.len());
+    crate::codec_bytes::encode_len(&mut trailer_bytes, slot_count);
+    hasher.raw(&trailer_bytes);
+    hasher.raw(&slot_bytes);
+    trailer_bytes.clear();
+    contracts::encode_boundary_settlements(&mut trailer_bytes, function);
+    crate::codec_bytes::encode_len(&mut trailer_bytes, function.blocks.len());
+    for digest in function.blocks.identity_digests() {
+        trailer_bytes.extend_from_slice(&digest);
+    }
     hasher.raw(&trailer_bytes);
     let digest = hasher.finish();
     (
         digest,
-        std::sync::Arc::new(CachedFunctionPrefix { header, pages }),
+        std::sync::Arc::new(CachedFunctionPrefix {
+            header,
+            pages,
+            slot_count,
+            slot_bytes,
+        }),
     )
 }
 
@@ -258,10 +301,17 @@ pub(crate) fn selected_function_digest(function: &SelectedFunction) -> [u8; 32] 
 }
 
 const INSTRUCTION_PAGE_SIZE: usize = 64;
+const MIN_REUSED_CHUNK_SIZE: usize = 32;
+
+#[derive(Clone)]
+pub(crate) struct EncodedChunk {
+    instruction_count: usize,
+    bytes: Box<[u8]>,
+}
 
 #[derive(Clone)]
 pub(crate) struct CachedBlockEncoding {
-    pages: Vec<std::sync::Arc<[u8]>>,
+    chunks: Vec<std::sync::Arc<EncodedChunk>>,
 }
 
 fn encode_block_header(bytes: &mut Vec<u8>, block: &crate::SelectedBlock) {
@@ -301,10 +351,10 @@ std::thread_local! {
 
 pub(crate) fn selected_block_digest_with_encoding(
     block: &crate::SelectedBlock,
-    previous: Option<(&CachedBlockEncoding, usize)>,
+    previous: Option<(&CachedBlockEncoding, usize, usize)>,
 ) -> ([u8; 32], std::sync::Arc<CachedBlockEncoding>) {
-    let full_pages = block.instructions.len() / INSTRUCTION_PAGE_SIZE;
-    if full_pages == 0 {
+    let total_instructions = block.instructions.len();
+    if total_instructions < INSTRUCTION_PAGE_SIZE {
         let digest = BLOCK_DIGEST_BUFFER.with(|cell| {
             let mut bytes = cell.borrow_mut();
             bytes.clear();
@@ -317,16 +367,65 @@ pub(crate) fn selected_block_digest_with_encoding(
         });
         return (
             digest,
-            std::sync::Arc::new(CachedBlockEncoding { pages: Vec::new() }),
+            std::sync::Arc::new(CachedBlockEncoding { chunks: Vec::new() }),
         );
     }
-    let mut pages = Vec::with_capacity(full_pages);
-    if let Some((prev_enc, unchanged_prefix)) = previous {
-        let reusable_pages = (unchanged_prefix / INSTRUCTION_PAGE_SIZE)
-            .min(prev_enc.pages.len())
-            .min(full_pages);
-        for page in prev_enc.pages.iter().take(reusable_pages) {
-            pages.push(std::sync::Arc::clone(page));
+    let mut prefix_chunk_count = 0usize;
+    let mut prefix_instrs = 0usize;
+    let mut suffix_start_chunk = 0usize;
+    let mut suffix_instrs = 0usize;
+    if let Some((prev_enc, unchanged_prefix, unchanged_suffix)) = previous
+        && !prev_enc.chunks.is_empty()
+    {
+        let max_prefix = unchanged_prefix.min(total_instructions);
+        for chunk in &prev_enc.chunks {
+            if prefix_instrs + chunk.instruction_count <= max_prefix {
+                prefix_instrs += chunk.instruction_count;
+                prefix_chunk_count += 1;
+            } else {
+                break;
+            }
+        }
+        let max_suffix = unchanged_suffix.min(total_instructions - prefix_instrs);
+        suffix_start_chunk = prev_enc.chunks.len();
+        while suffix_start_chunk > prefix_chunk_count {
+            let chunk = &prev_enc.chunks[suffix_start_chunk - 1];
+            if suffix_instrs + chunk.instruction_count <= max_suffix {
+                suffix_instrs += chunk.instruction_count;
+                suffix_start_chunk -= 1;
+            } else {
+                break;
+            }
+        }
+        let mut middle_instrs = total_instructions - prefix_instrs - suffix_instrs;
+        if middle_instrs > 0 && middle_instrs < MIN_REUSED_CHUNK_SIZE {
+            if suffix_start_chunk < prev_enc.chunks.len() {
+                suffix_instrs -= prev_enc.chunks[suffix_start_chunk].instruction_count;
+                suffix_start_chunk += 1;
+                middle_instrs = total_instructions - prefix_instrs - suffix_instrs;
+            }
+            if middle_instrs < MIN_REUSED_CHUNK_SIZE && prefix_chunk_count > 0 {
+                prefix_chunk_count -= 1;
+                prefix_instrs -= prev_enc.chunks[prefix_chunk_count].instruction_count;
+            }
+        }
+    }
+    let middle_start = prefix_instrs;
+    let middle_end = total_instructions - suffix_instrs;
+    let middle_len = middle_end - middle_start;
+    let suffix_chunk_count = previous.map_or(0, |(prev_enc, _, _)| {
+        if prev_enc.chunks.is_empty() {
+            0
+        } else {
+            prev_enc.chunks.len() - suffix_start_chunk
+        }
+    });
+    let mut chunks = Vec::with_capacity(
+        prefix_chunk_count + (middle_len / MIN_REUSED_CHUNK_SIZE) + 2 + suffix_chunk_count,
+    );
+    if let Some((prev_enc, _, _)) = previous {
+        for chunk in prev_enc.chunks.iter().take(prefix_chunk_count) {
+            chunks.push(std::sync::Arc::clone(chunk));
         }
     }
     let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(b"");
@@ -335,29 +434,45 @@ pub(crate) fn selected_block_digest_with_encoding(
         bytes.clear();
         encode_block_header(&mut bytes, block);
         hasher.raw(&bytes);
-        for page in &pages {
-            hasher.raw(page);
+        for chunk in &chunks {
+            hasher.raw(&chunk.bytes);
         }
-        for page_idx in pages.len()..full_pages {
+        let mut cursor = middle_start;
+        while cursor < middle_end {
+            let rem = middle_end - cursor;
+            let step = if rem <= INSTRUCTION_PAGE_SIZE {
+                rem
+            } else if rem < INSTRUCTION_PAGE_SIZE + MIN_REUSED_CHUNK_SIZE {
+                rem / 2
+            } else {
+                INSTRUCTION_PAGE_SIZE
+            };
             bytes.clear();
-            let chunk = &block.instructions
-                [page_idx * INSTRUCTION_PAGE_SIZE..(page_idx + 1) * INSTRUCTION_PAGE_SIZE];
-            for instruction in chunk {
+            for instruction in &block.instructions[cursor..cursor + step] {
                 encode_instruction(&mut bytes, instruction);
             }
             hasher.raw(&bytes);
-            pages.push(std::sync::Arc::from(bytes.as_slice()));
+            chunks.push(std::sync::Arc::new(EncodedChunk {
+                instruction_count: step,
+                bytes: bytes.as_slice().into(),
+            }));
+            cursor += step;
+        }
+        if let Some((prev_enc, _, _)) = previous
+            && !prev_enc.chunks.is_empty()
+        {
+            for chunk in &prev_enc.chunks[suffix_start_chunk..] {
+                hasher.raw(&chunk.bytes);
+                chunks.push(std::sync::Arc::clone(chunk));
+            }
         }
         bytes.clear();
-        for instruction in &block.instructions[full_pages * INSTRUCTION_PAGE_SIZE..] {
-            encode_instruction(&mut bytes, instruction);
-        }
         ordinary::encode_terminator(&mut bytes, &block.terminator);
         hasher.raw(&bytes);
     });
     (
         hasher.finish(),
-        std::sync::Arc::new(CachedBlockEncoding { pages }),
+        std::sync::Arc::new(CachedBlockEncoding { chunks }),
     )
 }
 

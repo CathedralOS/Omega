@@ -14,8 +14,20 @@ pub mod receiver_binding;
 pub enum LocalBindingRole {
     #[default]
     Value,
+    /// A reserved immutable binding established by the immediately associated
+    /// atomic event. Its synthetic initializer is not a source value.
+    AtomicObservedResult,
     RecordPattern,
     ArmPattern,
+}
+
+impl LocalBindingRole {
+    pub const fn is_runtime_binding(self) -> bool {
+        matches!(self, Self::Value | Self::AtomicObservedResult)
+    }
+    pub const fn has_ordinary_initializer(self) -> bool {
+        matches!(self, Self::Value)
+    }
 }
 
 /// First-class usage multiplicity. `[copy]` maps to `Unrestricted`, ordinary

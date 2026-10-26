@@ -277,6 +277,7 @@ fn record_constructor(
     let definition = program.data_definition_by_symbol(literal.type_symbol)?;
     if !program.data_type_parameters(definition).is_empty()
         || definition.quotient.is_some()
+        || definition.cleanup_selection.is_some()
         || definition.properties.multiplicity == language_semantics::Multiplicity::Linear
         || program.machines().iter().any(|machine| {
             machine.attached_data_symbol == definition.symbol

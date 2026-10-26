@@ -1,0 +1,10 @@
+// Expected exit: 0
+// Even an erased value argument must retain ordinary member formation/carrier checks.
+data Holder { len: u64; }
+machine accept<Count: u64>(value: u64) -> u64 { value }
+machine forward(source: Holder) -> u64 { accept<(source.len)>(7) }
+machine main() crashes Trap {
+    let value: u64 = forward(Holder { len: 7 });
+    transition value == 7 { true -> done() false -> wrong() }
+    state done() {} state wrong() { crash Trap; }
+}

@@ -80,12 +80,15 @@ mod call_requirements;
 mod citations;
 mod collection_bounds;
 pub use collection_bounds::CollectionBoundsObservations;
+mod statement_predicates;
+pub use statement_predicates::StatementPredicateObservations;
 mod completed_domains;
 mod completed_observations;
 mod completed_values;
 mod construction_predicates;
 pub use completed_domains::{
-    completed_value_proves_domain_predicate, completed_value_refutes_domain,
+    completed_value_proves_bound_domain_predicate, completed_value_proves_domain_predicate,
+    completed_value_refutes_domain,
 };
 pub(crate) use construction_predicates::construction_predicate_judgments;
 mod call_projection_identity;
@@ -132,6 +135,7 @@ pub use call_requirements::{
     selected_value_call_requirement_entailed, structural_call_requirement_entailed,
 };
 pub use completed_observations::completed_value_is_bounded_by_static;
+pub(crate) use completed_observations::completed_value_fits_integer_interval;
 pub(crate) use const_ranges::{
     const_range_bound_is_admitted, selected_const_call_result_bounds, symbolic_range_contains,
     validate_const_range_call, validate_const_range_call_in_environment,
@@ -183,13 +187,16 @@ pub use ranking_range::{
 pub use refuted_requires::instantiated_value_call_requires_proven;
 pub(crate) use refuted_requires::reject_refuted_value_call_requires;
 pub use scalar_observations::{CapturedScalarObservation, captured_scalar_observations};
-pub(crate) use scoped_arithmetic::scoped_arithmetic_implication_for_declaration;
 pub use scoped_arithmetic::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticComparison,
     ScopedArithmeticExpression, ScopedArithmeticHypothesis, ScopedArithmeticValue,
     ScopedCallCompletion, scoped_arithmetic_comparisons_unsatisfiable,
     scoped_arithmetic_implication, scoped_arithmetic_value_bounds,
     scoped_arithmetic_values_relation, scoped_completed_call_guarantees,
+};
+pub(crate) use scoped_arithmetic::{
+    scoped_arithmetic_implication_for_declaration,
+    scoped_arithmetic_values_relation_for_declaration,
 };
 pub use specification_calls::call_contract_parameter_position;
 pub(crate) use specification_calls::{

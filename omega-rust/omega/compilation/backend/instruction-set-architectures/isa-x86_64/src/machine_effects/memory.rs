@@ -9,6 +9,39 @@ use selected_instructions::{
     MachineSizeKnowledge, MachineTrapBehavior,
 };
 
+/// The semantics this module declares, as a pattern list: the ordinary
+/// pointer-memory forms, the byte-sequence and packed forms, the encoded
+/// scalar forms and the Unit call. `declaration` below carries their
+/// bodies; every dispatch site that routes on the family names this one
+/// membership list instead of re-spelling the rows.
+macro_rules! declared_semantics {
+    () => {
+        MachineSemanticKind::PlacedScalarAccess(_)
+            | MachineSemanticKind::CopyBytes
+            | MachineSemanticKind::ZeroBytes
+            | MachineSemanticKind::LoadEncodedScalar
+            | MachineSemanticKind::StoreEncodedScalar
+            | MachineSemanticKind::ScanByteSequence
+            | MachineSemanticKind::CompareByteSequences
+            | MachineSemanticKind::LoadPacked3
+            | MachineSemanticKind::LoadPacked5
+            | MachineSemanticKind::LoadPacked6
+            | MachineSemanticKind::LoadPacked7
+            | MachineSemanticKind::StorePacked
+            | MachineSemanticKind::Store
+            | MachineSemanticKind::AddressOffset
+            | MachineSemanticKind::Load8Indexed
+            | MachineSemanticKind::Load8
+            | MachineSemanticKind::Load16
+            | MachineSemanticKind::Load32
+            | MachineSemanticKind::Load64
+            | MachineSemanticKind::Store64
+            | MachineSemanticKind::FrameAddress
+            | MachineSemanticKind::CallUnit
+    };
+}
+pub(super) use declared_semantics;
+
 pub(super) fn declaration(
     semantic: MachineSemanticKind,
     constraint: RegisterConstraintKey,

@@ -461,6 +461,40 @@ impl<'ranges> FailedDomain<'ranges> {
         leader: VirtualRegisterId,
     ) -> Self {
         let members = index.components.members(leader);
+        if let [member] = members.as_slice() {
+            let neighbors = index.register_neighbors(*member);
+            let split = neighbors.partition_point(|&r| r < *member);
+            let mut direct_pressure = Vec::with_capacity(neighbors.len() + 1);
+            for &r in &neighbors[..split] {
+                direct_pressure.push((r, 1));
+            }
+            direct_pressure.push((*member, 1));
+            for &r in &neighbors[split..] {
+                direct_pressure.push((r, 1));
+            }
+            let pressure = if neighbors.iter().all(|&other| index.components.leader(other) == other)
+            {
+                neighbors.iter().map(|&r| (r, 1)).collect()
+            } else {
+                let mut covered: Vec<VirtualRegisterId> = neighbors
+                    .iter()
+                    .map(|&other| index.components.leader(other))
+                    .collect();
+                covered.sort_unstable();
+                covered.dedup();
+                covered.into_iter().map(|c| (c, 1)).collect()
+            };
+            return Self {
+                function,
+                ranges,
+                index: Some(index),
+                members,
+                components: None,
+                pressure,
+                direct_pressure,
+                intrinsic: false,
+            };
+        }
         let mut covered = Vec::new();
         let mut direct_covered = Vec::new();
         for &member in &members {
@@ -598,6 +632,22 @@ impl<'ranges> FailedDomain<'ranges> {
         let components = self.components();
         let component = components.leader(victim);
         if let Some(index) = self.index {
+            if !components.has_multiple_members(component) {
+                let neighbors = index.register_neighbors(component);
+                if neighbors.iter().all(|&other| components.leader(other) == other) {
+                    pending.retain(|failure| match failure {
+                        crate::RegisterHomeError::NoCompatibleHome { function, register } => {
+                            if *function != self.function {
+                                return false;
+                            }
+                            let leader = components.leader(VirtualRegisterId(*register));
+                            leader != component && neighbors.binary_search(&leader).is_err()
+                        }
+                        _ => false,
+                    });
+                    return;
+                }
+            }
             let mut relieved = vec![component];
             for member in components.members(component) {
                 for &other in index.register_neighbors(member) {
@@ -654,20 +704,34 @@ impl<'ranges> FailedDomain<'ranges> {
             .map_or(0, |pos| self.direct_pressure[pos].1)
     }
 
-    fn visit_overlapping_registers(&self, mut f: impl FnMut(VirtualRegisterId)) {
-        for &member in &self.members {
-            f(member);
+    fn visit_overlapping_registers_with_direct_relief(
+        &self,
+        mut f: impl FnMut(VirtualRegisterId, usize),
+    ) {
+        for &(reg, count) in &self.direct_pressure {
+            f(reg, count);
         }
         if !self.intrinsic {
             let components = self.components();
             for &(component, _) in &self.pressure {
-                components.visit_members(component, &mut f);
+                if components.has_multiple_members(component) {
+                    components.visit_members(component, |member| {
+                        if self
+                            .direct_pressure
+                            .binary_search_by_key(&member, |&(r, _)| r)
+                            .is_err()
+                        {
+                            f(member, 0);
+                        }
+                    });
+                }
             }
         }
     }
 
-    fn spill_priority(&self, function: usize, register: VirtualRegisterId) -> (usize, u64) {
-        let points = if let Some(index) = self.index {
+    #[inline]
+    fn live_points_of(&self, register: VirtualRegisterId) -> u64 {
+        if let Some(index) = self.index {
             index.live_points.get(register.0 as usize).copied().unwrap_or(0)
         } else {
             self.ranges
@@ -681,14 +745,18 @@ impl<'ranges> FailedDomain<'ranges> {
                         .map(|fragment| u64::from(fragment.end.0 - fragment.start.0))
                         .sum()
                 })
-        };
+        }
+    }
+
+    #[allow(dead_code)]
+    fn spill_priority(&self, function: usize, register: VirtualRegisterId) -> (usize, u64) {
         (
             if function == self.function {
                 self.direct_relief(register)
             } else {
                 0
             },
-            points,
+            self.live_points_of(register),
         )
     }
 }
@@ -785,10 +853,6 @@ impl FunctionRoster {
         self.split_inadmissible_bits[word] |= 1u64 << (register.0 & 63);
     }
 
-    fn clear_split_inadmissible(&mut self) {
-        self.split_inadmissible_bits.clear();
-    }
-
     fn extend(&mut self, iter: impl IntoIterator<Item = (usize, VirtualRegisterId)>) {
         for (func, reg) in iter {
             let pos = self.entries.len() as u32;
@@ -826,10 +890,10 @@ fn select_roster_candidate(
         return None;
     }
     let mut best: Option<((std::cmp::Reverse<(usize, u64)>, u32), VirtualRegisterId)> = None;
-    domain.visit_overlapping_registers(|reg| {
+    domain.visit_overlapping_registers_with_direct_relief(|reg, direct_relief| {
         if let Some(pos) = roster.active_position(reg) {
             let key = (
-                std::cmp::Reverse(domain.spill_priority(roster.function, reg)),
+                std::cmp::Reverse((direct_relief, domain.live_points_of(reg))),
                 pos,
             );
             if best.is_none_or(|(best_key, _)| key < best_key) {
@@ -872,7 +936,7 @@ fn admissible_split_indexed(
     };
     let mut ordered: Vec<((std::cmp::Reverse<usize>, u32), (usize, VirtualRegisterId))> =
         Vec::new();
-    domain.visit_overlapping_registers(|reg| {
+    domain.visit_overlapping_registers_with_direct_relief(|reg, direct_relief| {
         let Some(pos) = roster.active_position(reg) else {
             return;
         };
@@ -886,7 +950,7 @@ fn admissible_split_indexed(
             return;
         }
         ordered.push((
-            (std::cmp::Reverse(domain.direct_relief(reg)), pos),
+            (std::cmp::Reverse(direct_relief), pos),
             (roster.function, reg),
         ));
     });
@@ -996,25 +1060,31 @@ fn recover_over(
     // others keep the homes their unchanged rows already received.
     let mut home_reuse = FunctionHomeReuse::default();
     let budget = resolved.legality_stage.budget_per_pass();
-    let rewrite = materialize_selected_fixed_occurrences(&resolved.base, environment, budget)
-        .map(RuntimeSpillStepRewrite::FixedOccurrences)
-        .map_err(RuntimeSpillAllocationError::FixedOccurrences)?;
-    let facts = analyze(
-        environment,
-        availability,
-        &resolved.base,
-        resolved.liveness,
-        resolved.ranges,
-        resolved.legality,
-        &rewrite.selected(),
-    )?;
+    let rewrite = phase_profile::scope("06.1.d.05.b_fixed_occurrences", || {
+        materialize_selected_fixed_occurrences(&resolved.base, environment, budget)
+            .map(RuntimeSpillStepRewrite::FixedOccurrences)
+            .map_err(RuntimeSpillAllocationError::FixedOccurrences)
+    })?;
+    let facts = phase_profile::scope("06.1.d.05.c_initial_analyze", || {
+        analyze(
+            environment,
+            availability,
+            &resolved.base,
+            resolved.liveness,
+            resolved.ranges,
+            resolved.legality,
+            &rewrite.selected(),
+        )
+    })?;
     let mut recorded = vec![rewrite.transformation()];
-    let mut failure = match assign_reusing(
-        environment,
-        &facts.ranges,
-        &facts.legality,
-        Some(&mut home_reuse),
-    ) {
+    let mut failure = match phase_profile::scope("06.1.d.05.c2_initial_assign", || {
+        assign_reusing(
+            environment,
+            &facts.ranges,
+            &facts.legality,
+            Some(&mut home_reuse),
+        )
+    }) {
         Ok(homes) => {
             let manifest = project_recovery_manifest(
                 &base,
@@ -1102,13 +1172,15 @@ fn recover_over(
         // whenever admitted. It replaces one live range by two disjoint ones
         // joined at the copy, so no point gains a live value; the pinned
         // segment the failed domain overlapped now ends at the copy.
-        let split = admissible_split_indexed(
-            domain.as_ref(),
-            roster,
-            &selected,
-            environment,
-            budget,
-        )?;
+        let split = phase_profile::scope("06.1.d.05.d_split_probe", || {
+            admissible_split_indexed(
+                domain.as_ref(),
+                roster,
+                &selected,
+                environment,
+                budget,
+            )
+        })?;
         // Preserve the already-admitted after-definition split. The narrower
         // integer fixed-use copy is an optional refinement for a value-local
         // empty domain; unsupported shapes keep the ordinary rematerialize/spill
@@ -1213,9 +1285,6 @@ fn recover_over(
                             failure = error;
                             current_facts = unsealed;
                             batch_indices.clear();
-                            for r in rosters.values_mut() {
-                                r.clear_split_inadmissible();
-                            }
                             analysis_source = current.clone();
                             pending_pressure = home_reuse.take_pressure();
                             pending_pressure.reverse();
@@ -1233,42 +1302,52 @@ fn recover_over(
             // per use is strictly cheaper than private storage plus reload pairs,
             // so rematerialization is attempted first. Its admission failure does
             // not commit the step; spilling the same victim remains the fallback.
-            let rewrite = match rematerialize_selected_runtime_value(
-                &selected,
-                function,
-                register,
-                environment,
-                budget,
-            ) {
+            let rewrite = match phase_profile::scope("06.1.d.05.e_remat_probe", || {
+                rematerialize_selected_runtime_value(
+                    &selected,
+                    function,
+                    register,
+                    environment,
+                    budget,
+                )
+            }) {
                 Ok(rewrite) => RuntimeSpillStepRewrite::Rematerialization(rewrite),
                 Err(_) => {
                     let mut bounded_already = None;
                     if pending_pressure.is_empty() {
-                        match spill_selected_runtime_value_with_crossing_status(
-                            &selected,
-                            function,
-                            register,
-                            environment,
-                            budget,
-                            RuntimeSpillSpanPolicy::UnitWriteCrossing,
-                        ) {
+                        match phase_profile::scope("06.1.d.05.f_crossing_spill", || {
+                            spill_selected_runtime_value_with_crossing_status(
+                                &selected,
+                                function,
+                                register,
+                                environment,
+                                budget,
+                                RuntimeSpillSpanPolicy::UnitWriteCrossing,
+                            )
+                        }) {
                             Ok((crossing, false)) => {
+                                phase_profile::count("06.1.d.05.crossing_not_used", 1);
                                 bounded_already = Some(crossing);
                             }
                             Ok((crossing, true)) => {
-                                let probe = reanalyze_unsealed(
-                                    environment,
-                                    availability,
-                                    &analysis_source.selected(),
-                                    &current_facts,
-                                    &SelectedProgramRef::new(&crossing),
-                                )?;
-                                match home_reuse.probe_all(
-                                    environment.identity(),
-                                    probe.legality_functions(),
-                                    probe.range_functions(),
-                                    environment.physical(),
-                                ) {
+                                phase_profile::count("06.1.d.05.crossing_used", 1);
+                                let probe = phase_profile::scope("06.1.d.05.g_crossing_reanalyze", || {
+                                    reanalyze_unsealed(
+                                        environment,
+                                        availability,
+                                        &analysis_source.selected(),
+                                        &current_facts,
+                                        &SelectedProgramRef::new(&crossing),
+                                    )
+                                })?;
+                                match phase_profile::scope("06.1.d.05.g2_crossing_probe_all", || {
+                                    home_reuse.probe_all(
+                                        environment.identity(),
+                                        probe.legality_functions(),
+                                        probe.range_functions(),
+                                        environment.physical(),
+                                    )
+                                }) {
                                     Ok(()) => {
                                         let facts = seal_recovery_facts(
                                             environment,
@@ -1321,13 +1400,15 @@ fn recover_over(
                     if let Some(rewrite) = bounded_already {
                         RuntimeSpillStepRewrite::Spill(rewrite)
                     } else {
-                        match spill_selected_runtime_value(
-                            &selected,
-                            function,
-                            register,
-                            environment,
-                            budget,
-                        ) {
+                        match phase_profile::scope("06.1.d.05.h_bounded_spill", || {
+                            spill_selected_runtime_value(
+                                &selected,
+                                function,
+                                register,
+                                environment,
+                                budget,
+                            )
+                        }) {
                             Ok(rewrite) => RuntimeSpillStepRewrite::Spill(rewrite),
                             Err(error) if inadmissible(&error) => continue,
                             Err(error) => return Err(RuntimeSpillAllocationError::Rewrite(error)),
@@ -1361,46 +1442,54 @@ fn recover_over(
         let (unsealed, probe_result) = if let Some((unsealed, pressure)) = reused_pressure {
             (unsealed, Err(pressure))
         } else {
-            let unsealed = reanalyze_unsealed(
-                environment,
-                availability,
-                &analysis_source.selected(),
-                &current_facts,
-                &rewrite.selected(),
-            )?;
-            let probe_result = home_reuse.probe_all(
-                environment.identity(),
-                unsealed.legality_functions(),
-                unsealed.range_functions(),
-                environment.physical(),
-            );
+            let unsealed = phase_profile::scope("06.1.d.05.i_batch_reanalyze", || {
+                reanalyze_unsealed(
+                    environment,
+                    availability,
+                    &analysis_source.selected(),
+                    &current_facts,
+                    &rewrite.selected(),
+                )
+            })?;
+            let probe_result = phase_profile::scope("06.1.d.05.j_probe_all", || {
+                home_reuse.probe_all(
+                    environment.identity(),
+                    unsealed.legality_functions(),
+                    unsealed.range_functions(),
+                    environment.physical(),
+                )
+            });
             (unsealed, probe_result)
         };
         recorded.push(rewrite.transformation());
         match probe_result {
             Ok(()) => {
-                let facts = seal_recovery_facts(
-                    environment,
-                    availability,
-                    &anchor_rewrite.selected(),
-                    &anchor_facts,
-                    unsealed,
-                    &rewrite.selected(),
-                )?;
-                let homes = assign_reusing(
-                    environment,
-                    &facts.ranges,
-                    &facts.legality,
-                    Some(&mut home_reuse),
-                )
-                .map_err(RuntimeSpillAllocationError::Homes)?;
-                let manifest = project_recovery_manifest(
-                    &base,
-                    &recorded,
-                    &facts.ranges,
-                    &facts.legality,
-                    &homes,
-                )?;
+                let (facts, homes, manifest) =
+                    phase_profile::scope("06.1.d.05.k_seal_and_manifest", || -> Result<_, RuntimeSpillAllocationError> {
+                        let facts = seal_recovery_facts(
+                            environment,
+                            availability,
+                            &anchor_rewrite.selected(),
+                            &anchor_facts,
+                            unsealed,
+                            &rewrite.selected(),
+                        )?;
+                        let homes = assign_reusing(
+                            environment,
+                            &facts.ranges,
+                            &facts.legality,
+                            Some(&mut home_reuse),
+                        )
+                        .map_err(RuntimeSpillAllocationError::Homes)?;
+                        let manifest = project_recovery_manifest(
+                            &base,
+                            &recorded,
+                            &facts.ranges,
+                            &facts.legality,
+                            &homes,
+                        )?;
+                        Ok((facts, homes, manifest))
+                    })?;
                 let result = RuntimeSpillAllocation {
                     source,
                     last: RuntimeSpillStep { rewrite },
@@ -1414,9 +1503,6 @@ fn recover_over(
                 failure = error;
                 current_facts = unsealed;
                 batch_indices.clear();
-                for r in rosters.values_mut() {
-                    r.clear_split_inadmissible();
-                }
                 current = rewrite;
                 analysis_source = current.clone();
                 pending_pressure = home_reuse.take_pressure();

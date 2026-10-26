@@ -15,17 +15,7 @@ use crate::{
 };
 use selected_instructions::LiveRangeIdentity;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct FixedPrecoloredSegmentHomePlanIdentity(pub(crate) [u8; 32]);
-
-impl FixedPrecoloredSegmentHomePlanIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
+crate::identity_newtype! { pub struct FixedPrecoloredSegmentHomePlanIdentity(pub(crate) [u8; 32]); }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FixedPrecoloredSegmentHomePolicy {

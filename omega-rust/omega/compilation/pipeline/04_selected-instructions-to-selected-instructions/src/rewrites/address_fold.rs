@@ -89,14 +89,12 @@ pub struct AddressFoldReceipt {
 }
 
 impl AddressFoldReceipt {
+    receipt_accessor_rows!(ref AddressFoldReceipt {
     /// The function the fold was committed in.
-    pub const fn function_index(&self) -> usize {
-        self.function_index
-    }
+        function_index: usize,
     /// The folded displacement-carrying instruction's source-side identity.
-    pub const fn access(&self) -> SelectedInstructionId {
-        self.access
-    }
+        access: SelectedInstructionId,
+    });
     /// The durable transformation identity the post-allocation manifest
     /// ledger records: the receipt's exact fields under the address-fold
     /// domain separator.

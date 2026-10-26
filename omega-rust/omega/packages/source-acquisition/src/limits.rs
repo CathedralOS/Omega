@@ -14,10 +14,12 @@ pub(crate) const LOCAL_CACHE_SNAPSHOTS: &str = "local-snapshots";
 pub(crate) const LOCAL_SNAPSHOT_METADATA: &str = "snapshot.identity";
 pub(crate) const LOCAL_SNAPSHOT_SOURCE: &str = "source";
 pub(crate) const LOCAL_SNAPSHOT_POLICY: &[u8] = b"omega-local-source-snapshot-v2";
-pub(crate) const LOCAL_SNAPSHOT_CUSTODY_POLICY: &[u8] = b"omega-local-source-snapshot-custody-v1";
-pub(crate) const LOCAL_RESOLUTION_OBSERVATION_SCHEMA_VERSION: u32 = 2;
+pub(crate) const LOCAL_SNAPSHOT_CUSTODY_POLICY: &[u8] = b"omega-local-source-snapshot-custody-v2";
+pub(crate) const LEGACY_LOCAL_SNAPSHOT_CUSTODY_POLICY: &[u8] =
+    b"omega-local-source-snapshot-custody-v1";
+pub(crate) const LOCAL_RESOLUTION_OBSERVATION_SCHEMA_VERSION: u32 = 3;
 pub(crate) const LOCAL_RESOLUTION_OBSERVATION_DOMAIN: &[u8] =
-    b"omega-local-source-resolution-observation-v2";
+    b"omega-local-source-resolution-observation-v3";
 pub(crate) const DEFAULT_BUILD_OUTPUT_DIRECTORY: &str = "build";
 pub(crate) const CANONICAL_DIRECTORY_MODE: u16 = 0o555;
 pub(crate) const GIT_CONFIG_SHA1: &[u8] =

@@ -1,0 +1,25 @@
+// An exclusive byte view stored in a fixed array preserves its one-byte extent and byte 19 through owned transport.
+// Expected exit: 0
+// Place: other_state.
+data Shelf<'outer, 'bytes> { windows: &'outer mut [&'bytes mut [u8]; 1]; }
+machine observe(shelf: &mut Shelf) -> bool
+requires shelf.windows[0].len == 1
+{
+    shelf.windows[0][0] == 19 && shelf.windows[0].len == 1
+}
+
+machine main() crashes Trap {
+    let mut backing: [u8; 1] = [19];
+    let mut windows: [&mut [u8]; 1] = [&mut backing[..]];
+    let mut shelf: Shelf = Shelf { windows: &mut windows };
+    let result: bool = inspect(shelf);
+    let observed: bool = result && backing[0] == 19;
+    transition observed { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+    machine inspect(mut shelf: Shelf) -> bool
+    requires shelf.windows[0].len == 1
+    {
+        observe(&mut shelf)
+    }
+}

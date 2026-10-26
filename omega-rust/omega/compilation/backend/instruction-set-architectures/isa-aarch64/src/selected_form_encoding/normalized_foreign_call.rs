@@ -433,18 +433,8 @@ mod tests {
             .map(|operand| operand.access)
             .collect::<Vec<_>>();
         let effects = MachineEncodedEffects {
-            external_operand_reads: row
-                .operands
-                .iter()
-                .filter(|operand| operand.access == register_model::RegisterOperandAccess::Use)
-                .map(|operand| operand.operand)
-                .collect(),
-            external_operand_writes: row
-                .operands
-                .iter()
-                .filter(|operand| operand.access == register_model::RegisterOperandAccess::Def)
-                .map(|operand| operand.operand)
-                .collect(),
+            external_operand_reads: row.operand_reads(),
+            external_operand_writes: row.operand_writes(),
             implicit_unit_uses: row.implicit_uses.clone(),
             implicit_unit_defs: row.implicit_defs.clone(),
             implicit_unit_clobbers: row.clobbers.clone(),

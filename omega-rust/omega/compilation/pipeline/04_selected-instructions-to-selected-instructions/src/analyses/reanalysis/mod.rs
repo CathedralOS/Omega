@@ -76,9 +76,9 @@ impl StagedOptimizedSelectedReanalysis {
     }
 
     validated_analysis_accessors!();
-    pub const fn custody(&self) -> StagedOptimizedSelectedReanalysisCustodyReceipt {
-        self.custody
-    }
+    receipt_accessor_rows!(ref StagedOptimizedSelectedReanalysis {
+        custody: StagedOptimizedSelectedReanalysisCustodyReceipt,
+    });
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -88,36 +88,16 @@ pub struct StagedOptimizedSelectedReanalysisCustodyReceipt {
     transformed_ranges: selected_instructions::LiveRangeIdentity,
     transformed_legality: register_homes::AllocationLegalityIdentity,
     allocator_availability: register_homes::AllocatorAvailabilityIdentity,
-    function_count: usize,
-    virtual_register_count: usize,
-    entry_transition_count: usize,
 }
 
 impl StagedOptimizedSelectedReanalysisCustodyReceipt {
-    pub const fn source(self) -> StagedOptimizedFixedViewCopyCustodyReceipt {
-        self.source
-    }
-    pub const fn transformed_liveness(self) -> selected_instructions::LivenessIdentity {
-        self.transformed_liveness
-    }
-    pub const fn transformed_ranges(self) -> selected_instructions::LiveRangeIdentity {
-        self.transformed_ranges
-    }
-    pub const fn transformed_legality(self) -> register_homes::AllocationLegalityIdentity {
-        self.transformed_legality
-    }
-    pub const fn allocator_availability(self) -> register_homes::AllocatorAvailabilityIdentity {
-        self.allocator_availability
-    }
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-    pub const fn virtual_register_count(self) -> usize {
-        self.virtual_register_count
-    }
-    pub const fn entry_transition_count(self) -> usize {
-        self.entry_transition_count
-    }
+    receipt_accessor_rows!(StagedOptimizedSelectedReanalysisCustodyReceipt {
+        source: StagedOptimizedFixedViewCopyCustodyReceipt,
+        transformed_liveness: selected_instructions::LivenessIdentity,
+        transformed_ranges: selected_instructions::LiveRangeIdentity,
+        transformed_legality: register_homes::AllocationLegalityIdentity,
+        allocator_availability: register_homes::AllocatorAvailabilityIdentity,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

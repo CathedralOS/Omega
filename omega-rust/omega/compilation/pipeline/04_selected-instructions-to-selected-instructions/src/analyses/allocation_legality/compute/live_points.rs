@@ -27,32 +27,42 @@ pub(super) fn compute(
     // and sorting the complete function list for every register repeats setup
     // even when a register touches only one small fragment.
     let mut boundaries = Vec::new();
-    for constraint in &register.fixed_constraints {
-        let point = match constraint.site {
-            VirtualFixedConstraintSite::Entry => entry_point.map(|(_, point)| point),
-            VirtualFixedConstraintSite::Operand { point, .. } => Some(point),
-        };
-        if let Some(point) = point {
-            boundaries.push(point);
-            if let Some(end) = point.0.checked_add(1) {
-                boundaries.push(LiveRangePoint(end));
+    if !register.fixed_constraints.is_empty() {
+        for constraint in &register.fixed_constraints {
+            let point = match constraint.site {
+                VirtualFixedConstraintSite::Entry => entry_point.map(|(_, point)| point),
+                VirtualFixedConstraintSite::Operand { point, .. } => Some(point),
+            };
+            if let Some(point) = point {
+                boundaries.push(point);
+                if let Some(end) = point.0.checked_add(1) {
+                    boundaries.push(LiveRangePoint(end));
+                }
             }
         }
+        if boundaries.len() > 1 {
+            boundaries.sort_unstable();
+            boundaries.dedup();
+        }
     }
-    boundaries.sort_unstable();
-    boundaries.dedup();
-    let mut spans: Vec<VirtualLegalitySpan> = Vec::new();
+    let mut spans: Vec<VirtualLegalitySpan> = Vec::with_capacity(register.fragments.len());
     for fragment in &register.fragments {
         if fragment.start >= fragment.end {
             continue;
         }
         let fragment_offset = spans.len();
+        let mut last_candidates_ptr: Option<(*const RegisterViewId, usize)> = None;
         let mut point = fragment.start;
         let mut architectural_index = views
             .boundaries_for(class.id)
             .partition_point(|boundary| *boundary <= point);
-        let mut fixed_index = boundaries.partition_point(|boundary| *boundary <= point);
+        let mut fixed_index = if boundaries.is_empty() {
+            0
+        } else {
+            boundaries.partition_point(|boundary| *boundary <= point)
+        };
         while point < fragment.end {
+            let cell = architectural_index;
             let architectural = views
                 .boundaries_for(class.id)
                 .get(architectural_index)
@@ -70,20 +80,25 @@ pub(super) fn compute(
             if fixed == Some(end) {
                 fixed_index += 1;
             }
-            let fixed = fixed_views::at_live_point(
-                function_index,
-                register,
-                fragment.block,
-                point,
-                entry_point,
-            )?;
-            let candidates = views.candidates_at(
+            let fixed = if register.fixed_constraints.is_empty() {
+                None
+            } else {
+                fixed_views::at_live_point(
+                    function_index,
+                    register,
+                    fragment.block,
+                    point,
+                    entry_point,
+                )?
+            };
+            let candidates = views.candidates_at_cell(
                 function_index,
                 register,
                 class,
                 available,
                 fragment.block,
                 point,
+                cell,
                 fixed,
             )?;
             if candidates.is_empty() {
@@ -94,10 +109,12 @@ pub(super) fn compute(
                     point: point.0,
                 });
             }
+            let cand_key = (candidates.as_ptr(), candidates.len());
             if spans.len() > fragment_offset
-                && spans
-                    .last()
-                    .is_some_and(|span| span.candidates.as_slice() == candidates)
+                && (last_candidates_ptr == Some(cand_key)
+                    || spans
+                        .last()
+                        .is_some_and(|span| span.candidates.as_slice() == candidates))
             {
                 spans.last_mut().expect("current fragment has a span").end = end;
             } else {
@@ -108,6 +125,7 @@ pub(super) fn compute(
                     candidates: candidates.to_vec(),
                 });
             }
+            last_candidates_ptr = Some(cand_key);
             point = end;
         }
     }

@@ -5,23 +5,13 @@ use target::NativeTarget;
 use physical_instructions::PostAllocationMachineOptimizationCustody;
 
 use super::{ResolvedSelectedFunctionLayout, SelectedFunctionLayoutPolicy};
+use crate::machine_code::identity_encoding::{encode_conditional_branch_arm, encode_jump_arm};
 use crate::{
     SelectedFormInternalMachineFixup, SelectedFormInternalMachineFixupKind,
     SelectedFormInternalMachineFixupState,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ResolvedSelectedFormLayoutIdentity(pub(super) [u8; 32]);
-
-impl ResolvedSelectedFormLayoutIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
+register_homes::identity_newtype! { pub struct ResolvedSelectedFormLayoutIdentity(pub(super) [u8; 32]); }
 
 const LAYOUT_SCHEMA: &[u8] = b"omega.terminal.resolved-selected-form-layout.v17";
 
@@ -81,26 +71,7 @@ pub fn resolved_machine_layout_identity(
                 match instruction.branch.as_deref() {
                     None => hasher.byte(0),
                     Some(super::ResolvedBranchEvidence::Conditional(branch)) => {
-                        hasher.byte(1);
-                        hasher.byte(branch.predicate.rank());
-                        hasher.raw(&branch.source_block.0.to_le_bytes());
-                        hasher.raw(
-                            &branch
-                                .when_taken_edge
-                                .map_or(0, |edge| edge.get())
-                                .to_le_bytes(),
-                        );
-                        hasher.raw(&branch.when_taken_block.0.to_le_bytes());
-                        hasher.raw(&branch.when_taken_offset.to_le_bytes());
-                        hasher.raw(
-                            &branch
-                                .when_fallthrough_edge
-                                .map_or(0, |edge| edge.get())
-                                .to_le_bytes(),
-                        );
-                        hasher.raw(&branch.when_fallthrough_block.0.to_le_bytes());
-                        hasher.raw(&branch.when_fallthrough_offset.to_le_bytes());
-                        hasher.raw(&branch.byte_displacement.to_le_bytes());
+                        encode_conditional_branch_arm(&mut hasher, branch);
                         encode_views(&mut hasher, &branch.decoded_register_reads);
                         selected_instructions::encode_machine_encoded_effects_identity(
                             &mut hasher,
@@ -108,12 +79,7 @@ pub fn resolved_machine_layout_identity(
                         );
                     }
                     Some(super::ResolvedBranchEvidence::Jump(jump)) => {
-                        hasher.byte(2);
-                        hasher.raw(&jump.source_block.0.to_le_bytes());
-                        hasher.raw(&jump.target_edge.map_or(0, |edge| edge.get()).to_le_bytes());
-                        hasher.raw(&jump.target_block.0.to_le_bytes());
-                        hasher.raw(&jump.target_offset.to_le_bytes());
-                        hasher.raw(&jump.byte_displacement.to_le_bytes());
+                        encode_jump_arm(&mut hasher, jump);
                         selected_instructions::encode_machine_encoded_effects_identity(
                             &mut hasher,
                             &jump.decoded_effects,

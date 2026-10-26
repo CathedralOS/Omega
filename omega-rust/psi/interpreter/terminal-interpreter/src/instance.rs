@@ -621,6 +621,26 @@ impl<'a, 'host> ImportDispatch<'a, 'host> {
 }
 
 impl TerminalEffectHandler for ImportDispatch<'_, '_> {
+    fn requires_original_storage(&self, boundary: BoundaryMachineId) -> bool {
+        self.bindings
+            .get(&boundary)
+            .is_some_and(|binding| binding.adapter.requires_original_storage(boundary))
+    }
+
+    fn prepare_original_storage(
+        &mut self,
+        boundary: BoundaryMachineId,
+        requests: &[crate::effects::original_storage::TerminalOriginalStorageRequest],
+    ) -> Result<
+        crate::effects::original_storage::TerminalOriginalScalarBackings,
+        TerminalEffectRejection,
+    > {
+        self.bindings
+            .get_mut(&boundary)
+            .ok_or_else(|| TerminalEffectRejection::new("original storage names no bound import"))?
+            .adapter
+            .prepare_original_storage(boundary, requests)
+    }
     fn storage_arguments(&self, boundary: BoundaryMachineId) -> &[usize] {
         self.bindings
             .get(&boundary)

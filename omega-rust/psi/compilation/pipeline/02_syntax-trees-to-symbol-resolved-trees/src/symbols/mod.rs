@@ -647,3 +647,5 @@ pub(crate) fn assign_lexical_inputs(
     lowerer.resolved_lexical_inputs.extend(inputs);
     Ok(calls)
 }
+
+pub(crate) use type_references::assign_nominal_machine_requirement_arguments;
