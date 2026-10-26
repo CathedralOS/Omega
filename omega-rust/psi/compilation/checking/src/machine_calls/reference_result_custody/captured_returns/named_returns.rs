@@ -114,7 +114,8 @@ impl Captures<'_> {
         let site_loans: Vec<_> = loans
             .iter()
             .filter(|loan| {
-                loan.statement_index == call.statement_index
+                loan.lineage != checked_trees::BorrowLoanLineage::LifetimeDependency
+                    && loan.statement_index == call.statement_index
                     && loan.transition_target == transition_target
             })
             .cloned()
@@ -123,6 +124,7 @@ impl Captures<'_> {
         for leaf in leaves {
             let result_path = loan_place_segments(self.program, state.return_type, &leaf.path)?;
             let owner_path = loan_owner_path(self.program, state.return_type, &leaf.path)?;
+            let mut captured = false;
             for origin in origins
                 .iter()
                 .filter(|origin| origin.result_path == result_path)
@@ -158,6 +160,13 @@ impl Captures<'_> {
                 if !covered {
                     return None;
                 }
+                captured = true;
+            }
+            // Neither a lifetime debt nor a missing body source proves that a
+            // descriptor is absent. The complete occurrence relation must
+            // establish that no activation-relative capture is owed here.
+            if !captured && self.call_paths(call, active)?.contains(&leaf.path) {
+                return None;
             }
         }
         Some(output)
@@ -237,6 +246,7 @@ impl Captures<'_> {
         for referent in referents {
             let root = referent.root.as_symbol()?;
             let source = crate::LocalWriteSource {
+                invocation_output: None,
                 is_image_storage: false,
                 recasts: Vec::new(),
                 representation: None,
@@ -327,7 +337,7 @@ impl Captures<'_> {
                 .flow
                 .control
                 .operand_children
-                .span(operand.children)?
+                .span(operand.constructed_children())?
             {
                 let (destination, _) = super::super::source_paths::structural_path(
                     self.program,

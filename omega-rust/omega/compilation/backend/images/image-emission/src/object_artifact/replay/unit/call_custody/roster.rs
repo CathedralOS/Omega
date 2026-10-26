@@ -4,9 +4,9 @@
 //! exact argument bytes and order the plan requires.
 
 use super::super::scalar_call_custody::{expected_argument_bytes, validate_source};
-use crate::{ObjectError, ObjectUnitStack};
-use machine_code::{MachineCodeFunction, SemanticCodeSite, StructuralReturnRecord};
-use target::{Architecture, NativeTarget};
+use crate::ObjectError;
+use machine_code::{SemanticCodeSite, StructuralReturnRecord};
+use target::Architecture;
 use target_operations::{CallSiteOwner, MixedStructuralScalarFunctionAbi};
 
 use super::InternalUnitCallCustody;
@@ -107,18 +107,11 @@ pub(super) fn validate_parameter_abi(
     abi: &machine_code::ParameterFunctionAbiRecord,
 ) -> Result<(), ObjectError> {
     let CallInputs {
-        target,
-        function,
         callee_unit_parameters,
         custody,
         machine,
         ..
     } = call.inputs;
-    let CallSpan { relocation, .. } = call.span;
-    let StackFacts {
-        validated_function_stack,
-        ..
-    } = call.stacks;
     let expected_plan = &call.expected_plan;
     let invalid = || ObjectError::InvalidInternalUnitCallEvidence(machine);
     if *expected_plan != abi.call_plan
@@ -153,14 +146,7 @@ pub(super) fn validate_parameter_abi(
     {
         return Err(invalid());
     }
-    validate_mixed_argument_bytes_and_order(
-        target,
-        function,
-        validated_function_stack,
-        expected_plan,
-        relocation,
-        custody,
-    )?;
+    validate_mixed_argument_bytes_and_order(call)?;
     Ok(())
 }
 
@@ -172,17 +158,8 @@ pub(super) fn validate_mixed_abi(
     abi: &MixedStructuralScalarFunctionAbi,
 ) -> Result<(), ObjectError> {
     let CallInputs {
-        target,
-        function,
-        custody,
-        machine,
-        ..
+        custody, machine, ..
     } = call.inputs;
-    let CallSpan { relocation, .. } = call.span;
-    let StackFacts {
-        validated_function_stack,
-        ..
-    } = call.stacks;
     let expected_plan = &call.expected_plan;
     let invalid = || ObjectError::InvalidInternalUnitCallEvidence(machine);
     if *expected_plan != abi.call_plan
@@ -214,14 +191,7 @@ pub(super) fn validate_mixed_abi(
     {
         return Err(invalid());
     }
-    validate_mixed_argument_bytes_and_order(
-        target,
-        function,
-        validated_function_stack,
-        expected_plan,
-        relocation,
-        custody,
-    )?;
+    validate_mixed_argument_bytes_and_order(call)?;
     Ok(())
 }
 
@@ -234,17 +204,8 @@ pub(super) fn validate_mixed_structural_return(
     returned: &StructuralReturnRecord,
 ) -> Result<(), ObjectError> {
     let CallInputs {
-        target,
-        function,
-        custody,
-        machine,
-        ..
+        custody, machine, ..
     } = call.inputs;
-    let CallSpan { relocation, .. } = call.span;
-    let StackFacts {
-        validated_function_stack,
-        ..
-    } = call.stacks;
     let expected_plan = &call.expected_plan;
     let invalid = || ObjectError::InvalidInternalUnitCallEvidence(machine);
     if custody.result.is_some()
@@ -288,25 +249,28 @@ pub(super) fn validate_mixed_structural_return(
     {
         return Err(invalid());
     }
-    validate_mixed_argument_bytes_and_order(
-        target,
-        function,
-        validated_function_stack,
-        expected_plan,
-        relocation,
-        custody,
-    )?;
+    validate_mixed_argument_bytes_and_order(call)?;
     Ok(())
 }
 
+/// The exact argument bytes and order one mixed call roster requires. The
+/// call owns its own fact unpacking: the three ABI validators hand it the
+/// call they just checked rather than re-stating the same six inputs.
 fn validate_mixed_argument_bytes_and_order(
-    target: NativeTarget,
-    function: &MachineCodeFunction,
-    function_stack: &ObjectUnitStack,
-    call_plan: &calling_conventions::CallPlan,
-    relocation: &machine_code::InternalCallRelocation,
-    custody: &machine_code::InternalUnitCallRecord,
+    call: &InternalUnitCallCustody<'_>,
 ) -> Result<(), ObjectError> {
+    let CallInputs {
+        target,
+        function,
+        custody,
+        ..
+    } = call.inputs;
+    let CallSpan { relocation, .. } = call.span;
+    let StackFacts {
+        validated_function_stack,
+        ..
+    } = call.stacks;
+    let call_plan = &call.expected_plan;
     let invalid = || ObjectError::InvalidInternalUnitCallEvidence(function.machine);
     let outbound = relocation.unit_stack.ok_or_else(invalid)?.outbound;
     let outbound_bytes = outbound.map_or(0, |area| area.byte_size);
@@ -337,7 +301,7 @@ fn validate_mixed_argument_bytes_and_order(
             call_plan,
             &custody.scalar_arguments,
             argument_index,
-            function_stack.frame_bytes,
+            validated_function_stack.frame_bytes,
             outbound_bytes,
         )
         .ok_or_else(invalid)?;
@@ -384,7 +348,7 @@ fn validate_mixed_argument_bytes_and_order(
                 target,
                 custody,
                 &function.internal_unit_calls,
-                function_stack.frame_bytes,
+                validated_function_stack.frame_bytes,
                 &function.unit_parameter_homes,
                 &function.unit_scalar_homes,
                 function.parameter_abi.as_ref(),

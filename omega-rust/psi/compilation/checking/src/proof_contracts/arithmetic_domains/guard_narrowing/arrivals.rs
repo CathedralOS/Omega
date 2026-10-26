@@ -72,16 +72,81 @@ pub fn occurrence_integer_expression_bounds(
     statement_index: usize,
     expression: ExpressionHandle,
 ) -> Option<(i64, i64)> {
-    let interval = expression_observation(
+    occurrence_integer_bounds(
+        program,
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        vec![expression],
+    )
+    .get(expression)
+}
+
+/// Caller-owned bounds at exact expression occurrences in one statement.
+/// Every evaluated visit participates; an unvisited or unbounded expression
+/// has no closed bounds. Handles include their arena generation.
+#[derive(Default)]
+pub struct OccurrenceIntegerBounds {
+    bounds: Vec<(ExpressionHandle, Option<(i64, i64)>)>,
+}
+
+impl OccurrenceIntegerBounds {
+    pub fn get(&self, expression: ExpressionHandle) -> Option<(i64, i64)> {
+        let position = self
+            .bounds
+            .binary_search_by_key(
+                &(expression.arena_index(), expression.generation()),
+                |(expression, _)| (expression.arena_index(), expression.generation()),
+            )
+            .ok()?;
+        self.bounds[position].1
+    }
+}
+
+/// Share the admitted state prefix while preserving each requested actual's
+/// own evaluation snapshot. Observers are installed only at this statement;
+/// unrelated operands still evaluate and contribute their effects in order.
+pub fn occurrence_integer_bounds(
+    program: &dyn crate::CheckingInput,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    mut expressions: Vec<ExpressionHandle>,
+) -> OccurrenceIntegerBounds {
+    expressions.retain(|expression| expression.is_valid());
+    expressions
+        .sort_unstable_by_key(|expression| (expression.arena_index(), expression.generation()));
+    expressions.dedup();
+    if expressions.is_empty() {
+        return OccurrenceIntegerBounds::default();
+    }
+    let observations = expressions
+        .into_iter()
+        .map(ExpressionObservation::bounds)
+        .collect();
+    let Some(observations) = expression_observations(
         program,
         machine_symbol,
         state_symbol,
         Some(statement_index),
-        expression,
-    )?
-    .interval?;
-    let (low, high) = (interval.low?, interval.high?);
-    (low <= high).then_some((low, high))
+        observations,
+    ) else {
+        return OccurrenceIntegerBounds::default();
+    };
+    // This query publishes closed bounds only. Release joined environments
+    // and deferred recipes here rather than retaining discarded snapshots.
+    OccurrenceIntegerBounds {
+        bounds: observations
+            .into_iter()
+            .map(|observation| {
+                let bounds = observation.interval.and_then(|interval| {
+                    let (low, high) = (interval.low?, interval.high?);
+                    (low <= high).then_some((low, high))
+                });
+                (observation.expression, bounds)
+            })
+            .collect(),
+    }
 }
 
 pub fn occurrence_integer_expressions_bounds(
@@ -91,42 +156,16 @@ pub fn occurrence_integer_expressions_bounds(
     statement_index: usize,
     expressions: &[ExpressionHandle],
 ) -> Vec<(ExpressionHandle, Option<(i64, i64)>)> {
-    if expressions.is_empty() {
-        return Vec::new();
-    }
-    let Some(observations) = expression_observations(
+    let bounds = occurrence_integer_bounds(
         program,
         machine_symbol,
         state_symbol,
-        Some(statement_index),
+        statement_index,
         expressions.to_vec(),
-    ) else {
-        return expressions
-            .iter()
-            .map(|expression| (*expression, None))
-            .collect();
-    };
+    );
     expressions
         .iter()
-        .map(|expression| {
-            let bounds = observations
-                .binary_search_by_key(
-                    &(expression.arena_index(), expression.generation()),
-                    |observation| {
-                        (
-                            observation.expression.arena_index(),
-                            observation.expression.generation(),
-                        )
-                    },
-                )
-                .ok()
-                .and_then(|pos| observations[pos].interval)
-                .and_then(|interval| {
-                    let (low, high) = (interval.low?, interval.high?);
-                    (low <= high).then_some((low, high))
-                });
-            (*expression, bounds)
-        })
+        .map(|expression| (*expression, bounds.get(*expression)))
         .collect()
 }
 
@@ -314,7 +353,7 @@ fn expression_observation(
         machine_symbol,
         state_symbol,
         statement_index,
-        vec![expression],
+        vec![ExpressionObservation::bounds(expression)],
     )?
     .pop()
 }
@@ -324,15 +363,8 @@ fn expression_observations(
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: Option<usize>,
-    mut expressions: Vec<ExpressionHandle>,
+    observations: Vec<ExpressionObservation>,
 ) -> Option<Vec<ExpressionObservation>> {
-    expressions.retain(|expression| expression.is_valid());
-    expressions
-        .sort_unstable_by_key(|expression| (expression.arena_index(), expression.generation()));
-    expressions.dedup();
-    if expressions.is_empty() {
-        return Some(Vec::new());
-    }
     let (machine, state) = program.machine_state(machine_symbol, state_symbol)?;
     let statements = program.statement_table.statements(state.statement_nodes);
     let order = program
@@ -342,7 +374,7 @@ fn expression_observations(
     let (prefix, single_target) = match statement_index {
         Some(index) => {
             let position = order.iter().position(|source| *source == index)?;
-            (&order[..position], Some(&statements[index]))
+            (&order[..position], Some((index, &statements[index])))
         }
         None => (&order[..0], None),
     };
@@ -359,27 +391,18 @@ fn expression_observations(
     };
     if !walk.statements(
         state,
-        prefix.iter().map(|index| &statements[*index]),
+        prefix.iter().map(|index| (*index, &statements[*index])),
         &mut environment,
     ) {
         return None;
     }
-    walk.observations = expressions
-        .into_iter()
-        .map(|expression| ExpressionObservation {
-            include_bounds: true,
-            recipe: None,
-            expression,
-            interval: None,
-            environment: None,
-        })
-        .collect();
-    if let Some(statement) = single_target {
-        walk.observe_single_statement(state, statement, &mut environment);
+    walk.observations = observations;
+    if let Some((statement_index, statement)) = single_target {
+        walk.observe_single_statement(state, statement_index, statement, &mut environment);
     } else {
         walk.statements(
             state,
-            order.iter().map(|index| &statements[*index]),
+            order.iter().map(|index| (*index, &statements[*index])),
             &mut environment,
         );
     }
@@ -783,6 +806,16 @@ struct ExpressionObservation {
 }
 
 impl ExpressionObservation {
+    fn bounds(expression: ExpressionHandle) -> Self {
+        Self {
+            include_bounds: true,
+            recipe: None,
+            expression,
+            interval: None,
+            environment: None,
+        }
+    }
+
     fn environment(expression: ExpressionHandle) -> Self {
         Self {
             include_bounds: false,
@@ -1075,7 +1108,7 @@ impl ArrivalWalk<'_, '_> {
             .statements(source.statement_nodes);
         self.statements(
             source,
-            order.iter().map(|index| &statements[*index]),
+            order.iter().map(|index| (*index, &statements[*index])),
             environment,
         )
     }
@@ -1083,10 +1116,17 @@ impl ArrivalWalk<'_, '_> {
     fn statements<'statement>(
         &mut self,
         source: &State,
-        statements: impl IntoIterator<Item = &'statement StatementNode>,
+        statements: impl IntoIterator<Item = (usize, &'statement StatementNode)>,
         environment: &mut ValueEnvironment,
     ) -> bool {
-        for statement in statements {
+        for (statement_index, statement) in statements {
+            environment.prepare_numeric_observations(
+                self.program,
+                self.machine,
+                source,
+                statement_index,
+                statement,
+            );
             match statement {
                 StatementNode::Transition(transition) => {
                     let target_needs_walk = transition.target.is_valid()
@@ -1456,12 +1496,29 @@ impl ArrivalWalk<'_, '_> {
     fn observe_single_statement(
         &mut self,
         source: &State,
+        statement_index: usize,
         statement: &StatementNode,
         environment: &mut ValueEnvironment,
     ) {
+        // A terminal observation skips stores after the requested operands, but
+        // it still prepares the exact statement's captured numeric identities.
+        // Transitions delegate to the ordinary walk, which prepares them once.
+        if !matches!(statement, StatementNode::Transition(_)) {
+            environment.prepare_numeric_observations(
+                self.program,
+                self.machine,
+                source,
+                statement_index,
+                statement,
+            );
+        }
         match statement {
             StatementNode::Transition(_) => {
-                self.statements(source, std::iter::once(statement), environment);
+                self.statements(
+                    source,
+                    std::iter::once((statement_index, statement)),
+                    environment,
+                );
             }
             StatementNode::LocalData(local) => {
                 if let Some(initializer) = local.ordinary_value_initializer() {

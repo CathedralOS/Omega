@@ -455,8 +455,10 @@ fn form_call_selection(
         .filter(|closed| closed.template == target_symbol);
     let registration_requirement_trait = closed_requirement
         .map(|closed| closed.declaring_trait)
-        .or_else(|| crate::selected_requirement_signature(program, target_symbol)
-            .map(|(declaration, _)| declaration.symbol));
+        .or_else(|| {
+            crate::selected_requirement_signature(program, target_symbol)
+                .map(|(declaration, _)| declaration.symbol)
+        });
     /// Split a type-parameter signature into its `Machine`-kind contract
     /// requirements and its `Type`-kind generic slots, in declaration order.
     fn contract_and_type_parameters<'p>(

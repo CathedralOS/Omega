@@ -158,44 +158,8 @@ pub(in super::super) fn normalize_member_path(
     requester_member: Option<&str>,
     location: &str,
 ) -> Result<WorkspaceMemberPath, ResolveDependencySourceError> {
-    if location.is_empty()
-        || location.starts_with('/')
-        || location.ends_with('/')
-        || location.contains('\\')
-        || location.bytes().any(|byte| byte.is_ascii_control())
-    {
-        return Err(invalid_path(
-            location,
-            "path must be a portable relative location",
-        ));
-    }
-
-    let mut components = requester_member
-        .map(|member| member.split('/').map(str::to_owned).collect::<Vec<_>>())
-        .unwrap_or_default();
-    for component in location.split('/') {
-        match component {
-            "" => return Err(invalid_path(location, "path contains an empty component")),
-            "." => {}
-            ".." => {
-                if components.pop().is_none() {
-                    return Err(invalid_path(
-                        location,
-                        "path escapes its registered workspace",
-                    ));
-                }
-            }
-            component => components.push(component.to_owned()),
-        }
-    }
-    if components.is_empty() {
-        return Err(invalid_path(
-            location,
-            "path resolves to the workspace root",
-        ));
-    }
-    WorkspaceMemberPath::parse(components.join("/"))
-        .map_err(|error| invalid_path(location, &error.to_string()))
+    crate::resolution::source::workspace_path::normalize_member_path(requester_member, location)
+        .map_err(|reason| invalid_path(location, &reason))
 }
 
 pub(in super::super) fn workspace_path_escapes(

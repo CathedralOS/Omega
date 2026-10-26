@@ -624,6 +624,9 @@ impl<'a, 'host> ImportDispatch<'a, 'host> {
             TerminalEffect::ComponentCall { .. } => Err(TerminalEffectRejection::new(
                 "a component completion receipt is not a host effect request",
             )),
+            TerminalEffect::MemoryFence { .. } => Err(TerminalEffectRejection::new(
+                "completed ordering observations are not host effect requests",
+            )),
             TerminalEffect::PortWrite { .. } => Err(TerminalEffectRejection::new(
                 "port output requires an admitted target-environment provider",
             )),

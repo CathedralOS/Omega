@@ -31,7 +31,7 @@ pub(super) fn retain(
             Action::DiscardRoot(_) => {
                 for mut part in partition {
                     part.declaration_order = region.declaration_order;
-                    part.selected_region = region.selected_region.clone();
+                    part.selected_region = selected_residual(&region, &part)?;
                     for condition in &region.conditions {
                         if !part.conditions.contains(condition) {
                             part.conditions.push(condition.clone());
@@ -54,7 +54,7 @@ pub(super) fn retain(
                     }
                     let mut selected = part.clone();
                     selected.declaration_order = region.declaration_order;
-                    selected.selected_region = region.selected_region.clone();
+                    selected.selected_region = selected_residual(&region, &selected)?;
                     for condition in &region.conditions {
                         if !selected.conditions.contains(condition) {
                             selected.conditions.push(condition.clone());
@@ -76,4 +76,30 @@ pub(super) fn retain(
         }
     }
     Ok(remaining)
+}
+
+/// Deriving a residual changes the cleanup receiver from its former whole
+/// parent to the exact remaining subtree. The original selection authorizes
+/// conditional execution, not a new whole-parent availability demand. Home
+/// retirement still selects the separate resident-root binding.
+fn selected_residual(
+    original: &CleanupRegion,
+    residual: &CleanupRegion,
+) -> Result<Option<terminal_psi::StructuralArgument>, LoweringError> {
+    let Some(receiver) = original.selected_region.as_ref() else {
+        return Ok(None);
+    };
+    if receiver.access != terminal_psi::StructuralAccess::Owned
+        || receiver.place != residual.action.place()
+        || !residual.action.path().starts_with(&receiver.path)
+    {
+        return Err(LoweringError::Unsupported(
+            "residual cleanup selection does not enclose its exact receiver",
+        ));
+    }
+    Ok(Some(terminal_psi::StructuralArgument {
+        place: residual.action.place(),
+        path: residual.action.path().to_vec(),
+        access: terminal_psi::StructuralAccess::Owned,
+    }))
 }

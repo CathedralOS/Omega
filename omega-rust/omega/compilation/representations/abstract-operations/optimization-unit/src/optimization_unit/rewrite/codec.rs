@@ -467,6 +467,7 @@ pub(super) fn encode_candidate(
                 encode_len(&mut bytes, row.path.len());
                 for segment in &row.path {
                     match segment {
+                        CanonicalStructuralPathSegment::Referent => bytes.push(4),
                         CanonicalStructuralPathSegment::Field(identity) => {
                             bytes.push(1);
                             crate::codec_bytes::push_encoded(

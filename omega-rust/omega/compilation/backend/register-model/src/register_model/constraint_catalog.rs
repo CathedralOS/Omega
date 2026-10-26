@@ -7,9 +7,9 @@ use crate::register_model::identities::{
     PhysicalRegisterModelIdentity, RegisterConstraintCatalogIdentity,
 };
 use crate::{
-    RegisterClassId, RegisterUnit, RegisterUnitId, RegisterViewId, ValidatedPhysicalRegisterModel,
+    PhysicalRegisterModel, RegisterClassId, RegisterUnitId, RegisterViewId,
+    ValidatedPhysicalRegisterModel,
 };
-use std::collections::BTreeMap;
 use target::Architecture;
 
 /// Dense, catalog-local identity for an instruction constraint row.
@@ -125,6 +125,7 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     pub model_specific_write: Option<RegisterConstraintKey>,
     pub processor_halt: Option<RegisterConstraintKey>,
     pub interrupt_control: Option<RegisterConstraintKey>,
+    pub memory_fence: Option<RegisterConstraintKey>,
     pub atomic_fence: Option<RegisterConstraintKey>,
     pub atomic_load: Option<RegisterConstraintKey>,
     pub atomic_store: Option<RegisterConstraintKey>,
@@ -436,22 +437,6 @@ pub fn validate_register_constraint_catalog(
 
     validate_required_constraint_inventory(&catalog)?;
 
-    let units = physical
-        .units
-        .iter()
-        .map(|unit| (unit.id, unit))
-        .collect::<BTreeMap<_, _>>();
-    let views = physical
-        .views
-        .iter()
-        .map(|view| (view.id, view))
-        .collect::<BTreeMap<_, _>>();
-    let classes = physical
-        .classes
-        .iter()
-        .map(|class| (class.id, class))
-        .collect::<BTreeMap<_, _>>();
-
     for constraint in &catalog.constraints {
         // A register-free instruction can still have memory or ordering effects.
         // This structural catalog checks declared register constraints; the target
@@ -467,14 +452,14 @@ pub fn validate_register_constraint_catalog(
         }
 
         for operand in &constraint.operands {
-            let Some(class) = classes.get(&operand.class) else {
+            let Some(class) = physical.class(operand.class) else {
                 return Err(RegisterConstraintCatalogValidationError::UnknownClass {
                     constraint: constraint.id,
                     class: operand.class,
                 });
             };
             if let Some(fixed_view) = operand.fixed_view {
-                let Some(view) = views.get(&fixed_view) else {
+                let Some(view) = physical.view(fixed_view) else {
                     return Err(RegisterConstraintCatalogValidationError::UnknownFixedView {
                         constraint: constraint.id,
                         view: fixed_view,
@@ -491,7 +476,7 @@ pub fn validate_register_constraint_catalog(
             } else if !class
                 .views
                 .iter()
-                .any(|view| views.get(view).is_some_and(|view| view.allocatable))
+                .any(|view| physical.view(*view).is_some_and(|view| view.allocatable))
             {
                 return Err(
                     RegisterConstraintCatalogValidationError::UnallocatableOperandClass {
@@ -514,19 +499,19 @@ pub fn validate_register_constraint_catalog(
         validate_constraint_unit_set(
             constraint.id,
             &constraint.implicit_uses,
-            &units,
+            physical,
             ConstraintUnitSetKind::ImplicitUses,
         )?;
         validate_constraint_unit_set(
             constraint.id,
             &constraint.implicit_defs,
-            &units,
+            physical,
             ConstraintUnitSetKind::ImplicitDefs,
         )?;
         validate_constraint_unit_set(
             constraint.id,
             &constraint.clobbers,
-            &units,
+            physical,
             ConstraintUnitSetKind::Clobbers,
         )?;
         if let Some(unit) = constraint
@@ -652,7 +637,7 @@ enum ConstraintUnitSetKind {
 fn validate_constraint_unit_set(
     constraint: RegisterConstraintId,
     set: &[RegisterUnitId],
-    known: &BTreeMap<RegisterUnitId, &RegisterUnit>,
+    model: &PhysicalRegisterModel,
     kind: ConstraintUnitSetKind,
 ) -> Result<(), RegisterConstraintCatalogValidationError> {
     if set.windows(2).any(|pair| pair[0] >= pair[1]) {
@@ -668,7 +653,7 @@ fn validate_constraint_unit_set(
             }
         });
     }
-    if let Some(unit) = set.iter().find(|unit| !known.contains_key(unit)) {
+    if let Some(unit) = set.iter().find(|unit| model.unit(**unit).is_none()) {
         return Err(RegisterConstraintCatalogValidationError::UnknownUnit {
             constraint,
             unit: *unit,

@@ -1,6 +1,9 @@
 //! One source evaluation order for ownership windows and loan exclusions.
 //! This inventory orders existing move candidates; it does not classify them.
 
+mod selected_evaluation;
+pub(super) use selected_evaluation::SelectedEvaluation;
+
 use validation::CanonicalPlace;
 
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -286,29 +289,14 @@ pub(super) fn statement_steps_at_evaluation(
     order.steps
 }
 
-/// An observation borrows its temporary receiver; it cannot discharge the
-/// receiver's custody. Keep the actual completed expression root so ordinary
-/// permission production and scope-exit checking own its residual partition,
-/// including affine storage with no linear claims.
-pub(super) fn observed_owned_temporaries(
+fn observed_owned_temporaries_from_occurrences(
     program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
-    statement: &StatementNode,
-    operators: &checked_trees::CheckedOperatorFacts,
+    occurrences: &[StatementOccurrence],
 ) -> Vec<(ExpressionHandle, typed_trees::types::TypeReferenceHandle)> {
     let mut owners = Vec::new();
-    let occurrences = statement_steps(
-        program,
-        machine,
-        state,
-        statement_index,
-        statement,
-        &[],
-        operators,
-    );
-    for occurrence in &occurrences {
+    for occurrence in occurrences {
         let StatementStep::Observe { place, .. } = &occurrence.step else {
             continue;
         };
@@ -341,7 +329,7 @@ pub(super) fn observed_owned_temporaries(
     // indexed observation evaluates another temporary for its selector. Reuse
     // this exact occurrence inventory rather than rebuilding an AST schedule.
     let mut completed_owners = Vec::new();
-    for occurrence in &occurrences {
+    for occurrence in occurrences {
         if let StatementStep::Complete(expression) = occurrence.step
             && let Some(owner) = owners.iter().find(|(owner, _)| *owner == expression)
             && !completed_owners.contains(owner)
@@ -350,6 +338,85 @@ pub(super) fn observed_owned_temporaries(
         }
     }
     completed_owners
+}
+
+/// Two roles over one exact statement occurrence inventory. Every completed
+/// owned product needs production custody, including one delivered directly to
+/// a selected or constructed parent. An observed receiver instead retains its
+/// own residual owner for exit cleanup. Production alone does not establish
+/// that residual-cleanup role.
+pub(super) struct OwnedTemporaryOccurrences {
+    pub(super) completed: Vec<(ExpressionHandle, typed_trees::types::TypeReferenceHandle)>,
+    pub(super) observed: Vec<(ExpressionHandle, typed_trees::types::TypeReferenceHandle)>,
+}
+
+pub(super) fn owned_temporary_occurrences(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    statement: &StatementNode,
+    operators: &checked_trees::CheckedOperatorFacts,
+    control: &checked_trees::FlowControlFacts,
+) -> OwnedTemporaryOccurrences {
+    let occurrences = statement_steps(
+        program,
+        machine,
+        state,
+        statement_index,
+        statement,
+        &[],
+        operators,
+    );
+    let observed =
+        observed_owned_temporaries_from_occurrences(program, state, statement_index, &occurrences);
+    let mut completed = Vec::new();
+    for occurrence in occurrences {
+        let StatementStep::Complete(expression) = occurrence.step else {
+            continue;
+        };
+        if !expression.is_valid() || completed.iter().any(|(owner, _)| *owner == expression) {
+            continue;
+        }
+        let Some(place) = validation::canonical_place_from_expression_in_state(
+            program,
+            state.symbol,
+            statement_index,
+            expression,
+        ) else {
+            continue;
+        };
+        if place.root != facts::PlaceRoot::Expression(expression) || !place.segments.is_empty() {
+            continue;
+        }
+        let Some(reference) =
+            validation::expression_result_type_reference(program, machine, state, expression)
+        else {
+            continue;
+        };
+        if program.type_multiplicity(reference) == language_semantics::Multiplicity::Unrestricted {
+            continue;
+        }
+        // These immutable carrier/root checks cannot grant custody. Authenticate
+        // only candidates that could enter the owning temporary roster.
+        // Source completion supplies order, while the flow capture owner
+        // authenticates an actual completed value. Proof-only expressions do
+        // not become runtime temporary owners merely by having a carrier.
+        if !observed.iter().any(|(owner, _)| *owner == expression)
+            && !control.operands.iter().any(|(_, operand)| {
+                operand.expression == expression
+                    && operand.state_symbol == state.symbol
+                    && operand.statement_index == statement_index
+            })
+        {
+            continue;
+        }
+        completed.push((expression, reference));
+    }
+    OwnedTemporaryOccurrences {
+        completed,
+        observed,
+    }
 }
 
 struct StatementOrder<'a> {

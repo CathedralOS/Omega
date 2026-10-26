@@ -30,6 +30,23 @@ pub(in crate::flow) struct CallStorageWrites {
     pub(in crate::flow) contributions: Vec<ObservedCallMutation>,
 }
 
+impl CallStorageWrites {
+    /// A content region has a dependency anchor, not a descriptor store. Until
+    /// physical storage coordinates are available for that region, descriptor
+    /// association remains unknown rather than treating the anchor as a write.
+    pub(in crate::flow) fn descriptor_stores(&self) -> Option<Vec<CanonicalPlace>> {
+        self.contributions
+            .iter()
+            .map(|contribution| match &contribution.write.region {
+                crate::flow::mutation::StorageRegion::Declared(place) => Some(place.clone()),
+                crate::flow::mutation::StorageRegion::ResidentContent { .. }
+                | crate::flow::mutation::StorageRegion::NonresidentContent { .. }
+                | crate::flow::mutation::StorageRegion::UnresolvedContent { .. } => None,
+            })
+            .collect()
+    }
+}
+
 #[derive(Clone)]
 pub(in crate::flow) struct ObservedCallMutation {
     pub(in crate::flow) write: CallMutationWrite,

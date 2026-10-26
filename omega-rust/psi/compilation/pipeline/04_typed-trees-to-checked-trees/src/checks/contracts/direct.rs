@@ -451,13 +451,22 @@ fn scalar_value_at_observation(
     if !observation_carriers_agree(program, state, statement_index, observed_type, place) {
         return None;
     }
+    let mut place = place.clone();
+    crate::flow::narrow_pinned_index_segments(
+        program,
+        semantic,
+        state,
+        statement_index,
+        contexts,
+        &mut place.segments,
+    );
     super::prover::scalar_value_at_place(
         program,
         semantic,
         contexts
             .iter()
             .map(|context| semantic.contexts.get(*context)),
-        place,
+        &place,
     )
 }
 

@@ -110,7 +110,7 @@ pub(super) fn prepare(
         object,
         text,
         relocations,
-        shim: crate::hosted_unit_entry::EntryShim::DarwinReceiver { symbol, offset },
+        shim: crate::hosted_unit_entry::EntrySurface::DarwinReceiver.shim(symbol, offset),
     })
 }
 

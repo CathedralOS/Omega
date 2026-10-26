@@ -4,7 +4,9 @@
 //! components must finish before a consumer can proceed. The compiler retains
 //! opaque source continuations and owns checking, settlement and production.
 
-use crate::build_execution::{PackagePlan, PreparedPackageRoot, prepare_packages};
+use crate::build_execution::{
+    PackagePlan, PackageSourceRequest, PreparedPackageRoot, prepare_packages,
+};
 use compiler::{
     CheckedCompileRequest, CompilationOutput, CompilationSession, PackageBuild,
     PackageCompilationRequest, PackageCompileFailure, PreparedPackageProduct,
@@ -18,32 +20,80 @@ pub fn compile_packages(
     compiler: &mut CompilationSession,
     requests: Vec<PackageCompilationRequest>,
 ) -> Vec<Result<CompilationOutput, PackageCompileFailure>> {
-    let count = requests.len();
-    compiler::checked::run_on_compile_thread(|| {
-        let mut plans = Vec::with_capacity(count);
-        for (position, mut request) in requests.into_iter().enumerate() {
-            let root = request.occurrences.len().saturating_sub(1);
-            for occurrence in &mut request.occurrences {
-                occurrence.optimization_rollback = request.product.optimization_rollback();
-            }
-            let owner = (
+    let mut plans = Vec::with_capacity(requests.len());
+    for (position, mut request) in requests.into_iter().enumerate() {
+        let root = request.occurrences.len().saturating_sub(1);
+        for occurrence in &mut request.occurrences {
+            occurrence.optimization_rollback = request.product.optimization_rollback();
+        }
+        let owner = (
+            position,
+            root,
+            request.product,
+            request.terminal_permissions,
+        );
+        plans.push((
+            owner,
+            PackagePlan {
+                occurrences: request
+                    .occurrences
+                    .into_iter()
+                    .map(PackageSourceRequest::Execute)
+                    .collect(),
+                join_root: false,
+            },
+        ));
+    }
+
+    compile_plans(compiler, plans, &mut [])
+}
+
+pub(crate) fn compile_returned_packages(
+    compiler: &mut CompilationSession,
+    requests: Vec<package_manager::operations::PackageProductCompilationRequest>,
+    completed: &mut [compiler::CompletedBuild],
+) -> Vec<Result<CompilationOutput, PackageCompileFailure>> {
+    let mut plans = Vec::with_capacity(requests.len());
+    for (position, request) in requests.into_iter().enumerate() {
+        let root = request.occurrences.len().saturating_sub(1);
+        plans.push((
+            (
                 position,
                 root,
                 request.product,
                 request.terminal_permissions,
-            );
-            plans.push((
-                owner,
-                PackagePlan {
-                    occurrences: request.occurrences,
-                    join_root: false,
-                },
-            ));
-        }
+            ),
+            PackagePlan {
+                occurrences: request
+                    .occurrences
+                    .into_iter()
+                    .map(PackageSourceRequest::Product)
+                    .collect(),
+                join_root: false,
+            },
+        ));
+    }
+    compile_plans(compiler, plans, completed)
+}
 
+type RequestedPackageProduct = (
+    usize,
+    usize,
+    compiler::CompilationProduct,
+    Option<compiler::TerminalPermissionAcceptance>,
+);
+
+fn compile_plans(
+    compiler: &mut CompilationSession,
+    plans: Vec<(RequestedPackageProduct, PackagePlan)>,
+    completed: &mut [compiler::CompletedBuild],
+) -> Vec<Result<CompilationOutput, PackageCompileFailure>> {
+    let count = plans.len();
+    compiler::checked::run_on_compile_thread(|| {
         let mut outcomes = Vec::with_capacity(count);
         let mut products = Vec::new();
-        for ((position, root, product, permissions), prepared) in prepare_packages(compiler, plans)
+        for ((position, root, product, permissions), prepared) in
+            prepare_packages(compiler, plans, completed)
         {
             match prepared {
                 Ok(PreparedPackageRoot::Build(build)) => products.push((
@@ -106,10 +156,14 @@ pub fn prepare_package(
             vec![(
                 (),
                 PackagePlan {
-                    occurrences,
+                    occurrences: occurrences
+                        .into_iter()
+                        .map(PackageSourceRequest::Execute)
+                        .collect(),
                     join_root: false,
                 },
             )],
+            &mut [],
         )
         .pop();
         Ok::<_, Vec<Diagnostic>>(match prepared {
@@ -143,10 +197,14 @@ pub fn join_dependency_builds(
             vec![(
                 (),
                 PackagePlan {
-                    occurrences,
+                    occurrences: occurrences
+                        .into_iter()
+                        .map(PackageSourceRequest::Execute)
+                        .collect(),
                     join_root: true,
                 },
             )],
+            &mut [],
         )
         .pop();
         Ok::<_, Vec<Diagnostic>>(match prepared {

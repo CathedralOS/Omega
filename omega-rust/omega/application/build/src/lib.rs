@@ -13,7 +13,10 @@
 //! retaining returned invocations, sharing execution with compilation/review.
 //! `build_session.rs` retains the compiler alongside package-owned resources
 //! across those operations; package policy borrows execution, not a compiler.
-//! Production admission and provider/helper suspension remain migration work.
+//! Ordinary CLI products consume executed discovery through package-owned
+//! Product admission. Install/update also execute their staged candidates once
+//! and retain Builds across review passes. Audit discovery and provider/helper
+//! suspension remain migration work.
 
 mod build;
 mod build_directory;
@@ -142,6 +145,7 @@ pub struct TargetBuildOutcome {
 pub enum BuildError {
     Diagnostics(Vec<Diagnostic>),
     Preparation(packages::PrepareLocalProjectError),
+    ProjectCompilation(packages::ProjectCompilationError),
     PackageCheck(CheckPreparedLocalProjectError),
     PackageNative(CompilePreparedLocalProjectNativeError),
     Inspection(ProjectInspectionError),
@@ -157,6 +161,9 @@ impl std::fmt::Display for BuildError {
                 diagnostics::write_diagnostics(formatter, diagnostics)
             }
             Self::Preparation(error) => write!(formatter, "{error}"),
+            Self::ProjectCompilation(error) => {
+                write!(formatter, "cannot compile admitted project: {error}")
+            }
             Self::PackageCheck(error) => write!(formatter, "{error}"),
             Self::PackageNative(error) => write!(formatter, "{error}"),
             Self::Inspection(error) => {

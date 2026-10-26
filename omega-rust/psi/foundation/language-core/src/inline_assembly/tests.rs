@@ -707,7 +707,7 @@ fn catalog_names_semantic_refusal_classes() {
     // Supervisor traps are service-admission candidates, not hidden exits;
     // address arithmetic and ordering barriers access no memory. Each keeps
     // the unknown-mnemonic failure rather than borrowing a semantic refusal.
-    for mnemonic in ["db", "svc", "hvc", "smc", "brk", "lea", "dmb", "dsb"] {
+    for mnemonic in ["db", "svc", "hvc", "smc", "brk", "lea", "dsb"] {
         assert_eq!(
             asm_catalog_entry(mnemonic),
             None,
@@ -1059,4 +1059,33 @@ fn comparison_and_arm_local_edges_retain_catalog_target_demands() {
     );
     assert_eq!(scratch_register("w29"), None);
     assert_eq!(scratch_register("w30"), None);
+}
+
+#[test]
+fn fence_event_identity_keeps_target_mask_and_authority_separate() {
+    use super::AsmRegisterOperation;
+    let mut tags = std::collections::BTreeSet::new();
+    for kind in AsmFenceKind::ALL {
+        let operation = AsmRegisterOperation::MemoryFence(kind);
+        assert!(tags.insert(operation.catalog_tag()));
+        assert_eq!(
+            AsmRegisterOperation::from_catalog_tag(operation.catalog_tag()),
+            Some(operation)
+        );
+        assert_eq!(
+            AsmRegisterOperation::from_intrinsic_name(kind.intrinsic_name()),
+            Some(operation)
+        );
+        assert!(!operation.requires_service_authority());
+        assert!(operation.input_carriers().is_empty() && operation.result_carrier().is_none());
+        assert_eq!(operation.target_applicability(), kind.target());
+        let contract = super::AsmInstructionContract::memory_fence(kind);
+        assert_eq!(contract.memory_ordering, AsmMemoryOrdering::Fence(kind));
+        assert!(contract.clobbers.is_empty() && contract.operands.is_empty());
+        assert_eq!(contract.target, kind.target());
+    }
+    assert_eq!(AsmRegisterOperation::from_catalog_tag(0x506), None);
+    for option in ["ish", "osh", "nsh", "0", "", "SY"] {
+        assert_eq!(AsmFenceKind::from_aarch64_option(option), None);
+    }
 }

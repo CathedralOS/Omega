@@ -140,12 +140,14 @@ fn completed_selection(
         pending.push(Work::Leave);
         // Joins quantify over every completed alternative before a surface
         // producer or retained earlier value may contribute a selection.
-        if !capture.alternatives.is_empty() {
+        if let checked_trees::FlowOperandCompletion::Selected(alternatives) = capture.completion {
+            let rows = control.operand_alternatives.span(alternatives)?;
+            if rows.is_empty() || rows.iter().any(|row| !row.source_arm.is_valid()) {
+                return None;
+            }
             pending.extend(
-                capture
-                    .alternatives
-                    .handles()
-                    .map(|value| Work::Visit(value, projection.clone())),
+                rows.iter()
+                    .map(|row| Work::Visit(row.value, projection.clone())),
             );
             continue;
         }

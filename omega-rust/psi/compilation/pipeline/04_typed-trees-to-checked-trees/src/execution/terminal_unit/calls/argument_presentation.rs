@@ -39,8 +39,10 @@ pub(crate) fn classify(
     target_identity: typed_trees::type_identity::TypeIdentityId,
     substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
 ) -> Option<ArgumentPresentation> {
-    if base_type_identity(program, projected_type, &[], &[])
-        .is_some_and(|identity| identity == target_identity)
+    if validation::stored_structural_type_identity(program, projected_type, &[], &[])
+        == target_identity
+        || base_type_identity(program, projected_type, &[], &[])
+            .is_some_and(|identity| identity == target_identity)
     {
         return Some(ArgumentPresentation::SameIdentity);
     }

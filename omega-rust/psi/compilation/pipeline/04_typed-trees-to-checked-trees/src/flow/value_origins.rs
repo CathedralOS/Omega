@@ -38,6 +38,22 @@ enum OriginFrontier {
 }
 
 impl ValueObservation {
+    pub(crate) fn operand_writes(
+        self,
+        operand: &checked_trees::FlowOperandFact,
+    ) -> (arena::HandleSpan<checked_trees::FlowOperandReferent>, bool) {
+        match self {
+            Self::Contents => (
+                operand.entry_origin_writes,
+                operand.entry_origin_unknown_write,
+            ),
+            Self::Binding => (
+                operand.entry_binding_writes,
+                operand.entry_binding_unknown_write,
+            ),
+        }
+    }
+
     pub(crate) fn statement_writes(
         self,
         statement: &checked_trees::FlowStatementFact,

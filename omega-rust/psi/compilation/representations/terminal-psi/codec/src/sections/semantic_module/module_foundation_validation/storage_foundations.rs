@@ -252,27 +252,6 @@ pub(super) fn validate_establish_reference(
         source_path,
         *access,
     )?;
-    let inline_owner = storage.is_none()
-        && terminal_semantics::runtime_structural_field(
-            module.structural_types.iter(),
-            source_type,
-            source_path,
-        )
-        .is_some_and(|field| {
-            matches!(
-                field.field_type.byte_sequence_carrier(),
-                Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })
-            )
-        });
-    let field_compatible = inline_owner
-        && terminal_semantics::reference_byte_field_compatible(
-            module.structural_types.iter(),
-            module.structural_domains.iter(),
-            source_type,
-            source_path,
-            result.structural_type,
-            &result.projected_qualifications,
-        );
     if let Some(storage) = storage {
         let offset_type = declared_scalar_type(machine, storage.byte_offset);
         let offset_is_u64 = matches!(offset_type, Some(semantic_vocabulary::ScalarType::Integer(integer))
@@ -349,6 +328,117 @@ pub(super) fn validate_establish_reference(
                 )
             },
         );
+    if !ancestors_preserved
+        || result.multiplicity != StructuralMultiplicity::Affine
+        || !result.qualifications.is_empty()
+        || !result.claims.is_empty()
+        || *access != source.access
+        || source.access == terminal_psi::StructuralAccess::Owned
+        || !compatible
+    {
+        return malformed("reference establishment has inconsistent custody");
+    }
+    Ok(())
+}
+
+/// Replay declared reference contracts only after every machine's complete
+/// operation/place foundations and activation relationships have passed. A
+/// reference can reach another machine's descriptor producer, so per-machine
+/// early replay is not an untrusted-module admission boundary.
+pub(super) fn validate_reference_memberships(module: &TerminalModule) -> Result<(), CodecError> {
+    if !module.machines.iter().any(|machine| {
+        machine
+            .operations()
+            .any(|operation| matches!(&operation.kind, OperationKind::EstablishReference { .. }))
+    }) {
+        return Ok(());
+    }
+    let graph = terminal_semantics::descriptor_results::terminal_graph(module);
+    let mut analysis = terminal_semantics::descriptor_results::DescriptorAnalysis::new(
+        &module.structural_types,
+        &graph,
+    );
+    for machine in &module.machines {
+        for block in &machine.blocks {
+            for (ordinal, operation) in block.operations.iter().enumerate() {
+                if !matches!(&operation.kind, OperationKind::EstablishReference { .. }) {
+                    continue;
+                }
+                let ordinal = u32::try_from(ordinal).map_err(|_| {
+                    super::operation_foundation_error(
+                        module,
+                        machine,
+                        block.id,
+                        operation,
+                        CodecError::MalformedStructuralFoundation("operation ordinal exceeds u32"),
+                    )
+                })?;
+                validate_reference_membership(
+                    module,
+                    machine,
+                    operation,
+                    (block.id, ordinal),
+                    &graph,
+                    &mut analysis,
+                )
+                .map_err(|error| {
+                    super::operation_foundation_error(module, machine, block.id, operation, error)
+                })?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_reference_membership(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+    position: (semantic_vocabulary::BlockId, u32),
+    reference_graph: &[terminal_semantics::descriptor_results::DescriptorMachine],
+    reference_analysis: &mut terminal_semantics::descriptor_results::DescriptorAnalysis<'_>,
+) -> Result<(), CodecError> {
+    let OperationKind::EstablishReference { source, storage } = &operation.kind else {
+        return malformed("reference membership admission has no reference operation");
+    };
+    let Some(result) = operation.result.structural() else {
+        return malformed("reference membership admission has no structural result");
+    };
+    let Some(StructuralTypeShape::Reference { access, .. }) = module
+        .structural_type(result.structural_type)
+        .map(|row| &row.shape)
+    else {
+        return malformed("reference membership admission has no reference carrier");
+    };
+    let Some(source_type) = structural_place_type(machine, source.place) else {
+        return malformed("reference membership admission has no source declaration");
+    };
+    let source_path = terminal_semantics::reference_source_storage_path(
+        module.structural_types.iter(),
+        source_type,
+        &source.path,
+    );
+    let inline_owner = storage.is_none()
+        && terminal_semantics::runtime_structural_field(
+            module.structural_types.iter(),
+            source_type,
+            source_path,
+        )
+        .is_some_and(|field| {
+            matches!(
+                field.field_type.byte_sequence_carrier(),
+                Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })
+            )
+        });
+    let field_compatible = inline_owner
+        && terminal_semantics::reference_byte_field_compatible(
+            module.structural_types.iter(),
+            module.structural_domains.iter(),
+            source_type,
+            source_path,
+            result.structural_type,
+            &result.projected_qualifications,
+        );
     let memberships_match = if inline_owner {
         field_compatible
     } else {
@@ -364,32 +454,37 @@ pub(super) fn validate_establish_reference(
                 ) else {
                     return false;
                 };
+                if let Ok(backing) =
+                    terminal_semantics::descriptor_results::reference_backing_memberships(
+                        &module.structural_types,
+                        &module.structural_domains,
+                        &module.identities,
+                        reference_analysis,
+                        machine.id,
+                        position,
+                        source,
+                        storage.as_ref(),
+                        result,
+                        |place| {
+                            terminal_semantics::descriptor_results::terminal_payload_contract(
+                                machine, place,
+                            )
+                        },
+                    )
+                {
+                    captured.extend(backing);
+                }
                 if *access == terminal_psi::StructuralAccess::SharedBorrow
                     && result
                         .projected_qualifications
                         .iter()
                         .any(|row| !captured.contains(row))
                 {
-                    let position = machine.blocks.iter().find_map(|block| {
-                        block
-                            .operations
-                            .iter()
-                            .position(|candidate| candidate.id == operation.id)
-                            .and_then(|ordinal| {
-                                u32::try_from(ordinal)
-                                    .ok()
-                                    .map(|ordinal| (block.id, ordinal))
-                            })
-                    });
-                    let Some(position) = position else {
-                        return false;
-                    };
-                    let graph = terminal_semantics::descriptor_results::terminal_graph(module);
                     let Ok(current) =
                         terminal_semantics::descriptor_results::current_selected_payload_contract(
                             &module.structural_types,
                             &module.structural_domains,
-                            &graph,
+                            reference_graph,
                             machine.id,
                             position,
                             source.place,
@@ -418,17 +513,10 @@ pub(super) fn validate_establish_reference(
             },
         )
     };
-    if !ancestors_preserved
-        || result.multiplicity != StructuralMultiplicity::Affine
-        || !result.qualifications.is_empty()
-        || ((inline_owner
-            || !result.projected_qualifications.is_empty()
-            || *access != terminal_psi::StructuralAccess::SharedBorrow)
-            && !memberships_match)
-        || !result.claims.is_empty()
-        || *access != source.access
-        || source.access == terminal_psi::StructuralAccess::Owned
-        || !compatible
+    if (inline_owner
+        || !result.projected_qualifications.is_empty()
+        || *access != terminal_psi::StructuralAccess::SharedBorrow)
+        && !memberships_match
     {
         return malformed("reference establishment has inconsistent custody");
     }

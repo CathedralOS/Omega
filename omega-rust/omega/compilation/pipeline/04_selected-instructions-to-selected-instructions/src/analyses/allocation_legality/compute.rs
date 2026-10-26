@@ -6,7 +6,7 @@ mod function;
 mod live_points;
 mod view_candidates;
 
-pub(crate) use function::compute as compute_function;
+pub(crate) use function::compute_reusing as compute_function_reusing;
 
 use register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
@@ -78,12 +78,23 @@ pub(crate) fn compute_terminal_allocation_legality(
                 carried[function_index] = true;
                 return Ok(function.clone());
             }
-            function::compute(
+            let prior_pair = previous.and_then(|(prior_ranges, prior_legality)| {
+                Some((
+                    prior_ranges.plan().functions.get(function_index)?.as_ref(),
+                    prior_legality
+                        .plan()
+                        .functions
+                        .get(function_index)?
+                        .as_ref(),
+                ))
+            });
+            function::compute_reusing(
                 function_index,
                 live_ranges,
                 availability,
                 physical,
                 reservations,
+                prior_pair,
             )
             .map(std::sync::Arc::new)
         })

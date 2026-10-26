@@ -47,21 +47,12 @@ pub(crate) fn call_contract_evidence(
         return Some(QualificationEvidence::default());
     };
 
-    if let Some(machine) = program.machine_by_symbol(target_symbol) {
-        let checked_body = machine.body_is_present
-            && matches!(
-                machine.supply_mode,
-                MachineSupplyMode::CheckedBody | MachineSupplyMode::Boundary
-            );
-        if checked_body {
-            // A checked adapter inherits the boundary requirement so its body
-            // can be validated against that requirement, but a direct call to
-            // the adapter is not the admitted crossing. Only a call whose
-            // target is the boundary trait/signature may consume the attached
-            // authorization and originate its qualified result.
-            if contract.qualification_authorization.is_some() {
-                return None;
-            }
+    match ::validation::call_qualification_source(
+        program,
+        target_symbol,
+        contract.qualification_authorization,
+    )? {
+        ::validation::CallQualificationSource::CheckedBody(machine) => {
             let origin =
                 if machine_domain_establishment_route(program, machine, domain_symbol).is_some() {
                     QualificationEvidenceOrigin::AuthorizedRouteEstablishment
@@ -70,32 +61,21 @@ pub(crate) fn call_contract_evidence(
                 } else {
                     QualificationEvidenceOrigin::CheckedTransformation
                 };
-            return Some(QualificationEvidence::from_origin(origin, target_symbol));
+            Some(QualificationEvidence::from_origin(origin, target_symbol))
         }
-
-        return contract.qualification_authorization.map(|authorization| {
-            QualificationEvidence::from_admitted_requirement(
+        ::validation::CallQualificationSource::AdmittedRequirement(authorization) => {
+            Some(QualificationEvidence::from_admitted_requirement(
                 authorization.requirement_symbol,
                 authorization.signature_symbol,
-            )
-        });
+            ))
+        }
+        ::validation::CallQualificationSource::Propagated => {
+            Some(QualificationEvidence::from_origin(
+                QualificationEvidenceOrigin::Propagated,
+                target_symbol,
+            ))
+        }
     }
-
-    if let Some(trait_definition) = program.trait_definition_by_symbol(target_symbol)
-        && trait_definition.is_boundary
-    {
-        return contract.qualification_authorization.map(|authorization| {
-            QualificationEvidence::from_admitted_requirement(
-                authorization.requirement_symbol,
-                authorization.signature_symbol,
-            )
-        });
-    }
-
-    Some(QualificationEvidence::from_origin(
-        QualificationEvidenceOrigin::Propagated,
-        target_symbol,
-    ))
 }
 
 pub(crate) fn machine_has_checked_domain_establishment(
@@ -170,46 +150,30 @@ fn call_carry_permission_evidence(
     _target_state_symbol: SymbolHandle,
     contract: &ContractProofFact,
 ) -> Option<QualificationEvidence> {
-    if let Some(machine) = program.machine_by_symbol(target_symbol) {
-        let checked_body = machine.body_is_present
-            && matches!(
-                machine.supply_mode,
-                MachineSupplyMode::CheckedBody | MachineSupplyMode::Boundary
-            );
-        if checked_body {
-            if contract.qualification_authorization.is_some() {
-                return None;
-            }
-            return Some(QualificationEvidence::from_origin(
+    match ::validation::call_qualification_source(
+        program,
+        target_symbol,
+        contract.qualification_authorization,
+    )? {
+        ::validation::CallQualificationSource::CheckedBody(_) => {
+            Some(QualificationEvidence::from_origin(
                 QualificationEvidenceOrigin::CheckedTransformation,
                 target_symbol,
-            ));
+            ))
         }
-        return contract.qualification_authorization.map(|authorization| {
-            QualificationEvidence::from_admitted_requirement(
+        ::validation::CallQualificationSource::AdmittedRequirement(authorization) => {
+            Some(QualificationEvidence::from_admitted_requirement(
                 authorization.requirement_symbol,
                 authorization.signature_symbol,
-            )
-        });
+            ))
+        }
+        ::validation::CallQualificationSource::Propagated => {
+            Some(QualificationEvidence::from_origin(
+                QualificationEvidenceOrigin::Propagated,
+                target_symbol,
+            ))
+        }
     }
-
-    if program
-        .traits()
-        .iter()
-        .any(|definition| definition.symbol == target_symbol && definition.is_boundary)
-    {
-        return contract.qualification_authorization.map(|authorization| {
-            QualificationEvidence::from_admitted_requirement(
-                authorization.requirement_symbol,
-                authorization.signature_symbol,
-            )
-        });
-    }
-
-    Some(QualificationEvidence::from_origin(
-        QualificationEvidenceOrigin::Propagated,
-        target_symbol,
-    ))
 }
 
 pub(crate) fn operator_contract_evidence(

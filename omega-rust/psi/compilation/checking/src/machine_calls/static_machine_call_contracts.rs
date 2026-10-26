@@ -285,22 +285,33 @@ pub fn static_machine_call_binding_bytes(
                 continue;
             }
             let local = typed_trees::data::type_parameter_position(
-                parameters, call.static_machine_parameter,
+                parameters,
+                call.static_machine_parameter,
             );
-            let capture = program.captured_machine_applications.iter()
+            let capture = program
+                .captured_machine_applications
+                .iter()
                 .filter(|(_, capture)| capture.instance == specialization.template)
-                .map(|(_, capture)| capture).collect::<Vec<_>>();
+                .map(|(_, capture)| capture)
+                .collect::<Vec<_>>();
             let scoped_binder = if let Some(position) = local {
                 (0_u8, position)
             } else if let [capture] = capture.as_slice() {
-                let declaration = program.conformance_by_symbol(capture.conformance_application.declaration)
+                let declaration = program
+                    .conformance_by_symbol(capture.conformance_application.declaration)
                     .ok_or_else(|| Diagnostic::error("static call lost its capture declaration"))?;
                 let position = typed_trees::data::type_parameter_position(
-                    program.conformance_type_parameters(declaration), call.static_machine_parameter,
-                ).ok_or_else(|| Diagnostic::error("static machine binding footprint lost its captured binder"))?;
+                    program.conformance_type_parameters(declaration),
+                    call.static_machine_parameter,
+                )
+                .ok_or_else(|| {
+                    Diagnostic::error("static machine binding footprint lost its captured binder")
+                })?;
                 (1_u8, position)
             } else {
-                return Err(Diagnostic::error("static machine binding footprint lost its binder"));
+                return Err(Diagnostic::error(
+                    "static machine binding footprint lost its binder",
+                ));
             };
             let Some((_, selected)) =
                 crate::declarations::transitions::resolved_transition_target_state(

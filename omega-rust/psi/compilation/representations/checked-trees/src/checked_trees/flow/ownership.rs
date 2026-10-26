@@ -105,21 +105,20 @@ pub struct FlowPermissionEventFact {
 /// must never be replayed as the unconditional permission stream.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FlowOwnedSelectionReceipt {
+    /// The completed value owns this selection's context. Guard fallthrough
+    /// and later writes to the source homes describe different occurrences.
+    pub value: arena::Handle<super::FlowOperandFact>,
+    pub evaluation: super::FlowPermissionEvaluation,
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
     pub statement_ordinal: u32,
     pub expression: typed_trees::expression::ExpressionHandle,
-    /// Zero denotes the enclosing state's anonymous return, identified by the
-    /// exact expression/statement and return type. Otherwise this names the
-    /// authored local receiving the selected owner.
-    pub destination: SymbolHandle,
+    /// Unknown denotes an anonymous completion. A stored completion retains
+    /// its exact receiving root and typed path, including field assignments.
+    pub destination: facts::PlaceRoot,
+    pub destination_path: HandleSpan<facts::PlaceSegment>,
     pub type_reference: typed_trees::types::TypeReferenceHandle,
     pub transfers: HandleSpan<FlowOwnedSelectionTransfer>,
-    /// Destination-local names bound to arriving obligations, never new
-    /// resource establishments. Paths are relative to the complete result.
-    pub result_claims: HandleSpan<FlowOwnedSelectionResultClaim>,
-    /// Actual constructor births on selected arms, separate from movements.
-    pub produced_claims: HandleSpan<FlowOwnedSelectionProducedClaim>,
     /// Distinct incoming owners, in reverse declaration order. This is a
     /// candidate roster, not a committed transfer or unconditional drop list.
     /// At the death edge, dispose precisely its complement under the selected
@@ -135,9 +134,9 @@ pub struct FlowOwnedSelectionReceipt {
 pub struct FlowOwnedSelectionSource {
     pub symbol: SymbolHandle,
     pub statement_ordinal: u32,
-    /// False only when every reachable arm moves this whole source. True
-    /// retains potentially live storage for the selected residual schedule;
-    /// a source count alone cannot establish whether any complement survives.
+    /// False only when every completed alternative moves this whole source.
+    /// True preserves possible residual storage until its selected death edge;
+    /// the source count or an unknown claim never proves an empty complement.
     pub retains_storage: bool,
 }
 
@@ -145,8 +144,18 @@ pub struct FlowOwnedSelectionSource {
 /// existing authored/structural selection graph, not a product of path states.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FlowOwnedSelectionTransfer {
+    /// Exact type of this evaluated source value, independent of the affine
+    /// disposal multiplicity of its materialized receiving carrier.
+    pub source_type_reference: typed_trees::types::TypeReferenceHandle,
+    /// Exact captured source root; expression roots are real completed owners,
+    /// not pre-existing candidates for residual cleanup.
+    pub root: facts::PlaceRoot,
+    /// Destination geometry below the selected value, distinct from source.
+    pub destination_path: HandleSpan<facts::PlaceSegment>,
     pub expression: typed_trees::expression::ExpressionHandle,
     pub source_arm: arena::Handle<typed_trees::expression::TableMatchArm>,
+    /// Residual cleanup home for a consumed source. A reusable Source copy
+    /// keeps its real root/path below but lends no home to selection cleanup.
     pub source: arena::Handle<FlowOwnedSelectionSource>,
     /// The evaluated occurrence, not an invariant of the named home. These
     /// rows preserve plain affine/descriptor custody even with no child claims.
@@ -158,22 +167,12 @@ pub struct FlowOwnedSelectionTransfer {
     /// a nonempty path (fields and literal fixed indexes only) selects one
     /// affine child while the root's residual custody dies on the same edge.
     pub path: HandleSpan<facts::PlaceSegment>,
-    /// Receiving path of this operand beneath the selected result. Source
-    /// and destination paths are independent when construction moves fields.
-    pub result_path: HandleSpan<facts::PlaceSegment>,
     /// The exact linear claims this leaf consumes, each named by its full path
     /// below the source root in canonical frontier order. A plain-owned leaf
     /// carries none; a linear leaf names its one claim; a whole affine carrier
     /// names its complete claim frontier, so the join discharges every linear
     /// child instead of inventing an aggregate root claim.
     pub claims: HandleSpan<FlowOwnedSelectionClaim>,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct FlowOwnedSelectionResultClaim {
-    pub path: HandleSpan<facts::PlaceSegment>,
-    pub claim_identity: language_semantics::PermissionClaimIdentity,
-    pub provenance: language_semantics::PermissionProvenance,
 }
 
 /// One side of a selected storage binding. It retains the arriving obligation,
@@ -202,23 +201,12 @@ pub struct FlowSelectionPlaceBinding {
     pub destination: FlowSelectionPlaceArrival,
 }
 
-/// A checked literal producer establishes this root obligation on one arm.
-/// Its result path locates that producer beneath the selected aggregate.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct FlowOwnedSelectionProducedClaim {
-    pub source_arm: arena::Handle<typed_trees::expression::TableMatchArm>,
-    pub expression: typed_trees::expression::ExpressionHandle,
-    pub result_path: HandleSpan<facts::PlaceSegment>,
-    pub claim_identity: language_semantics::PermissionClaimIdentity,
-    pub provenance: language_semantics::PermissionProvenance,
-}
-
 /// One consumed linear claim inside a selection transfer. `path` is the
 /// claim's exact source-root-relative place (the transfer's `path` plus the
 /// claim's position below the leaf); `claim_identity`/`provenance` are the
-/// consumed claim's own evidence, so the destination's claims and the outcome
-/// map can name the claim's original authority without re-reading the source
-/// place ledger.
+/// consumed claim's current invariant pair. A known pair retains its authority;
+/// Unknown records transport only, resolved through the completed capture and
+/// current source binding rather than an invented establishment.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FlowOwnedSelectionClaim {
     pub path: HandleSpan<facts::PlaceSegment>,
@@ -271,6 +259,26 @@ impl super::FlowOwnershipFacts {
         Some(roots)
     }
 
+    /// Join a checked value to its unique captured selection, independently of
+    /// whether its consumer stores it or returns it through a transition.
+    pub fn owned_selection_for_expression(
+        &self,
+        state: SymbolHandle,
+        statement_ordinal: u32,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> Option<(
+        arena::Handle<FlowOwnedSelectionReceipt>,
+        &FlowOwnedSelectionReceipt,
+    )> {
+        let mut matching = self.owned_selections.iter().filter(|(_, receipt)| {
+            receipt.state == state
+                && receipt.statement_ordinal == statement_ordinal
+                && receipt.expression == expression
+        });
+        let receipt = matching.next()?;
+        matching.next().is_none().then_some(receipt)
+    }
+
     pub fn owned_selection_at(
         &self,
         state: SymbolHandle,
@@ -279,8 +287,26 @@ impl super::FlowOwnershipFacts {
         arena::Handle<FlowOwnedSelectionReceipt>,
         &FlowOwnedSelectionReceipt,
     )> {
+        self.owned_selection_at_evaluation(
+            state,
+            statement_ordinal,
+            super::FlowPermissionEvaluation::Statement,
+        )
+    }
+
+    pub fn owned_selection_at_evaluation(
+        &self,
+        state: SymbolHandle,
+        statement_ordinal: u32,
+        evaluation: super::FlowPermissionEvaluation,
+    ) -> Option<(
+        arena::Handle<FlowOwnedSelectionReceipt>,
+        &FlowOwnedSelectionReceipt,
+    )> {
         let mut matches = self.owned_selections.iter().filter(|(_, receipt)| {
-            receipt.state == state && receipt.statement_ordinal == statement_ordinal
+            receipt.state == state
+                && receipt.statement_ordinal == statement_ordinal
+                && receipt.evaluation == evaluation
         });
         let receipt = matches.next()?;
         matches.next().is_none().then_some(receipt)
@@ -360,8 +386,19 @@ pub struct FlowClaimJoinExit {
 /// One complete normal-exit alternative and its exact argument substitution.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FlowClaimJoinAlternative {
+    pub captures: HandleSpan<FlowClaimJoinCapture>,
     pub exits: HandleSpan<FlowClaimJoinExit>,
     pub source: FlowClaimJoinAlternativeSource,
+}
+
+/// The actual completed return graph governing one lineage alternative.
+/// Repeated output-path queries share this capture identity; exact call exits
+/// scope nested captures to their receiving invocation.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowClaimJoinCapture {
+    pub operand: arena::Handle<super::FlowOperandFact>,
+    pub path: HandleSpan<facts::PlaceSegment>,
+    pub identity: language_semantics::PermissionClaimIdentity,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -370,13 +407,12 @@ pub enum FlowClaimJoinAlternativeSource {
     #[default]
     Inactive,
     /// This exit requires an input payload proved absent at this invocation.
-    /// Preserve the callee origin and the exact caller establishment; absence
-    /// is not a claim and grants no fresh resource authority.
+    /// Preserve the callee origin and exact completed actual projection;
+    /// absence is not a claim and grants no fresh resource authority.
     ExcludedInput {
         source: FlowClaimOutcomeSource,
-        root: facts::PlaceRoot,
+        operand: arena::Handle<super::FlowOperandFact>,
         segments: HandleSpan<facts::PlaceSegment>,
-        established_at: usize,
     },
     Claim {
         source: FlowClaimOutcomeSource,

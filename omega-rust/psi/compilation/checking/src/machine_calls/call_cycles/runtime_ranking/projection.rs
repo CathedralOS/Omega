@@ -1,4 +1,4 @@
-use crate::proof_contracts::contract_entailment::{
+use crate::{
     MeasureBodyShape, RankingRangeMeasure, ScalarViewComputation, declared_scalar_view,
     find_declared_measure, measure_body_shape,
 };

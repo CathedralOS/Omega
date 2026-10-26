@@ -48,6 +48,8 @@ mod capabilities;
 mod content_transformations;
 mod custody;
 mod effects;
+mod memory_ordering;
+pub use memory_ordering::TerminalMemoryOrderingEnvironment;
 mod element_views;
 mod errors;
 mod execution;
@@ -89,8 +91,8 @@ pub use effects::original_storage::{
 pub use effects::results::TerminalEffectResult;
 pub use effects::scalar_loans::TerminalBoundaryScalarBuffer;
 pub use effects::storage_inputs::{
-    TerminalBoundaryStorageBuffer, TerminalBoundaryStorageValue, TerminalBoundaryStructuralBuffer,
-    TerminalStorageContents,
+    TerminalBoundaryReferenceSelection, TerminalBoundaryStorageBuffer,
+    TerminalBoundaryStorageValue, TerminalBoundaryStructuralBuffer, TerminalStorageContents,
 };
 pub use effects::{
     AdmittedAssumedBinding, AdmittedTargetLayouts, AdmittedTargetMachineSelections,

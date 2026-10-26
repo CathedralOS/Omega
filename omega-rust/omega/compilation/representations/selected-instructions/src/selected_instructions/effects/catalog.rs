@@ -242,6 +242,7 @@ machine_semantic_kinds! {
     { fixed ModelSpecificWrite },
     { fixed ProcessorHalt },
     { fixed InterruptControl },
+    { fixed MemoryFence },
     { fixed ControlRegisterRead },
     { fixed ControlRegisterWrite },
 
@@ -332,6 +333,7 @@ pub enum MachineAlternativeFamily {
     ModelSpecificWrite,
     ProcessorHalt,
     InterruptControl,
+    MemoryFence,
 
     AtomicFence,
     AtomicAccess(AtomicForm),
@@ -442,6 +444,7 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::ModelSpecificWrite => Self::ModelSpecificWrite,
             MachineSemanticKind::ProcessorHalt => Self::ProcessorHalt,
             MachineSemanticKind::InterruptControl => Self::InterruptControl,
+            MachineSemanticKind::MemoryFence => Self::MemoryFence,
 
             MachineSemanticKind::CopyBytes => Self::CopyBytes,
             MachineSemanticKind::BitwiseAndI64 => Self::BitwiseAndI64,
@@ -601,6 +604,8 @@ pub enum MachineAlternativeApplicability {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineMemoryEffect {
+    /// Exact ordering event selected by the catalog operation, without a location.
+    CatalogFenceV1,
     /// Orders coherent memory without accessing a location.
     AtomicFenceV1,
     /// Private aligned storage used and released within the form.
@@ -727,6 +732,13 @@ pub struct MachineEncodedEffects {
 }
 
 impl MachineEncodedEffects {
+    pub fn catalog_fence_v1() -> Self {
+        Self {
+            memory: MachineEncodedMemoryEffect::CatalogFenceV1,
+            ..Self::fallthrough_v1(Vec::new(), Vec::new())
+        }
+    }
+
     pub fn atomic_fence_v1() -> Self {
         Self {
             memory: MachineEncodedMemoryEffect::AtomicFenceV1,
@@ -785,6 +797,8 @@ impl MachineEncodedEffects {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineEncodedMemoryEffect {
+    /// Catalog ordering event; the selected kind and byte decoder fix its exact mask.
+    CatalogFenceV1,
     /// Load one pointer from a named, layout-derived table field. The call's
     /// return-address write remains described by its stack lifecycle.
     ReadTableFieldV1 {

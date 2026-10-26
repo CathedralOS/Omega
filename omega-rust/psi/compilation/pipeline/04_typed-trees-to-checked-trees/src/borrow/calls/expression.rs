@@ -60,6 +60,7 @@ pub(super) fn collect_expression_borrow_calls(
                     },
                 );
                 collection.append_borrow_call(
+                    expression,
                     receiver_symbol,
                     if resolved_target.is_valid() {
                         resolved_target

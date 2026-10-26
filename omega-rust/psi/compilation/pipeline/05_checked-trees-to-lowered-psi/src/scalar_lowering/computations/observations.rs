@@ -77,6 +77,9 @@ fn checked_path(
     segment: &CheckedStructuralPredicatePathSegment,
 ) -> CheckedUnitStructuralPathSegment {
     match segment {
+        CheckedStructuralPredicatePathSegment::Referent => {
+            CheckedUnitStructuralPathSegment::Referent
+        }
         CheckedStructuralPredicatePathSegment::Field(field) => {
             CheckedUnitStructuralPathSegment::Field(field.clone())
         }
@@ -246,7 +249,7 @@ impl Expansion<'_> {
         }
         let (mut source, mut source_type) = site.bindings.storage_observation_home(root)?;
         let mut logical_root =
-            validation::structural_type_identity(&self.checked.typed, root_type, &[], &[]);
+            validation::logical_structural_type_identity(&self.checked.typed, root_type, &[], &[]);
         let mut physical_root =
             site.bindings
                 .structural_place_type(source.place)
@@ -275,12 +278,27 @@ impl Expansion<'_> {
                 identity,
                 "storage observation collection has no retained declaration",
             )?;
-            let path = structural_paths::prepare_observation_path(
+            let path = structural_paths::prepare_projection_path(
                 identities,
                 self.checked,
                 &pending[ordinal],
-                source_type,
-                logical_root,
+                if self.structural_types.iter().any(|row| {
+                    row.id == source_type
+                        && matches!(
+                            row.shape,
+                            terminal_psi::StructuralTypeShape::Reference { .. }
+                        )
+                }) {
+                    // projected_observed_path retains every physical pointer
+                    // hop of a stored root. It is already in this namespace.
+                    structural_paths::ProjectionRoot::Published(source_type)
+                } else {
+                    structural_paths::ProjectionRoot::Borrowed {
+                        published: source_type,
+                        logical: logical_root,
+                        spelled_reference_hops: 0,
+                    }
+                },
                 identity,
                 StructuralAccess::SharedBorrow,
                 self.structural_types,
@@ -453,6 +471,11 @@ impl Expansion<'_> {
         let suffix = suffix
             .iter()
             .map(|step| match step {
+                CheckedUnitStructuralPathSegment::Referent => {
+                    Ok(CheckedScalarReadProjection::Static(
+                        CheckedStructuralPredicatePathSegment::Referent,
+                    ))
+                }
                 CheckedUnitStructuralPathSegment::Field(field) => {
                     Ok(CheckedScalarReadProjection::Static(
                         CheckedStructuralPredicatePathSegment::Field(field.clone()),
@@ -473,12 +496,14 @@ impl Expansion<'_> {
             .collect::<Result<Vec<_>, _>>()?;
         let (root, read) = match expression {
             CheckedScalarExpression::StructuralParameterIndexedRead {
+                observation,
                 root,
                 primitive_type,
                 ..
             } => (
                 *root,
                 CheckedScalarExpression::StructuralParameterIndexedRead {
+                    observation: *observation,
                     root: *root,
                     path: Vec::new(),
                     index: Box::new(selector.clone()),

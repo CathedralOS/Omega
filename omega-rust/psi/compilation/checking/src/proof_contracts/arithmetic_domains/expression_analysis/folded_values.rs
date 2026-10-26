@@ -69,10 +69,7 @@ fn collection_length_interval(
     let mut receiver = if let Some(machine) = walk.machine {
         let receiver = crate::collection_length_receiver(program, machine, walk.state, expression)?;
         if let Some(state) = walk.state
-            && let Some(length) =
-                crate::proof_contracts::contract_entailment::closed_collection_length(
-                    program, machine, state, receiver,
-                )
+            && let Some(length) = crate::closed_collection_length(program, machine, state, receiver)
         {
             let length = i64::try_from(length).ok();
             return Some(Interval {

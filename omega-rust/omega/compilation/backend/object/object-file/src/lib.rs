@@ -3,9 +3,8 @@
 //!
 //! Start at `object_plan.rs` for the mutable lane; `relocation_free_object`
 //! is the immutable lane with its publication and text-section children,
-//! `fragment_container` and `artifact_custody` are its optimizer entrances,
-//! and `names` and `target_matrix` hold the spellings and the target policy
-//! both lanes obey.
+//! `fragment_container` is its optimizer entrance, and `names` and
+//! `target_matrix` hold the spellings and the target policy both lanes obey.
 //!
 //! The first lane is mutable and arena-backed: `ObjectPlan` and
 //! `RelocationPlan`, which the image builders consume and which serializes as
@@ -106,17 +105,12 @@ pub(crate) use optimization_core::codec_bytes;
 /// primitive: it already carries every read the wire codecs perform, and
 /// `From<Truncated>` reaches each format's own error enum.
 pub(crate) use optimization_core::cursor;
-mod artifact_custody;
 mod fragment_container;
 mod names;
 mod object_plan;
 mod relocation_free_object;
 mod target_matrix;
 
-pub use artifact_custody::{
-    OptimizedObjectArtifactError, StagedValidatedOptimizedObjectArtifact,
-    stage_validated_optimized_object_artifact_shared,
-};
 pub use fragment_container::{
     RelocationFreeObjectContainerError, StagedOptimizedRelocationFreeObjectContainer,
     stage_optimized_relocation_free_object_container,

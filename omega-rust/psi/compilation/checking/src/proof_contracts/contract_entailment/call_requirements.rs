@@ -28,6 +28,7 @@ use super::self_induction::intake_available_self_induction_hypotheses;
 use super::structural_case_arms::{
     recognize_structural_case_arms, recognize_structural_state_prefix, structural_arm_judge,
 };
+use super::structural_judgment::normal_returns::OperationOperandDemand;
 use super::structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use super::structural_prefix::PrefixObservation;
 use symbols::SymbolHandle;
@@ -942,6 +943,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CapturedArguments<'_>
             judge.normal_operation_entries(
                 self.statement_index,
                 self.call_expression,
+                OperationOperandDemand::All,
                 &environment,
                 scope,
             )
@@ -970,8 +972,15 @@ impl super::structural_prefix::StructuralPrefixVisitor for CapturedArguments<'_>
             self.complete = false;
             return;
         }
-        self.terms
-            .extend(entries.into_iter().map(|entry| entry.arguments));
+        let Some(arguments) = entries
+            .iter()
+            .map(|entry| entry.observed_arguments())
+            .collect::<Option<Vec<_>>>()
+        else {
+            self.complete = false;
+            return;
+        };
+        self.terms.extend(arguments);
     }
 
     /// Captured arguments owe no premises: this visitor reads operand rosters
@@ -1057,6 +1066,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
             let Some(entries) = judge.normal_operation_entries(
                 self.statement_index,
                 self.call_expression,
+                OperationOperandDemand::All,
                 environment,
                 (machine, state, state.return_type),
             ) else {
@@ -1086,6 +1096,10 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
             if !self.proven {
                 return;
             }
+            let Some(observed_arguments) = entry.observed_arguments() else {
+                self.proven = false;
+                return;
+            };
             let mut requirement_parameters = predicate_parameters.to_vec();
             let mut static_substitution = Vec::new();
             if let Some(site) = self.call_site {
@@ -1106,7 +1120,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                         entry.judge.completed_scalar_subject(
                             subject,
                             site,
-                            &entry.arguments,
+                            &observed_arguments,
                             machine,
                             state,
                         )
@@ -1143,7 +1157,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                 Some(Vec::new())
             };
             let subjects = subjects.unwrap_or_default();
-            let Some(arguments) = entry.arguments.get(self.leading_operands..) else {
+            let Some(arguments) = observed_arguments.get(self.leading_operands..) else {
                 self.proven = false;
                 return;
             };
@@ -1485,13 +1499,23 @@ fn intake_state_induction(
     let Some(entry) = program.machine_states(machine).first() else {
         return;
     };
-    let Some(value) = immutable_value_origin(program, state, position, *value) else {
+    let Some((call_position, value)) =
+        crate::value_custody::places::binding_observations::immutable_value_origin(
+            program, state, position, *value,
+        )
+    else {
         return;
     };
     let Some(call) = program.expression_table.call_node(value) else {
         return;
     };
-    if !crate::machine_calls::calls::proof_call_has_structural_descent(program, machine, call) {
+    if !crate::machine_calls::calls::proof_call_has_structural_descent(
+        program,
+        machine,
+        state,
+        call_position,
+        call,
+    ) {
         return;
     }
     let Some(value) = judge.callee_term_in_scope(
@@ -1513,27 +1537,4 @@ fn intake_state_induction(
         return;
     }
     intake_available_self_induction_hypotheses(program, machine, &parameters, &value, judge);
-}
-
-/// Follow exact immutable local definitions, including ordinary call hoisting.
-/// Earlier-only definition lookup supplies a strictly decreasing walk bound.
-fn immutable_value_origin(
-    program: &dyn crate::CheckingInput,
-    state: &State,
-    mut before: usize,
-    mut expression: ExpressionHandle,
-) -> Option<ExpressionHandle> {
-    loop {
-        let Some(name) = program.expression_table.name_path_node(expression) else {
-            return Some(expression);
-        };
-        if !name.symbol.is_valid() {
-            return None;
-        }
-        let (position, local) = program
-            .state_local_declaration(state, name.symbol)
-            .filter(|&(position, local)| position < before && !local.is_mutable)?;
-        before = position;
-        expression = local.initial_value;
-    }
 }

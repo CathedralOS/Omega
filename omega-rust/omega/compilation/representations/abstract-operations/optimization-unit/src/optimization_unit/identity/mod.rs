@@ -43,6 +43,7 @@ use crate::{
 mod carrier_encoding;
 mod operation_encoding;
 mod proposition_encoding;
+mod runtime_evidence_encoding;
 mod structural_encoding;
 mod unit_encoding;
 

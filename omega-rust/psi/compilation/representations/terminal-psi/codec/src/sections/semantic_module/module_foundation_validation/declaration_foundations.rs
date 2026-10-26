@@ -23,20 +23,8 @@ pub(super) fn validate_domains(module: &TerminalModule) -> Result<(), CodecError
             return malformed("structural domain issuer routes must be canonical and unique");
         }
         for route in &domain.establishment_routes {
-            let (declaration, callable) = match route {
-                terminal_psi::StructuralEstablishmentRoute::Requirement {
-                    declaration,
-                    requirement,
-                }
-                | terminal_psi::StructuralEstablishmentRoute::BoundaryRequirement {
-                    declaration,
-                    requirement,
-                } => (declaration.identity(), *requirement),
-                terminal_psi::StructuralEstablishmentRoute::ExactMachine {
-                    declaration,
-                    machine,
-                } => (declaration.identity(), *machine),
-            };
+            let declaration = route.declaration().identity();
+            let callable = route.identity();
             if [declaration, callable]
                 .iter()
                 .any(|identity| module.identities.text(*identity).is_none_or(str::is_empty))

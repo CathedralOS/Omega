@@ -52,7 +52,7 @@ impl StructuralDomainDeclaration {
     ) -> bool {
         self.establishment_routes.iter().any(|route| {
             matches!(route, StructuralEstablishmentRoute::BoundaryRequirement {
-                requirement: authorized,
+                requirement_identity: authorized,
                 declaration: owner,
             } if *authorized == requirement && Some(owner.identity()) == declaration)
         })
@@ -82,23 +82,49 @@ impl StructuralDomainDeclaration {
 pub enum StructuralEstablishmentRoute {
     /// An exact invocation through this requirement under a valid selected
     /// conformance; `requirement` is the requirement's canonical identity.
-    Requirement {
+    CheckedRequirement {
         declaration: crate::NominalDeclarationIdentity,
-        requirement: TerminalIdentityIndex,
+        requirement_identity: TerminalIdentityIndex,
     },
     /// That exact machine's invocation — not another conformer of a
     /// requirement it happens to satisfy. `machine` is the machine's
     /// canonical callable identity.
     ExactMachine {
         declaration: crate::NominalDeclarationIdentity,
-        machine: TerminalIdentityIndex,
+        machine_identity: TerminalIdentityIndex,
     },
     /// An installed external-root invocation admitted under this boundary
     /// requirement; `requirement` is its canonical boundary identity.
     BoundaryRequirement {
         declaration: crate::NominalDeclarationIdentity,
-        requirement: TerminalIdentityIndex,
+        requirement_identity: TerminalIdentityIndex,
     },
+}
+
+impl StructuralEstablishmentRoute {
+    pub fn identity(&self) -> TerminalIdentityIndex {
+        match self {
+            Self::CheckedRequirement {
+                requirement_identity,
+                ..
+            }
+            | Self::BoundaryRequirement {
+                requirement_identity,
+                ..
+            } => *requirement_identity,
+            Self::ExactMachine {
+                machine_identity, ..
+            } => *machine_identity,
+        }
+    }
+
+    pub fn declaration(&self) -> &crate::NominalDeclarationIdentity {
+        match self {
+            Self::CheckedRequirement { declaration, .. }
+            | Self::BoundaryRequirement { declaration, .. }
+            | Self::ExactMachine { declaration, .. } => declaration,
+        }
+    }
 }
 
 /// Establishment evidence binding one domain membership on an operation

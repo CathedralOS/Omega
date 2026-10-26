@@ -36,13 +36,17 @@ pub(super) fn public_bindings(
         return Ok(None);
     };
     let parameters = program.state_signature_type_parameters(signature).to_vec();
-    let Some(arguments) = complete_arguments(
+    let Some(mut arguments) = complete_arguments(
         program,
         owner,
         StaticArgumentCall::Expression(Default::default(), call),
     ) else {
         return Ok(None);
     };
+    // This public binding view is derivation data. Normalization must not
+    // consume the source recipe retained on the invocation application.
+    super::super::super::body_rewriting::normalize_const_arguments(program, owner, &mut arguments)
+        .map_err(|message| vec![Diagnostic::error(message)])?;
     super::super::invocation_bindings(program, &parameters, &arguments).map(Some)
 }
 

@@ -182,7 +182,7 @@ pub(super) fn local_root_context_matches(
 
 /// Compare typed graph fields; never rewrite or re-encode a recovered record
 /// to manufacture a subject matching the edited root.
-pub(super) fn mutable_local_graph_matches(
+pub(crate) fn mutable_local_graph_matches(
     recorded: &CanonicalSourceClosureSubject,
     closure: &ResolvedPackageSourceClosure,
     limits: CanonicalSourceClosureSubjectLimits,

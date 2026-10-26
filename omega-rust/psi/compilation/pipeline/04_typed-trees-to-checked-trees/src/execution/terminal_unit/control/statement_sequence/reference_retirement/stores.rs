@@ -112,7 +112,7 @@ pub(super) fn destination(
     )?;
     Some((
         owner,
-        super::transport::carrier_path(program, reference, &path)?,
+        super::transport::named_carrier_path(program, state, owner, reference, &path)?,
     ))
 }
 
@@ -255,8 +255,10 @@ pub(super) fn construction<'a>(
         owner,
         formation,
     )?;
-    let path = super::transport::carrier_path(
+    let path = super::transport::named_carrier_path(
         retirement.program,
+        retirement.state,
+        owner,
         reference,
         retirement.facts.borrow.loan_owner_path(loan),
     )?;
@@ -335,6 +337,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn releases
         let moved = transfers::from_storage(
             retirement.program,
             retirement.facts,
+            retirement.prepared_calls,
             retirement.results,
             owner_source.clone(),
             formation,
@@ -373,6 +376,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn releases
             defer_to_exit: retirement.at_exit,
             loans: group,
             selection_complements: Vec::new(),
+            owner_cleanups: arena::HandleSpan::empty(),
             case_conditions: Default::default(),
         });
     }

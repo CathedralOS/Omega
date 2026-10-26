@@ -13,6 +13,28 @@ use field_domains::{
 };
 use points::proof_obligation_point;
 
+/// One observed property and its storage dependencies share one lifetime.
+/// A dependency asserts no property of its own; an overlapping write retires
+/// the context through ordinary invalidation instead of leaving a stale row.
+pub(crate) fn append_observation_context(
+    facts: &mut FactPlan,
+    observation: Fact,
+    dependencies: &[FactPlace],
+) -> facts::FactContextHandle {
+    let dependent = facts.append_fact(observation);
+    let mut references = arena::HandleSpan::empty();
+    facts.append_ref(&mut references, dependent);
+    for &place in dependencies {
+        let dependency = facts.append_fact(Fact {
+            place,
+            payload: FactPayload::StorageDependency { dependent },
+            ..observation
+        });
+        facts.append_ref(&mut references, dependency);
+    }
+    facts.append_context(observation.point, references)
+}
+
 pub(crate) fn build_semantic_facts(
     program: &dyn ::validation::CheckingInput,
     proof: &ProofFacts,

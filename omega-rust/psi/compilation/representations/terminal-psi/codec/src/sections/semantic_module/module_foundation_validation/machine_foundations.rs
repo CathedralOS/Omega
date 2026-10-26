@@ -31,6 +31,10 @@ pub(super) fn validate_machine(
                 .identities
                 .text(specialization.template_callable)
                 .is_none_or(str::is_empty)
+                || module
+                    .identities
+                    .text(specialization.template_semantic_declaration)
+                    .is_none_or(str::is_empty)
         })
     {
         return malformed("machine specialization lost its exact template callable");
@@ -57,27 +61,7 @@ pub(super) fn validate_machine(
     for block in &machine.blocks {
         for operation in &block.operations {
             validate_operation_foundation(module, machine, operation).map_err(|error| {
-                let CodecError::MalformedStructuralFoundation(reason) = error else {
-                    return error;
-                };
-                let declaration = machine.declaration.as_ref();
-                CodecError::MalformedOperationFoundation {
-                    machine: declaration
-                        .and_then(|declaration| {
-                            module.identities.text(declaration.machine.identity())
-                        })
-                        .map(str::to_owned)
-                        .unwrap_or_else(|| format!("{:?}", machine.id)),
-                    state: declaration
-                        .and_then(|declaration| {
-                            module.identities.text(declaration.state.identity())
-                        })
-                        .unwrap_or("synthetic")
-                        .to_owned(),
-                    block: block.id,
-                    operation: operation.id,
-                    reason,
-                }
+                super::operation_foundation_error(module, machine, block.id, operation, error)
             })?;
         }
     }

@@ -60,6 +60,7 @@ fn decode_scalar_field_path(
         3 => Ok(CanonicalStructuralPathSegment::Case(
             reader.id("StructuralCaseId")?,
         )),
+        4 => Ok(CanonicalStructuralPathSegment::Referent),
         tag => Err(CodecError::InvalidTag("scalar field carrier path", tag)),
     })
 }

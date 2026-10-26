@@ -32,12 +32,14 @@ pub mod storage_path_relations;
 pub use captured_ownership::ownership_place_from_expression_in_state;
 pub mod collection_operations;
 mod declaration_types;
+pub(crate) use declaration_types::declaration_type_equations;
 pub use declaration_types::declaration_type_reference;
 
 use crate::value_custody::locals::WritableRoots;
 use crate::value_custody::struct_literals::data_declares_field;
 use access_plans::BorrowPolarity;
 use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 use typed_trees::data::DataDefinition;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -478,12 +480,14 @@ mod structural_scalar_field;
 pub use structural_scalar_field::{
     StructuralScalarField, StructuralSource, saved_dispatch_call, saved_dispatch_subject,
     structural_atomic_field, structural_scalar_field, structural_scalar_field_at_coordinate,
-    structural_scalar_field_in_parameters, structural_source,
+    structural_scalar_field_in_parameters, structural_scalar_field_of_evaluated_receiver,
+    structural_source,
 };
 mod member_paths;
 mod parameter_scoped;
 pub(crate) use parameter_scoped::has_retained_builtin_index_meaning;
 pub(crate) use parameter_scoped::parameter_scoped_type_reference;
+pub use parameter_scoped::parameter_source_type_application;
 mod projected_members;
 mod result_shape;
 pub use attached_storage::{
@@ -508,7 +512,7 @@ use member_paths::{collect_member_path, data_field_or_payload, data_field_or_pay
 pub(crate) use member_paths::{
     data_definition_for_type, declared_member_path_type, first_unknown_nested_field,
 };
-pub(crate) use projected_members::applied_data_member_field;
+pub use projected_members::applied_data_member_field;
 pub use projected_members::declared_case_projection_field;
 pub use projected_members::exact_data_member_field;
 pub(crate) use result_shape::expression_result_is_reference;
@@ -638,95 +642,38 @@ pub fn declared_reference_access(
     Some(*access)
 }
 
-/// Two declared types name the same storage carrier when they differ only by
-/// `Constrained` shells, at any depth: a `&[u8] in Utf8` leaf and a `&[u8]`
-/// destination both describe the 16-byte shared-view descriptor. Reference
-/// access, fixed extents, and generic arguments stay strict — they change
-/// layout or custody, which no qualification erases. A pair that differs in
-/// any other way keeps its full normalized-identity comparison.
+mod declared_carriers;
+pub(crate) use declared_carriers::substituted_declared_carrier;
+
+/// Two declared types retain the same storage carrier through constraint shells.
+/// Reference access, fixed extents and generic arguments remain strict.
 pub fn declared_carriers_match(
     program: &dyn crate::CheckingInput,
     left: TypeReferenceHandle,
     right: TypeReferenceHandle,
 ) -> bool {
-    let left = peel_declared_constraints(program, left);
-    let right = peel_declared_constraints(program, right);
-    match (
-        program.type_reference_table.type_reference(left),
-        program.type_reference_table.type_reference(right),
-    ) {
-        (
-            TypeReferenceNode::Reference {
-                referee: left_referee,
-                access: left_access,
-                ..
-            },
-            TypeReferenceNode::Reference {
-                referee: right_referee,
-                access: right_access,
-                ..
-            },
-        ) => {
-            left_access == right_access
-                && declared_carriers_match(program, *left_referee, *right_referee)
-        }
-        (
-            TypeReferenceNode::Slice {
-                element_type: left_element,
-            },
-            TypeReferenceNode::Slice {
-                element_type: right_element,
-            },
-        ) => declared_carriers_match(program, *left_element, *right_element),
-        (
-            TypeReferenceNode::FixedArray {
-                element_type: left_element,
-                length: left_length,
-            },
-            TypeReferenceNode::FixedArray {
-                element_type: right_element,
-                length: right_length,
-            },
-        ) => {
-            program
-                .fixed_array_length_identity(left_length, &[], &[])
-                .is_some_and(|left| {
-                    Some(left) == program.fixed_array_length_identity(right_length, &[], &[])
-                })
-                && declared_carriers_match(program, *left_element, *right_element)
-        }
-        (
-            TypeReferenceNode::Generic {
-                base_symbol: left_symbol,
-                arguments: left_arguments,
-                ..
-            },
-            TypeReferenceNode::Generic {
-                base_symbol: right_symbol,
-                arguments: right_arguments,
-                ..
-            },
-        ) => {
-            let left_handles = program
-                .type_reference_table
-                .type_reference_handles(*left_arguments);
-            let right_handles = program
-                .type_reference_table
-                .type_reference_handles(*right_arguments);
-            left_symbol == right_symbol
-                && left_handles.len() == right_handles.len()
-                && left_handles.iter().zip(right_handles.iter()).all(
-                    |(left_argument, right_argument)| {
-                        declared_carriers_match(program, *left_argument, *right_argument)
-                    },
-                )
-        }
-        _ => {
-            program.type_identity_with_simultaneous_substitutions(
-                typed_trees::type_identity::TypeIdentityRequest::ordinary(left),
-            ) == program.normalized_type_identity(right)
-        }
-    }
+    declared_carriers_match_under_application(program, left, right, &[])
+}
+
+/// Exact lexical declaration equations refine both logical sides transitively.
+pub(crate) fn declared_carriers_match_with_substitutions(
+    program: &dyn crate::CheckingInput,
+    left: TypeReferenceHandle,
+    right: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    declared_carriers::under_equations(program, left, right, substitutions)
+}
+
+/// One authored application substitutes only formal/right-hand leaves.
+/// Supplied caller operands retain their independent scope.
+pub(crate) fn declared_carriers_match_under_application(
+    program: &dyn crate::CheckingInput,
+    left: TypeReferenceHandle,
+    right: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    declared_carriers::under_application(program, left, right, substitutions)
 }
 
 /// Whether a declared type is wholly zero-constructible: a primitive scalar,
@@ -837,10 +784,13 @@ pub use member_resolution::{
 };
 mod projection_types;
 pub use projection_types::{
-    canonical_place_source_type_application, canonical_place_type_reference,
-    collection_element_type_reference, expression_type_reference_in_state,
-    loan_carrier_has_owned_storage, observed_storage_type_references,
-    project_type_reference_from_segments, unique_data_definition_by_symbol,
+    StorageObservationTypePath, StorageObservationTypePathError,
+    canonical_owned_place_type_reference, canonical_place_source_type_application,
+    canonical_place_type_reference, collection_element_type_reference,
+    expression_type_reference_in_state, loan_carrier_has_owned_storage,
+    observed_storage_type_references, owned_projection_type_reference,
+    project_type_reference_from_segments, source_type_application_from_segments,
+    unique_data_definition_by_symbol,
 };
 pub mod receiver_projections;
 pub use receiver_projections::{

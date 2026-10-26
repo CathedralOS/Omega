@@ -160,21 +160,13 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
             continue;
         }
         let (instruction, rest) = parse_asm_instruction_statement_handle(syntax_trees, input)?;
-        // Arithmetic and physical register moves erase into ordinary scalar
-        // operations. Retain their ISA demand here. Executable catalog calls
-        // retain their existing target contract on the call itself.
-        if instruction.arithmetic.is_some()
-            || matches!(
-                instruction.contract.shape,
-                AsmInstructionShape::RegisterMove | AsmInstructionShape::JumpState
-            )
-        {
-            target_requirement = target_requirement
-                .intersect(instruction.contract.target)
-                .ok_or_else(|| {
-                    input.error_here("assembly body mixes incompatible catalog targets")
-                })?;
-        }
+        // Every instruction constrains the enclosing body, including executable
+        // catalog calls whose operation contract also survives lowering. The
+        // block demand is what rejects a mixed ISA or conflicting authored body
+        // before target realization, even when no scratch register is present.
+        target_requirement = target_requirement
+            .intersect(instruction.contract.target)
+            .ok_or_else(|| input.error_here("assembly body mixes incompatible catalog targets"))?;
         realized_clobbers.extend(instruction.contract.clobbers.iter().copied());
         observes_hardware_flags |= matches!(
             instruction.contract.shape,
@@ -725,9 +717,9 @@ fn parse_asm_mnemonic<'tokens, 'source>(
 
 fn arithmetic_flag_producer(shape: AsmInstructionShape) -> Option<scratch::ArithmeticFlagProducer> {
     match shape {
-        AsmInstructionShape::Subtract | AsmInstructionShape::Compare => {
-            Some(scratch::ArithmeticFlagProducer::Subtract)
-        }
+        AsmInstructionShape::Subtract
+        | AsmInstructionShape::SubtractThreeOperand
+        | AsmInstructionShape::Compare => Some(scratch::ArithmeticFlagProducer::Subtract),
         AsmInstructionShape::Add => Some(scratch::ArithmeticFlagProducer::Add),
         _ => None,
     }
@@ -743,7 +735,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
     let Some(entry) = asm_catalog_entry(mnemonic.as_str(syntax_trees)) else {
         return Err(mnemonic_site.error_here(format!(
             "unknown asm instruction `{}`: only known-contract instructions compile \
-             (`hlt`, `in`, `out`, `jmp`, `mov`/`movq`, `lfence`, `sfence`, `mfence`, `cli`, `sti`, \
+             (`hlt`, `in`, `out`, `jmp`, `mov`/`movq`, `lfence`, `sfence`, `mfence`, `dmb`, `cli`, `sti`, \
              `serialize`, `isb`, `pause`, `yield`, `wfe`, `wfi`, `sev`, `sevl`, `nop`, `pushfq`, `popfq`, \
              `rdmsr`, `wrmsr`, `wbinvd`, `invd`, `wbnoinvd`, \
              `ldr`, `str`, structured `read_crN`/`write_crN`/`read_<sysreg>`/`write_<sysreg>`); opaque \
@@ -783,29 +775,38 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
             mnemonic.as_str(syntax_trees)
         ))),
         AsmInstructionShape::Subtract
+        | AsmInstructionShape::SubtractThreeOperand
         | AsmInstructionShape::Add
         | AsmInstructionShape::Compare
         | AsmInstructionShape::RegisterMove => {
             let (destination, input) = parse_expression_handle(syntax_trees, input)?;
             let input = input.take_punctuation(PunctuationKind::Comma, ",")?;
-            let (source, input) = parse_expression_handle(syntax_trees, input)?;
-            reject_bracketed_asm_operand(
-                syntax_trees,
-                mnemonic_site,
-                mnemonic.as_str(syntax_trees),
-                destination,
-            )?;
-            reject_bracketed_asm_operand(
-                syntax_trees,
-                mnemonic_site,
-                mnemonic.as_str(syntax_trees),
-                source,
-            )?;
+            let (first_source, input) = parse_expression_handle(syntax_trees, input)?;
+            // Destructive x86 arithmetic reads its destination. AArch64's
+            // three-operand form reads the independently named left input;
+            // recording that identity here also preserves pre-write flag
+            // inputs when either source aliases the destination.
+            let (left, source, input) =
+                if contract.shape == AsmInstructionShape::SubtractThreeOperand {
+                    let input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+                    let (right, input) = parse_expression_handle(syntax_trees, input)?;
+                    (first_source, right, input)
+                } else {
+                    (destination, first_source, input)
+                };
+            for operand in [destination, left, source] {
+                reject_bracketed_asm_operand(
+                    syntax_trees,
+                    mnemonic_site,
+                    mnemonic.as_str(syntax_trees),
+                    operand,
+                )?;
+            }
             if matches!(syntax_trees.expressions.expression(destination), ExpressionNode::Name(path) if matches!(syntax_trees.expressions.identifier_path_members(*path), [name] if name.as_str(syntax_trees) == "zf"))
             {
-                return Err(mnemonic_site.error_here("mov/sub/add/cmp cannot directly write ZF; its version is established by the catalog arithmetic result"));
+                return Err(mnemonic_site.error_here("mov/sub/subs/add/cmp cannot directly write ZF; its version is established by the catalog arithmetic result"));
             }
-            for operand in [destination, source] {
+            for operand in [destination, left, source] {
                 if let ExpressionNode::Name(path) = syntax_trees.expressions.expression(operand)
                     && let [name] = syntax_trees.expressions.identifier_path_members(*path)
                     && let Some((_, target, _)) =
@@ -840,6 +841,19 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                         "assembly instruction and register operands require incompatible targets",
                     )
                 })?;
+                if contract.shape == AsmInstructionShape::SubtractThreeOperand {
+                    let modeled_left = match syntax_trees.expressions.expression(left) {
+                        ExpressionNode::Name(path) => {
+                            matches!(syntax_trees.expressions.identifier_path_members(*path), [name] if language_core::inline_assembly::scratch_register(name.as_str(syntax_trees)).is_some_and(|(_, target, _)| target == register_target))
+                        }
+                        _ => false,
+                    };
+                    if !modeled_left {
+                        return Err(mnemonic_site.error_here(format!(
+                            "{spelling} requires a modeled 32-bit register left input"
+                        )));
+                    }
+                }
                 if contract.shape == AsmInstructionShape::Compare {
                     // Only the zero condition is exposed by AArch64 local
                     // branches. Full six-bit PUSHFQ images remain x86-only;
@@ -871,10 +885,10 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 }
                 match producer {
                     scratch::ArithmeticFlagProducer::Subtract => {
-                        scratch::subtraction(syntax_trees, destination, source)
+                        scratch::subtraction(syntax_trees, left, source)
                     }
                     scratch::ArithmeticFlagProducer::Add => {
-                        scratch::addition(syntax_trees, destination, source)
+                        scratch::addition(syntax_trees, left, source)
                     }
                 }
             } else {
@@ -899,7 +913,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                     unreachable!("arithmetic construction returns a policy erasure")
                 };
                 ParsedArithmetic {
-                    left: destination,
+                    left,
                     right: source,
                     result,
                     primitive: cast.value,
@@ -1002,13 +1016,31 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
             );
             ParsedAsmInstruction::ok(statement, contract, input)
         }
-        AsmInstructionShape::MemoryFence(kind) => parsed_intrinsic_instruction(
-            syntax_trees,
-            &mnemonic,
-            kind.intrinsic_name(),
-            contract,
-            input,
-        ),
+        AsmInstructionShape::MemoryFence(kind) => {
+            let (kind, input) = if kind.target()
+                == language_core::inline_assembly::AsmTargetApplicability::Aarch64
+            {
+                let (option, rest) = input.take_identifier()?;
+                let kind = language_core::inline_assembly::AsmFenceKind::from_aarch64_option(
+                    option.as_str(syntax_trees),
+                )
+                .ok_or_else(|| {
+                    input.error_here(
+                        "dmb requires an explicit supported full-system option: ld, st, or sy",
+                    )
+                })?;
+                (kind, rest)
+            } else {
+                (kind, input)
+            };
+            parsed_intrinsic_instruction(
+                syntax_trees,
+                &mnemonic,
+                kind.intrinsic_name(),
+                language_core::inline_assembly::AsmInstructionContract::memory_fence(kind),
+                input,
+            )
+        }
         AsmInstructionShape::InterruptControl(kind) => parsed_intrinsic_instruction(
             syntax_trees,
             &mnemonic,

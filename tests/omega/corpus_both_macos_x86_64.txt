@@ -9,4 +9,29 @@
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 16, "jobs": null, "load1_end": 4.82, "load1_start": 4.38, "machine": "x86_64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/borrows/returned_slice_record_reference_custody_exit built 14599ms exit:0 interpreter-exit:0 interpreter:agrees @761f5fae99a7+wt
+pass/facts/abstract_signature_call_constant_initializer_exit built 6697ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
+pass/facts/abstract_signature_call_constant_initializer_forwarded_exit built 6935ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
+pass/facts/abstract_signature_call_constant_initializer_selected_entries_exit built 8996ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
+pass/facts/abstract_signature_call_constant_initializer_statement_explicit_discard_exit built 6727ms exit:0 interpreter-exit:0 interpreter:agrees @74b572b3e176+wt
+pass/facts/abstract_signature_call_constant_initializer_supplied_body_terminal_exit built 6803ms exit:0 interpreter-exit:0 interpreter:agrees @a8b77070b93c+wt
+pass/facts/abstract_signature_call_constant_initializer_terminal_callback_exit built 6518ms exit:0 interpreter-exit:0 interpreter:agrees @74b572b3e176+wt
+pass/facts/abstract_signature_call_constant_initializer_through_call_result_exit built 6732ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
+pass/facts/abstract_signature_call_constant_initializer_through_const_name_exit built 9161ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
+pass/facts/abstract_signature_call_constant_initializer_through_field_exit built 6897ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
+pass/facts/abstract_signature_call_constant_initializer_through_local_exit built 6807ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
+pass/facts/abstract_signature_call_constant_initializer_through_match_join_exit built 6800ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
+pass/facts/abstract_signature_call_constant_initializer_through_other_machine_exit built 6831ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
+pass/facts/abstract_signature_call_constant_initializer_through_other_state_exit built 6814ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
+pass/facts/abstract_signature_call_constant_initializer_through_parameter_exit built 6752ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
+pass/facts/abstract_signature_call_constant_initializer_through_target_body_exit built 6815ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
+pass/facts/abstract_signature_call_constant_initializer_unexecuted_body_dependency_exit built 6590ms exit:0 interpreter-exit:0 interpreter:agrees @a8b77070b93c+wt
+pass/facts/abstract_signature_call_through_call_result_exit built 1964ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
+pass/facts/abstract_signature_call_through_const_name_exit built 1933ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
+pass/facts/abstract_signature_call_through_field_exit built 1920ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
+pass/facts/abstract_signature_call_through_local_exit built 1896ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
+pass/facts/abstract_signature_call_through_match_join_exit built 1960ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
+pass/facts/abstract_signature_call_through_other_machine_exit built 1968ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
+pass/facts/abstract_signature_call_through_other_state_exit built 1915ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
+pass/facts/abstract_signature_call_through_parameter_exit built 1935ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
+pass/facts/abstract_signature_call_through_target_body_exit built 1802ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
 pass/write_only/returned_destination_transport_exit built 16665ms exit:0 interpreter-exit:0 interpreter:agrees @c5d73037f08c+wt

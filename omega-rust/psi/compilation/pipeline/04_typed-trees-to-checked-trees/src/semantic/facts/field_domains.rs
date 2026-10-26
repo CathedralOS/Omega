@@ -433,25 +433,7 @@ fn append_independent_place_contexts(
 ) {
     // Invalidating one storage coordinate must not discard independent
     // parameter or machine-field facts. Facts over the same place stay coupled.
-    let mut groups: Vec<(FactPlace, Vec<facts::FactRef>)> = Vec::new();
-    for reference in facts.refs.span_or_empty(refs) {
-        let place = facts.facts.get(reference.fact).place;
-        if let Some((_, group)) =
-            groups
-                .iter_mut()
-                .find(|(candidate, _)| match (*candidate, place) {
-                    (FactPlace::Place(left), FactPlace::Place(right)) => {
-                        facts.places_equal(left, right)
-                    }
-                    _ => *candidate == place,
-                })
-        {
-            group.push(*reference);
-        } else {
-            groups.push((place, vec![*reference]));
-        }
-    }
-    for (_, group) in groups {
+    for group in facts.group_fact_refs_by_place(refs) {
         let mut refs = arena::HandleSpan::empty();
         for reference in group {
             facts.refs.append_to_span(&mut refs, reference);

@@ -15,61 +15,61 @@ use terminal_psi::{
     TerminalIdentityIndex,
 };
 
-fn encode_establishment_routes(
+pub(crate) fn encode_establishment_routes(
     writer: &mut Writer,
     routes: &[StructuralEstablishmentRoute],
 ) -> Result<(), CodecError> {
     writer.len("domain establishment routes", routes.len())?;
     for route in routes {
         match route {
-            StructuralEstablishmentRoute::Requirement {
+            StructuralEstablishmentRoute::CheckedRequirement {
                 declaration,
-                requirement,
+                requirement_identity,
             } => {
                 writer.u8(4);
                 writer.u32(declaration.identity().0);
-                writer.u32(requirement.0);
+                writer.u32(requirement_identity.0);
             }
             StructuralEstablishmentRoute::ExactMachine {
                 declaration,
-                machine,
+                machine_identity,
             } => {
                 writer.u8(5);
                 writer.u32(declaration.identity().0);
-                writer.u32(machine.0);
+                writer.u32(machine_identity.0);
             }
             StructuralEstablishmentRoute::BoundaryRequirement {
                 declaration,
-                requirement,
+                requirement_identity,
             } => {
                 writer.u8(6);
                 writer.u32(declaration.identity().0);
-                writer.u32(requirement.0);
+                writer.u32(requirement_identity.0);
             }
         }
     }
     Ok(())
 }
 
-fn decode_establishment_routes(
+pub(crate) fn decode_establishment_routes(
     reader: &mut Reader<'_>,
 ) -> Result<Vec<StructuralEstablishmentRoute>, CodecError> {
     decode_counted(reader, |reader| {
         Ok(match reader.u8()? {
-            // Tags 1–3 lacked issuer ownership and cannot answer a current
+            // Structural tags 1–3 and scalar tags 0–2 lacked issuer ownership and cannot answer a current
             // cross-artifact route join. Retire them rather than infer an owner
             // from a callable's parameter or result types.
-            4 => StructuralEstablishmentRoute::Requirement {
+            4 => StructuralEstablishmentRoute::CheckedRequirement {
                 declaration: NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?)),
-                requirement: TerminalIdentityIndex(reader.u32()?),
+                requirement_identity: TerminalIdentityIndex(reader.u32()?),
             },
             5 => StructuralEstablishmentRoute::ExactMachine {
                 declaration: NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?)),
-                machine: TerminalIdentityIndex(reader.u32()?),
+                machine_identity: TerminalIdentityIndex(reader.u32()?),
             },
             6 => StructuralEstablishmentRoute::BoundaryRequirement {
                 declaration: NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?)),
-                requirement: TerminalIdentityIndex(reader.u32()?),
+                requirement_identity: TerminalIdentityIndex(reader.u32()?),
             },
             tag => return Err(CodecError::InvalidTag("StructuralEstablishmentRoute", tag)),
         })

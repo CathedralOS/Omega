@@ -411,11 +411,16 @@ fn finalize_authored_statement_call_selections(
     // (span, exposure, kind, partition) bucket: candidates x selections.
     // Selections record by append, so the index absorbs rows minted by
     // earlier candidates in this loop as well.
-    let mut call_selection_index = statement_call_selection_index(program);
+    let mut call_selection_index = call_selection_index(program);
     for candidate in candidates {
-        let occurrence = if let Some(occurrence) =
-            existing_statement_call_occurrence(program, candidate, &call_selection_index)?
-        {
+        let occurrence = if let Some(occurrence) = existing_call_occurrence(
+            program,
+            candidate.source_span,
+            Exposure::PrivateImplementation,
+            candidate.compiler_partition,
+            candidate.target,
+            &call_selection_index,
+        )? {
             occurrence
         } else {
             let occurrence = match candidate.target {
@@ -452,15 +457,10 @@ type CallSelectionKey = (
     Option<CompilerDerivedSelectionPartition>,
 );
 
-fn statement_call_selection_index(
-    program: &SymbolResolvedTrees,
-) -> HashMap<CallSelectionKey, Vec<usize>> {
-    use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure as Exposure;
-
+fn call_selection_index(program: &SymbolResolvedTrees) -> HashMap<CallSelectionKey, Vec<usize>> {
     let mut index = HashMap::default();
     for (row, selection) in program.authored_declaration_selections().iter().enumerate() {
-        if selection.exposure() != Exposure::PrivateImplementation || selection.kind() != Kind::Call
-        {
+        if selection.kind() != Kind::Call {
             continue;
         }
         let span = selection.source_span();
@@ -481,12 +481,10 @@ fn index_latest_call_selection(
     program: &SymbolResolvedTrees,
     index: &mut HashMap<CallSelectionKey, Vec<usize>>,
 ) {
-    use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure as Exposure;
-
     let Some(selection) = program.authored_declaration_selections().as_slice().last() else {
         return;
     };
-    if selection.exposure() != Exposure::PrivateImplementation || selection.kind() != Kind::Call {
+    if selection.kind() != Kind::Call {
         return;
     }
     let span = selection.source_span();
@@ -501,47 +499,46 @@ fn index_latest_call_selection(
         .push(program.authored_declaration_selections().len() - 1);
 }
 
-fn existing_statement_call_occurrence(
+fn existing_call_occurrence(
     program: &SymbolResolvedTrees,
-    candidate: AuthoredStatementCallCandidate,
+    source_span: SourceSpan,
+    exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    compiler_partition: Option<CompilerDerivedSelectionPartition>,
+    target: CandidateTarget,
     index: &HashMap<CallSelectionKey, Vec<usize>>,
 ) -> Result<Option<AuthoredDeclarationSelectionOccurrenceId>, Diagnostic> {
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget as Target;
 
-    let span = candidate.source_span;
     let Some(rows) = index.get(&(
-        span.source_id.0,
-        span.span.start,
-        span.span.end,
-        candidate.compiler_partition,
+        source_span.source_id.0,
+        source_span.span.start,
+        source_span.span.end,
+        compiler_partition,
     )) else {
         return Ok(None);
     };
     let mut retained = None;
     for &row in rows {
         let selection = &program.authored_declaration_selections().as_slice()[row];
+        if selection.exposure() != exposure {
+            continue;
+        }
         let existing_target = match selection.target() {
             Target::Resolved(existing) => CandidateTarget::Resolved(existing.selected_symbol()),
             Target::LateBound(binding) => CandidateTarget::LateBound(binding),
             Target::Intrinsic(_) => {
                 return Err(Diagnostic::error(
-                    "authored statement call reclassification found an intrinsic selection for the same source token",
+                    "authored call reclassification found an intrinsic selection for the same source token",
                 )
-                .with_source_span(candidate.source_span));
+                .with_source_span(source_span));
             }
         };
-        reconcile_copy_targets(
-            program,
-            candidate.source_span,
-            Kind::Call,
-            existing_target,
-            candidate.target,
-        )?;
+        reconcile_copy_targets(program, source_span, Kind::Call, existing_target, target)?;
         if retained.is_some_and(|occurrence| occurrence != selection.occurrence_id()) {
             return Err(Diagnostic::error(
-                "authored statement call reclassification found duplicate selections for the same source token",
+                "authored call reclassification found duplicate selections for the same source token",
             )
-            .with_source_span(candidate.source_span));
+            .with_source_span(source_span));
         }
         retained = Some(selection.occurrence_id());
     }
@@ -1409,26 +1406,50 @@ fn finalize_expression_groups(
         }
     }
 
+    let mut call_selection_index = call_selection_index(program);
     for group in groups {
-        let occurrence = match group.target {
-            CandidateTarget::Resolved(symbol) => program
-                .record_resolved_authored_declaration_selection_in_partition(
-                    group.source_span,
-                    group.exposure,
-                    group.kind,
-                    group.compiler_partition,
-                    symbol,
-                ),
-            CandidateTarget::LateBound(binding) => program
-                .record_late_bound_authored_declaration_selection_in_partition(
-                    group.source_span,
-                    group.exposure,
-                    group.kind,
-                    group.compiler_partition,
-                    binding,
-                ),
-        }
-        .map_err(record_diagnostic)?;
+        // Constant custody can retain a call before its expression copies are
+        // classified. A discarded call also has a statement copy: both must
+        // rejoin that one occurrence, rather than minting a second identity
+        // that statement reclassification would rightly reject. Exposure and
+        // compiler partition still separate distinct source owners.
+        let retained = if group.kind == Kind::Call {
+            existing_call_occurrence(
+                program,
+                group.source_span,
+                group.exposure,
+                group.compiler_partition,
+                group.target,
+                &call_selection_index,
+            )?
+        } else {
+            None
+        };
+        let occurrence = if let Some(occurrence) = retained {
+            occurrence
+        } else {
+            let occurrence = match group.target {
+                CandidateTarget::Resolved(symbol) => program
+                    .record_resolved_authored_declaration_selection_in_partition(
+                        group.source_span,
+                        group.exposure,
+                        group.kind,
+                        group.compiler_partition,
+                        symbol,
+                    ),
+                CandidateTarget::LateBound(binding) => program
+                    .record_late_bound_authored_declaration_selection_in_partition(
+                        group.source_span,
+                        group.exposure,
+                        group.kind,
+                        group.compiler_partition,
+                        binding,
+                    ),
+            }
+            .map_err(record_diagnostic)?;
+            index_latest_call_selection(program, &mut call_selection_index);
+            occurrence
+        };
         if let Some(position) = group.top_level_static_argument_position {
             program
                 .retain_top_level_static_argument_position(occurrence, position)

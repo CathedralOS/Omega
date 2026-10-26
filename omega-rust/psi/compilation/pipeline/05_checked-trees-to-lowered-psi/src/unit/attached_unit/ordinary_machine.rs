@@ -123,6 +123,8 @@ pub(super) struct MachineEmission<'a> {
     staged_arguments: Vec<Vec<usize>>,
     staged_subslices: Vec<Vec<(usize, PlaceId)>>,
     staged_selectors: Vec<Vec<usize>>,
+    staged_structural_arguments:
+        Vec<Vec<Option<super::operation_frame::CompletedStructuralArgument>>>,
     retained_scalar_prefix: Option<usize>,
     scalar_calls: CallEmissionContext<'a>,
 }
@@ -135,6 +137,8 @@ pub(super) struct StepInputs {
     pub(super) source_value_count: usize,
     pub(super) evaluated_scalar_arguments: Option<Vec<ValueDeclaration>>,
     pub(super) evaluated_selectors: Option<Vec<ValueDeclaration>>,
+    pub(super) completed_structural_arguments:
+        Option<Vec<Option<super::operation_frame::CompletedStructuralArgument>>>,
 }
 
 /// The lowered machine and the occurrence rows the closure accumulates.
@@ -282,7 +286,11 @@ pub(super) fn emit(
         &plan.scalar_parameters,
         &scalar_parameters,
         type_ids,
-        structural_types,
+        primitive_locals::PrimitiveStorageCatalog {
+            types: structural_types,
+            domains: domain_declarations,
+            scalars: prepared_scalar_qualifications.catalog(),
+        },
         &mut next_place,
         &mut next_call_obligation,
         &mut operations,
@@ -315,13 +323,6 @@ pub(super) fn emit(
         structural_types,
     )?;
     evaluation.literals = crate::scalar_lowering::computations::literals::prepare(
-        identities,
-        checked,
-        plan.machine,
-        structural_types,
-        &mut next_place,
-    )?;
-    evaluation.copies = crate::scalar_lowering::computations::copies::prepare(
         identities,
         checked,
         plan.machine,
@@ -368,6 +369,13 @@ pub(super) fn emit(
             .collect(),
         structural_types,
     );
+    evaluation.current_claims.ingress(
+        parameters
+            .iter()
+            .filter(|parameter| parameter.access == terminal_psi::StructuralAccess::Owned)
+            .map(|parameter| parameter.place),
+        entry_claims,
+    )?;
     evaluation.primitive_storage =
         crate::unit::attached_unit::parameters::primitive_reference_storage(
             checked,
@@ -432,10 +440,13 @@ pub(super) fn emit(
         staged_arguments,
         staged_subslices,
         staged_selectors: vec![Vec::new(); plan.operations.len()],
+        staged_structural_arguments: vec![Vec::new(); plan.operations.len()],
         retained_scalar_prefix,
         scalar_calls: CallEmissionContext {
             terminal_machine,
             domain_ids,
+            domain_declarations,
+            scalar_qualifications: prepared_scalar_qualifications.catalog(),
             claims: crate::emission::claim_bindings::ClaimBindings::new(
                 claim_bindings.clone(),
                 dense_identity(claim_bindings.len())?,
@@ -913,7 +924,9 @@ pub(super) fn emit(
                     plan.machine,
                     plan.state,
                     result,
+                    &source,
                     &operations,
+                    &evaluation.current_claims,
                     scalar_calls.claims.bindings(),
                     lookup_type_id(type_ids, &result.type_identity)?,
                     structural_types,
@@ -1095,9 +1108,9 @@ pub(super) fn emit(
         .collect::<Vec<_>>();
     let OperationBuffer {
         mut source_returns,
-        mut claim_introductions,
         claim_edge_bindings,
         mut block_entry_claims,
+        mut claim_introductions,
         selected_cleanup_groups,
         mut scalar_block_invariants,
         mut source_calls,
@@ -1166,7 +1179,7 @@ pub(super) fn emit(
     let nominal_cleanup_subject =
         crate::machine_lowering::nominal_cleanup_subject(checked, plan.machine, type_ids)?;
     let attachment = attachment.or(nominal_cleanup_subject);
-    block_entry_claims.sort_by_key(|binding| binding.claim);
+    crate::emission::claim_bindings::seal_block_entry_claims(&mut block_entry_claims)?;
     let mut machine = TerminalMachine {
         assembly_target_requirement: checked
             .typed
@@ -1504,6 +1517,7 @@ impl MachineEmission<'_> {
                     self.plan.state,
                     statement,
                     self.structural_types,
+                    self.domain_declarations,
                     &self.scalar_result_values,
                     &mut self.next_place,
                     &mut self.next_value_identity,
@@ -1600,6 +1614,43 @@ impl MachineEmission<'_> {
                 self.next_call_obligation = self.scalar_calls.next_obligation_identity;
                 self.staged_selectors[operation].push(self.scalar_result_values.len());
                 self.scalar_result_values.push(value);
+                return Ok(());
+            }
+            argument_schedule::Step::Structural {
+                operation,
+                argument,
+                complete,
+            } => {
+                let count = self
+                    .retained_scalar_prefix
+                    .ok_or(LoweringError::Unsupported(
+                        "structural operand staging has no source prefix",
+                    ))?;
+                let call = plan.operations[operation]
+                    .call()
+                    .ok_or(LoweringError::Unsupported(
+                        "structural operand staging has no call",
+                    ))?;
+                let offset = call.structural_arguments[..argument]
+                    .iter()
+                    .map(|source| source.call_selector_positions().count())
+                    .sum::<usize>();
+                let selectors = self.staged_selectors[operation][offset..].to_vec();
+                if self.staged_structural_arguments[operation].is_empty() {
+                    self.staged_structural_arguments[operation] =
+                        vec![None; call.structural_arguments.len()];
+                }
+                let previous = self.staged_structural_arguments[operation][argument].take();
+                let captured = self.frame(count).capture_argument(
+                    identities,
+                    &plan.operations[operation],
+                    argument,
+                    &selectors,
+                    previous,
+                    complete,
+                )?;
+                self.staged_structural_arguments[operation][argument] = Some(captured);
+                self.next_call_obligation = self.scalar_calls.next_obligation_identity;
                 return Ok(());
             }
             argument_schedule::Step::Endpoint {
@@ -1756,6 +1807,9 @@ impl MachineEmission<'_> {
             finishes_argument_group,
             source_value_count,
             evaluated_scalar_arguments,
+            completed_structural_arguments: (!self.staged_structural_arguments[operation_index]
+                .is_empty())
+            .then(|| self.staged_structural_arguments[operation_index].clone()),
             evaluated_selectors: staged
                 .then(|| {
                     self.staged_selectors[operation_index]
@@ -1876,6 +1930,7 @@ impl<'a> MachineEmission<'a> {
                 evaluated_scalar_arguments: step.evaluated_scalar_arguments.as_deref(),
                 byte_places: &byte_places,
                 evaluated_selectors: step.evaluated_selectors.as_deref(),
+                completed_structural_arguments: step.completed_structural_arguments.as_deref(),
             },
         )?;
         self.next_call_obligation = self.scalar_calls.next_obligation_identity;

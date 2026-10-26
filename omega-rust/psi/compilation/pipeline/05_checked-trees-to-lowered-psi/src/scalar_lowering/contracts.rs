@@ -623,6 +623,7 @@ impl PredicateTerms for ScalarContractTerms<'_> {
             CheckedBooleanExpression::StructuralParameterField {
                 parameter_position,
                 path,
+                ..
             } => self.structural_member_term(
                 identities,
                 *parameter_position,
@@ -755,6 +756,7 @@ impl ScalarContractTerms<'_> {
             parameter_position,
             path,
             primitive_type,
+            ..
         } = expression
         {
             // The roster keys each declaration by its authored source

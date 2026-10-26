@@ -223,6 +223,11 @@ fn storage_path<'a>(
     carrier: StructuralTypeId,
     path: &[Segment],
 ) -> Option<Vec<StructuralPathSegment>> {
+    if path.contains(&Segment::Referent) {
+        // A descriptor and its current backing are different storage subjects.
+        // This inline domain framing query has no captured backing/alias cut.
+        return None;
+    }
     if let Some((Segment::Field(field), prefix)) = path.split_last() {
         let mut storage = crate::canonical_structural_storage_path(types.clone(), carrier, prefix)?;
         let field = crate::observed_field_declaration(types, carrier, prefix, *field)?;

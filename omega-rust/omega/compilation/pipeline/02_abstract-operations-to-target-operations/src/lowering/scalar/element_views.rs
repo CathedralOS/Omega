@@ -117,26 +117,20 @@ impl<'a> ElementViewBackings<'a> {
                 .structural_parameter(source.place)
                 .map(|parameter| (entry, parameter))
         })?;
-        let descriptor_carrier = structural_types
-            .get(&parameter.structural_type)
-            .is_some_and(|declaration| declaration.shape.is_borrowed_byte_carrier());
+        // Extraction reads a descriptor value, including an owned arrival.
+        // A borrowed storage slot instead takes the address route below and
+        // keeps its original home rather than acquiring a descriptor copy.
+        let descriptor_access = terminal_semantics::descriptor_parameter_access(
+            parameter,
+            structural_types.values().copied(),
+        )?;
         if entry.block == function.entry
-            || !matches!(
-                parameter.access,
-                terminal_psi::reading_borrow_pair_pattern!()
+            || terminal_semantics::borrowed_storage_parameter(
+                parameter,
+                structural_types.values().copied(),
             )
-            || (source.access == StructuralAccess::MutableBorrow
-                && parameter.access != StructuralAccess::MutableBorrow)
-            || !(parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                || matches!(
-                    (parameter.access, parameter.multiplicity),
-                    (
-                        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow,
-                        StructuralMultiplicity::Affine,
-                    )
-                ))
+            || !source.access.admits_referent(descriptor_access)
             || !parameter.projected_qualifications.is_empty()
-            || !descriptor_carrier
         {
             return None;
         }
@@ -638,7 +632,15 @@ pub(in crate::lowering) fn resolve_element_view(
             .structural_parameter(place)
             .map(|parameter| (entry, parameter))
     }) {
-        if entry.block == function.entry || !is_element_view_parameter(parameter, structural_types)
+        let access = terminal_semantics::descriptor_parameter_access(
+            parameter,
+            structural_types.values().copied(),
+        )
+        .ok_or_else(invalid)?;
+        if entry.block == function.entry
+            || !structural_types
+                .get(&parameter.structural_type)
+                .is_some_and(|row| matches!(row.shape, StructuralTypeShape::ElementView { .. }))
         {
             return Err(invalid());
         }
@@ -649,7 +651,7 @@ pub(in crate::lowering) fn resolve_element_view(
                 structural_type: parameter.structural_type,
             },
             parameter.structural_type,
-            parameter.access,
+            access,
         ));
     }
     if let Some(semantic) = function.structural_parameter(place) {
@@ -657,12 +659,31 @@ pub(in crate::lowering) fn resolve_element_view(
             .iter()
             .find(|parameter| parameter.place == place)
             .ok_or_else(invalid)?;
-        if !is_element_view_parameter(semantic, structural_types)
+        let access = terminal_semantics::descriptor_parameter_access(
+            semantic,
+            structural_types.values().copied(),
+        )
+        .ok_or_else(invalid)?;
+        let referent = crate::lowering::structural_layout::structural_shape(
+            semantic.structural_type,
+            structural_types,
+            &mut BTreeMap::new(),
+            &mut BTreeSet::new(),
+        )?;
+        let expected_shape = crate::lowering::structural_layout::internal_parameter_shape(
+            semantic.structural_type,
+            referent,
+            semantic.access,
+            structural_types,
+        );
+        if !structural_types
+            .get(&semantic.structural_type)
+            .is_some_and(|row| matches!(row.shape, StructuralTypeShape::ElementView { .. }))
             || parameter.structural_type != semantic.structural_type
             || parameter.access != semantic.access
             || parameter.multiplicity != semantic.multiplicity
             || parameter.projected_qualifications != semantic.projected_qualifications
-            || parameter.shape != ValueShape::borrowed_reference(16, 8)
+            || parameter.shape != expected_shape
         {
             return Err(invalid());
         }
@@ -672,7 +693,7 @@ pub(in crate::lowering) fn resolve_element_view(
                 placement: parameter.placement.clone(),
             },
             semantic.structural_type,
-            semantic.access,
+            access,
         ));
     }
     let Some(AbstractOperation::ElementViewSubslice {

@@ -298,6 +298,21 @@ fn walk_record_fields<'types>(
         let declaration = types
             .clone()
             .find(|declaration| declaration.id == structural_type)?;
+        if matches!(segment, CanonicalStructuralPathSegment::Referent) {
+            if payload_fields.is_some() {
+                return None;
+            }
+            let StructuralTypeShape::Reference { referent, access } = declaration.shape else {
+                return None;
+            };
+            if access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
+                return None;
+            }
+            runtime_path.push(StructuralPathSegment::Referent);
+            structural_type = referent;
+            crosses_view = true;
+            continue;
+        }
         if let CanonicalStructuralPathSegment::Case(case) = segment {
             if payload_fields.is_some() {
                 return None;

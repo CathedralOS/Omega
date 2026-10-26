@@ -44,6 +44,12 @@ macos_arm64 machine observe() -> bool {
     hold(direct)
 }
 
+macos_x86_64 machine observe() -> bool {
+    let kept: bool = true;
+    let direct: bool = apply<witness>(kept);
+    hold(direct)
+}
+
 windows_x86_64 machine observe() -> bool {
     let kept: bool = true;
     let direct: bool = apply<witness>(kept);

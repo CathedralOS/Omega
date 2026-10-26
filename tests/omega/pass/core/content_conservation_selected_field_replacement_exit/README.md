@@ -1,0 +1,1 @@
+A qualified partition result is stored in a record field, consumed and replaced twice, then extracted through a named selection. The public split and sink contracts retain exact current claims and memberships; both runtime branches check the resulting field values.

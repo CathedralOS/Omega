@@ -58,6 +58,7 @@ pub struct TerminalRuntimeRequest<'program> {
     /// execution. This worker supplies no standard stream or external service.
     pub native_provider: Option<std::process::Command>,
     pub x86_flags: Option<terminal_interpreter::TerminalX86FlagsEnvironment>,
+    pub memory_ordering: Option<terminal_interpreter::TerminalMemoryOrderingEnvironment>,
     pub artifact: &'program terminal_codec::CanonicalTerminalArtifact,
     /// Exact deployment tag admitted by this invocation. Absence permits only
     /// execution scopes that do not demand a portable target-family head.
@@ -274,6 +275,7 @@ pub fn execute_sliced(
     let mut installation = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
             x86_flags: request.x86_flags,
+            memory_ordering: request.memory_ordering,
             entry: request
                 .provisions
                 .map(|provisions| terminal_psi::TargetMachineCallable::Machine(provisions.entry())),
@@ -372,7 +374,8 @@ pub fn execute_sliced(
     )?;
     if let Some(provisions) = request.provisions {
         for component in provisions.component_products() {
-            let binding = components::prepare(component, &host, request.x86_flags)?;
+            let binding =
+                components::prepare(component, &host, request.x86_flags, request.memory_ordering)?;
             instance
                 .bind_component(binding)
                 .map_err(TerminalRuntimeError::ComponentBinding)?;

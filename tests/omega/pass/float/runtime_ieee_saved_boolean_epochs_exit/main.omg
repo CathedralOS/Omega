@@ -1,0 +1,58 @@
+// Expected exit: 0
+use omega::language::core::float_operations;
+data Reading [copy] { value: f64; other: f64; }
+
+// A saved negation keeps the selected truth; writing another field is disjoint.
+machine disjoint(value: f64) -> i32 {
+    let mut reading: Reading = Reading { value: value, other: 0.0 };
+    let accepted: bool = reading.value == reading.value && reading.value >= 0.0 && reading.value < 1000000000.0;
+    let rejected: bool = !accepted;
+    reading.other = 2000000000.0;
+    transition rejected {
+        false -> finish(I32::from_f64(reading.value))
+        true -> zero()
+    }
+    state finish(observed: i32) -> i32 { observed }
+    state zero() -> i32 { 0 }
+}
+
+// A copied scalar retains its old value after the original storage is written.
+machine snapshot(value: f64) -> i32 {
+    let mut current: f64 = value;
+    let accepted: bool = current == current && current >= 0.0 && current < 1000000000.0;
+    let copied: f64 = current;
+    current = 2000000000.0;
+    transition accepted {
+        true -> finish(I32::from_f64(copied))
+        false -> zero()
+    }
+    state finish(observed: i32) -> i32 { observed }
+    state zero() -> i32 { 0 }
+}
+
+// The Boolean and its observed subject cross the same explicit state edge.
+machine forwarded(value: f64) -> i32 {
+    let accepted: bool = value == value && value >= 0.0 && value < 1000000000.0;
+    transition { _ -> decide(accepted, value) }
+    state decide(accepted: bool, value: f64) -> i32 {
+        transition accepted {
+            true -> finish(I32::from_f64(value))
+            false -> zero()
+        }
+    }
+    state finish(observed: i32) -> i32 { observed }
+    state zero() -> i32 { 0 }
+}
+
+machine main() crashes Trap {
+    let zero: f64 = 0.0;
+    let unordered: f64 = zero / zero;
+    transition disjoint(123.75) == 123 && snapshot(123.75) == 123 && forwarded(123.75) == 123
+        && disjoint(unordered) == 0 && snapshot(unordered) == 0 && forwarded(unordered) == 0
+        && disjoint(2000000000.0) == 0 && forwarded(-1.0) == 0 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

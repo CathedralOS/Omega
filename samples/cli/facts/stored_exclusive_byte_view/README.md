@@ -63,6 +63,12 @@ observation. After ordinary project preparation, run each positive with
   selected arrivals, state edges and target-scoped bodies carry the same fact.
   [Owned-record contracts](controls/owned_record/main.omg) retain projected
   metadata without granting borrowed referent-content observation authority.
+  The [nested identity relay](../../../../tests/omega/pass/borrows/opaque_incoming_nested_projected_record_result_exit/main.omg)
+  retains the caller's still-live descriptor fact without a redundant length
+  postcondition. Its [empty-view twin](../../../../tests/omega/fail/borrows/opaque_incoming_nested_projected_record_result_empty_rejected/main.omg)
+  breaks that fact at formation. Complete empty effects preserve these facts
+  under [call contracts](../../../../wiki/spec/language/state_contracts.md#mutation-and-subject-identity);
+  neither callee-entry assumptions nor address geometry establish them.
 - **Soundness boundaries:** exclusive and write-only carriers cannot become
   copyable because their referents are copyable. Their
   [exclusive](controls/owned_copy/main.omg) and

@@ -10,7 +10,12 @@ use terminal_psi::{
 
 mod borrowed_leaves;
 mod call_results;
+mod memberships;
 pub use borrowed_leaves::{BorrowedResultLeaf, BorrowedResultLeafKind, borrowed_result_leaves};
+pub use memberships::{
+    ReferenceResultMemberships, reference_call_preserved_memberships,
+    reference_result_memberships_weaken,
+};
 mod descriptor_regions;
 mod result_regions;
 pub use call_results::{

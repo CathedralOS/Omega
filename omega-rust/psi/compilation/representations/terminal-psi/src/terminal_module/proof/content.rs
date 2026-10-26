@@ -73,20 +73,63 @@ pub struct ContentClaimProjection {
 /// One equation of an atomic content transformation. All rows of the operation
 /// are checked jointly, including every independent qualification of each
 /// consumed parent. Outputs keep their existing nominal claim identities;
-/// the equation derives membership, not a fresh root or a replacement claim.
+/// a same-owner equation derives membership, not a fresh root or replacement
+/// claim. A conditional boundary-body relation transports custody only.
 /// Derivations and their input/output rosters are unordered sets encoded in
 /// strict derived `Ord` order. Remapping restores that order before publication.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ContentTransformationDerivation {
     pub conservation: ContentConservation,
-    /// The existing account from which every consumed claim descends.
-    pub lineage_anchor: ClaimId,
-    /// Ordered completed replacements of the anchor's frontier. Each producer
+    /// The complete existing root roster of the consumed claims. Combining
+    /// established inputs does not fabricate a shared ancestry identity.
+    pub lineage_roots: Vec<ClaimId>,
+    /// Ordered completed replacements of the roots' joint frontier. Each producer
     /// must independently authenticate these exact input/result occurrences;
     /// this roster alone is not authority, nor is numeric conservation.
     pub ancestry: Vec<ContentLineageStep>,
     pub inputs: Vec<ContentClaimProjection>,
     pub outputs: Vec<ContentClaimProjection>,
+    pub custody: ContentTransformationCustody,
+}
+
+/// Qualification derivation and conditional boundary-body custody transport
+/// have different authority. A boundary body retains its raw result's actual
+/// memberships; only a later admitted invocation may establish its result D.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ContentTransformationCustody {
+    Derived,
+    Boundary {
+        requirements: Vec<ContentBoundaryBodyRequirement>,
+        addresses: Vec<ContentBackingAddressTransport>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ContentBoundaryBodyRequirement {
+    pub boundary: semantic_vocabulary::BoundaryMachineId,
+    /// Exact declaration-local source law, not its compact report digest.
+    pub guarantee: crate::ContentConservationGuarantee,
+    /// Every source projection occurs exactly once. A current descendant
+    /// frontier may replace one original input with an explicit separate term.
+    pub substitutions: Vec<ContentBodyProjectionSubstitution>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ContentBodyProjectionSubstitution {
+    pub source: semantic_vocabulary::ContentTerm,
+    pub target: semantic_vocabulary::ContentTerm,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ContentBackingAddressTransport {
+    pub input: ContentClaimAddress,
+    pub output: ContentClaimAddress,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ContentClaimAddress {
+    pub claim: ClaimId,
+    pub subject: ContentStructuralPlace,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -136,6 +179,24 @@ impl ContentTransformationDerivation {
         );
         for binding in self.inputs.iter_mut().chain(&mut self.outputs) {
             binding.subject.root = map(binding.subject.root);
+        }
+        if let ContentTransformationCustody::Boundary {
+            requirements,
+            addresses,
+        } = &mut self.custody
+        {
+            for requirement in requirements.iter_mut() {
+                for substitution in &mut requirement.substitutions {
+                    substitution.target = term(&substitution.target, map);
+                }
+                requirement.substitutions.sort();
+            }
+            requirements.sort();
+            for address in addresses.iter_mut() {
+                address.input.subject.root = map(address.input.subject.root);
+                address.output.subject.root = map(address.output.subject.root);
+            }
+            addresses.sort();
         }
         self.inputs.sort();
         self.outputs.sort();

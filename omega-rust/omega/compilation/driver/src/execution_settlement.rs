@@ -29,6 +29,7 @@ pub(crate) use constant_recipe_closure::same_checked_program;
 /// installation consumes it with the artifact to settle the selected
 /// execution. None of its fields re-enter checking or rewrite the program.
 pub(crate) struct SelectedProviderCustody {
+    pub(crate) source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
     pub(crate) checked: CheckedProviderProgram,
     pub(crate) settlement: provider_planning::ProviderSettlement,
     pub(crate) selected_provider_provenance:
@@ -357,6 +358,7 @@ pub(crate) fn select_product_providers(
     })?;
     let (checked, settlement, provenance, entry, x86) = selection;
     Ok(SelectedProviderCustody {
+        source_completion_accounting: source.source_completion_accounting.clone(),
         checked,
         settlement,
         selected_provider_provenance: provenance,
@@ -384,6 +386,7 @@ pub(crate) fn install_selected_target(
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
     let source_map = selection.checked.program.typed.symbols.source_map();
     let SelectedProviderCustody {
+        source_completion_accounting,
         checked,
         mut settlement,
         selected_provider_provenance,
@@ -429,6 +432,7 @@ pub(crate) fn install_selected_target(
                 sources,
                 timings,
             )
+            .with_source_completion_accounting(source_completion_accounting)
             .with_settled_checks(retained_checks)
         })
         .map_err(|mut diagnostics| {

@@ -91,8 +91,10 @@ impl super::Expansion<'_> {
             .rev()
             .find(|value| match value {
                 super::EstablishedValue::Produced { root, .. } => {
-                    receiver.is_valid() && *root == receiver
-                        || receiver_expression.is_valid()
+                    if receiver.is_valid() {
+                        *root == receiver
+                    } else {
+                        receiver_expression.is_valid()
                             && receiver_expression
                                 == self
                                     .checked
@@ -102,6 +104,7 @@ impl super::Expansion<'_> {
                                     .nodes
                                     .get(*root)
                                     .expression
+                    }
                 }
                 super::EstablishedValue::Copied { expression, .. } => {
                     receiver_expression.is_valid() && receiver_expression == *expression
@@ -113,9 +116,6 @@ impl super::Expansion<'_> {
             _ if receiver.is_valid() => Some(receiver),
             _ => None,
         };
-        if atomic_ordering.is_some() && produced.is_some() {
-            return unsupported("atomic load cannot substitute a freshly copied receiver");
-        }
         if let Some(value) = produced {
             use crate::scalar_lowering::branch_states::prepared::{
                 LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
@@ -160,54 +160,40 @@ impl super::Expansion<'_> {
                 )),
             };
         }
-        let mut expression = if let Some(ordering) = atomic_ordering {
-            if established.is_some() || receiver.is_valid() {
-                return unsupported(
-                    "atomic load must observe its exact live storage, not a copied receiver",
-                );
-            }
-            let binding = field_binding(self.fields, subject, field, primitive)?;
-            let home = observation_source(
-                binding,
+        let mut expression = match established {
+            Some(super::EstablishedValue::Copied {
+                place,
+                structural_type,
+                source,
+                ..
+            }) => copied_observation(
+                self.fields,
                 site.bindings,
-                machine,
-                self.checked.state_parameters(state),
+                self.structural_types,
                 subject,
-            )?;
-            atomic_observation(binding, site.bindings, home, ordering)?
-        } else {
-            match established {
-                Some(super::EstablishedValue::Copied {
+                field,
+                primitive,
+                terminal_psi::StructuralArgument::whole(
                     place,
-                    structural_type,
-                    source,
-                    ..
-                }) => copied_observation(
-                    self.fields,
-                    site.bindings,
-                    self.structural_types,
-                    subject,
-                    field,
-                    primitive,
-                    terminal_psi::StructuralArgument::whole(
-                        place,
-                        terminal_psi::StructuralAccess::SharedBorrow,
-                    ),
-                    structural_type,
-                    &source,
-                )?,
-                Some(super::EstablishedValue::Produced { .. }) => {
-                    return unsupported("produced observation lost its value dependency");
-                }
-                None => observation(
-                    self.fields,
+                    terminal_psi::StructuralAccess::SharedBorrow,
+                ),
+                structural_type,
+                &source,
+                atomic_ordering,
+            )?,
+            Some(super::EstablishedValue::Produced { .. }) => {
+                return unsupported("produced observation lost its value dependency");
+            }
+            None => {
+                let binding = field_binding(self.fields, subject, field, primitive)?;
+                let home = observation_source(
+                    binding,
                     site.bindings,
                     machine,
                     self.checked.state_parameters(state),
                     subject,
-                    field,
-                    primitive,
-                )?,
+                )?;
+                observe(binding, site.bindings, home, None, atomic_ordering)?
             }
         };
         expression.retain_observed_type(result_type, input_types)?;
@@ -884,7 +870,6 @@ pub(crate) fn prepare(
                     LoweringError::Unsupported("atomic observation lost its source load"),
                 )?;
                 if carrier.operation != validation::AtomicAccessOperation::Load(*ordering)
-                    || receiver_value.is_valid()
                     || !ordering.valid_for_load()
                 {
                     return unsupported(
@@ -1337,7 +1322,7 @@ pub(crate) fn type_roots(
                 // qualification: a loan of an element of `[E; N] in Trapping`
                 // lends plain `E` storage.
                 let identity =
-                    validation::structural_type_identity(&checked.typed, *referee, &[], &[]);
+                    validation::stored_structural_type_identity(&checked.typed, *referee, &[], &[]);
                 if !types.contains(&identity) {
                     types.push(identity);
                 }
@@ -1348,32 +1333,37 @@ pub(crate) fn type_roots(
         for handle in super::reachable_nodes(checked, &[root.root])? {
             let CheckedScalarComputationKind::StructuralField {
                 source_type,
-                source_expression,
                 subject,
+                field,
+                field_identity,
+                atomic_ordering,
                 ..
             } = &plans.nodes.get(handle).kind
             else {
                 continue;
             };
-            if let Some(references) = validation::observed_storage_type_references(
+            let references = validation::observed_storage_type_references(
                 &checked.typed,
                 *source_type,
-                *source_expression,
-            ) {
-                for reference in references {
-                    types.push(validation::structural_type_identity(
-                        &checked.typed,
-                        reference,
-                        &[],
-                        &[],
-                    ));
-                    types.push(validation::stored_structural_type_identity(
-                        &checked.typed,
-                        reference,
-                        &[],
-                        &[],
-                    ));
-                }
+                &subject.path,
+                *field,
+                field_identity,
+                atomic_ordering.is_some(),
+            )
+            .map_err(LoweringError::InvalidFieldObservationStoragePath)?;
+            for (reference, substitutions) in references.entries() {
+                types.push(validation::structural_type_identity(
+                    &checked.typed,
+                    reference,
+                    &[],
+                    substitutions,
+                ));
+                types.push(validation::stored_structural_type_identity(
+                    &checked.typed,
+                    reference,
+                    &[],
+                    substitutions,
+                ));
             }
             // The observation names both its complete root and its selected
             // record. A descriptor field does not recursively root its referent.
@@ -1390,32 +1380,16 @@ pub(crate) fn type_roots(
     Ok(types)
 }
 
-pub(super) fn observation(
-    fields: &[Binding],
-    bindings: &storage::ScalarBindings,
-    machine: &checked_trees::machine::Machine,
-    parameters: &[checked_trees::signature::StateParameter],
-    subject: &CheckedUnitStructuralArgumentPlan,
-    field: symbols::SymbolHandle,
-    primitive: PrimitiveType,
-) -> Result<LoweredDirectExpression, LoweringError> {
-    let binding = field_binding(fields, subject, field, primitive)?;
-    let source = observation_source(binding, bindings, machine, parameters, subject)?;
-    observe(binding, bindings, source, None)
-}
-
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn emitted_observation(
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-    checked: &CheckedTrees,
     fields: &[Binding],
     bindings: &storage::ScalarBindings,
     types: &[StructuralTypeDeclaration],
-    value: checked_trees::CheckedStructuralValueHandle,
     receiver: checked_trees::CheckedStructuralValueHandle,
     subject: &CheckedUnitStructuralArgumentPlan,
     field: symbols::SymbolHandle,
     primitive: PrimitiveType,
+    atomic_ordering: Option<terminal_psi::MemoryOrdering>,
     completed: &crate::emission::operation_emission::buffer::ComputedValueBinding,
 ) -> Result<LoweredDirectExpression, LoweringError> {
     let mut argument = completed.argument.clone();
@@ -1424,32 +1398,11 @@ pub(crate) fn emitted_observation(
     }
     argument.access = terminal_psi::StructuralAccess::SharedBorrow;
     if receiver.is_valid() {
-        return completed_observation(fields, bindings, subject, field, primitive, argument);
+        let binding = field_binding(fields, subject, field, primitive)?;
+        return observe(binding, bindings, argument, None, atomic_ordering);
     }
-    let node = checked.facts.values.structural_values.nodes.get(value);
-    let original = match &node.kind {
-        checked_trees::CheckedStructuralValueKind::Place(source)
-        | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => source,
-        _ => return unsupported("captured field observation lost its established source"),
-    };
-    let (_, state) = crate::declarations::state_declaration(checked, node.state)?;
-    let home = bindings.borrowed_structural_home(original, checked.state_parameters(state))?;
-    let root_type = bindings
-        .structural_argument_type(&home)
-        .ok_or(LoweringError::Unsupported(
-            "captured field observation lost its established carrier",
-        ))?;
-    let mut source =
-        crate::emission::operation_emission::calls::PreparedStructuralArgument::from_static(
-            home,
-            Some(root_type),
-        )?;
-    source.path.extend(
-        crate::expression_preparation::bindings::structural_paths::prepare_structural_argument_path(
-            identities, checked, original, root_type, types,
-        )?,
-    );
-    copied_observation(
+    let coordinate = completed.observation.as_ref().map_err(Clone::clone)?;
+    completed_observation(
         fields,
         bindings,
         types,
@@ -1458,20 +1411,9 @@ pub(crate) fn emitted_observation(
         primitive,
         argument,
         completed.structural_type,
-        &source,
+        coordinate,
+        atomic_ordering,
     )
-}
-
-pub(super) fn completed_observation(
-    fields: &[Binding],
-    bindings: &storage::ScalarBindings,
-    subject: &CheckedUnitStructuralArgumentPlan,
-    field: symbols::SymbolHandle,
-    primitive: PrimitiveType,
-    source: terminal_psi::StructuralArgument,
-) -> Result<LoweredDirectExpression, LoweringError> {
-    let binding = field_binding(fields, subject, field, primitive)?;
-    observe(binding, bindings, source, None)
 }
 
 /// A copied operand owns a subtree of the original observation root. Retain
@@ -1487,6 +1429,41 @@ fn copied_observation(
     source_binding: terminal_psi::StructuralArgument,
     structural_type: semantic_vocabulary::StructuralTypeId,
     source: &crate::emission::operation_emission::calls::PreparedStructuralArgument,
+    atomic_ordering: Option<terminal_psi::MemoryOrdering>,
+) -> Result<LoweredDirectExpression, LoweringError> {
+    let coordinate = crate::emission::operation_emission::buffer::ComputedValueObservation {
+        root_type: source.root_type.ok_or(LoweringError::Unsupported(
+            "captured field observation lost its source carrier",
+        ))?,
+        path: source.path.clone(),
+        access: source.access,
+    };
+    completed_observation(
+        fields,
+        bindings,
+        types,
+        subject,
+        field,
+        primitive,
+        source_binding,
+        structural_type,
+        &coordinate,
+        atomic_ordering,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn completed_observation(
+    fields: &[Binding],
+    bindings: &storage::ScalarBindings,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    subject: &CheckedUnitStructuralArgumentPlan,
+    field: symbols::SymbolHandle,
+    primitive: PrimitiveType,
+    source_binding: terminal_psi::StructuralArgument,
+    structural_type: semantic_vocabulary::StructuralTypeId,
+    source: &crate::emission::operation_emission::buffer::ComputedValueObservation,
+    atomic_ordering: Option<terminal_psi::MemoryOrdering>,
 ) -> Result<LoweredDirectExpression, LoweringError> {
     use crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment;
     if !terminal_psi::StructuralAccess::SharedBorrow.admits(source.access) {
@@ -1503,9 +1480,7 @@ fn copied_observation(
             )),
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let root_type = source.root_type.ok_or(LoweringError::Unsupported(
-        "captured field observation lost its source carrier",
-    ))?;
+    let root_type = source.root_type;
     let (canonical_prefix, selected_type) =
         terminal_semantics::canonical_static_projection(types.iter(), root_type, &prefix).ok_or(
             LoweringError::Unsupported("captured field observation lost its source projection"),
@@ -1528,7 +1503,13 @@ fn copied_observation(
         ))?
         .to_vec();
     binding.observation_root_type = structural_type;
-    observe(&binding, bindings, source_binding, Some(structural_type))
+    observe(
+        &binding,
+        bindings,
+        source_binding,
+        Some(structural_type),
+        atomic_ordering,
+    )
 }
 
 fn field_binding<'a>(
@@ -1569,6 +1550,7 @@ fn observation_source(
     Ok(match binding.loan_source {
         Some(LoanedSource::Parameter(parameter_index)) => bindings.borrowed_structural_home(
             &CheckedUnitStructuralArgumentPlan {
+                projection_evaluations: Default::default(),
                 source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                     parameter_index,
                 },
@@ -1580,6 +1562,7 @@ fn observation_source(
         )?,
         Some(LoanedSource::Local(symbol)) => bindings.borrowed_structural_home(
             &CheckedUnitStructuralArgumentPlan {
+                projection_evaluations: Default::default(),
                 source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                     symbol,
                 },
@@ -1613,25 +1596,26 @@ fn resolved_observation_path(
 }
 
 /// Atomic and ordinary observations share custody/geometry, but an atomic
-/// leaf is observed only by one normalized event. Never use cached payloads
-/// or copy a containing case to obtain an instruction's observed resident.
+/// leaf is observed only by one normalized event. A saved descriptor may select
+/// its live referent; never use cached scalar payloads or synthesize a copy of
+/// the atomic resident to implement that event.
 fn atomic_observation(
     binding: &Binding,
     bindings: &storage::ScalarBindings,
     home: terminal_psi::StructuralArgument,
     ordering: terminal_psi::MemoryOrdering,
+    captured_type: Option<semantic_vocabulary::StructuralTypeId>,
 ) -> Result<LoweredDirectExpression, LoweringError> {
     if !ordering.valid_for_load()
         || !terminal_psi::StructuralAccess::SharedBorrow.admits(home.access)
         || binding.runtime_index.is_some()
         || binding.byte_overlay.is_some()
-        || binding.receiver.is_some()
         || binding.bounded_leaf
         || binding.scalar_type != binding.leaf_scalar_type
     {
         return unsupported("atomic load needs legal ordering and exact readable atomic storage");
     }
-    let path = resolved_observation_path(binding, bindings, &home, None)?;
+    let path = resolved_observation_path(binding, bindings, &home, captured_type)?;
     let Some((terminal_psi::StructuralPathSegment::Field(_), prefix)) = path.split_last() else {
         return unsupported("atomic load lost its exact field path");
     };
@@ -1667,7 +1651,15 @@ fn observe(
     bindings: &storage::ScalarBindings,
     home: terminal_psi::StructuralArgument,
     captured_type: Option<semantic_vocabulary::StructuralTypeId>,
+    atomic_ordering: Option<terminal_psi::MemoryOrdering>,
 ) -> Result<LoweredDirectExpression, LoweringError> {
+    // Both events consume the same completed carrier and normalized geometry.
+    // Atomic observation never enters ordinary snapshot/payload read paths: it
+    // emits an event at the declared live Atomic field, including reference
+    // crossings below a saved descriptor. Copy eligibility stays on the producer.
+    if let Some(ordering) = atomic_ordering {
+        return atomic_observation(binding, bindings, home, ordering, captured_type);
+    }
     if !terminal_psi::StructuralAccess::SharedBorrow.admits(home.access) {
         return unsupported("field observation requires readable source custody");
     }

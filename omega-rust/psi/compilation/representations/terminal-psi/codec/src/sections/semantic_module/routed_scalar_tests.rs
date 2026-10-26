@@ -33,6 +33,7 @@ fn module() -> TerminalModule {
     guarantee.remap_value_ids(|_| result);
     let mut machine = unit_machine(machine_id);
     machine.declaration.as_mut().unwrap().callable = TerminalIdentityIndex(3);
+    machine.declaration.as_mut().unwrap().semantic_declaration = TerminalIdentityIndex(1);
     machine.parameters.push(ValueDeclaration {
         id: subject,
         scalar_type,
@@ -68,6 +69,9 @@ fn module() -> TerminalModule {
                 proposition: predicate,
             }),
             establishment_routes: vec![ScalarDomainEstablishmentRoute::ExactMachine {
+                declaration: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(
+                    1,
+                )),
                 machine_identity: TerminalIdentityIndex(3),
             }],
         });
@@ -296,6 +300,9 @@ fn routed_scalar_result_rejects_detached_or_forged_transport() {
         ("wrong issuer", |module| {
             module.scalar_qualifications.domains[0].establishment_routes[0] =
                 ScalarDomainEstablishmentRoute::ExactMachine {
+                    declaration: terminal_psi::NominalDeclarationIdentity::new(
+                        TerminalIdentityIndex(1),
+                    ),
                     machine_identity: TerminalIdentityIndex(2),
                 }
         }),
@@ -362,6 +369,7 @@ fn routed_scalar_specialization_retains_exact_authored_issuer() {
         capture: None,
         template: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
         template_callable: TerminalIdentityIndex(3),
+        template_semantic_declaration: TerminalIdentityIndex(1),
         commitment: [9; 32],
     });
     module.machines[0].closed_reach_application = Some(terminal_psi::ClosedReachApplication {

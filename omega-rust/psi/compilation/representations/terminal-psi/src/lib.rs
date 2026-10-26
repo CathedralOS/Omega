@@ -18,9 +18,10 @@ pub use artifacts::{
     ProofSystemMarker, TerminalDebugMap, TerminalMachineProvenance,
 };
 pub use language_core::inline_assembly::{
-    AsmControlRegister as ControlRegister, AsmInterruptControlKind as InterruptControlKind,
-    AsmRegisterCarrier as RegisterCarrier, AsmRegisterOperation as RegisterOperation,
-    AsmSystemRegister as SystemRegister, AsmTargetApplicability as RegisterTargetApplicability,
+    AsmControlRegister as ControlRegister, AsmFenceKind as MemoryFenceKind,
+    AsmInterruptControlKind as InterruptControlKind, AsmRegisterCarrier as RegisterCarrier,
+    AsmRegisterOperation as RegisterOperation, AsmSystemRegister as SystemRegister,
+    AsmTargetApplicability as RegisterTargetApplicability,
 };
 pub use language_semantics::byte_predicates::{ByteSequencePredicate, ByteSequencePredicateSet};
 
@@ -46,4 +47,8 @@ pub use target_layouts::{
 pub use terminal_module::quotients::{
     TerminalQuotientAdaptation, TerminalQuotientAdaptationLicense, TerminalQuotientCatalog,
     TerminalQuotientOperation, TerminalQuotientRepresentation,
+};
+mod direct_calls;
+pub use direct_calls::{
+    DirectCallParts, DirectCallRole, call_structural_arguments, direct_call_parts,
 };

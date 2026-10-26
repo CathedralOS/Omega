@@ -3,6 +3,7 @@
 use crate::checks::content::content_paths::{
     content_path, content_segments_to_fact_path, projection_observations,
 };
+use crate::flow::{SelectionCondition, SelectionConditions};
 use checked_trees::{
     CheckFacts, ContentPartitionCompositionFact, ContentPartitionPlaceSubstitution,
     ContentPartitionResultRewrite,
@@ -49,8 +50,9 @@ enum InvocationResult {
     TailTransfer,
 }
 
-#[derive(Debug, Default)]
-struct PartitionCompositionEvidence {
+struct PartitionCompositionEvidence<'a> {
+    conditions: &'a mut SelectionConditions,
+    condition: SelectionCondition,
     input_claim_identities: Vec<PermissionClaimIdentity>,
     input_claim_bindings: Vec<checked_trees::ContentPartitionInputClaimBinding>,
     result_rewrites: Vec<ContentPartitionResultRewrite>,
@@ -97,32 +99,11 @@ pub(crate) fn ordinary_returns(
         .collect()
 }
 
-/// How many mutually exclusive completed values one outgoing edge can carry.
-/// A value join retains one alternative per reachable arm, so a callable
-/// guarantee needs the same normalized equation on every alternative rather
-/// than one theorem on the join.
-pub(crate) fn outgoing_completed_value_count(
-    facts: &CheckFacts,
-    returned_at: arena::Handle<checked_trees::FlowStateOutgoingFact>,
-) -> usize {
-    let outgoing = facts.flow.control.outgoing.get(returned_at);
-    if !outgoing.returned_value.is_valid() {
-        return 1;
-    }
-    let operand = facts.flow.control.operands.get(outgoing.returned_value);
-    facts
-        .flow
-        .control
-        .operands
-        .span_or_empty(operand.alternatives)
-        .len()
-        .max(1)
-}
-
 pub(crate) fn returned_partition_invocations(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &typed_trees::state::State,
+    conditions: &mut SelectionConditions,
 ) -> Vec<ReturnedPartitionInvocation> {
     let Some(state_flow) = facts
         .flow
@@ -142,13 +123,18 @@ pub(crate) fn returned_partition_invocations(
     let mut invocations = Vec::new();
     for returned_at in ordinary_returns(program, facts, state) {
         let outgoing = facts.flow.control.outgoing.get(returned_at);
-        let claims = crate::checks::multiplicity::current_returned_claims(program, facts, outgoing);
+        let claims = crate::checks::multiplicity::current_returned_claims(
+            program, facts, outgoing, conditions,
+        );
         let returned_operand = facts.flow.control.operands.get(outgoing.returned_value);
-        let alternatives = facts
-            .flow
-            .control
-            .operands
-            .span_or_empty(returned_operand.alternatives);
+        let alternatives = match returned_operand.completion {
+            checked_trees::FlowOperandCompletion::Selected(alternatives) => facts
+                .flow
+                .control
+                .operand_alternatives
+                .span_or_empty(alternatives),
+            _ => &[],
+        };
         for call in facts.flow.control.calls.span_or_empty(state_flow.calls) {
             let (Some(call_position), Some(return_position)) = (
                 order.position(call.statement_index),
@@ -215,12 +201,10 @@ pub(crate) fn returned_partition_invocations(
                     // itself. Retain that exact completed value so the
                     // wrapper's substitution reads the arm's own capture.
                     if let Some(alternative) = alternatives.iter().find(|alternative| {
-                        alternative.expression == expression
-                            && alternative.type_reference.is_valid()
+                        let completed = facts.flow.control.operands.get(alternative.value);
+                        completed.expression == expression && completed.type_reference.is_valid()
                     }) {
-                        if let Some(handle) = facts.flow.control.operands.handle_of(alternative) {
-                            completed_value = handle;
-                        }
+                        completed_value = alternative.value;
                     }
                     InvocationResult::Captured {
                         expression,
@@ -278,10 +262,20 @@ pub(crate) fn instantiate_partition_wrapper(
     invocation: &ReturnedPartitionInvocation,
     source: &ContentConservationPlan,
     source_derivation_depth: u32,
-) -> Option<ContentPartitionCompositionFact> {
+    conditions: &mut SelectionConditions,
+) -> Option<(ContentPartitionCompositionFact, SelectionCondition)> {
     let target_parameters = validation::call_target_parameters(program, invocation.target_symbol)?;
     let call_ordinal = invocation.call_ordinal;
-    let mut evidence = PartitionCompositionEvidence::default();
+    let condition = conditions.always();
+    let mut evidence = PartitionCompositionEvidence {
+        conditions,
+        condition,
+        input_claim_identities: Vec::new(),
+        input_claim_bindings: Vec::new(),
+        result_rewrites: Vec::new(),
+        substitutions: Vec::new(),
+        observed_entry_projection: false,
+    };
     let left = instantiate_partition_term(
         program,
         facts,
@@ -356,22 +350,25 @@ pub(crate) fn instantiate_partition_wrapper(
         equation,
         report_fingerprint,
     };
-    Some(ContentPartitionCompositionFact {
-        machine_symbol,
-        state_symbol: state.symbol,
-        source_callable: source.callable,
-        source_report_fingerprint: source.report_fingerprint,
-        source_derivation_depth,
-        source_plan: source.clone(),
-        statement_index: invocation.statement_index,
-        call_ordinal,
-        returned_at: invocation.returned_at,
-        input_claim_identities: evidence.input_claim_identities,
-        input_claim_bindings: evidence.input_claim_bindings,
-        result_rewrites: evidence.result_rewrites,
-        substitutions: evidence.substitutions,
-        plan,
-    })
+    Some((
+        ContentPartitionCompositionFact {
+            machine_symbol,
+            state_symbol: state.symbol,
+            source_callable: source.callable,
+            source_report_fingerprint: source.report_fingerprint,
+            source_derivation_depth,
+            source_plan: source.clone(),
+            statement_index: invocation.statement_index,
+            call_ordinal,
+            returned_at: invocation.returned_at,
+            input_claim_identities: evidence.input_claim_identities,
+            input_claim_bindings: evidence.input_claim_bindings,
+            result_rewrites: evidence.result_rewrites,
+            substitutions: evidence.substitutions,
+            plan,
+        },
+        evidence.condition,
+    ))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -582,12 +579,17 @@ fn partition_entry_binding(
                 && call.target_symbol == invocation.target_symbol
         })?;
     let position = typed_trees::signature::state_parameter_position(parameters, parameter.symbol)?;
-    let operand = facts
+    facts
         .flow
         .control
         .operands
         .span_or_empty(call.argument_operands())
         .get(position)?;
+    let operand = crate::flow::CapturedOperand::recorded(
+        &facts.flow.control,
+        call.argument_operands()
+            .handle_at(u32::try_from(position).ok()?),
+    )?;
     let path = content_segments_to_fact_path(&subject.segments)?;
     let values = crate::flow::captured_operand_values(
         program,
@@ -689,7 +691,7 @@ fn partition_entry_binding(
                             facts,
                             machine,
                             state_flow,
-                            captured.operand,
+                            captured.operand.row(),
                             producer.projected,
                             &expected,
                         ) {
@@ -774,12 +776,19 @@ fn instantiate_partition_result_subject(
     let [claim_identity] = identities.as_slice() else {
         return None;
     };
-    let mut outputs = claims.iter().filter(|claim| {
-        claim.source == crate::checks::multiplicity::ReturnedClaimSource::Live(*claim_identity)
-    });
-    let returned = outputs.next()?;
-    if outputs.next().is_some() {
+    let outputs = claims
+        .iter()
+        .filter(|claim| {
+            claim.source == crate::checks::multiplicity::ReturnedClaimSource::Live(*claim_identity)
+        })
+        .collect::<Vec<_>>();
+    let returned = *outputs.first()?;
+    if outputs.iter().any(|claim| claim.path != returned.path) {
         return None;
+    }
+    let mut correspondence = evidence.conditions.never();
+    for claim in outputs {
+        correspondence = evidence.conditions.any(correspondence, claim.condition);
     }
     // Current custody and unchanged content are separate obligations. The
     // retained capture trace follows stores through every receiving home and
@@ -791,7 +800,8 @@ fn instantiate_partition_result_subject(
         .states
         .iter()
         .find_map(|(_, flow)| (flow.state_symbol == caller_state.symbol).then_some(flow))?;
-    let operand = facts.flow.control.operands.get(invocation.completed_value);
+    let operand =
+        crate::flow::CapturedOperand::recorded(&facts.flow.control, invocation.completed_value)?;
     for observation in observations {
         let mut selected = returned.path.clone();
         selected.extend_from_slice(observation);
@@ -812,18 +822,39 @@ fn instantiate_partition_result_subject(
         )?;
         expected.segments.extend_from_slice(&source_path);
         expected.segments.extend_from_slice(observation);
-        if values.is_empty()
-            || !values.iter().all(|value| {
-                crate::flow::captured_value_places(program, &facts.flow, value).is_some_and(
-                    |places| {
-                        !places.is_empty() && places.iter().all(|place| place.projected == expected)
-                    },
-                )
-            })
-        {
+        if values.is_empty() {
             return None;
         }
+        let mut preserved = evidence.conditions.never();
+        let mut invalidated = evidence.conditions.never();
+        for value in &values {
+            let condition = evidence
+                .conditions
+                .choices(&facts.flow.control, &value.choices)?;
+            let agrees = crate::flow::captured_value_places(program, &facts.flow, value)
+                .is_some_and(|places| {
+                    !places.is_empty() && places.iter().all(|place| place.projected == expected)
+                });
+            if agrees {
+                preserved = evidence.conditions.any(preserved, condition);
+            } else {
+                invalidated = evidence.conditions.any(invalidated, condition);
+            }
+        }
+        // Dynamic selectors can have multiple candidates under one choice.
+        // One agreeing candidate cannot conceal another incompatible producer.
+        let not_invalidated = evidence.conditions.negate(&facts.flow.control, invalidated);
+        let contents = evidence.conditions.all(preserved, not_invalidated);
+        correspondence = evidence.conditions.all(correspondence, contents);
     }
+    evidence.condition = evidence.conditions.all(evidence.condition, correspondence);
+    if !evidence
+        .conditions
+        .possible(&facts.flow.control, evidence.condition)
+    {
+        return None;
+    }
+
     let target = ContentStructuralPlace {
         version: ContentPlaceVersion::Current,
         root: ContentPlaceRoot::Result,

@@ -809,11 +809,12 @@ pub(super) fn fields(
     else {
         return None;
     };
-    // A constructor's claims describe its transferred obligations, not its
-    // storage layout. Projected memberships likewise add no bytes. As for
-    // record fields, rejoin each owned operand and the
-    // selected payload's declared geometry without granting fresh custody.
-    if row.result.is_some() || !result.qualifications.is_empty() {
+    // Claims and memberships remain on the exact produced home; they add no
+    // bytes to its tag or payload. Rejoin that home before reconstructing the
+    // selected declaration's geometry, without granting fresh custody.
+    if row.result.is_some()
+        || operation_result(source, result.place) != Some((row.operation, result))
+    {
         return None;
     }
     let signature = source.structural.as_ref()?;

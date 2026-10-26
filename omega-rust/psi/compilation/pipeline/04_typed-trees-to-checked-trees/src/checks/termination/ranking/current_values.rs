@@ -124,6 +124,7 @@ fn prove_edge(
     )?;
     let TransitionTargetNode::Named {
         path,
+        static_machine_parameter,
         arguments,
         evidence_arguments,
         source_span,
@@ -135,6 +136,7 @@ fn prove_edge(
     };
     let site = validation::CallSite::TransitionNamed {
         path,
+        static_machine_parameter: *static_machine_parameter,
         arguments: *arguments,
         evidence_arguments,
         source_span: *source_span,

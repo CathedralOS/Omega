@@ -1,4 +1,4 @@
-//! Authenticate a native integer word through zero-offset record envelopes.
+//! Join a typed scalar payload to native integer-word record geometry.
 //! The operation reports geometry; callers retain their own actual C type
 //! restrictions (for example a record-valued u32 versus a pointer word).
 

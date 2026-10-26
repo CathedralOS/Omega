@@ -136,10 +136,14 @@ fn captured_operand<'facts>(
     state: &FlowStateFact,
     call: &FlowCallFact,
     actual: &Actual<'_>,
-) -> Option<&'facts checked_trees::FlowOperandFact> {
-    crate::flow::captured_call_operands(program, &facts.flow, state, call)?
-        .0
-        .get(actual.operand_position)
+) -> Option<crate::flow::CapturedOperand<'facts>> {
+    let operands = crate::flow::captured_call_operands(program, &facts.flow, state, call)?.0;
+    operands.get(actual.operand_position)?;
+    crate::flow::CapturedOperand::recorded(
+        &facts.flow.control,
+        call.operands
+            .handle_at(u32::try_from(actual.operand_position).ok()?),
+    )
 }
 
 /// The complete call telescope in exact captured source order. Static namespace
@@ -338,7 +342,7 @@ pub(crate) fn captured_arithmetic_observation(
                 machine,
                 body,
                 captured.projection.expression,
-                |place| {
+                |_observation, place| {
                     let reference = validation::canonical_place_type_reference(
                         program,
                         state.state_symbol,
@@ -373,12 +377,27 @@ pub(crate) fn captured_arithmetic_observation(
 }
 
 #[derive(Default)]
-pub(super) struct MembershipEvidence {
+pub(super) struct MembershipCase {
     pub contexts: Vec<FactContextHandle>,
     pub referents: Option<Vec<CanonicalPlace>>,
+}
+
+pub(super) struct MembershipEvidence {
+    // Each possible completed value owns its own evidence epoch. Contexts and
+    // referents from different selections are never a joint premise set.
+    pub cases: Vec<MembershipCase>,
     // Exact completed operand for a whole-formal membership. A projected
     // requirement cannot qualify the enclosing operand.
     pub whole_argument: Option<ExpressionHandle>,
+}
+
+impl Default for MembershipEvidence {
+    fn default() -> Self {
+        Self {
+            cases: vec![MembershipCase::default()],
+            whole_argument: None,
+        }
+    }
 }
 
 /// Bind the subject and evidence epoch of a declared membership's exact formal. A
@@ -480,47 +499,48 @@ pub(super) fn membership_evidence(
     let Some(values) = captured_values(program, facts, state, call, &actual) else {
         return Some(MembershipEvidence::default());
     };
-    let contexts = match values.as_slice() {
-        [captured] => crate::flow::operand_contexts(
-            program,
-            &facts.flow.contexts,
-            &facts.flow.control,
-            &facts.semantic,
-            captured.observation,
-            captured.observation_type,
-            call.entry_constraints,
-        ),
-        _ => Vec::new(),
-    };
-    let referents = (!values.is_empty()
-        && values
-            .iter()
-            .all(|value| crate::flow::operand_binds_live_view(program, value.type_reference)))
-    .then(|| {
-        values
-            .iter()
-            .map(|value| {
-                // Missing address capture is not an authenticated backing
-                // place. Do not reconstruct it from initializer syntax.
-                if value.operand.referents.is_empty() {
-                    return None;
-                }
-                crate::flow::captured_value_places(program, &facts.flow, value)
-            })
-            .collect::<Option<Vec<_>>>()
-            .unwrap_or_default()
-            .into_iter()
-            .flatten()
-            .map(|place| place.projected)
-            .collect()
-    });
+    let mut cases = values
+        .iter()
+        .map(|captured| {
+            let contexts = crate::flow::operand_contexts(
+                program,
+                &facts.flow.contexts,
+                &facts.flow.control,
+                &facts.semantic,
+                captured.observation.row(),
+                captured.observation_type,
+                call.entry_constraints,
+            );
+            let referents = crate::flow::operand_binds_live_view(program, captured.type_reference)
+                .then(|| {
+                    // Missing address capture is not an authenticated backing
+                    // place. Keep the failed view case, never a storage fallback.
+                    if captured.operand.referents.is_empty() {
+                        return Vec::new();
+                    }
+                    crate::flow::captured_value_places(program, &facts.flow, captured)
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|place| place.projected)
+                        .collect()
+                });
+            MembershipCase {
+                contexts,
+                referents,
+            }
+        })
+        .collect::<Vec<_>>();
+    if cases.is_empty() {
+        // A missing capture keeps the existing no-evidence judgment. It must
+        // not turn universal case checking into vacuous success.
+        cases.push(MembershipCase::default());
+    }
     // A stored view carries the address captured when it was formed, while
     // its membership is tested in the invocation's live context. Rebinding
     // only the context leaves record-held views stranded at the descriptor
     // slot and misses elementwise evidence on their actual backing storage.
     Some(MembershipEvidence {
-        contexts,
-        referents,
+        cases,
         whole_argument: actual.path.is_empty().then_some(actual.argument).flatten(),
     })
 }
@@ -542,7 +562,7 @@ pub(crate) fn actual_contexts(
         &facts.flow.contexts,
         &facts.flow.control,
         &facts.semantic,
-        captured.observation,
+        captured.observation.row(),
         captured.observation_type,
         call.entry_constraints,
     )
@@ -564,9 +584,33 @@ fn current_actual(
 ) -> Option<CheckedScalarExpression> {
     let (machine, body) =
         validation::machine_state_by_symbols(program, state.machine_symbol, state.state_symbol)?;
-    let capture = captured.observation;
+    let capture = captured.observation.row();
     let projection = &captured.observation_projection;
     let expression = projection.expression;
+    // A completed copy has its own observed coordinate. Re-lowering its
+    // authored place would bind the former storage instead and fail to join
+    // guards already expressed on this exact detached value. Shared reference
+    // leaves use the same query's saved descriptor/current-referent boundary.
+    if matches!(
+        capture.completion,
+        checked_trees::FlowOperandCompletion::Copied { .. }
+    ) {
+        let places = crate::flow::captured_observation_places(program, &facts.flow, captured)?;
+        let [place] = places.as_slice() else {
+            return None;
+        };
+        return bind_current(
+            program,
+            facts,
+            state,
+            call,
+            place.projected.clone(),
+            primitive,
+            contexts,
+            fold_observed_values,
+            bindings,
+        );
+    }
     // Builtin meaning permits evaluating the expression algebra. Other
     // producers still have an exact completed-result subject below; their
     // checked guarantees may describe that value without evaluating the call.
@@ -802,7 +846,7 @@ fn proves_bound_predicate_mode<'program>(
         let observation = predicate.binding(&operand)?;
         let actual = actual(observation)?;
         let captured = captured_value(program, facts, state, call, &actual)?;
-        let capture = captured.observation;
+        let capture = captured.observation.row();
         let capture_type = captured.observation_type;
         let operand_contexts = crate::flow::operand_contexts(
             program,
@@ -977,7 +1021,7 @@ pub(crate) fn entry_predicate(
         let actual = body_observation_actual(program, state, call, target, observation)?;
         let primitive = operand.primitive_type()?;
         let captured = captured_value(program, facts, state, call, &actual)?;
-        let capture = captured.operand;
+        let capture = captured.operand.row();
         let (machine, body) = validation::machine_state_by_symbols(
             program,
             state.machine_symbol,

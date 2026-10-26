@@ -1,33 +1,18 @@
-//! Checked reference-result sources for loan authority and storage facts.
+//! Reference-result geometry adapts the shared chronological result relation.
 //!
-//! `let room: &mut Room = level.room_mut(cell)` binds a reference whose
-//! referent is one of the places the callee's exits return -- here the
-//! sixteen `&mut slots[i]` arms over `self.rooms` -- and the returned view
-//! carries the callee's loans into the caller's actual, not a borrow of any
-//! private storage (wiki/spec/language/lifetimes.md, "Returned views"). The
-//! frame resolver knows no single origin for such a local, so an exclusive
-//! actual spelled through it left every call frame unrepresentable. This
-//! trace enumerates the callee's returned places through its `&mut`
-//! parameters (`self` included) and maps each onto the caller's actual, in
-//! the existing place vocabulary: `level.rooms[0]` .. `level.rooms[15]`.
-//!
-//! Fail-closed gates mirror the owned-result trace in
-//! `checks/termination/progress/origins.rs`: the callee must be a nongeneric
-//! checked body called without machine, evidence or dispatch arguments;
-//! every exit of its entry state must return a place rooted at an exclusive
-//! parameter through field, case and literal-index segments only; a
-//! sub-state route, a runtime index, or an unresolved callee local yields no
-//! candidates and the caller keeps its conservative treatment.
-//! Lifetime binders are erased regions, not runtime parameters. They do not
-//! change this source substitution; ordinary lifetime/escape checks still
-//! establish whether the returned access and source relation are legal.
+//! Completed Flow operands can select stored descriptor leaves from an owned
+//! input. The older raw storage query has only a borrowed input address and
+//! declines that descriptor load. Both consumers use the same complete body
+//! relation; neither replays a declaration initializer or creates loan authority.
+//! Callee-local dynamic selectors and recast presentations are not executable
+//! caller coordinates and remain unavailable to this exact-address adapter.
 
 use validation::CanonicalPlace;
 
 use facts::{PlaceRoot, PlaceSegment};
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
-use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
+use typed_trees::statement::StatementNode;
 
 /// The candidate storage places a reference-typed local names at
 /// `statement_index`, when it was bound from a checked reference result and
@@ -83,12 +68,23 @@ fn call_result_candidates(
     include_shared: bool,
 ) -> Option<Vec<CanonicalPlace>> {
     let mut candidates = Vec::new();
-    for source in call_result_sources(program, call, call_frames, include_shared)? {
+    let arguments = program.expression_table.expression_handles(call.arguments);
+    for source in call_result_leaf_sources(program, call, call_frames)? {
+        // This query has no completed descriptor inventory. An owned formal's
+        // field denotes a stored descriptor, not its pointee address; only the
+        // evaluated Flow consumer can load that leaf from its captured value.
+        if !source.result_path.is_empty()
+            || source.collection_coarse
+            || !parameter_grants_readable_loan(program, source.parameter_type, include_shared)
+        {
+            return None;
+        }
+        let actual = *arguments.get(source.argument_index)?;
         for mut storage in storage_places(
             program,
             caller_state_symbol,
             statement_index,
-            source.actual,
+            actual,
             call_frames,
             include_shared,
         )? {
@@ -176,77 +172,129 @@ fn storage_places(
 /// A checked body's actual storage route, before rebasing through caller
 /// locals. This value-origin query is not the lifetime/authority frontier:
 /// declarations can retain inputs absent from the body's actual return paths.
-struct ReferenceResultSource {
-    actual: ExpressionHandle,
-    segments: Vec<PlaceSegment>,
+#[derive(Clone, Copy)]
+pub(in crate::flow) enum ReferenceResultSourceKind {
+    Reference,
+    Value {
+        type_reference: typed_trees::types::TypeReferenceHandle,
+    },
 }
 
-fn call_result_sources(
+pub(in crate::flow) struct ReferenceResultSource {
+    pub(in crate::flow) kind: ReferenceResultSourceKind,
+    pub(in crate::flow) result_path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+    pub(in crate::flow) argument_index: usize,
+    pub(in crate::flow) parameter_type: typed_trees::types::TypeReferenceHandle,
+    /// Indexed frame spellings coarsen to the containing collection even when
+    /// authenticated structural selectors retain an exact fixed slot. Raw
+    /// storage adapters need this limit; completed values consume the selectors.
+    collection_coarse: bool,
+    pub(in crate::flow) segments: Vec<PlaceSegment>,
+}
+
+pub(in crate::flow) fn call_result_leaf_sources(
     program: &dyn ::validation::CheckingInput,
     call: &TableCallExpression,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
-    include_shared: bool,
 ) -> Option<Vec<ReferenceResultSource>> {
-    let (callee, callee_state) = validation::find_state(program, call.target_symbol)?;
-    if callee.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-        || !callee.body_is_present
-        || !program.machine_type_parameters(callee).is_empty()
-        || call.receiver.is_valid() != callee.attached_data.is_some()
+    let sources = call_result_captured_sources(program, call, call_frames, &[])?;
+    sources
+        .into_iter()
+        .map(|source| {
+            // Raw storage consumers have no completed value inventory with
+            // which to select a descriptor from a transported owned subtree.
+            matches!(source.kind, ReferenceResultSourceKind::Reference).then_some(source)
+        })
+        .collect()
+}
+
+/// Preserve whole-value transport until the completed-input consumer can
+/// select its actual descriptor leaves. A declaration path identifies a slot,
+/// never the presence or address of the value carried in that slot.
+pub(in crate::flow) fn call_result_captured_sources(
+    program: &dyn ::validation::CheckingInput,
+    call: &TableCallExpression,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    indices: &[Option<usize>],
+) -> Option<Vec<ReferenceResultSource>> {
+    let (callee, state) = validation::find_state(program, call.target_symbol)?;
+    let parameters = program.state_parameters(state);
+    if call.receiver.is_valid() != callee.attached_data.is_some()
         || !call.carries_only_positional_arguments()
         || !call.selects_only_nominal_route()
-        || program.machine_states(callee).first()?.symbol != callee_state.symbol
+        || program
+            .expression_table
+            .expression_handles(call.arguments)
+            .len()
+            != parameters.len()
     {
         return None;
     }
-    let parameters = program.state_parameters(callee_state);
-    let arguments = program.expression_table.expression_handles(call.arguments);
-    if arguments.len() != parameters.iter().count() {
-        return None;
-    }
-    let mut sources = Vec::new();
-    for (returned_index, returned) in callee_returned_expressions(program, callee_state)? {
-        let place = validation::canonical_place_from_expression_in_state(
-            program,
-            callee_state.symbol,
-            returned_index,
-            returned,
-        )?;
-        // A callee local (`let slots: &mut [Room] = &mut self.rooms[..]`)
-        // resolves to its exact origin; anything less is no candidate.
-        let place = crate::flow::rebase_exact_local_place(
-            program,
-            callee_state.symbol,
-            returned_index,
-            place,
-            call_frames,
-        )?;
-        let root = place.root.as_symbol()?;
-        if !place.segments.iter().all(|segment| {
-            matches!(
-                segment,
-                PlaceSegment::Field { .. }
-                    | PlaceSegment::Case { .. }
-                    | PlaceSegment::FixedIndex { .. }
-            )
-        }) {
-            return None;
+    let prepared_frames;
+    let frames = match call_frames {
+        Some(frames) => frames,
+        None => {
+            prepared_frames = validation::CallFrameResolver::new(program)?;
+            &prepared_frames
         }
-        let parameter = parameters
-            .iter()
-            .find(|parameter| parameter.symbol == root)?;
-        if !parameter_grants_readable_loan(program, parameter.type_reference, include_shared) {
-            return None;
-        }
-        let actual = {
-            *arguments.get(
-                parameters
-                    .iter()
-                    .position(|candidate| candidate.symbol == root)?,
-            )?
+    };
+    // Raw storage consumers have no completed argument roster. Captured
+    // consumers supply every formal lane, including unknown coordinates;
+    // only the shared invocation owner may refine the symbolic source paths.
+    let transports = if indices.is_empty() {
+        frames.reference_result_transports(state.symbol)?
+    } else {
+        frames.reference_result_transports_for_indices(state.symbol, indices)?
+    };
+    let mut sources = Vec::with_capacity(transports.len());
+    for transport in transports {
+        let (result_path, source, kind) = match transport {
+            validation::ReferenceResultTransport::Reference(origin) => (
+                origin.result_path,
+                origin.source,
+                ReferenceResultSourceKind::Reference,
+            ),
+            validation::ReferenceResultTransport::Value {
+                result_path,
+                source,
+                type_reference,
+            } => (
+                result_path,
+                source,
+                ReferenceResultSourceKind::Value { type_reference },
+            ),
         };
+        // Every returned leaf keeps its own result coordinate. Every feasible
+        // origin must be exact; omitting an unresolved alternative would invent
+        // a more precise descriptor. Lifetime signatures cannot supply it.
+        if source.is_image_storage
+            || !source.recasts.is_empty()
+            || source.representation.is_some()
+            || !source.segments.iter().all(|segment| {
+                matches!(
+                    segment,
+                    PlaceSegment::Field { .. }
+                        | PlaceSegment::Case { .. }
+                        | PlaceSegment::FixedIndex { .. }
+                )
+            })
+        {
+            return None;
+        }
+        let (argument_index, parameter) = parameters
+            .iter()
+            .enumerate()
+            .find(|(_, parameter)| parameter.symbol == source.root)?;
         sources.push(ReferenceResultSource {
-            actual,
-            segments: place.segments,
+            kind,
+            result_path: crate::borrow::structural_owner_path(
+                program,
+                &crate::borrow::owner_path_from_place_segments(program, &result_path),
+            )?,
+            argument_index,
+            parameter_type: parameter.type_reference,
+            collection_coarse: source.collection_coarse,
+            segments: source.segments,
         });
     }
     (!sources.is_empty()).then_some(sources)
@@ -273,38 +321,4 @@ fn parameter_grants_readable_loan(
         }
     }
     false
-}
-
-/// Every returned expression of the callee's entry state with its statement
-/// index: each value arm of its transition run and a trailing result
-/// expression. A route into another state, a self-loop, or a terminal exit
-/// cannot be enumerated here.
-fn callee_returned_expressions(
-    program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
-) -> Option<Vec<(usize, ExpressionHandle)>> {
-    let statements = program.statement_table.statements(state.statement_nodes);
-    let mut returned = Vec::new();
-    let mut has_transition = false;
-    for (index, statement) in statements.iter().enumerate() {
-        let Some(transition) = statement.as_transition() else {
-            continue;
-        };
-        has_transition = true;
-        if transition.exit != TransitionExit::Ordinary {
-            return None;
-        }
-        for target in transition.targets() {
-            match program.statement_table.transition_target(target) {
-                TransitionTargetNode::Value(value) => returned.push((index, *value)),
-                _ => return None,
-            }
-        }
-    }
-    if !has_transition {
-        let (index, last) = statements.iter().enumerate().next_back()?;
-        let value = last.as_expression()?;
-        returned.push((index, *value));
-    }
-    Some(returned)
 }

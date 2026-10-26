@@ -13,6 +13,11 @@ use target::TargetProfile;
 /// continue. A check uses a private workspace and publishes no product files.
 pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildError> {
     let profiles = target_profiles(&request.targets)?;
+    if matches!(request.product, ProjectProduct::Check) {
+        compiler::RequestedCompileProduct::Check
+            .validate_optimization_rollback(&request.optimization_rollback)
+            .map_err(|error| BuildError::Diagnostics(vec![error]))?;
+    }
     if matches!(request.product, ProjectProduct::Inspection { .. }) && profiles.len() != 1 {
         return Err(BuildError::Diagnostics(vec![Diagnostic::error(
             "Terminal inspection requires one exact target context",
@@ -50,7 +55,7 @@ pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildErro
         .record_result(
             StageMeta::new("prepare", "project", "prepared sources"),
             || {
-                packages::prepare_local_project_for_targets(
+                packages::begin_local_project_preparation(
                     &request.root_path,
                     &profiles,
                     request.offline,
@@ -73,6 +78,38 @@ pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildErro
     let reports = if active.is_empty() {
         Vec::new()
     } else {
+        let prepared = match prepared {
+            Some(preparation) => {
+                let host = TargetProfile::host_if_supported().ok_or_else(|| {
+                    BuildError::Diagnostics(vec![Diagnostic::error(
+                        "Build execution needs an admitted host profile",
+                    )])
+                })?;
+                let mut session = crate::BuildSession::create(&base_directory)
+                    .map_err(|error| BuildError::BuildDirectory(error.to_string()))?;
+                let resolved = crate::resolve_project_sources(
+                    &mut session,
+                    crate::ProjectSourceRequest {
+                        preparation,
+                        execution_profile: host,
+                        snapshot: request.build_snapshot.clone(),
+                        collect_timings: request.timings,
+                    },
+                );
+                let resolved = match resolved {
+                    Ok(resolved) => resolved,
+                    Err(error) => {
+                        let mut reason = format!("project source discovery failed: {error}");
+                        if let Err(error) = session.close() {
+                            reason.push_str(&format!("; session disposal: {error}"));
+                        }
+                        return Err(BuildError::Diagnostics(vec![Diagnostic::error(reason)]));
+                    }
+                };
+                Some((resolved, session))
+            }
+            None => None,
+        };
         timings.record_result(
             StageMeta::new("compile", "sources", "requested product"),
             || products::compile(&request, prepared, &base_directory, &active),

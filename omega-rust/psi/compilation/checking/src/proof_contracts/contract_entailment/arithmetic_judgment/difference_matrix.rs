@@ -5,6 +5,9 @@ use super::super::BigInt;
 use super::{Engine, Polynomial, SUBSTITUTION_ROUNDS, ZERO_ATOM};
 use crate::proof_contracts::arithmetic_domains::BigIntInterval as Interval;
 
+mod bounds;
+pub(super) use bounds::DifferenceBounds;
+
 impl<'program> Engine<'program> {
     /// Integer disequality follows from a retained unequal difference or a
     /// strict bound in either direction. Unknown is not nonzero evidence.
@@ -31,151 +34,31 @@ impl<'program> Engine<'program> {
         })
     }
 
-    /// Prove a lower bound directly or by adding one stored lower bound to
-    /// a residual established by the existing nonrecursive judgment.
     pub(in crate::proof_contracts::contract_entailment) fn prove_at_least(
         &self,
         polynomial: &Polynomial,
         bound: &BigInt,
     ) -> bool {
-        if self.prove_base_lower_bound(polynomial, bound) {
-            return true;
-        }
-        self.bounds.iter().any(|(stored, stored_bound)| {
-            // P >= b and goal - P >= requested - b imply goal >= requested.
-            // Do not recursively search combinations of stored hypotheses.
-            self.prove_base_lower_bound(&polynomial.sub(stored), &bound.sub(stored_bound))
-                || self.prove_scaled_lower_bound(polynomial, bound, stored, stored_bound)
-        })
+        super::LowerBoundQueries::direct(self).prove_at_least(polynomial, bound)
     }
 
-    /// Difference bounds, exact hypotheses, and independent intervals only.
-    ///
-    /// This query is pure: contradiction checking reuses failed queries for
-    /// identical canonical residuals within one immutable engine.
     pub(super) fn prove_base_lower_bound(&self, polynomial: &Polynomial, bound: &BigInt) -> bool {
-        if let Some((positive, negative, constant)) = polynomial.as_atom_difference()
-            && let Some(best) = self.matrix_bound(&positive, &negative)
-            && best.add(&constant) >= *bound
-        {
-            return true;
-        }
-        if let Some((atom, sign, constant)) = polynomial.as_single_atom() {
-            let other = if sign == 1 {
-                self.matrix_bound(&atom, ZERO_ATOM)
-            } else {
-                self.matrix_bound(ZERO_ATOM, &atom)
-            };
-            if let Some(best) = other
-                && best.add(&constant) >= *bound
-            {
-                return true;
-            }
-        }
-        // A premise can match the goal directly or after positive rational
-        // scaling and a constant offset. Preserve correlated sums rather than
-        // replacing them with independent intervals. This remains a single
-        // established premise, including when an outer query asks a residual.
-        for (stored, stored_bound) in &self.bounds {
-            if (stored == polynomial && stored_bound >= bound)
-                || self.prove_proportional_lower_bound(polynomial, bound, stored, stored_bound)
-            {
-                return true;
-            }
-        }
-        if let Some(low) = self.polynomial_interval(polynomial).low
-            && low >= *bound
-        {
-            return true;
-        }
-        if self
-            .affine_difference_lower_bound(polynomial)
-            .is_some_and(|low| low >= *bound)
-        {
-            return true;
-        }
-        self.horner_interval(polynomial, 0)
-            .low
-            .is_some_and(|low| low >= *bound)
+        super::LowerBoundQueries::direct(self).prove_base_lower_bound(polynomial, bound)
     }
 
-    /// Independent atom intervals lose sums of known differences. Consume each
-    /// affine coefficient once, pairing positive and negative mass with proved
-    /// matrix edges and bounding the remainder independently. Every selected
-    /// edge contributes a nonnegative multiple of an established inequality;
-    /// neither the requested goal nor a pending operation becomes a premise.
-    ///
-    /// This is a bounded sufficient enclosure, not a linear-programming solver.
-    /// Prefer edges covering unbounded terms, then their improvement over unary
-    /// bounds. An incomplete greedy decomposition stays unknown. It cannot
-    /// weaken the independent enclosure already tried by the caller.
-    fn affine_difference_lower_bound(&self, polynomial: &Polynomial) -> Option<BigInt> {
-        let mut constant = BigInt::zero();
-        let mut positive = Vec::new();
-        let mut negative = Vec::new();
-        for (monomial, coefficient) in &polynomial.terms {
-            if monomial.is_empty() {
-                constant = coefficient.clone();
-                continue;
-            }
-            let mut factors = monomial.iter();
-            let (atom, power) = factors.next()?;
-            if *power != 1 || factors.next().is_some() {
-                return None;
-            }
-            let interval = self.atom_interval(atom);
-            if coefficient.is_negative() {
-                negative.push((
-                    atom,
-                    coefficient.abs(),
-                    interval.high.map(|high| high.negate()),
-                ));
-            } else {
-                positive.push((atom, coefficient.clone(), interval.low));
-            }
-        }
-        // The single-difference route already covers smaller affine terms.
-        // Bound this optional search independently of source integer widths.
-        if positive.len() + negative.len() < 3 || positive.len() + negative.len() > 128 {
-            return None;
-        }
-        let mut edges = Vec::new();
-        for (positive_position, (positive_atom, _, positive_low)) in positive.iter().enumerate() {
-            for (negative_position, (negative_atom, _, negative_low)) in negative.iter().enumerate()
-            {
-                let Some(edge_bound) = self.matrix_bound(positive_atom, negative_atom) else {
-                    continue;
-                };
-                let unbounded =
-                    usize::from(positive_low.is_none()) + usize::from(negative_low.is_none());
-                let improvement = match (positive_low, negative_low) {
-                    (Some(left), Some(right)) => edge_bound.sub(&left.add(right)),
-                    _ => edge_bound.clone(),
-                };
-                edges.push((
-                    unbounded,
-                    improvement,
-                    positive_position,
-                    negative_position,
-                    edge_bound,
-                ));
-            }
-        }
-        edges.sort_by(|left, right| right.0.cmp(&left.0).then_with(|| right.1.cmp(&left.1)));
-        for (_, _, positive_position, negative_position, edge_bound) in edges {
-            let positive_mass = &mut positive[positive_position].1;
-            let negative_mass = &mut negative[negative_position].1;
-            let mass = positive_mass.clone().min(negative_mass.clone());
-            constant = constant.add(&mass.mul(&edge_bound));
-            *positive_mass = positive_mass.sub(&mass);
-            *negative_mass = negative_mass.sub(&mass);
-        }
-        for (_, mass, lower_bound) in positive.into_iter().chain(negative) {
-            if !mass.is_zero() {
-                constant = constant.add(&mass.mul(&lower_bound?));
-            }
-        }
-        Some(constant)
+    pub(super) fn prove_scaled_lower_bound(
+        &self,
+        goal: &Polynomial,
+        bound: &BigInt,
+        stored: &Polynomial,
+        stored_bound: &BigInt,
+    ) -> bool {
+        super::LowerBoundQueries::direct(self).prove_scaled_lower_bound(
+            goal,
+            bound,
+            stored,
+            stored_bound,
+        )
     }
 
     /// P >= b contradicts -P >= 1-b over integers. Apply the same standalone,
@@ -217,29 +100,7 @@ impl<'program> Engine<'program> {
         &self,
         polynomial: &Polynomial,
     ) -> Interval {
-        let mut total = Interval::constant(BigInt::zero());
-        for (monomial, coefficient) in &polynomial.terms {
-            let mut product = Interval::constant(BigInt::from_i64(1));
-            for (atom, power) in monomial {
-                let base = self.atom_interval(atom);
-                product = product.multiply(&base.correlated_power(*power));
-            }
-            total = total.add(&product.scale(coefficient));
-        }
-        // Independent atom intervals forget correlations such as upper >
-        // lower. Preserve a difference's established range when it becomes
-        // an operand of another operation (notably a quotient).
-        if let Some((positive, negative, constant)) = polynomial.as_atom_difference() {
-            if let Some(low) = self.matrix_bound(&positive, &negative) {
-                let low = low.add(&constant);
-                total.low = Some(total.low.map_or(low.clone(), |old| old.max(low)));
-            }
-            if let Some(high) = self.matrix_bound(&negative, &positive) {
-                let high = constant.sub(&high);
-                total.high = Some(total.high.map_or(high.clone(), |old| old.min(high)));
-            }
-        }
-        total
+        super::LowerBoundQueries::direct(self).polynomial_interval(polynomial)
     }
 
     pub(super) fn atom_interval(&self, atom: &str) -> Interval {
@@ -265,148 +126,215 @@ impl<'program> Engine<'program> {
         }
     }
 
-    /// The closed lower bound of `from - to`. Atoms in different components
-    /// relate only through the zero atom, so their bound is the two-hop sum
-    /// `(from - 0) + (0 - to)`; the component closures below already hold
-    /// every other path.
+    /// Components communicate through zero without materializing every pair.
+    /// Use the same query for indexed incremental updates and named callers.
     pub(super) fn matrix_bound(&self, from: &str, to: &str) -> Option<BigInt> {
         if from == to {
             return Some(BigInt::zero());
         }
-        if let Some(bound) = self.recorded_bound(from, to) {
-            return Some(bound);
+        self.matrix_bound_indices(self.matrix.position(from)?, self.matrix.position(to)?)
+    }
+
+    fn matrix_bound_indices(&self, from: usize, to: usize) -> Option<BigInt> {
+        if from == to {
+            return Some(BigInt::zero());
         }
-        if from == ZERO_ATOM || to == ZERO_ATOM {
+        if let Some(bound) = self.matrix.stored_bound_indices(from, to) {
+            return Some(bound.clone());
+        }
+        let zero = self.matrix.position(ZERO_ATOM)?;
+        if from == zero || to == zero {
             return None;
         }
-        let through_zero = self.recorded_bound(from, ZERO_ATOM)?;
-        Some(through_zero.add(&self.recorded_bound(ZERO_ATOM, to)?))
+        let through_zero = self.matrix.stored_bound_indices(from, zero)?;
+        Some(through_zero.add(self.matrix.stored_bound_indices(zero, to)?))
     }
 
-    fn recorded_bound(&self, from: &str, to: &str) -> Option<BigInt> {
-        self.matrix.get(from).and_then(|row| row.get(to)).cloned()
+    /// Matrix writes are additive. A consistent retained matrix is already
+    /// transitively closed, so one stronger seed needs only paths containing
+    /// that edge once. An inconsistent graph retains the original closure and
+    /// its order-dependent values; speculative updates never enter that route.
+    pub(super) fn refresh_difference_bounds(&mut self) {
+        if self.requires_unsatisfiable {
+            self.seed_matrix();
+            self.close_matrix();
+            return;
+        }
+        let mut original = None;
+        for (from, to, bound) in self.difference_seeds() {
+            if self
+                .matrix
+                .stored_bound(&from, &to)
+                .is_some_and(|previous| previous >= &bound)
+            {
+                continue;
+            }
+            // Clone only once, before this refresh's first changed seed. A
+            // later edge can close a positive cycle through earlier new edges.
+            // Restoring only that edge's input would change old-route history.
+            let original_matrix = original.get_or_insert_with(|| self.matrix.clone());
+            if !self.strengthen_closed_difference(&from, &to, bound) {
+                self.matrix = std::mem::take(original_matrix);
+                self.seed_matrix();
+                self.close_matrix();
+                return;
+            }
+        }
     }
 
-    pub(super) fn seed_matrix(&mut self) {
-        for atom in self.unsigned_atoms.clone() {
-            self.record_difference(&atom, ZERO_ATOM, BigInt::zero());
+    fn difference_seeds(&self) -> Vec<(String, String, BigInt)> {
+        let mut seeds = Vec::new();
+        for atom in &self.unsigned_atoms {
+            seeds.push((atom.clone(), ZERO_ATOM.to_owned(), BigInt::zero()));
         }
-        let arithmetic_atoms: Vec<(String, Interval)> = self
-            .arithmetic_intervals
-            .iter()
-            .map(|(atom, interval)| (atom.clone(), interval.clone()))
-            .collect();
-        for (atom, interval) in arithmetic_atoms {
-            if let Some(low) = interval.low {
-                self.record_difference(&atom, ZERO_ATOM, low);
+        for (atom, interval) in &self.arithmetic_intervals {
+            if let Some(low) = &interval.low {
+                seeds.push((atom.clone(), ZERO_ATOM.to_owned(), low.clone()));
             }
-            if let Some(high) = interval.high {
-                self.record_difference(ZERO_ATOM, &atom, high.negate());
+            if let Some(high) = &interval.high {
+                seeds.push((ZERO_ATOM.to_owned(), atom.clone(), high.negate()));
             }
         }
-        for (polynomial, bound) in self.bounds.clone() {
+        for (polynomial, bound) in &self.bounds {
             if let Some((positive, negative, constant)) = polynomial.as_atom_difference() {
-                self.record_difference(&positive, &negative, bound.sub(&constant));
+                seeds.push((positive, negative, bound.sub(&constant)));
             }
             if let Some((atom, sign, constant)) = polynomial.as_single_atom() {
                 let edge = bound.sub(&constant);
                 if sign == 1 {
-                    self.record_difference(&atom, ZERO_ATOM, edge);
+                    seeds.push((atom, ZERO_ATOM.to_owned(), edge));
                 } else {
-                    self.record_difference(ZERO_ATOM, &atom, edge);
+                    seeds.push((ZERO_ATOM.to_owned(), atom, edge));
                 }
             }
         }
+        seeds
     }
 
-    pub(super) fn record_difference(&mut self, from: &str, to: &str, bound: BigInt) {
-        let row = self.matrix.entry(from.to_owned()).or_default();
-        match row.entry(to.to_owned()) {
-            std::collections::btree_map::Entry::Vacant(slot) => {
-                slot.insert(bound);
+    fn seed_matrix(&mut self) -> bool {
+        let mut changed = false;
+        for (from, to, bound) in self.difference_seeds() {
+            changed |= self.record_difference(&from, &to, bound);
+        }
+        changed
+    }
+
+    /// Extend a closed consistent max-plus graph by u - v >= bound. A new
+    /// edge can occur at most once on an improving path when the old reverse
+    /// path plus this edge is nonpositive. Capture both old frontiers before
+    /// writing, including virtual zero diagonals for previously unseen vertices.
+    fn strengthen_closed_difference(&mut self, from: &str, to: &str, bound: BigInt) -> bool {
+        if self
+            .matrix_bound(to, from)
+            .is_some_and(|reverse| reverse.add(&bound) > BigInt::zero())
+        {
+            // Do not set unsatisfiable here: the original seed/close route owns
+            // historical diagonal handling and inconsistent graph behavior.
+            return false;
+        }
+        if from == to {
+            // Nonpositive diagonal seeds cannot improve paths, but still retain
+            // the original vertex and stored diagonal inventory.
+            self.record_difference(from, to, bound);
+            return true;
+        }
+        // Capture the old lexical vertex inventory before introducing either
+        // endpoint. Stable indices never determine semantic iteration order.
+        let atoms = self.matrix.lexical_indices().to_vec();
+        let from = self.matrix.intern(from);
+        let to = self.matrix.intern(to);
+        let mut incoming = vec![(from, BigInt::zero())];
+        let mut outgoing = vec![(to, BigInt::zero())];
+        for atom in atoms {
+            if atom != from
+                && let Some(value) = self.matrix_bound_indices(atom, from)
+            {
+                incoming.push((atom, value));
             }
-            std::collections::btree_map::Entry::Occupied(mut slot) => {
-                if bound > *slot.get() {
-                    slot.insert(bound);
+            if atom != to
+                && let Some(value) = self.matrix_bound_indices(to, atom)
+            {
+                outgoing.push((atom, value));
+            }
+        }
+        self.matrix.record_indices(from, to, bound.clone());
+        for (source, prefix) in incoming {
+            let through_edge = prefix.add(&bound);
+            for (destination, suffix) in &outgoing {
+                if source != *destination {
+                    self.matrix
+                        .record_indices(source, *destination, through_edge.add(suffix));
                 }
             }
         }
-        self.matrix.entry(to.to_owned()).or_default();
+        true
     }
 
-    /// Transitive closure of the recorded differences, one connected
-    /// component at a time. Atoms are joined by their recorded edges; the
-    /// zero atom joins every component and is excluded from connectivity. A
-    /// path between two atoms that leaves their component passes through
-    /// zero twice, and the excursion is a cycle at zero whose weight cannot
-    /// be positive in a satisfiable system, so it never improves the path;
-    /// a positive cycle through zero spanning two components decomposes into
-    /// a positive cycle within one of them. The closure of each component
-    /// with zero therefore restricts the whole closure exactly, and
-    /// `matrix_bound` supplies the cross-component two-hop through zero.
-    /// The roster can hold thousands of atoms related only to zero (every
-    /// integer leaf of a large record), where the whole-roster cubic
-    /// closure did not finish; component closures stay cubic in each
-    /// component's size.
+    fn record_difference(&mut self, from: &str, to: &str, bound: BigInt) -> bool {
+        self.matrix.record(from, to, bound)
+    }
+
+    /// Close connected components with zero, preserving lexical iteration.
+    /// Every path between components passes through zero. An excursion from
+    /// zero back to zero cannot improve a satisfiable bound; a positive cycle
+    /// already contradicts one component. Named and indexed queries therefore
+    /// recover cross-component bounds through their two stored zero edges.
     pub(super) fn close_matrix(&mut self) {
-        let atoms: Vec<String> = self
+        let zero = self.matrix.position(ZERO_ATOM);
+        let atoms: Vec<usize> = self
             .matrix
-            .keys()
-            .filter(|atom| atom.as_str() != ZERO_ATOM)
-            .cloned()
-            .collect();
-        let position: std::collections::BTreeMap<&str, usize> = atoms
+            .lexical_indices()
             .iter()
-            .enumerate()
-            .map(|(index, atom)| (atom.as_str(), index))
+            .copied()
+            .filter(|index| Some(*index) != zero)
             .collect();
-        let mut parent: Vec<usize> = (0..atoms.len()).collect();
-        fn root(parent: &mut [usize], mut index: usize) -> usize {
-            while parent[index] != index {
-                parent[index] = parent[parent[index]];
-                index = parent[index];
+        let mut lexical_position = vec![0; self.matrix.lexical_indices().len()];
+        for (position, atom) in atoms.iter().enumerate() {
+            lexical_position[*atom] = position;
+        }
+        let mut parents: Vec<usize> = (0..atoms.len()).collect();
+        fn component_root(parents: &mut [usize], mut index: usize) -> usize {
+            while parents[index] != index {
+                parents[index] = parents[parents[index]];
+                index = parents[index];
             }
             index
         }
-        for (from, row) in &self.matrix {
-            let Some(&from_index) = position.get(from.as_str()) else {
-                continue;
-            };
-            for to in row.keys() {
-                let Some(&to_index) = position.get(to.as_str()) else {
-                    continue;
-                };
-                let (left, right) = (root(&mut parent, from_index), root(&mut parent, to_index));
+        for from in &atoms {
+            let mut destinations: Vec<usize> = self
+                .matrix
+                .stored_targets(*from)
+                .filter(|index| Some(*index) != zero)
+                .collect();
+            destinations.sort_unstable_by_key(|index| lexical_position[*index]);
+            for to in destinations {
+                let left = component_root(&mut parents, lexical_position[*from]);
+                let right = component_root(&mut parents, lexical_position[to]);
                 if left != right {
-                    parent[left] = right;
+                    parents[left] = right;
                 }
             }
         }
-        let mut components: std::collections::BTreeMap<usize, Vec<String>> =
-            std::collections::BTreeMap::new();
-        for (index, atom) in atoms.iter().enumerate() {
-            components
-                .entry(root(&mut parent, index))
-                .or_default()
-                .push(atom.clone());
+        let mut components = vec![Vec::new(); atoms.len()];
+        for (position, atom) in atoms.into_iter().enumerate() {
+            components[component_root(&mut parents, position)].push(atom);
         }
-        let has_zero = self.matrix.contains_key(ZERO_ATOM);
-        for mut members in components.into_values() {
-            if has_zero {
-                members.push(ZERO_ATOM.to_owned());
+        for mut members in components.into_iter().filter(|members| !members.is_empty()) {
+            if let Some(zero) = zero {
+                members.push(zero);
             }
             self.close_members(&members);
         }
     }
 
-    fn close_members(&mut self, members: &[String]) {
+    fn close_members(&mut self, members: &[usize]) {
         for via in members {
             for from in members {
-                let Some(first) = self.recorded_bound(from, via) else {
+                let Some(first) = self.matrix.stored_bound_indices(*from, *via).cloned() else {
                     continue;
                 };
                 for to in members {
-                    let Some(second) = self.recorded_bound(via, to) else {
+                    let Some(second) = self.matrix.stored_bound_indices(*via, *to).cloned() else {
                         continue;
                     };
                     let combined = first.add(&second);
@@ -416,10 +344,7 @@ impl<'program> Engine<'program> {
                         }
                         continue;
                     }
-                    let current = self.recorded_bound(from, to);
-                    if current.is_none() || combined > current.unwrap() {
-                        self.record_difference(from, to, combined);
-                    }
+                    self.matrix.record_indices(*from, *to, combined);
                 }
             }
         }

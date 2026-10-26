@@ -30,11 +30,14 @@ use crate::terminal_identities::{
 };
 
 pub(crate) mod affine_cleanup;
-mod assignment_destination;
 pub(crate) mod claim_bindings;
+pub(crate) mod completed_address;
+pub(crate) mod completed_place;
 pub(crate) mod continuation_identities;
 pub(crate) mod continuation_specialization;
 pub(crate) mod control_flow;
+pub(crate) mod current_claims;
+pub(crate) mod descriptor_residences;
 pub(crate) mod formation_memberships;
 pub(crate) mod indexed_write;
 pub(crate) mod loan_completions;

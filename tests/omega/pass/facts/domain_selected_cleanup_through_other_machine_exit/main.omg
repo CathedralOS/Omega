@@ -3,8 +3,8 @@
 // Expected exit: 0.
 data Seed [copy] { code: u64; }
 data Counter { value: u64; invocations: u64 in Wrapping; }
-data Keeper dropped by release_keeper { output: &mut Counter; code: u64; }
-machine release_keeper(keeper: &mut Keeper) requires keeper.code == 7 {
+data Keeper<'storage> dropped by release_keeper<'storage> { output: &'storage mut Counter; code: u64; }
+machine release_keeper<'storage>(keeper: &mut Keeper<'storage>) requires keeper.code == 7 {
     keeper.output.value = keeper.code;
     keeper.output.invocations = keeper.output.invocations + 1;
 }

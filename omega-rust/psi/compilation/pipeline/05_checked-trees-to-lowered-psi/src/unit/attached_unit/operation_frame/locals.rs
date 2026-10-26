@@ -308,7 +308,7 @@ impl OperationFrame<'_, '_> {
             // statement's local here; the state-graph row's own registration
             // already named it.
             if *source == checked_trees::CheckedArrayConstructionSource::Statement {
-                super::super::structural_values::bind_local(
+                if let Some(binding) = super::super::structural_values::local_binding(
                     operation,
                     declaration,
                     crate::terminal_identities::lookup_type_id(
@@ -316,8 +316,9 @@ impl OperationFrame<'_, '_> {
                         &result.type_identity,
                     )?,
                     self.structural_types.declarations(),
-                    &mut self.evaluation.structural_locals,
-                )?;
+                ) {
+                    self.evaluation.bind_structural_local(binding);
+                }
             }
         }
         Ok(())
@@ -371,10 +372,6 @@ impl OperationFrame<'_, '_> {
         } else {
             Vec::new()
         };
-        let result_claims = crate::emission::claim_bindings::emit_establishment_claims(
-            &prepared_claims,
-            &mut self.calls.claims,
-        )?;
         let place = {
             let (mut environment, emission) = self.reborrow().split();
             let mut evaluation = WindowEvaluation {
@@ -392,7 +389,7 @@ impl OperationFrame<'_, '_> {
                 moved,
                 expression,
                 result,
-                result_claims,
+                &prepared_claims,
                 &mut evaluation,
                 emission.values,
                 emission.next_value,
@@ -401,13 +398,6 @@ impl OperationFrame<'_, '_> {
                 emission.operations,
             )
         }?;
-        crate::emission::claim_bindings::record_prepared_introductions(
-            self.operations,
-            place,
-            &prepared_claims,
-            &self.calls.claims,
-            crate::emission::claim_bindings::ClaimEstablishmentKind::DetachedValue,
-        )?;
         Ok(place)
     }
 
@@ -595,6 +585,9 @@ impl OperationFrame<'_, '_> {
                 qualifications: Vec::new(),
             },
         });
+        self.evaluation
+            .current_claims
+            .publish(destination, Vec::new())?;
         // The literal roster owns its declaration. Dense bindings index that
         // same place; a graph's registry retains its explicit literal kind.
         if let StructuralResults::Dense(roster) = &mut self.results {
@@ -1382,7 +1375,7 @@ impl OperationFrame<'_, '_> {
         self.evaluation
             .structural_locals
             .retain(|local| local.root != facts::PlaceRoot::Symbol(symbol));
-        self.evaluation.structural_locals.push(
+        self.evaluation.bind_structural_local(
             crate::expression_preparation::bindings::StructuralLocalBinding {
                 result_binding_ordinal: value.source_structural_result_binding_ordinal(),
                 root: facts::PlaceRoot::Symbol(symbol),

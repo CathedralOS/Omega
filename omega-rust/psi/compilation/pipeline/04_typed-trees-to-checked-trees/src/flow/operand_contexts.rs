@@ -59,7 +59,14 @@ pub(crate) fn operand_contexts(
     let mut captured = contexts
         .semantic_constraint_contexts(operand.constraints)
         .collect::<Vec<_>>();
-    if operand.constraints == invocation || operand_binds_stable_copy(program, type_reference) {
+    if operand_binds_stable_copy(program, type_reference) {
+        return captured;
+    }
+    let descriptor_contexts_agree = |context| {
+        super::observations::descriptor_context_agrees(program, control, operand, context)
+    };
+    captured.retain(|context| descriptor_contexts_agree(*context));
+    if operand.constraints == invocation {
         return captured;
     }
     // Resolving a view's backing does not replace its own observation namespace.
@@ -74,7 +81,12 @@ pub(crate) fn operand_contexts(
     live.sort_unstable();
     live.dedup();
     captured.retain(|candidate| live.binary_search(&identity(*candidate)).is_ok());
-    if !operand.referents.is_empty() {
+    if !operand.referents.is_empty()
+        || matches!(
+            operand.completion,
+            checked_trees::FlowOperandCompletion::Copied { .. }
+        )
+    {
         let mut retained = captured.iter().copied().map(identity).collect::<Vec<_>>();
         retained.sort_unstable();
         retained.dedup();
@@ -92,6 +104,7 @@ pub(crate) fn operand_contexts(
         additional.sort_unstable_by_key(|(ordinal, _)| *ordinal);
         captured.extend(additional.into_iter().map(|(_, context)| context));
     }
+    captured.retain(|context| descriptor_contexts_agree(*context));
     captured
 }
 
@@ -102,7 +115,30 @@ fn invocation_contexts_at_referents(
     operand: &FlowOperandFact,
     invocation: &[FactContextHandle],
 ) -> Vec<FactContextHandle> {
-    let referents = control.operand_referents.span_or_empty(operand.referents);
+    let mut referents = control
+        .operand_referents
+        .span_or_empty(operand.referents)
+        .iter()
+        .collect::<Vec<_>>();
+    // An owned copied product can retain reference descriptors without itself
+    // being a view. Their exact entry-time origins supply live-memory contexts;
+    // this adds no loan, access, lifetime or referent-geometry authority.
+    if let checked_trees::FlowOperandCompletion::Copied { copy, path } = operand.completion {
+        let copy = control.copied_values.get(copy);
+        let prefix = control.operand_child_paths.span_or_empty(path);
+        for leaf in control
+            .captured_reference_leaves
+            .span_or_empty(copy.references)
+        {
+            if control
+                .operand_child_paths
+                .span_or_empty(leaf.path)
+                .starts_with(prefix)
+            {
+                referents.extend(control.operand_referents.span_or_empty(leaf.referents));
+            }
+        }
+    }
     invocation
         .iter()
         .copied()
@@ -113,13 +149,37 @@ fn invocation_contexts_at_referents(
                 .iter()
                 .any(|fact_ref| {
                     let fact = semantic.facts.get(fact_ref.fact);
-                    let Some(place) = fact.place.as_place() else {
+                    let Some(place_handle) = fact.place.as_place() else {
                         return false;
                     };
+                    let semantic_place = semantic.places.get(place_handle);
+                    if !matches!(semantic_place.root, facts::PlaceRoot::Expression(_)) {
+                        if matches!(semantic_place.root, facts::PlaceRoot::Unknown)
+                            || matches!(
+                                semantic_place.root,
+                                facts::PlaceRoot::Symbol(s) if !s.is_valid()
+                            )
+                        {
+                            return false;
+                        }
+                        let segments = semantic
+                            .place_segments
+                            .span_or_empty(semantic_place.segments);
+                        return referents.iter().any(|referent| {
+                            semantic_place.root == referent.root
+                                && crate::flow::canonical_place_segments_may_overlap(
+                                    program,
+                                    segments,
+                                    control
+                                        .operand_referent_segments
+                                        .span_or_empty(referent.segments),
+                                )
+                        });
+                    }
                     let Some(place) = crate::flow::canonical_place_from_semantic_place(
                         program,
                         semantic,
-                        semantic.places.get(place),
+                        semantic_place,
                     ) else {
                         return false;
                     };
@@ -225,8 +285,8 @@ pub(crate) fn operand_entry_binding_origin_is_stable(
     binding_origin_is_stable(
         program,
         &flow.control,
-        operand.entry_origin_writes,
-        operand.entry_origin_unknown_write,
+        operand.entry_binding_writes,
+        operand.entry_binding_unknown_write,
         place,
     )
 }
@@ -359,6 +419,54 @@ fn operand_sources_agree(
     place: &validation::CanonicalPlace,
     observation: super::value_origins::ValueObservation,
 ) -> bool {
+    let statements = if first.statement_index == second.statement_index {
+        HandleSpan::empty()
+    } else {
+        flow.control
+            .state_by_symbol(first.state_symbol)
+            .map_or(HandleSpan::empty(), |row| row.statements)
+    };
+    operand_sources_agree_in_state(
+        program,
+        &flow.control,
+        statements,
+        first,
+        second,
+        place,
+        observation,
+    )
+}
+
+/// Compare two completed occurrences while the state is still being built.
+/// The statement span is the same admitted prefix later published in FlowStateFact.
+pub(super) fn operand_bindings_agree_in_state(
+    program: &dyn ::validation::CheckingInput,
+    control: &checked_trees::FlowControlFacts,
+    statements: HandleSpan<checked_trees::FlowStatementFact>,
+    first: &FlowOperandFact,
+    second: &FlowOperandFact,
+    place: &validation::CanonicalPlace,
+) -> bool {
+    operand_sources_agree_in_state(
+        program,
+        control,
+        statements,
+        first,
+        second,
+        place,
+        super::value_origins::ValueObservation::Binding,
+    )
+}
+
+pub(super) fn operand_sources_agree_in_state(
+    program: &dyn ::validation::CheckingInput,
+    control: &checked_trees::FlowControlFacts,
+    statements: HandleSpan<checked_trees::FlowStatementFact>,
+    first: &FlowOperandFact,
+    second: &FlowOperandFact,
+    place: &validation::CanonicalPlace,
+    observation: super::value_origins::ValueObservation,
+) -> bool {
     let write_changes: SourceWriteRelation = match observation {
         super::value_origins::ValueObservation::Contents => contents_overlap,
         super::value_origins::ValueObservation::Binding => binding_overwrite,
@@ -366,7 +474,9 @@ fn operand_sources_agree(
     if std::ptr::eq(first, second) {
         return true;
     }
-    if first.entry_origin_unknown_write || second.entry_origin_unknown_write {
+    let (first_writes, first_unknown) = observation.operand_writes(first);
+    let (second_writes, second_unknown) = observation.operand_writes(second);
+    if first_unknown || second_unknown {
         return false;
     }
     if first.state_symbol != second.state_symbol {
@@ -390,9 +500,10 @@ fn operand_sources_agree(
         } else {
             (second, first)
         };
-        return observation_reaches_statement(
+        return observation_reaches_statement_in_state(
             program,
-            flow,
+            control,
+            statements,
             earlier,
             later.state_symbol,
             later.statement_index,
@@ -400,18 +511,18 @@ fn operand_sources_agree(
             observation,
         ) && entry_origin_is_stable_when(
             program,
-            &flow.control,
-            later.entry_origin_writes,
-            later.entry_origin_unknown_write,
+            control,
+            observation.operand_writes(later).0,
+            observation.operand_writes(later).1,
             place,
             write_changes,
         );
     }
     prefixes_agree(
         program,
-        &flow.control,
-        first.entry_origin_writes,
-        second.entry_origin_writes,
+        control,
+        first_writes,
+        second_writes,
         place,
         write_changes,
     )
@@ -541,19 +652,36 @@ fn observation_reaches_statement(
     place: &validation::CanonicalPlace,
     observation: super::value_origins::ValueObservation,
 ) -> bool {
-    if operand.state_symbol != state_symbol || operand.entry_origin_unknown_write {
+    let Some(row) = flow.control.state_by_symbol(state_symbol) else {
+        return false;
+    };
+    observation_reaches_statement_in_state(
+        program,
+        &flow.control,
+        row.statements,
+        operand,
+        state_symbol,
+        statement,
+        place,
+        observation,
+    )
+}
+
+fn observation_reaches_statement_in_state(
+    program: &dyn validation::CheckingInput,
+    control: &checked_trees::FlowControlFacts,
+    statements: HandleSpan<checked_trees::FlowStatementFact>,
+    operand: &FlowOperandFact,
+    state_symbol: symbols::SymbolHandle,
+    statement: usize,
+    place: &validation::CanonicalPlace,
+    observation: super::value_origins::ValueObservation,
+) -> bool {
+    let (operand_writes, operand_unknown) = observation.operand_writes(operand);
+    if operand.state_symbol != state_symbol || operand_unknown {
         return false;
     }
     let Some(state) = program.state_by_symbol(state_symbol) else {
-        return false;
-    };
-    let Some(control) = flow
-        .control
-        .states
-        .iter()
-        .map(|(_, row)| row)
-        .find(|row| row.state_symbol == state_symbol)
-    else {
         return false;
     };
     let order = program
@@ -582,36 +710,179 @@ fn observation_reaches_statement(
     if start == end {
         return entry_origin_is_stable_when(
             program,
-            &flow.control,
-            operand.entry_origin_writes,
-            operand.entry_origin_unknown_write,
+            control,
+            operand_writes,
+            operand_unknown,
             place,
             relation,
         );
     }
-    let Some(producer) = flow.state_statement(control, operand.statement_index) else {
+    let Some(producer) = control
+        .statements
+        .span_or_empty(statements)
+        .iter()
+        .find(|row| row.statement_index == operand.statement_index)
+    else {
         return false;
     };
     let (completed, unknown) = observation.statement_writes(producer);
     if unknown
-        || completed.count() < operand.entry_origin_writes.count()
-        || !prefixes_agree(
-            program,
-            &flow.control,
-            operand.entry_origin_writes,
-            completed,
-            place,
-            relation,
-        )
+        || completed.count() < operand_writes.count()
+        || !prefixes_agree(program, control, operand_writes, completed, place, relation)
     {
         return false;
     }
     order.indices()[start + 1..end].iter().all(|index| {
-        flow.state_statement(control, *index).is_some_and(|row| {
-            let (writes, unknown) = observation.statement_writes(row);
-            entry_origin_is_stable_when(program, &flow.control, writes, unknown, place, relation)
-        })
+        control
+            .statements
+            .span_or_empty(statements)
+            .iter()
+            .find(|row| row.statement_index == *index)
+            .is_some_and(|row| {
+                let (writes, unknown) = observation.statement_writes(row);
+                entry_origin_is_stable_when(program, control, writes, unknown, place, relation)
+            })
     })
+}
+
+/// Join a completed read to the current guard epoch. Both prefixes belong to
+/// the same admitted state and statement; callers authenticate that occurrence
+/// before asking whether the selected contents survived intervening writes.
+pub(super) fn observation_prefixes_agree(
+    program: &dyn validation::CheckingInput,
+    control: &checked_trees::FlowControlFacts,
+    first: HandleSpan<checked_trees::FlowOperandReferent>,
+    first_unknown: bool,
+    second: HandleSpan<checked_trees::FlowOperandReferent>,
+    second_unknown: bool,
+    place: &validation::CanonicalPlace,
+) -> bool {
+    !first_unknown
+        && !second_unknown
+        && prefixes_agree(program, control, first, second, place, contents_overlap)
+}
+
+/// A tag read after an earlier write observes the new discriminator. Only
+/// writes between that actual read and its guard use can invalidate its tag;
+/// payload-only writes retain the ordinary discriminator overlap rule.
+pub(super) fn case_observation_prefixes_agree(
+    program: &dyn validation::CheckingInput,
+    control: &checked_trees::FlowControlFacts,
+    first: HandleSpan<checked_trees::FlowOperandReferent>,
+    first_unknown: bool,
+    second: HandleSpan<checked_trees::FlowOperandReferent>,
+    second_unknown: bool,
+    place: &validation::CanonicalPlace,
+) -> bool {
+    !first_unknown
+        && !second_unknown
+        && prefixes_agree(
+            program,
+            control,
+            first,
+            second,
+            place,
+            |program, place, written| {
+                super::case_tag_segments_may_overlap(program, &place.segments, written)
+            },
+        )
+}
+
+/// The complete directed contents-write interval between two completed
+/// occurrences. Consumers supply their own typed storage/permission judgment;
+/// this owner supplies chronology and refuses missing or unknown prefixes.
+/// No source expression, final value or surviving context replaces an event.
+pub(crate) fn operand_contents_writes_between<'facts>(
+    program: &dyn validation::CheckingInput,
+    flow: &'facts FlowFacts,
+    first: &FlowOperandFact,
+    second: &FlowOperandFact,
+) -> Option<Vec<(usize, &'facts checked_trees::FlowOperandReferent)>> {
+    if first.state_symbol != second.state_symbol
+        || first.entry_origin_unknown_write
+        || second.entry_origin_unknown_write
+    {
+        return None;
+    }
+    let control = &flow.control;
+    let mut writes = Vec::new();
+    if first.statement_index == second.statement_index {
+        writes.extend(
+            write_prefix_extension(
+                control,
+                first.entry_origin_writes,
+                second.entry_origin_writes,
+            )?
+            .iter()
+            .map(|write| (first.statement_index, write)),
+        );
+        return Some(writes);
+    }
+    let state = program.state_by_symbol(first.state_symbol)?;
+    let row = control.state_by_symbol(first.state_symbol)?;
+    let order = program
+        .statement_table
+        .admitted_execution_order(state.statement_nodes);
+    let start = order.position(first.statement_index)?;
+    let end = order.position(second.statement_index)?;
+    if start >= end {
+        return None;
+    }
+    let statements = control.statements.span(row.statements)?;
+    for (position, index) in order.indices()[start..end].iter().enumerate() {
+        let mut matching = statements
+            .iter()
+            .filter(|row| row.statement_index == *index);
+        let statement = matching.next()?;
+        if matching.next().is_some() || statement.completed_content_unknown_write {
+            return None;
+        }
+        let remaining = if position == 0 {
+            write_prefix_extension(
+                control,
+                first.entry_origin_writes,
+                statement.completed_content_writes,
+            )?
+        } else {
+            control
+                .operand_origin_writes
+                .span(statement.completed_content_writes)?
+        };
+        writes.extend(remaining.iter().map(|write| (*index, write)));
+    }
+    writes.extend(
+        control
+            .operand_origin_writes
+            .span(second.entry_origin_writes)?
+            .iter()
+            .map(|write| (second.statement_index, write)),
+    );
+    Some(writes)
+}
+
+/// Prefixes can be copied during arena growth. Authenticate the complete
+/// footprint rows rather than requiring the same allocation or silently
+/// discarding writes preceding the later completion.
+fn write_prefix_extension(
+    control: &checked_trees::FlowControlFacts,
+    prefix: HandleSpan<checked_trees::FlowOperandReferent>,
+    extended: HandleSpan<checked_trees::FlowOperandReferent>,
+) -> Option<&[checked_trees::FlowOperandReferent]> {
+    let prefix = control.operand_origin_writes.span(prefix)?;
+    let extended = control.operand_origin_writes.span(extended)?;
+    if prefix.len() > extended.len()
+        || !prefix.iter().zip(extended).all(|(left, right)| {
+            left.root == right.root
+                && control
+                    .operand_referent_segments
+                    .span(left.segments)
+                    .zip(control.operand_referent_segments.span(right.segments))
+                    .is_some_and(|(left, right)| left == right)
+        })
+    {
+        return None;
+    }
+    Some(&extended[prefix.len()..])
 }
 
 fn prefixes_agree(
@@ -622,28 +893,15 @@ fn prefixes_agree(
     place: &validation::CanonicalPlace,
     write_changes: SourceWriteRelation,
 ) -> bool {
-    let Some(first) = control.operand_origin_writes.span(first) else {
-        return false;
-    };
-    let Some(second) = control.operand_origin_writes.span(second) else {
-        return false;
-    };
-    let (prefix, extended) = if first.len() <= second.len() {
+    let (prefix, extended) = if first.count() <= second.count() {
         (first, second)
     } else {
         (second, first)
     };
-    if !prefix.iter().zip(extended).all(|(left, right)| {
-        left.root == right.root
-            && control
-                .operand_referent_segments
-                .span(left.segments)
-                .zip(control.operand_referent_segments.span(right.segments))
-                .is_some_and(|(left, right)| left == right)
-    }) {
+    let Some(writes) = write_prefix_extension(control, prefix, extended) else {
         return false;
-    }
-    extended[prefix.len()..].iter().all(|write| {
+    };
+    writes.iter().all(|write| {
         place.root != write.root
             || control
                 .operand_referent_segments

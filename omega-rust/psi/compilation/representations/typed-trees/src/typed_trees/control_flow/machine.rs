@@ -116,6 +116,7 @@ pub struct Machine {
     pub blocks_keyword_source_spans: Vec<source::SourceSpan>,
     pub lifetime_parameters: Vec<Identifier>,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
+    pub declared_type_equations: HandleSpan<DeclaredTypeEquation>,
     pub owned_data: HandleSpan<OwnedData>,
     pub satisfies: HandleSpan<TraitConformance>,
     pub conformance_bounds: Vec<GenericConformanceBound>,
@@ -124,6 +125,13 @@ pub struct Machine {
     pub blocks: bool,
     pub contracts: HandleSpan<SignatureContract>,
     pub states: HandleSpan<State>,
+}
+
+/// Declaration-local structural equality, independent of current consumers.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct DeclaredTypeEquation {
+    pub parameter: TypeReferenceHandle,
+    pub definition: TypeReferenceHandle,
 }
 
 impl Machine {
@@ -210,7 +218,7 @@ impl Default for Machine {
     fn default() -> Self {
         Self {
             lexical_region_origin: None,
-                assembly_target_requirement:
+            assembly_target_requirement:
                 language_core::inline_assembly::AsmTargetApplicability::Any,
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
@@ -237,6 +245,7 @@ impl Default for Machine {
             blocks_keyword_source_spans: Vec::new(),
             lifetime_parameters: Vec::new(),
             type_parameters: HandleSpan::empty(),
+            declared_type_equations: HandleSpan::empty(),
             owned_data: HandleSpan::empty(),
             satisfies: HandleSpan::empty(),
             conformance_bounds: Vec::new(),

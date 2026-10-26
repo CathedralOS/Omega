@@ -29,7 +29,10 @@ impl IdentityMap {
                 *derivations = content_derivations;
                 for derived in derivations.iter_mut() {
                     derived.map_places(&mut |place| self.place(place));
-                    derived.lineage_anchor = self.claim(derived.lineage_anchor);
+                    for root in &mut derived.lineage_roots {
+                        *root = self.claim(*root);
+                    }
+                    derived.lineage_roots.sort();
                     for step in &mut derived.ancestry {
                         step.producer_operation = self.operation(step.producer_operation);
                         for claim in step.inputs.iter_mut().chain(&mut step.outputs) {
@@ -40,6 +43,16 @@ impl IdentityMap {
                     }
                     for binding in derived.inputs.iter_mut().chain(&mut derived.outputs) {
                         binding.claim = self.claim(binding.claim);
+                    }
+                    if let terminal_psi::ContentTransformationCustody::Boundary {
+                        addresses, ..
+                    } = &mut derived.custody
+                    {
+                        for address in addresses.iter_mut() {
+                            address.input.claim = self.claim(address.input.claim);
+                            address.output.claim = self.claim(address.output.claim);
+                        }
+                        addresses.sort();
                     }
                     derived.inputs.sort();
                     derived.outputs.sort();

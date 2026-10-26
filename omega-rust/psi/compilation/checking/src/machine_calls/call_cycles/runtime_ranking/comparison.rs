@@ -1,7 +1,7 @@
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
-use crate::proof_contracts::contract_entailment::RankingRangeCallSite;
+use crate::proof_contracts::contract_entailment::ranking_range::RankingRangeCallSite;
 
 use super::projection::{RankOrder, RankProjection, unwrapped};
 

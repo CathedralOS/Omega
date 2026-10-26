@@ -143,56 +143,13 @@ pub(crate) fn build_checked_proposition_vocabulary(
 pub(crate) fn lower_checked_proposition_application(
     normalized: typed_trees::proposition::NormalizedPropositionApplicationIdentity,
 ) -> checked_trees::CheckedPropositionApplication {
-    let evidence_interface = match &normalized.classification {
-        typed_trees::proposition::PropositionEvidenceClassification::FactOnly => None,
-        typed_trees::proposition::PropositionEvidenceClassification::Witness {
-            interface, ..
-        } => interface.as_ref().map(lower_checked_evidence_interface),
-    };
-    checked_trees::CheckedPropositionApplication {
-        declaration: normalized.declaration,
-        binder_arguments: normalized
-            .binder_arguments
-            .into_iter()
-            .map(|argument| checked_trees::CheckedPropositionBinderArgument {
-                kind: match argument.kind {
-                    typed_trees::proposition::PropositionBinderArgumentKind::Type => {
-                        checked_trees::CheckedPropositionBinderArgumentKind::Type
-                    }
-                    typed_trees::proposition::PropositionBinderArgumentKind::Const => {
-                        checked_trees::CheckedPropositionBinderArgumentKind::Const
-                    }
-                    typed_trees::proposition::PropositionBinderArgumentKind::Machine => {
-                        checked_trees::CheckedPropositionBinderArgumentKind::Machine
-                    }
-                },
-                diagnostic_label: argument.identity,
-                evidence_projection: None,
-            })
-            .collect(),
-        arguments: normalized.arguments,
-        evidence_interface,
-    }
+    checked_trees::CheckedPropositionApplication::from_normalized(normalized)
 }
 
 pub(crate) fn lower_checked_evidence_interface(
     interface: &typed_trees::proposition::NormalizedEvidenceInterfaceIdentity,
 ) -> checked_trees::CheckedEvidenceInterfaceIdentity {
-    checked_trees::CheckedEvidenceInterfaceIdentity {
-        trait_symbol: interface.trait_symbol,
-        arguments: interface.arguments.clone(),
-        requirements: interface
-            .requirements
-            .iter()
-            .map(
-                |requirement| checked_trees::CheckedEvidenceRequirementIdentity {
-                    declaring_trait: requirement.declaring_trait,
-                    declaring_trait_arguments: requirement.declaring_trait_arguments.clone(),
-                    requirement: requirement.requirement,
-                },
-            )
-            .collect(),
-    }
+    checked_trees::CheckedEvidenceInterfaceIdentity::from_normalized(interface)
 }
 
 pub(crate) fn fact_handles(

@@ -60,7 +60,7 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic
             }
             if arguments
                 .iter()
-                .any(|argument| !is_closed(program, *argument))
+                .any(|argument| !typed_trees::domain::index_argument_is_closed(program, *argument))
             {
                 continue;
             }
@@ -74,7 +74,10 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic
                     match program.type_reference_table.type_reference(*argument) {
                         TypeReferenceNode::Named { symbol, .. } if !symbol.is_valid() => {}
                         TypeReferenceNode::ConstExpression(expression)
-                            if lexical_owner.is_valid() && is_closed(program, carrier) =>
+                            if lexical_owner.is_valid()
+                                && typed_trees::domain::index_argument_is_closed(
+                                    program, carrier,
+                                ) =>
                         {
                             // Keep the source recipe and its exact instance ID.
                             // Checking a completed value grants no permission to
@@ -145,47 +148,4 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic
         )
         .map_err(|error| vec![error])?;
     }
-}
-
-fn is_closed(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
-    struct Closure<'a> {
-        program: &'a TypedTrees,
-        types: std::collections::HashSet<TypeReferenceHandle>,
-        expressions: std::collections::HashSet<typed_trees::expression::ExpressionHandle>,
-        open: bool,
-    }
-    impl Extend<SymbolHandle> for Closure<'_> {
-        fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: T) {
-            self.open |= symbols
-                .into_iter()
-                .filter(|symbol| symbol.is_valid())
-                .any(|symbol| {
-                    matches!(
-                        self.program.symbols.get(symbol).kind,
-                        symbols::SymbolKind::TypeParameter
-                            | symbols::SymbolKind::MachineParameter
-                            | symbols::SymbolKind::ConformanceParameter
-                            | symbols::SymbolKind::PropositionParameter
-                            | symbols::SymbolKind::Parameter
-                            | symbols::SymbolKind::Local
-                    )
-                });
-        }
-    }
-    impl typed_trees::references::TypedReferences for Closure<'_> {
-        fn type_reference(&mut self, reference: TypeReferenceHandle) -> bool {
-            self.types.insert(reference)
-        }
-        fn expression(&mut self, expression: typed_trees::expression::ExpressionHandle) -> bool {
-            self.expressions.insert(expression)
-        }
-    }
-    let mut closure = Closure {
-        program,
-        types: Default::default(),
-        expressions: Default::default(),
-        open: false,
-    };
-    typed_trees::references::visit_type_reference(program, &mut closure, reference);
-    !closure.open
 }

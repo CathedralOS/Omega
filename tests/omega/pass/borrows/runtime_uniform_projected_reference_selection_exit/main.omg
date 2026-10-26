@@ -1,0 +1,29 @@
+// Expected exit: 0
+data Counter { value: u64 in Wrapping; }
+data Slot<'storage> { counter: &'storage mut Counter; }
+machine install<'storage>(slot: &mut Slot<'storage>, replacement: &'storage mut Counter, choice: bool) -> bool {
+    slot.counter = replacement;
+    choice
+}
+machine pick<'storage>(slot: Slot<'storage>, replacement: &'storage mut Counter, other: &'storage mut Counter, choice: bool) -> &'storage mut Counter {
+    let mut local: Slot<'storage> = slot;
+    match install(&mut local, replacement, choice) {
+        true -> local.counter,
+        false -> local.counter,
+    }
+}
+machine main() crashes Trap {
+    let mut old: Counter = Counter { value: 0 };
+    let mut replacement: Counter = Counter { value: 0 };
+    let mut other: Counter = Counter { value: 0 };
+    let selected: &mut Counter = pick(Slot { counter: &mut old }, &mut replacement, &mut other, true);
+    selected.value = selected.value + 1;
+    let skipped: &mut Counter = pick(Slot { counter: &mut old }, &mut replacement, &mut other, false);
+    skipped.value = skipped.value + 1;
+    transition old.value == 0 && replacement.value == 2 && other.value == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

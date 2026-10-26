@@ -34,15 +34,46 @@ pub(in crate::machine_calls::calls::write_frames) fn local_backing_survives_jump
         segments: Vec::new(),
         builtin_coordinates: true,
     }];
+    let statement = program
+        .statement_table
+        .statements(source.statement_nodes)
+        .get(statement_index)?;
+    let completed = expression_effects::completed_targets(
+        program,
+        machine,
+        source,
+        statement,
+        prefix,
+        symbols,
+        &mut inference,
+    )?;
+    let mut arrivals = completed.iter().filter(|completed| {
+        super::super::transition_topology::named_transition_target_state(
+            program,
+            machine,
+            source,
+            completed.target,
+        )
+        .is_some_and(|candidate| candidate.symbol == target.symbol)
+            && completed.arguments.len() == arguments.len()
+            && completed
+                .arguments
+                .iter()
+                .zip(arguments)
+                .all(|(captured, expression)| captured.expression == *expression)
+    });
+    let arrival = arrivals.next()?;
+    if arrivals.next().is_some() {
+        return None;
+    }
     let slots = transferred_slots(
         program,
         machine,
         target,
-        arguments,
-        prefix,
+        &arrival.arguments,
+        &arrival.context,
         &initial,
         symbols,
-        &mut inference,
     )?;
     let mut pending = vec![Arrival {
         state: target.symbol,
@@ -78,7 +109,19 @@ pub(in crate::machine_calls::calls::write_frames) fn local_backing_survives_jump
             if transition.exit != TransitionExit::Ordinary {
                 continue;
             }
+            let completed = expression_effects::completed_targets(
+                program,
+                machine,
+                state,
+                statement,
+                prefix,
+                symbols,
+                &mut inference,
+            )?;
             for edge in transition.targets() {
+                let edge_value = completed
+                    .iter()
+                    .find(|completed| completed.target == edge)?;
                 let (target, arguments) = match program.statement_table.transition_target(edge) {
                     TransitionTargetNode::Named { arguments, .. } => {
                         if super::super::terminal_calls::target(program, machine, edge).is_valid() {
@@ -96,17 +139,25 @@ pub(in crate::machine_calls::calls::write_frames) fn local_backing_survives_jump
                         continue;
                     }
                 };
+                if edge_value.arguments.len() != arguments.len()
+                    || edge_value
+                        .arguments
+                        .iter()
+                        .zip(arguments)
+                        .any(|(captured, expression)| captured.expression != *expression)
+                {
+                    return None;
+                }
                 let next = Arrival {
                     state: target.symbol,
                     slots: transferred_slots(
                         program,
                         machine,
                         target,
-                        arguments,
-                        prefix,
+                        &edge_value.arguments,
+                        &edge_value.context,
                         &arrival.slots,
                         symbols,
-                        &mut inference,
                     )?,
                 };
                 if !next.slots.is_empty() && !pending.contains(&next) {
@@ -195,11 +246,10 @@ fn transferred_slots(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     target: &State,
-    arguments: &[ExpressionHandle],
+    arguments: &[SlotArgumentCapture],
     prefix: &CollectedStatementPrefix,
     carried: &[FrameSourcePlace],
     symbols: &TopLevelSymbols<'_>,
-    inference: &mut FrameInference,
 ) -> Option<Vec<FrameSourcePlace>> {
     let parameters = program.state_parameters(target);
     if arguments.len() != parameters.len() || !prefix.divergent.is_empty() {
@@ -242,15 +292,6 @@ fn transferred_slots(
         if slots.is_empty() {
             continue;
         }
-        let captured = argument_origin(
-            program,
-            machine,
-            parameter,
-            *arguments.get(index)?,
-            prefix,
-            symbols,
-            inference,
-        )?;
         for segments in slots {
             let slot = FrameSourcePlace {
                 recasts: Vec::new(),
@@ -260,22 +301,26 @@ fn transferred_slots(
                 segments,
                 builtin_coordinates: true,
             };
-            let mut projected = captured.clone();
-            projected.source = captured.source.append_relative(program, &slot);
-            projected.path = if projected.source.is_static() {
-                String::new()
-            } else {
-                path(program, &projected.source)
-            };
-            let origins = stored_origins::captured_reference_projection_origins(
-                program,
-                &captured,
-                &projected,
-                &prefix.stored,
-            );
             let mut contains = false;
-            for origin in origins {
-                contains |= carries(&origin?, carried)?;
+            for source in aggregate_argument_sources(
+                program,
+                machine,
+                parameter,
+                arguments.get(index)?,
+                &SlotSource {
+                    carrier_backing: None,
+                    origin: FramePlaceOrigin {
+                        path: path(program, &slot),
+                        precision: FramePathPrecision::Exact,
+                        source: slot.clone(),
+                    },
+                    carrier: slot.clone(),
+                    lifetime_access: None,
+                },
+                prefix,
+                symbols,
+            )? {
+                contains |= carries(&source.origin, carried)?;
             }
             if contains && !selected.contains(&slot) {
                 selected.push(slot);

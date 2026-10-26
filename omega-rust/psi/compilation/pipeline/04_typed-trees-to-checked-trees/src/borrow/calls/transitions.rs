@@ -24,6 +24,7 @@ pub(super) fn collect_transition_target_borrow_calls(
                 target_symbol,
             );
             collection.append_borrow_call(
+                Default::default(),
                 path.head_symbol,
                 target_symbol,
                 path.members.count() > 1,

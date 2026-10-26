@@ -23,39 +23,37 @@ pub(super) fn check_used_calls(
     for (_, derived) in content.body_derivations.iter() {
         let equation = content.body_conservations.get(derived.conservation);
         let completed = facts.flow.control.operands.get(equation.completed_value);
-        for entry in equation.inputs.handles() {
-            let frontier = content.descendant_frontier(
-                entry,
-                equation.machine_symbol,
-                equation.state_symbol,
-                completed.statement_index,
-                equation.evaluation,
-                derived.conservation,
-            );
-            let result = frontier.and_then(|frontier| {
-                for (handle, _, _) in frontier.replacements {
-                    if checked.contains(&handle) {
-                        continue;
-                    }
-                    let transformation = content.claim_transformations.get(handle);
-                    if matches!(
-                        transformation.source,
-                        ContentClaimTransformationSource::Call { .. }
-                    ) {
-                        authenticate_call(facts, transformation, &mut traversal)?;
-                        checked.push(handle);
-                    }
+        let frontier = content.descendant_frontier(
+            equation.inputs,
+            equation.machine_symbol,
+            equation.state_symbol,
+            completed.statement_index,
+            equation.evaluation,
+            derived.conservation,
+        );
+        let result = frontier.and_then(|frontier| {
+            for (handle, _, _) in frontier.replacements {
+                if checked.contains(&handle) {
+                    continue;
                 }
-                Ok(())
-            });
-            if let Err(reason) = result {
-                diagnostics.push(diagnostics::Diagnostic::error(format!(
-                    "cannot derive content custody in `{}`, state `{}` at statement {}: {reason}",
-                    crate::labels::symbol_name(program, equation.machine_symbol),
-                    crate::labels::symbol_name(program, equation.state_symbol),
-                    completed.statement_index,
-                )));
+                let transformation = content.claim_transformations.get(handle);
+                if matches!(
+                    transformation.source,
+                    ContentClaimTransformationSource::Call { .. }
+                ) {
+                    authenticate_call(facts, transformation, &mut traversal)?;
+                    checked.push(handle);
+                }
             }
+            Ok(())
+        });
+        if let Err(reason) = result {
+            diagnostics.push(diagnostics::Diagnostic::error(format!(
+                "cannot derive content custody in `{}`, state `{}` at statement {}: {reason}",
+                crate::labels::symbol_name(program, equation.machine_symbol),
+                crate::labels::symbol_name(program, equation.state_symbol),
+                completed.statement_index,
+            )));
         }
     }
 }
@@ -73,7 +71,7 @@ type ActiveClaim = (
 #[derive(Default)]
 struct OriginTraversal {
     active: Vec<ActiveClaim>,
-    completed: Vec<(ActiveClaim, PermissionClaimIdentity)>,
+    completed: Vec<(ActiveClaim, Vec<PermissionClaimIdentity>)>,
     visits: usize,
 }
 
@@ -93,7 +91,7 @@ fn authenticate_call(
     traversal: &mut OriginTraversal,
 ) -> Result<(), &'static str> {
     for output in transformation.outputs.handles() {
-        call_parent(
+        call_parents(
             facts,
             transformation,
             facts.qualifications.content.body_claim_bindings.get(output),
@@ -103,12 +101,12 @@ fn authenticate_call(
     Ok(())
 }
 
-fn call_parent(
+fn call_parents(
     facts: &CheckFacts,
     transformation: &ContentClaimTransformation,
     output: &ContentBodyClaimBinding,
     traversal: &mut OriginTraversal,
-) -> Result<PermissionClaimIdentity, &'static str> {
+) -> Result<Vec<PermissionClaimIdentity>, &'static str> {
     let ContentClaimTransformationSource::Call { call_ordinal, .. } = transformation.source else {
         return Err("ancestry edge is not a completed call");
     };
@@ -126,7 +124,7 @@ fn call_parent(
     if receipts.next().is_some() {
         return Err("conserved call result has ambiguous normal-result receipts");
     }
-    let mut parent = None;
+    let mut parents: Option<Vec<PermissionClaimIdentity>> = None;
     for alternative in ownership
         .claim_join_alternatives
         .span_or_empty(receipt.alternatives)
@@ -137,58 +135,72 @@ fn call_parent(
             FlowClaimJoinAlternativeSource::Inactive
             | FlowClaimJoinAlternativeSource::ExcludedInput { .. } => continue,
         };
-        let (parameter, path) = match source {
+        let formals = match source {
             FlowClaimOutcomeSource::Input {
                 parameter_symbol,
                 segments,
-            } => (parameter_symbol, segments),
+            } => vec![(parameter_symbol, segments)],
             FlowClaimOutcomeSource::Established { claim_identity, .. } => {
-                let root = qualified_root(facts, claim_identity, output, traversal)?;
-                let mut entries = ownership.permissions.iter().filter(|(_, event)| {
-                    event.claim_identity == root
-                        && event.source == PermissionEventSource::StateEntry
-                        && event.kind == PermissionEventKind::Establish
-                });
-                let (_, entry) = entries.next().ok_or(
-                    "equal content does not relate a freshly established callee root to an input",
-                )?;
-                if entries.next().is_some() {
-                    return Err("callee lineage has ambiguous entry custody");
+                let roots = qualified_roots(facts, claim_identity, output, traversal)?;
+                let mut formals = Vec::new();
+                for root in roots {
+                    let mut entries = ownership.permissions.iter().filter(|(_, event)| {
+                        event.claim_identity == root
+                            && event.source == PermissionEventSource::StateEntry
+                            && event.kind == PermissionEventKind::Establish
+                    });
+                    let (_, entry) = entries.next().ok_or(
+                        "equal content does not relate a freshly established callee root to an input",
+                    )?;
+                    if entries.next().is_some() {
+                        return Err("callee lineage has ambiguous entry custody");
+                    }
+                    let facts::PlaceRoot::Symbol(parameter) = entry.root else {
+                        return Err("callee lineage entry is not a formal");
+                    };
+                    formals.push((
+                        callable_entry_parameter(facts, entry, parameter)?,
+                        entry.segments,
+                    ));
                 }
-                let facts::PlaceRoot::Symbol(parameter) = entry.root else {
-                    return Err("callee lineage entry is not a formal");
-                };
-                // A named state owns a distinct formal. The shared arrival
-                // proof, not a same-spelled name or the callee's equation,
-                // relates it back to the callable-entry transfer.
-                let parameter = callable_entry_parameter(facts, entry, parameter)?;
-                (parameter, entry.segments)
+                formals
             }
             FlowClaimOutcomeSource::Unknown => return Err("callee result lineage is unknown"),
         };
-        let mut inputs = facts
-            .qualifications
-            .content
-            .body_claim_bindings
-            .span_or_empty(transformation.inputs)
-            .iter()
-            .filter(|input| {
-                input.parameter_symbol == parameter
-                    && ownership.segments.span_or_empty(input.segments)
-                        == ownership.segments.span_or_empty(path)
-                    && same_projection(input, output)
-            });
-        let input = inputs
-            .next()
-            .ok_or("callee result lineage does not bind a conserved actual input")?;
-        if inputs.next().is_some()
-            || parent.is_some_and(|previous| previous != input.claim_identity)
-        {
-            return Err("callee result alternatives have incompatible backing lineage");
+        let mut candidate = Vec::new();
+        for (parameter, path) in formals {
+            let mut inputs = facts
+                .qualifications
+                .content
+                .body_claim_bindings
+                .span_or_empty(transformation.inputs)
+                .iter()
+                .filter(|input| {
+                    input.parameter_symbol == parameter
+                        && ownership.segments.span_or_empty(input.segments)
+                            == ownership.segments.span_or_empty(path)
+                        && same_projection(input, output)
+                });
+            let input = inputs
+                .next()
+                .ok_or("callee result lineage does not bind a conserved actual input")?;
+            if inputs.next().is_some() {
+                return Err("callee result lineage has ambiguous conserved actual inputs");
+            }
+            if !candidate.contains(&input.claim_identity) {
+                candidate.push(input.claim_identity);
+            }
         }
-        parent = Some(input.claim_identity);
+        if candidate.is_empty()
+            || parents
+                .as_ref()
+                .is_some_and(|previous| !same_roots(previous, &candidate))
+        {
+            return Err("callee result alternatives have incompatible input rosters");
+        }
+        parents = Some(candidate);
     }
-    parent.ok_or("conserved call result has no live normal-result alternative")
+    parents.ok_or("conserved call result has no live normal-result alternative")
 }
 
 fn callable_entry_parameter(
@@ -233,12 +245,12 @@ fn callable_entry_parameter(
     Ok(first.entry_parameter)
 }
 
-fn qualified_root(
+fn qualified_roots(
     facts: &CheckFacts,
     claim: PermissionClaimIdentity,
     projection: &ContentBodyClaimBinding,
     traversal: &mut OriginTraversal,
-) -> Result<PermissionClaimIdentity, &'static str> {
+) -> Result<Vec<PermissionClaimIdentity>, &'static str> {
     traversal.visit()?;
     let key = (
         claim,
@@ -246,12 +258,12 @@ fn qualified_root(
         projection.semantic_domain,
         projection.projection_machine,
     );
-    if let Some((_, root)) = traversal
+    if let Some((_, roots)) = traversal
         .completed
         .iter()
         .find(|(completed, _)| *completed == key)
     {
-        return Ok(*root);
+        return Ok(roots.clone());
     }
     if traversal.active.contains(&key) {
         return Err("callee content lineage is circular");
@@ -262,7 +274,7 @@ fn qualified_root(
     traversal.active.push(key);
     let content = &facts.qualifications.content;
     let result = (|| {
-        let mut root = None;
+        let mut roots: Option<Vec<PermissionClaimIdentity>> = None;
         for (_, transformation) in
             content
                 .claim_transformations
@@ -279,7 +291,7 @@ fn qualified_root(
         {
             traversal.visit()?;
             let parents = match transformation.source {
-                ContentClaimTransformationSource::Call { .. } => vec![call_parent(
+                ContentClaimTransformationSource::Call { .. } => call_parents(
                     facts,
                     transformation,
                     &ContentBodyClaimBinding {
@@ -287,7 +299,7 @@ fn qualified_root(
                         ..projection.clone()
                     },
                     traversal,
-                )?],
+                )?,
                 ContentClaimTransformationSource::Body { .. } => content
                     .body_claim_bindings
                     .span_or_empty(transformation.inputs)
@@ -301,25 +313,38 @@ fn qualified_root(
             if parents.is_empty() {
                 return Err("callee content transformation has no parent");
             }
+            let mut candidate = Vec::new();
             for parent in parents {
-                let ancestor = if parent == claim {
-                    parent
+                let ancestors = if parent == claim {
+                    vec![parent]
                 } else {
-                    qualified_root(facts, parent, projection, traversal)?
+                    qualified_roots(facts, parent, projection, traversal)?
                 };
-                if root.is_some_and(|previous| previous != ancestor) {
-                    return Err("callee content transformation combines unrelated roots");
+                for ancestor in ancestors {
+                    if !candidate.contains(&ancestor) {
+                        candidate.push(ancestor);
+                    }
                 }
-                root = Some(ancestor);
             }
+            if roots
+                .as_ref()
+                .is_some_and(|previous| !same_roots(previous, &candidate))
+            {
+                return Err("callee content transformation has conflicting input rosters");
+            }
+            roots = Some(candidate);
         }
-        Ok(root.unwrap_or(claim))
+        Ok(roots.unwrap_or_else(|| vec![claim]))
     })();
     traversal.active.pop();
-    if let Ok(root) = result {
-        traversal.completed.push((key, root));
+    if let Ok(roots) = &result {
+        traversal.completed.push((key, roots.clone()));
     }
     result
+}
+
+fn same_roots(left: &[PermissionClaimIdentity], right: &[PermissionClaimIdentity]) -> bool {
+    left.len() == right.len() && left.iter().all(|claim| right.contains(claim))
 }
 
 fn same_projection(left: &ContentBodyClaimBinding, right: &ContentBodyClaimBinding) -> bool {

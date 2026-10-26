@@ -344,6 +344,7 @@ pub(in crate::flow) fn capture_argument(
     ordinal: usize,
     argument: ExpressionHandle,
     contexts: HandleSpan<FlowSemanticContextRef>,
+    copied_values: HandleSpan<checked_trees::FlowOperandFact>,
 ) -> Vec<CapturedQualification> {
     let TransitionTargetNode::Named { path, .. } =
         program.statement_table.transition_target(target)
@@ -362,6 +363,17 @@ pub(in crate::flow) fn capture_argument(
     let Some(source) =
         flow_context.canonical_place_at(program, state.symbol, statement_index, argument)
     else {
+        return Vec::new();
+    };
+    let Some(source) = crate::flow::observations::completed_copy_read_place(
+        program,
+        &flow_context.control,
+        copied_values,
+        state.symbol,
+        statement_index,
+        argument,
+        &source,
+    ) else {
         return Vec::new();
     };
     let Some(source_type) =
@@ -391,13 +403,19 @@ pub(in crate::flow) fn finish(
         .contexts
         .semantic_context_refs
         .span_or_empty(contexts);
+    // Owned captures do not consult this frontier. A reference-backed capture
+    // still needs its exact context live after all operands; index that same
+    // immutable set lazily once instead of rescanning it per qualification.
+    let mut live_membership = None;
     let mut inputs: Vec<QualifiedInput> = Vec::new();
     for captured in captured {
         if captured.isolated
             || (bindings_stable
-                && live
-                    .iter()
-                    .any(|context| context.context == captured.context))
+                && live_membership
+                    .get_or_insert_with(|| {
+                        crate::flow::reference_spans::SemanticContextMembership::new(live)
+                    })
+                    .contains(captured.context))
         {
             inputs.push(captured.input);
         }

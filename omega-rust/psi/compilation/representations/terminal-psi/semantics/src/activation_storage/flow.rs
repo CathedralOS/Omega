@@ -160,7 +160,37 @@ impl State {
                 .filter(|loan| loan.place.under(source)),
         );
     }
-    fn copy_loans(&mut self, source: &Place, destination: &Place) {
+    /// Copying data retains local activation loans, never the grant itself.
+    /// A stored-pointer crossing cannot be resolved from this replay's inline
+    /// carrier roster. Refuse it when its supplying prefix overlaps a tracked
+    /// grant/loan; an unrelated ordinary reference does not carry this
+    /// activation's storage. Incoming borrowed parameters have no local grant
+    /// state: the caller retains and protects their homes across the call.
+    fn copy_value(&mut self, source: &Place, destination: &Place) -> Result<(), &'static str> {
+        let mut prefix = Place {
+            root: source.root,
+            path: Vec::with_capacity(source.path.len()),
+        };
+        let mut inline = true;
+        for segment in &source.path {
+            if matches!(segment, P::Referent) && !self.sites(&prefix).is_empty() {
+                return Err("activation-bearing copy needs exact reference backing correspondence");
+            }
+            // Unknown selectors and address-space changes cannot prove
+            // disjointness from a finite tracked carrier. Keep its enclosing
+            // prefix for every subsequent crossing instead of dropping debt.
+            if inline {
+                match segment {
+                    P::Field(_) | P::Case(_) | P::FixedIndex(_) => {
+                        prefix.path.push(segment.clone());
+                    }
+                    _ => inline = false,
+                }
+            }
+        }
+        if self.live.iter().any(|live| live.place.under(source)) {
+            return Err("activation claim cannot be copied");
+        }
         let copies: Vec<_> = self
             .loans
             .iter()
@@ -173,6 +203,7 @@ impl State {
             })
             .collect();
         self.loans.extend(copies);
+        Ok(())
     }
     fn relocate(&mut self, source: &Place, destination: &Place) {
         for live in &mut self.live {
@@ -882,59 +913,33 @@ pub fn validate_flow(
                         },
                     );
                 }
-                O::StructuralLeafCopy { source, path } => {
-                    let from = Place {
-                        root: *source,
-                        path: path.clone(),
+                O::StructuralLeafCopy { source, .. } | O::StructuralCaseLeafCopy { source, .. } => {
+                    let path = match &operation.kind {
+                        O::StructuralLeafCopy { path, .. } => path.clone(),
+                        O::StructuralCaseLeafCopy { path, .. } => {
+                            let root = roots
+                                .get(source)
+                                .copied()
+                                .ok_or("activation copy has no typed source root")?;
+                            crate::canonical_structural_storage_path(types.iter(), root, path)
+                                .ok_or("activation copy has an invalid canonical source path")?
+                        }
+                        _ => return Err("activation copy lost its source path"),
                     };
-                    if state.live.iter().any(|live| live.place.under(&from)) {
-                        return Err("activation claim cannot be copied");
-                    }
                     let result = operation
                         .result
                         .structural()
                         .ok_or("activation loan copy lost its result")?;
-                    state.copy_loans(
-                        &from,
+                    state.copy_value(
+                        &Place {
+                            root: *source,
+                            path,
+                        },
                         &Place {
                             root: result.place,
                             path: Vec::new(),
                         },
-                    );
-                }
-                O::StructuralCaseLeafCopy { source, path } => {
-                    let path = path
-                        .iter()
-                        .map(|segment| match segment {
-                            semantic_vocabulary::CanonicalStructuralPathSegment::Field(field) => {
-                                field_segment(types, *field)
-                            }
-                            semantic_vocabulary::CanonicalStructuralPathSegment::Case(case) => {
-                                Ok(P::Case(*case))
-                            }
-                            semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(
-                                index,
-                            ) => Ok(P::FixedIndex(*index)),
-                        })
-                        .collect::<Result<Vec<_>, _>>()?;
-                    let from = Place {
-                        root: *source,
-                        path,
-                    };
-                    if state.live.iter().any(|live| live.place.under(&from)) {
-                        return Err("activation claim cannot be copied");
-                    }
-                    let result = operation
-                        .result
-                        .structural()
-                        .ok_or("activation loan copy lost its result")?;
-                    state.copy_loans(
-                        &from,
-                        &Place {
-                            root: result.place,
-                            path: Vec::new(),
-                        },
-                    );
+                    )?;
                 }
                 O::TransformContent {
                     source, parents, ..

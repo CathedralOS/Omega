@@ -84,7 +84,7 @@ pub fn structural_scalar_field_in_parameters(
         let mut segments = actual.segments.clone();
         segments.extend_from_slice(suffix);
         let actual = super::CanonicalPlace {
-            root: actual.root.clone(),
+            root: actual.root,
             segments,
         };
         if rebased.as_ref().is_some_and(|selected| selected != &actual) {
@@ -269,7 +269,33 @@ pub fn structural_scalar_field(
         expression,
         bindings,
         ScalarObservationAccess::Ordinary,
+        None,
         source,
+    )
+}
+
+/// Observe below an already evaluated structural receiver. The caller owns
+/// the completed receiver/source correspondence and the read's access and
+/// case evidence. This only cuts the ordinary declaration walk at that exact
+/// subtree; it does not replay the receiver or copy its surrounding storage.
+/// A receiver absent from the projection spine cannot supply this geometry.
+pub fn structural_scalar_field_of_evaluated_receiver(
+    program: &dyn crate::CheckingInput,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    expression: ExpressionHandle,
+    receiver: ExpressionHandle,
+    source: StructuralSource,
+) -> Option<StructuralScalarField> {
+    structural_field_observation(
+        program,
+        machine,
+        state,
+        expression,
+        &[],
+        ScalarObservationAccess::Ordinary,
+        Some((receiver, source)),
+        |_| None,
     )
 }
 
@@ -282,6 +308,7 @@ pub fn structural_atomic_field(
     state: SymbolHandle,
     expression: ExpressionHandle,
     bindings: &[(SymbolHandle, ExpressionHandle)],
+    evaluated_receiver: Option<(ExpressionHandle, StructuralSource)>,
     source: impl FnMut(ExpressionHandle) -> Option<StructuralSource>,
 ) -> Option<StructuralScalarField> {
     structural_field_observation(
@@ -291,6 +318,7 @@ pub fn structural_atomic_field(
         expression,
         bindings,
         ScalarObservationAccess::Atomic,
+        evaluated_receiver,
         source,
     )
 }
@@ -308,15 +336,22 @@ fn structural_field_observation(
     expression: ExpressionHandle,
     bindings: &[(SymbolHandle, ExpressionHandle)],
     access: ScalarObservationAccess,
+    evaluated_receiver: Option<(ExpressionHandle, StructuralSource)>,
     mut source: impl FnMut(ExpressionHandle) -> Option<StructuralSource>,
 ) -> Option<StructuralScalarField> {
     let mut steps = Vec::new();
     let mut receiver = expression;
     let mut visits = 0;
-    loop {
+    let local = loop {
         visits += 1;
         if visits > program.expression_table.expression_count() {
             return None;
+        }
+        if !steps.is_empty()
+            && let Some((evaluated, source)) = evaluated_receiver
+            && receiver == evaluated
+        {
+            break source;
         }
         match program.expression_table.expression(receiver) {
             ExpressionNode::Name(name)
@@ -349,11 +384,10 @@ fn structural_field_observation(
                 });
                 receiver = indexed.collection;
             }
-            _ => break,
+            _ => break source(receiver)?,
         }
-    }
+    };
     let leaf = steps.first().copied()?;
-    let local = source(receiver)?;
     // A literal element selection is a coordinate only when `[]` keeps its
     // builtin meaning along the whole place spine. A fresh receiver's spine
     // starts at a value, which names no place type: each of its selections is
@@ -546,8 +580,9 @@ fn observable_scalar(primitive_type: PrimitiveType) -> Option<PrimitiveType> {
     .then_some(primitive_type)
 }
 
-/// Stored descriptors contribute explicit crossings to the checked path. Root
-/// borrowed storage is already peeled by `structural_source`; retaining only
+/// Stored pointer descriptors contribute explicit crossings to the checked
+/// path. Views retain their implicit descriptor presentation. Root borrowed
+/// storage is already peeled by `structural_source`; retaining only
 /// these declared crossings lets lowering follow the plan without rediscovering
 /// reference access from the authored expression.
 fn readable_projection_carrier(
@@ -570,7 +605,9 @@ fn readable_projection_carrier(
                     | language_semantics::ReferenceAccess::Mutable,
                 ..
             } => {
-                path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+                if crate::stores_reference_shape(program, carrier, &[]) {
+                    path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+                }
                 carrier = *referee;
             }
             TypeReferenceNode::Reference { .. } => return None,
@@ -958,9 +995,29 @@ pub fn structural_source(
     ) {
         return None;
     }
-    let (root, receiver_value, ordinal, source_type) = if let Some(source) =
-        program.saved_argument_source(receiver_expression)
-    {
+    let (root, receiver_value, ordinal, source_type) = if let ExpressionNode::SavedSubject(saved) =
+        program.expression_table.expression(receiver_expression)
+        && matches!(
+            program.expression_table.value_capture(saved.capture).owner,
+            typed_trees::expression::ValueCaptureOwner::Match
+        ) {
+        // The match's subject producer dominates this observation. Its capture
+        // is a lexical alias of that completed home, not a fresh copy to produce
+        // for each predicate or arm that reads a field.
+        let source = program.saved_value_source(saved)?;
+        let reference = crate::expression_result_type_reference(program, machine, state, source)?;
+        (
+            facts::PlaceRoot::Expression(
+                program
+                    .expression_table
+                    .value_capture(saved.capture)
+                    .value_anchor,
+            ),
+            source,
+            statement_ordinal as usize,
+            reference,
+        )
+    } else if let Some(source) = program.saved_argument_source(receiver_expression) {
         let reference = crate::expression_result_type_reference(program, machine, state, source)?;
         (
             facts::PlaceRoot::Expression(source),

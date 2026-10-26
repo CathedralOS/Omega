@@ -96,6 +96,7 @@ fn prepare_typed_frontier(
 }
 
 pub(super) struct PreparedPackageInvocation {
+    capture: Option<package_compilation::CapturedLocalSource>,
     root: std::path::PathBuf,
     target: target::TargetProfile,
     inputs: Option<PackageCompilationInputs>,
@@ -105,6 +106,53 @@ pub(super) struct PreparedPackageInvocation {
 }
 
 impl PreparedPackageInvocation {
+    pub(super) fn settle_catalog(
+        self,
+        returned: build_evaluation::ReturnedBuild,
+    ) -> Result<super::package_compilation::SourceBuildDeclaration, CompileFailure> {
+        let capture = self.capture.ok_or_else(|| {
+            vec![Diagnostic::error(
+                "workspace settlement requires acquired unbound source custody",
+            )]
+        })?;
+        let settled = self
+            .source
+            .settle(Some(returned), None, Some(self.target))?;
+        let declaration = settled
+            .evaluated
+            .configuration
+            .project_declaration
+            .clone()
+            .ok_or_else(|| vec![Diagnostic::error("workspace Build returned no declaration")])?;
+        if !matches!(
+            declaration,
+            build_declarations::BuildDeclaration::Workspace(_)
+        ) {
+            return Err(vec![Diagnostic::error(
+                "source catalog requires a workspace declaration",
+            )]
+            .into());
+        }
+        Ok(super::package_compilation::SourceBuildDeclaration::settled(
+            capture,
+            declaration,
+        ))
+    }
+    pub(super) fn observe_declaration(
+        &self,
+        returned: &build_evaluation::ReturnedBuild,
+    ) -> Result<super::package_compilation::SourceBuildDeclaration, CompileFailure> {
+        self.source.validate_return(returned)?;
+        let capture = self.capture.as_ref().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "source declaration observation requires acquired unbound source custody",
+            )]
+        })?;
+        Ok(super::package_compilation::SourceBuildDeclaration::new(
+            capture.clone(),
+            returned.declaration().clone(),
+        ))
+    }
     pub(super) fn join_product_context(
         &mut self,
         target: target::TargetProfile,
@@ -198,6 +246,7 @@ pub(super) fn begin_package_build_worker(
     };
     let source = prepare_build_source_invocation(&request.root_path, source, child, Some(owner))?;
     Ok(PreparedPackageInvocation {
+        capture: request.source_capture,
         root: request.root_path,
         target: selected_target,
         inputs,
@@ -348,7 +397,7 @@ pub(super) fn complete_prepared_build(
     } = prepared;
     let retained_build_check = built.retained_build_check.take();
     let base_sources = built.base_sources.clone();
-    let (typed, pending_pre_checks, computed_build_config, admission) =
+    let (typed, pending_pre_checks, source_completion_accounting, computed_build_config, admission) =
         build_continuation::complete_product_frontend(
             built,
             &mut build_sources,
@@ -360,6 +409,7 @@ pub(super) fn complete_prepared_build(
             diagnostics
         })?;
     Ok(PreparedProductSource {
+        source_completion_accounting,
         typed,
         pending_pre_checks,
         computed_build_config,

@@ -155,6 +155,63 @@ impl ExitScalars<'_, '_> {
         if !self.return_expression_is_stable(returned) {
             return None;
         }
+        // Completed values publish their checked bounds independently of the
+        // source construct. Read that immutable result occurrence before the
+        // older signed-enclosure adapters; u64's unstated upper bound remains
+        // its actual carrier maximum, not an i64 ceiling.
+        if let Some(subject) = validation::canonical_place_from_expression_in_state(
+            self.program,
+            state.symbol,
+            self.exit.statement_index,
+            result_expression,
+        ) && let Some(result_bounds) = crate::values::integer_bounds_at_place(
+            self.program,
+            &self.facts.semantic,
+            self.contexts
+                .iter()
+                .map(|context| self.facts.semantic.contexts.get(*context)),
+            &subject,
+        ) && let Some(value) = validation::closed_integer_range_bound(self.program, argument)
+        {
+            let argument_type = validation::expression_result_type_reference(
+                self.program,
+                self.machine,
+                entry,
+                argument,
+            );
+            if argument_type.is_none_or(|reference| {
+                exact_integer_carrier(self.program, reference) == Some(primitive)
+            }) && typed_trees::closed_numeric::land_integer(&value, primitive).is_some()
+            {
+                let argument_bounds = facts::IntegerRange {
+                    minimum: value.clone(),
+                    maximum: value,
+                };
+                let (left, right, types) = if result_on_left {
+                    (
+                        &result_bounds,
+                        &argument_bounds,
+                        [Some(result_type), argument_type],
+                    )
+                } else {
+                    (
+                        &argument_bounds,
+                        &result_bounds,
+                        [argument_type, Some(result_type)],
+                    )
+                };
+                if typed_trees::operator::has_builtin_spelled_expression_meaning(
+                    self.program,
+                    self.machine.symbol,
+                    expression,
+                    spelling,
+                    &types,
+                ) && let Some(verdict) = interval_comparison(binary.operator, left, right)
+                {
+                    return Some(verdict);
+                }
+            }
+        }
         // Standing bounds describe every legal observation, including copied
         // constructor children. The occurrence owner can additionally bound
         // this exact evaluated return (for example a numeric conversion).

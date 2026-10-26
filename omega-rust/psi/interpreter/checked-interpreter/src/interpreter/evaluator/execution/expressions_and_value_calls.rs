@@ -374,6 +374,12 @@ impl<'program> Evaluator<'program> {
             }
             ExpressionNode::Call(call) => self.eval_call_expression(handle, &call, frame),
             ExpressionNode::Cast(cast) => {
+                // `X as dyn Trait<Args>` produces a selector carrying the
+                // implementation's runtime identity, ahead of every
+                // primitive or recast reading.
+                if let Some(selector) = self.try_dynamic_selector_cast(&cast, frame)? {
+                    return Ok(selector);
+                }
                 let target = self.cast_target_primitive(cast.target_type);
                 // RUNG B interior recast (`&self.buf[4] as &u32`): assemble the
                 // target's bytes LITTLE-ENDIAN from the byte region starting at

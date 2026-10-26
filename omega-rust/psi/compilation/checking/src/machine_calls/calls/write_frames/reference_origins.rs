@@ -403,10 +403,12 @@ pub(super) fn projected_carrier_reference_origins(
         symbols,
         inference,
         false,
-        &|actual, _, _, inference| {
-            exclusive_reference_origins(program, current_machine, actual, symbols, inference)
-        },
-        &|actual, reference, inference| {
+        &crate::machine_calls::calls::write_frames::path_instantiation::aggregate_arguments::SymbolicArguments {
+            reference: &|actual, _, _, inference| {
+                super::path_instantiation::aggregate_arguments::symbolic_sources(
+                    exclusive_reference_origins(program, current_machine, actual, symbols, inference))
+            },
+            stored: &|actual, reference, inference| {
             super::stored_origins::symbolic_reference_leaves(
                 program,
                 current_machine,
@@ -415,11 +417,12 @@ pub(super) fn projected_carrier_reference_origins(
                 inference,
             )
         },
+        },
     )?;
     let mut origins = Vec::new();
     for leaf in &returned.references {
         if leaf.local_segments == segments {
-            push_unique_origin(&mut origins, leaf.origin.clone()?);
+            push_unique_origin(&mut origins, leaf.origin.clone()?.into_symbolic_place()?);
         }
     }
     (!origins.is_empty()).then_some(origins)

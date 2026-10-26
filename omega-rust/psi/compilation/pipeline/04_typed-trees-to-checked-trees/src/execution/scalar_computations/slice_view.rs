@@ -239,6 +239,7 @@ impl Builder<'_, '_> {
             checked_trees::CheckedElementViewRegion::WholeCollection
         };
         let source = checked_trees::CheckedUnitStructuralArgumentPlan {
+            projection_evaluations: Default::default(),
             source,
             path,
             type_identity,

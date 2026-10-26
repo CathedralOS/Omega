@@ -12,7 +12,8 @@ use terminal_psi::{
 };
 use terminal_semantics::borrowed_storage::Projection;
 use terminal_semantics::descriptor_lifetimes::{
-    DescriptorFlowEdge, DescriptorFlowStep, DescriptorLocation, descriptor_location,
+    DescriptorFlowBinding, DescriptorFlowEdge, DescriptorFlowSource, DescriptorFlowStep,
+    DescriptorLocation, descriptor_location,
 };
 use terminal_semantics::descriptor_results::{
     self as kernel, DescriptorDefinition, DescriptorInvocation, DescriptorMachine, DescriptorPlace,
@@ -20,6 +21,8 @@ use terminal_semantics::descriptor_results::{
 };
 
 pub mod placed_results;
+mod scalar_expressions;
+use scalar_expressions::ScalarExpressions;
 
 /// Adapt current flat abstract bodies through the same block reconstruction
 /// and descriptor flow used by optimization-unit consumers. No retained source
@@ -30,17 +33,12 @@ pub fn abstract_catalog_graph<'function, 'boundary>(
     types: &[StructuralTypeDeclaration],
     dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
 ) -> Option<Vec<DescriptorMachine>> {
-    let functions = functions
-        .into_iter()
-        .map(optimization_unit::reconstruct_psi_optimization_function_seed)
-        .collect::<Result<Vec<_>, _>>()
-        .ok()?;
-    optimized_catalog_graph(
-        functions.iter(),
+    abstract_graph_with_slots(
+        functions,
         boundaries,
         types,
         dynamic_dispatch,
-        |_, node| Some(Cow::Borrowed(&node.operation)),
+        kernel::DescriptorSlotKind::Views,
     )
 }
 
@@ -51,17 +49,53 @@ pub fn abstract_reference_catalog_graph<'function, 'boundary>(
     types: &[StructuralTypeDeclaration],
     dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
 ) -> Option<Vec<DescriptorMachine>> {
+    abstract_graph_with_slots(
+        functions,
+        boundaries,
+        types,
+        dynamic_dispatch,
+        kernel::DescriptorSlotKind::References,
+    )
+}
+
+/// The complete inventory for post-effect caller membership queries.
+pub fn optimized_borrowed_storage_catalog_graph<'function, 'boundary>(
+    functions: impl IntoIterator<Item = &'function PsiOptimizationFunction>,
+    boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
+    types: &[StructuralTypeDeclaration],
+    dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
+) -> Option<Vec<DescriptorMachine>> {
+    catalog_graph(
+        functions,
+        boundaries,
+        types,
+        dynamic_dispatch,
+        |_, node| Some(Cow::Borrowed(&node.operation)),
+        kernel::DescriptorSlotKind::BorrowedStorage,
+        |_, _| false,
+    )
+}
+
+fn abstract_graph_with_slots<'function, 'boundary>(
+    functions: impl IntoIterator<Item = &'function abstract_operations::AbstractFunction>,
+    boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
+    types: &[StructuralTypeDeclaration],
+    dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
+    slot_kind: kernel::DescriptorSlotKind,
+) -> Option<Vec<DescriptorMachine>> {
     let functions = functions
         .into_iter()
         .map(optimization_unit::reconstruct_psi_optimization_function_seed)
         .collect::<Result<Vec<_>, _>>()
         .ok()?;
-    optimized_reference_catalog_graph(
+    catalog_graph(
         functions.iter(),
         boundaries,
         types,
         dynamic_dispatch,
         |_, node| Some(Cow::Borrowed(&node.operation)),
+        slot_kind,
+        |_, _| false,
     )
 }
 
@@ -299,6 +333,7 @@ fn adapt(
     preserves_boundary: &impl Fn(&PsiOptimizationFunction, &optimization_unit::OptimizationNode) -> bool,
     selector_graph: Option<&[DescriptorMachine]>,
 ) -> Option<DescriptorMachine> {
+    let scalar_expressions = ScalarExpressions::new(function);
     let mut graph = DescriptorMachine {
         id: function.machine,
         entry: (function.entry, 0),
@@ -314,6 +349,8 @@ fn adapt(
         places: Vec::new(),
         place_types: BTreeMap::new(),
         flow: BTreeMap::new(),
+        case_constructors: BTreeMap::new(),
+        case_successors: BTreeMap::new(),
         originations: BTreeMap::new(),
         projections: BTreeMap::new(),
         contents_queries: BTreeMap::new(),
@@ -349,7 +386,6 @@ fn adapt(
         payload_scalar_parameters: BTreeMap::new(),
         payload_edge_predicates: BTreeMap::new(),
         payload_scalar_bindings: BTreeMap::new(),
-        payload_arrivals: BTreeMap::new(),
         unresolved_contents_writes: BTreeSet::new(),
         storage_derivations: BTreeSet::new(),
         calls: BTreeMap::new(),
@@ -477,7 +513,11 @@ fn adapt(
                     let candidate = matching.next()?;
                     matching.next().is_none().then_some(candidate)
                 },
-                &|value| scalar_expression(function, value).map(|term| term.scalar_type()),
+                &|value| {
+                    scalar_expressions
+                        .expression(value)
+                        .map(|term| term.scalar_type())
+                },
             ) {
                 graph
                     .payload_scalar_postconditions
@@ -490,7 +530,7 @@ fn adapt(
                 value,
                 ..
             } = operation
-                && let Some(value) = scalar_expression(function, value.value)
+                && let Some(value) = scalar_expressions.expression(value.value)
                 // Runtime selectors keep their typed invalidation below; only
                 // an exact coordinate establishes a new stored scalar fact.
                 && let Some(destination) = location(destination.place(), path, Some(*field))
@@ -740,9 +780,7 @@ fn adapt(
                         },
                     ));
                 }
-                O::EstablishNativeCodeLayout { result, .. }
-                    if slot_kind == kernel::DescriptorSlotKind::Views =>
-                {
+                O::EstablishNativeCodeLayout { result, .. } if slot_kind.tracks_views() => {
                     let destination = kernel::native_code_layout_regions(types, result)?;
                     step.definitions.push(destination.clone());
                     graph.originations.entry(position).or_default().push((
@@ -770,7 +808,7 @@ fn adapt(
                     result,
                     correspondence,
                     ..
-                } if slot_kind == kernel::DescriptorSlotKind::References => {
+                } if slot_kind.tracks_references() => {
                     // A placed presentation is not a typed alias to the source
                     // schema. Retain its formation through reference transport
                     // without letting ordinary slot traversal reinterpret it.
@@ -835,7 +873,7 @@ fn adapt(
                         }
                     } else if let Some(source) = location(source.place, path, None) {
                         step.derivations.push((source.clone(), destination.clone()));
-                        if slot_kind == kernel::DescriptorSlotKind::References
+                        if slot_kind.tracks_references()
                             && matches!(operation, O::EstablishReference { .. })
                         {
                             graph.storage_derivations.insert((
@@ -1066,7 +1104,7 @@ fn adapt(
                     step.inputs = vec![DescriptorLocation::whole(*source)];
                 }
                 O::EstablishPrimitiveLocal { result, value, .. } => {
-                    if let Some(value) = scalar_expression(function, value.value) {
+                    if let Some(value) = scalar_expressions.expression(value.value) {
                         graph
                             .scalar_payload_writes
                             .entry(position)
@@ -1077,7 +1115,7 @@ fn adapt(
                 O::PrimitiveLocalStore {
                     destination, value, ..
                 } => {
-                    if let Some(value) = scalar_expression(function, value.value) {
+                    if let Some(value) = scalar_expressions.expression(value.value) {
                         graph
                             .scalar_payload_writes
                             .entry(position)
@@ -1094,7 +1132,7 @@ fn adapt(
                             result.structural_type,
                             u64::try_from(ordinal).ok()?,
                         )?;
-                        if let Some(value) = scalar_expression(function, *value) {
+                        if let Some(value) = scalar_expressions.expression(*value) {
                             graph
                                 .scalar_payload_writes
                                 .entry(position)
@@ -1165,7 +1203,7 @@ fn adapt(
                             _ => location(result.place, &[], Some(field.field))?,
                         };
                         if let terminal_psi::RecordFieldValue::Scalar { value, .. } = &field.value
-                            && let Some(value) = scalar_expression(function, *value)
+                            && let Some(value) = scalar_expressions.expression(*value)
                         {
                             graph
                                 .scalar_payload_writes
@@ -1313,8 +1351,10 @@ fn adapt(
                             if result.structural_type != expected.structural_type
                                 || result.multiplicity != expected.multiplicity
                                 || result.qualifications != expected.qualifications
-                                || result.projected_qualifications
-                                    != expected.projected_qualifications
+                                || !expected
+                                    .projected_qualifications
+                                    .iter()
+                                    .all(|row| result.projected_qualifications.contains(row))
                             {
                                 return None;
                             }
@@ -1474,8 +1514,7 @@ fn adapt(
                         _ => false,
                     };
                     let preserved = preserved
-                        || (slot_kind == kernel::DescriptorSlotKind::References
-                            && preserves_boundary(function, node));
+                        || (slot_kind.tracks_references() && preserves_boundary(function, node));
                     if !preserved {
                         step.may_escape = true;
                         if structural_arguments.iter().any(|actual| {
@@ -1541,6 +1580,52 @@ fn adapt(
                     graph.normal_exits.push(position);
                 }
                 _ => {}
+            }
+            if let O::EstablishZeroedStructural { result, .. } = operation {
+                graph.case_constructors.insert(
+                    position,
+                    kernel::zeroed_case_predicates(types, result.place, result.structural_type),
+                );
+            }
+            if let O::EstablishCase {
+                result,
+                result_case,
+                ..
+            } = operation
+            {
+                graph.case_constructors.insert(
+                    position,
+                    vec![kernel::DescriptorCasePredicate {
+                        subject: DescriptorLocation::whole(result.place),
+                        case: *result_case,
+                    }],
+                );
+            }
+            if let O::StructuralCase {
+                source,
+                path,
+                cases,
+            } = operation
+            {
+                let subject = location(*source, path, None)?;
+                let predicates = node
+                    .successors
+                    .iter()
+                    .map(|edge| {
+                        let mut matching = cases.iter().filter(|case| {
+                            case.psi_edge == edge.psi_edge && case.target == edge.target
+                        });
+                        let case = matching.next()?;
+                        matching
+                            .next()
+                            .is_none()
+                            .then_some(kernel::DescriptorCasePredicate {
+                                subject: subject.clone(),
+                                case: case.case,
+                            })
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                graph.case_successors.insert(position, predicates);
             }
             step.authority_derivations = step.derivations.clone();
             if graph.normal_exits.contains(&position) {
@@ -1632,7 +1717,7 @@ fn adapt(
                             .iter()
                             .map(|parameter| {
                                 let binding = edge.binding(parameter.value)?;
-                                let value = scalar_expression(function, binding.argument)?;
+                                let value = scalar_expressions.expression(binding.argument)?;
                                 (value.scalar_type() == parameter.scalar_type)
                                     .then_some((parameter.value, value))
                             })
@@ -1649,42 +1734,40 @@ fn adapt(
                         .map(|parameter| DescriptorLocation::whole(parameter.place))
                         .collect::<Vec<_>>();
                     let mut bindings = Vec::new();
-                    let mut payload_bindings = Vec::new();
                     for parameter in &target.structural_parameters {
                         let mut matching = edge
                             .structural_bindings
                             .iter()
                             .filter(|binding| binding.parameter == parameter.place);
                         let binding = matching.next()?;
-                        if matching.next().is_some() {
+                        if matching.next().is_some() || binding.argument.access != parameter.access
+                        {
                             return None;
                         }
-                        if let Some(source) =
+                        let source = if let Some(source) =
                             location(binding.argument.place, &binding.argument.path, None)
                         {
-                            bindings.push((source, DescriptorLocation::whole(parameter.place)));
+                            DescriptorFlowSource::Location(source)
                         } else {
-                            payload_bindings.push(kernel::PayloadMembershipBinding {
-                                parameter: parameter.place,
-                                source: kernel::descriptor_contents_query(
+                            step.may_escape = true;
+                            DescriptorFlowSource::from_query(
+                                binding.argument.place,
+                                kernel::descriptor_contents_query(
                                     types,
                                     binding.argument.place,
                                     *graph.place_types.get(&binding.argument.place)?,
                                     &binding.argument.path,
                                     None,
                                 ),
-                            });
-                            step.inputs
-                                .push(DescriptorLocation::whole(binding.argument.place));
-                            step.may_escape = true;
-                        }
-                    }
-                    step.inputs
-                        .extend(bindings.iter().map(|(source, _)| source.clone()));
-                    if !payload_bindings.is_empty() {
-                        let arrivals = graph.payload_arrivals.entry(position).or_default();
-                        arrivals.resize_with(step.successors.len() + 1, Vec::new);
-                        arrivals[step.successors.len()] = payload_bindings;
+                            )
+                        };
+                        step.inputs.push(source.observation());
+                        bindings.push(DescriptorFlowBinding::new(
+                            source,
+                            DescriptorLocation::whole(parameter.place),
+                            binding.argument.access,
+                            parameter.access,
+                        )?);
                     }
                     step.successors.push(DescriptorFlowEdge {
                         target: (edge.target, 0),
@@ -1694,7 +1777,7 @@ fn adapt(
                 }
             }
             if let O::Conditional { condition, .. } = operation
-                && let Some(term) = scalar_expression(function, *condition)
+                && let Some(term) = scalar_expressions.expression(*condition)
             {
                 graph.payload_edge_predicates.insert(
                     position,
@@ -1830,129 +1913,11 @@ pub(crate) fn scalar_call_guarantees<'function>(
     ))
 }
 
-fn scalar_literal(
+pub(crate) fn scalar_expression(
     function: &PsiOptimizationFunction,
     value: semantic_vocabulary::ValueId,
 ) -> Option<semantic_vocabulary::ScalarTerm> {
-    if let Some(literal) = function
-        .block_nodes()
-        .find_map(|node| match node.operation {
-            O::BooleanConstant {
-                result,
-                value: literal,
-                ..
-            } if result == value => Some(literal),
-            _ => None,
-        })
-    {
-        return Some(semantic_vocabulary::ScalarTerm::Boolean(literal));
-    }
-    let (scalar_type, literal) =
-        terminal_semantics::scalar_constant_value(value, |value| {
-            if let Some((scalar_type, literal)) = function.block_nodes().find_map(|node| match node
-                .operation
-            {
-                O::IntegerConstant {
-                    result,
-                    scalar_type,
-                    value: literal,
-                    ..
-                } if result == value => Some((scalar_type, literal)),
-                _ => None,
-            }) {
-                return Some(terminal_semantics::ScalarConstantOrigin::Literal(
-                    scalar_type,
-                    literal,
-                ));
-            }
-            let owner = function.blocks.iter().find(|block| {
-                block
-                    .parameters
-                    .iter()
-                    .any(|parameter| parameter.value == value)
-            })?;
-            if owner.id == function.entry {
-                return None;
-            }
-            let incoming = function
-                .block_nodes()
-                .flat_map(|node| &node.successors)
-                .filter(|edge| edge.target == owner.id)
-                .map(|edge| edge.binding(value).map(|binding| binding.argument))
-                .collect::<Option<Vec<_>>>()?;
-            Some(terminal_semantics::ScalarConstantOrigin::Incoming(incoming))
-        })?;
-    let semantic_vocabulary::ScalarType::Integer(integer) = scalar_type else {
-        return None;
-    };
-    Some(semantic_vocabulary::ScalarTerm::Integer {
-        scalar_type: integer,
-        value: literal,
-    })
-}
-
-fn scalar_expression(
-    function: &PsiOptimizationFunction,
-    value: semantic_vocabulary::ValueId,
-) -> Option<semantic_vocabulary::ScalarTerm> {
-    use semantic_vocabulary::ScalarTerm as T;
-    let types: BTreeMap<_, _> = function
-        .parameters
-        .iter()
-        .chain(function.blocks.iter().flat_map(|block| &block.parameters))
-        .chain(function.block_nodes().flat_map(|node| &node.definitions))
-        .map(|value| (value.value, value.scalar_type))
-        .collect();
-    kernel::scalar_payload_expression(value, &|value| {
-        let scalar_type = *types.get(&value)?;
-        if let Some(literal) = scalar_literal(function, value) {
-            return Some((scalar_type, Some(literal)));
-        }
-        let term = |value| Some(Box::new(T::value(value, *types.get(&value)?)));
-        let integer = |value| types.get(&value)?.as_integer();
-        let denotation = function
-            .block_nodes()
-            .find(|node| {
-                node.definitions
-                    .iter()
-                    .any(|definition| definition.value == value)
-            })
-            .and_then(|node| {
-                Some(match &node.operation {
-                    O::IntegerArithmetic {
-                        arithmetic,
-                        scalar_type,
-                        left,
-                        right,
-                        ..
-                    } => arithmetic.scalar_term(*scalar_type, *term(*left)?, *term(*right)?),
-                    O::BooleanNot { operand, .. } => T::BooleanNot {
-                        operand: term(*operand)?,
-                    },
-                    O::BooleanEqual { left, right, .. } => T::BooleanEqual {
-                        left: term(*left)?,
-                        right: term(*right)?,
-                    },
-                    O::IntegerEqual { left, right, .. } => T::IntegerEqual {
-                        scalar_type: integer(*left)?,
-                        left: term(*left)?,
-                        right: term(*right)?,
-                    },
-                    O::IntegerLessThan { left, right, .. } => T::IntegerLessThan {
-                        scalar_type: integer(*left)?,
-                        left: term(*left)?,
-                        right: term(*right)?,
-                    },
-                    O::IntegerLessOrEqual { left, right, .. } => T::IntegerLessOrEqual {
-                        scalar_type: integer(*left)?,
-                        left: term(*left)?,
-                        right: term(*right)?,
-                    },
-                    _ => return None,
-                })
-            });
-        Some((scalar_type, denotation))
-    })
+    ScalarExpressions::new(function).expression(value)
 }
 
 fn selected_effects_machine(

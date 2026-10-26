@@ -19,7 +19,9 @@ pub struct ReservedResultPlace {
     pub segments: Vec<facts::PlaceSegment>,
 }
 
-/// Resolve declaration-owned field and literal fixed-index result projections.
+/// Resolve declared fields and literal fixed indices rooted at the contract result.
+/// Case payloads keep their nominal Case/Field coordinates; resolving a path
+/// supplies neither membership nor read authority.
 /// The result name and the complete projection share one owning ensures when
 /// the occurrence index lists both. An intermediate field node that the index
 /// does not list separately still belongs to that result; a different owner
@@ -35,7 +37,7 @@ pub fn reserved_result_place(
             return None;
         }
         match program.expression_table.expression(root) {
-            ExpressionNode::Member(member) if member.case_variant.is_none() => {
+            ExpressionNode::Member(member) => {
                 projections.push(root);
                 root = member.receiver;
             }
@@ -145,22 +147,42 @@ pub fn reserved_result_place(
         {
             return None;
         }
-        let field = crate::value_custody::places::exact_data_member_field(
-            program,
-            data,
-            member.member_symbol,
-            member.member.as_str(),
-            None,
-        )?;
+        // Reuse the applied member join: prepared fields may translate the
+        // retained template selector only through this exact receiver. A case
+        // qualifier chooses its declared payload namespace, never another
+        // case's same-spelled field or evidence that the case currently holds.
+        let field =
+            crate::value_custody::places::applied_data_member_field(program, receiver, member)?;
         let declaration = program.symbols.get(field.symbol);
         if declaration.kind != symbols::SymbolKind::Field
-            || declaration.parent != data.symbol
             || program.symbols.name(field.symbol) != field.name.as_str()
             || !program
                 .type_reference_table
                 .contains_type_reference(field.type_reference)
         {
             return None;
+        }
+        if declaration.parent != data.symbol {
+            let mut cases = program.data_members(data).iter().filter_map(|member| {
+                let typed_trees::data::DataMember::Variant(case) = member else {
+                    return None;
+                };
+                (case.symbol == declaration.parent).then_some(case)
+            });
+            let case = cases.next()?;
+            if cases.next().is_some()
+                || program.symbols.get(case.symbol).kind != symbols::SymbolKind::Variant
+                || program.symbols.get(case.symbol).parent != data.symbol
+                || !program
+                    .data_payload_fields(case)
+                    .iter()
+                    .any(|candidate| candidate.symbol == field.symbol)
+            {
+                return None;
+            }
+            segments.push(facts::PlaceSegment::Case {
+                variant: case.symbol,
+            });
         }
         segments.push(facts::PlaceSegment::Field {
             symbol: field.symbol,
@@ -358,7 +380,7 @@ fn contract_occurrence_owner(
             .owner(root, expression);
     }
     let mut owner = None;
-    for (callable, return_type, parameters, contract) in callable_contracts(program) {
+    for (callable, return_type, parameters, contract) in callable_contract_scopes(program) {
         let seen = contract_nodes(program, contract);
         if !seen.contains(&expression) || !seen.contains(&root) {
             continue;
@@ -403,12 +425,13 @@ pub(crate) fn source_contract_parameters(
 }
 
 /// Every callable contract in the order owner resolution visits them:
-/// machines with an entry state, operators, then trait requirement signatures.
+/// machines with an entry state, operators, then authored and applied requirement
+/// signatures and reachable machine-parameter contracts.
 /// Operators own their result guarantees even when their boundary body is
 /// absent; ignoring them leaves the result projection without an owner. A trait
 /// symbol cannot distinguish sibling requirements, and manufacturing a machine
 /// for a bodyless signature would give it the wrong result owner.
-fn callable_contracts(
+pub fn callable_contract_scopes(
     program: &dyn crate::CheckingInput,
 ) -> impl Iterator<
     Item = (
@@ -432,6 +455,11 @@ fn callable_contracts(
         .iter()
         .flat_map(|definition| program.trait_machine_signatures(definition))
         .chain(program.prepared_callable_signatures())
+        .chain(
+            machine_parameter_contract_signatures(program)
+                .into_iter()
+                .map(|(_, signature)| signature),
+        )
         .map(|signature| {
             (
                 signature.symbol,
@@ -455,6 +483,81 @@ fn callable_contracts(
                 .map(move |contract| (callable, return_type, parameters, contract))
         },
     )
+}
+
+/// Follow machine-parameter contracts from live declaration telescopes. Backing
+/// arenas also retain private applications, so arena membership is not a scope.
+pub(crate) fn machine_parameter_contract_signatures(
+    program: &dyn crate::CheckingInput,
+) -> Vec<(
+    &typed_trees::data::TypeParameter,
+    &typed_trees::signature::StateSignature,
+)> {
+    let mut parameters = program
+        .machines()
+        .iter()
+        .flat_map(|machine| program.machine_type_parameters(machine))
+        .chain(
+            program
+                .data_definitions()
+                .iter()
+                .flat_map(|data| program.data_type_parameters(data)),
+        )
+        .chain(
+            program
+                .domain_definitions()
+                .iter()
+                .flat_map(|domain| program.domain_type_parameters(domain)),
+        )
+        .chain(
+            program
+                .conformances()
+                .iter()
+                .flat_map(|conformance| program.conformance_type_parameters(conformance)),
+        )
+        .chain(
+            program
+                .traits()
+                .iter()
+                .flat_map(|definition| program.trait_type_parameters(definition)),
+        )
+        .chain(
+            program
+                .all_operators()
+                .flat_map(|operator| program.operator_type_parameters(operator)),
+        )
+        .collect::<Vec<_>>();
+    for signature in program
+        .traits()
+        .iter()
+        .flat_map(|definition| program.trait_machine_signatures(definition))
+        .chain(program.prepared_callable_signatures())
+    {
+        parameters.extend(program.state_signature_type_parameters(signature));
+    }
+    let mut signatures = Vec::<(
+        &typed_trees::data::TypeParameter,
+        &typed_trees::signature::StateSignature,
+    )>::new();
+    while let Some(parameter) = parameters.pop() {
+        let typed_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind else {
+            continue;
+        };
+        let Some(view) = program.machine_parameter_contract_view(contract) else {
+            continue;
+        };
+        let signature = view.signature();
+        if signatures.iter().any(|(_, previous)| {
+            previous.symbol == signature.symbol
+                && previous.parameters == signature.parameters
+                && previous.contracts == signature.contracts
+        }) {
+            continue;
+        }
+        parameters.extend(program.state_signature_type_parameters(signature));
+        signatures.push((parameter, signature));
+    }
+    signatures
 }
 
 /// Every expression node one contract's facts reach.
@@ -514,7 +617,7 @@ fn owns_result(
         )
 }
 
-/// The callable contracts of one program, in `callable_contracts` order, and
+/// The callable contracts of one program, in `callable_contract_scopes` order, and
 /// for every expression node the ascending positions of the contracts that
 /// reach it.
 pub(crate) struct ContractOccurrenceIndex {
@@ -547,7 +650,7 @@ impl ContractOccurrenceIndex {
     fn of(program: &dyn crate::CheckingInput) -> Self {
         let mut contracts = Vec::new();
         let mut containing = symbols::SymbolKeyMap::<ExpressionHandle, Vec<u32>>::default();
-        for (callable, return_type, parameters, contract) in callable_contracts(program) {
+        for (callable, return_type, parameters, contract) in callable_contract_scopes(program) {
             let position =
                 u32::try_from(contracts.len()).expect("callable contract position overflow");
             for node in contract_nodes(program, contract) {

@@ -309,6 +309,9 @@ pub enum CheckedUnitEffectOperationPlan {
         /// Anonymous selected complements close with the complete receiving
         /// leaf cohort, independently of their scalar/root exit disposition.
         selection_complements: Vec<CheckedUnitSelectedReferenceRetirementPlan>,
+        /// Exact owned backing deaths after this complete holder/cohort ends.
+        /// A borrowed descriptor supplies no disposal authority of its own.
+        owner_cleanups: arena::HandleSpan<super::CheckedReferenceOwnerCleanup>,
     },
     /// One local data binding: its declared home or result coordinate and
     /// its initializer payload, keyed by the bound value's representation.
@@ -943,7 +946,8 @@ impl CheckedUnitEffectOperationPlan {
         None
     }
 
-    /// Enumerate retained operation dependencies for signature/catalog readers.
+    /// Enumerate retained operation dependencies, including already scheduled
+    /// normal completions, for signature/catalog and lifetime readers.
     /// This is not execution order: structural expressions evaluate their call
     /// operands in their own authored field and selected-arm order.
     pub fn with_value_calls(&self) -> impl Iterator<Item = &Self> {

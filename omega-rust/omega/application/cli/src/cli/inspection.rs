@@ -292,6 +292,16 @@ fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> String {
                 machine.id.get(), block.id.get(), block.parameters, block.erased_scalar_formals,
                 proof_formals(module, &block.erased_proof_formals),
             ).expect("writing to a String cannot fail");
+            for (index, parameter) in block.structural_parameters.iter().enumerate() {
+                writeln!(
+                    output,
+                    "block_parameter machine=machine:{} block=block:{} index={} declaration={parameter:?}",
+                    machine.id.get(),
+                    block.id.get(),
+                    index,
+                )
+                .expect("writing to a String cannot fail");
+            }
             for operation in &block.operations {
                 if let Some(result) = operation.result.structural() {
                     writeln!(

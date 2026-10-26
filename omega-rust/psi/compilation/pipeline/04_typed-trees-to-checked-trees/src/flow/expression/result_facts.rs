@@ -51,12 +51,7 @@ impl Execution<'_, '_, '_> {
         if !validation::declared_carriers_match(self.program, source_type, target) {
             return Vec::new();
         }
-        let Some(source) = validation::canonical_place_from_expression_in_state(
-            self.program,
-            self.state.symbol,
-            self.statement_index,
-            cast.value,
-        ) else {
+        let Some(source) = self.completed_value_place(cast.value) else {
             return Vec::new();
         };
         let handles = crate::flow::active_context_handles(self.context, contexts);
@@ -171,7 +166,7 @@ impl Execution<'_, '_, '_> {
                 &mut predicates,
             );
         }
-        let integer_bounds = self
+        let mut integer_bounds = self
             .program
             .expression_table
             .call_node(expression)
@@ -189,6 +184,36 @@ impl Execution<'_, '_, '_> {
                     maximum: numerics::bignum::BigInt::from_i64(maximum?),
                 })
             });
+        // Checking already judged this completed expression under every clean
+        // incoming environment. Publish its resulting enclosure on the value,
+        // so constructors, returns and later transports read that record rather
+        // than rediscovering which source construct produced it. Missing i64
+        // endpoints mean the actual carrier's extreme, never a fabricated cap.
+        if let Some(interval) =
+            validation::expression_interval(self.context.expression_intervals, expression)
+            && let Some(primitive) = self.program.primitive_type_reference(reference)
+            && let Some(mut bounds) = validation::carrier_integer_range(primitive)
+        {
+            let carrier_bounds = bounds.clone();
+            let has_call_bounds = integer_bounds.is_some();
+            if let Some(minimum) = interval.low {
+                bounds.minimum = bounds
+                    .minimum
+                    .max(numerics::bignum::BigInt::from_i64(minimum));
+            }
+            if let Some(maximum) = interval.high {
+                bounds.maximum = bounds
+                    .maximum
+                    .min(numerics::bignum::BigInt::from_i64(maximum));
+            }
+            if let Some(previous) = integer_bounds.take() {
+                bounds.minimum = bounds.minimum.max(previous.minimum);
+                bounds.maximum = bounds.maximum.min(previous.maximum);
+            }
+            if bounds.minimum <= bounds.maximum && (has_call_bounds || bounds != carrier_bounds) {
+                integer_bounds = Some(bounds);
+            }
+        }
         let zero_fields = if matches!(
             self.program.expression_table.expression(expression),
             ExpressionNode::StructLiteral(_)

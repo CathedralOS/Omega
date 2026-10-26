@@ -1,0 +1,35 @@
+// Expected exit: 0
+// Closed Boolean observations retain both indexes and the intervening member.
+data Flags { bits: [bool; 2]; number: u64; }
+data Owner { rows: [Flags; 2]; }
+
+machine initialize(owner: &mut Owner)
+ensures owner.rows[1].bits[0], !owner.rows[1].bits[1], owner.rows[1].number == 9
+{
+    owner.rows[1].bits[0] = true;
+    owner.rows[1].bits[1] = false;
+    owner.rows[1].number = 9;
+}
+
+machine inspect(owner: &Owner) -> u64
+requires owner.rows[1].bits[0] && !owner.rows[1].bits[1]
+    && owner.rows[1].number == 9
+ensures result == 9
+{
+    owner.rows[1].number
+}
+
+machine main() crashes Trap {
+    let mut owner: Owner = Owner { rows: [
+        Flags { bits: [false, true], number: 3 },
+        Flags { bits: [false, true], number: 0 }
+    ] };
+    initialize(&mut owner);
+    let observed: u64 = inspect(&owner);
+    transition observed == 9 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

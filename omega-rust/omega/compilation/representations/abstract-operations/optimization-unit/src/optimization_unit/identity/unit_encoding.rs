@@ -22,7 +22,8 @@ use crate::optimization_unit::identity::structural_encoding::{
     encode_structural_domain, encode_structural_type,
 };
 
-const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v45\0";
+// Explicit scalar-read pointer steps have their own canonical identity tag.
+const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v47\0";
 pub fn recompute_psi_optimization_unit_identity(
     unit: &PsiOptimizationUnit,
 ) -> OptimizationUnitIdentity {
@@ -66,6 +67,11 @@ fn encode_unit(bytes: &mut CanonicalBytes, unit: &PsiOptimizationUnit) {
         bytes.id(custody.machine);
         bytes.u32(custody.source_ordinal);
     });
+    encode_optional(
+        bytes,
+        unit.runtime_evidence.as_deref(),
+        super::runtime_evidence_encoding::encode_catalog,
+    );
     bytes.slice(&unit.functions, encode_function);
     // Preserve direct-only identities. The extension binds the complete row
     // roster, including trap slots and implementations not selected locally.

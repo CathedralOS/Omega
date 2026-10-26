@@ -103,7 +103,7 @@ pub(super) fn close(
     contract.projected_qualifications.dedup();
 }
 
-pub(super) fn prove(
+pub(crate) fn prove(
     context: &semantic_vocabulary::PropositionContext,
     goal: &Proposition,
     requirements: &[Proposition],
@@ -139,6 +139,16 @@ fn prove_with_budget(
             conclusion: goal.clone(),
             rule: ProofRule::Primitive(judgment),
         });
+    }
+    // Domain-local primitive predicates and intrinsic receiving ranges may
+    // spell the same fixed-carrier relation in mathematical and scalar form.
+    // Search the exact inverse normalization, then replay the ordinary checked
+    // implication bridge. No arithmetic operation acquires a different policy.
+    if let Some(lowered) = proof_admission::lower_integer_math_relation(goal)
+        && let Some(proof) =
+            prove_with_budget(context, &lowered, requirements, depth + 1, remaining)
+    {
+        return Some(bridge(goal.clone(), proof, requirements.len()));
     }
     for (index, requirement) in requirements.iter().enumerate() {
         let proof = ProofNode {

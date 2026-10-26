@@ -866,6 +866,9 @@ impl OperationFrame<'_, '_> {
         for step in selected {
             match step {
                 PreparedStructuralPathSegment::Static(step) => written.push(step),
+                PreparedStructuralPathSegment::EvaluatedFixedIndex { index, .. } => {
+                    written.push(terminal_psi::StructuralPathSegment::FixedIndex(index));
+                }
                 PreparedStructuralPathSegment::ViewExtent { .. } => {}
                 PreparedStructuralPathSegment::RuntimeIndex(_)
                 | PreparedStructuralPathSegment::ComputedIndex(_)
@@ -1510,6 +1513,7 @@ impl OperationFrame<'_, '_> {
         let Some(hole_type) = field.field_type.as_structural() else {
             return unsupported("sum field store names a non-structural field");
         };
+        let first_operand_operation = self.operations.operations.len();
         let (replacement, type_identity) = match &store.value {
             CheckedStoreValue::Place(value) => (
                 self.copied_sum_value(identities, value, hole_type)?,
@@ -1528,6 +1532,12 @@ impl OperationFrame<'_, '_> {
                 return unsupported("sum field store holds no sum value");
             }
         };
+        // The store consumes this operand inside the statement, before the
+        // outer effect publishes its results. Publish only the straight-line
+        // producers this evaluation just completed, including empty rosters.
+        self.evaluation
+            .current_claims
+            .publish_operations(&self.operations.operations[first_operand_operation..])?;
         let hole = window_place(source, &store.destination.path, type_identity);
 
         let displacement = self.windows.captured_displacement_expression(

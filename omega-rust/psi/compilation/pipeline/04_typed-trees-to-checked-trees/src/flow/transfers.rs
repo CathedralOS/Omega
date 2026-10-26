@@ -40,6 +40,7 @@ mod declared_domains;
 mod owned_qualifications;
 pub(super) use owned_qualifications::append_owned_qualification_transfer;
 mod projected;
+pub(super) use projected::append_completed_copy_predicates;
 mod replacement;
 mod scalar_values;
 mod write_target;
@@ -218,11 +219,21 @@ pub(super) fn propagate_statement_transfers(
             .stored_destination = target_place;
     }
 
+    let completed_source = build.control.statements.get(statement_fact).stored_value;
+    let completed_source_type = build
+        .control
+        .operands
+        .is_valid(completed_source)
+        .then(|| build.control.operands.get(completed_source))
+        .filter(|operand| operand.expression == source_expression)
+        .map(|operand| operand.type_reference)
+        .filter(|reference| reference.is_valid());
     context_transport::transport(
         program,
         semantic,
         build,
         &write,
+        completed_source_type,
         stable_value_target,
         machine_symbol,
         state_symbol,
@@ -412,7 +423,7 @@ pub(super) fn propagate_statement_transfers(
 /// Publish one statement's transferred facts as new active contexts, one per
 /// exact place and observation kind. A tag survives a payload write even
 /// when the full value at that same place no longer has its old contents.
-fn publish_statement_contexts(
+pub(super) fn publish_statement_contexts(
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
     machine_symbol: SymbolHandle,
@@ -443,7 +454,7 @@ fn publish_statement_contexts(
     for reference in semantic.refs.span_or_empty(refs) {
         let fact = semantic.facts.get(reference.fact);
         let place = fact.place;
-        let observes_tag = matches!(fact.payload, FactPayload::AssignedCase { .. });
+        let observes_tag = matches!(fact.payload, FactPayload::CaseValue { .. });
         let domain = fact
             .payload
             .domain_membership()
@@ -804,16 +815,27 @@ fn completed_value_carriers_agree(
     statement_index: usize,
     source: &CanonicalPlace,
     target: &CanonicalPlace,
+    completed_source: Option<typed_trees::types::TypeReferenceHandle>,
 ) -> bool {
-    let type_at = |place, position| {
-        let reference =
-            validation::canonical_place_type_reference(program, state, position, place)?;
+    let carrier_identity = |reference| {
         let reference = validation::reference_shell(program, reference)
             .map_or(reference, |shell| shell.referee);
-        Some(program.normalized_type_identity(reference))
+        program.normalized_type_identity(reference)
     };
     // Only the installed destination's current declaration becomes visible.
-    type_at(source, statement_index)
-        .zip(type_at(target, statement_index.saturating_add(1)))
+    // A produced value already retained its actual type at completion. Its
+    // expression place need not have a declaration from which to rediscover
+    // that type (for example a Match); projected storage keeps its own query.
+    completed_source
+        .or_else(|| {
+            validation::canonical_place_type_reference(program, state, statement_index, source)
+        })
+        .zip(validation::canonical_place_type_reference(
+            program,
+            state,
+            statement_index.saturating_add(1),
+            target,
+        ))
+        .map(|(source, target)| (carrier_identity(source), carrier_identity(target)))
         .is_some_and(|(source, target)| source == target)
 }

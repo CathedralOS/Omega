@@ -45,7 +45,8 @@ pub(crate) fn prepared_admission(
         domain,
     )?;
     let execution = prepared.typed();
-    let admission = crate::BuildTimeAdmissionPlan::infer(execution, selection_authority)
+    let admission = domain
+        .admission(execution, selection_authority)
         .with_selected_operators(execution, operators)
         .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
     Ok((prepared, admission))

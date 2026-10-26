@@ -270,6 +270,34 @@ and Product-preparation sequence without forking a nonexistent sibling. An
 already prepared `PackageBuild::select_target` remains restricted to equal source
 and semantic inputs; it selects realization, not a new Product judgment.
 
+Ordinary CLI build/check/run/inspection now uses this lifecycle. Package recovery
+begins before acquisition; one application session executes actual declarations
+and selected dependency requests, retains their source captures and settles each
+Build. Package-owned Product admission preserves source/compiler/lock checks and
+target-specific refusals, but issues no second execution request. Its inert
+execution requirement must match the pre-effect host profile, snapshot, named
+inputs and required-output roster retained with the Build. Discovery runs with
+private snapshot/staging authority only: a restricted request stops before effects;
+neither an accepted Product row nor a discarded late grant can authorize it.
+Matching Product admissions share one prepared source continuation; realization
+still validates each target's own generated bundles and permissions. Named Git
+selection settles the actual workspace catalog and observes member declarations
+from authenticated subtrees. Those observations are not completed Builds or
+Products: only selected members join their dependencies and prepare Products,
+using their original returned activations. Relative Paths stay within registered
+member navigation at the frozen repository resolution. Install/update/resume
+execute their staged candidates through the same discovery loop and retain the
+settled Builds across review passes and targets. Proposal identity, original
+local dependency bases, execution inventories, review decisions and accepted-pair
+publication remain package-owned. Discovery tolerance is part of Product
+judgment reuse, never copied into a bound admission. Observational audit uses
+the same executed source roster and retained Product review. Its accepted graph
+admits dependency requests before acquisition, preserves exact Git pins, and
+permits only root-content changes; per-target findings never recover proposals
+or publish acceptance. Source failure remains unavailable findings for every
+requested target. Review has no fresh-execution or sponsor-issuing route.
+Provider suspension and one-shot execution unification remain open.
+
 Each compiler entrance shows named representations and actual stage calls in
 execution order. A separate `pipeline.rs` is justified only if it owns meaningful
 sequencing rather than forwarding. Use ordinary locals, loops and matches for

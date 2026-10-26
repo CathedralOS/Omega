@@ -1,0 +1,9 @@
+// Expected exit: 0
+// An unused public attached callable retains its declaration-owned lifetime in
+// a published crash guard's static type argument during ordinary package review.
+public data Owner<'storage> { value: &'storage i32; }
+public machine closed_guard<Value>() -> bool terminates; { false }
+public machine Owner::inspect()
+crashes Trap closed_guard<Owner<'storage>>() {
+}
+machine main() {}

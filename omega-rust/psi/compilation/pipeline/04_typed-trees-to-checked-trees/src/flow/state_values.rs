@@ -1,11 +1,13 @@
-//! Explicit state inputs derived from live edge contexts, not declarations.
+//! Same-invocation state arrivals transport live completed facts. Ordinary
+//! machine applications contribute unknown inputs to callable non-entry states;
+//! their incidental actuals never become assumptions of a generic body.
 use validation::CallSite;
 
 use crate::flow::FlowBuildContext;
 
 use arena::HandleSpan;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use checked_trees::{BorrowCallFact, FlowConstraintRef, FlowOperandFact, FlowSemanticContextRef};
+use checked_trees::{BorrowCallFact, FlowConstraintKind, FlowOperandFact, FlowSemanticContextRef};
 use facts::ScalarValue;
 use facts::{FactPayload, FactPlace, FactPlan, ProgramPoint};
 use symbols::SymbolHandle;
@@ -37,13 +39,14 @@ pub(super) struct StateValues {
     qualifications: Vec<qualifications::QualifiedInput>,
     predicates: Vec<crate::facts::boolean_predicates::BoundPredicate>,
     entry_paths: crate::facts::boolean_predicates::EntryPaths,
-    /// Selected cases of internal state arrivals. Scalars join through `values`.
+    /// Selected cases delivered by same-machine transition predecessors.
+    /// Scalar deliveries are joined independently in `StateValues::values`.
     argument_edges: ArgumentInputs,
     /// Cases every recorded edge agrees on, keyed by the destination parameter.
     cases: Vec<(SymbolHandle, SymbolHandle)>,
 }
 
-/// One internal state-arrival edge's selected-case observations.
+/// One same-machine transition edge's completed argument cases.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct ArgumentEdge {
     source: fields::BoundsSource,
@@ -283,7 +286,14 @@ pub(super) fn record_transition(
     let mut bounds = Vec::new();
     for parameter in program.state_parameters(destination) {
         let captured = argument_values.get(ordinal);
-        let argument = arguments.get(ordinal);
+        let operand = captured_operands.get(ordinal).filter(|operand| {
+            program.state_parameters(destination).len() == arguments.len()
+                && arguments.len() == captured_operands.len()
+                && argument_values.len() == arguments.len()
+                && arguments.get(ordinal).is_some_and(|argument| {
+                    completed_argument_matches(operand, state.symbol, statement_index, *argument)
+                })
+        });
         ordinal += 1;
         let scalar = program
             .primitive_type_reference(parameter.type_reference)
@@ -291,26 +301,43 @@ pub(super) fn record_transition(
                 primitive.accepts_integer_literal()
                     || primitive == typed_trees::types::PrimitiveType::Bool
             });
-        let value = if !scalar {
+        let value = if !scalar || operand.is_none() {
             ScalarValue::Unknown
         } else {
             captured.cloned().unwrap_or_default()
         };
         // The integer interval this edge delivers for the parameter: a
-        // literal or captured value is a point range, and a place argument
-        // forwards the bounds its live facts prove. No evidence, no bound --
+        // literal or captured value is a point range, and a completed argument
+        // forwards the bounds its own observation proves. No evidence, no bound --
         // an edge that proves nothing narrows the joined interval to nothing.
         let bound = match &value {
             ScalarValue::Integer(value) => Some(facts::IntegerRange {
                 minimum: value.clone(),
                 maximum: value.clone(),
             }),
-            _ => argument
-                .and_then(|argument| {
-                    build.canonical_place_at(program, state.symbol, statement_index, *argument)
-                })
-                .and_then(|place| {
-                    build.integer_bounds_at_place(program, semantic, contexts, &place)
+            _ => operand
+                .and_then(|operand| completed_argument_facts(program, build, operand, contexts))
+                .and_then(|captured| {
+                    let mut joined: Option<facts::IntegerRange> = None;
+                    for place in &captured.places {
+                        let incoming = crate::values::integer_bounds_at_place(
+                            program,
+                            semantic,
+                            captured
+                                .contexts
+                                .iter()
+                                .map(|context| semantic.contexts.get(*context)),
+                            &place.projected,
+                        )?;
+                        joined = Some(match joined {
+                            Some(previous) => facts::IntegerRange {
+                                minimum: previous.minimum.min(incoming.minimum),
+                                maximum: previous.maximum.max(incoming.maximum),
+                            },
+                            None => incoming,
+                        });
+                    }
+                    joined
                 }),
         };
         values.push((parameter.symbol, value));
@@ -375,18 +402,21 @@ pub(super) fn record_transition(
         program,
         semantic,
         build,
-        machine,
         state,
         destination,
+        statement_index,
         arguments,
         captured_operands,
+        contexts,
     );
     deliver_argument_edge(
         program,
         build,
         destination,
-        fields::BoundsSource::transition(state.symbol, target),
-        cases,
+        ArgumentEdge {
+            source: fields::BoundsSource::transition(state.symbol, target),
+            cases,
+        },
     );
 }
 
@@ -429,12 +459,14 @@ pub(super) fn record_invocation<'plans>(
     {
         return;
     }
+    let source =
+        fields::BoundsSource::invocation(state.symbol, call.statement_index, call.call_ordinal);
     join(
         program,
         build,
         owner,
         destination,
-        fields::BoundsSource::invocation(state.symbol, call.statement_index, call.call_ordinal),
+        source,
         StateValues {
             state: destination.symbol,
             fields: Vec::new(),
@@ -451,76 +483,61 @@ pub(super) fn record_invocation<'plans>(
             cases: Vec::new(),
         },
     );
-    // An ordinary invocation of an internal state contributes an unknown case
-    // edge; another predecessor's selected tag cannot survive that arrival.
+    // An ordinary invocation is an unknown predecessor for selected cases as
+    // well. Its empty edge must challenge transition facts already delivered
+    // to this callable state, regardless of traversal order.
     deliver_argument_edge(
         program,
         build,
         destination,
-        fields::BoundsSource::invocation(state.symbol, call.statement_index, call.call_ordinal),
-        Vec::new(),
+        ArgumentEdge {
+            source,
+            cases: Vec::new(),
+        },
     );
 }
 
-/// Deliver what each operand completed, not what its source holds after the
-/// other operands ran. Named jumps use the same capture law
-/// as contract checking: detached values keep completion facts; views consult
-/// their exact live referents at invocation. Missing captures remain unknown
-/// incoming edges and never disappear from a destination's join.
+/// Capture one exact argument tuple. Owned values retain their completion
+/// contexts; views use invocation facts only at their captured referents.
+/// Source spelling never supplies a later storage version for an earlier value.
+#[allow(clippy::too_many_arguments)]
 fn capture_argument_cases(
     program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
-    build: &mut FlowBuildContext,
-    machine: &typed_trees::machine::Machine,
+    build: &FlowBuildContext,
     state: &typed_trees::state::State,
     destination: &typed_trees::state::State,
+    statement_index: usize,
     arguments: &[ExpressionHandle],
-    captured: &[FlowOperandFact],
+    captured_operands: &[FlowOperandFact],
+    contexts: HandleSpan<FlowSemanticContextRef>,
 ) -> Vec<(SymbolHandle, SymbolHandle)> {
     let parameters = program.state_parameters(destination);
     let mut cases = Vec::new();
     if parameters.len() != arguments.len()
-        || !captured
+        || captured_operands.len() != arguments.len()
+        || !captured_operands
             .iter()
-            .map(|capture| capture.expression)
-            .eq(arguments.iter().copied())
-        || captured
-            .iter()
-            .any(|capture| capture.state_symbol != state.symbol)
+            .zip(arguments)
+            .all(|(operand, argument)| {
+                completed_argument_matches(operand, state.symbol, statement_index, *argument)
+            })
     {
         return cases;
     }
-    let invocation = captured
-        .last()
-        .map_or(HandleSpan::<FlowConstraintRef>::empty(), |capture| {
-            capture.constraints
-        });
-    for (parameter, capture) in parameters.iter().zip(captured) {
-        let contexts = super::operand_contexts(
-            program,
-            &build.contexts,
-            &build.control,
-            semantic,
-            capture,
-            parameter.type_reference,
-            invocation,
-        );
-        let Some(places) = argument_places(
-            program,
-            build,
-            machine,
-            state,
-            capture,
-            parameter.type_reference,
-        ) else {
+    for (parameter, operand) in parameters.iter().zip(captured_operands) {
+        let Some(captured) = completed_argument_facts(program, build, operand, contexts) else {
             continue;
         };
-        if let Some(variant) = places
+        let mut observations = captured
+            .places
             .iter()
-            .find_map(|place| assigned_case_at(program, semantic, &contexts, place))
+            .map(|place| selected_case_at(program, semantic, &captured.contexts, &place.projected));
+        if let Some(Some(variant)) = observations.next()
+            && observations.all(|observed| observed == Some(variant))
         {
             cases.push((parameter.symbol, variant));
-        };
+        }
     }
     cases.sort_by_key(|(parameter, variant)| {
         (
@@ -533,56 +550,78 @@ fn capture_argument_cases(
     cases
 }
 
-/// Exact completed-value or live-referent namespaces shared by arrival
-/// consumers. The caller selects the matching operand contexts independently.
-fn argument_places(
-    program: &dyn ::validation::CheckingInput,
-    build: &mut FlowBuildContext,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    capture: &FlowOperandFact,
-    reference: typed_trees::types::TypeReferenceHandle,
-) -> Option<Vec<CanonicalPlace>> {
-    let view = super::operand_binds_live_view(program, reference);
-    let mut places = Vec::new();
-    if !view {
-        places.push(CanonicalPlace {
-            root: facts::PlaceRoot::Expression(capture.expression),
-            segments: Vec::new(),
-        });
-    }
-    let storage_place = if view {
-        match build
-            .control
-            .operand_referents
-            .span_or_empty(capture.referents)
-        {
-            [referent] => build
-                .control
-                .operand_referent_segments
-                .span(referent.segments)
-                .map(|segments| CanonicalPlace {
-                    root: referent.root,
-                    segments: segments.to_vec(),
-                }),
-            _ => None,
-        }
-    } else if validation::value_has_builtin_coordinates(program, machine, state, capture.expression)
-    {
-        build.canonical_place_at(
-            program,
-            capture.state_symbol,
-            capture.statement_index,
-            capture.expression,
-        )
-    } else {
-        None
-    };
-    places.extend(storage_place);
-    (!places.is_empty()).then_some(places)
+fn completed_argument_matches(
+    operand: &FlowOperandFact,
+    state: SymbolHandle,
+    statement_index: usize,
+    argument: ExpressionHandle,
+) -> bool {
+    operand.expression == argument
+        && operand.state_symbol == state
+        && operand.statement_index == statement_index
+        && operand.type_reference.is_valid()
 }
 
-fn assigned_case_at(
+/// Invocation scratch over the existing completed operand graph. Facts about
+/// an owned value keep its completion epoch; readable live views use only the
+/// invocation epoch at their captured referents. Neither path grants access.
+struct CompletedArgumentFacts {
+    contexts: Vec<facts::FactContextHandle>,
+    places: Vec<super::operand_values::CapturedValuePlace>,
+}
+
+fn completed_argument_facts(
+    program: &dyn ::validation::CheckingInput,
+    build: &FlowBuildContext,
+    operand: &FlowOperandFact,
+    invocation_contexts: HandleSpan<FlowSemanticContextRef>,
+) -> Option<CompletedArgumentFacts> {
+    let live_view = super::operand_binds_live_view(program, operand.type_reference);
+    if live_view {
+        validation::field_domains::readable_type_reference(program, operand.type_reference)?;
+        // An unresolved view cannot turn its old descriptor slot into the
+        // referent's current value. Copies use the saved descriptor inventory.
+        if operand.referents.is_empty()
+            && !matches!(
+                operand.completion,
+                checked_trees::FlowOperandCompletion::Copied { .. }
+            )
+        {
+            return None;
+        }
+    }
+    let contexts = if live_view {
+        crate::flow::active_context_handles(build, invocation_contexts)
+    } else {
+        build
+            .contexts
+            .constraint_refs
+            .span_or_empty(operand.constraints)
+            .iter()
+            .filter_map(|reference| match reference.kind {
+                FlowConstraintKind::SemanticContext { context } => Some(context),
+                _ => None,
+            })
+            .collect()
+    };
+    let places = super::operand_values::captured_places(
+        program,
+        &build.control,
+        operand,
+        operand.type_reference,
+        &super::LiteralExpressionProjection {
+            expression: operand.expression,
+            remaining: Vec::new(),
+            destination: Vec::new(),
+        },
+    )?;
+    if places.is_empty() {
+        return None;
+    }
+    Some(CompletedArgumentFacts { contexts, places })
+}
+
+fn selected_case_at(
     program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     contexts: &[facts::FactContextHandle],
@@ -594,7 +633,11 @@ fn assigned_case_at(
             .context_view(semantic.contexts.get(*context))
             .facts()
     }) {
-        let FactPayload::AssignedCase { variant } = fact.payload else {
+        let FactPayload::CaseValue {
+            variant,
+            value: true,
+        } = fact.payload
+        else {
             continue;
         };
         if !variant.is_valid() || program.symbols.get(variant).kind != symbols::SymbolKind::Variant
@@ -626,9 +669,9 @@ fn deliver_argument_edge(
     program: &dyn ::validation::CheckingInput,
     build: &mut FlowBuildContext,
     destination: &typed_trees::state::State,
-    source: fields::BoundsSource,
-    cases: Vec<(SymbolHandle, SymbolHandle)>,
+    incoming: ArgumentEdge,
 ) {
+    let ArgumentEdge { source, cases } = incoming;
     let index = ensure_input_row(program, build, destination);
     let row = &mut build.state_value_inputs[index];
     let ArgumentInputs::Edges(edges) = &mut row.argument_edges else {
@@ -706,10 +749,8 @@ pub(super) fn append_entry_context(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
 ) {
-    // A generic machine body is checked under its declared premises. Actual
-    // call operands belong to caller substitution, never ambient entry proof.
-    // Extracted lexical regions instead receive their authenticated activation
-    // captures, just as the original source region did before extraction.
+    // Ordinary entry proof is declaration-owned. Only an authenticated
+    // extracted region receives its exact source activation captures.
     if machine.lexical_region_origin.is_none()
         && entry_state(program, machine).is_some_and(|entry| entry.symbol == state.symbol)
     {
@@ -776,7 +817,10 @@ pub(super) fn append_entry_context(
         let fact = semantic.append_transfer_at_point(
             FactPlace::Place(place),
             point,
-            FactPayload::AssignedCase { variant: *variant },
+            FactPayload::CaseValue {
+                variant: *variant,
+                value: true,
+            },
         );
         semantic.append_ref(&mut refs, fact);
         semantic.append_context(point, refs);

@@ -9,6 +9,8 @@
 //! dispositions. `normal_edges` uses that selection at state exits;
 //! `temporary_actions` completes call-continuation rosters after the executable
 //! target catalog exists. Neither caller reconstructs a separate cleanup policy.
+//! Lifetime binders retain checked loan relations but add no runtime parameters;
+//! they do not prevent an ordinary callable from supplying a cleanup action.
 
 mod actions;
 pub(in crate::execution::terminal_unit) use actions::checked_path_segments;
@@ -23,6 +25,7 @@ mod order;
 mod partial_affine_cleanup;
 mod replacements;
 mod residuals;
+pub(in crate::execution::terminal_unit) mod retained_owners;
 pub(super) mod temporary_actions;
 mod temporary_descriptors;
 pub(crate) use temporary_actions::finalize_completion_actions;
@@ -79,8 +82,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
     let [state] = program.machine_states(machine) else {
         return None;
     };
-    if !machine.lifetime_parameters.is_empty()
-        || !program.machine_type_parameters(machine).is_empty()
+    if !program.machine_type_parameters(machine).is_empty()
         || !program.machine_owned_data(machine).is_empty()
         || !program.machine_trait_conformances(machine).is_empty()
         || !machine.conformance_bounds.is_empty()
@@ -282,7 +284,9 @@ pub(crate) fn nominal_cleanup_target_matches(
     let [receiver] = program.state_parameters(state) else {
         return false;
     };
-    let TypeReferenceNode::Reference { access, referee, .. } = program
+    let TypeReferenceNode::Reference {
+        access, referee, ..
+    } = program
         .type_reference_table
         .type_reference(receiver.type_reference)
     else {
@@ -294,7 +298,6 @@ pub(crate) fn nominal_cleanup_target_matches(
         // attachment is not authority for an independent cleanup machine.
         && program.normalized_type_identity(*referee) == type_identity
         && !receiver.is_const
-        && machine.lifetime_parameters.is_empty()
         && program.machine_type_parameters(machine).is_empty()
         && program.machine_owned_data(machine).is_empty()
         && program.machine_trait_conformances(machine).is_empty()

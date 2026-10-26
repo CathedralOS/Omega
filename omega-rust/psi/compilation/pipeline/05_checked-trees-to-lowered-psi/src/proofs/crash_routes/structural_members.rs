@@ -75,13 +75,18 @@ fn lower_structural_place_path(
     ),
     LoweringError,
 > {
-    let selected =
-        structural_observation_path(identities, root_type, access, path, structural_types)?;
-    let actual = observation_field_type(&selected)?;
-    let canonical = selected.canonical.ok_or(LoweringError::Unsupported(
-        "structural contract observation has no inline canonical path",
-    ))?;
-    Ok((root, canonical, actual))
+    // Preserve the existing outer scalar-root policy. Resolving a stored
+    // predicate coordinate below it does not itself observe an inner referent.
+    if access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
+        return unsupported("structural scalar contract requires readable access");
+    }
+    let selected = crate::emission::structural_observations::declared_predicate_path(
+        identities,
+        root_type,
+        path,
+        structural_types,
+    )?;
+    Ok((root, selected.path, selected.field_type))
 }
 
 fn structural_observation_path<'declaration>(
@@ -101,21 +106,6 @@ fn structural_observation_path<'declaration>(
         path,
         structural_types,
     )
-}
-
-fn observation_field_type(
-    selected: &crate::emission::structural_observations::ObservationPath<'_>,
-) -> Result<StructuralFieldType, LoweringError> {
-    if let Some(field) = selected.scalar_field {
-        return Ok(field.field_type.clone());
-    }
-    let declaration = selected.declaration.ok_or(LoweringError::Unsupported(
-        "structural contract has no declared leaf",
-    ))?;
-    Ok(match declaration.shape {
-        StructuralTypeShape::PrimitiveScalar(scalar) => StructuralFieldType::Scalar(scalar),
-        _ => StructuralFieldType::Structural(declaration.id),
-    })
 }
 
 /// A descriptor extent retains the full structural path. Carrier checking
@@ -147,7 +137,7 @@ pub(crate) fn lower_sequence_extent_term(
         path,
         structural_types,
     )?;
-    let carrier = observation_field_type(&selected)?;
+    let carrier = selected.field_type()?;
     let carrier = match carrier {
         terminal_psi::StructuralFieldType::Structural(identity) => {
             let declaration = terminal_psi::find_structural_type(structural_types, identity)
@@ -220,6 +210,7 @@ pub(crate) fn lower_structural_indexed_term(
         index,
         element_path,
         primitive_type,
+        ..
     } = expression
     else {
         return unsupported("indexed contract observation has no selected read");
@@ -263,7 +254,7 @@ pub(crate) fn lower_structural_indexed_term(
                 &static_path,
                 structural_types,
             )?;
-            selected = observation_field_type(&observation)?;
+            selected = observation.field_type()?;
             terminal_path.extend(observation.observation.ok_or(LoweringError::Unsupported(
                 "indexed contract member has no retained observation path",
             ))?);
@@ -430,7 +421,7 @@ fn lower_observation_term(
 ) -> Result<ScalarTerm, LoweringError> {
     let selected =
         structural_observation_path(identities, root_type, access, path, structural_types)?;
-    let actual = observation_field_type(&selected)?;
+    let actual = selected.field_type()?;
     if let Some(canonical) = selected.canonical {
         return structural_member_term(root, canonical, actual, expected);
     }
@@ -587,81 +578,19 @@ pub(crate) fn lower_byte_sequence_field(
 fn lower_sum_path(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     root: PlaceId,
-    mut structural_type: StructuralTypeId,
+    structural_type: StructuralTypeId,
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
     structural_types: &[StructuralTypeDeclaration],
 ) -> Result<(StructuralCaseSubject, StructuralTypeId), LoweringError> {
-    let mut terminal_path = Vec::with_capacity(path.len());
-    let mut selected_case_fields = None;
-    for segment in path {
-        let declaration = terminal_psi::find_structural_type(structural_types, structural_type)
-            .ok_or(LoweringError::Unsupported(
-                "structural sum predicate path type is absent",
-            ))?;
-        if let checked_trees::CheckedStructuralPredicatePathSegment::Case(identity) = segment {
-            if selected_case_fields.is_some() {
-                return unsupported("structural sum predicate has adjacent case selections");
-            }
-            let cases = match &declaration.shape {
-                StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
-                    cases
-                }
-                _ => return unsupported("structural sum predicate case receiver is not a sum"),
-            };
-            let case = terminal_psi::structural_case_by_identity(
-                cases,
-                identities.intern(&identity.spelling()),
-            )
-            .ok_or(LoweringError::Unsupported(
-                "structural sum predicate case is absent",
-            ))?;
-            terminal_path.push(CanonicalStructuralPathSegment::Case(case.id));
-            selected_case_fields = Some(&case.fields);
-            continue;
-        }
-        if let checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(element_index) =
-            segment
-        {
-            // The subject path may end at an inline element: `options[0]`
-            // names the element's own sum value for case membership.
-            if selected_case_fields.is_some() {
-                return unsupported("structural sum predicate has an indexed case selection");
-            }
-            let element = indexed_element_type(&declaration.shape, *element_index)?;
-            terminal_path.push(CanonicalStructuralPathSegment::FixedIndex(*element_index));
-            structural_type = element;
-            continue;
-        }
-        let checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) = segment else {
-            return unsupported(
-                "structural contract runtime index requires occurrence-bound evidence",
-            );
-        };
-        let fields = if let Some(fields) = selected_case_fields.take() {
-            fields
-        } else {
-            match &declaration.shape {
-                terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
-                _ => {
-                    return unsupported("structural sum predicate path receiver is not a record");
-                }
-            }
-        };
-        let field =
-            terminal_psi::field_by_identity(fields, identities.intern(&identity.spelling()))
-                .filter(|field| !field.relevance.is_erased())
-                .ok_or(LoweringError::Unsupported(
-                    "structural sum predicate path field is absent or erased",
-                ))?;
-        let Some(next) = field.field_type.as_structural() else {
-            return unsupported("structural sum predicate path does not reach a structural value");
-        };
-        terminal_path.push(CanonicalStructuralPathSegment::Field(field.id));
-        structural_type = next;
-    }
-    if selected_case_fields.is_some() {
-        return unsupported("structural sum predicate case selection has no payload field");
-    }
+    let selected = crate::emission::structural_observations::declared_predicate_path(
+        identities,
+        structural_type,
+        path,
+        structural_types,
+    )?;
+    let StructuralFieldType::Structural(structural_type) = selected.field_type else {
+        return unsupported("structural sum predicate path does not reach a structural value");
+    };
     if !matches!(
         terminal_psi::find_structural_type(structural_types, structural_type)
             .map(|declaration| &declaration.shape),
@@ -670,7 +599,7 @@ fn lower_sum_path(
         return unsupported("structural sum predicate subject is not a sum");
     }
     Ok((
-        StructuralCaseSubject::new(root, terminal_path),
+        StructuralCaseSubject::new(root, selected.path),
         structural_type,
     ))
 }

@@ -198,12 +198,21 @@ pub fn canonical_place_from_semantic_place(
             root: facts::PlaceRoot::Symbol(symbol),
             segments: Vec::new(),
         })?,
-        root @ facts::PlaceRoot::InvocationReferent { .. } => CanonicalPlace {
+        root @ (facts::PlaceRoot::InvocationReferent { .. }
+        | facts::PlaceRoot::InvocationOutput(_)) => CanonicalPlace {
             root,
             segments: Vec::new(),
         },
         facts::PlaceRoot::Expression(expression) => {
-            crate::canonical_place_from_expression(program, expression)?
+            // Semantic expression roots name completed values. Replaying their
+            // syntax would replace that identity with newer source storage.
+            if !program.expression_table.expression_is_valid(expression) {
+                return None;
+            }
+            CanonicalPlace {
+                root: place.root,
+                segments: Vec::new(),
+            }
         }
         facts::PlaceRoot::TypeReference(type_reference) => CanonicalPlace {
             root: facts::PlaceRoot::TypeReference(type_reference),

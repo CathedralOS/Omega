@@ -1,6 +1,7 @@
-//! Publish and compose stored-slot relations without inventing pointer identity.
-//! Descriptor words change at completion; sibling slots and possible backing debts survive.
+//! Publish and install completed slot transfers without re-evaluating their sources.
+//! Completed operands retain their exact source cuts and carrier/backing association.
 
+use super::super as frames;
 use super::*;
 
 pub(in crate::machine_calls::calls::write_frames) fn public_effects(
@@ -16,6 +17,7 @@ pub(in crate::machine_calls::calls::write_frames) fn public_effects(
             let has_static_values = sources
                 .iter()
                 .any(|source| source.origin.source.is_static() && source.lifetime_access.is_none());
+            let incoming_identity = effect.incoming && sources.is_empty();
             Some(StoredReferenceEffect {
                 suppliers_complete: sources
                     .iter()
@@ -33,10 +35,12 @@ pub(in crate::machine_calls::calls::write_frames) fn public_effects(
                         lifetime_access: source.lifetime_access,
                         carrier_symbol: source.carrier.root,
                         carrier_segments: source.carrier.segments,
+                        carrier_backing: source.carrier_backing.map(LocalWriteSource::from),
                         backing: LocalWriteSource::from(source.origin),
                     })
                     .collect(),
                 retains_incoming: effect.incoming,
+                incoming_identity,
                 may_select: effect.may_select,
                 access,
             })
@@ -44,14 +48,27 @@ pub(in crate::machine_calls::calls::write_frames) fn public_effects(
         .collect()
 }
 
+pub(in crate::machine_calls::calls::write_frames) fn apply_transfer(
+    program: &dyn crate::CheckingInput,
+    stored: &mut Vec<StoredLocalOrigins>,
+    transfer: &SlotRelationTransfer,
+) {
+    // Retire prior case/move epochs before publishing current pointer slots.
+    // Only a complete normal route can justify a closed case-frontier update.
+    if transfer.is_complete() {
+        for effect in &transfer.case_effects {
+            effect.install(stored);
+        }
+    }
+    apply(program, stored, &transfer.effects);
+}
+
 pub(in crate::machine_calls::calls::write_frames) fn apply(
     program: &dyn crate::CheckingInput,
     stored: &mut Vec<StoredLocalOrigins>,
     effects: &[SlotEffect],
 ) {
-    // Sources already carry their operand completion cuts. Apply the resolved
-    // relation only after every source has been instantiated; updating one
-    // destination must not retime another source read within this invocation.
+    // Every source above was captured from the same pre-call inventory.
     for effect in effects {
         let index = stored
             .iter()

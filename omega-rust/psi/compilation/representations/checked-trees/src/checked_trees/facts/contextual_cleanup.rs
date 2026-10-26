@@ -12,6 +12,25 @@ use symbols::SymbolHandle;
 
 use crate::checked_trees::keyed_rows::KeyedRows;
 
+/// Why this exact region lies outside the selected cleanup complement.
+/// Unestablished is positive receiving evidence, never an inactive tag or an
+/// inference from an unknown claim identity. Mixed provenance stays unknown.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum ContextualCleanupExclusionCause {
+    #[default]
+    Unknown,
+    Consumed,
+    Unestablished,
+    InactiveCase,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ContextualCleanupExcludedRegion {
+    pub root: facts::PlaceRoot,
+    pub segments: HandleSpan<PlaceSegment>,
+    pub cause: ContextualCleanupExclusionCause,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ContextualCleanupFacts {
     pub dispositions: Arena<ContextualCleanupDisposition>,
@@ -25,7 +44,7 @@ pub struct ContextualCleanupFacts {
     /// Source-to-instance correspondence produced by machine specialization.
     /// These join selected occurrences; they do not grant hook prerequisites.
     pub applications: Arena<ContextualCleanupApplication>,
-    pub exclusions: Arena<Place>,
+    pub exclusions: Arena<ContextualCleanupExcludedRegion>,
     pub segments: Arena<PlaceSegment>,
     /// Open source windows at exact evaluated invocations. Their storage is
     /// selected with deaths; invocation effects are checked only after the
@@ -181,15 +200,13 @@ pub struct ContextualCleanupDisposition {
     /// The selected path uses the flow ownership segment arena. Excluded
     /// subtrees below use this family's segment arena instead.
     pub path: HandleSpan<PlaceSegment>,
-    pub exclusions: HandleSpan<Place>,
-    /// Excluded regions proved transferred on every predecessor where their
-    /// case is active. A possible exclusion alone cannot justify disposing a
-    /// runtime-selected complement. These are exact members of `exclusions`.
-    pub definite_exclusions: HandleSpan<Place>,
+    pub exclusions: HandleSpan<ContextualCleanupExcludedRegion>,
+    /// Exact exclusions transferred on every predecessor where their case exists.
+    pub definite_exclusions: HandleSpan<ContextualCleanupExcludedRegion>,
     /// Alternatives proved inactive at this occurrence. Unlike transferred
     /// subtrees, these do not make an intact nominal owner partially moved.
     /// Paths use the same place/segment arenas as exclusions.
-    pub inactive_cases: HandleSpan<Place>,
+    pub inactive_cases: HandleSpan<ContextualCleanupExcludedRegion>,
     /// The death belongs to a root still under field-wise construction at
     /// this edge, so the ownership producer already ordered this root's
     /// deaths in reverse establishment order. Consumers keep that order; a
@@ -281,6 +298,7 @@ impl ContextualCleanupEntryRequirement {
         let CheckedBooleanExpression::StructuralParameterField {
             parameter_position,
             path,
+            ..
         } = subject
         else {
             return None;

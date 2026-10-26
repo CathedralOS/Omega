@@ -4,7 +4,9 @@ use super::build_resolution::{
     AcquiredBuildDependency, BuildSourceAcquisition, ExecutedSourceResolution, PendingBuildSource,
 };
 use crate::declarations::dependencies::read::{DependencySourceRequest, PackageSelection};
-use crate::resolution::graph::GitResolutionOptions;
+use crate::resolution::graph::{
+    CanonicalSourceClosureSubject, GitResolutionOptions, admit_locked_source_request,
+};
 use package_source::{GitSourceRequest, SourceResolver};
 
 use super::{DeclaredBuildSource, GitPackageSourceRequest, PackageSourceCustody};
@@ -23,7 +25,9 @@ pub struct BuildSourceAcquisitions<'operation> {
     storage: &'operation SourceResolver,
     options: GitResolutionOptions<'operation>,
     root_request: PackageRootSourceRequest,
+    locked_source: Option<&'operation CanonicalSourceClosureSubject>,
     git_sources: Vec<(GitSourceRequest, ResolvedGitSource)>,
+    pub(super) workspaces: Vec<super::workspace_acquisition::ExecutedWorkspace>,
 }
 
 impl<'operation> BuildSourceAcquisitions<'operation> {
@@ -36,8 +40,19 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
             storage,
             options,
             root_request,
+            locked_source: None,
             git_sources: Vec::new(),
+            workspaces: Vec::new(),
         }
+    }
+
+    /// Observational inspection may reacquire accepted edges, never discover
+    /// a changed selector or new local source before reporting a graph mismatch.
+    pub(crate) fn require_locked_graph(
+        &mut self,
+        source: &'operation CanonicalSourceClosureSubject,
+    ) {
+        self.locked_source = Some(source);
     }
 
     /// Acquire only the source requested by the executed ledger. This owns no
@@ -52,25 +67,32 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
                 .fail("source acquisition policy belongs to another project request")
                 .to_string());
         }
-        let selected = match pending.request.source() {
+        if let Some(source) = self.locked_source
+            && let Err(error) = admit_locked_source_request(source, &pending.request)
+        {
+            return Err(pending.request.fail(error).to_string());
+        }
+        let (selected, selection) = match pending.request.source() {
             DependencySourceRequest::Path { location, .. } => {
                 let location = location.clone();
-                return pending.acquire_local_source(&location);
+                return if matches!(
+                    pending.request.requester().key().source_lineage(),
+                    SourceLineage::ExternalLocal(_)
+                ) {
+                    pending.acquire_local_source(&location)
+                } else {
+                    self.acquire_workspace_path(pending, &location)
+                };
             }
             DependencySourceRequest::Git {
                 repository,
                 revision,
                 selection,
                 ..
-            } => {
-                if !matches!(selection, PackageSelection::Root) {
-                    return Err(pending
-                        .request
-                        .fail("executed named Git selection requires workspace Build acquisition")
-                        .to_string());
-                }
-                GitSourceRequest::new(repository.clone(), Some(revision.clone()))
-            }
+            } => (
+                GitSourceRequest::new(repository.clone(), Some(revision.clone())),
+                selection.clone(),
+            ),
         };
         let selected = match selected {
             Ok(selected) => selected,
@@ -81,7 +103,16 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
             Ok(source) => source,
             Err(error) => return Err(pending.request.fail(error).to_string()),
         };
-        if let Some(custody) = pending.request.acquired_source(source.lineage()).cloned() {
+        if let PackageSelection::Named(package) = selection {
+            let request =
+                GitPackageSourceRequest::new(selected, PackageSelection::Named(package.clone()));
+            return self.acquire_workspace_member(pending, source, request, &package);
+        }
+        if let Some(custody) = pending
+            .request
+            .acquired_source(source.lineage(), &super::PackageSourceNavigation::Root)
+            .cloned()
+        {
             let resolution = ImmutableSourceResolution::git(
                 package_source::GitCommitId::parse_hex(source.commit())
                     .map_err(|error| error.to_string())?,
@@ -190,8 +221,10 @@ impl PendingBuildSource {
                 .fail("workspace requests require their registered source acquisition")
                 .to_string());
         };
-        let root = match super::external_local_dependency_root(requester.snapshot_root(), location)
-        {
+        let root = match super::external_local_dependency_root(
+            lineage.canonical_absolute_path(),
+            location,
+        ) {
             Ok(root) => root,
             Err(error) => return Err(self.request.fail(error).to_string()),
         };
@@ -202,7 +235,11 @@ impl PendingBuildSource {
             Ok(lineage) => package_source::SourceLineage::ExternalLocal(lineage),
             Err(error) => return Err(self.request.fail(error).to_string()),
         };
-        if let Some(custody) = self.request.acquired_source(&selected_lineage).cloned() {
+        if let Some(custody) = self
+            .request
+            .acquired_source(&selected_lineage, &super::PackageSourceNavigation::Root)
+            .cloned()
+        {
             let step = self
                 .request
                 .complete::<String>(custody)
@@ -228,12 +265,15 @@ impl PendingBuildSource {
 
 /// Acquired bytes and authenticated lineage, without a parsed declaration or
 /// provisional package key. Both transports establish the same owner at return.
+#[derive(Clone)]
 pub struct AcquiredBuildSource {
     pub(super) capture: CapturedLocalSource,
     pub(super) lineage: SourceLineage,
     pub(super) limits: LocalSourceLimits,
-    resolution: ImmutableSourceResolution,
-    root_request: PackageRootSourceRequest,
+    pub(super) resolution: ImmutableSourceResolution,
+    pub(super) root_request: PackageRootSourceRequest,
+    pub(super) navigation: super::PackageSourceNavigation,
+    pub(super) selection: super::PackageSourceSelectionEvidence,
 }
 
 #[derive(Debug)]
@@ -254,6 +294,40 @@ impl std::fmt::Display for BuildSourceAcquisitionError {
 impl std::error::Error for BuildSourceAcquisitionError {}
 
 impl AcquiredBuildSource {
+    /// Capture proposed bytes without changing the original package lineage or
+    /// the base used by relative dependency requests. The staging owner retains
+    /// the live-source comparison required before publication.
+    pub(crate) fn capture_staged(
+        stage: &package_source::local::staging::StagedLocalSnapshot,
+        context: ExternalSourceContext,
+    ) -> Result<Self, String> {
+        let mut acquired = Self::capture_local(
+            stage.snapshot_root(),
+            LocalSourceLimits::default(),
+            context.clone(),
+        )
+        .map_err(|error| error.to_string())?;
+        if acquired.capture.normalized().content_identity != stage.normalized().content_identity {
+            return Err("captured candidate differs from its staged source".into());
+        }
+        acquired.lineage = SourceLineage::ExternalLocal(
+            ExternalLocalLineage::canonicalize(stage.canonical_live_root(), context.clone())
+                .map_err(|error| error.to_string())?,
+        );
+        acquired.root_request = PackageRootSourceRequest::ExternalLocal {
+            requested_root: stage.requested_root().to_path_buf(),
+            source_context: context,
+        };
+        Ok(acquired)
+    }
+
+    pub fn entry_path(&self) -> std::path::PathBuf {
+        super::package_entry(
+            self.capture.canonical_live_root(),
+            Some(self.capture.tree()),
+        )
+    }
+
     /// Capture local source once. The enclosing package operation owns recovery
     /// and lock policy; capture itself grants no review or execution authority.
     pub fn capture_local(
@@ -288,6 +362,8 @@ impl AcquiredBuildSource {
             limits,
             resolution,
             root_request,
+            navigation: super::PackageSourceNavigation::Root,
+            selection: super::PackageSourceSelectionEvidence::Root,
         })
     }
 
@@ -324,6 +400,8 @@ impl AcquiredBuildSource {
             limits: source.source_limits(),
             resolution,
             root_request: PackageRootSourceRequest::Git(request),
+            navigation: super::PackageSourceNavigation::Root,
+            selection: super::PackageSourceSelectionEvidence::Root,
         })
     }
 
@@ -350,6 +428,13 @@ impl AcquiredBuildSource {
                 return Err("a workspace declaration does not name a Product source owner".into());
             }
         };
+        if let super::PackageSourceSelectionEvidence::GitWorkspace(evidence) = &self.selection {
+            if name != evidence.plan().selected_member().package_name() {
+                return Err(
+                    "returned Build name differs from its executed workspace selection".into(),
+                );
+            }
+        }
         let requests =
             crate::declarations::dependencies::read::DependencyProjections::from_executed_requests(
                 returned.requests().iter().map(|issued| issued.request()),
@@ -360,8 +445,8 @@ impl AcquiredBuildSource {
             self.resolution.clone(),
             super::PackageSourceMaterialization::from_local(self.capture.normalized()),
             self.capture.canonical_live_root().to_path_buf(),
-            super::PackageSourceNavigation::Root,
-            super::PackageSourceSelectionEvidence::Root,
+            self.navigation.clone(),
+            self.selection.clone(),
             self.limits,
             requests,
         )

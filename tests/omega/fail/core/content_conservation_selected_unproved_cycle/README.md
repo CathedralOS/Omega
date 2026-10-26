@@ -1,0 +1,1 @@
+A selected return cannot ground its partition theorem in a recursive authored guarantee with no established boundary theorem. The independently valid alternative cannot hide the unproved recursive alternative.

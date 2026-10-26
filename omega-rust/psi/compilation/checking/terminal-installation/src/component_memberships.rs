@@ -123,20 +123,13 @@ fn same_domain(
             .establishment_routes
             .iter()
             .map(|route| {
-                let (kind, declaration, identity) = match route {
-                    StructuralEstablishmentRoute::Requirement {
-                        declaration,
-                        requirement,
-                    } => (0, declaration, *requirement),
-                    StructuralEstablishmentRoute::ExactMachine {
-                        declaration,
-                        machine,
-                    } => (1, declaration, *machine),
-                    StructuralEstablishmentRoute::BoundaryRequirement {
-                        declaration,
-                        requirement,
-                    } => (2, declaration, *requirement),
+                let kind = match route {
+                    StructuralEstablishmentRoute::CheckedRequirement { .. } => 0,
+                    StructuralEstablishmentRoute::ExactMachine { .. } => 1,
+                    StructuralEstablishmentRoute::BoundaryRequirement { .. } => 2,
                 };
+                let declaration = route.declaration();
+                let identity = route.identity();
                 // Invocation-local issuer coordinates cannot establish a portable
                 // cross-artifact relation by spelling. The regular declaration join
                 // retains that restriction for domain and carrier identities too.

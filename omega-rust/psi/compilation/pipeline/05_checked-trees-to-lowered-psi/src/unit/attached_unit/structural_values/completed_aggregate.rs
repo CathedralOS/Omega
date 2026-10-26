@@ -5,8 +5,8 @@
 //! geometry — declaration-ordered fields, optionally under a selected case
 //! payload, or fixed-index elements — is the whole difference, so a receiving
 //! annotation never supplies a predicate.
-//! `retention::copied_memberships::construction_memberships` reconstructs
-//! these same rows from the committed operation.
+//! `retention::payload_memberships` completes these same rows from the
+//! committed operation during whole-graph propagation.
 
 use super::super::super::StructuralFieldType;
 use super::super::{
@@ -198,9 +198,9 @@ impl super::emission::Emission<'_, '_, '_> {
     /// Complete one aggregate member's initializer from its checked operand.
     /// Scalar leaves replay their retained computation, zeroed scalars take
     /// the declared carrier's zero, and structural operands complete as child
-    /// establishments under the member's own path — beneath the selected
-    /// case's label for payload members — with owned member claims rebased
-    /// under that same path.
+    /// establishments with their own occurrence-bound custody. Only this
+    /// parent assembly rebases the returned claims under the member's field,
+    /// beneath the selected case label for payload members.
     pub(super) fn completed_member_value(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -253,7 +253,6 @@ impl super::emission::Emission<'_, '_, '_> {
                         child_type,
                         value,
                         field.type_reference,
-                        &prefix,
                     )?;
                     if self.multiplicity == StructuralMultiplicity::Affine {
                         for claim in completed.claims {
