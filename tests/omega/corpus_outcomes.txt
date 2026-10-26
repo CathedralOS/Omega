@@ -1591,6 +1591,12 @@ fail/borrows/returned_slice_record_reference_conflict rejected 4672ms expected @
 	statement 3 creates local borrow `last` while local borrow `first` is still active (borrowed at statement 2; its last use is at statement 4)
 	statement 4 mutates `first.score` while local borrow `last` is still active (borrowed at statement 3; its last use is at statement 6)
 	statement 3 mutates `events` while local borrow `first` is still active (borrowed at statement 2; its last use is at statement 4)
+fail/borrows/returned_stored_view_reborrow_local_escape_rejected rejected 3857ms expected @f90e54a6b00f+wt
+	machine `escape` returns a view borrowing the local `backing`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/borrows/returned_stored_view_reborrow_parent_write_rejected rejected 3777ms expected @f90e54a6b00f+wt
+	statement 1 mutates `wrapper.bundle.windows[0][0]` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
+fail/borrows/returned_stored_view_reborrow_shared_crossing_rejected rejected 1343ms expected @f90e54a6b00f+wt
+	machine `capture` state `entry` return value requires mutable source access; shared or immutable storage cannot supply it
 fail/borrows/returned_view_argument_retains_completed_child_backing rejected 2102ms expected @a8d49c50220d+wt
 	statement 24 mutates `returned_storage[0]` while local borrow `returned_original` is still active (borrowed at statement 23; its last use is at statement 28)
 fail/borrows/returned_view_temporary_backing rejected 3155ms expected @a92f16431042
@@ -14267,6 +14273,27 @@ fail/facts/static_evidence_premise_through_target_body_rejected rejected 843ms e
 	machine `observe` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
 	machine `observe` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
 	machine `observe` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
+fail/facts/stored_exclusive_byte_view_reborrowed_reference_through_call_result_rejected rejected 3775ms expected @f90e54a6b00f+wt
+	cannot prove requires contract for call observe from main: selected.bundle.windows[0].len == 1 (needs fact `wrapper.bundle.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/stored_exclusive_byte_view_reborrowed_reference_through_const_name_rejected rejected 3755ms expected @f90e54a6b00f+wt
+	cannot prove requires contract for call observe from main: wrapper.bundle.windows[0].len == 1 (needs fact `wrapper.bundle.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/stored_exclusive_byte_view_reborrowed_reference_through_field_rejected rejected 3790ms expected @f90e54a6b00f+wt
+	cannot prove requires contract for call observe from main: stored.wrapper.bundle.windows[0].len == 1 (needs fact `wrapper.bundle.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/stored_exclusive_byte_view_reborrowed_reference_through_local_rejected rejected 3681ms expected @f90e54a6b00f+wt
+	cannot prove requires contract for call observe from main: selected.bundle.windows[0].len == 1 (needs fact `wrapper.bundle.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/stored_exclusive_byte_view_reborrowed_reference_through_match_join_rejected rejected 3754ms expected @f90e54a6b00f+wt
+	cannot prove requires contract for call observe from main: selected.bundle.windows[0].len == 1 (needs fact `wrapper.bundle.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/stored_exclusive_byte_view_reborrowed_reference_through_other_machine_rejected rejected 3694ms expected @f90e54a6b00f+wt
+	cannot prove requires contract for call through from main: wrapper.bundle.windows[0].len == 1 (needs fact `wrapper.bundle.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/stored_exclusive_byte_view_reborrowed_reference_through_other_state_rejected rejected 3640ms expected @f90e54a6b00f+wt
+	cannot prove requires contract for call inside from main: wrapper.bundle.windows[0].len == 1 (needs fact `wrapper.bundle.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/stored_exclusive_byte_view_reborrowed_reference_through_parameter_rejected rejected 2925ms expected @f90e54a6b00f+wt
+	cannot prove requires contract for call receive from main: wrapper.bundle.windows[0].len == 1 (needs fact `wrapper.bundle.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/stored_exclusive_byte_view_reborrowed_reference_through_target_body_rejected rejected 1834ms expected @f90e54a6b00f+wt
+	cannot prove requires contract for call observe from main: wrapper.bundle.windows[0].len == 1 (needs fact `wrapper.bundle.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe from main: wrapper.bundle.windows[0].len == 1 (needs fact `wrapper.bundle.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe from main: wrapper.bundle.windows[0].len == 1 (needs fact `wrapper.bundle.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe from main: wrapper.bundle.windows[0].len == 1 (needs fact `wrapper.bundle.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/stored_exclusive_byte_view_through_call_result_rejected rejected 2695ms expected @a92f16431042
 	cannot prove index `0` is within length 0
 fail/facts/stored_exclusive_byte_view_through_const_name_rejected rejected 2380ms expected @a92f16431042
@@ -21822,6 +21849,7 @@ pass/borrows/runtime_returned_owned_sibling_descriptor_exit checked 1849ms check
 pass/borrows/runtime_returned_reference_array_bounded_read_exit checked 6327ms check-target:macos_arm64 @a92f16431042
 pass/borrows/runtime_returned_reference_array_restoration_exit checked 5925ms check-target:macos_arm64 @a92f16431042
 pass/borrows/runtime_returned_reference_constructor_leaf_retirement_exit checked 6012ms check-target:macos_arm64 @a92f16431042
+pass/borrows/runtime_returned_stored_view_reborrow_exit checked 4132ms check-target:macos_arm64 @f90e54a6b00f+wt
 pass/borrows/runtime_scalar_call_stored_carrier_exit checked 2666ms check-target:macos_arm64 @a92f16431042
 pass/borrows/runtime_scalar_field_local_loan_handback_exit rejected 2450ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "computed borrow lost its established local", gap: None })
@@ -27294,6 +27322,15 @@ pass/facts/static_evidence_premise_through_other_machine_exit checked 3452ms che
 pass/facts/static_evidence_premise_through_other_state_exit checked 3373ms check-target:macos_arm64 @a92f16431042
 pass/facts/static_evidence_premise_through_parameter_exit checked 3394ms check-target:macos_arm64 @a92f16431042
 pass/facts/static_evidence_premise_through_target_body_exit checked 3166ms check-target:macos_arm64 @a92f16431042
+pass/facts/stored_exclusive_byte_view_reborrowed_reference_through_call_result_exit checked 4087ms check-target:macos_arm64 @f90e54a6b00f+wt
+pass/facts/stored_exclusive_byte_view_reborrowed_reference_through_const_name_exit checked 4084ms check-target:macos_arm64 @f90e54a6b00f+wt
+pass/facts/stored_exclusive_byte_view_reborrowed_reference_through_field_exit checked 4086ms check-target:macos_arm64 @f90e54a6b00f+wt
+pass/facts/stored_exclusive_byte_view_reborrowed_reference_through_local_exit checked 4022ms check-target:macos_arm64 @f90e54a6b00f+wt
+pass/facts/stored_exclusive_byte_view_reborrowed_reference_through_match_join_exit checked 4030ms check-target:macos_arm64 @f90e54a6b00f+wt
+pass/facts/stored_exclusive_byte_view_reborrowed_reference_through_other_machine_exit checked 4101ms check-target:macos_arm64 @f90e54a6b00f+wt
+pass/facts/stored_exclusive_byte_view_reborrowed_reference_through_other_state_exit checked 4132ms check-target:macos_arm64 @f90e54a6b00f+wt
+pass/facts/stored_exclusive_byte_view_reborrowed_reference_through_parameter_exit checked 4078ms check-target:macos_arm64 @f90e54a6b00f+wt
+pass/facts/stored_exclusive_byte_view_reborrowed_reference_through_target_body_exit checked 4055ms check-target:macos_arm64 @f90e54a6b00f+wt
 pass/facts/stored_exclusive_byte_view_through_call_result_exit checked 2881ms check-target:macos_arm64 @a92f16431042
 pass/facts/stored_exclusive_byte_view_through_const_name_exit checked 3302ms check-target:macos_arm64 @a92f16431042
 pass/facts/stored_exclusive_byte_view_through_field_exit checked 2984ms check-target:macos_arm64 @a92f16431042

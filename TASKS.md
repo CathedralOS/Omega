@@ -437,8 +437,8 @@ defines the complete product bar.
     `pass/calls/runtime_*_reference_*_result_exit`, and
     `fail/calls/terminal_call_result_type_mismatch_rejected`) at their oracles.
   - **Aggregate construction, replacement, and claim-bearing results:** finish
-    remaining runtime/case compositions and additional inner-loan capture or
-    escape through opaque incoming referents, preserving `samples/cli/facts/replaced_field_loan`,
+    remaining runtime/case construction and replacement through opaque incoming
+    referents, preserving `samples/cli/facts/replaced_field_loan`,
     `samples/cli/facts/case_payload_stored_loan`,
     `samples/cli/facts/descriptor_replacement_order`, and
     `samples/cli/facts/stored_exclusive_byte_view` across all nine places, plus
