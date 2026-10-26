@@ -7198,6 +7198,27 @@ fail/facts/foreign_indirect_float_record_result_through_parameter_rejected rejec
 	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
 fail/facts/foreign_indirect_float_record_result_through_target_body_rejected rejected 984ms expected @4c1bfc01217a+wt
 	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
+fail/facts/foreign_nested_record_backing_call_result rejected 1352ms expected @f0c9d9694a74
+	statement 5 reads `buffer.cell.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/foreign_nested_record_backing_const_name rejected 1339ms expected @f0c9d9694a74
+	statement 4 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/foreign_nested_record_backing_field rejected 1318ms expected @f0c9d9694a74
+	statement 6 reads `buffer.cell.value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 8)
+fail/facts/foreign_nested_record_backing_local rejected 1317ms expected @f0c9d9694a74
+	statement 4 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/foreign_nested_record_backing_match_join rejected 1281ms expected @f0c9d9694a74
+	statement 5 reads `buffer.cell.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
+	statement 5 reads `buffer.cell.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/foreign_nested_record_backing_other_machine rejected 1462ms expected @f0c9d9694a74
+	statement 5 reads `buffer.cell.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/foreign_nested_record_backing_other_state rejected 1596ms expected @f0c9d9694a74
+	statement 5 reads `buffer.cell.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/foreign_nested_record_backing_parameter rejected 1566ms expected @f0c9d9694a74
+	statement 4 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/foreign_nested_record_backing_repeated_child_type_live rejected 1421ms expected @f0c9d9694a74
+	statement 4 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/foreign_nested_record_backing_target_body rejected 1380ms expected @f0c9d9694a74
+	statement 5 reads `buffer.cell.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
 fail/facts/foreign_retained_mutable_borrow_call_result rejected 1658ms expected @355494c10ca8
 	statement 5 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
 fail/facts/foreign_retained_mutable_borrow_const_name rejected 1052ms expected @355494c10ca8
@@ -24094,6 +24115,16 @@ pass/facts/foreign_indirect_float_record_result_through_other_machine_exit check
 pass/facts/foreign_indirect_float_record_result_through_other_state_exit checked 1996ms check-target:macos_arm64 @4c1bfc01217a+wt
 pass/facts/foreign_indirect_float_record_result_through_parameter_exit checked 1999ms check-target:macos_arm64 @4c1bfc01217a+wt
 pass/facts/foreign_indirect_float_record_result_through_target_body_exit checked 2018ms check-target:macos_arm64 @4c1bfc01217a+wt
+pass/facts/foreign_nested_record_backing_call_result checked 2095ms check-target:macos_arm64 @f0c9d9694a74
+pass/facts/foreign_nested_record_backing_const_name checked 1938ms check-target:macos_arm64 @f0c9d9694a74
+pass/facts/foreign_nested_record_backing_field checked 2004ms check-target:macos_arm64 @f0c9d9694a74
+pass/facts/foreign_nested_record_backing_local checked 1883ms check-target:macos_arm64 @f0c9d9694a74
+pass/facts/foreign_nested_record_backing_match_join checked 1930ms check-target:macos_arm64 @f0c9d9694a74
+pass/facts/foreign_nested_record_backing_other_machine checked 2130ms check-target:macos_arm64 @f0c9d9694a74
+pass/facts/foreign_nested_record_backing_other_state checked 2065ms check-target:macos_arm64 @f0c9d9694a74
+pass/facts/foreign_nested_record_backing_parameter checked 2097ms check-target:macos_arm64 @f0c9d9694a74
+pass/facts/foreign_nested_record_backing_repeated_child_type checked 1987ms check-target:macos_arm64 @f0c9d9694a74
+pass/facts/foreign_nested_record_backing_target_body checked 1908ms check-target:macos_arm64 @f0c9d9694a74
 pass/facts/foreign_retained_mutable_borrow_call_result checked 1968ms check-target:macos_arm64 @355494c10ca8
 pass/facts/foreign_retained_mutable_borrow_const_name checked 1620ms check-target:macos_arm64 @355494c10ca8
 pass/facts/foreign_retained_mutable_borrow_field checked 1624ms check-target:macos_arm64 @355494c10ca8
