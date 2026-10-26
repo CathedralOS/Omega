@@ -10,6 +10,7 @@ autotests = false
 
 
 [dependencies]
+language-semantics = { path = "../../../psi/foundation/language-semantics" }
 checked-trees = { path = "../../../psi/compilation/representations/checked-trees" }
 effects = { path = "../backend/plans/provider-evidence" }
 package-evidence = { path = "../../packages/review-evidence" }
@@ -57,7 +58,6 @@ package-source = { path = "../../packages/source-acquisition" }
 evaluation-accounting = { path = "../../../psi/foundation/evaluation-accounting" }
 bounded-process = { path = "../../foundation/bounded-process" }
 
-language-semantics = { path = "../../../psi/foundation/language-semantics" }
 omega-build = { path = "../../application/build" }
 terminal-runtime = { path = "../../application/terminal-runtime" }
 terminal-installation = { path = "../../../psi/compilation/checking/terminal-installation" }

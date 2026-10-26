@@ -1,6 +1,8 @@
 //! Resolve inert source requests only after Build has joined Product sources.
 //! Semantic admission belongs to Psi; this coordinator publishes its results.
 
+mod exclusions;
+
 use compilation_products::ComputedBuildConfig;
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
@@ -27,7 +29,7 @@ pub(super) fn admit(
         )?;
     computed.config.opaque_representation_selections = representations;
     computed.config.provider_selections = providers;
-    computed.config.behavior_exclusions = trust_model::harvest_behavior_exclusions(
+    computed.config.behavior_exclusions = exclusions::resolve(
         typed,
         computed.selected_build_machine_symbol,
         &computed.declared_product_selections,

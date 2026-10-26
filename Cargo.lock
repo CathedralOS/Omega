@@ -2499,21 +2499,14 @@ dependencies = [
 name = "trust-model"
 version = "0.1.0"
 dependencies = [
- "build-time-evaluation",
- "checked-interpreter",
  "checked-trees",
  "diagnostics",
  "effects",
  "language-semantics",
  "optimization-core",
- "semantic-vocabulary",
  "source",
  "symbols",
- "target",
- "terminal-installation",
- "terminal-psi",
  "typed-trees",
- "typed-trees-to-checked-trees",
  "validation",
 ]
 

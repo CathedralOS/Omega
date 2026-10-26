@@ -12,7 +12,7 @@ use language_semantics::declaration_selection::{
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
-pub fn harvest_behavior_exclusions(
+pub(super) fn resolve(
     typed: &TypedTrees,
     activation: Option<SymbolHandle>,
     declared: &[std::sync::Arc<ProductDeclarationRequest>],

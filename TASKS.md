@@ -1384,7 +1384,8 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   across the full admitted entry/call closure, native artifact custody,
   installation, and replacement (`Psi 04–07` and `Omega 00–09`). Reuse
   `omega-rust/omega/compilation/backend/plans/provider-evidence/src/provider_evidence/executable_scopes/behavior_exclusions.rs`,
-  `omega-rust/omega/compilation/realization/trust-model/src/behavior_exclusions/selections.rs`,
+  `omega-rust/omega/compilation/driver/src/checked/checking/product_selections/exclusions.rs`,
+  `omega-rust/omega/compilation/driver/src/terminal/behavior_exclusions.rs`,
   `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/retained_terminal.rs`,
   `omega-rust/omega/compilation/native-production/src/realization.rs`,
   and `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/native_artifact.rs`.
