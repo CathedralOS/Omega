@@ -8,6 +8,7 @@
 mod affine_transform;
 mod borrowed_storage;
 mod descriptor_io;
+mod integer_absolute;
 mod integer_division;
 mod network_address;
 mod processor_flags;
@@ -23,6 +24,7 @@ pub use borrowed_storage::{
 pub use descriptor_io::{
     DescriptorAbi, DescriptorOperation, descriptor_import, descriptor_system_call,
 };
+pub use integer_absolute::host_integer_absolute;
 pub use integer_division::{HostIntegerDivision, host_integer_division};
 pub use network_address::HostInternetAddress;
 pub use processor_flags::capture_host_x86_flags;

@@ -4,13 +4,12 @@
 use super::{AllocationOperation, TerminalRuntimeError};
 use calling_conventions::{BoundaryCallingApplication, CallSignature, ValueShape};
 use semantic_vocabulary::{
-    CanonicalStructuralPathSegment as Path, IntegerSign, IntegerType, ScalarType, StructuralTypeId,
+    CanonicalStructuralPathSegment as Path, IntegerSign, IntegerType, ScalarType,
 };
 use target_operations::NormalizedForeignCallBinding;
 use terminal_interpreter::{TerminalImportSignature, TerminalProgram};
 use terminal_psi::{
     BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind, StructuralAccess,
-    StructuralFieldType, StructuralTypeShape,
 };
 
 pub(super) fn select(
@@ -92,13 +91,10 @@ pub(super) fn validate(
                         "free cannot consume a borrowed or multi-argument value",
                     ));
                 }
-                let mut path = Vec::new();
-                address_payload(
+                let path = super::super::native_word::scalar_payload_path(
                     program,
                     parameter.structural_type,
                     address,
-                    &mut Vec::new(),
-                    &mut path,
                 )?;
                 let application = application.ok_or(invalid(
                     "owned free requires the complete admitted calling application",
@@ -140,54 +136,4 @@ pub(super) fn validate(
         }
     }
     Ok(payload)
-}
-
-fn address_payload(
-    program: &TerminalProgram,
-    root: StructuralTypeId,
-    address: ScalarType,
-    visiting: &mut Vec<StructuralTypeId>,
-    path: &mut Vec<Path>,
-) -> Result<(), TerminalRuntimeError> {
-    let invalid = TerminalRuntimeError::InvalidProvision;
-    if visiting.contains(&root) {
-        return Err(invalid("free address payload contains a recursive value"));
-    }
-    visiting.push(root);
-    let declaration = program
-        .structural_type(root)
-        .ok_or(invalid("free address payload type is absent"))?;
-    match &declaration.shape {
-        StructuralTypeShape::PrimitiveScalar(scalar) if *scalar == address => {}
-        StructuralTypeShape::Record { fields, .. } => {
-            let relevant: Vec<_> = fields
-                .iter()
-                .filter(|field| !field.relevance.is_erased())
-                .collect();
-            let [field] = relevant.as_slice() else {
-                return Err(invalid(
-                    "free owned value must contain exactly one address payload",
-                ));
-            };
-            if field.storage.is_some()
-                || matches!(
-                    field.field_type,
-                    StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_)
-                )
-            {
-                return Err(invalid(
-                    "free address payload cannot use atomic or encoded storage",
-                ));
-            }
-            path.push(Path::Field(field.id));
-            if let Some(child) = field.field_type.as_structural() {
-                address_payload(program, child, address, visiting, path)?;
-            } else if field.field_type.scalar_type() != Some(address) {
-                return Err(invalid("free owned payload is not an address"));
-            }
-        }
-        _ => return Err(invalid("free owned value is not a public address payload")),
-    }
-    visiting.pop();
-    Ok(())
 }

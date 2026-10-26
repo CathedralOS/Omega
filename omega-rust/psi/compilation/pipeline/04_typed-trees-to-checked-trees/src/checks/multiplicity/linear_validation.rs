@@ -233,10 +233,7 @@ pub(crate) fn validate_linear_permission_events(
                         .iter()
                         .any(|(symbol, path)| *symbol == place.root && *path == place.path)
             }) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "linear value `{}` reaches scope exit without being consumed or transferred",
-                    place.name
-                )));
+                diagnostics.push(place.unconsumed_scope_exit());
             }
         }
     }

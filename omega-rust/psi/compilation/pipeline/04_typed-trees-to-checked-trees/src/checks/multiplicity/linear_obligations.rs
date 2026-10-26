@@ -50,6 +50,15 @@ pub(crate) struct LinearPlace {
     pub(crate) case_excluded: bool,
 }
 
+impl LinearPlace {
+    pub(crate) fn unconsumed_scope_exit(&self) -> Diagnostic {
+        Diagnostic::error(format!(
+            "linear value `{}` reaches scope exit without being consumed or transferred",
+            self.name
+        ))
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct WrittenLinearTarget {
     pub(crate) root: facts::PlaceRoot,

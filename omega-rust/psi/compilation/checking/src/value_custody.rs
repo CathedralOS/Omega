@@ -55,4 +55,5 @@ pub(crate) mod write_only_borrows;
 
 pub mod completed_storage;
 
+pub mod membership_evidence;
 pub(crate) mod static_inline_storage;

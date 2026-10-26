@@ -596,3 +596,5 @@ pub use value_custody::const_expressions::{
 // One produced-storage association serves checking and flow consumers.
 pub use value_custody::completed_storage;
 pub use value_custody::places::storage_path_relations;
+
+pub use value_custody::membership_evidence;

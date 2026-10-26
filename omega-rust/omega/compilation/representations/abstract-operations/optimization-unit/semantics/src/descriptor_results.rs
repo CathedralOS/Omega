@@ -194,25 +194,47 @@ fn catalog_graph<'function, 'boundary>(
 ) -> Option<Vec<DescriptorMachine>> {
     let functions = functions.into_iter().collect::<Vec<_>>();
     let boundaries = boundaries.into_iter().collect::<Vec<_>>();
-    let mut identities = BTreeSet::new();
-    functions
-        .iter()
-        .map(|function| {
-            if !identities.insert(function.machine) {
-                return None;
-            }
-            adapt(
-                types,
-                &boundaries,
-                dynamic_dispatch,
-                &functions,
-                function,
-                &operation,
-                slot_kind,
-                &preserves_boundary,
-            )
+    let build = |selector_graph: Option<&[DescriptorMachine]>| {
+        let mut identities = BTreeSet::new();
+        functions
+            .iter()
+            .map(|function| {
+                if !identities.insert(function.machine) {
+                    return None;
+                }
+                adapt(
+                    types,
+                    &boundaries,
+                    dynamic_dispatch,
+                    &functions,
+                    function,
+                    &operation,
+                    slot_kind,
+                    &preserves_boundary,
+                    selector_graph,
+                )
+            })
+            .collect::<Option<Vec<_>>>()
+    };
+    let initial = build(None)?;
+    // Only current projected dynamic invocations can read selector_graph.
+    // Their absence makes the initial adaptation the complete result.
+    if !functions.iter().any(|function| {
+        function.block_nodes().any(|node| {
+            operation(function, node).is_some_and(|operation| {
+                matches!(
+                    operation.as_ref(),
+                    O::CallStructural {
+                        callee: abstract_operations::AbstractCallTarget::Dynamic { .. },
+                        ..
+                    }
+                )
+            })
         })
-        .collect()
+    }) {
+        return Some(initial);
+    }
+    build(Some(&initial))
 }
 
 pub fn call_origins(
@@ -275,12 +297,13 @@ fn adapt(
     dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
     functions: &[&PsiOptimizationFunction],
     function: &PsiOptimizationFunction,
-    operation: &impl for<'node> Fn(
+    operation_projection: &impl for<'node> Fn(
         &PsiOptimizationFunction,
         &'node optimization_unit::OptimizationNode,
     ) -> Option<Cow<'node, O>>,
     slot_kind: kernel::DescriptorSlotKind,
     preserves_boundary: &impl Fn(&PsiOptimizationFunction, &optimization_unit::OptimizationNode) -> bool,
+    selector_graph: Option<&[DescriptorMachine]>,
 ) -> Option<DescriptorMachine> {
     let mut graph = DescriptorMachine {
         id: function.machine,
@@ -448,7 +471,7 @@ fn adapt(
     for block in &function.blocks {
         for (index, node) in block.nodes.iter().enumerate() {
             let position = (block.id, u32::try_from(index).ok()?);
-            let selected = operation(function, node)?;
+            let selected = operation_projection(function, node)?;
             let operation = selected.as_ref();
             if let Some(guarantees) = scalar_call_guarantees(
                 operation,
@@ -490,6 +513,23 @@ fn adapt(
                     position,
                     node.definitions.iter().map(|value| value.value).collect(),
                 );
+            }
+            if let O::PrimitiveScalarRead {
+                source,
+                path,
+                result,
+                ..
+            } = operation
+                && let Some(location) = location(*source, path, None)
+            {
+                graph
+                    .scalar_payload_reads
+                    .entry(position)
+                    .or_default()
+                    .push((
+                        location,
+                        semantic_vocabulary::ScalarTerm::value(result.value, result.scalar_type),
+                    ));
             }
             if let O::StructuralScalarFieldRead {
                 source,
@@ -1031,6 +1071,26 @@ fn adapt(
                     }
                     step.inputs = vec![DescriptorLocation::whole(*source)];
                 }
+                O::EstablishPrimitiveLocal { result, value, .. } => {
+                    if let Some(value) = scalar_expression(function, value.value) {
+                        graph
+                            .scalar_payload_writes
+                            .entry(position)
+                            .or_default()
+                            .push((location(result.place, &[], None)?, value));
+                    }
+                }
+                O::PrimitiveLocalStore {
+                    destination, value, ..
+                } => {
+                    if let Some(value) = scalar_expression(function, value.value) {
+                        graph
+                            .scalar_payload_writes
+                            .entry(position)
+                            .or_default()
+                            .push((location(*destination, &[], None)?, value));
+                    }
+                }
                 O::EstablishScalarArray {
                     result, elements, ..
                 } => {
@@ -1131,18 +1191,31 @@ fn adapt(
                 O::CallStructural {
                     callee:
                         abstract_operations::AbstractCallTarget::Dynamic {
-                            interface, slot, ..
+                            selector,
+                            interface,
+                            slot,
                         },
                     structural_arguments,
                     ..
                 } => {
+                    let effects_machine = selected_effects_machine(
+                        dynamic_dispatch,
+                        functions,
+                        function,
+                        types,
+                        selector_graph,
+                        operation_projection,
+                        *selector,
+                        *interface,
+                        *slot,
+                    );
                     let realizations =
                         kernel::public_realizations(dynamic_dispatch, *interface, *slot)?;
                     let slot = dynamic_dispatch
                         .interface(*interface)?
                         .slots
                         .get(usize::try_from(*slot).ok()?)?;
-                    let call = kernel::public_invocation(
+                    let mut call = kernel::public_invocation(
                         node.operation.psi_operation()?,
                         types,
                         slot_kind,
@@ -1152,15 +1225,31 @@ fn adapt(
                         result,
                         &graph.place_types,
                     )?;
-                    for actual in structural_arguments.iter().filter(|actual| {
-                        realizations.is_empty() && actual.access != StructuralAccess::SharedBorrow
-                    }) {
-                        step.definitions.extend(writable_descriptor_slots(
-                            types,
-                            &graph.place_types,
-                            actual,
-                            slot_kind,
-                        )?);
+                    // Replay skips an incomplete invocation, so neither an
+                    // exact selection nor a catalog union may remove its fence.
+                    let complete_contents = call.argument_contents.iter().all(Option::is_some);
+                    let effects_machine = effects_machine.filter(|_| complete_contents);
+                    if let kernel::DescriptorInvocationTarget::Public {
+                        effects_machine: target,
+                        ..
+                    } = &mut call.target
+                    {
+                        *target = effects_machine;
+                    }
+                    let has_stored_effects = complete_contents
+                        && (effects_machine.is_some() || !realizations.is_empty());
+                    if !has_stored_effects {
+                        for actual in structural_arguments
+                            .iter()
+                            .filter(|actual| actual.access != StructuralAccess::SharedBorrow)
+                        {
+                            step.definitions.extend(writable_descriptor_slots(
+                                types,
+                                &graph.place_types,
+                                actual,
+                                slot_kind,
+                            )?);
+                        }
                     }
                     if matches!(
                         call.target,
@@ -1168,7 +1257,7 @@ fn adapt(
                             invalidates_contents: true,
                             ..
                         }
-                    ) && realizations.is_empty()
+                    ) && !has_stored_effects
                     {
                         graph.unresolved_contents_writes.insert(position);
                         step.may_escape = true;
@@ -1870,4 +1959,173 @@ fn scalar_expression(
             });
         Some((scalar_type, denotation))
     })
+}
+
+fn selected_effects_machine(
+    catalog: &terminal_psi::TerminalDynamicDispatchCatalog,
+    functions: &[&PsiOptimizationFunction],
+    function: &PsiOptimizationFunction,
+    types: &[StructuralTypeDeclaration],
+    selector_graph: Option<&[DescriptorMachine]>,
+    operation: &impl for<'node> Fn(
+        &PsiOptimizationFunction,
+        &'node optimization_unit::OptimizationNode,
+    ) -> Option<Cow<'node, O>>,
+    selector: semantic_vocabulary::ValueId,
+    interface: u32,
+    slot: u32,
+) -> Option<MachineId> {
+    #[derive(Clone, PartialEq, Eq)]
+    struct SelectedTable(u32);
+    let table = terminal_semantics::unchanged_scalar_identity(selector, |value| {
+        let mut definitions = function.block_nodes().filter(|node| {
+            node.definitions
+                .iter()
+                .any(|definition| definition.value == value)
+        });
+        if let Some(node) = definitions.next() {
+            if definitions.next().is_some() {
+                return None;
+            }
+            let projected = operation(function, node)?;
+            if let O::SelectImplementation { table, .. } = projected.as_ref() {
+                return Some(terminal_semantics::UnchangedScalarOrigin::Known(
+                    SelectedTable(*table),
+                ));
+            }
+            let sources = kernel::unchanged_stored_scalar_sources(
+                types,
+                selector_graph?,
+                function.machine,
+                value,
+                |(block, index)| {
+                    let Some(node) = function
+                        .blocks
+                        .iter()
+                        .find(|row| row.id == block)
+                        .and_then(|block| block.nodes.get(index as usize))
+                    else {
+                        return Vec::new();
+                    };
+                    let Some(graph) = selector_graph
+                        .and_then(|graph| graph.iter().find(|row| row.id == function.machine))
+                    else {
+                        return Vec::new();
+                    };
+                    let Some(projected) = operation(function, node) else {
+                        return Vec::new();
+                    };
+                    let mut writes = Vec::new();
+                    let mut write = |root, path: &[StructuralPathSegment], field, actual| {
+                        if let Some(location) = graph
+                            .place_types
+                            .get(&root)
+                            .and_then(|ty| descriptor_location(types, root, *ty, path, field))
+                        {
+                            writes.push((location, actual));
+                        }
+                    };
+                    match projected.as_ref() {
+                        O::EstablishPrimitiveLocal { result, value, .. } => {
+                            write(result.place, &[], None, value.value)
+                        }
+                        O::PrimitiveLocalStore {
+                            destination, value, ..
+                        } => write(*destination, &[], None, value.value),
+                        O::WriteOnlyPrimitiveStore {
+                            destination,
+                            path,
+                            value,
+                            ..
+                        } => write(destination.place(), path, None, value.value),
+                        O::StructuralScalarFieldStore {
+                            destination,
+                            path,
+                            field,
+                            value,
+                            ..
+                        } => write(destination.place(), path, Some(*field), value.value),
+                        O::EstablishRecord { result, fields, .. } => {
+                            for field in fields {
+                                if let terminal_psi::RecordFieldValue::Scalar { value, .. } =
+                                    &field.value
+                                {
+                                    write(result.place, &[], Some(field.field), *value);
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                    writes
+                },
+            )?;
+            return Some(terminal_semantics::UnchangedScalarOrigin::Incoming(sources));
+        }
+        let mut owners = function.blocks.iter().filter(|block| {
+            block
+                .parameters
+                .iter()
+                .any(|parameter| parameter.value == value)
+        });
+        let owner = owners.next()?;
+        if owners.next().is_some() || owner.id == function.entry {
+            return None;
+        }
+        let incoming = function
+            .block_nodes()
+            .flat_map(|node| &node.successors)
+            .filter(|edge| edge.target == owner.id)
+            .map(|edge| edge.binding(value).map(|binding| binding.argument))
+            .collect::<Option<Vec<_>>>()?;
+        Some(terminal_semantics::UnchangedScalarOrigin::Incoming(
+            incoming,
+        ))
+    })?
+    .0;
+    let target = kernel::selected_stored_effects_row(catalog, table, interface, slot)?;
+    let signature = catalog
+        .interface(interface)?
+        .slots
+        .get(usize::try_from(slot).ok()?)?;
+    let mut bodies = functions
+        .iter()
+        .copied()
+        .filter(|body| body.machine == target);
+    let body = bodies.next()?;
+    let result_matches = match &signature.result {
+        terminal_psi::BoundaryMachineResult::Unit => matches!(
+            body.result,
+            abstract_operations::AbstractFunctionResult::Unit
+        ),
+        terminal_psi::BoundaryMachineResult::Scalar(expected) => {
+            body.result.scalar().is_some_and(|result| {
+                expected.qualifications == semantic_vocabulary::ScalarQualificationSetId::ZERO
+                    && result.scalar_type == expected.scalar_type
+            })
+        }
+        terminal_psi::BoundaryMachineResult::Structural(_) => false,
+    };
+    if bodies.next().is_some()
+        || !result_matches
+        || body.parameters.len() != signature.scalar_parameters.len()
+        || !body
+            .parameters
+            .iter()
+            .zip(&signature.scalar_parameters)
+            .all(|(actual, expected)| actual.scalar_type == *expected)
+        || body.structural_parameters.len() != signature.structural_parameters.len()
+        || !body
+            .structural_parameters
+            .iter()
+            .zip(&signature.structural_parameters)
+            .all(|(actual, expected)| {
+                actual.position == expected.position
+                    && actual.structural_type == expected.structural_type
+                    && actual.access == expected.access
+                    && actual.multiplicity == expected.multiplicity
+            })
+    {
+        return None;
+    }
+    Some(target)
 }
