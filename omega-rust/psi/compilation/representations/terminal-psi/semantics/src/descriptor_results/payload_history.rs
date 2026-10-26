@@ -206,8 +206,7 @@ impl<'input> PayloadMembershipHistory<'input> {
         let incoming = self
             .incoming
             .get_or_insert_with(|| {
-                descriptor
-                    .and_then(|machine| super::payload_reachability::incoming_flow(&machine.flow))
+                descriptor.and_then(|machine| super::payload_reachability::incoming_flow(&machine.flow))
             })
             .as_ref();
         let mut failure = None;
@@ -259,8 +258,7 @@ impl<'input> PayloadMembershipHistory<'input> {
         let incoming = self
             .incoming
             .get_or_insert_with(|| {
-                descriptor
-                    .and_then(|machine| super::payload_reachability::incoming_flow(&machine.flow))
+                descriptor.and_then(|machine| super::payload_reachability::incoming_flow(&machine.flow))
             })
             .as_ref();
         current_payload_contract_reusing(
@@ -367,9 +365,9 @@ fn current_payload_contract_reusing(
         let identity = machine.id;
         failure = "payload query reachability is invalid or exceeds its finite budget";
         let mut relevant = match incoming {
-            Some(incoming) => super::payload_reachability::predecessors_with_incoming(
-                machine, incoming, position,
-            )?,
+            Some(incoming) => {
+                super::payload_reachability::predecessors_with_incoming(machine, incoming, position)?
+            }
             None => super::payload_reachability::predecessors(machine, position)?,
         };
         let previous = cached.take();
