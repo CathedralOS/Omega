@@ -4,4 +4,7 @@ One nominal `Pending` is produced by the shared `Reader::register` and mutable `
 
 The two providers have separate capacity types and lifecycle state. Their existing C implementations are unchanged. Every positive entry binds all four hosted targets.
 
-Actual macOS ARM64 execution with frozen producer `f8d4d2c2c65e2304e535bfea3febb9b6e59d469e` reports native exit 0 and Terminal exit 0. The invalid twin inserts one read of mutable backing while its transported registration remains live and rejects for that active borrow. `positive.json`, `negative.json` and raw stdout/stderr preserve command, producer and source identities. This establishes the local host only; other-host execution belongs to the parent cohort qualification.
+The parent [retained mutable row](../../README.md) records the executable
+qualification. Its gate runs this positive and the invalid twin with both
+matching-host C providers. The invalid twin inserts only a read of the mutable
+backing while its transported registration remains live.

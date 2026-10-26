@@ -89,7 +89,7 @@ registers it again. It retains the allocation seal through the ordinary owned
 storage transaction; a scalar resident alone cannot authorize a new root.
 
 The controls additionally require early disposal, capacity reuse, repeated
-completion, mutable/call-scoped retention and unsupported persistent retention
+completion, call-scoped retention and unsupported persistent retention
 to reject for their stated obligations. Two simultaneous registrations remain
 independent; completing one leaves the other loan live. A post-completion write
 and raw values of the same carrier (including a factory with an unused borrow)
@@ -122,6 +122,9 @@ foreign effects and executes in both engines.
 
 This covers the direct shared fixed-record rung. The whole-move control covers
 ordinary owned movement between completed registrations. Transferring backing
-ownership into a foreign protocol, explicit snapshots, mutable retention,
+ownership into a foreign protocol, explicit snapshots,
 wider/recursive graphs, more general retained provider installations and wider
 resident codecs remain open.
+
+The former shared-only mutable rejection is superseded by the
+[retained mutable row](../foreign_retained_mutable_borrow/README.md).
