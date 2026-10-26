@@ -92,27 +92,6 @@ lowered_integer_binary_kinds! {
 }
 
 impl LoweredIntegerBinaryKind {
-    /// The kinds whose formation checking records as a decision: division
-    /// and remainder definedness under every policy, and Exact sum,
-    /// difference and product representability; Exact shift formation includes
-    /// count validity and, for left shifts, result representability.
-    pub(crate) const fn formation_is_checker_decided(self) -> bool {
-        matches!(
-            self,
-            Self::ExactDivide
-                | Self::ExactRemainder
-                | Self::WrappingDivide
-                | Self::WrappingRemainder
-                | Self::SaturatingDivide
-                | Self::SaturatingRemainder
-                | Self::ExactAdd
-                | Self::ExactSubtract
-                | Self::ExactMultiply
-                | Self::ExactShiftLeft
-                | Self::ExactShiftRight
-        )
-    }
-
     pub(crate) fn formation_obligation(self, operation: OperationId) -> Option<ObligationId> {
         let catalog_requires_formation =
             self.integer_policy_binding()
