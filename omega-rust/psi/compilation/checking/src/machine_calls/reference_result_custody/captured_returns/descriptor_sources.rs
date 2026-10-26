@@ -41,6 +41,24 @@ impl Captures<'_> {
         }
         active.push(query);
         let selected = (|| {
+            // A copied carrier retains each descriptor's completed coordinates
+            // in its frozen leaf roster. The whole carrier's referents need
+            // not contain them. These origins still owe the returned-loan
+            // join; selecting a frozen coordinate grants no new authority.
+            match crate::completed_storage::frozen_reference_leaf(
+                self.program,
+                control,
+                operand,
+                path,
+            ) {
+                crate::completed_storage::FrozenReferenceSelection::Unavailable => return None,
+                crate::completed_storage::FrozenReferenceSelection::Endpoint { leaf, .. }
+                    if !leaf.referents.is_empty() =>
+                {
+                    return self.descriptor_referent_sources(leaf.referents, suffix);
+                }
+                _ => {}
+            }
             let Some(stored) = crate::completed_storage::reference_captures_at_path(
                 self.program,
                 control,
@@ -99,25 +117,7 @@ impl Captures<'_> {
                         active,
                     )?
                 } else if !descriptor.referents.is_empty() {
-                    let mut sources = Vec::new();
-                    for referent in control.operand_referents.span(descriptor.referents)? {
-                        let root = referent.root.as_symbol()?;
-                        let origin = crate::LocalWriteSource {
-                            invocation_output: None,
-                            is_image_storage: false,
-                            recasts: Vec::new(),
-                            representation: None,
-                            path: self.program.symbols.name(root).to_owned(),
-                            collection_coarse: false,
-                            root,
-                            segments: control
-                                .operand_referent_segments
-                                .span(referent.segments)?
-                                .to_vec(),
-                        };
-                        sources.push(origin.substitute_storage(self.program, suffix)?);
-                    }
-                    sources
+                    self.descriptor_referent_sources(descriptor.referents, suffix)?
                 } else {
                     if !control.operand_retentions.is_valid(descriptor.retention) {
                         return None;
@@ -159,5 +159,35 @@ impl Captures<'_> {
         })();
         active.pop();
         selected
+    }
+
+    fn descriptor_referent_sources(
+        &self,
+        referents: arena::HandleSpan<checked_trees::FlowOperandReferent>,
+        suffix: &crate::LocalWriteSource,
+    ) -> Option<Vec<crate::LocalWriteSource>> {
+        let control = &self.facts.flow.control;
+        let mut sources = Vec::new();
+        for referent in control.operand_referents.span(referents)? {
+            let root = referent.root.as_symbol()?;
+            let origin = crate::LocalWriteSource {
+                invocation_output: None,
+                is_image_storage: false,
+                recasts: Vec::new(),
+                representation: None,
+                path: self.program.symbols.name(root).to_owned(),
+                collection_coarse: false,
+                root,
+                segments: control
+                    .operand_referent_segments
+                    .span(referent.segments)?
+                    .to_vec(),
+            };
+            let origin = origin.substitute_storage(self.program, suffix)?;
+            if !sources.contains(&origin) {
+                sources.push(origin);
+            }
+        }
+        (!sources.is_empty()).then_some(sources)
     }
 }

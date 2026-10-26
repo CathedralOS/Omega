@@ -1,11 +1,11 @@
-//! Register and processor-control events shared by checking and realization.
+//! Register, processor-control and memory-ordering events shared by checking and realization.
 //!
 //! The register catalog supplies identity and operand contracts. These events
 //! retain the hardware event independently of its scalar operands: reads,
 //! writes and operand-free processor control all remain observable. No event
 //! grants machine authority.
 
-use super::{AsmInterruptControlKind, AsmSystemRegister, AsmTargetApplicability};
+use super::{AsmFenceKind, AsmInterruptControlKind, AsmSystemRegister, AsmTargetApplicability};
 
 /// Exact unsigned scalar carriers of physical register operations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -41,6 +41,8 @@ pub enum AsmRegisterOperation {
     /// No value operand or result is implied; this is not an empty Unit call.
     ProcessorHalt,
     InterruptControl(AsmInterruptControlKind),
+    /// An ordering event, with its exact architecture and access mask retained.
+    MemoryFence(AsmFenceKind),
     SystemRead(AsmSystemRegister),
     SystemWrite(AsmSystemRegister),
     PortRead,
@@ -57,6 +59,12 @@ impl AsmRegisterOperation {
             Self::ProcessorHalt => 0x400,
             Self::InterruptControl(AsmInterruptControlKind::Disable) => 0x401,
             Self::InterruptControl(AsmInterruptControlKind::Enable) => 0x402,
+            Self::MemoryFence(AsmFenceKind::Load) => 0x500,
+            Self::MemoryFence(AsmFenceKind::Store) => 0x501,
+            Self::MemoryFence(AsmFenceKind::Full) => 0x502,
+            Self::MemoryFence(AsmFenceKind::Aarch64Load) => 0x503,
+            Self::MemoryFence(AsmFenceKind::Aarch64Store) => 0x504,
+            Self::MemoryFence(AsmFenceKind::Aarch64Full) => 0x505,
             Self::SystemRead(register) => register.catalog_id() as u16,
             Self::SystemWrite(register) => 0x100 | register.catalog_id() as u16,
             Self::PortRead => 0x200,
@@ -71,6 +79,12 @@ impl AsmRegisterOperation {
             0x400 => return Some(Self::ProcessorHalt),
             0x401 => return Some(Self::InterruptControl(AsmInterruptControlKind::Disable)),
             0x402 => return Some(Self::InterruptControl(AsmInterruptControlKind::Enable)),
+            0x500 => return Some(Self::MemoryFence(AsmFenceKind::Load)),
+            0x501 => return Some(Self::MemoryFence(AsmFenceKind::Store)),
+            0x502 => return Some(Self::MemoryFence(AsmFenceKind::Full)),
+            0x503 => return Some(Self::MemoryFence(AsmFenceKind::Aarch64Load)),
+            0x504 => return Some(Self::MemoryFence(AsmFenceKind::Aarch64Store)),
+            0x505 => return Some(Self::MemoryFence(AsmFenceKind::Aarch64Full)),
             0x200 => return Some(Self::PortRead),
             0x201 => return Some(Self::PortWrite),
             0x300 => return Some(Self::ModelSpecificRead),
@@ -100,15 +114,21 @@ impl AsmRegisterOperation {
         if let Some(kind) = AsmInterruptControlKind::from_intrinsic_name(name) {
             return Some(Self::InterruptControl(kind));
         }
+        if let Some(kind) = AsmFenceKind::from_intrinsic_name(name) {
+            return Some(Self::MemoryFence(kind));
+        }
         AsmSystemRegister::from_read_intrinsic_name(name)
             .map(Self::SystemRead)
             .or_else(|| AsmSystemRegister::from_write_intrinsic_name(name).map(Self::SystemWrite))
     }
 
-    /// Only the catalogued PUSHFQ observation has no service authority.
+    /// PUSHFQ observations and ordering fences require no service authority.
     /// Environment supply and target compatibility remain separate obligations.
     pub const fn requires_service_authority(self) -> bool {
-        !matches!(self, Self::SystemRead(AsmSystemRegister::Rflags))
+        !matches!(
+            self,
+            Self::SystemRead(AsmSystemRegister::Rflags) | Self::MemoryFence(_)
+        )
     }
 
     pub const fn produces_value(self) -> bool {
@@ -120,7 +140,10 @@ impl AsmRegisterOperation {
     pub const fn input_carriers(self) -> &'static [AsmRegisterCarrier] {
         use AsmRegisterCarrier::*;
         match self {
-            Self::SystemRead(_) | Self::ProcessorHalt | Self::InterruptControl(_) => &[],
+            Self::SystemRead(_)
+            | Self::ProcessorHalt
+            | Self::InterruptControl(_)
+            | Self::MemoryFence(_) => &[],
             Self::SystemWrite(_) => &[U64],
             Self::PortRead => &[U16],
             Self::PortWrite => &[U16, U8],
@@ -142,6 +165,7 @@ impl AsmRegisterOperation {
             Self::SystemRead(register) | Self::SystemWrite(register) => {
                 register.target_applicability()
             }
+            Self::MemoryFence(kind) => kind.target(),
             _ => AsmTargetApplicability::X86_64,
         }
     }
@@ -156,6 +180,7 @@ impl AsmRegisterOperation {
             | Self::ModelSpecificRead
             | Self::ProcessorHalt
             | Self::InterruptControl(_)
+            | Self::MemoryFence(_)
             | Self::ModelSpecificWrite => true,
             Self::SystemWrite(register) => register.write_intrinsic_name().is_some(),
         }

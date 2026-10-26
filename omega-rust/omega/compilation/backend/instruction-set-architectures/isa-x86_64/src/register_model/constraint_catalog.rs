@@ -269,6 +269,11 @@ pub fn x86_64_register_constraint_catalog(
     interrupt_control.implicit_defs = interrupt_control.implicit_uses.clone();
     let mut constraints = vec![
         interrupt_control,
+        instruction_row(
+            RegisterConstraintId(0),
+            crate::X86_64_MEMORY_FENCE,
+            Vec::new(),
+        ),
         flags_snapshot,
         flags_restore,
         control_rows[0].clone(),

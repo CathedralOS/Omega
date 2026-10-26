@@ -250,6 +250,7 @@ fn anonymous_owner_consumer_runs_nine_places_and_rejects_namespace_substitution(
         let observation = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
             native_provider: None,
             x86_flags: None,
+            memory_ordering: None,
             provider_proposal: None,
             artifact: &reloaded,
             target: Some("linux_x86_64"),

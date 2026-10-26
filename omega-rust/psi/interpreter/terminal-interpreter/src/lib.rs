@@ -48,6 +48,8 @@ mod capabilities;
 mod content_transformations;
 mod custody;
 mod effects;
+mod memory_ordering;
+pub use memory_ordering::TerminalMemoryOrderingEnvironment;
 mod element_views;
 mod errors;
 mod execution;

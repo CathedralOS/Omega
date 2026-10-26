@@ -43,7 +43,6 @@ pub(crate) use last_uses::{owner_path_overlaps_place_segments, place_is_used_aft
 pub(crate) use loans::argument_borrow_loan_place;
 pub(crate) use loans::borrow_initializer_expressions;
 pub(crate) use loans::call_reference_lifetime_sources;
-pub(crate) use loans::call_reference_sources;
 pub(crate) use loans::owner_path_from_place_segments;
 pub(crate) use loans::owner_place_segments;
 pub(crate) use loans::owner_segment_matches_place_segment;
@@ -51,6 +50,9 @@ pub(crate) use loans::place_path_covers_owner;
 pub(crate) use loans::returned_body_source_mismatch;
 pub(crate) use loans::store_destination_places;
 pub(crate) use loans::types::reference_borrow_access_kind;
+pub(crate) use loans::{
+    CompletedReturnSource, call_reference_sources, completed_call_reference_sources,
+};
 pub(crate) use owner_geometry::carrier_path;
 pub(crate) use owner_geometry::named_carrier_path;
 pub(crate) use owner_geometry::structural_owner_path;

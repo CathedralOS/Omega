@@ -102,6 +102,9 @@ pub(super) fn interpret_product(
             })?,
         )),
         x86_flags: terminal_runtime::capture_host_x86_flags(target)?,
+        memory_ordering: terminal_runtime::TerminalMemoryOrderingEnvironment::private_sequential(
+            target,
+        ),
         provider_proposal: None,
         artifact,
         target: Some(target),

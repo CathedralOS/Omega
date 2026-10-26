@@ -149,13 +149,37 @@ fn invocation_contexts_at_referents(
                 .iter()
                 .any(|fact_ref| {
                     let fact = semantic.facts.get(fact_ref.fact);
-                    let Some(place) = fact.place.as_place() else {
+                    let Some(place_handle) = fact.place.as_place() else {
                         return false;
                     };
+                    let semantic_place = semantic.places.get(place_handle);
+                    if !matches!(semantic_place.root, facts::PlaceRoot::Expression(_)) {
+                        if matches!(semantic_place.root, facts::PlaceRoot::Unknown)
+                            || matches!(
+                                semantic_place.root,
+                                facts::PlaceRoot::Symbol(s) if !s.is_valid()
+                            )
+                        {
+                            return false;
+                        }
+                        let segments = semantic
+                            .place_segments
+                            .span_or_empty(semantic_place.segments);
+                        return referents.iter().any(|referent| {
+                            semantic_place.root == referent.root
+                                && crate::flow::canonical_place_segments_may_overlap(
+                                    program,
+                                    segments,
+                                    control
+                                        .operand_referent_segments
+                                        .span_or_empty(referent.segments),
+                                )
+                        });
+                    }
                     let Some(place) = crate::flow::canonical_place_from_semantic_place(
                         program,
                         semantic,
-                        semantic.places.get(place),
+                        semantic_place,
                     ) else {
                         return false;
                     };

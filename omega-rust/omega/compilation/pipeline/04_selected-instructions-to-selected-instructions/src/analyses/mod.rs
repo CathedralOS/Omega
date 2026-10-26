@@ -187,12 +187,18 @@ impl UnsealedRecoveryFacts {
         let mut legality_functions = self.legality_functions.clone();
         for index in 0..count {
             if changed[index] {
-                let computed = allocation_legality::compute::compute_function(
+                let prior_pair = self
+                    .range_functions
+                    .get(index)
+                    .zip(self.legality_functions.get(index))
+                    .map(|(r, l)| (r.as_ref(), l.as_ref()));
+                let computed = allocation_legality::compute::compute_function_reusing(
                     index,
                     &range_functions[index],
                     availability,
                     physical,
                     reservations,
+                    prior_pair,
                 )
                 .map_err(RecoveryReanalysisError::Legality)?;
                 allocation_legality::validate::FunctionCounts::new(&computed, index)

@@ -27,6 +27,7 @@ mod float_bits;
 pub(crate) mod float_result_policy;
 pub(crate) mod floating_control;
 pub(crate) mod ieee_float_arithmetic;
+pub(crate) mod memory_fence;
 pub(crate) mod port_write;
 pub(crate) mod register_access;
 mod scan_byte_sequence;
