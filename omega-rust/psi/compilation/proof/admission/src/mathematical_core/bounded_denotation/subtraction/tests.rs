@@ -1,4 +1,4 @@
-use super::super::test_utilities::elaborate_checked;
+use super::super::test_utilities::{assert_refused, elaborate_checked};
 use std::collections::BTreeSet;
 
 use semantic_vocabulary::{
@@ -76,17 +76,7 @@ fn checked(integer: IntegerType, left: ScalarTerm, right: ScalarTerm) {
         &mut Budget::default(),
     )
     .unwrap();
-    assert!(
-        verify_bounded_certificate(
-            &context,
-            &proof.conclusion,
-            &assumptions[..1],
-            &[],
-            &proof,
-            &mut Budget::default()
-        )
-        .is_err()
-    );
+    assert_refused(&context, &proof.conclusion, &assumptions[..1], &[], &proof);
 }
 
 #[test]
@@ -149,34 +139,20 @@ fn mismatched_decrement_and_reversed_goal_still_reject() {
         unreachable!()
     };
     let reversed = Proposition::LessThan(right.clone(), left.clone());
-    assert!(
-        verify_bounded_certificate(
-            &context,
-            &reversed,
-            &assumptions,
-            &[],
-            &ProofNode {
-                conclusion: reversed.clone(),
-                rule: proof.rule.clone()
-            },
-            &mut Budget::default()
-        )
-        .is_err()
+    assert_refused(
+        &context,
+        &reversed,
+        &assumptions,
+        &[],
+        &ProofNode {
+            conclusion: reversed.clone(),
+            rule: proof.rule.clone(),
+        },
     );
     let ProofRule::IntegerSubtractOrder { positive, .. } = &mut proof.rule else {
         unreachable!()
     };
     positive.conclusion = Proposition::LessThan(literal(0), literal(2));
     let changed = [assumptions[0].clone(), positive.conclusion.clone()];
-    assert!(
-        verify_bounded_certificate(
-            &context,
-            &proof.conclusion,
-            &changed,
-            &[],
-            &proof,
-            &mut Budget::default()
-        )
-        .is_err()
-    );
+    assert_refused(&context, &proof.conclusion, &changed, &[], &proof);
 }

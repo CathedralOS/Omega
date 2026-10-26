@@ -13,7 +13,7 @@ use super::super::{
     NonAuthoritativeCalleeSaveSlotId, NonAuthoritativeCalleeSaveStorageError,
 };
 
-pub(super) fn reconstruct_functions(
+pub(in crate::frame_layout::save_storage) fn reconstruct_functions(
     source: &AllocatedCalleeSavedRequirementPlan,
     catalog: &ValidatedPreservationStorageCatalog,
 ) -> Result<Vec<FunctionNonAuthoritativeCalleeSaveStorage>, NonAuthoritativeCalleeSaveStorageError>

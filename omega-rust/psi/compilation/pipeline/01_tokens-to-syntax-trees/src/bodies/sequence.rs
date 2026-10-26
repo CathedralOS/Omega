@@ -36,25 +36,14 @@ pub(crate) fn parse_statements<'tokens, 'source>(
     mut input: Input<'tokens, 'source>,
     body: BodyKind,
 ) -> ParseResult<'tokens, 'source, HandleSpan<StatementHandle>> {
-    let mut statements = HandleSpan::empty();
+    let mut statements = crate::handle_spans::HandleSpanBuilder::new();
     while !body.at_end(input) {
         if input.at_punctuation(PunctuationKind::Arrow) {
             return Err(input.error_here(body.bare_arrow_error()));
         }
         let (parsed, rest) = parse_statement_handles(syntax_trees, input)?;
-        if !parsed.is_empty() {
-            let start = if statements.is_empty() {
-                parsed.start()
-            } else {
-                statements.start()
-            };
-            let count = statements
-                .count()
-                .checked_add(parsed.count())
-                .expect("state statement span count overflow");
-            statements = HandleSpan::from_parts(start, count);
-        }
+        statements.push_span(parsed);
         input = rest;
     }
-    Ok((statements, input))
+    Ok((statements.finish(), input))
 }

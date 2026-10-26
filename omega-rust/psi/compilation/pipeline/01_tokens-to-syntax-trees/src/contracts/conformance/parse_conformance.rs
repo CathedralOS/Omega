@@ -1,6 +1,6 @@
 use crate::input::token_cursor::{Input, ParseResult};
 use crate::type_syntax::parse_type::parse_type_reference_handle;
-use arena::{Handle, HandleSpan};
+use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::SatisfiesClause;
 use tokens::{KeywordKind, PunctuationKind};
@@ -14,8 +14,7 @@ pub(crate) fn parse_satisfies_traits<'tokens, 'source>(
     }
 
     input = input.take_contextual("satisfies")?;
-    let mut clause_start = Handle::invalid();
-    let mut clause_count = 0u32;
+    let mut clauses = crate::handle_spans::HandleSpanBuilder::new();
 
     loop {
         let ((trait_name, lifetime_arguments, arguments), mut rest) =
@@ -85,12 +84,7 @@ pub(crate) fn parse_satisfies_traits<'tokens, 'source>(
             via_expression,
             via_keyword_source_span,
         });
-        if clause_count == 0 {
-            clause_start = handle;
-        }
-        clause_count = clause_count
-            .checked_add(1)
-            .expect("machine satisfies span count overflow");
+        clauses.push(handle);
         input = rest;
 
         let Some(next) = input.take_comma()? else {
@@ -102,8 +96,7 @@ pub(crate) fn parse_satisfies_traits<'tokens, 'source>(
         continue;
     }
 
-    let satisfies = HandleSpan::from_parts_or_empty(clause_start, clause_count);
-    Ok((satisfies, input))
+    Ok((clauses.finish(), input))
 }
 
 pub(crate) fn parse_optional_satisfies_type_arguments<'tokens, 'source>(

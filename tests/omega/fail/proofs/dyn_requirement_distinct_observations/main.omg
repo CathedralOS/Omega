@@ -1,0 +1,19 @@
+public data Counter { flag: bool; }
+public let bounded(value: u64, limit: u64): core::Strict<0> = value <= limit;
+trait Next {
+ machine next(counter: &mut Counter) -> u64 ensures bounded(result, 88u64);
+}
+Flip satisfies Next {
+ machine next(counter: &mut Counter) -> u64 ensures result <= 88u64 {
+  let prior: bool = counter.flag;
+  counter.flag = !prior;
+  transition prior { true -> 1u64 false -> 0u64 }
+ }
+}
+machine main() {
+ let selected: dyn Next = Flip as dyn Next;
+ let mut counter: Counter = Counter { flag: false };
+ let first: u64 = Next::next(selected, &mut counter);
+ let second: u64 = Next::next(selected, &mut counter);
+ let invalid: u64 = first - second;
+}

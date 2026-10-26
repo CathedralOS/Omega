@@ -1,0 +1,62 @@
+// A static callback retains its exact selection and bounded reach through a conformance invocation; its transported result discharges 37 - result.
+// Expected exit: 0
+public boundary trait Console {}
+public trait StepContract {
+    machine step<const Count: u64>(value: u64) -> u64
+    reaches Console terminates;
+    requires value <= 37 && Count <= 37
+    ensures result <= 37;
+}
+machine quiet<const Count: u64>(value: u64) -> u64
+satisfies StepContract::step
+terminates;
+requires value <= 37 && Count <= 37
+ensures result <= 37
+{ Count }
+machine unused<const Count: u64>(value: u64) -> u64
+satisfies StepContract::step
+reaches Console terminates;
+requires value <= 37 && Count <= 37
+ensures result <= 37
+{ value }
+trait Traversal {
+    machine traverse<machine Step, machine Ignored>(value: u64) -> u64
+    where machine Step satisfies StepContract::step;
+    where machine Ignored satisfies StepContract::step;
+    reaches Console terminates;
+    requires value <= 37
+    ensures result <= 37;
+}
+TraversalCode satisfies Traversal {
+    machine traverse<machine Step, machine Ignored>(value: u64) -> u64
+    where machine Step satisfies StepContract::step;
+    where machine Ignored satisfies StepContract::step;
+    terminates;
+    requires value <= 37
+    ensures result <= 37
+    {
+        let first: u64 = Step<2>(value);
+        Step<38>(first)
+    }
+}
+machine ordinary<machine Step, machine Ignored>(value: u64) -> u64
+where machine Step satisfies StepContract::step;
+where machine Ignored satisfies StepContract::step;
+terminates;
+requires value <= 37
+ensures result <= 37
+{
+    let first: u64 = Step<2>(value);
+    Step<38>(first)
+}
+machine pure_observer() -> u64 reaches
+ensures result <= 37
+{ ordinary<quiet, unused>(37) }
+machine main() reaches Console crashes Trap {
+    let first: u64 = TraversalCode::traverse<quiet, unused>(37);
+    let margin: u64 = 37 - first;
+    let pure: u64 = pure_observer();
+    transition margin == 34 && pure == 3 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

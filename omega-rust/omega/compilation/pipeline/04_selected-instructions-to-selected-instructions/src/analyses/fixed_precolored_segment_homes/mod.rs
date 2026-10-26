@@ -80,9 +80,6 @@ pub struct FixedPrecoloredSegmentHomeValidationReceipt {
     pub(crate) target: NativeTarget,
     pub(crate) policy: FixedPrecoloredSegmentHomePolicy,
     pub(crate) usage: OptimizationWorkUsage,
-    pub(crate) function_count: usize,
-    pub(crate) domain_count: usize,
-    pub(crate) assignment_count: usize,
 }
 
 impl FixedPrecoloredSegmentHomeValidationReceipt {
@@ -121,15 +118,6 @@ impl FixedPrecoloredSegmentHomeValidationReceipt {
     }
     pub const fn usage(self) -> OptimizationWorkUsage {
         self.usage
-    }
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-    pub const fn domain_count(self) -> usize {
-        self.domain_count
-    }
-    pub const fn assignment_count(self) -> usize {
-        self.assignment_count
     }
 }
 

@@ -68,13 +68,11 @@ pub(crate) fn independently_accepted_operation_fact(
         })
         .then(|| {
             input
-                .accepted_obligation_facts
-                .iter()
-                .find(|fact| {
-                    fact.machine == function.machine
-                        && fact.owner == optimization_unit::PsiProvenance::Operation(operation)
-                        && fact.obligation == obligation
-                })
+                .accepted_obligation_fact(
+                    function.machine,
+                    optimization_unit::PsiProvenance::Operation(operation),
+                    Some(obligation),
+                )
                 .map(|fact| fact.identity)
         })
         .flatten()

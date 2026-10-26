@@ -144,6 +144,7 @@ pub(super) fn build(
     } else if let checked_trees::CheckedControlResultPlan::Scalar { primitive_type } = result
         && let Some(completion) = returns::scalar_completion(
             program,
+            fused,
             facts,
             machine,
             state,
@@ -157,6 +158,7 @@ pub(super) fn build(
         CheckedComposedUnitControlTerminatorPlan::ReturnScalar { completion }
     } else if let Some((terminator, operand_calls)) = returns::guarded(
         program,
+        fused,
         facts,
         scalar_callees,
         shapes,
@@ -210,6 +212,26 @@ pub(super) fn build(
                     // An unconditional `(expression)` arm closes the state
                     // with its value: the same establishment a bare tail
                     // expression plans, produced at the transition's ordinal.
+                    TransitionTargetNode::Value(_)
+                        if validation::completing_transition_transfer(
+                            program,
+                            transition.target,
+                        )
+                        .is_some_and(|transfer| {
+                            super::fused::fused_target_index(program, fused, transfer.target)
+                                .is_some()
+                        }) =>
+                    {
+                        CheckedComposedUnitControlTerminatorPlan::Jump {
+                            successor: edge(
+                                operations,
+                                transition,
+                                ordinal,
+                                SuccessorEdge::Jump,
+                                shapes,
+                            )?,
+                        }
+                    }
                     TransitionTargetNode::Value(expression)
                         if result != checked_trees::CheckedControlResultPlan::Unit
                             && transition.exit == TransitionExit::Ordinary
@@ -303,6 +325,28 @@ pub(super) fn build(
                             },
                             Vec::new(),
                         )));
+                    }
+                    if validation::completing_transition_transfer(program, transition.target)
+                        .is_some_and(|transfer| {
+                            super::fused::fused_target_index(program, fused, transfer.target)
+                                .is_some()
+                        })
+                    {
+                        return successor(
+                            program,
+                            facts,
+                            fused,
+                            state_index,
+                            signatures,
+                            operations,
+                            transition,
+                            edge_ordinal,
+                            SuccessorEdge::Conditional,
+                            edge_calls,
+                            shapes,
+                            trace,
+                        )
+                        .map(Ok);
                     }
                     if let TransitionTargetNode::Value(expression) =
                         program.statement_table.transition_target(transition.target)
@@ -710,6 +754,11 @@ fn internal_destination(
     }
     if transition.exit != TransitionExit::Ordinary || transition.continuation.is_valid() {
         return None;
+    }
+    if let Some(transfer) = validation::completing_transition_transfer(program, transition.target)
+        && super::fused::fused_target_index(program, fused, transfer.target).is_some()
+    {
+        return Some(transfer.state.symbol);
     }
     match destination {
         checked_trees::CheckedScalarBranchDestination::Jump(selected)

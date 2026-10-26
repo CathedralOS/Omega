@@ -41,8 +41,6 @@ pub struct AllocatorAvailabilityValidationReceipt {
     pub(crate) identity: AllocatorAvailabilityIdentity,
     pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
     pub(crate) physical: PhysicalRegisterModelIdentity,
-    pub(crate) class_count: usize,
-    pub(crate) unconstrained_view_count: usize,
 }
 
 impl AllocatorAvailabilityValidationReceipt {
@@ -56,14 +54,6 @@ impl AllocatorAvailabilityValidationReceipt {
 
     pub const fn physical(self) -> PhysicalRegisterModelIdentity {
         self.physical
-    }
-
-    pub const fn class_count(self) -> usize {
-        self.class_count
-    }
-
-    pub const fn unconstrained_view_count(self) -> usize {
-        self.unconstrained_view_count
     }
 }
 

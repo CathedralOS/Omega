@@ -361,8 +361,8 @@ pub(super) fn projected_carrier_reference_origins(
     if super::type_reference_is_reference(program, callee_state.return_type) {
         return None;
     }
-    let mut carrier_symbol =
-        super::boundary_calls::receiver_type_symbol(program, callee_state.return_type);
+    let applied_result = crate::machine_calls::calls::call_result_type(program, root)?;
+    let mut carrier_symbol = super::boundary_calls::receiver_type_symbol(program, applied_result);
     let mut segments = Vec::with_capacity(member_names.len());
     for member_name in member_names {
         let data =
@@ -386,8 +386,8 @@ pub(super) fn projected_carrier_reference_origins(
     let returned = super::result_origins::call_result_origins(
         program,
         current_machine,
-        call,
-        callee_state.return_type,
+        root,
+        applied_result,
         symbols,
         inference,
         false,

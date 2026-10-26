@@ -23,6 +23,62 @@ impl FloatObservation {
         parameters: &[StateParameter],
         binders: &[(SymbolHandle, String)],
         fact: &ProofFact,
+    ) -> Vec<Self> {
+        if let ProofFact::Expression(expression) = fact
+            && let Some(predicates) =
+                crate::mathematical_applications::float_predicates(program, *expression)
+        {
+            // Every conjunct must retain an exact subject and format. Dropping
+            // an unread conjunct would turn a partial projection into a proof
+            // of the entire public guarantee.
+            return predicates
+                .into_iter()
+                .map(|projection| {
+                    let subject = projection.subject;
+                    let predicate = projection.predicate;
+                    let reference = if let Some((result_owner, reference)) =
+                        crate::reserved_result_owner(program, subject)
+                    {
+                        (result_owner == owner).then_some(reference)?
+                    } else {
+                        crate::parameter_expression_result_type_reference(
+                            program, owner, parameters, subject,
+                        )?
+                    };
+                    let matches = matches!(
+                        (
+                            program.primitive_type_reference(reference)?,
+                            predicate.format()
+                        ),
+                        (PrimitiveType::F32, numerics::literals::FloatFormat::F32)
+                            | (PrimitiveType::F64, numerics::literals::FloatFormat::F64)
+                    );
+                    if !matches {
+                        return None;
+                    }
+                    Some(Self {
+                        subject: correspondence_fact(
+                            program,
+                            &ProofFact::Expression(subject),
+                            binders,
+                        )?,
+                        predicate,
+                    })
+                })
+                .collect::<Option<Vec<_>>>()
+                .unwrap_or_default();
+        }
+        Self::collect_direct(program, owner, parameters, binders, fact)
+            .into_iter()
+            .collect()
+    }
+
+    fn collect_direct(
+        program: &dyn crate::CheckingInput,
+        owner: SymbolHandle,
+        parameters: &[StateParameter],
+        binders: &[(SymbolHandle, String)],
+        fact: &ProofFact,
     ) -> Option<Self> {
         let ProofFact::Expression(expression) = fact else {
             return None;
@@ -84,7 +140,7 @@ impl FloatObservation {
     pub(super) fn entailed_by(&self, premises: &[Conjunct]) -> bool {
         premises
             .iter()
-            .filter_map(|premise| premise.float.as_ref())
+            .flat_map(|premise| premise.float.iter())
             .any(|premise| {
                 premise.subject == self.subject && premise.predicate.implies(self.predicate)
             })

@@ -105,42 +105,14 @@ pub fn recover_semantic_binding_role(
 }
 
 pub fn authority_class_tag(class: TerminalAuthorityClass) -> u8 {
-    match class {
-        TerminalAuthorityClass::FilesystemContentRead => 0,
-        TerminalAuthorityClass::FilesystemContentWrite => 1,
-        TerminalAuthorityClass::FilesystemMetadataQuery => 2,
-        TerminalAuthorityClass::DirectoryEnumeration => 3,
-        TerminalAuthorityClass::FilesystemNamespaceMutation => 4,
-        TerminalAuthorityClass::FilesystemMetadataMutation => 5,
-        TerminalAuthorityClass::ProcessOutput => 6,
-        TerminalAuthorityClass::ProcessTermination => 7,
-        TerminalAuthorityClass::MachineControl => 8,
-        TerminalAuthorityClass::PortIo => 9,
-        TerminalAuthorityClass::InterruptControl => 10,
-        TerminalAuthorityClass::InterruptEntry => 11,
-        TerminalAuthorityClass::RootMemoryAccess => 12,
-        TerminalAuthorityClass::ProcessInput => 13,
-    }
+    class.canonical_tag()
 }
 
 pub fn recover_authority_class(
     cursor: &mut ObservationCursor<'_>,
 ) -> Option<TerminalAuthorityClass> {
-    Some(match cursor.u8()? {
-        0 => TerminalAuthorityClass::FilesystemContentRead,
-        1 => TerminalAuthorityClass::FilesystemContentWrite,
-        2 => TerminalAuthorityClass::FilesystemMetadataQuery,
-        3 => TerminalAuthorityClass::DirectoryEnumeration,
-        4 => TerminalAuthorityClass::FilesystemNamespaceMutation,
-        5 => TerminalAuthorityClass::FilesystemMetadataMutation,
-        6 => TerminalAuthorityClass::ProcessOutput,
-        7 => TerminalAuthorityClass::ProcessTermination,
-        8 => TerminalAuthorityClass::MachineControl,
-        9 => TerminalAuthorityClass::PortIo,
-        10 => TerminalAuthorityClass::InterruptControl,
-        11 => TerminalAuthorityClass::InterruptEntry,
-        12 => TerminalAuthorityClass::RootMemoryAccess,
-        13 => TerminalAuthorityClass::ProcessInput,
-        _ => return None,
-    })
+    let tag = cursor.u8()?;
+    TerminalAuthorityClass::ALL
+        .into_iter()
+        .find(|class| class.canonical_tag() == tag)
 }

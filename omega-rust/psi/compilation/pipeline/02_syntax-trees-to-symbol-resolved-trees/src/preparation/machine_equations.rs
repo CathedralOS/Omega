@@ -170,14 +170,21 @@ pub(crate) fn complete(
                         "machine equation application lost its authored call",
                     )]);
                 };
-                let ordinary_types =
-                    argument_types::call_constraints(syntax, trees, sources, call, Some(*resolved));
+                let ordinary_types = argument_types::call_constraints(
+                    syntax,
+                    trees,
+                    sources,
+                    call,
+                    Some(*resolved),
+                    selection,
+                );
                 complete_authored_arguments(
                     syntax,
                     index,
                     &authored.target,
                     &mut authored.machine_arguments,
-                    &ordinary_types,
+                    &ordinary_types.types,
+                    &ordinary_types.pending_diagnostics,
                     sources,
                     selection,
                     &mut completed_type_roots,
@@ -219,13 +226,15 @@ pub(crate) fn complete(
                 "machine equation application lost its authored statement",
             )]);
         };
-        let ordinary_types = argument_types::statement_constraints(syntax, trees, sources, call);
+        let ordinary_types =
+            argument_types::statement_constraints(syntax, trees, sources, call, selection);
         complete_authored_arguments(
             syntax,
             index,
             &authored.target,
             &mut authored.machine_arguments,
-            &ordinary_types,
+            &ordinary_types.types,
+            &ordinary_types.pending_diagnostics,
             sources,
             selection,
             &mut completed_type_roots,
@@ -395,6 +404,7 @@ fn complete_authored_arguments(
     target: &syntax_trees::identifier::Identifier,
     machine_arguments: &mut Box<[StaticMachineArgument]>,
     ordinary_types: &[(TypeReferenceHandle, TypeReferenceHandle)],
+    pending_diagnostics: &[Diagnostic],
     sources: &SourceLinks,
     selection: &ConstantSelection<'_>,
     completed_type_roots: &mut Vec<syntax_trees::types::TypeReferenceHandle>,
@@ -404,11 +414,17 @@ fn complete_authored_arguments(
         index,
         target,
         machine_arguments,
+        None,
         ordinary_types,
         sources,
         selection,
     )
-    .map_err(|error| vec![error])?;
+    .map_err(|error| {
+        std::iter::once(error)
+            .chain(pending_diagnostics.iter().cloned())
+            .collect::<Vec<_>>()
+    })?
+    .0;
     completed_type_roots.extend(
         machine_arguments
             .iter()
@@ -423,10 +439,11 @@ fn complete_arguments(
     selected: usize,
     target: &syntax_trees::identifier::Identifier,
     supplied: &[StaticMachineArgument],
+    result_type: Option<TypeReferenceHandle>,
     ordinary_types: &[(TypeReferenceHandle, TypeReferenceHandle)],
     sources: &SourceLinks,
     selection: &ConstantSelection<'_>,
-) -> Result<Box<[StaticMachineArgument]>, Diagnostic> {
+) -> Result<(Box<[StaticMachineArgument]>, Option<TypeReferenceHandle>), Diagnostic> {
     let Some((_, declaration)) = sources
         .declarations
         .iter()
@@ -533,6 +550,29 @@ fn complete_arguments(
         Some(selection),
         &mut warnings,
     )?;
+    // A selected generic callee's result uses this same completed tuple.
+    // Reconstruct through the structural owner, retaining the authored type
+    // nodes and exact constructor identities rather than guessing from its body.
+    let result_type = result_type
+        .map(|result| {
+            type_equations::materialize_completed_type(
+                syntax,
+                EquationTemplate {
+                    kind: "machine",
+                    name: &declaration_name,
+                    parameters: declaration.type_parameters,
+                    parameter_names: &parameter_names,
+                    const_parameter_types: &const_parameter_types,
+                    type_equations: &equations,
+                },
+                target,
+                &tuple,
+                result,
+                &const_values,
+                Some(selection),
+            )
+        })
+        .transpose()?;
     for warning in warnings {
         eprintln!("{warning}");
     }
@@ -593,7 +633,7 @@ fn complete_arguments(
         }
         completed.push(argument);
     }
-    Ok(completed.into_boxed_slice())
+    Ok((completed.into_boxed_slice(), result_type))
 }
 
 /// A syntax-stage atom cannot grant resolved nominal carrier authority.

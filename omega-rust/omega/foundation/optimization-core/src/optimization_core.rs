@@ -34,6 +34,16 @@ pub(crate) fn encode_work_counters(fields: [u64; 5]) -> [u8; 40] {
     encoded
 }
 
+/// Read the exact 40-byte five-counter row back in declaration order.
+pub(crate) fn decode_work_counters(encoded: &[u8]) -> Option<[u64; 5]> {
+    let row: [u8; 40] = encoded.try_into().ok()?;
+    let mut fields = [0; 5];
+    for (field, chunk) in fields.iter_mut().zip(row.chunks_exact(8)) {
+        *field = u64::from_le_bytes(chunk.try_into().expect("fixed counter width"));
+    }
+    Some(fields)
+}
+
 pub use post_terminal::{
     PostTerminalOptimizationSelectionProjection, PostTerminalOptimizationSelections,
 };
@@ -704,12 +714,10 @@ impl OptimizationSelections {
 
     /// Canonical standalone encoding for cache, artifact, and replay inputs.
     pub fn encode(&self) -> Vec<u8> {
-        let count = u32::try_from(self.selected.len())
-            .expect("the closed optimization vocabulary fits in u32");
         let mut encoded = Vec::with_capacity(16 + self.selected.len());
         encoded.extend_from_slice(SELECTION_ENCODING_MAGIC);
         crate::codec_bytes::push_encoded(&mut encoded, SELECTION_ENCODING_VERSION.to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut encoded, count.to_le_bytes());
+        crate::codec_bytes::push_count_u32(&mut encoded, self.selected.len());
         encoded.extend(self.selected.iter().map(|optimization| *optimization as u8));
         encoded
     }
@@ -836,15 +844,9 @@ impl std::error::Error for SelectionDecodeError {}
 #[cfg(test)]
 mod tests;
 
-/// Lowercase hex rendering for byte payloads in manifests and identities.
-pub fn hex(bytes: &[u8]) -> String {
-    use std::fmt::Write;
-    let mut output = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        write!(output, "{byte:02x}").unwrap();
-    }
-    output
-}
+/// Lowercase hex rendering for byte payloads in manifests and identities:
+/// the digest module's renderer is the crate's one hex implementation.
+pub use crate::digest_encoder::hex;
 
 /// Tagged optional u64 payload: 0 discriminant, or 1 followed by 8 LE bytes.
 pub fn encode_option_u64(bytes: &mut Vec<u8>, value: Option<u64>) {

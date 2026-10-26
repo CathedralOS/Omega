@@ -16,7 +16,7 @@ use crate::machine_calls::graph_components::component_ids;
 pub(super) struct Edge<'program> {
     pub(super) target: &'program State,
     pub(super) statement_index: usize,
-    pub(super) arguments: arena::HandleSpan<ExpressionHandle>,
+    pub(super) arguments: &'program [ExpressionHandle],
     pub(super) prefix: CollectedStatementPrefix,
 }
 
@@ -304,7 +304,7 @@ fn instantiate(
         edge.target,
         boundary,
         edge.statement_index,
-        program.statement_table.expression_handles(edge.arguments),
+        edge.arguments,
         target,
         &edge.prefix,
         output,

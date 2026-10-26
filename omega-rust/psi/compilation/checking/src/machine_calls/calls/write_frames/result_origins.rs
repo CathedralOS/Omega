@@ -13,7 +13,7 @@ use super::path_instantiation::aggregate_arguments::{
 use super::stored_origins::canonical_reference_origins;
 use super::{
     ExpressionHandle, FramePathPrecision, FramePlaceOrigin, Machine, StatementNode,
-    TableCallExpression, TopLevelSymbols, TypeReferenceHandle, machine_state_by_symbol,
+    TopLevelSymbols, TypeReferenceHandle, machine_state_by_symbol,
 };
 use crate::machine_calls::calls::write_frames::FrameInference;
 use crate::machine_calls::calls::write_frames::state_write_walk::{
@@ -35,7 +35,7 @@ mod state_equations;
 pub(super) fn call_result_origins(
     program: &dyn crate::CheckingInput,
     caller_machine: &Machine,
-    call: &TableCallExpression,
+    expression: ExpressionHandle,
     expected: TypeReferenceHandle,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
@@ -44,7 +44,13 @@ pub(super) fn call_result_origins(
     resolve_origins: &AggregateResolver<'_>,
 ) -> Option<AggregateOrigins> {
     // A stale or missing selected target cannot be repaired by its spelling.
+    let call = program.expression_table.call_node(expression)?;
     let (machine, state) = machine_state_by_symbol(program, call.target_symbol)?;
+    // The body relation uses callee coordinates, while its receiving carrier
+    // belongs to this applied invocation. Comparing the raw result would ask
+    // the caller to identify a foreign runtime index with its own captured
+    // scalar before the ordinary argument substitution crosses that boundary.
+    let applied_result = crate::machine_calls::calls::call_result_type(program, expression)?;
     let parameters = program.state_parameters(state);
     let arguments = program.expression_table.expression_handles(call.arguments);
     // Operand exposure and writes belong to the chronological call transfer.
@@ -61,7 +67,7 @@ pub(super) fn call_result_origins(
         || !call.machine_arguments.is_empty()
         || call.receiver.is_valid() != machine.attached_data.is_some()
         || arguments.len() != parameters.iter().count()
-        || !super::isolation::aggregate_storage_types_match(program, state.return_type, expected)
+        || !super::isolation::aggregate_storage_types_match(program, applied_result, expected)
     {
         return None;
     }
@@ -242,7 +248,30 @@ fn state_equation<'program>(
                             index: usize,
                             returns: &mut bool,
                             relative: &mut AggregateOrigins,
+                            edges: &mut Vec<state_equations::Edge<'program>>,
                             inference: &mut FrameInference| {
+            if let Some(transfer) =
+                crate::completing_call_transfer(program, result).filter(|transfer| {
+                    program
+                        .machine_holding_state(transfer.state.symbol)
+                        .is_some_and(|owner| owner.symbol == machine.symbol)
+                })
+            {
+                if !super::isolation::aggregate_storage_types_match(
+                    program,
+                    transfer.state.return_type,
+                    expected_result,
+                ) {
+                    return None;
+                }
+                edges.push(state_equations::Edge {
+                    target: transfer.state,
+                    statement_index: index,
+                    arguments: transfer.arguments,
+                    prefix: prefixes.get(index)?.as_ref()?.clone(),
+                });
+                return Some(());
+            }
             *returns = true;
             merge_result_arm(
                 program,
@@ -270,6 +299,7 @@ fn state_equation<'program>(
                         index,
                         &mut returns,
                         &mut relative,
+                        &mut edges,
                         inference,
                     )?;
                 }
@@ -286,6 +316,7 @@ fn state_equation<'program>(
                                     index,
                                     &mut returns,
                                     &mut relative,
+                                    &mut edges,
                                     inference,
                                 )?;
                             }
@@ -702,7 +733,7 @@ fn merge_named_edge<'program>(
         edges.push(state_equations::Edge {
             target: target_state,
             statement_index: boundary_index,
-            arguments: edge_arguments,
+            arguments,
             prefix: context.clone(),
         });
         return Some(());

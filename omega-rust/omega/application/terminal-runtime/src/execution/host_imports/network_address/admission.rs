@@ -11,7 +11,6 @@ use target_operations::NormalizedForeignCallBinding;
 use terminal_interpreter::TerminalImportSignature;
 use terminal_psi::{
     BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind, StructuralAccess,
-    StructuralMultiplicity,
 };
 
 use super::{AddressContract, AddressOperation, TerminalRuntimeError};
@@ -94,17 +93,13 @@ pub(super) fn validate(
             };
             if signature.scalar_parameters != [scalar, scalar]
                 || !signature.structural_parameters.is_empty()
-                || !matches!(
-                    result.multiplicity,
-                    StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
-                )
                 || !result.qualifications.is_empty()
                 || !result.projected_qualifications.is_empty()
                 || declaration.parameter_order != [BoundaryParameterKind::Scalar; 2]
                 || application.signature.parameters.len() != 2
             {
                 return Err(invalid(
-                    "inet_makeaddr requires two u32 scalars and an unqualified nonlinear result",
+                    "inet_makeaddr requires two u32 scalars and an unqualified result",
                 ));
             }
             for root in &application.signature.parameters {
@@ -139,17 +134,13 @@ pub(super) fn validate(
             };
             if !signature.scalar_parameters.is_empty()
                 || signature.result != BoundaryMachineResult::Scalar(scalar.into())
-                || !matches!(
-                    parameter.multiplicity,
-                    StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
-                )
                 || parameter.access != StructuralAccess::Owned
                 || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
                 || declaration.parameter_order != [BoundaryParameterKind::Structural]
             {
                 return Err(invalid(
-                    "inet_lnaof requires one unqualified owned nonlinear argument and a u32 result",
+                    "inet_lnaof requires one unqualified owned argument and a u32 result",
                 ));
             }
             let [root] = application.signature.parameters.as_slice() else {

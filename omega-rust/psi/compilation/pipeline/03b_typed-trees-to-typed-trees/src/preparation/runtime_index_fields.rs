@@ -474,21 +474,11 @@ fn index_expression(
             if !value.is_valid() {
                 return None;
             }
-            // A Name can be observed again only before any possible effect.
-            // Literal operands are stable without another storage observation.
-            return matches!(
-                program.expression_table.expression(*value),
-                ExpressionNode::Integer(_) | ExpressionNode::Boolean(_)
-            )
-            .then_some(*value)
-            .or_else(|| {
-                (!earlier_effects
-                    && matches!(
-                        program.expression_table.expression(*value),
-                        ExpressionNode::Name(_)
-                    ))
-                .then_some(*value)
-            });
+            // The supplying telescope already established whether this
+            // argument can be reobserved. Preserve the same complete scalar
+            // recipe used for an application argument, including member reads;
+            // a bare-name whitelist loses descriptor metadata at ordinary calls.
+            return capture_recipe(program, *value, &Vec::new(), effects, earlier_effects);
         }
         if earlier_effects {
             return None;

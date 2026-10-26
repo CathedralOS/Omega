@@ -7,7 +7,10 @@ use selected_instructions::{
 };
 use target::Architecture;
 
-use super::super::ordinary::{branch_size, conditional_branch_family};
+use super::super::ordinary::{
+    ConditionalBranchDescriptor, branch_size, conditional_branch_descriptor,
+    conditional_branch_family,
+};
 use super::super::{
     OptimizedResolvedSelectedFormLayoutError, ResolvedBranchEvidence,
     ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate, ResolvedSelectedFormRow,
@@ -26,103 +29,78 @@ pub(super) fn validate(
     candidate: &ResolvedSelectedFormRow,
     widened: bool,
 ) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
-    let (predicate, terminator, when_taken, when_fallthrough) = match &block.terminator {
-        SelectedTerminator::Jump {
-            instruction: jump,
-            successor,
-        } => {
-            if jump.id != instruction.id {
-                return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
-            }
-            let Some(ResolvedBranchEvidence::Jump(actual)) = candidate.branch.as_deref() else {
-                return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
-            };
-            let target = *block_offsets
-                .get(&successor.block)
-                .ok_or(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)?;
-            let effects = match architecture {
-                Architecture::X86_64 => {
-                    let end = instruction_offset
-                        .checked_add(5)
-                        .ok_or(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)?;
-                    let displacement = checked_delta(target, end)?;
-                    if displacement != actual.byte_displacement {
-                        return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
-                    }
-                    isa_x86_64::validate_x86_64_selected_jump_form(
-                        physical,
-                        machine.alternative.key,
-                        displacement,
-                        &candidate.bytes,
-                    )
-                    .map_err(|_| OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)?
-                    .footprint()
-                    .encoded
-                    .clone()
-                }
-                Architecture::Aarch64 => {
-                    let displacement = checked_delta(target, instruction_offset)?;
-                    if displacement != actual.byte_displacement {
-                        return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
-                    }
-                    isa_aarch64::validate_aarch64_selected_jump_form(
-                        physical,
-                        machine.alternative.key,
-                        displacement,
-                        &candidate.bytes,
-                    )
-                    .map_err(|_| OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)?
-                    .footprint()
-                    .encoded
-                    .clone()
-                }
-            };
-            if actual.source_block != block.id
-                || actual.target_edge != successor.psi_edge
-                || actual.target_block != successor.block
-                || actual.target_offset != target
-                || actual.decoded_effects != effects
-                || effects != machine.alternative.encoded
-                || !declared_size_matches(machine.alternative.size, candidate.bytes.len() as u64)
-            {
-                return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
-            }
-            return Ok(());
-        }
-        SelectedTerminator::ConditionalBranch {
-            instruction,
-            when_nonzero,
-            when_zero,
-        } => (
-            ResolvedConditionalBranchPredicate::NonZeroV1,
-            instruction,
-            when_nonzero,
-            when_zero,
-        ),
-        SelectedTerminator::ConditionalBranchU64LessThan {
-            instruction,
-            when_less,
-            when_not_less,
-        } => (
-            ResolvedConditionalBranchPredicate::U64LessThanV1,
-            instruction,
-            when_less,
-            when_not_less,
-        ),
-        SelectedTerminator::ConditionalBranchI64LessThan {
-            instruction,
-            when_less,
-            when_not_less,
-        } => (
-            ResolvedConditionalBranchPredicate::I64LessThanV1,
-            instruction,
-            when_less,
-            when_not_less,
-        ),
-        selected_instructions::terminator_no_successor_pattern!(..) => {
+    if let SelectedTerminator::Jump {
+        instruction: jump,
+        successor,
+    } = &block.terminator
+    {
+        if jump.id != instruction.id {
             return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
         }
+        let Some(ResolvedBranchEvidence::Jump(actual)) = candidate.branch.as_deref() else {
+            return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
+        };
+        let target = *block_offsets
+            .get(&successor.block)
+            .ok_or(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)?;
+        let effects = match architecture {
+            Architecture::X86_64 => {
+                let end = instruction_offset
+                    .checked_add(5)
+                    .ok_or(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)?;
+                let displacement = checked_delta(target, end)?;
+                if displacement != actual.byte_displacement {
+                    return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
+                }
+                isa_x86_64::validate_x86_64_selected_jump_form(
+                    physical,
+                    machine.alternative.key,
+                    displacement,
+                    &candidate.bytes,
+                )
+                .map_err(|_| OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)?
+                .footprint()
+                .encoded
+                .clone()
+            }
+            Architecture::Aarch64 => {
+                let displacement = checked_delta(target, instruction_offset)?;
+                if displacement != actual.byte_displacement {
+                    return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
+                }
+                isa_aarch64::validate_aarch64_selected_jump_form(
+                    physical,
+                    machine.alternative.key,
+                    displacement,
+                    &candidate.bytes,
+                )
+                .map_err(|_| OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)?
+                .footprint()
+                .encoded
+                .clone()
+            }
+        };
+        if actual.source_block != block.id
+            || actual.target_edge != successor.psi_edge
+            || actual.target_block != successor.block
+            || actual.target_offset != target
+            || actual.decoded_effects != effects
+            || effects != machine.alternative.encoded
+            || !declared_size_matches(machine.alternative.size, candidate.bytes.len() as u64)
+        {
+            return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
+        }
+        return Ok(());
+    }
+    let Some(descriptor) = conditional_branch_descriptor(block) else {
+        return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
     };
+    let ConditionalBranchDescriptor {
+        predicate,
+        terminator,
+        when_taken,
+        when_fallthrough,
+    } = descriptor;
     if terminator.id != instruction.id {
         return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
     }

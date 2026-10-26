@@ -15,10 +15,9 @@ use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{SelectedInstructionId, SelectedInstructionKind};
 use target::{Architecture, NativeTarget};
 
-use super::{
-    decoded_footprint, operand_views, validate_machine_footprint, validate_size, views_for_effects,
-};
+use super::{admit_decoded_footprint, decoded_effects_footprint, decoded_footprint, operand_views};
 use crate::OptimizedSelectedFormEncodingError;
+use crate::row_encoding::normalized_foreign_call_record;
 use machine_code::{
     SelectedFormEncodedRowStore, SelectedFormEncodingRow, SelectedFormEncodingState,
     SelectedFormNormalizedForeignCallFixupKind, SelectedFormNormalizedForeignCallFixupState,
@@ -42,20 +41,7 @@ pub(super) fn validate(
     row: &SelectedFormEncodingRow,
     encoded: &SelectedFormEncodedRowStore,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
-    let SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } = kind else {
-        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
-    };
-    let record = selected_function
-        .normalized_foreign_calls
-        .get(ordinal as usize)
-        .ok_or(OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
-    if record.instruction != instruction
-        || record.call.boundary != boundary
-        || record.call.binding.native_target() != Some(target)
-        || !record.call.binding.has_valid_entry_mechanism()
-    {
-        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
-    }
+    let record = normalized_foreign_call_record(target, instruction, kind, selected_function)?;
     if record.call.binding.table_dispatch().is_some() {
         if target.architecture != Architecture::X86_64
             || !matches!(row.state, SelectedFormEncodingState::Encoded)
@@ -84,11 +70,7 @@ pub(super) fn validate(
             &footprint.register_writes,
             &footprint.encoded,
         );
-        validate_machine_footprint(instruction, machine, &decoded)?;
-        validate_size(instruction, machine.alternative.size, bytes.len())?;
-        if retained != &decoded {
-            return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
-        }
+        admit_decoded_footprint(instruction, machine, bytes.len(), retained, &decoded)?;
         return Ok(());
     }
     if let Some(binding) = record.call.binding.system_call() {
@@ -147,11 +129,7 @@ pub(super) fn validate(
                 )
             }
         };
-        validate_machine_footprint(instruction, machine, &decoded)?;
-        validate_size(instruction, machine.alternative.size, bytes.len())?;
-        if footprint != &decoded {
-            return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
-        }
+        admit_decoded_footprint(instruction, machine, bytes.len(), footprint, &decoded)?;
         return Ok(());
     }
     let SelectedFormEncodingState::UnresolvedNormalizedForeignCall { fixup } = &row.state else {
@@ -211,11 +189,7 @@ pub(super) fn validate(
                 record,
             )
             .map_err(|_| OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
-            decoded_footprint(
-                &views_for_effects(machine, validated.effects(), true)?,
-                &views_for_effects(machine, validated.effects(), false)?,
-                validated.effects(),
-            )
+            decoded_effects_footprint(machine, validated.effects())?
         }
         Architecture::Aarch64 => {
             let target_kind = match fixup.kind {
@@ -249,18 +223,10 @@ pub(super) fn validate(
                 record,
             )
             .map_err(|_| OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
-            decoded_footprint(
-                &views_for_effects(machine, validated.effects(), true)?,
-                &views_for_effects(machine, validated.effects(), false)?,
-                validated.effects(),
-            )
+            decoded_effects_footprint(machine, validated.effects())?
         }
     };
-    validate_machine_footprint(instruction, machine, &decoded)?;
-    validate_size(instruction, machine.alternative.size, bytes.len())?;
-    if footprint != &decoded {
-        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
-    }
+    admit_decoded_footprint(instruction, machine, bytes.len(), footprint, &decoded)?;
     Ok(())
 }
 

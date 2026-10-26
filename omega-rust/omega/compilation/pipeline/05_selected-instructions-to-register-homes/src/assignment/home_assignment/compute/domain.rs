@@ -343,6 +343,53 @@ fn intersect_candidates<'a>(
     first: &[RegisterViewId],
     rest: impl Iterator<Item = &'a [RegisterViewId]>,
 ) -> Vec<RegisterViewId> {
+    if first.iter().all(|v| (v.0 as usize) < 64) {
+        let mut mask = 0u64;
+        for &v in first {
+            mask |= 1u64 << v.0;
+        }
+        let mut fallback = false;
+        let mut rest_iter = rest.peekable();
+        while let Some(&candidates) = rest_iter.peek() {
+            if mask == 0 {
+                return Vec::new();
+            }
+            if !candidates.iter().all(|v| (v.0 as usize) < 64) {
+                fallback = true;
+                break;
+            }
+            rest_iter.next();
+            let mut cm = 0u64;
+            for &v in candidates {
+                cm |= 1u64 << v.0;
+            }
+            mask &= cm;
+        }
+        if !fallback {
+            let mut common = Vec::with_capacity(mask.count_ones() as usize);
+            while mask != 0 {
+                let bit = mask.trailing_zeros() as u16;
+                mask &= mask - 1;
+                common.push(RegisterViewId(bit));
+            }
+            return common;
+        }
+        let mut common = Vec::with_capacity(mask.count_ones() as usize);
+        while mask != 0 {
+            let bit = mask.trailing_zeros() as u16;
+            mask &= mask - 1;
+            common.push(RegisterViewId(bit));
+        }
+        for candidates in rest_iter {
+            if common.is_empty() {
+                break;
+            }
+            if candidates != common.as_slice() {
+                common.retain(|candidate| candidates.binary_search(candidate).is_ok());
+            }
+        }
+        return common;
+    }
     let mut common = first.to_vec();
     if common
         .windows(2)

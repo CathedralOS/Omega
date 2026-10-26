@@ -1,4 +1,5 @@
 //! Independently reconstruct canonical fallthrough adjacency and complete coverage.
+use super::super::super::ordinary::conditional_branch_descriptor;
 use super::super::super::{OptimizedResolvedSelectedFormLayoutError, SelectedFunctionLayoutPolicy};
 use selected_instructions::{SelectedBlock, SelectedBlockId, SelectedFunction, SelectedTerminator};
 use std::collections::BTreeMap;
@@ -63,14 +64,7 @@ pub(super) fn derive(
 }
 
 fn fallthrough(block: &SelectedBlock) -> Option<SelectedBlockId> {
-    match &block.terminator {
-        SelectedTerminator::ConditionalBranch { when_zero, .. } => Some(when_zero.block),
-        selected_instructions::conditional_branch_less_pair_pattern!(when_not_less, ..) => {
-            Some(when_not_less.block)
-        }
-        SelectedTerminator::Jump { .. }
-        | selected_instructions::terminator_no_successor_pattern!(..) => None,
-    }
+    conditional_branch_descriptor(block).map(|descriptor| descriptor.when_fallthrough.block)
 }
 
 // Exercise independent reconstruction against the same raw graph expectations

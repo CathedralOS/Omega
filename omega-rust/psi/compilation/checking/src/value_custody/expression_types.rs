@@ -464,17 +464,33 @@ fn argument_matches_type_reference_using(
     // the machine making the call is rigid there and equal only to itself,
     // and applied data arguments are part of the type; the formal has
     // already taken the call's simultaneous application.
-    if let Some(actual) = delivered_types::delivered_value_type(program, argument)
-        && delivered_types::delivered_carrier_conflict(
+    if let Some(actual) = delivered_types::delivered_value_type(program, argument) {
+        if delivered_types::delivered_carrier_conflict(
             program,
             scope,
             actual.reference,
             &actual.substitutions,
             type_reference,
             required_substitutions,
-        )
-    {
-        return false;
+        ) {
+            return false;
+        }
+        // A producer's complete type establishes correspondence independently
+        // of the expression's arrangement. In particular an atomic observation
+        // delivers its resident value, not the dedicated cell or its receiver.
+        let delivered_identity = program.type_identity(TypeIdentityRequest {
+            substitutions: &actual.substitutions,
+            ..TypeIdentityRequest::ordinary(actual.reference)
+        });
+        if delivered_identity.is_valid()
+            && delivered_identity
+                == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+                    substitutions: required_substitutions,
+                    ..TypeIdentityRequest::ordinary(type_reference)
+                })
+        {
+            return true;
+        }
     }
 
     let argument_node = program.expression_table.expression(argument);
