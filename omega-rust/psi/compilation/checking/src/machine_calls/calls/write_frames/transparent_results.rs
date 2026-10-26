@@ -612,17 +612,11 @@ fn contributed_named_target(
     reachability: &mut ResultReachability,
     edge: typed_trees::statement::TransitionTargetHandle,
 ) -> Option<Vec<SymbolHandle>> {
-    let TransitionTargetNode::Named {
-        arguments,
-        static_machine_parameter,
-        ..
-    } = program.statement_table.transition_target(edge)
+    let TransitionTargetNode::Named { arguments, .. } =
+        program.statement_table.transition_target(edge)
     else {
         return None;
     };
-    if static_machine_parameter.is_valid() {
-        return None;
-    }
     let machine = program.machine_holding_state(state.symbol)?;
     let call_symbol = super::terminal_calls::target(program, machine, edge);
     let target_state = if call_symbol.is_valid() {

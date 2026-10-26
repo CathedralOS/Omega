@@ -718,16 +718,9 @@ fn merge_named_edge<'program>(
     returns: &mut bool,
     boundary_prefix: Option<&CollectedStatementPrefix>,
 ) -> Option<()> {
-    let TransitionTargetNode::Named {
-        static_machine_parameter,
-        ..
-    } = program.statement_table.transition_target(edge)
-    else {
+    let TransitionTargetNode::Named { .. } = program.statement_table.transition_target(edge) else {
         return None;
     };
-    if static_machine_parameter.is_valid() {
-        return None;
-    }
     let call_target = super::terminal_calls::target(program, machine, edge);
     let (target_machine, target_state) = if call_target.is_valid() {
         let (callee, state) = machine_state_by_symbol(program, call_target)?;

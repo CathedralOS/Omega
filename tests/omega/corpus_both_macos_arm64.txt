@@ -99,6 +99,7 @@ pass/borrows/nested_reference_byte_observations_exit built 5157ms exit:70 interp
 pass/borrows/nested_reference_crossings_exit built 7261ms exit:70 interpreter-exit:70 interpreter:agrees @faab7e6c1b7d+wt
 pass/borrows/nested_reference_join_state_backing_exit built 3516ms exit:0 interpreter-exit:0 interpreter:agrees @908dbe8ea8ca+wt
 pass/borrows/nested_reference_leaf_projection_exit built 1615ms exit:70 interpreter-exit:70 interpreter:agrees @51b4aa0b5a70+wt
+pass/borrows/opaque_incoming_nested_projected_record_result_exit built 2495ms exit:0 interpreter-exit:0 interpreter:agrees @9d97882fb4dd
 pass/borrows/overwritten_intermediate_descriptor_releases_backing_exit built 1726ms exit:0 interpreter-exit:0 interpreter:agrees @bee167b35fd4
 pass/borrows/owned_byte_value_call_exit built 5365ms exit:70 interpreter-exit:70 interpreter:agrees @316799d840c3+wt
 pass/borrows/owned_reference_arrival_projection_exit built 4953ms exit:0 interpreter-exit:0 interpreter:agrees @ea7b63644a0a+wt
@@ -245,6 +246,7 @@ pass/borrows/runtime_stored_reference_leaf_residual_retirement_exit built 2270ms
 pass/borrows/runtime_stored_reference_scalar_assignment_exit built 2907ms exit:0 interpreter-exit:0 interpreter:agrees @4ce70cb5f8a0
 pass/borrows/runtime_stored_reference_shared_cohort_retirement_exit built 1909ms exit:70 interpreter-exit:70 interpreter:agrees @9660dd146223
 pass/borrows/runtime_stored_view_reborrow_extent_exit built 2608ms exit:0 interpreter-exit:0 interpreter:agrees @802a5f738107+wt
+pass/borrows/runtime_terminal_static_callback_snapshot_exit built 2594ms exit:0 interpreter-exit:0 interpreter:agrees @9d97882fb4dd
 pass/borrows/runtime_transitive_mixed_result_backing_exit built 991ms exit:0 interpreter-exit:0 interpreter:agrees @77f91fb3da34
 pass/borrows/runtime_unrelated_empty_carrier_before_owned_join_exit built 1608ms exit:0 interpreter-exit:0 interpreter:agrees @b35a8336954a+wt
 pass/borrows/runtime_whole_referent_case_store_exit built 4107ms exit:70 interpreter-exit:70 interpreter:agrees @e477ee0294de+wt

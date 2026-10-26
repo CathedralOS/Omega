@@ -1201,6 +1201,10 @@ fail/borrows/dropped_reference_refresh_does_not_restore_payload rejected 1405ms 
 	cannot prove ensures contract for exit from corrupt at statement 0: ticket.number == 7; no exact incoming reference origin for ticket
 fail/borrows/duplicate_retained_subject_arguments rejected 1758ms expected @a92f16431042
 	state `take` receives `main` as mutable more than once
+fail/borrows/dyn_image_incoming_backing_consumed rejected 1414ms expected @9d97882fb4dd
+	a completed copied argument retains backing storage consumed by a later operand
+fail/borrows/dyn_image_incoming_backing_write rejected 1415ms expected @9d97882fb4dd
+	a completed copied argument retains backing storage overlapping a staged exclusive loan in machine `main`, state `entry`, statement 3
 fail/borrows/dyn_multi_input_result_retains_actual_backing rejected 736ms expected @ddaf8758ca5e+wt
 	state `receive` receives `storage` as both mutable and read-only
 	state `receive` receives `storage` as both mutable and read-only
@@ -1441,6 +1445,8 @@ fail/borrows/opaque_generic_stored_writeonly_input rejected 651ms expected @a92f
 	machine `forward` state `entry` calls `consume$specialized$5f44071fd2d14b47$0` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
 	machine `consume$specialized$5f44071fd2d14b47$0` state `entry` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; bodyless boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
 	bodyless boundary symbol `entry` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+fail/borrows/opaque_incoming_nested_projected_record_result_empty_rejected rejected 1915ms expected @9d97882fb4dd
+	cannot prove requires contract for call observe from main: selected.wrapper.bundle.windows[0].len == 1 (needs fact `wrapper.bundle.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/borrows/opaque_nested_stored_writeonly_input rejected 1667ms expected @a92f16431042
 	machine `consume` state `entry` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; bodyless boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
 fail/borrows/opaque_reference_wrong_input_return rejected 2169ms expected @a92f16431042
@@ -1722,8 +1728,7 @@ fail/borrows/state_transfer_shared_carrier_mutable_leaf rejected 429ms @a92f1643
 fail/borrows/state_transfer_write_only_carrier_pointer rejected 533ms @a92f16431042
 	machine `transfer` state `entry` reads field `body` from write-only parameter `carrier`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
 	argument `reference` for state `done` requires explicit write-only attenuation; pass `&write ...` (a bare value or `&mut ...` does not establish the no-read contract)
-fail/borrows/static_callback_body_must_establish_guarantee rejected 1134ms expected @adf17923b9c8+wt
-	a completed copied argument retains backing storage overlapping a staged exclusive loan in machine `main`, state `entry`, statement 2
+fail/borrows/static_callback_body_must_establish_guarantee rejected 1746ms expected @9d97882fb4dd
 	cannot prove ensures contract for exit from keep at statement 0: result.bytes.len == source.bytes.len
 fail/borrows/static_callback_guarantee_needs_entry_premise rejected 763ms expected @adf17923b9c8+wt
 	cannot prove requires contract for call Callback from apply: source.bytes.len == 7 (needs fact `source.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -1811,6 +1816,10 @@ fail/borrows/temporary_backing_loan_survives_reference_last_use rejected 1339ms 
 	statement 3 reads `counter[0]` while local borrow `__hoist_15` is still active (borrowed at statement 1)
 fail/borrows/terminal_call_returned_loan_live_write rejected 1306ms expected @a92f16431042
 	statement 1 mutates `container.cell.value` while local borrow `value` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
+fail/borrows/terminal_static_callback_requires_public_field_guarantee rejected 1888ms expected @9d97882fb4dd
+	cannot prove ensures contract for exit from apply at statement 0: result.sibling.len == source.sibling.len
+fail/borrows/terminal_static_callback_result_does_not_restore_entry_contents rejected 1812ms expected @9d97882fb4dd
+	cannot prove requires contract for call seven from main: selected.value == 7 (needs fact `value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/borrows/unproved_window_index_keeps_backing rejected 2805ms expected @a92f16431042
 	statement 5 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
 fail/borrows/view_local_backing_write_while_stored rejected 2460ms expected @a92f16431042
@@ -21722,6 +21731,7 @@ pass/borrows/nested_reference_write_disjoint_facts_exit checked 2787ms check-tar
 pass/borrows/opaque_generic_owned_input_declaration checked 1878ms @a92f16431042
 pass/borrows/opaque_generic_reference_readers checked 1717ms @a92f16431042
 pass/borrows/opaque_generic_shared_stored_writeonly_provider checked 2045ms @a92f16431042
+pass/borrows/opaque_incoming_nested_projected_record_result_exit checked 2117ms check-target:macos_arm64 @9d97882fb4dd
 pass/borrows/opaque_reference_identity checked 2554ms @a92f16431042
 pass/borrows/opaque_region_known_calls checked 1731ms @a92f16431042
 pass/borrows/opaque_shared_writeonly_carrier checked 1929ms @a92f16431042
@@ -21978,6 +21988,7 @@ pass/borrows/runtime_tail_expression_views_exit checked 8496ms check-target:maco
 pass/borrows/runtime_tail_recursive_disjoint_field_fact_exit checked 7631ms check-target:macos_arm64 @a92f16431042
 pass/borrows/runtime_tail_recursive_nested_field_frame_exit checked 7456ms check-target:macos_arm64 @a92f16431042
 pass/borrows/runtime_tail_recursive_numeric_disjoint_field_fact_exit checked 7353ms check-target:macos_arm64 @a92f16431042
+pass/borrows/runtime_terminal_static_callback_snapshot_exit checked 2144ms check-target:macos_arm64 @9d97882fb4dd
 pass/borrows/runtime_transitive_mixed_result_backing_exit checked 888ms check-target:macos_arm64 @77f91fb3da34
 pass/borrows/runtime_unit_call_mutable_view_local_exit checked 6943ms check-target:macos_arm64 @a92f16431042
 pass/borrows/runtime_unrelated_empty_carrier_before_owned_join_exit checked 3751ms check-target:macos_arm64 @a92f16431042
