@@ -3,6 +3,7 @@
 
 use super::super::CodecError;
 use super::super::scalar_wire::{decode_scalar_type, encode_scalar_type};
+use super::super::structural_result_wire::{decode_multiplicity, encode_multiplicity};
 use super::super::structural_signature_wire::{
     decode_call_result, decode_structural_access, encode_call_result, encode_structural_access,
 };
@@ -11,9 +12,9 @@ use crate::sections::semantic_module::structural_place_wire::{
     decode_structural_path, encode_structural_path,
 };
 use terminal_psi::{
-    StructuralMultiplicity, TerminalDynamicClaimPath, TerminalDynamicDispatchCatalog,
-    TerminalDynamicInterface, TerminalDynamicSlot, TerminalDynamicStructuralFormal,
-    TerminalDynamicTable, TerminalIdentityIndex,
+    TerminalDynamicClaimPath, TerminalDynamicDispatchCatalog, TerminalDynamicInterface,
+    TerminalDynamicSlot, TerminalDynamicStructuralFormal, TerminalDynamicTable,
+    TerminalIdentityIndex,
 };
 
 pub(super) fn encode_dynamic_dispatch(
@@ -45,11 +46,7 @@ pub(super) fn encode_dynamic_dispatch(
                 writer.u32(formal.position);
                 writer.id(formal.structural_type);
                 encode_structural_access(writer, formal.access);
-                writer.u8(match formal.multiplicity {
-                    StructuralMultiplicity::Unrestricted => 1,
-                    StructuralMultiplicity::Affine => 2,
-                    StructuralMultiplicity::Linear => 3,
-                });
+                encode_multiplicity(writer, formal.multiplicity);
             }
             writer.len(
                 "dynamic slot entry claim paths",
@@ -123,17 +120,7 @@ pub(super) fn decode_dynamic_dispatch(
                             position: reader.u32()?,
                             structural_type: reader.id("StructuralTypeId")?,
                             access: decode_structural_access(reader)?,
-                            multiplicity: match reader.u8()? {
-                                1 => StructuralMultiplicity::Unrestricted,
-                                2 => StructuralMultiplicity::Affine,
-                                3 => StructuralMultiplicity::Linear,
-                                tag => {
-                                    return Err(CodecError::InvalidTag(
-                                        "StructuralMultiplicity",
-                                        tag,
-                                    ));
-                                }
-                            },
+                            multiplicity: decode_multiplicity(reader)?,
                         })
                     })?,
                     entry_claim_paths: decode_counted(reader, |reader| {

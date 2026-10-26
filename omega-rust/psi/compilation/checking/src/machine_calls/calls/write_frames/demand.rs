@@ -1310,7 +1310,7 @@ impl<'program> CallFrameResolver<'program> {
     /// only when every selected invocation has a complete empty frame in its
     /// own namespace. No alias translation is needed for an empty frame;
     /// opaque or nonempty frames establish nothing about caller storage.
-    pub(crate) fn declaration_expression_has_empty_write_frame(
+    pub fn declaration_expression_has_empty_write_frame(
         &self,
         expression: ExpressionHandle,
         builtin_operation: &impl Fn(ExpressionHandle) -> bool,

@@ -874,10 +874,11 @@ fn static_call_receiver_for_target(
     // the application and checks every explicit operand.
     if call.target_symbol.is_valid()
         && let Some(receiver) = program.expression_table.name_path_node(call.receiver)
-        && receiver.symbol.is_valid()
-        && program.symbols.get(receiver.symbol).kind == symbols::SymbolKind::ConformanceParameter
-        && program.symbols.get(call.target_symbol).parent == receiver.symbol
-        && crate::selected_requirement_signature(program, call.target_symbol).is_some()
+        && crate::machine_calls::calls::requirement_namespace_member(
+            program,
+            receiver.symbol,
+            call.target_symbol,
+        )
     {
         return true;
     }

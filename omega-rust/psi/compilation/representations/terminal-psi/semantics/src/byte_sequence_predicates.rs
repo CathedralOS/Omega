@@ -954,3 +954,62 @@ pub fn scalar_constant_value(
         })
     })
 }
+
+/// One machine's graph-side origin for [`scalar_constant_value`]: the written
+/// integer constant when the producing operation is visible, otherwise every
+/// unchanged predecessor binding of the owning block's parameter. The entry
+/// block and any structural-case predecessor provide no constant evidence, so
+/// they return `None` exactly as an unknown value does.
+pub fn machine_scalar_constant_origin(
+    machine: &terminal_psi::TerminalMachine,
+    value: semantic_vocabulary::ValueId,
+) -> Option<ScalarConstantOrigin> {
+    use terminal_psi::{OperationKind, Terminator};
+    if let Some((scalar_type, literal)) = machine.operations().find_map(|operation| {
+        let result = operation.result.scalar_ref()?;
+        let OperationKind::IntegerConstant { value: literal } = operation.kind else {
+            return None;
+        };
+        (result.id == value).then_some((result.scalar_type, literal))
+    }) {
+        return Some(ScalarConstantOrigin::Literal(scalar_type, literal));
+    }
+    let (owner, ordinal) = machine.blocks.iter().find_map(|block| {
+        block
+            .parameters
+            .iter()
+            .position(|parameter| parameter.id == value)
+            .map(|ordinal| (block.id, ordinal))
+    })?;
+    if owner == machine.entry {
+        return None;
+    }
+    let mut incoming = Vec::new();
+    for block in &machine.blocks {
+        match &block.terminator {
+            Terminator::Jump {
+                target, arguments, ..
+            } if *target == owner => {
+                incoming.push(*arguments.get(ordinal)?);
+            }
+            Terminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                for edge in [when_true, when_false] {
+                    if edge.target == owner {
+                        incoming.push(*edge.arguments.get(ordinal)?);
+                    }
+                }
+            }
+            Terminator::StructuralCase { cases, .. }
+                if cases.iter().any(|edge| edge.target == owner) =>
+            {
+                return None;
+            }
+            _ => {}
+        }
+    }
+    Some(ScalarConstantOrigin::Incoming(incoming))
+}

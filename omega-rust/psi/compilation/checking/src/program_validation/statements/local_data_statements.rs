@@ -11,6 +11,52 @@ use crate::{
 use diagnostics::Diagnostic;
 use typed_trees::statement::StatementNode;
 
+/// Form the local's authored application before evaluating its initializer.
+/// Runtime index subjects capture this point; later initializer writes neither
+/// retag that application nor provide premises for its formation. Initializer
+/// values still use the ordinary may-write-invalidated environment below.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::program_validation) fn validate_type_reference(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    current_state: Option<&typed_trees::state::State>,
+    state_name: &str,
+    local_data: &typed_trees::statement::TableLocalData,
+    symbols: &crate::TopLevelSymbols<'_>,
+    value_environment: &arithmetic_domains::ValueEnvironment,
+    diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
+) {
+    if !local_data.role.is_runtime_binding() {
+        return;
+    }
+    let (type_parameters, lifetime_parameters) = program
+        .machine_type_reference_scope(machine, |existing, parameter| {
+            existing.symbol == parameter.symbol
+        });
+    validate_type_reference_handle(
+        program,
+        local_data.type_reference,
+        symbols,
+        diagnostics,
+        TypeReferenceOwner::StateLocalData {
+            machine,
+            current_state,
+            state: state_name,
+            local: local_data.name.as_str(),
+            value_environment,
+            generic_depth: 0,
+        },
+        crate::value_custody::type_references::TypeParameterScope {
+            operand_lifetime_owner: symbols::SymbolHandle::invalid(),
+            lexical_owner: machine.symbol,
+            type_parameters: &type_parameters,
+            lifetime_parameters: &lifetime_parameters,
+        },
+        formation_obligations,
+    );
+}
+
 pub(super) fn validate(
     scope: &StatementScope<'_>,
     outputs: &mut StatementOutputs<'_>,
@@ -33,37 +79,29 @@ pub(super) fn validate(
         state_name,
         current_state,
         statement_index,
-        symbols,
         ..
     } = *scope;
     let value_environment = &mut *outputs.value_environment;
     let arithmetic_decisions = &mut *outputs.arithmetic_decisions;
     let diagnostics = &mut *outputs.diagnostics;
-    let (type_parameters, lifetime_parameters) = program
-        .machine_type_reference_scope(machine, |existing, parameter| {
-            existing.symbol == parameter.symbol
-        });
-    validate_type_reference_handle(
-        program,
-        local_data.type_reference,
-        symbols,
-        diagnostics,
-        TypeReferenceOwner::StateLocalData {
+    // Derived runtime bindings, inferred results and operand captures belong
+    // to completed operands, not an authored receiving application at entry.
+    if local_data.role != language_core::LocalBindingRole::Value
+        || local_data.type_is_inferred
+        || local_data.is_operand_capture
+    {
+        validate_type_reference(
+            program,
             machine,
             current_state,
+            state_name,
+            local_data,
+            scope.symbols,
             value_environment,
-            state: state_name,
-            local: local_data.name.as_str(),
-            generic_depth: 0,
-        },
-        crate::value_custody::type_references::TypeParameterScope {
-            operand_lifetime_owner: symbols::SymbolHandle::invalid(),
-            lexical_owner: machine.symbol,
-            type_parameters: &type_parameters,
-            lifetime_parameters: &lifetime_parameters,
-        },
-        &mut arithmetic_decisions.integer_range_obligations,
-    );
+            diagnostics,
+            &mut arithmetic_decisions.integer_range_obligations,
+        );
+    }
     let local_target_primitive = program.primitive_type_reference(local_data.type_reference);
     // An array-literal initializer (`let a: [T; N] = [300, ..]`) is checked
     // element-wise against T.

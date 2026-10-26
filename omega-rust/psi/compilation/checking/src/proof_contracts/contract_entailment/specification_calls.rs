@@ -1221,12 +1221,12 @@ pub(super) enum RuntimeScalarSubject {
     Expression(ExpressionHandle),
 }
 
-/// Whole public contracts read the occurrence's applied signature. Selected
-/// executable calls have already substituted closed operands into that view;
-/// their runtime Value coordinates are ordinary mapped public formals supplied
-/// by `call_parameter_scope`. Rebinding the provider's tuple by the fresh public
-/// symbols loses that correspondence. Raw index projections retain their own
-/// executable telescope and use `call_scalar_substitution` below instead.
+/// Whole public contracts read the occurrence's applied signature and exact
+/// retained static tuple. The shared application correspondence transports its
+/// header values into that public namespace; completed runtime Value operands
+/// remain the ordinary mapped formals supplied by `call_parameter_scope`.
+/// An applied signature can still retain member Const binders, so its name
+/// alone does not establish that every static operand was already substituted.
 pub(super) fn call_contract_scalar_substitution(
     program: &dyn crate::CheckingInput,
     caller: SymbolHandle,
@@ -1245,7 +1245,6 @@ pub(super) fn call_contract_scalar_substitution(
             return None;
         }
         crate::selected_call_arguments(program, caller, &site).ok()?;
-        return Some(Vec::new());
     }
     call_scalar_substitution(program, caller, owner, site, observed)
 }

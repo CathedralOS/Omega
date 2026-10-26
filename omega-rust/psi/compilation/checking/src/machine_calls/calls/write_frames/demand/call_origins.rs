@@ -214,28 +214,44 @@ impl<'program> CallFrameResolver<'program> {
                 // namespace/arity judgment, including bodyless operators. A
                 // selected code qualifier supplies no caller storage; an unknown
                 // or value receiver keeps chronological origin capture below.
-                let callee_has_explicit_parameters =
-                    frames::machine_state_by_symbol(program, target).is_some()
+                let callee_has_explicit_parameters = frames::machine_state_by_symbol(program, target).is_some()
                         || program.dynamic_slot_by_symbol(target).is_some()
                         || crate::selected_requirement_signature(program, target).is_some()
-                        || match site {
-                            CallerWriteSite::Expression(expression) => program
-                                .expression_table
-                                .call_node(expression)
-                                .is_some_and(|call| {
-                                    program.call_has_no_runtime_receiver_for_target(call)
-                                }),
-                            CallerWriteSite::Call(call) => typed_trees::operator::selected_named_statement_call_has_no_runtime_receiver(program, call),
-                            _ => false,
-                        }
-                        || frames::boundary_calls::boundary_trait_signature_and_receiver(
-                            program,
-                            machine,
-                            &receiver_members,
-                            name,
-                            site,
+                    // An open evidence member has the same declaration-only
+                    // qualifier as its closed realization. Authenticate that
+                    // exact member before asking for runtime receiver origins;
+                    // the signature still owns all explicit-operand writes.
+                    || match site {
+                        CallerWriteSite::Call(call) => crate::machine_calls::calls::requirement_namespace_member(
+                            program, call.receiver_symbol, call.target_symbol,
+                        ),
+                        CallerWriteSite::Expression(expression) => program.expression_table.call_node(expression)
+                            .and_then(|call| program.expression_table.name_path_node(call.receiver)
+                                .map(|receiver| (receiver.symbol, call.target_symbol)))
+                            .is_some_and(|(namespace, member)| crate::machine_calls::calls::requirement_namespace_member(
+                                program, namespace, member,
+                            )),
+                        _ => false,
+                    } || match site {
+                    CallerWriteSite::Expression(expression) => program
+                        .expression_table
+                        .call_node(expression)
+                        .is_some_and(|call| program.call_has_no_runtime_receiver_for_target(call)),
+                    CallerWriteSite::Call(call) => {
+                        typed_trees::operator::selected_named_statement_call_has_no_runtime_receiver(
+                            program, call,
                         )
-                        .is_some_and(|(_, has_runtime_receiver)| !has_runtime_receiver);
+                    }
+                    _ => false,
+                }
+                    || frames::boundary_calls::boundary_trait_signature_and_receiver(
+                        program,
+                        machine,
+                        &receiver_members,
+                        name,
+                        site,
+                    )
+                    .is_some_and(|(_, has_runtime_receiver)| !has_runtime_receiver);
                 // A nested call can follow effects in an enclosing operand. The
                 // prefix owner has not captured those substatement updates.
                 // Reuse its expression inventory and frame query; do not

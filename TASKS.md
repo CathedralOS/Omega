@@ -2072,9 +2072,14 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   rows, the named acceptance fixtures, and the forwarded descriptor production
   under `runtime_index_application/forwarded` (including same-index mutable
   loans and reference forwarding). Construction/bounds/retag and static-kind
-  controls reject. Keep this outcome open: the other three hosted execution
-  environments have not been observed; explicit-target image production is not
-  native/Terminal execution on those hosts.
+  controls reject. Keep this outcome open: general computed-data formation,
+  independently proved runtime/result index equality, selected-operator result
+  guarantees and nested composition still require whole-item qualification.
+  CI candidate `7ad3806d0f45` additionally observed 57 native/Terminal agreements
+  and 97 intended rejects on Linux ARM64 and macOS ARM64, using the existing
+  hosted runners. Windows execution and the later capture/nested-result source
+  changes remain unqualified. Explicit-target image production supplies no
+  native/Terminal execution evidence on another host.
 
 - **STRUCTURAL-GENERIC-MATCHING.** Complete
   [static type equality](wiki/spec/language/generics.md#static-type-equality),

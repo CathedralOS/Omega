@@ -9,6 +9,7 @@ mod default_domain_zero;
 mod deferred_constants;
 mod opaque_property_receipts;
 mod runtime_index_fields;
+mod runtime_value_applications;
 mod selections;
 
 pub(crate) use data_applications::elaborate_projected_receivers;
@@ -215,6 +216,7 @@ pub fn prepare_typed_trees(
     // Token syntax must expose its ordinary call before specialization sees
     // the program. Otherwise a concrete caller keeps a generic requirement
     // merely because it wrote `items[index]` rather than the named call.
+    runtime_value_applications::materialize(&mut program)?;
     crate::operators::bind_selected_operator_calls(
         &mut program,
         &typed_trees::references::DeclarationSelection::all(),

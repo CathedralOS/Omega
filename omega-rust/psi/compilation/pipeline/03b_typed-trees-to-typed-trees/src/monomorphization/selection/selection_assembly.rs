@@ -198,8 +198,8 @@ pub(crate) fn proposal_bindings(
     };
     for (_, parameter, argument) in runtime_value_proposals {
         // Runtime code is keyed by the declared carrier, not by a value
-        // reference inferred from a dependent parameter. Keep the actual
-        // subject separately: every inferred value below must still agree.
+        // reference inferred from a dependent parameter. The exact retained
+        // subject belongs to independent call/result index checking.
         selection.const_bindings[parameter] =
             Some(candidate.template.const_parameters[parameter].2);
         selection.runtime_value_bindings[parameter] = Some(argument);
@@ -217,10 +217,12 @@ pub(crate) fn proposal_bindings(
         }
     }
     for (_, parameter, binding) in const_proposals {
-        if let Some(subject) = &selection.runtime_value_bindings[parameter] {
-            if !runtime_value_proposal_agrees(program, subject, binding) {
-                selection.conflicted = true;
-            }
+        if selection.runtime_value_bindings[parameter].is_some() {
+            // An explicit runtime Value actual already supplies this slot.
+            // A dependent argument or expected result constrains that actual;
+            // it cannot turn a future observed value into a second code key.
+            // Immutable occurrence checking owes equality for every call
+            // argument and result store after specialization.
             continue;
         }
         if !binding.is_valid() {
@@ -272,56 +274,6 @@ pub(crate) fn proposal_bindings(
         }
     }
     selection
-}
-
-/// An inferred dependent value is an obligation on the exact runtime actual;
-/// it is not a second specialization key. This comparison admits resolved
-/// declaration identities and exact retained expression meanings only.
-fn runtime_value_proposal_agrees(
-    program: &dyn ::validation::CheckingInput,
-    subject: &crate::monomorphization::RuntimeValueBinding,
-    binding: TypeReferenceHandle,
-) -> bool {
-    let crate::monomorphization::RuntimeValueBinding::Authored(subject) = subject else {
-        // The call's ordinary dependent-argument checks owe equality for every
-        // occurrence. A represented runtime descriptor is never a static key.
-        return true;
-    };
-    if !binding.is_valid() {
-        return false;
-    }
-    if subject.type_reference.is_valid()
-        && matches!(
-            program
-                .type_reference_table
-                .type_reference(subject.type_reference),
-            TypeReferenceNode::ConstExpression(_)
-        )
-        && matches!(
-            program.type_reference_table.type_reference(binding),
-            TypeReferenceNode::ConstExpression(_)
-        )
-        && same_type_identity(program, subject.type_reference, binding)
-    {
-        return true;
-    }
-    if !subject.symbol.is_valid()
-        || subject.type_reference.is_valid()
-        || subject.application.is_some()
-        || subject.evidence_projection.is_some()
-        || subject.const_literal.is_some()
-    {
-        return false;
-    }
-    match program.type_reference_table.type_reference(binding) {
-        TypeReferenceNode::Named { symbol, .. } => *symbol == subject.symbol,
-        TypeReferenceNode::ConstExpression(expression) => matches!(
-            program.expression_table.expression(*expression),
-            typed_trees::expression::ExpressionNode::Name(path)
-                if path.symbol == subject.symbol && path.head_symbol == subject.symbol
-        ),
-        _ => false,
-    }
 }
 
 pub(crate) fn type_reference_is_any_generic_parameter(

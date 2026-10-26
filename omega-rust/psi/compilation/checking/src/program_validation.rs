@@ -786,6 +786,23 @@ fn validate<'program>(
                     &value_environment,
                     call_frames.as_ref(),
                 );
+                if let Some(local) = statement.as_local_data()
+                    && local.role == language_core::LocalBindingRole::Value
+                    && !local.type_is_inferred
+                    && !local.is_operand_capture
+                {
+                    statements::validate_local_type_reference(
+                        program,
+                        machine,
+                        Some(state),
+                        &state.name,
+                        local,
+                        &symbols,
+                        &value_environment,
+                        &mut diagnostics,
+                        &mut arithmetic_decisions.integer_range_obligations,
+                    );
+                }
                 value_environment.prepare_numeric_observations(
                     program,
                     machine,
