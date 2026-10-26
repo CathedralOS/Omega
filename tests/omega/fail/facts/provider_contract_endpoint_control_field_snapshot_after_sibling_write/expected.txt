@@ -1,1 +1,1 @@
-exact arithmetic may overflow
+local `difference` may overflow `u64`
