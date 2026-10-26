@@ -27,26 +27,6 @@ pub(super) fn decode_definition_site(
     })
 }
 
-pub(super) fn encode_fixed_site(bytes: &mut Vec<u8>, site: VirtualFixedConstraintSite) {
-    match site {
-        VirtualFixedConstraintSite::Entry => bytes.push(0),
-        VirtualFixedConstraintSite::Operand {
-            position,
-            point,
-            instruction,
-            operand,
-            access,
-        } => {
-            bytes.push(1);
-            crate::codec_bytes::push_encoded(bytes, position.0.to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, point.0.to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, instruction.0.to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, operand.to_le_bytes());
-            bytes.push(access.access_tag());
-        }
-    }
-}
-
 pub(super) fn decode_fixed_site(
     cursor: &mut Cursor<'_>,
 ) -> Result<VirtualFixedConstraintSite, FixedViewCopyDecodeError> {
