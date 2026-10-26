@@ -92,6 +92,13 @@ fn set_register_bit(bits: &mut Vec<u64>, register: VirtualRegisterId) {
     set_u32_bit(bits, register.0);
 }
 
+#[inline]
+fn test_register_bit(bits: &[u64], register: VirtualRegisterId) -> bool {
+    let word = (register.0 as usize) >> 6;
+    bits.get(word)
+        .is_some_and(|&w| (w & (1u64 << (register.0 & 63))) != 0)
+}
+
 #[derive(Clone)]
 struct BlockLookup {
     fixed_definition_bits: Vec<u64>,
@@ -107,6 +114,9 @@ struct BlockLookup {
     instruction_bits: Vec<u64>,
     instruction_ids: Vec<u32>,
     referenced_register_bits: Vec<u64>,
+    upward_virtual_uses_bits: Vec<u64>,
+    virtual_kills_bits: Vec<u64>,
+    has_constraint_operands: bool,
     register_instruction_spans: Vec<(u32, u32)>,
 }
 impl BlockEntry {
@@ -162,6 +172,9 @@ impl BlockEntry {
             let mut instruction_bits = Vec::with_capacity(bitset_words);
             let mut instruction_ids = Vec::with_capacity(self.block.instructions.len());
             let mut referenced_register_bits = Vec::with_capacity(bitset_words);
+            let mut upward_virtual_uses_bits = Vec::with_capacity(bitset_words);
+            let mut virtual_kills_bits = Vec::with_capacity(bitset_words);
+            let mut has_constraint_operands = false;
             let record_spans = self.block.instructions.len() >= 64;
             let mut register_instruction_spans: Vec<(u32, u32)> = if record_spans {
                 Vec::with_capacity(self.block.instructions.len())
@@ -210,6 +223,17 @@ impl BlockEntry {
                     set_register_bit(&mut materialize_definition_bits, operand.virtual_register);
                 }
                 for operand in &instruction.operands {
+                    if operand.access == register_model::RegisterOperandAccess::Use
+                        && !test_register_bit(&virtual_kills_bits, operand.virtual_register)
+                    {
+                        set_register_bit(&mut upward_virtual_uses_bits, operand.virtual_register);
+                    }
+                    if operand.access == register_model::RegisterOperandAccess::UseDef
+                        || operand.early_clobber
+                        || operand.tied_to.is_some()
+                    {
+                        has_constraint_operands = true;
+                    }
                     set_register_bit(&mut referenced_register_bits, operand.virtual_register);
                     if record_spans {
                         let reg_idx = operand.virtual_register.0 as usize;
@@ -242,6 +266,11 @@ impl BlockEntry {
                         }
                     }
                 }
+                for operand in &instruction.operands {
+                    if operand.access == register_model::RegisterOperandAccess::Def {
+                        set_register_bit(&mut virtual_kills_bits, operand.virtual_register);
+                    }
+                }
             }
             for &unit in &terminator.implicit_uses {
                 if (unit.0 as usize) < 64 {
@@ -265,6 +294,17 @@ impl BlockEntry {
                 }
             }
             for operand in &terminator.operands {
+                if operand.access == register_model::RegisterOperandAccess::Use
+                    && !test_register_bit(&virtual_kills_bits, operand.virtual_register)
+                {
+                    set_register_bit(&mut upward_virtual_uses_bits, operand.virtual_register);
+                }
+                if operand.access == register_model::RegisterOperandAccess::UseDef
+                    || operand.early_clobber
+                    || operand.tied_to.is_some()
+                {
+                    has_constraint_operands = true;
+                }
                 set_register_bit(&mut referenced_register_bits, operand.virtual_register);
                 if let Some(view) = operand.fixed_view {
                     if (view.0 as usize) < 64 {
@@ -272,6 +312,11 @@ impl BlockEntry {
                     } else {
                         fixed_views.push(view);
                     }
+                }
+            }
+            for operand in &terminator.operands {
+                if operand.access == register_model::RegisterOperandAccess::Def {
+                    set_register_bit(&mut virtual_kills_bits, operand.virtual_register);
                 }
             }
             let mut transport_count = Some(0usize);
@@ -390,6 +435,9 @@ impl BlockEntry {
                 instruction_bits,
                 instruction_ids,
                 referenced_register_bits,
+                upward_virtual_uses_bits,
+                virtual_kills_bits,
+                has_constraint_operands,
                 register_instruction_spans,
             }
         })
@@ -824,6 +872,17 @@ impl SelectedBlocks {
     ) -> Option<(&[register_model::RegisterUnitId], &[register_model::RegisterUnitId])> {
         let lookup = self.0.get(block_index)?.lookup();
         Some((&lookup.upward_unit_uses, &lookup.unit_kills))
+    }
+    /// Memoized upward-exposed virtual register use bitset and kill bitset per block.
+    pub fn block_virtual_transfer(&self, block_index: usize) -> Option<(&[u64], &[u64])> {
+        let lookup = self.0.get(block_index)?.lookup();
+        Some((&lookup.upward_virtual_uses_bits, &lookup.virtual_kills_bits))
+    }
+    /// Whether `block_index` has any operand with `UseDef`, `early_clobber`, or `tied_to`.
+    pub fn block_has_constraint_operands(&self, block_index: usize) -> bool {
+        self.0
+            .get(block_index)
+            .is_some_and(|entry| entry.lookup().has_constraint_operands)
     }
     /// Memoized body instruction indices that clobber or implicitly define at least one unit.
     pub fn block_unit_writer_indices(&self, block_index: usize) -> Option<&[usize]> {

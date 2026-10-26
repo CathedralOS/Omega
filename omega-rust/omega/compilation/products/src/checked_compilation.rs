@@ -86,6 +86,7 @@ pub struct CheckedCompilationInputs {
 /// ```
 #[derive(Debug, Clone)]
 pub struct CheckedCompilation {
+    source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
     execution: CheckedCompilationInputs,
     sources: Arc<CheckedSourceCustody>,
     timings: CompileTimings,
@@ -115,11 +116,28 @@ impl CheckedCompilation {
         timings: CompileTimings,
     ) -> Self {
         Self {
+            source_completion_accounting: Default::default(),
             execution,
             sources,
             timings,
             settled_checks: RetainedCompilationChecks::default(),
         }
+    }
+
+    /// Retain authored source completion's actual invocation charges separately
+    /// from optional source judgments and target/provider admission.
+    pub fn with_source_completion_accounting(
+        mut self,
+        accounting: build_time_evaluation::SourceCompletionAccounting,
+    ) -> Self {
+        self.source_completion_accounting = accounting;
+        self
+    }
+
+    pub fn source_completion_accounting(
+        &self,
+    ) -> &build_time_evaluation::SourceCompletionAccounting {
+        &self.source_completion_accounting
     }
 
     /// Keep the settled checks this compilation ran (or took) for a later

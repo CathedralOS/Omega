@@ -82,15 +82,18 @@ compiler. A queue-created SHA alone does not require fresh author tests or
 review. Source edits, conflict resolutions and demonstrated changed assumptions
 do require affected validation. See [testing](testing.md#main-change-validation).
 
-The independent **Compiler regression** workflow runs executable Linux
-native/Terminal smoke and rejection controls after merge and nightly. It
-finishes its active run and coalesces pending pushes to the newest revision.
-Canceled superseded runs are unmeasured, not green. Its failures are visible CI
-failures, not admission failures retroactively assigned to every queued author.
-The author of the regressing PR owns repair or revert; until attributed, the
-first observing session records the failing run and takes triage ownership in
-claims. Prefer a focused repair; revert through the queue when repair is not
-promptly tractable. Do not disable the check, rewrite its oracle or call it green.
+The independent **Post-merge smoke** workflow (`.github/workflows/compiler-regression.yml`)
+runs executable Linux native/Terminal smoke and rejection controls after merge
+and nightly. It finishes its active run and coalesces pending pushes to the
+newest revision. Canceled superseded runs are unmeasured, not green, and an
+older failed run is resolved once a newer `main` commit succeeds. Its failures
+are visible CI failures, not admission failures retroactively assigned to every
+queued author. Sessions working on an active capability or sample ignore
+unrelated `main` failures and preserve their warm base. The author of the
+regressing PR owns repair or revert; otherwise at most one unassigned session
+claims the failure (`REGRESSION-<sha>`) in `claims.py` and drives a focused
+repair or revert through the queue. Do not disable the check, rewrite its
+oracle or call it green.
 Full release and other-host qualification remain separate. This initial hosted
 regression set is not full corpus, cross-host or Cathedral boot acceptance.
 

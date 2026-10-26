@@ -232,7 +232,7 @@ pub(crate) fn transparent_callee_result_origins(
         if !leaf.local_suffix.is_empty() || !leaf.local_segments.is_empty() {
             return None;
         }
-        let place = leaf.origin?;
+        let place = leaf.origin?.into_symbolic_place()?;
         let parameter_symbol = if place.source.is_static() {
             SymbolHandle::invalid()
         } else {
@@ -280,7 +280,7 @@ struct ResultSelection {
 impl ResultSelection {
     fn new(program: &dyn crate::CheckingInput, state: &State, actual_values: &[BoolTruth]) -> Self {
         Self {
-            values: ParameterValues::new(program, state, actual_values),
+            values: ParameterValues::new(program, state, actual_values, &[]),
             captured_results: Vec::new(),
         }
     }

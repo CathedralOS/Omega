@@ -41,6 +41,16 @@ impl ScalarTerm {
                 if path.is_empty() {
                     return Err(PropositionError::EmptyStructuralReadPath);
                 }
+                if path.iter().any(|projection| {
+                    matches!(
+                        projection,
+                        super::ScalarReadProjection::Static(
+                            super::CanonicalStructuralPathSegment::Referent
+                        )
+                    )
+                }) {
+                    return Err(PropositionError::NonCanonicalScalarReadProjection);
+                }
                 for operand in self.operands() {
                     if operand
                         .scalar_type()
@@ -275,5 +285,38 @@ impl ScalarTerm {
                 right,
             } => validate_integer_operands(*scalar_type, left, right),
         }
+    }
+}
+
+#[cfg(test)]
+mod scalar_read_projection_tests {
+    use super::*;
+    use crate::{CanonicalStructuralPathSegment, PlaceId, ScalarReadProjection};
+
+    #[test]
+    fn predicate_reference_step_becomes_one_explicit_scalar_read_step() {
+        let projection = ScalarReadProjection::from(CanonicalStructuralPathSegment::Referent);
+        assert_eq!(projection, ScalarReadProjection::Referent);
+        ScalarTerm::structural_read(
+            PlaceId::new(1).unwrap(),
+            vec![projection],
+            ScalarType::Boolean,
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn scalar_read_rejects_the_duplicate_static_reference_spelling() {
+        let term = ScalarTerm::StructuralRead {
+            root: PlaceId::new(1).unwrap(),
+            path: vec![ScalarReadProjection::Static(
+                CanonicalStructuralPathSegment::Referent,
+            )],
+            scalar_type: ScalarType::Boolean,
+        };
+        assert_eq!(
+            term.validate(),
+            Err(PropositionError::NonCanonicalScalarReadProjection)
+        );
     }
 }

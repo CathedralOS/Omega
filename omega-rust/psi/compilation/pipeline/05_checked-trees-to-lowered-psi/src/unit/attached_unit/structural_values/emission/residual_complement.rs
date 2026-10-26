@@ -71,7 +71,8 @@ pub(super) fn is_empty(
             }
         }
     }
-    let root_identity = validation::structural_type_identity(&checked.typed, root_type, &[], &[]);
+    let root_identity =
+        validation::stored_structural_type_identity(&checked.typed, root_type, &[], &[]);
     let moved = vacancies
         .iter()
         .map(|path| {
@@ -79,7 +80,7 @@ pub(super) fn is_empty(
                 .map_err(LoweringError::Unsupported)?;
             Ok((
                 path,
-                validation::structural_type_identity(&checked.typed, leaf, &[], &[]),
+                validation::stored_structural_type_identity(&checked.typed, leaf, &[], &[]),
             ))
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;

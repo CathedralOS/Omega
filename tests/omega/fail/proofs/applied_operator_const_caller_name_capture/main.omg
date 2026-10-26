@@ -1,0 +1,20 @@
+// The operator application occurs only in a proof clause, never at runtime.
+// Carrier<8> must bind the selected operator's const Width to 8.
+data Carrier<const Width: u64> { marker: u64; }
+
+machine + Carrier::select<const Width: u64>(carrier: Carrier<Width>, value: u64) -> u64
+requires value < Width
+{
+    value
+}
+
+// Expected: reject specification-operator formation: 12 is not below 8.
+// The caller's Width is a distinct scalar binder whose value is 16.
+machine witness(carrier: Carrier<8>, value: u64, Width: u64)
+requires value == 12
+requires Width == 16
+requires value < Width
+requires (carrier + value) == (carrier + value)
+{}
+
+machine main() {}

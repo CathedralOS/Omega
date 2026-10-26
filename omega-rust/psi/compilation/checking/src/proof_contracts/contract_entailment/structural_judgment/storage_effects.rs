@@ -136,7 +136,7 @@ fn project_captured_value(
     mut reference: TypeReferenceHandle,
     mut value: super::StructuralTerm,
     path: &[CapturedStorageSegment],
-) -> Option<super::StructuralTerm> {
+) -> Option<(TypeReferenceHandle, super::StructuralTerm)> {
     for segment in path {
         let projected = segment.projected_type(program, reference)?;
         value = match segment {
@@ -159,7 +159,30 @@ fn project_captured_value(
         };
         reference = projected;
     }
-    Some(value)
+    Some((reference, value))
+}
+
+fn content_storage_segments(
+    path: &[language_semantics::content::ContentPlaceSegment],
+) -> Vec<CapturedStorageSegment> {
+    use language_semantics::content::ContentPlaceSegment;
+    path.iter()
+        .map(|segment| match segment {
+            ContentPlaceSegment::Field(field) => {
+                CapturedStorageSegment::Place(facts::PlaceSegment::Field {
+                    symbol: field.symbol,
+                })
+            }
+            ContentPlaceSegment::Case(case) => {
+                CapturedStorageSegment::Place(facts::PlaceSegment::Case {
+                    variant: case.symbol,
+                })
+            }
+            ContentPlaceSegment::FixedIndex(index) => CapturedStorageSegment::Index(
+                super::StructuralTerm::Integer(numerics::bignum::BigInt::from_u64(*index)),
+            ),
+        })
+        .collect()
 }
 
 /// One evaluated place keeps its detached entry snapshot beside its live value.
@@ -170,6 +193,7 @@ pub(super) struct CapturedStorageValue {
     coordinate: CapturedStorageCoordinate,
     entry: Option<super::StructuralTerm>,
     current: Option<super::StructuralTerm>,
+    completed_read: Option<(ExpressionHandle, usize)>,
 }
 
 /// One authenticated store destination, frozen before replacement evaluation.
@@ -295,6 +319,8 @@ impl StructuralJudge<'_> {
                     ),
                 );
             }
+            // A retained current value is not a new observation after the write.
+            stored.completed_read = None;
             stored.entry.is_some() || stored.current.is_some()
         });
         let frames = self.frame_resolver()?;
@@ -540,7 +566,7 @@ impl StructuralJudge<'_> {
                         if self.require_closed_computation && !current.is_closed_value() {
                             return None;
                         }
-                        let projected = project_captured_value(
+                        let (_, projected) = project_captured_value(
                             self.program,
                             reference,
                             current,
@@ -592,7 +618,7 @@ impl StructuralJudge<'_> {
                     return None;
                 }
                 let current = stored.current.clone()?;
-                let projection = project_captured_value(
+                let (_, projection) = project_captured_value(
                     self.program,
                     reference,
                     value.clone(),
@@ -635,7 +661,26 @@ impl StructuralJudge<'_> {
                     .is_some()
                     && !self.storage_binding_invalidated(root)
             });
-        self.retain_storage_value(place, value, entry);
+        self.retain_storage_value(place.clone(), value, entry);
+        if let Some(stored) = std::sync::Arc::make_mut(&mut self.stored_values)
+            .iter_mut()
+            .find(|stored| stored.coordinate == place)
+        {
+            stored.completed_read = Some((expression, self.storage_write_sequence));
+        }
+    }
+
+    /// Only a real read at the current write epoch can name live scalar storage.
+    /// Post-state descriptor/store metadata is deliberately absent here. Every
+    /// write retires this roster, including writes to a captured index selector.
+    pub(in crate::proof_contracts::contract_entailment) fn current_scalar_reads(
+        &self,
+    ) -> impl Iterator<Item = (ExpressionHandle, &super::StructuralTerm)> {
+        self.stored_values.iter().filter_map(|stored| {
+            let (expression, sequence) = stored.completed_read?;
+            (sequence == self.storage_write_sequence)
+                .then_some((expression, stored.current.as_ref()?))
+        })
     }
 
     pub(super) fn retain_storage_value(
@@ -653,11 +698,13 @@ impl StructuralJudge<'_> {
                 stored.entry = Some(value.clone());
             }
             stored.current = Some(value);
+            stored.completed_read = None;
         } else {
             values.push(CapturedStorageValue {
                 coordinate,
                 entry: entry.then(|| value.clone()),
                 current: Some(value),
+                completed_read: None,
             });
         }
     }
@@ -700,32 +747,31 @@ impl StructuralJudge<'_> {
         path: &[language_semantics::content::ContentPlaceSegment],
         version: language_semantics::content::ContentPlaceVersion,
     ) -> Option<super::StructuralTerm> {
-        use language_semantics::content::ContentPlaceSegment;
         self.requires_value_preservation().then_some(())?;
-        let segments = path
-            .iter()
-            .map(|segment| match segment {
-                ContentPlaceSegment::Field(field) => {
-                    CapturedStorageSegment::Place(facts::PlaceSegment::Field {
-                        symbol: field.symbol,
-                    })
-                }
-                ContentPlaceSegment::Case(case) => {
-                    CapturedStorageSegment::Place(facts::PlaceSegment::Case {
-                        variant: case.symbol,
-                    })
-                }
-                ContentPlaceSegment::FixedIndex(index) => CapturedStorageSegment::Index(
-                    super::StructuralTerm::Integer(numerics::bignum::BigInt::from_u64(*index)),
-                ),
-            })
-            .collect::<Vec<_>>();
+        let segments = content_storage_segments(path);
         self.captured_projection(
             &CapturedStorageCoordinate {
                 root: facts::PlaceRoot::Symbol(root),
                 segments,
             },
             version,
+        )
+    }
+
+    /// Project an already completed value through the same typed field, case
+    /// and fixed-index operation as captured storage. This never rereads an
+    /// address and retains the actual leaf type beside its observed value.
+    pub(in crate::proof_contracts::contract_entailment) fn completed_value_projection(
+        &self,
+        reference: TypeReferenceHandle,
+        value: super::StructuralTerm,
+        path: &[language_semantics::content::ContentPlaceSegment],
+    ) -> Option<(TypeReferenceHandle, super::StructuralTerm)> {
+        project_captured_value(
+            self.program,
+            reference,
+            value,
+            &content_storage_segments(path),
         )
     }
 
@@ -780,6 +826,7 @@ impl StructuralJudge<'_> {
                 ContentPlaceVersion::Current => stored.current.clone(),
             }?;
             project_captured_value(self.program, reference, value, &coordinate.segments)
+                .map(|(_, value)| value)
         })
     }
 
@@ -871,7 +918,7 @@ impl StructuralJudge<'_> {
             .then_some(())?;
         let root = place.root.as_symbol()?;
         let footprint = match origins.destinations.as_slice() {
-            [destination] => destination.write_path(program),
+            [destination] => destination.write_path(program)?,
             [] => crate::frame_coordinate_path(program, root, &place.segments)?,
             _ => return None,
         };

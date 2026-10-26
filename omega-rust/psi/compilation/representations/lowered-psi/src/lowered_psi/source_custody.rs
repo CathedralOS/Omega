@@ -174,6 +174,9 @@ pub struct LoweredSourceCallOccurrence {
     pub statement_index: usize,
     pub call_ordinal: usize,
     pub terminal_site: LoweredSourceCallSite,
+    /// Ordinary direct-module calls retain the selected checked state for this
+    /// coordinate. Authored/public identities remain in the checked flow row.
+    /// Boundary and dynamic calls retain their own selected declaration identity.
     pub source_target: symbols::SymbolHandle,
     /// Exact storage bindings and claim identities immediately before this call.
     /// A missing source position has no storage join, never a shifted or fabricated value.

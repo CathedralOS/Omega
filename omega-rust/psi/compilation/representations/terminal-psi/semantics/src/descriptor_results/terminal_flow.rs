@@ -1,7 +1,8 @@
 //! Current Terminal operations adapted once for both contents and cohort replay.
 use super::*;
 use crate::descriptor_lifetimes::{
-    DescriptorFlowEdge, descriptor_location, descriptor_location_type,
+    DescriptorFlowBinding, DescriptorFlowEdge, DescriptorFlowSource, descriptor_location,
+    descriptor_location_type,
 };
 
 /// Ordinary edges transport evaluated SSA operands. A case edge instead births
@@ -15,6 +16,41 @@ enum ScalarArrival<'a> {
         case: semantic_vocabulary::StructuralCaseId,
         fields: &'a [semantic_vocabulary::StructuralFieldId],
     },
+}
+
+/// Physical address roles accompany the complete borrowed-storage graph.
+/// They do not alter the pointer/value representation used by origin replay.
+pub(super) fn residence_rules(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+) -> Option<crate::descriptor_lifetimes::DescriptorResidenceRules> {
+    let mut rules = crate::descriptor_lifetimes::DescriptorResidenceRules::default();
+    for block in &machine.blocks {
+        for (ordinal, operation) in block.operations.iter().enumerate() {
+            let position = (block.id, u32::try_from(ordinal).ok()?);
+            match &operation.kind {
+                terminal_psi::element_view_establish_pair_pattern!(source, ..)
+                | OperationKind::EstablishPlacedReference { source, .. }
+                | OperationKind::EstablishReference { source, .. } => {
+                    let (source, _, capture) = captured_storage_source(
+                        &module.structural_types,
+                        source,
+                        place_type(machine, source.place)?,
+                        position,
+                    )?;
+                    if capture == CapturedBacking::StorageAddress {
+                        rules.captures.insert((
+                            position,
+                            source,
+                            DescriptorLocation::whole(operation.result.structural()?.place),
+                        ));
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    Some(rules)
 }
 
 pub(super) fn adapt(
@@ -44,6 +80,8 @@ pub(super) fn adapt(
         place_types: BTreeMap::new(),
         entry: (machine.entry, 0),
         flow: BTreeMap::new(),
+        case_constructors: BTreeMap::new(),
+        case_successors: BTreeMap::new(),
         originations: BTreeMap::new(),
         projections: BTreeMap::new(),
         contents_queries: BTreeMap::new(),
@@ -72,7 +110,6 @@ pub(super) fn adapt(
         payload_scalar_parameters: BTreeMap::new(),
         payload_edge_predicates: BTreeMap::new(),
         payload_scalar_bindings: BTreeMap::new(),
-        payload_arrivals: BTreeMap::new(),
         unresolved_contents_writes: BTreeSet::new(),
         storage_derivations: BTreeSet::new(),
         calls: BTreeMap::new(),
@@ -410,9 +447,7 @@ pub(super) fn adapt(
                     )?;
                     step.inputs = vec![query.observation()];
                 }
-                OperationKind::EstablishNativeCodeLayout { .. }
-                    if slot_kind == DescriptorSlotKind::Views =>
-                {
+                OperationKind::EstablishNativeCodeLayout { .. } if slot_kind.tracks_views() => {
                     let result = result?;
                     let destination = native_code_layout_regions(&module.structural_types, result)?;
                     step.definitions.push(destination.clone());
@@ -426,6 +461,14 @@ pub(super) fn adapt(
                 }
                 OperationKind::EstablishZeroedStructural {} => {
                     let result = result?;
+                    graph.case_constructors.insert(
+                        position,
+                        zeroed_case_predicates(
+                            &module.structural_types,
+                            result.place,
+                            result.structural_type,
+                        ),
+                    );
                     for slot in slot_kind
                         .inventory(
                             &module.structural_types,
@@ -491,7 +534,7 @@ pub(super) fn adapt(
                         )?;
                     step.derivations
                         .push((source_location.clone(), destination.clone()));
-                    if slot_kind == DescriptorSlotKind::References
+                    if slot_kind.tracks_references()
                         && capture == CapturedBacking::StorageAddress
                         && matches!(
                             operation.kind,
@@ -798,6 +841,13 @@ pub(super) fn adapt(
                     if let OperationKind::EstablishStructuralCase { result_case, .. } =
                         &operation.kind
                     {
+                        graph.case_constructors.insert(
+                            position,
+                            vec![DescriptorCasePredicate {
+                                subject: DescriptorLocation::whole(result?.place),
+                                case: *result_case,
+                            }],
+                        );
                         let result_type = result?.structural_type;
                         let shape = &module.structural_type(result_type)?.shape;
                         let cases = match shape {
@@ -984,8 +1034,10 @@ pub(super) fn adapt(
                         if result.structural_type != expected.structural_type
                             || result.multiplicity != expected.multiplicity
                             || result.qualifications != expected.qualifications
-                            || result.projected_qualifications != expected.projected_qualifications
-                            || !result.claims.is_empty()
+                            || !expected
+                                .projected_qualifications
+                                .iter()
+                                .all(|row| result.projected_qualifications.contains(row))
                         {
                             return None;
                         }
@@ -1175,31 +1227,32 @@ pub(super) fn adapt(
                 .map(|parameter| DescriptorLocation::whole(parameter.place))
                 .collect::<Vec<_>>();
             let mut bindings = Vec::new();
-            let mut payload_bindings = Vec::new();
-            for (argument, parameter) in arguments.iter().zip(&parameters) {
-                if let Some(source) = location(argument.place, &argument.path, None) {
-                    bindings.push((source, parameter.clone()));
+            for (argument, parameter) in arguments.iter().zip(&block.structural_parameters) {
+                if argument.access != parameter.access {
+                    return None;
+                }
+                let source = if let Some(source) = location(argument.place, &argument.path, None) {
+                    DescriptorFlowSource::Location(source)
                 } else {
-                    payload_bindings.push(PayloadMembershipBinding {
-                        parameter: parameter.root,
-                        source: descriptor_contents_query(
+                    step.may_escape = true;
+                    DescriptorFlowSource::from_query(
+                        argument.place,
+                        descriptor_contents_query(
                             &module.structural_types,
                             argument.place,
                             *graph.place_types.get(&argument.place)?,
                             &argument.path,
                             None,
                         ),
-                    });
-                    step.may_escape = true;
-                    step.inputs.push(DescriptorLocation::whole(argument.place));
-                }
-            }
-            step.inputs
-                .extend(bindings.iter().map(|(source, _)| source.clone()));
-            if !payload_bindings.is_empty() {
-                let arrivals = graph.payload_arrivals.entry(position).or_default();
-                arrivals.resize_with(step.successors.len() + 1, Vec::new);
-                arrivals[step.successors.len()] = payload_bindings;
+                    )
+                };
+                step.inputs.push(source.observation());
+                bindings.push(DescriptorFlowBinding::new(
+                    source,
+                    DescriptorLocation::whole(parameter.place),
+                    argument.access,
+                    parameter.access,
+                )?);
             }
             step.successors.push(DescriptorFlowEdge {
                 target: (target, 0),
@@ -1281,6 +1334,24 @@ pub(super) fn adapt(
             _ => {
                 graph.normal_exits.push(position);
             }
+        }
+        if let Terminator::StructuralCase {
+            source,
+            path,
+            cases,
+        } = &block.terminator
+        {
+            let subject = location(*source, path, None)?;
+            graph.case_successors.insert(
+                position,
+                cases
+                    .iter()
+                    .map(|case| DescriptorCasePredicate {
+                        subject: subject.clone(),
+                        case: case.case,
+                    })
+                    .collect(),
+            );
         }
         if let Terminator::Conditional { condition, .. } = &block.terminator
             && let Some(term) = scalar_expressions.expression(*condition)

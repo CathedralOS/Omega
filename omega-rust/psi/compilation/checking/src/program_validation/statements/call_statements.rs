@@ -50,6 +50,7 @@ pub(super) fn validate(
         writable_roots,
         value_environment,
         diagnostics,
+        &mut arithmetic_decisions.integer_range_obligations,
     );
     // A statement call's arguments are evaluated in the caller's environment
     // at the call site, so they owe the same decision-17 representability

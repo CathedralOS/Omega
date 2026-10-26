@@ -1,0 +1,8 @@
+// Excluding zero supplies no direction: a negative input remains possible.
+machine positive(value: i64) -> i64
+requires value > 0i64
+ensures result == value { value }
+machine direction_missing(value: i64) -> i64
+requires value != 0i64
+{ positive(value) }
+machine main() {}

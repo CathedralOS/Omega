@@ -156,7 +156,6 @@ fn require_unchanged_between(
         machine.entry,
         producer,
         observation,
-        &home,
         |position, ordinal| relevant.includes_edge(position, ordinal),
         |position, step| {
             if machine.unresolved_contents_writes.contains(&position) {
@@ -200,11 +199,59 @@ fn require_unchanged_between(
             }
             Ok(false)
         },
+        |edge| {
+            edge.parameters
+                .iter()
+                .any(|parameter| parameter.contains(&home) || (&home).contains(parameter))
+        },
     )?;
     if unchanged {
         Ok(())
     } else {
         Err("produced payload is absent, replaced or possibly modified before this observation")
+    }
+}
+
+/// Require one actual completed observation on every incoming path. Repeated
+/// scalar producers and renewed block formals retire old dynamic SSA instances;
+/// this never manufactures a value or treats missing flow as impossible.
+pub fn require_completed_scalar_capture(
+    graph: &[DescriptorMachine],
+    identity: MachineId,
+    source: DescriptorPosition,
+    observation: DescriptorPosition,
+    values: &[semantic_vocabulary::ValueId],
+) -> Result<(), &'static str> {
+    if source == observation {
+        return Err("evidence capture has not completed before use");
+    }
+    let machine =
+        descriptor_machine(graph, identity).ok_or("evidence capture machine is absent")?;
+    let relevant = super::payload_reachability::predecessors(machine, observation)
+        .ok_or("evidence capture has unresolved incoming control flow")?;
+    let valid = version_flow(
+        &machine.flow,
+        machine.entry,
+        source,
+        observation,
+        |position, ordinal| relevant.includes_edge(position, ordinal),
+        |position, _| {
+            Ok(machine
+                .payload_scalar_definitions
+                .get(&position)
+                .is_some_and(|definitions| definitions.iter().any(|value| values.contains(value))))
+        },
+        |edge| {
+            machine
+                .payload_scalar_parameters
+                .get(&edge.target.0)
+                .is_some_and(|parameters| parameters.iter().any(|value| values.contains(value)))
+        },
+    )?;
+    if valid {
+        Ok(())
+    } else {
+        Err("evidence capture is absent or its SSA instance was renewed before use")
     }
 }
 
@@ -216,9 +263,9 @@ fn version_flow(
     entry: DescriptorPosition,
     producer: DescriptorPosition,
     observation: DescriptorPosition,
-    payload: &DescriptorLocation,
     includes_edge: impl Fn(DescriptorPosition, usize) -> bool,
     mut modifies: impl FnMut(DescriptorPosition, &DescriptorFlowStep) -> Result<bool, &'static str>,
+    replaces_on_arrival: impl Fn(&crate::descriptor_lifetimes::DescriptorFlowEdge) -> bool,
 ) -> Result<bool, &'static str> {
     let positions = flow.keys().copied().collect::<Vec<_>>();
     let position_index = |position| {
@@ -264,11 +311,7 @@ fn version_flow(
             // produced instance; only a separate custody-transport proof may
             // connect those instances. Killing one incoming edge must weaken
             // the join, not remove that edge from reachability.
-            let arrival = after
-                && !edge
-                    .parameters
-                    .iter()
-                    .any(|parameter| parameter.contains(payload) || payload.contains(parameter));
+            let arrival = after && !replaces_on_arrival(edge);
             let joined = versions[target_index].map_or(arrival, |old| old && arrival);
             if versions[target_index] != Some(joined) {
                 versions[target_index] = Some(joined);
@@ -284,7 +327,7 @@ fn version_flow(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::descriptor_lifetimes::DescriptorFlowEdge;
+    use crate::descriptor_lifetimes::{DescriptorFlowBinding, DescriptorFlowEdge};
     use semantic_vocabulary::BlockId;
 
     fn position(value: u64) -> DescriptorPosition {
@@ -336,6 +379,8 @@ mod tests {
             place_types: BTreeMap::from([(original.root, carrier), (copy.root, carrier)]),
             entry: position(1),
             flow,
+            case_constructors: BTreeMap::new(),
+            case_successors: BTreeMap::new(),
             payload_producers: BTreeMap::from([
                 (position(2), original.root),
                 (position(3), copy.root),
@@ -353,7 +398,6 @@ mod tests {
             payload_scalar_bindings: BTreeMap::new(),
             scalar_payload_writes: BTreeMap::new(),
             payload_invalidations: BTreeMap::new(),
-            payload_arrivals: BTreeMap::new(),
             unresolved_contents_writes: Default::default(),
             storage_derivations: Default::default(),
             calls: BTreeMap::new(),
@@ -528,9 +572,13 @@ mod tests {
                 position(1),
                 position(2),
                 position(5),
-                &payload(),
                 |_, _| true,
                 |current, _| Ok(writes.iter().any(|write| position(*write) == current)),
+                |edge| {
+                    edge.parameters.iter().any(|parameter| {
+                        parameter.contains(&payload()) || (&payload()).contains(parameter)
+                    })
+                },
             )
             .unwrap()
         };
@@ -544,9 +592,13 @@ mod tests {
                 position(1),
                 position(2),
                 position(5),
-                &payload(),
                 |_, _| true,
-                |_, _| Ok(false)
+                |_, _| Ok(false),
+                |edge| edge
+                    .parameters
+                    .iter()
+                    .any(|parameter| parameter.contains(&payload())
+                        || (&payload()).contains(parameter)),
             )
             .unwrap()
         );
@@ -570,16 +622,28 @@ mod tests {
             let mut diamond = flow(&[(1, &[2]), (2, &[3, 4]), (3, &[5]), (4, &[5]), (5, &[])]);
             let edge = &mut diamond.get_mut(&position(4)).unwrap().successors[0];
             edge.parameters.push(parameter.clone());
-            edge.bindings.push((other.clone(), parameter));
+            edge.bindings.push(
+                DescriptorFlowBinding::new(
+                    other.clone(),
+                    parameter,
+                    terminal_psi::StructuralAccess::Owned,
+                    terminal_psi::StructuralAccess::Owned,
+                )
+                .unwrap(),
+            );
             assert_eq!(
                 version_flow(
                     &diamond,
                     position(1),
                     position(2),
                     position(5),
-                    &original,
                     |_, _| true,
                     |_, _| Ok(false),
+                    |edge| edge
+                        .parameters
+                        .iter()
+                        .any(|parameter| parameter.contains(&original)
+                            || (&original).contains(parameter)),
                 )
                 .unwrap(),
                 retained,
@@ -596,9 +660,13 @@ mod tests {
                 position(1),
                 position(2),
                 position(3),
-                &payload(),
                 |_, _| true,
-                |current, _| Ok(current == position(4))
+                |current, _| Ok(current == position(4)),
+                |edge| edge
+                    .parameters
+                    .iter()
+                    .any(|parameter| parameter.contains(&payload())
+                        || (&payload()).contains(parameter)),
             )
             .unwrap()
         );
@@ -609,9 +677,13 @@ mod tests {
                 position(1),
                 position(2),
                 position(3),
-                &payload(),
                 |_, _| true,
-                |current, _| Ok(current == position(4))
+                |current, _| Ok(current == position(4)),
+                |edge| edge
+                    .parameters
+                    .iter()
+                    .any(|parameter| parameter.contains(&payload())
+                        || (&payload()).contains(parameter)),
             )
             .unwrap()
         );

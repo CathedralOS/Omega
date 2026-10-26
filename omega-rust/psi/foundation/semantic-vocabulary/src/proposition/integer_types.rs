@@ -245,6 +245,17 @@ impl IntegerType {
         })
     }
 
+    /// The address representation this Terminal producer currently supports.
+    /// This is lowering capability, not a source `addr::Bound` premise. A
+    /// selected target model must independently close and match this carrier.
+    pub const fn supported_address_representation() -> Self {
+        Self {
+            carrier: IntegerCarrier::Address,
+            sign: IntegerSign::Unsigned,
+            bits: 64,
+        }
+    }
+
     pub const fn carrier(self) -> IntegerCarrier {
         self.carrier
     }

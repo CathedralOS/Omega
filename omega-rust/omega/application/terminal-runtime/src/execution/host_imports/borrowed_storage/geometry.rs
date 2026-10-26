@@ -132,7 +132,7 @@ pub(super) fn input_coverage(
         .collect()
 }
 
-fn expand_coordinates(
+pub(super) fn expand_coordinates(
     path: Vec<Path>,
     byte_offset: usize,
     dimensions: &[NativeStorageRepetition],

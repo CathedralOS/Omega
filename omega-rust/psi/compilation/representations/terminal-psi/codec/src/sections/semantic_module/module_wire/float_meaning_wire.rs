@@ -4,7 +4,6 @@
 use super::super::CodecError;
 use super::super::structural_field_wire::{decode_ieee_float_field, encode_ieee_float_field};
 use super::super::wire::{Reader, Writer, decode_counted};
-use semantic_vocabulary::IeeeFloatFormat;
 use terminal_psi::{
     DirectBlockFloatParameter, DirectCallFloatResult, DirectMachineFloatParameter,
     DirectMachineFloatResult, DirectOperationFloatResult, DirectStructuralFloatLeaf,
@@ -30,67 +29,46 @@ pub(super) fn encode_float_meaning_projection(
         FloatMeaningSource::TransitionalInput(input) => {
             writer.u8(1);
             writer.u32(input.id.0);
-            writer.u8(match input.format {
-                IeeeFloatFormat::Binary32 => 1,
-                IeeeFloatFormat::Binary64 => 2,
-            });
+            encode_ieee_format(writer, input.format);
         }
         FloatMeaningSource::DirectMachineParameter(parameter) => {
             writer.u8(4);
             writer.id(parameter.owner);
             writer.id(parameter.parameter);
-            writer.u8(match parameter.format {
-                IeeeFloatFormat::Binary32 => 1,
-                IeeeFloatFormat::Binary64 => 2,
-            });
+            encode_ieee_format(writer, parameter.format);
         }
         FloatMeaningSource::DirectMachineResult(result) => {
             writer.u8(5);
             writer.id(result.owner);
             writer.id(result.result);
-            writer.u8(match result.format {
-                IeeeFloatFormat::Binary32 => 1,
-                IeeeFloatFormat::Binary64 => 2,
-            });
+            encode_ieee_format(writer, result.format);
         }
         FloatMeaningSource::DirectBlockParameter(parameter) => {
             writer.u8(7);
             writer.id(parameter.owner);
             writer.id(parameter.block);
             writer.id(parameter.parameter);
-            writer.u8(match parameter.format {
-                IeeeFloatFormat::Binary32 => 1,
-                IeeeFloatFormat::Binary64 => 2,
-            });
+            encode_ieee_format(writer, parameter.format);
         }
         FloatMeaningSource::DirectOperationResult(result) => {
             writer.u8(6);
             writer.id(result.owner);
             writer.id(result.producer);
             writer.id(result.result);
-            writer.u8(match result.format {
-                IeeeFloatFormat::Binary32 => 1,
-                IeeeFloatFormat::Binary64 => 2,
-            });
+            encode_ieee_format(writer, result.format);
         }
         FloatMeaningSource::DirectCallResult(result) => {
             writer.u8(8);
             writer.id(result.owner);
             writer.id(result.producer);
             writer.id(result.result);
-            writer.u8(match result.format {
-                IeeeFloatFormat::Binary32 => 1,
-                IeeeFloatFormat::Binary64 => 2,
-            });
+            encode_ieee_format(writer, result.format);
         }
         FloatMeaningSource::DirectStructuralLeaf(leaf) => {
             writer.u8(9);
             writer.id(leaf.owner);
             encode_ieee_float_field(writer, &leaf.field)?;
-            writer.u8(match leaf.format {
-                IeeeFloatFormat::Binary32 => 1,
-                IeeeFloatFormat::Binary64 => 2,
-            });
+            encode_ieee_format(writer, leaf.format);
         }
         FloatMeaningSource::ExactBinary32Literal(bits) => {
             writer.u8(2);
@@ -160,61 +138,37 @@ pub(super) fn decode_float_meaning_projection(
         source: match reader.u8()? {
             1 => FloatMeaningSource::TransitionalInput(FloatProjectionInput {
                 id: FloatProjectionInputId(reader.u32()?),
-                format: match reader.u8()? {
-                    1 => IeeeFloatFormat::Binary32,
-                    2 => IeeeFloatFormat::Binary64,
-                    tag => return Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
-                },
+                format: decode_ieee_format(reader)?,
             }),
             2 => FloatMeaningSource::ExactBinary32Literal(reader.u32()?),
             3 => FloatMeaningSource::ExactBinary64Literal(reader.u64()?),
             4 => FloatMeaningSource::DirectMachineParameter(DirectMachineFloatParameter {
                 owner: reader.id("float-meaning direct parameter owner")?,
                 parameter: reader.id("float-meaning direct parameter value")?,
-                format: match reader.u8()? {
-                    1 => IeeeFloatFormat::Binary32,
-                    2 => IeeeFloatFormat::Binary64,
-                    tag => return Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
-                },
+                format: decode_ieee_format(reader)?,
             }),
             5 => FloatMeaningSource::DirectMachineResult(DirectMachineFloatResult {
                 owner: reader.id("float-meaning direct result owner")?,
                 result: reader.id("float-meaning direct result value")?,
-                format: match reader.u8()? {
-                    1 => IeeeFloatFormat::Binary32,
-                    2 => IeeeFloatFormat::Binary64,
-                    tag => return Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
-                },
+                format: decode_ieee_format(reader)?,
             }),
             6 => FloatMeaningSource::DirectOperationResult(DirectOperationFloatResult {
                 owner: reader.id("float-meaning direct operation-result owner")?,
                 producer: reader.id("float-meaning direct operation-result producer")?,
                 result: reader.id("float-meaning direct operation-result value")?,
-                format: match reader.u8()? {
-                    1 => IeeeFloatFormat::Binary32,
-                    2 => IeeeFloatFormat::Binary64,
-                    tag => return Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
-                },
+                format: decode_ieee_format(reader)?,
             }),
             7 => FloatMeaningSource::DirectBlockParameter(DirectBlockFloatParameter {
                 owner: reader.id("float-meaning direct block-parameter owner")?,
                 block: reader.id("float-meaning direct block-parameter block")?,
                 parameter: reader.id("float-meaning direct block-parameter value")?,
-                format: match reader.u8()? {
-                    1 => IeeeFloatFormat::Binary32,
-                    2 => IeeeFloatFormat::Binary64,
-                    tag => return Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
-                },
+                format: decode_ieee_format(reader)?,
             }),
             8 => FloatMeaningSource::DirectCallResult(DirectCallFloatResult {
                 owner: reader.id("float-meaning direct call-result owner")?,
                 producer: reader.id("float-meaning direct call-result producer")?,
                 result: reader.id("float-meaning direct call-result value")?,
-                format: match reader.u8()? {
-                    1 => IeeeFloatFormat::Binary32,
-                    2 => IeeeFloatFormat::Binary64,
-                    tag => return Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
-                },
+                format: decode_ieee_format(reader)?,
             }),
             9 => FloatMeaningSource::DirectStructuralLeaf(DirectStructuralFloatLeaf {
                 owner: reader.id("float-meaning direct structural-leaf owner")?,

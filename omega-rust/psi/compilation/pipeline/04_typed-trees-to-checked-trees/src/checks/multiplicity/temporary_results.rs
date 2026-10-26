@@ -1,14 +1,11 @@
-//! Ownership transfers from temporary call results.
-//!
-//! A partial move retains the original temporary's claim frontier until its
-//! completing consumer disposes the exact authorized residual complement.
+//! Completed anonymous owners retain their exact source custody through calls,
+//! borrowed observations and constructed children. A partial transfer keeps its
+//! remaining partition until the actual normal consumer continuation; every
+//! remaining linear claim needs its owner-authorized disposition. Borrowing
+//! lends access without transferring that owner or shortening its lifetime.
 use crate::checks::multiplicity::claim_outcomes::claim_paths_are_case_alternatives;
 use crate::checks::multiplicity::linear_claim_frontier;
-use crate::checks::multiplicity::linear_validation::event_statement_index;
-use crate::checks::multiplicity::linear_validation::permission_source;
-use crate::checks::type_carries_linear_obligation;
-use crate::checks::type_multiplicity;
-use crate::flow::FlowOwnershipEventSource;
+use crate::checks::multiplicity::linear_validation::{event_statement_index, permission_source};
 use arena::HandleSpan;
 use checked_trees::CheckFacts;
 use checked_trees::FlowPermissionEventFact;
@@ -19,14 +16,13 @@ use language_semantics::PermissionClaimIdentity;
 use language_semantics::PermissionEventKind;
 use language_semantics::PermissionProvenance;
 use symbols::SymbolHandle;
-use typed_trees::types::TypeReferenceNode;
 
 mod borrowed_owners;
 mod owned_transfers;
 mod owners;
 mod projected;
 
-pub(super) use owned_transfers::append_owned_transfer;
+pub(super) use owned_transfers::{append_owned_transfer, append_stored_transfer};
 pub(crate) use owners::owned_temporary_type;
 pub(super) use owners::{TemporaryOwner, projectable_owner, temporary_owners};
 pub(super) use projected::{ProjectedConsumer, retire_owner};
@@ -93,160 +89,6 @@ pub(super) fn append_continuation_cleanup(
         }
     }
     Ok(retired)
-}
-
-pub(super) fn append_whole_affine_transfer(
-    program: &dyn ::validation::CheckingInput,
-    machine_symbol: SymbolHandle,
-    state_symbol: SymbolHandle,
-    calls: &[checked_trees::FlowCallFact],
-    event: &crate::flow::DiscoveredMoveEvent,
-    permission_events: &mut Vec<FlowPermissionEventFact>,
-) {
-    if !event.segments.is_empty() {
-        // Projected owners use the same established source custody as named
-        // owners; their consumer continuation publishes residual cleanup.
-        return;
-    }
-    let Some(expression) = event.root.as_expression() else {
-        return;
-    };
-    let FlowOwnershipEventSource::Call {
-        statement_index, ..
-    } = event.source
-    else {
-        return;
-    };
-    // Only the whole result of an actually discovered call
-    // participates here. Projected results and reference/qualified or
-    // claim-carrying roots retain their existing permission rules.
-    let affine_result = event.segments.is_empty()
-        && calls.iter().any(|call| {
-            call.statement_index == statement_index
-                && call.authored_expression == expression
-                && validation::call_target_return_type(program, call.target_symbol).is_some_and(
-                    |result| {
-                        matches!(
-                            program.type_reference_table.type_reference(result),
-                            TypeReferenceNode::Named { .. }
-                                | TypeReferenceNode::Generic { .. }
-                                | TypeReferenceNode::FixedArray { .. }
-                        ) && type_multiplicity(program, result) == Multiplicity::Affine
-                            && !type_carries_linear_obligation(program, result)
-                    },
-                )
-        });
-    if affine_result {
-        permission_events.push(FlowPermissionEventFact {
-            expression: event.expression,
-            evaluation: checked_trees::FlowPermissionEvaluation::Statement,
-            machine_symbol,
-            state_symbol,
-            source: permission_source(event.source),
-            kind: PermissionEventKind::Transfer,
-            multiplicity: Multiplicity::Affine,
-            access: PermissionAccess::Owned,
-            claim_identity: PermissionClaimIdentity::Unknown,
-            provenance: PermissionProvenance::Unknown,
-            root: event.root,
-            segments: HandleSpan::empty(),
-            obligation_live: false,
-        });
-    }
-}
-
-/// An affine record or case construction passed by value is a fresh owned
-/// temporary the call consumes whole, like an anonymous affine call result.
-/// Move discovery records no place for it (it reads no existing storage), so
-/// its transfer into the owned formal is produced here from the call's own
-/// arguments, unless an earlier producer already recorded the same transfer.
-/// An unrestricted construction is copied, not moved, and needs no transfer;
-/// a claim-bearing construction is a temporary owner whose claim frontier
-/// transfers instead (`owned_transfers`).
-pub(super) fn append_constructed_argument_transfers(
-    program: &dyn ::validation::CheckingInput,
-    machine_symbol: SymbolHandle,
-    state_symbol: SymbolHandle,
-    statement_index: usize,
-    calls: &[checked_trees::FlowCallFact],
-    permission_events: &mut Vec<FlowPermissionEventFact>,
-) {
-    for call in calls
-        .iter()
-        .filter(|call| call.statement_index == statement_index)
-    {
-        let Some(site) = validation::find_call_site(
-            program,
-            machine_symbol,
-            state_symbol,
-            statement_index,
-            call.call_ordinal,
-        ) else {
-            continue;
-        };
-        let Some(parameters) = validation::call_target_parameters(program, call.target_symbol)
-        else {
-            continue;
-        };
-        let arguments = validation::call_site_argument_expressions(program, &site);
-        let explicit_parameters = parameters.iter();
-        for (parameter, argument) in explicit_parameters.zip(arguments.iter()) {
-            let typed_trees::expression::ExpressionNode::StructLiteral(literal) =
-                program.expression_table.expression(*argument)
-            else {
-                continue;
-            };
-            let Some(data) = program.data_definition_by_symbol(literal.type_symbol) else {
-                continue;
-            };
-            let multiplicity = data.properties.multiplicity;
-            let source = language_semantics::PermissionEventSource::Call {
-                statement_index,
-                call_ordinal: call.call_ordinal,
-                target_symbol: call.target_symbol,
-            };
-            let root = facts::PlaceRoot::Expression(*argument);
-            if (permission_events
-                .iter()
-                .any(|event| event.source == source && event.root == root))
-                || parameter.is_const
-                || parameter.relevance.is_erased()
-                || multiplicity != Multiplicity::Affine
-                || type_multiplicity(program, parameter.type_reference) != multiplicity
-                || owners::owned_temporary_type(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    parameter,
-                    *argument,
-                )
-                .is_some()
-                || matches!(
-                    program
-                        .type_reference_table
-                        .type_reference(parameter.type_reference),
-                    TypeReferenceNode::Reference { .. }
-                )
-            {
-                continue;
-            }
-            permission_events.push(FlowPermissionEventFact {
-                expression: *argument,
-                evaluation: checked_trees::FlowPermissionEvaluation::Statement,
-                machine_symbol,
-                state_symbol,
-                source,
-                kind: PermissionEventKind::Transfer,
-                multiplicity,
-                access: PermissionAccess::Owned,
-                claim_identity: PermissionClaimIdentity::Unknown,
-                provenance: PermissionProvenance::Unknown,
-                root,
-                segments: HandleSpan::empty(),
-                obligation_live: false,
-            });
-        }
-    }
 }
 
 /// A partial anonymous move needs its exact completing consumer before a

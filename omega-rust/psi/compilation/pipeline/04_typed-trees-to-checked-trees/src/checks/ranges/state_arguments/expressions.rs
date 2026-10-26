@@ -27,6 +27,10 @@ struct CallArguments<'context, 'program, 'frames> {
 }
 
 impl ExpressionTransferSink for CallArguments<'_, '_, '_> {
+    fn checks_indexed(&self) -> bool {
+        false
+    }
+
     fn call_entry(&mut self, facts: &RangeFacts<'_>, call: &TableCallExpression) {
         collect_state_argument_facts_for_call(
             self.context.program,

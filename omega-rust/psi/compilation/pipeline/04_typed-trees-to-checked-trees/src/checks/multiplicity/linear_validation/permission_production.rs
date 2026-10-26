@@ -1,12 +1,14 @@
 //! Permission production follows the shared source occurrence inventory.
 //! Operand moves, invocation completion and anonymous result establishment
-//! happen before the next occurrence; the statement's receiving writes wait for
+//! happen before the next occurrence; only named receiving writes wait for
 //! the expression join. Grouping calls separately from statement moves would
 //! establish a temporary after its consuming branch had already reconverged.
 //! The emitted ledger retains exact producer identities for outcome mapping
 //! and the storage extent of each write for contextual cleanup.
 
-use crate::checks::multiplicity::cleanup_dispositions::{StorageEstablishment, TransferCustody};
+use crate::checks::multiplicity::cleanup_dispositions::{
+    CustodyCut, StorageBindingChange, StorageEstablishment, TransferCustody,
+};
 use crate::checks::multiplicity::linear_obligations::{
     ClaimIdentityAllocator, LinearPlace, WrittenLinearTarget,
 };
@@ -34,6 +36,7 @@ mod projected_scopes;
 use projected_scopes::ProjectedScopes;
 
 pub(crate) struct ProducedStorage {
+    pub(crate) binding_changes: Vec<StorageBindingChange>,
     pub(crate) establishments: Vec<StorageEstablishment>,
     pub(crate) transfers: Vec<TransferCustody>,
     /// Prefix already reflected in joined storage custody. Claim events alone
@@ -46,6 +49,7 @@ pub(crate) struct ProducedStorage {
 /// across this cut: selection binding consumes evaluated arrivals, never a
 /// second walk of the source or the statement's entry custody.
 pub(crate) struct EvaluatedStorage {
+    binding_changes: Vec<StorageBindingChange>,
     pub(crate) transfers: Vec<TransferCustody>,
     pub(crate) observations: Vec<ObservedCustody>,
     event_start: usize,
@@ -60,9 +64,12 @@ pub(crate) struct EvaluatedStorage {
 /// Transfer event. Their selected permission still needs the same post-effect
 /// arrival cut as an owned aggregate; an absent event is not an absent read.
 pub(crate) struct ObservedCustody {
+    /// Permission-event prefix at this actual read, before its following move.
+    pub(crate) cut: CustodyCut,
     pub(crate) expression: typed_trees::expression::ExpressionHandle,
     pub(crate) place: validation::CanonicalPlace,
     pub(crate) places: Vec<LinearPlace>,
+    pub(crate) remaining: super::super::cleanup_dispositions::RemainingCustody,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -87,6 +94,7 @@ pub(crate) fn evaluate_statement_permissions(
     statement_index: usize,
     statement: &StatementNode,
     evaluation: checked_trees::FlowPermissionEvaluation,
+    capture: Option<&super::super::owned_selection::SelectionProduction>,
     places: &mut [LinearPlace],
     remaining: &mut super::super::cleanup_dispositions::RemainingCustody,
     permission_events: &mut Vec<FlowPermissionEventFact>,
@@ -123,11 +131,24 @@ pub(crate) fn evaluate_statement_permissions(
     .map(|target| (target, statement_source))
     .collect::<Vec<_>>();
     for &(expression, _) in observed_temporaries {
+        let target = validation::CanonicalPlace {
+            root: facts::PlaceRoot::Expression(expression),
+            segments: Vec::new(),
+        };
+        let captured_source = capture.is_some_and(|capture| {
+            capture.evaluation == evaluation && capture.captures_anonymous_source(expression)
+        });
         // An observed owner is established by its own completion, which
         // belongs to exactly one evaluation of this statement. Another
         // evaluation (a transition target reusing its guard's subject)
         // observes that same owner; it must not establish it again.
-        if temporary_owners
+        // A direct stored value normally completes at its named receiver.
+        // A captured source that must transfer into that receiver is a
+        // distinct custody coordinate despite sharing the value expression.
+        if written_targets.iter().any(|(written, _)| {
+            written.value == expression && (written.root == target.root || !captured_source)
+        })
+            || temporary_owners
             .iter()
             .any(|owner| owner.expression == expression)
             || !occurrences.iter().any(|occurrence| {
@@ -136,10 +157,6 @@ pub(crate) fn evaluate_statement_permissions(
         {
             continue;
         }
-        let target = validation::CanonicalPlace {
-            root: facts::PlaceRoot::Expression(expression),
-            segments: Vec::new(),
-        };
         written_targets.extend(
             written_owner_targets(
                 program,
@@ -154,12 +171,64 @@ pub(crate) fn evaluate_statement_permissions(
         );
     }
     for owner in temporary_owners.iter().filter(|owner| {
-        matches!(owner.consumer, PermissionEventSource::Call { statement_index: index, .. } | PermissionEventSource::Statement { statement_index: index } if index == statement_index)
+        matches!(owner.consumer,
+            PermissionEventSource::Call { statement_index: index, .. }
+                | PermissionEventSource::Statement { statement_index: index }
+            if index == statement_index)
             && owner.evaluation == evaluation
     }) {
-        let target = validation::CanonicalPlace { root: facts::PlaceRoot::Expression(owner.expression), segments: Vec::new() };
-        written_targets.extend(written_owner_targets(program, state_symbol, statement_index, &target, owner.expression, places)
-            .into_iter().map(|target| (target, owner.producer)));
+        let target = validation::CanonicalPlace {
+            root: facts::PlaceRoot::Expression(owner.expression),
+            segments: Vec::new(),
+        };
+        written_targets.extend(
+            written_owner_targets(
+                program,
+                state_symbol,
+                statement_index,
+                &target,
+                owner.expression,
+                places,
+            )
+            .into_iter()
+            .map(|target| (target, owner.producer)),
+        );
+    }
+
+    for (target, source) in &mut written_targets {
+        if let Some(expression) = target.root.as_expression()
+            && let Some(call) = state_calls.iter().find(|call| {
+                call.statement_index == statement_index && call.authored_expression == expression
+            })
+        {
+            *source = PermissionEventSource::Call {
+                statement_index,
+                call_ordinal: call.call_ordinal,
+                target_symbol: call.target_symbol,
+            };
+        }
+    }
+    // The receiving write owns disposal and storage establishment, but the
+    // selected completions own resource identity. Retain that write with an
+    // explicitly unavailable invariant identity; the complete capture receipt
+    // supplies its guarded availability after ordinary storage production.
+    if let Some(capture) = capture {
+        written_targets.retain(|(target, _)| {
+            !target
+                .root
+                .as_expression()
+                .is_some_and(|expression| capture.transported.contains(&expression))
+                || (capture.destination.root.is_valid()
+                    && capture.receives(target.root, &target.destination_path))
+        });
+        for (target, _) in &mut written_targets {
+            if capture.destination.root.is_valid()
+                && capture.receives(target.root, &target.destination_path)
+            {
+                target.claim_identity = Some(PermissionClaimIdentity::Unknown);
+                target.provenance = Some(PermissionProvenance::Unknown);
+            }
+        }
     }
 
     // Moves out of initializer/assignment sources happen before the
@@ -188,6 +257,7 @@ pub(crate) fn evaluate_statement_permissions(
     let mut storage_establishments = Vec::new();
     let mut transfers = Vec::new();
     let mut observations = Vec::new();
+    let mut binding_changes = Vec::new();
     let mut source_completions = copy_source_completions(
         program,
         facts,
@@ -250,6 +320,10 @@ pub(crate) fn evaluate_statement_permissions(
                     },
                 )?;
                 observations.push(ObservedCustody {
+                    cut: CustodyCut {
+                        occurrence_ordinal,
+                        permission_prefix: permission_events.len() - event_start,
+                    },
                     expression,
                     place: place.clone(),
                     places: custody
@@ -258,6 +332,7 @@ pub(crate) fn evaluate_statement_permissions(
                         .filter(|candidate| candidate.root == place.root)
                         .cloned()
                         .collect(),
+                    remaining: custody.1.clone(),
                 });
             }
             StatementStep::Move {
@@ -298,9 +373,6 @@ pub(crate) fn evaluate_statement_permissions(
                 if !ordered {
                     continue;
                 }
-                // Extraction transfers the referent, not the descriptor that
-                // keeps its exclusive route alive. Window checking owns exact
-                // restoration debt; the completed value establishes its custody.
                 if projected_affine::is_borrowed_place_transfer(
                     program,
                     machine_symbol,
@@ -374,39 +446,6 @@ pub(crate) fn evaluate_statement_permissions(
                         facts.flow.ownership.segments.span_or_empty(event.segments),
                     )?;
                 }
-                if matches!(event.root, facts::PlaceRoot::Expression(_))
-                    && !places.iter().any(|place| place.root == event.root)
-                {
-                    let transfer_start = permission_events.len();
-                    temporary_results::append_whole_affine_transfer(
-                        program,
-                        machine_symbol,
-                        state_symbol,
-                        &calls,
-                        event,
-                        permission_events,
-                    );
-                    remaining.advance(
-                        program,
-                        &permission_events[transfer_start..],
-                        &facts.flow.ownership.segments,
-                    );
-                    observed_completions::complete_at(
-                        program,
-                        facts,
-                        &source_completions,
-                        occurrences,
-                        moves,
-                        temporary_owners,
-                        occurrence_ordinal,
-                        selection_site,
-                        places,
-                        remaining,
-                        permission_events,
-                        cleanup_dispositions,
-                    )?;
-                    continue;
-                }
                 let event_path = facts
                     .flow
                     .ownership
@@ -438,6 +477,7 @@ pub(crate) fn evaluate_statement_permissions(
                     )?;
                     continue;
                 }
+                trace_transfer_cut(program, machine_symbol, event, &event_path, places);
                 let matching = places
                     .iter()
                     .enumerate()
@@ -453,6 +493,7 @@ pub(crate) fn evaluate_statement_permissions(
                     let position = transfers.len();
                     let start = projected_start - event_start;
                     transfers.push(TransferCustody {
+                        occurrence_ordinal,
                         events: start..start,
                         places: places.clone(),
                         remaining: remaining.clone(),
@@ -469,7 +510,7 @@ pub(crate) fn evaluate_statement_permissions(
                     places,
                     remaining,
                     permission_events,
-                );
+                )?;
                 transfers[transfer_snapshot].events.end = permission_events.len() - event_start;
                 // A projected affine subtree may have no tracked claim leaf.
                 // Its captured storage transfer still changes this branch's
@@ -482,13 +523,7 @@ pub(crate) fn evaluate_statement_permissions(
                 let kind = PermissionEventKind::Transfer;
                 for index in matching {
                     let claim_path = places[index].path.clone();
-                    if places[index].ever_established
-                        && !places[index].live
-                        && places[index].case_excluded
-                        && !event_path
-                            .iter()
-                            .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }))
-                    {
+                    if excluded_carrier_payload(&places[index], &event_path) {
                         continue;
                     }
                     let segments = facts.flow.ownership.segments.insert_many(claim_path);
@@ -579,6 +614,32 @@ pub(crate) fn evaluate_statement_permissions(
                     },
                 )?;
                 let (places, remaining) = &mut custody;
+                let composition_start = permission_events.len();
+                if !capture.is_some_and(|capture| capture.transported.contains(&expression)) {
+                    temporary_results::append_owned_transfer(
+                        facts,
+                        machine_symbol,
+                        state_symbol,
+                        statement_source,
+                        evaluation,
+                        expression,
+                        temporary_owners,
+                        &mut written_targets,
+                        places,
+                        remaining,
+                        permission_events,
+                        conditional_carrier_transfers,
+                    )?;
+                }
+                remaining.observe_ordinary(
+                    program,
+                    &permission_events[composition_start..],
+                    &facts.flow.ownership.segments,
+                    cleanup_dispositions,
+                    checked_trees::FlowClaimJoinExit::default(),
+                    &[],
+                    false,
+                );
                 // Invalid handles are the standalone statement/named-target
                 // boundary. The exact evaluation filter above selects that
                 // one invocation; expression operators keep valid handles.
@@ -592,6 +653,19 @@ pub(crate) fn evaluate_statement_permissions(
                         target_symbol: call.target_symbol,
                     };
                     let completion_start = permission_events.len();
+                    binding_changes.push(StorageBindingChange {
+                        cut: CustodyCut {
+                            occurrence_ordinal,
+                            permission_prefix: completion_start - event_start,
+                        },
+                        source,
+                        evaluation,
+                        route: occurrence.route.clone(),
+                        writes: call_writes
+                            .iter()
+                            .find(|(candidate, _)| *candidate == source)
+                            .and_then(|(_, writes)| writes.clone()),
+                    });
                     remaining.invalidate_call_observations(
                         program,
                         call_writes
@@ -599,25 +673,20 @@ pub(crate) fn evaluate_statement_permissions(
                             .find(|(candidate, _)| *candidate == source)
                             .and_then(|(_, writes)| writes.as_deref()),
                     );
-                    temporary_results::append_constructed_argument_transfers(
-                        program,
-                        machine_symbol,
-                        state_symbol,
-                        statement_index,
-                        std::slice::from_ref(call),
-                        permission_events,
-                    );
                     temporary_results::append_owned_transfer(
                         facts,
                         machine_symbol,
                         state_symbol,
                         source,
                         evaluation,
+                        expression,
                         temporary_owners,
+                        &mut written_targets,
                         places,
+                        remaining,
                         permission_events,
                         conditional_carrier_transfers,
-                    );
+                    )?;
                     let retired_owners = temporary_results::append_continuation_cleanup(
                         program,
                         facts,
@@ -673,12 +742,20 @@ pub(crate) fn evaluate_statement_permissions(
                 }
                 // A completed anonymous owner must exist before the next
                 // operand or invocation uses it, including inside a selection.
+                // Outgoing values normally wait for the receiving cut. A
+                // captured source is a distinct custody role even when it
+                // shares that expression: establish it here before transfer.
+                let captured_source = capture.is_some_and(|capture| {
+                    capture.evaluation == evaluation
+                        && capture.captures_anonymous_source(expression)
+                });
                 let (completed, pending): (Vec<_>, Vec<_>) =
                     written_targets.into_iter().partition(|(target, _)| {
                         target.root == facts::PlaceRoot::Expression(expression)
-                            && !completed_values.iter().any(|(receiving, source)| {
-                                *receiving == expression && *source == evaluation
-                            })
+                            && (captured_source
+                                || !completed_values.iter().any(|(receiving, source)| {
+                                    *receiving == expression && *source == evaluation
+                                }))
                     });
                 written_targets = pending;
                 let establishment_start = permission_events.len();
@@ -708,6 +785,66 @@ pub(crate) fn evaluate_statement_permissions(
                         destination: establishment.destination.clone(),
                     })
                     .collect::<Vec<_>>();
+                if let Some(capture) = capture {
+                    for owner in capture.owners.iter().filter(|owner| {
+                        owner.expression == expression
+                            && owner.source.root == facts::PlaceRoot::Expression(expression)
+                    }) {
+                        let transfer_snapshot = transfers.len();
+                        let transfer_start = permission_events.len() - event_start;
+                        transfers.push(TransferCustody {
+                            occurrence_ordinal,
+                            events: transfer_start..transfer_start,
+                            places: places.to_vec(),
+                            remaining: remaining.clone(),
+                        });
+                        for place in places.iter_mut().filter(|place| {
+                            place.root == owner.source.root
+                                && place.path.starts_with(&owner.source.segments)
+                        }) {
+                            if !place.ever_established {
+                                return Err(diagnostics::Diagnostic::error(format!(
+                                    "selected completion has no established source custody in machine `{}`, state `{}`, statement {}",
+                                    machine.name.as_str(),
+                                    state.name.as_str(),
+                                    statement_index + 1,
+                                ))
+                                .with_source_span(program.expression_table.source_span(expression)));
+                            }
+                            if excluded_carrier_payload(place, &owner.source.segments) {
+                                continue;
+                            }
+                            permission_events.push(FlowPermissionEventFact {
+                                expression,
+                                evaluation,
+                                machine_symbol,
+                                state_symbol,
+                                source: statement_source,
+                                kind: PermissionEventKind::Transfer,
+                                multiplicity: place.multiplicity,
+                                access: PermissionAccess::Owned,
+                                claim_identity: place
+                                    .claim_identity
+                                    .unwrap_or(PermissionClaimIdentity::Unknown),
+                                provenance: place
+                                    .provenance
+                                    .unwrap_or(PermissionProvenance::Unknown),
+                                root: place.root,
+                                segments: facts
+                                    .flow
+                                    .ownership
+                                    .segments
+                                    .insert_many(place.path.iter().copied()),
+                                obligation_live: place.live
+                                    && place.multiplicity == Multiplicity::Linear,
+                            });
+                            place.live = false;
+                        }
+                        transfers[transfer_snapshot].events.end =
+                            permission_events.len() - event_start;
+                        remaining.transfer_storage(owner.source.root, &owner.source.segments);
+                    }
+                }
                 remaining.observe_ordinary(
                     program,
                     &permission_events[establishment_start..],
@@ -793,7 +930,32 @@ pub(crate) fn evaluate_statement_permissions(
     )?;
     places.clone_from_slice(&custody.0);
     *remaining = custody.1;
+    let stored_transfer_start = permission_events.len();
+    temporary_results::append_stored_transfer(
+        facts,
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        evaluation,
+        places,
+        remaining,
+        permission_events,
+        conditional_carrier_transfers,
+    )?;
+    remaining.observe_ordinary(
+        program,
+        &permission_events[stored_transfer_start..],
+        &facts.flow.ownership.segments,
+        cleanup_dispositions,
+        checked_trees::FlowClaimJoinExit::default(),
+        &[],
+        false,
+    );
+    for event in &mut permission_events[event_start..] {
+        event.evaluation = evaluation;
+    }
     Ok(Some(EvaluatedStorage {
+        binding_changes,
         transfers,
         observations,
         event_start,
@@ -827,6 +989,7 @@ pub(crate) fn complete_statement_permissions(
     claim_outcomes: &mut super::super::claim_outcomes::ClaimOutcomePreparation,
 ) -> Result<ProducedStorage, diagnostics::Diagnostic> {
     let EvaluatedStorage {
+        binding_changes,
         transfers,
         observations: _,
         event_start,
@@ -858,24 +1021,35 @@ pub(crate) fn complete_statement_permissions(
     // flattened event roster here would import transfers from sibling arms.
     let replacement_custody = remaining.clone();
     let mut storage_establishments: Vec<StorageEstablishment> = Vec::new();
-    if written_targets.is_empty() {
-        for mut establishment in projected_replacements::append_replacement(
+    for mut establishment in projected_replacements::append_replacement(
+        program,
+        facts,
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        statement,
+        places,
+        &replacement_custody,
+        permission_events,
+        cleanup_dispositions,
+    )? {
+        // The storage receipt names this write's first establishing event.
+        // Authenticate the RHS and old cleanup before ending only the covered
+        // selected occurrence; the new event itself remains under the guard.
+        selections.check_events(
             program,
-            facts,
-            machine_symbol,
-            state_symbol,
-            statement_index,
-            statement,
-            places,
-            &replacement_custody,
-            permission_events,
-            cleanup_dispositions,
-        ) {
-            // The producer returns its exact index in the shared event vector;
-            // both cleanup consumers replay this statement's event slice.
-            establishment.event_ordinal -= event_start;
-            storage_establishments.push(establishment);
-        }
+            &permission_events[checked_through..establishment.event_ordinal],
+            &facts.flow.ownership.segments,
+        )?;
+        selections.establish(
+            establishment.destination.root,
+            &establishment.destination.segments,
+        );
+        checked_through = establishment.event_ordinal;
+        // The producer returns its exact index in the shared event vector;
+        // both cleanup consumers replay this statement's event slice.
+        establishment.event_ordinal -= event_start;
+        storage_establishments.push(establishment);
     }
 
     establish_targets(
@@ -995,10 +1169,12 @@ pub(crate) fn complete_statement_permissions(
         event.evaluation = evaluation;
     }
     selections.check_events(
+        program,
         &permission_events[checked_through..],
         &facts.flow.ownership.segments,
     )?;
     Ok(ProducedStorage {
+        binding_changes,
         establishments: storage_establishments,
         transfers,
         evaluated_events,
@@ -1231,6 +1407,9 @@ fn copy_source_completions(
     completions
 }
 
+/// An anonymous owner born on one route cannot leave a cleanup event until
+/// after reconvergence: that would revisit an already completed branch.
+/// Dispose its complement at the edge that actually completes its value.
 #[allow(clippy::too_many_arguments)]
 fn establish_targets(
     program: &dyn ::validation::CheckingInput,
@@ -1251,47 +1430,15 @@ fn establish_targets(
 ) -> Result<(), diagnostics::Diagnostic> {
     for (target, source) in written_targets {
         let place_index = target.place_index;
-        let selected_binding = facts
-            .flow
-            .ownership
-            .owned_selection_at(state_symbol, statement_index as u32)
-            .and_then(|(_, receipt)| {
-                (target.root
-                    == if receipt.destination.is_valid() {
-                        facts::PlaceRoot::Symbol(receipt.destination)
-                    } else {
-                        facts::PlaceRoot::Expression(receipt.expression)
-                    })
-                .then(|| {
-                    facts
-                        .flow
-                        .ownership
-                        .selection_result_claims
-                        .span_or_empty(receipt.result_claims)
-                        .iter()
-                        .find(|binding| {
-                            facts.flow.ownership.segments.span_or_empty(binding.path)
-                                == places[place_index].path
-                        })
-                        .cloned()
-                })
-                .flatten()
-            });
-        let obligation_live = selected_binding.is_some() || target.obligation_live;
-        let claim_identity = selected_binding
-            .as_ref()
-            .map(|binding| binding.claim_identity)
-            .or(target.claim_identity)
-            .unwrap_or_else(|| {
-                if obligation_live {
-                    claim_identities.mint(machine_symbol, state_symbol, source)
-                } else {
-                    PermissionClaimIdentity::Unknown
-                }
-            });
-        let provenance = selected_binding
-            .map(|binding| binding.provenance)
-            .or(target.provenance);
+        let obligation_live = target.obligation_live;
+        let claim_identity = target.claim_identity.unwrap_or_else(|| {
+            if obligation_live {
+                claim_identities.mint(machine_symbol, state_symbol, source)
+            } else {
+                PermissionClaimIdentity::Unknown
+            }
+        });
+        let provenance = target.provenance;
         let claim_path = places[place_index].path.clone();
         let segments = facts.flow.ownership.segments.insert_many(claim_path);
         let place = &mut places[place_index];
@@ -1303,11 +1450,16 @@ fn establish_targets(
         // retires the image the same way, and only then establishes debt.
         let replaces_zero_image =
             place.multiplicity == Multiplicity::Linear && place.zero_image && place.path.is_empty();
-        if (place.multiplicity == Multiplicity::Affine
-            && (place.live || replacement_custody.is_reserved(target.root)))
-            || replaces_zero_image
+        let replacement_already_owned = storage_establishments.iter().any(|establishment| {
+            establishment.destination.root == target.root
+                && establishment.destination.segments == target.destination_path
+        });
+        if !replacement_already_owned
+            && ((place.multiplicity == Multiplicity::Affine
+                && (place.live || replacement_custody.has_storage_frontier(target.root)))
+                || replaces_zero_image)
         {
-            for path in replacement_custody.disposal_paths(target.root, &place.path) {
+            for path in replacement_custody.disposal_paths(program, target.root, &place.path) {
                 let discarded = validation::CanonicalPlace {
                     root: target.root,
                     segments: path,
@@ -1352,6 +1504,7 @@ fn establish_targets(
         // Authenticate the RHS and old-value disposal before a new whole
         // write can end a selected-source occurrence barrier.
         selections.check_events(
+            program,
             &permission_events[*checked_through..],
             &facts.flow.ownership.segments,
         )?;
@@ -1514,4 +1667,51 @@ pub(crate) fn permission_source(source: FlowOwnershipEventSource) -> PermissionE
             target_symbol,
         },
     }
+}
+
+/// Whole-carrier transport carries the actual selected case; an authenticated
+/// absent payload is not a resource to consume. An explicit case projection
+/// must still prove that its selected payload exists.
+fn excluded_carrier_payload(place: &LinearPlace, path: &[facts::PlaceSegment]) -> bool {
+    place.ever_established
+        && !place.live
+        && place.case_excluded
+        && !path
+            .iter()
+            .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }))
+}
+
+// Temporary bounded source-producer diagnostic; remove before landing.
+fn trace_transfer_cut(
+    program: &dyn validation::CheckingInput,
+    machine: SymbolHandle,
+    event: &crate::flow::DiscoveredMoveEvent,
+    path: &[facts::PlaceSegment],
+    places: &[LinearPlace],
+) {
+    let Ok(filter) = std::env::var("OMEGA_TRACE_CLAIM_FRONTIER") else {
+        return;
+    };
+    if filter != "*" && filter != program.symbols.name(machine) {
+        return;
+    }
+    static EMITTED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    if EMITTED.fetch_add(1, std::sync::atomic::Ordering::Relaxed) >= 128 {
+        return;
+    }
+    let matching = places
+        .iter()
+        .filter(|place| place.root == event.root)
+        .map(|place| {
+            (
+                place,
+                move_selects_claim(path, place),
+                excluded_carrier_payload(place, path),
+            )
+        })
+        .collect::<Vec<_>>();
+    eprintln!(
+        "CLAIM_TRANSFER_CUT machine={} event={event:?} path={path:?} places={matching:?}",
+        program.symbols.name(machine)
+    );
 }

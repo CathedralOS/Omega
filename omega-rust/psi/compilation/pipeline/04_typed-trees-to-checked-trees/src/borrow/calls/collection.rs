@@ -80,6 +80,7 @@ impl<'a> BorrowCallCollection<'a> {
 
     pub(super) fn append_borrow_call(
         &mut self,
+        authored_expression: ExpressionHandle,
         receiver_symbol: SymbolHandle,
         target_symbol: SymbolHandle,
         has_receiver: bool,
@@ -90,6 +91,9 @@ impl<'a> BorrowCallCollection<'a> {
             BorrowCallFact {
                 statement_index: self.statement_index,
                 call_ordinal: *self.call_ordinal,
+                authored_expression,
+                reference_slot_effects: Default::default(),
+                completed_reference_loans: Default::default(),
                 receiver_symbol,
                 target_symbol,
                 has_receiver,

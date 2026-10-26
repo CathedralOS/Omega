@@ -123,12 +123,42 @@ impl Emission<'_, '_, '_> {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         source: CheckedStructuralValueHandle,
         path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+        logical_root_type_identity: typed_trees::type_identity::TypeIdentityId,
     ) -> Result<ProjectionSource, LoweringError> {
         let node = self.structural_value_node(source);
+        if super::structural_values(self.checked)
+            .root_for_value(source)
+            .is_some_and(|root| root.captured_copy.is_valid())
+        {
+            // These private captures exist only inside one transition target.
+            // Later state/local bindings use ordinary structural value roots.
+            if node.machine != self.machine
+                || node.state != self.state
+                || node.statement_index != self.statement
+            {
+                return unsupported(
+                    "saved copied projection has a different checked source coordinate",
+                );
+            }
+            let saved = self
+                .evaluation
+                .saved_value_binding(source, self.operations)?;
+            return Ok(ProjectionSource {
+                root: saved.argument.place,
+                root_path: Vec::new(),
+                root_type_identity: validation::stored_structural_type_identity(
+                    &self.checked.typed,
+                    node.type_reference,
+                    &[],
+                    &[],
+                ),
+                path,
+                logical_root_type_identity,
+            });
+        }
         let mut root_alias_path = Vec::new();
-        let (root, root_type_identity, root_source) = match node.kind {
+        let (root, root_type_identity) = match node.kind {
             CheckedStructuralValueKind::Place(argument) => {
-                let root_source = argument.source.clone();
                 if !argument.path.is_empty()
                     || argument.access != checked_trees::CheckedStructuralAccess::Owned
                 {
@@ -149,7 +179,7 @@ impl Emission<'_, '_, '_> {
                     root_alias_path = source.path;
                     source.place
                 };
-                (place, argument.type_identity, root_source)
+                (place, argument.type_identity)
             }
             _ => {
                 let root_type_identity = validation::stored_structural_type_identity(
@@ -167,13 +197,13 @@ impl Emission<'_, '_, '_> {
                                 .unwrap_or_else(|| format!("{root_type_identity:?}")),
                         ))
                     })?;
-                // The selected result's paths are relative to its leaf. The
-                // producing owner needs its own full checked frontier,
-                // including children left in the residual complement.
-                let completed = self.establish_computed_operand(
+                // Complete the whole producing occurrence under its own type.
+                // Its construction or call publishes the full claim frontier
+                // before this projection selects any leaf or residual path.
+                let completed = self.child_constructor_operand(
                     identities,
-                    source,
                     root_type,
+                    source,
                     node.type_reference,
                 )?;
                 if !completed.argument.path.is_empty()
@@ -195,13 +225,7 @@ impl Emission<'_, '_, '_> {
                         },
                     ],
                 )?;
-                (
-                    completed.argument.place,
-                    root_type_identity,
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-                        expression: node.expression,
-                    },
-                )
+                (completed.argument.place, root_type_identity)
             }
         };
         Ok(ProjectionSource {
@@ -209,7 +233,7 @@ impl Emission<'_, '_, '_> {
             root_path: root_alias_path,
             path,
             root_type_identity,
-            root_source,
+            logical_root_type_identity,
         })
     }
 }

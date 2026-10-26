@@ -45,13 +45,13 @@ impl StructuralSourceContract<'_> {
             return access;
         }
         if self.access == terminal_psi::StructuralAccess::Owned
-            && self.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-            && terminal_semantics::descriptor_results::is_shared_descriptor(
+            && let Some(access) = terminal_semantics::descriptor_results::descriptor_value_access(
                 types,
                 self.structural_type,
+                self.multiplicity,
             )
         {
-            terminal_psi::StructuralAccess::SharedBorrow
+            access
         } else {
             self.access
         }

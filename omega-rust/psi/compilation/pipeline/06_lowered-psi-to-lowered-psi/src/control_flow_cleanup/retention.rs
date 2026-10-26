@@ -51,24 +51,14 @@ pub(super) fn block_local_evidence_over_machines<'machine>(
     machines: impl IntoIterator<Item = &'machine terminal_psi::TerminalMachine>,
 ) -> BlockLocalEvidence {
     let mut evidence = BlockLocalEvidence::default();
-    // These rows stay immutable through cleanup; dropping a named call or
-    // copy would detach its checked adaptation from the executable body.
-    evidence
-        .operations
-        .extend(module.quotients.operations.iter().map(|row| row.call));
-    evidence
-        .operations
-        .extend(module.quotients.adaptations.iter().map(|row| row.copy));
-    evidence
-        .values
-        .extend(crate::retained_identities::quotient_call_results(module));
-
-    evidence.operations.extend(
-        module
-            .boundary_application_demands
-            .iter()
-            .map(|demand| demand.terminal_operation()),
-    );
+    // The shared record carriers — quotient rows, boundary demands,
+    // suspension sites, plans with their loan formations, and float-meaning
+    // projections — keep every row they name: dropping a named call or copy
+    // would detach its checked adaptation from the executable body.
+    let named = crate::retained_identities::record_named_rows(module);
+    evidence.blocks.extend(named.blocks);
+    evidence.operations.extend(named.operations);
+    evidence.values.extend(named.values);
     evidence.operations.extend(
         module
             .callback_applications
@@ -118,22 +108,6 @@ pub(super) fn block_local_evidence_over_machines<'machine>(
             }
         }
     }
-    for site in &module.suspension_call_sites {
-        evidence.operations.insert(site.operation);
-    }
-    for plan in &module.suspension_call_plans {
-        evidence.operations.insert(plan.operation);
-        plan.visit_value_ids(|value| {
-            evidence.values.insert(value);
-        });
-        for (_, loan) in plan.loans.occurrences.iter() {
-            if let terminal_psi::TerminalSuspensionLoanCapture::Reference { formation, .. } =
-                loan.capture
-            {
-                evidence.operations.insert(formation);
-            }
-        }
-    }
     for call in &module.proof_output_calls {
         if let Some(runtime) = &call.runtime_call {
             evidence.operations.insert(runtime.operation);
@@ -141,35 +115,6 @@ pub(super) fn block_local_evidence_over_machines<'machine>(
     }
     for restoration in &module.reborrow_restored_call_uses {
         evidence.operations.insert(restoration.operation);
-    }
-    for projection in &module.float_meaning_projections {
-        match &projection.source {
-            terminal_psi::FloatMeaningSource::DirectMachineParameter(parameter) => {
-                evidence.values.insert(parameter.parameter);
-            }
-            terminal_psi::FloatMeaningSource::DirectMachineResult(result) => {
-                evidence.values.insert(result.result);
-            }
-            terminal_psi::FloatMeaningSource::DirectBlockParameter(parameter) => {
-                evidence.blocks.insert(parameter.block);
-                evidence.values.insert(parameter.parameter);
-            }
-            terminal_psi::FloatMeaningSource::DirectOperationResult(result) => {
-                evidence.operations.insert(result.producer);
-                evidence.values.insert(result.result);
-            }
-            terminal_psi::FloatMeaningSource::DirectCallResult(result) => {
-                evidence.operations.insert(result.producer);
-                evidence.values.insert(result.result);
-            }
-            // A semantic application references only proof-row operands; it
-            // retains no runtime value, operation, or block evidence.
-            terminal_psi::FloatMeaningSource::TransitionalInput(_)
-            | terminal_psi::FloatMeaningSource::DirectStructuralLeaf(_)
-            | terminal_psi::FloatMeaningSource::ExactBinary32Literal(_)
-            | terminal_psi::FloatMeaningSource::ExactBinary64Literal(_)
-            | terminal_psi::FloatMeaningSource::SemanticApplication(_) => {}
-        }
     }
     for machine in machines {
         for operation in machine.blocks.iter().flat_map(|block| &block.operations) {

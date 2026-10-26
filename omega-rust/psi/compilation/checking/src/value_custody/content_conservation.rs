@@ -30,6 +30,9 @@ use typed_trees::types::TypeReferenceHandle;
 pub struct ContentConservationSourcePlan {
     pub source_expression: ExpressionHandle,
     pub plan: ContentConservationPlan,
+    /// Shared exact applied requirement subjects for this realization owner.
+    /// They authorize no body premise or direct-call result membership.
+    pub boundary_subjects: Arc<[crate::BoundaryQualificationObligation]>,
 }
 
 /// Formation belongs to this immutable checking invocation. These observations
@@ -37,6 +40,7 @@ pub struct ContentConservationSourcePlan {
 #[derive(Debug)]
 pub(crate) struct ContentConservationInputs {
     plans: Arc<Vec<ContentConservationSourcePlan>>,
+    projections: Arc<Vec<ContentProjectionPlan>>,
     checking_plans: Vec<ContentConservationSourcePlan>,
     diagnostics: Vec<Diagnostic>,
     formations: Arena<ContentProjectionFormation>,
@@ -128,6 +132,7 @@ pub(crate) fn content_conservation_inputs(
             );
             ContentConservationInputs {
                 plans: Arc::new(plans),
+                projections: Arc::new(projections),
                 checking_plans,
                 diagnostics,
                 formations,
@@ -143,6 +148,156 @@ pub fn content_conservation_plans(
     Arc::clone(&content_conservation_inputs(program).plans)
 }
 
+/// Shared normalized projections for the same immutable checking invocation.
+/// Completed-call observations must not rebuild every projection per call.
+pub(crate) fn content_projection_plans(
+    program: &dyn crate::CheckingInput,
+) -> Arc<Vec<ContentProjectionPlan>> {
+    Arc::clone(&content_conservation_inputs(program).projections)
+}
+
+/// The public law and exact result authorization a checked body realizes.
+/// This is a conditional custody contract, not an installed provider receipt.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContentBoundaryBodyRequirement {
+    pub declaring_trait: SymbolHandle,
+    pub requirement: SymbolHandle,
+    pub realization_state: SymbolHandle,
+    pub conservation: ContentConservationPlan,
+}
+
+/// Resolve a body's existing normalized law against its exact applied public
+/// requirement. The invocation-owned normalization cache and shared subject
+/// roster are reused; a projection does not rescan conformances or rebuild
+/// contract applications. Matching a name or an algebra is insufficient.
+pub fn boundary_body_content_requirements(
+    program: &dyn crate::CheckingInput,
+    body: &ContentConservationSourcePlan,
+) -> Result<Vec<ContentBoundaryBodyRequirement>, &'static str> {
+    let inputs = content_conservation_inputs(program);
+    let mut selected = Vec::new();
+    for obligation in body.boundary_subjects.iter().filter(|obligation| {
+        !obligation.parameter.is_valid()
+            && obligation.realization_state == body.plan.callable
+            && obligation.semantic_domain.is_valid()
+    }) {
+        if !result_has_qualification(
+            body.plan.equation.left(),
+            obligation.domain,
+            obligation.semantic_domain,
+        ) && !result_has_qualification(
+            body.plan.equation.right(),
+            obligation.domain,
+            obligation.semantic_domain,
+        ) {
+            continue;
+        }
+        for requirement in inputs.plans.iter().chain(&inputs.checking_plans) {
+            if requirement.plan.callable != obligation.requirement
+                || requirement.plan.algebra != body.plan.algebra
+                || !same_conservation_terms(
+                    requirement.plan.equation.left(),
+                    body.plan.equation.left(),
+                )
+                || !same_conservation_terms(
+                    requirement.plan.equation.right(),
+                    body.plan.equation.right(),
+                )
+            {
+                continue;
+            }
+            let candidate = ContentBoundaryBodyRequirement {
+                declaring_trait: obligation.declaring_trait,
+                requirement: obligation.requirement,
+                realization_state: obligation.realization_state,
+                conservation: requirement.plan.clone(),
+            };
+            if !selected.contains(&candidate) {
+                selected.push(candidate);
+            }
+        }
+    }
+    if selected.is_empty() {
+        return Err("body custody law has no exact authorized public boundary requirement");
+    }
+    Ok(selected)
+}
+
+fn result_has_qualification(
+    term: &ContentConservationTerm,
+    domain: SymbolHandle,
+    semantic_domain: language_semantics::SemanticDomainId,
+) -> bool {
+    match term {
+        ContentConservationTerm::Projection {
+            domain: actual_domain,
+            semantic_domain: actual_semantic,
+            subject,
+            ..
+        } => {
+            *actual_domain == domain
+                && *actual_semantic == semantic_domain
+                && subject.root == ContentPlaceRoot::Result
+                && subject.version == ContentPlaceVersion::Current
+                && subject.segments.is_empty()
+        }
+        ContentConservationTerm::Separate(children) => children
+            .iter()
+            .any(|child| result_has_qualification(child, domain, semantic_domain)),
+    }
+}
+
+/// Parameter symbols differ between the public requirement and its checked
+/// realization. Their authenticated formal positions are the sole renaming;
+/// projection/domain identities, paths and observation versions remain exact.
+fn same_conservation_terms(
+    left: &ContentConservationTerm,
+    right: &ContentConservationTerm,
+) -> bool {
+    match (left, right) {
+        (
+            ContentConservationTerm::Projection {
+                domain: left_domain,
+                semantic_domain: left_semantic,
+                projection_machine: left_projection,
+                subject: left,
+                ..
+            },
+            ContentConservationTerm::Projection {
+                domain: right_domain,
+                semantic_domain: right_semantic,
+                projection_machine: right_projection,
+                subject: right,
+                ..
+            },
+        ) => {
+            left_domain == right_domain
+                && left_semantic == right_semantic
+                && left_projection == right_projection
+                && left.version == right.version
+                && left.segments == right.segments
+                && match (&left.root, &right.root) {
+                    (
+                        ContentPlaceRoot::Parameter { position: left, .. },
+                        ContentPlaceRoot::Parameter {
+                            position: right, ..
+                        },
+                    ) => left == right,
+                    (ContentPlaceRoot::Result, ContentPlaceRoot::Result) => true,
+                    _ => false,
+                }
+        }
+        (ContentConservationTerm::Separate(left), ContentConservationTerm::Separate(right)) => {
+            left.len() == right.len()
+                && left
+                    .iter()
+                    .zip(right)
+                    .all(|(left, right)| same_conservation_terms(left, right))
+        }
+        _ => false,
+    }
+}
+
 fn collect_content_conservation_plans(
     program: &dyn crate::CheckingInput,
     projections: &[ContentProjectionPlan],
@@ -152,6 +307,7 @@ fn collect_content_conservation_plans(
 ) -> Vec<ContentConservationSourcePlan> {
     let mut plans = Vec::new();
     let mut proof_nodes = HashSet::new();
+    let no_boundary_subjects: Arc<[crate::BoundaryQualificationObligation]> = Arc::from([]);
 
     for trait_definition in program.traits() {
         for signature in program.trait_machine_signatures(trait_definition) {
@@ -170,6 +326,7 @@ fn collect_content_conservation_plans(
                 signature.return_type,
                 SymbolHandle::invalid(),
                 &contracts,
+                &no_boundary_subjects,
                 &mut proof_nodes,
                 &mut plans,
                 formations,
@@ -178,7 +335,17 @@ fn collect_content_conservation_plans(
         }
     }
 
+    // Frames visit machines in program order. Prepare the exact applied
+    // boundary subjects once per machine, then lend them to declaration
+    // formation only; they are not body assumptions or theorem roots.
+    let mut boundary_owner = SymbolHandle::invalid();
+    let mut boundary_subjects = Arc::clone(&no_boundary_subjects);
     program.for_each_machine_state_contract_frame(|machine, state, contracts, label| {
+        if boundary_owner != machine.symbol {
+            boundary_subjects =
+                crate::boundary_provider_qualification_obligations(program, machine).into();
+            boundary_owner = machine.symbol;
+        }
         collect_callable_plans(
             program,
             projections,
@@ -190,6 +357,7 @@ fn collect_content_conservation_plans(
             state.return_type,
             machine.attached_data_symbol,
             &contracts,
+            &boundary_subjects,
             &mut proof_nodes,
             &mut plans,
             formations,
@@ -242,6 +410,7 @@ fn collect_callable_plans(
     return_type: TypeReferenceHandle,
     self_data: SymbolHandle,
     contracts: &[&SignatureContract],
+    boundary_subjects: &Arc<[crate::BoundaryQualificationObligation]>,
     proof_nodes: &mut HashSet<(u32, u32)>,
     plans: &mut Vec<ContentConservationSourcePlan>,
     formations: &mut Arena<ContentProjectionFormation>,
@@ -282,6 +451,7 @@ fn collect_callable_plans(
                 return_type,
                 self_data,
                 contracts,
+                boundary_subjects,
             };
             let mut projection_formations = Vec::new();
             let (algebra, equation) = match normalize_equation(
@@ -327,6 +497,7 @@ fn collect_callable_plans(
             let report_fingerprint = conservation_report_fingerprint(&algebra, &equation);
             plans.push(ContentConservationSourcePlan {
                 source_expression: *expression,
+                boundary_subjects: Arc::clone(boundary_subjects),
                 plan: ContentConservationPlan {
                     owner_kind,
                     owner,
@@ -384,6 +555,45 @@ fn projection_plan_for_call<'a>(
                 .is_some()
         })
     })
+}
+
+/// Proof term formers retain their argument carrier. This is their signature,
+/// not admission of a content algebra, an entry snapshot, or a disjoint union;
+/// equation normalization separately checks those semantic obligations.
+pub(crate) fn intrinsic_result_type_reference(
+    program: &dyn crate::CheckingInput,
+    call: &TableCallExpression,
+    mut operand_type: impl FnMut(ExpressionHandle) -> Option<TypeReferenceHandle>,
+) -> Option<TypeReferenceHandle> {
+    let function = program
+        .symbols
+        .builtin_function_for_symbol(call.target_symbol)?;
+    if !matches!(
+        function,
+        BuiltinFunction::ContentOld | BuiltinFunction::ContentSeparate
+    ) || call.receiver.is_valid()
+        || !call.machine_arguments.is_empty()
+        || !call.evidence_arguments.is_empty()
+    {
+        return None;
+    }
+    let arguments = program.expression_table.expression_handles(call.arguments);
+    match function {
+        BuiltinFunction::ContentOld if arguments.len() == 1 => operand_type(arguments[0]),
+        BuiltinFunction::ContentSeparate if arguments.len() >= 2 => {
+            let carrier = operand_type(arguments[0])?;
+            arguments[1..]
+                .iter()
+                .all(|argument| {
+                    operand_type(*argument).is_some_and(|other| {
+                        program.normalized_type_identity(carrier)
+                            == program.normalized_type_identity(other)
+                    })
+                })
+                .then_some(carrier)
+        }
+        _ => None,
+    }
 }
 
 fn is_old_call(program: &dyn crate::CheckingInput, call: &TableCallExpression) -> bool {

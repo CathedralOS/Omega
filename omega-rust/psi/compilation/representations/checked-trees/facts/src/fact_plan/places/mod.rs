@@ -10,6 +10,43 @@ use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::TypeReferenceHandle;
 
+/// A reference written by one performed normal invocation. This identifies
+/// the descriptor occurrence, never a new allocation or spatial separation.
+/// The existing typed call-site owner resolves this state/statement/ordinal
+/// coordinate. Target, expression and applied carrier are not duplicated here.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct InvocationOutputIdentity {
+    pub state_symbol: SymbolHandle,
+    pub statement_index: usize,
+    pub call_ordinal: usize,
+    pub parameter_symbol: SymbolHandle,
+}
+
+impl InvocationOutputIdentity {
+    pub fn is_valid(self) -> bool {
+        self.state_symbol.is_valid() && self.parameter_symbol.is_valid()
+    }
+
+    /// Exact compiler identity, independent of physical aliasing.
+    pub fn compare_identity(self, other: Self) -> std::cmp::Ordering {
+        let key = |value: Self| {
+            (
+                (
+                    value.state_symbol.arena_index(),
+                    value.state_symbol.generation(),
+                ),
+                value.statement_index,
+                value.call_ordinal,
+                (
+                    value.parameter_symbol.arena_index(),
+                    value.parameter_symbol.generation(),
+                ),
+            )
+        };
+        key(self).cmp(&key(other))
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum PlaceRoot {
     #[default]
@@ -22,6 +59,9 @@ pub enum PlaceRoot {
         parameter: SymbolHandle,
         type_reference: TypeReferenceHandle,
     },
+    /// Opaque provider-supplied backing of a completed output leaf. Unequal
+    /// identities do not prove non-aliasing with other output or input storage.
+    InvocationOutput(InvocationOutputIdentity),
     Expression(ExpressionHandle),
     TypeReference(TypeReferenceHandle),
 }
@@ -37,6 +77,7 @@ impl PlaceRoot {
                 parameter,
                 type_reference,
             } => parameter.is_valid() && type_reference.is_valid(),
+            Self::InvocationOutput(output) => output.is_valid(),
             Self::Expression(expression) => expression.is_valid(),
             Self::TypeReference(reference) => reference.is_valid(),
         }
@@ -178,5 +219,103 @@ impl FactPlace {
             return None;
         };
         Some(*reference)
+    }
+}
+
+/// Scratch partition key for an exact structural place. Equal places produce
+/// equal keys, but a key is never identity or aliasing evidence: every candidate
+/// lookup must still compare its complete root, path and consumer-owned facts.
+pub fn place_bucket_hash(root: PlaceRoot, segments: &[PlaceSegment]) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hash = std::collections::hash_map::DefaultHasher::new();
+    root.hash(&mut hash);
+    segments.hash(&mut hash);
+    hash.finish()
+}
+
+/// Construction-only positions grouped by a scratch key, in encounter order.
+/// Hash collisions retain every candidate. Callers supply full equality; this
+/// index never certifies a place, domain, evidence, overlap or storage lifetime.
+pub struct PlaceBucketIndex {
+    positions: Vec<(u64, usize)>,
+}
+
+impl PlaceBucketIndex {
+    pub fn new(keys: impl IntoIterator<Item = u64>) -> Self {
+        let mut positions: Vec<_> = keys
+            .into_iter()
+            .enumerate()
+            .map(|(position, key)| (key, position))
+            .collect();
+        positions.sort_unstable();
+        Self { positions }
+    }
+
+    pub fn candidates(&self, key: u64) -> impl Iterator<Item = usize> + '_ {
+        let start = self
+            .positions
+            .partition_point(|(candidate, _)| *candidate < key);
+        let end =
+            start + self.positions[start..].partition_point(|(candidate, _)| *candidate == key);
+        self.positions[start..end]
+            .iter()
+            .map(|(_, position)| *position)
+    }
+
+    /// First equivalent input position for each input. Equality must imply the
+    /// same scratch key; collisions still call `equal` and remain distinct.
+    pub fn group_equal_positions(&self, equal: impl Fn(usize, usize) -> bool) -> Vec<usize> {
+        let mut first = vec![usize::MAX; self.positions.len()];
+        let mut representatives = Vec::new();
+        let mut bucket = None;
+        let mut bucket_start = 0;
+        for (key, position) in &self.positions {
+            if bucket != Some(*key) {
+                bucket = Some(*key);
+                bucket_start = representatives.len();
+            }
+            let previous = representatives[bucket_start..]
+                .iter()
+                .copied()
+                .find(|previous| equal(*previous, *position));
+            first[*position] = if let Some(previous) = previous {
+                previous
+            } else {
+                representatives.push(*position);
+                *position
+            };
+        }
+        first
+    }
+}
+
+#[cfg(test)]
+mod bucket_index_tests {
+    use super::PlaceBucketIndex;
+
+    #[test]
+    fn scratch_buckets_keep_collisions_and_first_encounter_positions() {
+        let rows = [
+            (8, "left"),
+            (3, "other"),
+            (8, "right"),
+            (8, "left"),
+            (3, "other"),
+        ];
+        let index = PlaceBucketIndex::new(rows.iter().map(|(key, _)| *key));
+        assert_eq!(index.candidates(8).collect::<Vec<_>>(), [0, 2, 3]);
+        assert!(index.candidates(99).next().is_none());
+        let expected = [0, 1, 2, 0, 1];
+        assert_eq!(
+            index.group_equal_positions(|left, right| rows[left] == rows[right]),
+            expected
+        );
+        // Deliberately collide every key: the equality callback must still
+        // keep unequal rows apart and retain their first input positions.
+        let collisions = PlaceBucketIndex::new(rows.iter().map(|_| 0));
+        assert_eq!(
+            collisions.group_equal_positions(|left, right| rows[left] == rows[right]),
+            expected
+        );
     }
 }

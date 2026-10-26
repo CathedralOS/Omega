@@ -25,6 +25,7 @@ pub(crate) fn validate_conformances(
     service_reaches: &flow_effects::ServiceReachInferencePlan,
     symbols: &crate::declarations::symbols::TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     for (index, conformance) in program.conformances().iter().enumerate() {
         if program.conformances()[..index].iter().any(|previous| {
@@ -41,7 +42,14 @@ pub(crate) fn validate_conformances(
                 "named implementation `{name}` is declared more than once"
             )));
         }
-        validate_named_implementation(program, service_reaches, symbols, conformance, diagnostics);
+        validate_named_implementation(
+            program,
+            service_reaches,
+            symbols,
+            conformance,
+            diagnostics,
+            formation_obligations,
+        );
     }
 }
 
@@ -53,6 +61,7 @@ pub fn revalidate_named_implementation(
     conformance: &typed_trees::trait_definition::Conformance,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
+    let mut formation_obligations = Vec::new();
     let symbols = crate::declarations::symbols::TopLevelSymbols::build(program, &mut diagnostics);
     let operational = crate::infer_operational_may(program);
     let service_reaches = crate::infer_service_reaches(program, &operational);
@@ -62,6 +71,7 @@ pub fn revalidate_named_implementation(
         &symbols,
         conformance,
         &mut diagnostics,
+        &mut formation_obligations,
     );
     if diagnostics.is_empty() {
         Ok(())
@@ -76,6 +86,7 @@ fn validate_named_implementation(
     symbols: &crate::declarations::symbols::TopLevelSymbols<'_>,
     conformance: &typed_trees::trait_definition::Conformance,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     let implementation_name = conformance
         .alias
@@ -143,6 +154,7 @@ fn validate_named_implementation(
             lifetime_parameters: &conformance.lifetime_parameters,
         },
         diagnostics,
+        formation_obligations,
     );
 
     validate_closed_rows(

@@ -4,6 +4,9 @@
 //! the selected edge, not one global return flag, owns their transfer or
 //! disposal. Every remaining operation must then carry custody a composed
 //! state can replay; one that does not names its kind in the trace.
+//! Completed earlier operations expose their retained nested value calls through
+//! the common dependency inventory. Admission rejoins one exact producer and
+//! call boundary; inventory order does not schedule evaluation or select death.
 use super::result_custody::{
     call_owns_result, operand_owned_construction, retained_structural_result,
 };
@@ -114,6 +117,7 @@ pub(super) fn admit(
                 if !cleanup_actions.is_empty()
                     && cleanup_actions.iter().all(|action| call_argument_admitted(
                         &checked_trees::CheckedUnitStructuralArgumentPlan {
+            projection_evaluations: Default::default(),
                             source: action.source().clone(),
                             path: action.path().to_vec(),
                             type_identity: action.type_identity().to_owned(),
@@ -123,8 +127,10 @@ pub(super) fn admit(
                     ))
                     && match boundary {
                         checked_trees::CheckedUnitCleanupBoundary::Call(coordinate) => operations[..operation_index].iter()
+                            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
                             .filter_map(CheckedUnitEffectOperationPlan::invocation_coordinate)
-                            .any(|invocation| invocation == *coordinate),
+                            .filter(|invocation| *invocation == *coordinate)
+                            .count() == 1,
                         checked_trees::CheckedUnitCleanupBoundary::StatementEntry { statement_index }
                         | checked_trees::CheckedUnitCleanupBoundary::Replacement { statement_index, .. } => statements.get(*statement_index as usize).is_some(),
                     } => {}
@@ -218,10 +224,16 @@ fn call_argument_admitted(
         // binding introduces the additional graph disposition checked below.
         return true;
     };
-    let mut producers = earlier.iter().filter_map(|operation| {
-        let result = operation.structural_result_binding()?;
-        (result.binding_ordinal == ordinal).then_some((operation, result))
-    });
+    // The enclosing operation has completed before this prefix boundary.
+    // Its nested producers retain their exact binding records and dispositions;
+    // the outer value is not a substitute owner for one of those results.
+    let mut producers = earlier
+        .iter()
+        .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+        .filter_map(|operation| {
+            let result = operation.structural_result_binding()?;
+            (result.binding_ordinal == ordinal).then_some((operation, result))
+        });
     let Some((producer, result)) = producers.next() else {
         return false;
     };
@@ -249,11 +261,15 @@ fn call_custody_refusal(
         if argument.access == CheckedStructuralAccess::Owned
             && let Some(ordinal) = argument.source_structural_result_binding_ordinal()
         {
-            let producer = earlier.iter().rev().find_map(|operation| {
-                operation
-                    .structural_result_binding()
-                    .filter(|result| result.binding_ordinal == ordinal)
-            });
+            let producer = earlier
+                .iter()
+                .rev()
+                .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+                .find_map(|operation| {
+                    operation
+                        .structural_result_binding()
+                        .filter(|result| result.binding_ordinal == ordinal)
+                });
             return match producer.map(|result| result.multiplicity) {
                 None => "state graph: operation custody: call owned result without a producer",
                 Some(_) => "state graph: operation custody: call owned local result",

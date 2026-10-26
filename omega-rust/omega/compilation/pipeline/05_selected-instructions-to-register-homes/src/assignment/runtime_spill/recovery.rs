@@ -45,6 +45,7 @@ use selected_instructions_to_selected_instructions::{
     spill_selected_runtime_value_with_crossing_status, split_selected_runtime_value,
 };
 
+#[allow(dead_code)]
 pub(crate) fn assign_source(
     source: &StagedOptimizedAllocationLegality,
 ) -> Result<crate::ValidatedRegisterHomes, crate::RegisterHomeError> {
@@ -55,6 +56,19 @@ pub(crate) fn assign_source(
     )
 }
 
+pub(crate) fn assign_source_reusing(
+    source: &StagedOptimizedAllocationLegality,
+    reuse: &mut FunctionHomeReuse,
+) -> Result<crate::ValidatedRegisterHomes, crate::RegisterHomeError> {
+    assign_reusing(
+        source.register_environment(),
+        source.ranges(),
+        source.legality(),
+        Some(reuse),
+    )
+}
+
+#[allow(dead_code)]
 pub(super) fn assign(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     ranges: &ValidatedLiveRanges,
@@ -83,6 +97,7 @@ fn assign_reusing(
     )
 }
 
+#[allow(dead_code)]
 pub(super) fn analyze(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     availability: &ValidatedAllocatorAvailability,
@@ -147,20 +162,23 @@ fn reanalyze_unsealed(
         })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn seal_recovery_facts(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     availability: &ValidatedAllocatorAvailability,
     anchor_selected: &impl ValidatedSelectedAnalysis,
-    anchor_facts: &RuntimeSpillFacts,
+    anchor_liveness: &ValidatedLiveness,
+    anchor_ranges: &ValidatedLiveRanges,
+    anchor_legality: &ValidatedAllocationLegality,
     unsealed: UnsealedRecoveryFacts,
     selected: &impl ValidatedSelectedAnalysis,
 ) -> Result<RuntimeSpillFacts, RuntimeSpillAllocationError> {
     let (liveness, ranges, legality) = unsealed
         .seal(
             anchor_selected,
-            &anchor_facts.liveness,
-            &anchor_facts.ranges,
-            &anchor_facts.legality,
+            anchor_liveness,
+            anchor_ranges,
+            anchor_legality,
             selected,
             availability,
             environment.identity(),
@@ -970,10 +988,18 @@ fn admissible_split_indexed(
     Ok(None)
 }
 
+#[allow(dead_code)]
 pub(crate) fn recover(
     source: StagedOptimizedAllocationLegality,
 ) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
-    recover_over(RuntimeSpillSource::Legality(source))
+    recover_with_reuse(source, FunctionHomeReuse::default())
+}
+
+pub(crate) fn recover_with_reuse(
+    source: StagedOptimizedAllocationLegality,
+    home_reuse: FunctionHomeReuse,
+) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
+    recover_over(RuntimeSpillSource::Legality(source), home_reuse)
 }
 
 /// A fixed-view sequence that exhausted its own assignment hands custody here:
@@ -982,7 +1008,10 @@ pub(crate) fn recover(
 pub(crate) fn recover_after_fixed_view_copies(
     reanalysis: StagedOptimizedSelectedReanalysis,
 ) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
-    recover_over(RuntimeSpillSource::FixedViewCopies(reanalysis))
+    recover_over(
+        RuntimeSpillSource::FixedViewCopies(reanalysis),
+        FunctionHomeReuse::default(),
+    )
 }
 
 /// A declared fixed-view sequence whose segment-home probe reported a
@@ -993,7 +1022,10 @@ pub(crate) fn recover_after_declined_fixed_view_probe(
     legality: StagedOptimizedAllocationLegality,
     policy: FixedViewCopyPolicy,
 ) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
-    recover_over(RuntimeSpillSource::DeclinedFixedView { legality, policy })
+    recover_over(
+        RuntimeSpillSource::DeclinedFixedView { legality, policy },
+        FunctionHomeReuse::default(),
+    )
 }
 
 /// An active-resident rematerialization sweep whose rebuilt facts still
@@ -1003,19 +1035,28 @@ pub(crate) fn recover_after_declined_fixed_view_probe(
 pub(crate) fn recover_after_active_resident_rematerialization(
     pressure: crate::StagedOptimizedActiveResidentRematerializationPressure,
 ) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
-    recover_over(RuntimeSpillSource::ActiveResidentRematerialization(
-        pressure,
-    ))
+    recover_over(
+        RuntimeSpillSource::ActiveResidentRematerialization(pressure),
+        FunctionHomeReuse::default(),
+    )
 }
 
 /// A completed selected-lowering run whose final facts still report
 /// `NoCompatibleHome` hands custody here: recovery runs over the run's
 /// current program and rebuilt analyses, the committed fold ledger and the
 /// suite completion stay recorded ahead of every spill step.
+#[allow(dead_code)]
 pub(crate) fn recover_after_selected_lowering(
     run: StagedSelectedLoweringOptimizationRun,
 ) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
-    recover_over(RuntimeSpillSource::SelectedLowering(run))
+    recover_after_selected_lowering_with_reuse(run, FunctionHomeReuse::default())
+}
+
+pub(crate) fn recover_after_selected_lowering_with_reuse(
+    run: StagedSelectedLoweringOptimizationRun,
+    home_reuse: FunctionHomeReuse,
+) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
+    recover_over(RuntimeSpillSource::SelectedLowering(run), home_reuse)
 }
 
 /// A completed pre-allocation run whose final facts still report
@@ -1023,10 +1064,18 @@ pub(crate) fn recover_after_selected_lowering(
 /// the run's current program and rebuilt analyses, the committed
 /// transformation ledger and the suite completion stay recorded ahead of
 /// every spill step.
+#[allow(dead_code)]
 pub(crate) fn recover_after_pre_allocation(
     run: StagedPreAllocationOptimizationRun,
 ) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
-    recover_over(RuntimeSpillSource::PreAllocation(run))
+    recover_after_pre_allocation_with_reuse(run, FunctionHomeReuse::default())
+}
+
+pub(crate) fn recover_after_pre_allocation_with_reuse(
+    run: StagedPreAllocationOptimizationRun,
+    home_reuse: FunctionHomeReuse,
+) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
+    recover_over(RuntimeSpillSource::PreAllocation(run), home_reuse)
 }
 
 /// Both exit points declare the manifest over the same retained prefix.
@@ -1051,41 +1100,59 @@ fn project_recovery_manifest(
 
 fn recover_over(
     source: RuntimeSpillSource,
+    mut home_reuse: FunctionHomeReuse,
 ) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
     let resolved = source.resolve();
     let base = &resolved.manifest;
     let environment = resolved.legality_stage.register_environment();
     let availability = resolved.legality_stage.allocator_availability();
-    // One reuse set spans every step: each step rewrites one function, so the
-    // others keep the homes their unchanged rows already received.
-    let mut home_reuse = FunctionHomeReuse::default();
     let budget = resolved.legality_stage.budget_per_pass();
     let rewrite = phase_profile::scope("06.1.d.05.b_fixed_occurrences", || {
         materialize_selected_fixed_occurrences(&resolved.base, environment, budget)
             .map(RuntimeSpillStepRewrite::FixedOccurrences)
             .map_err(RuntimeSpillAllocationError::FixedOccurrences)
     })?;
-    let facts = phase_profile::scope("06.1.d.05.c_initial_analyze", || {
-        analyze(
-            environment,
-            availability,
-            &resolved.base,
+    let initial_facts = phase_profile::scope("06.1.d.05.c_initial_analyze", || {
+        let base_facts = UnsealedRecoveryFacts::from_validated(
             resolved.liveness,
             resolved.ranges,
             resolved.legality,
+        );
+        reanalyze_unsealed(
+            environment,
+            availability,
+            &resolved.base,
+            &base_facts,
             &rewrite.selected(),
         )
     })?;
     let mut recorded = vec![rewrite.transformation()];
     let mut failure = match phase_profile::scope("06.1.d.05.c2_initial_assign", || {
-        assign_reusing(
-            environment,
-            &facts.ranges,
-            &facts.legality,
-            Some(&mut home_reuse),
+        home_reuse.probe_all(
+            environment.identity(),
+            initial_facts.legality_functions(),
+            initial_facts.range_functions(),
+            environment.physical(),
         )
     }) {
-        Ok(homes) => {
+        Ok(()) => {
+            let facts = seal_recovery_facts(
+                environment,
+                availability,
+                &resolved.base,
+                resolved.liveness,
+                resolved.ranges,
+                resolved.legality,
+                initial_facts,
+                &rewrite.selected(),
+            )?;
+            let homes = assign_reusing(
+                environment,
+                &facts.ranges,
+                &facts.legality,
+                Some(&mut home_reuse),
+            )
+            .map_err(RuntimeSpillAllocationError::Homes)?;
             let manifest = project_recovery_manifest(
                 &base,
                 &recorded,
@@ -1104,8 +1171,6 @@ fn recover_over(
         Err(error) if error.admits_runtime_recovery() => error,
         Err(error) => return Err(RuntimeSpillAllocationError::Homes(error)),
     };
-    let anchor_rewrite = rewrite.clone();
-    let anchor_facts = facts;
     let mut current = rewrite;
     // Analysis facts remain bound to this exact batch source. Every intermediate
     // rewrite is independently admitted, but only the completed batch is analyzed.
@@ -1113,11 +1178,7 @@ fn recover_over(
     let mut pending_pressure = home_reuse.take_pressure();
     pending_pressure.reverse();
     pending_pressure.pop();
-    let mut current_facts = UnsealedRecoveryFacts::from_validated(
-        &anchor_facts.liveness,
-        &anchor_facts.ranges,
-        &anchor_facts.legality,
-    );
+    let mut current_facts = initial_facts;
     let mut batch_indices: std::collections::BTreeMap<usize, BatchFunctionIndex> =
         std::collections::BTreeMap::new();
     let mut rosters: std::collections::BTreeMap<usize, FunctionRoster> =
@@ -1254,8 +1315,10 @@ fn recover_over(
                             let facts = seal_recovery_facts(
                                 environment,
                                 availability,
-                                &anchor_rewrite.selected(),
-                                &anchor_facts,
+                                &resolved.base,
+                                resolved.liveness,
+                                resolved.ranges,
+                                resolved.legality,
                                 unsealed,
                                 &selected,
                             )?;
@@ -1352,8 +1415,10 @@ fn recover_over(
                                         let facts = seal_recovery_facts(
                                             environment,
                                             availability,
-                                            &anchor_rewrite.selected(),
-                                            &anchor_facts,
+                                            &resolved.base,
+                                            resolved.liveness,
+                                            resolved.ranges,
+                                            resolved.legality,
                                             probe,
                                             &SelectedProgramRef::new(&crossing),
                                         )?;
@@ -1469,8 +1534,10 @@ fn recover_over(
                         let facts = seal_recovery_facts(
                             environment,
                             availability,
-                            &anchor_rewrite.selected(),
-                            &anchor_facts,
+                            &resolved.base,
+                            resolved.liveness,
+                            resolved.ranges,
+                            resolved.legality,
                             unsealed,
                             &rewrite.selected(),
                         )?;

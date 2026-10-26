@@ -42,6 +42,7 @@ pub(in crate::capture::behavior) fn project_boolean_expression(
         CheckedBooleanExpression::StructuralParameterField {
             parameter_position,
             path,
+            ..
         } => PackageReviewBooleanExpression::StructuralParameterField {
             parameter_position: *parameter_position,
             path: project_structural_path(path)?,
@@ -169,6 +170,7 @@ fn project_scalar_expression(
             index,
             element_path,
             primitive_type,
+            ..
         } => {
             // Public records retain the existing canonical vocabulary. Initial
             // consecutive selectors are scalar expressions; selectors following
@@ -255,6 +257,7 @@ fn project_scalar_expression(
             parameter_position,
             path,
             primitive_type,
+            ..
         } => PackageReviewScalarExpression::StructuralParameterField {
             parameter_position: *parameter_position,
             path: project_structural_path(path)?,
@@ -346,6 +349,9 @@ fn project_structural_path(
     path.iter()
         .map(|segment| {
             Some(match segment {
+                checked_trees::CheckedStructuralPredicatePathSegment::Referent => {
+                    PackageReviewStructuralPredicatePathSegment::Referent
+                }
                 checked_trees::CheckedStructuralPredicatePathSegment::Field(field) => {
                     PackageReviewStructuralPredicatePathSegment::Field(field.spelling())
                 }

@@ -78,7 +78,8 @@ pub(super) fn check_view_return_escape(
                 }
                 facts::PlaceRoot::Unknown
                 | facts::PlaceRoot::TypeReference(_)
-                | facts::PlaceRoot::InvocationReferent { .. } => {
+                | facts::PlaceRoot::InvocationReferent { .. }
+                | facts::PlaceRoot::InvocationOutput(_) => {
                     diagnostics.push(Diagnostic::error(
                         "returned view has no captured storage origin",
                     ));

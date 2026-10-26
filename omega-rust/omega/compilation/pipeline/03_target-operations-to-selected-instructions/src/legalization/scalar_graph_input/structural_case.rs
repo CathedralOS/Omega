@@ -282,14 +282,13 @@ pub(in crate::legalization) fn structural_transport_layout(
     }
     let (endpoint, byte_offset, indices) = match path {
         abstract_operations::StructuralCopyPath::Case(path) => {
-            let (endpoint, offset) =
-                crate::structural_inputs::structural_reference_input::case_projection(
-                    identity,
-                    path,
-                    &plan.structural_types,
-                )
-                .ok_or(LegalizationError::custody())?;
-            (endpoint, offset, Vec::new())
+            let geometry = crate::structural_inputs::structural_reference_input::case_projection(
+                identity,
+                path,
+                &plan.structural_types,
+            )
+            .ok_or(LegalizationError::custody())?;
+            (geometry.selected, geometry.byte_offset, geometry.elements)
         }
         abstract_operations::StructuralCopyPath::Ordinary(path) if path.is_empty() => {
             (identity, 0, Vec::new())

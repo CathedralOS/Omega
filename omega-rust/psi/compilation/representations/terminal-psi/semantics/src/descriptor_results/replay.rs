@@ -6,6 +6,12 @@
 //! caller loan or invents a loan on the temporary result. Missing active contents
 //! remain unknown. Exact case constructors alone mark inactive slots empty.
 //!
+//! A simultaneous block arrival distinguishes an owned value from a borrowed
+//! storage alias. The owned ordinary receiver has its own home, while every
+//! descriptor word captured inside it keeps its original pointee. Moving a
+//! reference or view carrier never renames the backing it denotes. Typed edge
+//! access supplies this distinction; provenance supplies no permission.
+//!
 //! Runtime-selected nested descriptors use typed contents queries, never
 //! wildcard carrier addresses. A query reads the pre-operation snapshot and
 //! substitutes incoming contents at the caller. Unknown backing writes retire
@@ -23,6 +29,7 @@ use super::*;
 use crate::descriptor_lifetimes::{DescriptorPathSegment, descriptor_path};
 
 mod analysis;
+mod case_flow;
 mod contents_queries;
 mod dispatch;
 mod provider;
@@ -293,9 +300,20 @@ pub enum DescriptorSlotKind {
     /// Borrowed descriptor storage, independent of its backing access ceiling.
     Views,
     References,
+    /// Complete storage-origin transport includes both pointer contents and
+    /// view backing. Their representation and permission meanings stay distinct.
+    BorrowedStorage,
     PlacedOrigins,
 }
 impl DescriptorSlotKind {
+    pub fn tracks_views(self) -> bool {
+        matches!(self, Self::Views | Self::BorrowedStorage)
+    }
+
+    pub fn tracks_references(self) -> bool {
+        matches!(self, Self::References | Self::BorrowedStorage)
+    }
+
     pub fn is_slot(self, types: &[StructuralTypeDeclaration], ty: StructuralTypeId) -> bool {
         match self {
             Self::Views => is_descriptor(types.iter(), ty),
@@ -313,6 +331,24 @@ impl DescriptorSlotKind {
             Self::References => find_structural_type(types, ty).is_some_and(|declaration| {
                 matches!(declaration.shape, StructuralTypeShape::Reference { .. })
             }),
+            Self::BorrowedStorage => {
+                Self::Views.is_slot(types, ty) || Self::References.is_slot(types, ty)
+            }
+        }
+    }
+
+    /// An ordinary pointer parameter supplies unknown incoming contents;
+    /// a view parameter supplies its original backing geometry instead.
+    /// Combining inventories must not turn a view into a pointer-slot token.
+    pub(super) fn parameter_is_incoming_slot(
+        self,
+        types: &[StructuralTypeDeclaration],
+        ty: StructuralTypeId,
+    ) -> bool {
+        match self {
+            Self::BorrowedStorage => Self::References.is_slot(types, ty),
+            Self::Views => false,
+            Self::References | Self::PlacedOrigins => self.is_slot(types, ty),
         }
     }
     /// Under the view inventory, a field whose carrier borrows caller storage
@@ -320,7 +356,7 @@ impl DescriptorSlotKind {
     /// not depend on the access the view carries, so the carrier's own shape
     /// judgment answers the layout and each field declaration keeps its access.
     pub(super) fn is_view_field_slot(self, field_type: &terminal_psi::StructuralFieldType) -> bool {
-        self == Self::Views
+        self.tracks_views()
             && field_type
                 .byte_sequence_carrier()
                 .is_some_and(|carrier| carrier.is_borrowed())
@@ -529,7 +565,7 @@ impl DescriptorSlotKind {
         // A canonical view presentation lends its backing, not a mutable home
         // for the pointer/count pair. Stored view values retain Some(access)
         // on their declaration and still need an output contract when replaced.
-        if self == Self::Views
+        if self.tracks_views()
             && matches!(
                 find_structural_type(types, structural_type)?.shape,
                 StructuralTypeShape::ByteSequence(
@@ -648,7 +684,7 @@ fn slot_inventory(
         }
         if kind.is_slot(types, ty) {
             result.slots.push(location.clone());
-            if kind != DescriptorSlotKind::References || scope == DescriptorStorageScope::Owned {
+            if !kind.tracks_references() || scope == DescriptorStorageScope::Owned {
                 active.remove(&ty);
                 return Some(());
             }

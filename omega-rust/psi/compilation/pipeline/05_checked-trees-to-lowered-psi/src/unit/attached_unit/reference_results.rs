@@ -94,7 +94,7 @@ pub(crate) fn publish_storage(
     ))
 }
 
-pub(super) fn emit<'parameter>(
+pub(super) fn emit(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     formation: Formation<'_>,
     result: &CheckedUnitStructuralResultBindingPlan,
@@ -102,7 +102,7 @@ pub(super) fn emit<'parameter>(
     storage: PublishedReferenceStorage,
     types: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     declarations: &[terminal_psi::StructuralTypeDeclaration],
-    parameters: impl Iterator<Item = &'parameter terminal_psi::StructuralParameterDeclaration>,
+    evaluation: &super::argument_evaluation::Evaluation,
     next_place: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
@@ -114,35 +114,40 @@ pub(super) fn emit<'parameter>(
         source,
         storage,
         declarations,
-        parameters,
+        evaluation,
         place_id(allocate_dense(next_place)?),
         operations,
     )
 }
 
-pub(crate) fn emit_carrier<'parameter>(
+pub(crate) fn emit_carrier(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     formation: Formation<'_>,
     structural_type: StructuralTypeId,
     source: StructuralArgument,
     storage: PublishedReferenceStorage,
     declarations: &[terminal_psi::StructuralTypeDeclaration],
-    parameters: impl Iterator<Item = &'parameter terminal_psi::StructuralParameterDeclaration>,
+    evaluation: &super::argument_evaluation::Evaluation,
     place: semantic_vocabulary::PlaceId,
     operations: &mut OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
     let id = operations.allocate();
-    let parameters = parameters.collect::<Vec<_>>();
+    let parameters = evaluation.structural_root_parameters().collect::<Vec<_>>();
     let resident_source = if let PublishedReferenceStorage::ResidentPlaced {
         extent,
         granted,
         resident,
     } = storage
     {
-        let (root, _, _) = super::structural_values::member_memberships::source_memberships(
+        let (root, _, _) = super::structural_values::member_memberships::source_memberships_in(
             source.place,
             parameters.iter().copied(),
-            operations,
+            operations.iter().chain(
+                evaluation
+                    .blocks
+                    .iter()
+                    .flat_map(|block| block.operations.iter()),
+            ),
         )
         .ok_or(LoweringError::Unsupported(
             "resident reference lost its supplying declaration",
@@ -298,6 +303,8 @@ pub(crate) fn emit_carrier<'parameter>(
             terminal_psi::StructuralTypeShape::Reference { .. }
         )
     {
+        // Completed evaluation can move a source producer into an earlier
+        // private block. Its emitted declaration remains the membership owner.
         // A descriptor carries the actual source's memberships below its
         // borrowed boundary, never qualifications on the descriptor itself.
         // Constructor transport then prefixes these same rows with its field
@@ -308,10 +315,15 @@ pub(crate) fn emit_carrier<'parameter>(
             ));
         };
         if let Some((root, whole, projected)) =
-            super::structural_values::member_memberships::source_memberships(
+            super::structural_values::member_memberships::source_memberships_in(
                 source.place,
                 parameters.iter().copied(),
-                operations,
+                operations.iter().chain(
+                    evaluation
+                        .blocks
+                        .iter()
+                        .flat_map(|block| block.operations.iter()),
+                ),
             )
         {
             let path = terminal_semantics::reference_source_storage_path(

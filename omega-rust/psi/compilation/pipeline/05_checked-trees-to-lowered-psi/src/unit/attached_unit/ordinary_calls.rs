@@ -51,20 +51,23 @@ impl PreparedCall {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn emit(
         self,
+        checked: &CheckedTrees,
         operations: &mut OperationBuffer,
         coordinate: SourceCallCoordinate,
         source_site: Option<checked_trees::NominalMachineUseSite>,
-        source_target: symbols::SymbolHandle,
         record: crate::direct_calls::CallRecord<'_>,
         result: OperationResult,
         callee: MachineId,
         result_kind: DirectCallResult,
     ) -> Result<semantic_vocabulary::OperationId, LoweringError> {
+        // Unit, scalar and structural routes supply the same checked occurrence,
+        // not whichever machine/state symbol their local emission happens to use.
+        let target = crate::call_sites::checked_source_call(checked, coordinate)?;
         crate::direct_calls::emit_direct_call(
             operations,
             coordinate,
             source_site,
-            source_target,
+            target.target_symbol,
             record,
             result,
             DirectCall::new(
@@ -91,6 +94,9 @@ pub(super) fn prepare(
     target: Target<'_>,
     evaluated_scalar_arguments: Option<&[ValueDeclaration]>,
     evaluated_selectors: Option<&[ValueDeclaration]>,
+    completed_structural_arguments: Option<
+        &[Option<super::operation_frame::CompletedStructuralArgument>],
+    >,
     caller_scalar_values: &[ValueDeclaration],
     caller_erased_scalar_parameters: &[ValueDeclaration],
     caller_erased_proof_parameters: &[checked_trees::CheckedErasedProofParameterPlan],
@@ -106,6 +112,7 @@ pub(super) fn prepare(
     calls: &mut CallEmissionContext<'_>,
     next_value: &mut u64,
     operations: &mut OperationBuffer,
+    current_claims: &mut crate::emission::current_claims::CurrentClaimNames,
 ) -> Result<PreparedCall, LoweringError> {
     // All ordinary result kinds share operand custody and callee contracts.
     // Result formation and publication remain with the operation frame.
@@ -184,17 +191,11 @@ pub(super) fn prepare(
     let mut selector_values =
         call_index_selectors(structural_arguments, evaluated_selectors)?.into_iter();
 
-    let claim_transfers = emitted_claim_transfers(
-        identities,
-        claim_transfers,
-        calls.claims.bindings(),
-        target.parameters,
-        structural_types,
-    )?;
     let terminal_arguments = lower_structural_arguments(
         identities,
         checked,
         structural_arguments,
+        completed_structural_arguments,
         structural_types,
         parameters,
         local_places,
@@ -208,6 +209,16 @@ pub(super) fn prepare(
         &mut selector_values,
         Some(calls),
         Some((next_value, operations)),
+    )?;
+
+    let claim_transfers = emitted_claim_transfers(
+        identities,
+        claim_transfers,
+        calls.claims.bindings(),
+        target.parameters,
+        structural_types,
+        &terminal_arguments,
+        current_claims,
     )?;
 
     let crash_continuations = prepare_crash_continuations(
@@ -280,6 +291,7 @@ pub(crate) fn prepare_computed_module_call(
     calls: &mut CallEmissionContext<'_>,
     next_value: &mut u64,
     operations: &mut OperationBuffer,
+    current_claims: &mut crate::emission::current_claims::CurrentClaimNames,
 ) -> Result<PreparedCall, LoweringError> {
     let signature = calls
         .signatures
@@ -364,6 +376,8 @@ pub(crate) fn prepare_computed_module_call(
     let claim_transfers = crate::emission::claim_bindings::emit_prepared_claim_transfers(
         claim_transfers,
         calls.claims.bindings(),
+        &emitted_structural_arguments,
+        current_claims,
     )?;
     Ok(PreparedCall {
         arguments: arguments.iter().map(|argument| argument.id).collect(),
@@ -538,7 +552,6 @@ pub(super) fn emit_structural(
         return unsupported("structural call emission requires an owned result call");
     };
     let coordinate = &call.coordinate;
-    let target_state = &call.target.state;
     let place = match reserved_place {
         Some(place) => place,
         None => place_id(allocate_dense(next_place)?),
@@ -565,6 +578,7 @@ pub(super) fn emit_structural(
     // not different ownership rules: a mixed call retains the same checked
     // claim and content correspondence as the scalar-free encoding.
     let id = prepared.emit(
+        checked,
         operations,
         SourceCallCoordinate {
             state,
@@ -572,7 +586,6 @@ pub(super) fn emit_structural(
             call_ordinal: coordinate.call_ordinal as usize,
         },
         call.source_site().flatten(),
-        *target_state,
         crate::direct_calls::CallRecord::Frontier(frontier_before_call),
         OperationResult::Structural(returned.clone()),
         callee,

@@ -25,10 +25,18 @@ use selected_instructions_to_selected_instructions::{
 /// Computing the assignment without consuming the run lets the route answer
 /// residual `NoCompatibleHome` pressure with runtime spill instead of
 /// post-lowering homes.
+#[allow(dead_code)]
 pub(crate) fn assign_optimized_register_homes_after_selected_lowering(
     run: &StagedSelectedLoweringOptimizationRun,
 ) -> Result<ValidatedRegisterHomes, RegisterHomeError> {
-    construction::assign_register_homes_after_selected_lowering(run)
+    construction::assign_register_homes_after_selected_lowering(run, None)
+}
+
+pub(crate) fn assign_optimized_register_homes_after_selected_lowering_reusing(
+    run: &StagedSelectedLoweringOptimizationRun,
+    reuse: &mut crate::assignment::home_assignment::compute::FunctionHomeReuse,
+) -> Result<ValidatedRegisterHomes, RegisterHomeError> {
+    construction::assign_register_homes_after_selected_lowering(run, Some(reuse))
 }
 
 /// The staged-homes form over an already-computed assignment, for the
@@ -49,10 +57,18 @@ pub(crate) fn stage_optimized_register_homes_after_selected_lowering_with_assign
 /// Computing the assignment without consuming the run lets the route answer
 /// residual `NoCompatibleHome` pressure with runtime spill instead of
 /// post-run homes.
+#[allow(dead_code)]
 pub(crate) fn assign_optimized_register_homes_after_pre_allocation(
     run: &StagedPreAllocationOptimizationRun,
 ) -> Result<ValidatedRegisterHomes, RegisterHomeError> {
-    construction::assign_register_homes_after_pre_allocation(run)
+    construction::assign_register_homes_after_pre_allocation(run, None)
+}
+
+pub(crate) fn assign_optimized_register_homes_after_pre_allocation_reusing(
+    run: &StagedPreAllocationOptimizationRun,
+    reuse: &mut crate::assignment::home_assignment::compute::FunctionHomeReuse,
+) -> Result<ValidatedRegisterHomes, RegisterHomeError> {
+    construction::assign_register_homes_after_pre_allocation(run, Some(reuse))
 }
 
 /// The staged-homes form over an already-computed assignment, for the

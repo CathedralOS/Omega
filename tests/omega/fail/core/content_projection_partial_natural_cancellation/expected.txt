@@ -1,0 +1,1 @@
+cannot form specification operator `-` in proof body `Owned::content`: no exact selected meaning

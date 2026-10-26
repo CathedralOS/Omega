@@ -32,13 +32,14 @@ pub(super) struct PreparedConflicts {
     /// heap vector per domain.
     offsets: Vec<u32>,
     entries: Vec<(u32, DomainPair)>,
+    affinity_offsets: Vec<u32>,
+    affinity_entries: Vec<(u32, DomainPair)>,
     view_count: usize,
     physical_counts: Vec<u16>,
     max_any_physical_conflicts: usize,
     uniform_physical_conflicts: bool,
     physical_matrix: Vec<u8>,
     conflict_masks: Vec<[u64; 8]>,
-    neighbor_has_affinity_bits: Vec<u64>,
 }
 
 const MASK_INTERFERES: u8 = 1;
@@ -84,7 +85,8 @@ impl PreparedConflicts {
             if let (Some(left), Some(right)) = (
                 lookup(interference.lower),
                 lookup(interference.higher),
-            ) {
+            ) && left != right
+            {
                 counts[left] += 1;
                 counts[right] += 1;
             }
@@ -94,7 +96,9 @@ impl PreparedConflicts {
                 continue;
             };
             for used in &early_clobber.uses {
-                if let Some(used_domain) = lookup(used.virtual_register) {
+                if let Some(used_domain) = lookup(used.virtual_register)
+                    && definition != used_domain
+                {
                     counts[definition] += 1;
                     counts[used_domain] += 1;
                 }
@@ -135,6 +139,9 @@ impl PreparedConflicts {
             ) else {
                 continue;
             };
+            if left == right {
+                continue;
+            }
             let pair = DomainPair {
                 interferes: true,
                 left_defines: false,
@@ -155,6 +162,9 @@ impl PreparedConflicts {
                 let Some(used_domain) = lookup(used.virtual_register) else {
                     continue;
                 };
+                if definition == used_domain {
+                    continue;
+                }
                 let dc = &mut cursors[definition];
                 entries[*dc as usize] = (
                     used_domain as u32,
@@ -196,10 +206,15 @@ impl PreparedConflicts {
                     continue;
                 }
                 let row = &mut entries[start..end];
-                if len <= 32 {
-                    if row.windows(2).any(|w| w[0].0 >= w[1].0) {
-                        row.sort_unstable_by_key(|&(other, _)| other);
+                if row.windows(2).all(|w| w[0].0 < w[1].0) {
+                    if write_pos != start {
+                        entries.copy_within(start..end, write_pos);
                     }
+                    write_pos += len;
+                    continue;
+                }
+                if len <= 32 {
+                    row.sort_unstable_by_key(|&(other, _)| other);
                     let mut kept = 0usize;
                     for idx in 1..len {
                         if row[kept].0 == row[idx].0 {
@@ -402,35 +417,33 @@ impl PreparedConflicts {
                 }
             }
         }
-        let mut neighbor_has_affinity_bits = if affinities.is_empty() {
-            Vec::new()
-        } else {
-            vec![0u64; domain_count.div_ceil(64)]
-        };
+        let mut affinity_offsets = Vec::new();
+        let mut affinity_entries = Vec::new();
         if !affinities.is_empty() {
+            affinity_offsets.reserve(domain_count + 1);
+            affinity_offsets.push(0);
             for domain in 0..domain_count {
-                if !affinities.get_domain_affinities(domain).is_empty() {
-                    let start = offsets[domain] as usize;
-                    let end = offsets[domain + 1] as usize;
-                    for &(neighbor, _) in &entries[start..end] {
-                        let n_idx = neighbor as usize;
-                        if n_idx != domain {
-                            neighbor_has_affinity_bits[n_idx >> 6] |= 1u64 << (n_idx & 63);
-                        }
+                let start = offsets[domain] as usize;
+                let end = offsets[domain + 1] as usize;
+                for &(neighbor, pair) in &entries[start..end] {
+                    if !affinities.get_domain_affinities(neighbor as usize).is_empty() {
+                        affinity_entries.push((neighbor, pair));
                     }
                 }
+                affinity_offsets.push(affinity_entries.len() as u32);
             }
         }
         Ok(Self {
             offsets,
             entries,
+            affinity_offsets,
+            affinity_entries,
             view_count,
             physical_counts,
             max_any_physical_conflicts,
             uniform_physical_conflicts,
             physical_matrix,
             conflict_masks,
-            neighbor_has_affinity_bits,
         })
     }
 
@@ -451,9 +464,28 @@ impl PreparedConflicts {
 
     #[inline]
     pub(super) fn has_affinity_neighbor(&self, domain: usize) -> bool {
-        self.neighbor_has_affinity_bits
-            .get(domain >> 6)
-            .is_some_and(|&bits| (bits & (1u64 << (domain & 63))) != 0)
+        self.affinity_offsets
+            .get(domain + 1)
+            .copied()
+            .unwrap_or(0)
+            > self.affinity_offsets.get(domain).copied().unwrap_or(0)
+    }
+
+    #[inline]
+    pub(super) fn get_affinity_neighbors_with_pair(
+        &self,
+        domain: usize,
+    ) -> impl Iterator<Item = (usize, DomainPair)> + '_ {
+        let start = self.affinity_offsets.get(domain).copied().unwrap_or(0) as usize;
+        let end = self.affinity_offsets.get(domain + 1).copied().unwrap_or(0) as usize;
+        self.affinity_entries[start..end]
+            .iter()
+            .map(|&(other, pair)| (other as usize, pair))
+    }
+
+    #[inline]
+    pub(super) fn degree(&self, domain: usize) -> usize {
+        (self.offsets[domain + 1] - self.offsets[domain]) as usize
     }
 
     #[inline]
@@ -475,20 +507,16 @@ impl PreparedConflicts {
         &self,
         domain: usize,
     ) -> impl Iterator<Item = usize> + '_ {
-        let domain_u32 = domain as u32;
-        self.row(domain)
-            .iter()
-            .filter_map(move |&(other, _)| (other != domain_u32).then_some(other as usize))
+        self.row(domain).iter().map(|&(other, _)| other as usize)
     }
 
     pub(super) fn get_constrained_neighbors_with_pair(
         &self,
         domain: usize,
     ) -> impl Iterator<Item = (usize, DomainPair)> + '_ {
-        let domain_u32 = domain as u32;
-        self.row(domain).iter().filter_map(move |&(other, pair)| {
-            (other != domain_u32).then_some((other as usize, pair))
-        })
+        self.row(domain)
+            .iter()
+            .map(|&(other, pair)| (other as usize, pair))
     }
 
     #[inline]

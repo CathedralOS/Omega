@@ -1,0 +1,1 @@
+content projection `Owned::content` is outside the closed projection fragment

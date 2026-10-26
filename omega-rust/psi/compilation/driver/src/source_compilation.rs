@@ -10,6 +10,9 @@ use build_time_evaluation::{BuildTimeSelectionAuthority, PreCheckEvaluation};
 use diagnostics::Diagnostic;
 use std::sync::Arc;
 
+mod authored_completion;
+use authored_completion::AuthoredCompletions;
+
 /// Parsed, source-scoped input after package admission and Build-helper selection.
 #[derive(Clone)]
 pub struct SourceCompilationRequest {
@@ -23,6 +26,13 @@ pub struct SourceCompilationRequest {
 /// Cloning retains a reusable compilation input, never permission to execute Build.
 #[derive(Clone)]
 pub struct SourceContinuation {
+    input: SourceCompletionInput,
+    completions: AuthoredCompletions,
+}
+
+/// Exact post-Build input, excluding the invocation's retention owner.
+#[derive(Clone)]
+struct SourceCompletionInput {
     typing: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
     pending_bodies: syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
     pending_pre_checks: Vec<PreCheckEvaluation>,
@@ -36,7 +46,9 @@ pub struct BuildSourceInput<'source> {
 }
 
 /// Authored bodies are complete; generated sources may extend this exact base.
+#[derive(Clone)]
 pub struct CompletedSource {
+    accounting: build_time_evaluation::SourceCompletionAccounting,
     typing: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
     pending_pre_checks: Vec<PreCheckEvaluation>,
 }
@@ -51,6 +63,7 @@ pub struct SourceExtensionRequest {
 
 /// Complete Product typing and any deferred constant obligations, ready for checking.
 pub struct PreparedSource {
+    pub accounting: build_time_evaluation::SourceCompletionAccounting,
     pub typed: typed_trees::TypedTrees,
     pub pending_pre_checks: Vec<PreCheckEvaluation>,
 }
@@ -116,9 +129,12 @@ impl SourceCompilationRequest {
             .map_err(|diagnostic| vec![diagnostic])
         })?;
         Ok(SourceContinuation {
-            typing,
-            pending_bodies,
-            pending_pre_checks: vec![pre_check],
+            input: SourceCompletionInput {
+                typing,
+                pending_bodies,
+                pending_pre_checks: vec![pre_check],
+            },
+            completions: Default::default(),
         })
     }
 }
@@ -128,19 +144,12 @@ impl SourceContinuation {
     /// source work. A common pre-Build origin alone is insufficient: Build may
     /// have elaborated declarations or consumed different evaluation obligations.
     pub fn same_completion_input(&self, other: &Self) -> bool {
-        self.typing == other.typing
-            && self.pending_bodies == other.pending_bodies
-            && self.pending_pre_checks.len() == other.pending_pre_checks.len()
-            && self
-                .pending_pre_checks
-                .iter()
-                .zip(&other.pending_pre_checks)
-                .all(|(left, right)| left.same_pending_work(right))
+        self.input.same_completion_input(&other.input)
     }
 
     /// Borrow declaration descriptions for package custody; this is not executable input.
     pub fn typed(&self) -> &typed_trees::TypedTrees {
-        self.typing.typed()
+        self.input.typing.typed()
     }
 
     /// Locate the same authored machine in a distinct source context. This
@@ -199,8 +208,8 @@ impl SourceContinuation {
 
     pub fn build_input(&mut self) -> BuildSourceInput<'_> {
         BuildSourceInput {
-            typed: self.typing.typed_mut(),
-            pre_checks: &mut self.pending_pre_checks,
+            typed: self.input.typing.typed_mut(),
+            pre_checks: &mut self.input.pending_pre_checks,
         }
     }
 
@@ -209,10 +218,18 @@ impl SourceContinuation {
         self,
         observer: &mut impl PsiCompilationObserver,
     ) -> Result<CompletedSource, Vec<Diagnostic>> {
+        if let Some(source) = self.completions.find(&self.input)? {
+            return Ok(source);
+        }
+        let input = self.input.clone();
         let Self {
-            mut typing,
-            mut pending_bodies,
-            pending_pre_checks,
+            input:
+                SourceCompletionInput {
+                    mut typing,
+                    mut pending_bodies,
+                    pending_pre_checks,
+                },
+            completions,
         } = self;
         loop {
             // Build may append concrete declarations. Join their exact suffix
@@ -231,21 +248,28 @@ impl SourceContinuation {
                 })?;
         }
         let mut deferred = Vec::new();
+        let mut accounting = build_time_evaluation::SourceCompletionAccounting::default();
         for pre_check in pending_pre_checks {
-            if let Some(pending) = pre_check.evaluate_or_defer(typing.typed_mut())? {
+            let recorded = pre_check.evaluate_or_defer_recorded(typing.typed_mut())?;
+            accounting.append(recorded.accounting);
+            if let Some(pending) = recorded.pending {
                 deferred.push(pending);
             }
         }
-        Ok(CompletedSource {
+        let source = CompletedSource {
             typing,
             pending_pre_checks: deferred,
-        })
+            accounting,
+        };
+        completions.retain(input, &source)?;
+        Ok(source)
     }
 }
 
 impl CompletedSource {
     pub fn finish(self) -> PreparedSource {
         PreparedSource {
+            accounting: self.accounting,
             typed: self.typing.into_typed(),
             pending_pre_checks: self.pending_pre_checks,
         }
@@ -292,8 +316,22 @@ impl CompletedSource {
                 &mut typed,
             )?);
         Ok(PreparedSource {
+            accounting: self.accounting,
             typed,
             pending_pre_checks: self.pending_pre_checks,
         })
+    }
+}
+
+impl SourceCompletionInput {
+    fn same_completion_input(&self, other: &Self) -> bool {
+        self.typing == other.typing
+            && self.pending_bodies == other.pending_bodies
+            && self.pending_pre_checks.len() == other.pending_pre_checks.len()
+            && self
+                .pending_pre_checks
+                .iter()
+                .zip(&other.pending_pre_checks)
+                .all(|(left, right)| left.same_pending_work(right))
     }
 }

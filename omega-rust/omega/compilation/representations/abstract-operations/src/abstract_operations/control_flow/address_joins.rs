@@ -16,8 +16,9 @@
 //! an address grants no readable authority to a write-only loan. Stored reference
 //! and view fields stay in the referent: borrowing its address neither copies
 //! those descriptors nor relocates their backing. Psi checks their lifetimes;
-//! native transport uses the same address regardless of the contents. Top-level
-//! views and reference carriers keep their distinct descriptor transport.
+//! native transport uses the same address regardless of the contents. A
+//! borrowed stored pointer/view descriptor likewise lends its slot address;
+//! owned descriptor values and canonical view occurrences keep value transport.
 
 #[cfg(test)]
 mod tests;
@@ -42,18 +43,8 @@ pub fn is_address_join<'a>(
             | StructuralAccess::WriteOnlyBorrow
     ) && parameter.multiplicity == StructuralMultiplicity::Unrestricted
         && lookup(parameter.structural_type).is_some_and(|declaration| {
-            matches!(
-                declaration.shape,
-                StructuralTypeShape::PrimitiveScalar(_)
-                    | StructuralTypeShape::BindingCarrier
-                    | StructuralTypeShape::Record { .. }
-                    | StructuralTypeShape::FixedArray { .. }
-                    | StructuralTypeShape::Sum { .. }
-                    | StructuralTypeShape::Mixed { .. }
-                    | StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                    )
-            )
+            declaration.id == parameter.structural_type
+                && !declaration.shape.is_canonical_view_descriptor()
         })
 }
 

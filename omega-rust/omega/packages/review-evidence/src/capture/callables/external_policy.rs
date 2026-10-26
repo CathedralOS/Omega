@@ -33,8 +33,15 @@ pub(crate) fn project_checked_external_supply_policy<'a>(
         )));
     };
     let binding = bindings::project(compilation, machine, conformance)?;
-    let (binders, signature) = signatures::project(compilation, machine)?;
-    let requirement = requirements::project(compilation, machine, conformance, &binders, &binding)?;
+    let (binders, lifetime_parameters, signature) = signatures::project(compilation, machine)?;
+    let requirement = requirements::project(
+        compilation,
+        machine,
+        conformance,
+        &binders,
+        &lifetime_parameters,
+        &binding,
+    )?;
     if let crate::record::PackagePolicyExternalRequirement::TopLevelRequirement {
         signature: required,
         ..

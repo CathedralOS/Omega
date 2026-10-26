@@ -33,6 +33,12 @@ enum ByteStorage {
 }
 
 impl RepresentationView {
+    pub(super) fn retain_storage(&self, retained: &mut crate::structural_storage::RetainedStorage) {
+        if let ByteStorage::Array { storage, .. } = &self.storage {
+            retained.array_storage(storage);
+        }
+    }
+
     pub(super) fn retained_bytes(&self) -> Option<&ByteSequenceView> {
         match &self.storage {
             ByteStorage::Immutable(view) => Some(view),

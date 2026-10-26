@@ -6,7 +6,7 @@
 //! intersects observations at joins and invalidates them on overlapping writes;
 //! these rows are not inferred from absent claims or constructor spelling.
 //! `RemainingCustody::exclude_absent_case` receives these paths from checked
-//! permission-schedule case tests. That producer authenticates the complete
+//! permission-schedule selected Flow cut. That producer authenticates the complete
 //! owned, typed prefix; this consumer checks occurrence/root correspondence.
 //! Independently supplied or persisted rows need that same authentication.
 
@@ -34,6 +34,19 @@ impl<'a> CleanupCaseEvidence<'a> {
         disposition: &'a ContextualCleanupDisposition,
     ) -> Option<Self> {
         let cleanup = &facts.contextual_cleanup;
+        // Value exclusions and negative tag observations share storage, not
+        // meaning. A row in the wrong namespace/mode cannot supply either.
+        if cleanup
+            .exclusions
+            .span(disposition.exclusions)?
+            .iter()
+            .any(|place| {
+                place.root != disposition.root
+                    || place.cause == checked_trees::ContextualCleanupExclusionCause::InactiveCase
+            })
+        {
+            return None;
+        }
         let inactive = cleanup
             .exclusions
             .span(disposition.inactive_cases)?
@@ -41,6 +54,7 @@ impl<'a> CleanupCaseEvidence<'a> {
             .map(|place| {
                 let path = cleanup.segments.span(place.segments)?;
                 (place.root == disposition.root
+                    && place.cause == checked_trees::ContextualCleanupExclusionCause::InactiveCase
                     && matches!(path.last(), Some(PlaceSegment::Case { .. })))
                 .then_some(path)
             })

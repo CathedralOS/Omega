@@ -117,6 +117,7 @@ pub(crate) fn encode_canonical_structural_path(
     writer.len(length_label, path.len())?;
     for segment in path {
         match segment {
+            CanonicalStructuralPathSegment::Referent => writer.u8(4),
             CanonicalStructuralPathSegment::Field(field) => {
                 writer.u8(1);
                 writer.id(*field);
@@ -146,6 +147,7 @@ pub(crate) fn decode_canonical_structural_field(
         3 => Ok(CanonicalStructuralPathSegment::Case(
             reader.id("StructuralCaseId")?,
         )),
+        4 => Ok(CanonicalStructuralPathSegment::Referent),
         tag => Err(CodecError::InvalidTag(
             "CanonicalStructuralPathSegment",
             tag,
@@ -191,27 +193,13 @@ pub(crate) fn decode_byte_sequence_carrier(
 ) -> Result<ByteSequenceCarrier, CodecError> {
     match reader.u8()? {
         1 => Ok(ByteSequenceCarrier::BorrowedView {
-            access: match reader.u8()? {
-                0 => None,
-                1 => Some(terminal_psi::StructuralAccess::Owned),
-                2 => Some(terminal_psi::StructuralAccess::SharedBorrow),
-                3 => Some(terminal_psi::StructuralAccess::MutableBorrow),
-                4 => Some(terminal_psi::StructuralAccess::WriteOnlyBorrow),
-                tag => return Err(CodecError::InvalidTag("StructuralAccess", tag)),
-            },
+            access: super::structural_signature_wire::decode_optional_structural_access(reader)?,
         }),
         2 => Ok(ByteSequenceCarrier::BoundedOwned {
             capacity: reader.u64()?,
         }),
         3 => Ok(ByteSequenceCarrier::BoundedView {
-            access: match reader.u8()? {
-                0 => None,
-                1 => Some(terminal_psi::StructuralAccess::Owned),
-                2 => Some(terminal_psi::StructuralAccess::SharedBorrow),
-                3 => Some(terminal_psi::StructuralAccess::MutableBorrow),
-                4 => Some(terminal_psi::StructuralAccess::WriteOnlyBorrow),
-                tag => return Err(CodecError::InvalidTag("StructuralAccess", tag)),
-            },
+            access: super::structural_signature_wire::decode_optional_structural_access(reader)?,
             capacity: reader.u64()?,
         }),
         tag => Err(CodecError::InvalidTag("ByteSequenceCarrier", tag)),
@@ -361,4 +349,45 @@ pub(crate) fn decode_structural_field_type(
         }
         tag => return Err(CodecError::InvalidTag("StructuralFieldType", tag)),
     })
+}
+
+#[cfg(test)]
+mod reference_path_wire_tests {
+    use super::*;
+
+    #[test]
+    fn referent_paths_round_trip_in_both_canonical_tag_spaces() {
+        let root = PlaceId::new(1).unwrap();
+        let field = semantic_vocabulary::StructuralFieldId::new(2).unwrap();
+        let path = vec![
+            CanonicalStructuralPathSegment::Referent,
+            CanonicalStructuralPathSegment::Field(field),
+        ];
+        let mut writer = Writer::default();
+        encode_canonical_structural_field(&mut writer, root, &path, "test reference path").unwrap();
+        let bytes = writer.finish();
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(
+            decode_canonical_structural_field(&mut reader).unwrap(),
+            (root, path.clone())
+        );
+        assert_eq!(reader.remaining(), 0);
+        let term = semantic_vocabulary::ScalarTerm::StructuralRead {
+            root,
+            path: path
+                .into_iter()
+                .map(semantic_vocabulary::ScalarReadProjection::from)
+                .collect(),
+            scalar_type: semantic_vocabulary::ScalarType::Boolean,
+        };
+        let mut writer = Writer::default();
+        super::super::scalar_term_wire::encode_scalar_term(&mut writer, &term, 0).unwrap();
+        let bytes = writer.finish();
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(
+            super::super::scalar_term_wire::decode_scalar_term(&mut reader, 0).unwrap(),
+            term
+        );
+        assert_eq!(reader.remaining(), 0);
+    }
 }

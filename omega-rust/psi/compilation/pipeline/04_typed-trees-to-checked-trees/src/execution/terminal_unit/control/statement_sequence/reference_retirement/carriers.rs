@@ -135,14 +135,26 @@ impl Retirement<'_> {
         }
     }
 
-    fn carrier_retired(
+    pub(super) fn carrier_retired(
         &self,
         result: &CheckedUnitStructuralResultBindingPlan,
-        active: &mut Vec<u32>,
+        active: &mut Vec<RetirementNode>,
     ) -> bool {
-        if active.contains(&result.binding_ordinal) {
+        let node = RetirementNode::Carrier(result.binding_ordinal);
+        if active.contains(&node) {
             return false;
         }
+        active.push(node);
+        let retired = self.carrier_retired_inner(result, active);
+        active.pop();
+        retired
+    }
+
+    fn carrier_retired_inner(
+        &self,
+        result: &CheckedUnitStructuralResultBindingPlan,
+        active: &mut Vec<RetirementNode>,
+    ) -> bool {
         // A call's anonymous output can be the selected return without ever
         // acquiring a local symbol. Capture it before closing its inputs;
         // the independent completion judgment still checks their ancestry
@@ -152,7 +164,7 @@ impl Retirement<'_> {
                 super::returned_reference_binding(self.order, returned, result)
             })
         {
-            return true;
+            return self.uncommitted_owner == facts::PlaceRoot::Symbol(Default::default());
         }
         let source = CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: result.binding_ordinal,
@@ -216,30 +228,30 @@ impl Retirement<'_> {
                 .facts
                 .borrow
                 .loan_group(loans)
-                .is_some_and(|mut group| group.all(|(handle, _)| self.holder_retired(handle)))
+                .is_some_and(|mut group| {
+                    group.all(|(handle, _)| self.holder_retired_following(handle, active))
+                })
         {
             return true;
         }
         let Some(transfers) = transfers(
             self.program,
             self.facts,
+            self.prepared_calls,
             self.results,
             result.binding_ordinal,
             self.operations,
         ) else {
             return false;
         };
-        if !self.transfers_cover_references(result, &transfers.definite) {
+        if !self.transfers_cover_references(result, transfers.occurrence_transfers()) {
             return false;
         }
-        active.push(result.binding_ordinal);
-        let retired = !transfers.possible.is_empty()
+        !transfers.possible.is_empty()
             && transfers.possible.iter().all(|transfer| {
                 match &transfer.destination {
                     Destination::Holder(receiver, _) => self.carrier_retired(receiver, active),
-                    Destination::Backing(value, path) => {
-                        self.backing_retired(*value, path, &mut Vec::new())
-                    }
+                    Destination::Backing(value, path) => self.backing_retired(*value, path, active),
                     Destination::Storage {
                         statement_index,
                         captured_selection,
@@ -281,7 +293,9 @@ impl Retirement<'_> {
                                     .borrow
                                     .loan_group(*group)
                                     .is_some_and(|mut loans| {
-                                        loans.all(|(handle, _)| self.holder_retired(handle))
+                                        loans.all(|(handle, _)| {
+                                            self.holder_retired_following(handle, active)
+                                        })
                                     })
                             })
                     }
@@ -320,7 +334,7 @@ impl Retirement<'_> {
                                                 supplier,
                                                 *statement_index,
                                                 false,
-                                                &mut Vec::new(),
+                                                active,
                                             )
                                         })
                                     })
@@ -371,9 +385,7 @@ impl Retirement<'_> {
                     }
                     _ => false,
                 }
-            });
-        active.pop();
-        retired
+            })
     }
 
     /// Descriptor death need not move an aggregate in one operation. A region

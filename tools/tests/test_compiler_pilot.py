@@ -1,6 +1,8 @@
 """Refusal controls for the CI adapter; compiler behavior stays in the corpus."""
 
 from copy import deepcopy
+import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -10,9 +12,32 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ci"))
 import compiler_pilot as pilot
 import compiler_cleanup as cleanup
+import compiler_retained_foreign as retained
 
 
 class CompilerPilotTests(unittest.TestCase):
+    def test_failed_retained_cohort_does_not_hide_later_measurements_or_turn_green(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            facts = (("shared", (), ()), ("mutable", (), ()), ("nested", (), ()))
+            with patch.object(retained, "ROOT", root), \
+                    patch.object(retained, "FACTS", facts), \
+                    patch.dict(os.environ), \
+                    patch.object(retained, "qualify_cohort", side_effect=[
+                        ValueError("native timeout"), OSError("provider unavailable"),
+                        root / "nested/omega"] ) as qualify, \
+                    patch.object(retained, "unoffered_descriptor"), \
+                    patch.object(pilot, "command", return_value="a" * 40), \
+                    patch.object(pilot.corpus_gate, "host_target", return_value="windows_x86_64"):
+                self.assertEqual(retained.main(), 1)
+            self.assertEqual([call.args[2] for call in qualify.call_args_list],
+                             ["shared", "mutable", "nested"])
+            report = json.loads((root / "build/compiler-retained-foreign/summary.json").read_text())
+            self.assertFalse(report["passed"])
+            self.assertEqual([row["passed"] for row in report["observations"]], [False, False, True])
+            self.assertEqual(report["observations"][0]["error"], "native timeout")
+            self.assertEqual(report["observations"][1]["error"], "provider unavailable")
+
     def test_first_host_keeps_unknown_history_separate_from_other_host_results(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

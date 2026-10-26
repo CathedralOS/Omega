@@ -466,7 +466,11 @@ impl AssignedValues<'_> {
                 .context_view(self.semantic.contexts.get(*context))
                 .facts()
                 .find_map(|fact| {
-                    let FactPayload::AssignedCase { variant } = fact.payload else {
+                    let FactPayload::CaseValue {
+                        variant,
+                        value: true,
+                    } = fact.payload
+                    else {
                         return None;
                     };
                     let place = fact.place.as_place()?;

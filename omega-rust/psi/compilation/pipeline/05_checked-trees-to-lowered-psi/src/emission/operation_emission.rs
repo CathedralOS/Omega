@@ -77,6 +77,7 @@ pub(crate) fn emit_scalar_binding(
     next_value_identity: &mut u64,
     operations: &mut OperationBuffer,
     call_emission: &mut CallEmissionContext<'_>,
+    current_claims: &mut crate::emission::current_claims::CurrentClaimNames,
 ) -> Result<ValueId, LoweringError> {
     let result = match binding {
         LoweredScalarBinding::StorageAddress(argument, scalar_type) => {
@@ -219,6 +220,7 @@ pub(crate) fn emit_scalar_binding(
             next_value_identity,
             operations,
             call_emission,
+            current_claims,
         ),
         LoweredScalarBinding::BoundaryCall(call) => boundary_calls::emit_boundary_call_binding(
             call,
@@ -226,6 +228,7 @@ pub(crate) fn emit_scalar_binding(
             next_value_identity,
             operations,
             call_emission,
+            current_claims,
         ),
         LoweredScalarBinding::DynamicCall(call) => dynamic_calls::emit_dynamic_call_binding(
             call,
@@ -233,6 +236,7 @@ pub(crate) fn emit_scalar_binding(
             next_value_identity,
             operations,
             call_emission,
+            current_claims,
         ),
     }?;
     let completion = match binding {
@@ -253,6 +257,7 @@ pub(crate) fn emit_scalar_binding(
             coordinate,
             operations,
             call_emission,
+            current_claims,
         )?;
     }
     Ok(result)

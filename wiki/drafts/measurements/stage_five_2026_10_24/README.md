@@ -213,4 +213,57 @@ Base `7d8e3d5507f9` on Windows x86_64. Retained changes across `selected-instruc
 - **Interior-free `BlockLookup` register spans & incremental `local_storage_slots` digest caching (`selected_instructions/{blocks.rs,plan_identity.rs,plan_identity/contracts.rs}`, `rewrites/{runtime_spill.rs,runtime_spill/rewrite.rs}`):** Encoded whether a register appears in any instruction strictly between `first` and `last` in the high bit (`0x8000_0000`) of `BlockLookup::register_instruction_spans` (`block_register_instruction_span_detail`). When `has_interior == false` (true for 2-endpoint SSA definitions/uses), `derive_runtime_spill` inspects only `block.instructions[start_idx]` and `block.instructions[end_idx]` instead of scanning thousands of non-referencing instructions between `start_idx` and `end_idx`, and `runtime_spill/rewrite.rs` bulk-copies `block.instructions[active_start + 1 .. active_end]` via `extend_from_slice`. Extended `CachedFunctionPrefix` (`slot_count`, `slot_bytes`) so `selected_function_digest_with_prefix` appends only newly added `local_storage_slots` instead of re-encoding all `~3,300` spill slots on every spill (`06.1.d.05.h_bounded_spill` `-76.7 ms` / `-12.4%`, `06.1.d.05_stage_register_allocation` `1,765.2 -> 1,568.4 ms` / `-196.8 ms`, backend `2,249.2 -> 2,025.3 ms` / `-223.9 ms` / `-10.0%`, total compile `3,295.7 -> 2,968.0 ms` / `-327.7 ms` on `32_arg`).
 - **Rejected sub-experiment:** Conservative index-shift rules on `BlockSpans` (`first >= old_end`, `last >= prefix`) snowballed `active_window` across successive spills (`+47 ms` on `32_arg`); reverted so `BlockLookup` always computes exact `(first, last, has_interior)` bounds per edited block.
 
+## Iteration 13: Stage 05 range-transfer pruning, shared `SharedFlowTables` across Rayon flow groups, and short-circuiting prefix entailment walks (base `685d805e366`)
+
+Base `685d805e366` on Windows x86_64. Retained changes across `checking` (`validation`) and `04_typed-trees-to-checked-trees`:
+- **Range-transfer and internal-edge pruning in `05.d.7.9.check_indexed_accesses` (`04_typed-trees-to-checked-trees/src/checks/ranges/{expression_transfer.rs,statement_transfer.rs,statements.rs,state_arguments.rs,state_arguments/expressions.rs,state_arguments/statements.rs}`):** Added `ExpressionTransferSink::checks_indexed(&self) -> bool` (overridden to `false` on `CallArguments`), `expression_has_transfer_effect`, and `expression_has_sink_effect` to skip `ExpressionTransfer::transfer` on expressions that contain no `Call`, `Cast`, `Atomic`, or (when `checks_indexed`) `Indexed` node, skip cloning/seeding `RangeFacts` on `Match` arms and `Binary(And | Or)` right operands that contain no sink effect, and skip cloning/seeding transition `target_facts` / `continuation_facts` in `StatementNode::Transition` via `StatementTransferSink::needs_transition_target` when a transition target is `Terminal` or has no sink effect. Added `state_has_internal_edge` in `state_arguments.rs` so `collect_state_argument_facts` returns immediately when an entry state has no internal transitions/calls to `states[1..]` and skips statement replay on states without internal outgoing edges.
+- **Shared `SharedFlowTables` and unpaged unused arenas in `05.d.3.b.flow_fixed_point.build_flow_facts` (`04_typed-trees-to-checked-trees/src/flow/{context.rs,mod.rs,builder.rs}`):** Factored `SharedFlowTables` (`dynamic_conformances`, `symbol_index`, `scalar_bindings_by_site`, `scalar_expressions_by_site`, `integer_literal_thresholds`) out of `FlowBuildContext` so they are constructed once per `build` call and shared via `Arc<SharedFlowTables>` across all Rayon `map_init` workers instead of being rebuilt per Rayon split. Replaced unused `first_page` `PagedArenaSet::with_capacity(...)` pre-allocations on `FlowBuildContext` with `default()` and removed unused `ownership: FlowOwnershipFacts` paging from `FlowBuildContext` and `build_groups`.
+- **Short-circuiting `StructuralPrefixVisitor` and deduplicated entry-prefix walks in `05.d.7.3b.check_flow_call_contracts` (`checking/src/proof_contracts/contract_entailment/{structural_prefix.rs,structural_case_arms.rs,call_requirements.rs}`):** Added `StructuralPrefixVisitor::is_complete(&self) -> bool` (implemented as `!self.proven` on `CallRequirement`) to stop `StructuralPrefixVisitor::visit`, `recognize_structural_state_leaves_from`, and `CallRequirement::observe` immediately once any path refutes `self.proven`. Skipped redundant `recognize_structural_case_arms` (`2d_recognize`) in `structural_requirement_at_prefix` when `runtime_values && !state_prefix && caller_state.symbol == entry.symbol && !case_facts_only`, since `observe_runtime_state_prefix` (`2b_local_prefix`) already walked the same entry-state prefix with at least as many `requires` facts.
+
+Measured on Cathedral's `source/distribution/libraries/omega-ui/examples/gallery/main.omg` (`OMEGA_PHASE_PROFILE=1 --timings`):
+
+| metric / phase | base (`685d805e366`) | candidate (`perf-iter13`) | improvement |
+| --- | ---: | ---: | ---: |
+| Unmodified Stage 01–05 (`TypedTrees -> CheckedTrees`) | `55,000 ms` (`42,800 ms` Stage 05) | `24,443–26,464 ms` | `-51.9%` to `-55.6%` (`2.08–2.25x`) |
+| Full end-to-end native `.exe` (`total elapsed`, with `entry_start` wrapper) | `116,900 ms` (`395,100 ms` pre-Iter 11) | `60,362.5 ms` | `-48.4%` (`1.94x`; `6.55x` vs pre-Iter 11) |
+| `Stage 05: TypedTrees -> CheckedTrees` (e2e run) | `40,170.0 ms` | `20,389.9 ms` | `-49.2%` (`1.97x`) |
+| `05.d.3.b.flow_fixed_point.build_flow_facts` | `14,724.0 ms` | `10,179.6 ms` | `-30.9%` (`1.45x`) |
+| `05.d.7.check_checked_facts` | `19,708.0 ms` | `4,093.1 ms` | `-79.2%` (`4.82x`) |
+| `05.d.7.9.check_indexed_accesses` | `15,431.0 ms` | `2,154.9 ms` | `-86.0%` (`7.16x`) |
+| `05.d.7.9.b.state_argument_facts` | `7,692.0 ms` (`225x`) | `1,325.3 ms` (`154x`) | `-82.8%` (`5.80x`) |
+| `05.d.7.9.e.check_statements` | `7,699.0 ms` | `813.1 ms` | `-89.4%` (`9.47x`) |
+| `05.d.7.3b.check_flow_call_contracts` | `3,551.0 ms` | `1,297.6 ms` | `-63.5%` (`2.74x`) |
+| `05.d.7.3b.1.cap.2d_recognize` | `3,004.0 ms` (`48x`) | `725.0 ms` (`24x`) | `-75.9%` (`4.14x`) |
+| `05.d.7.3b.1.cap.2e_visit` | `3,040.0 ms` (`55x`) | `750.5 ms` (`31x`) | `-75.3%` (`4.05x`) |
+
+## Iteration 14 (2026-10-26): `BlockLookup` virtual-transfer & constraint memoization, bitwise edge liveness propagation, `O(1)` register-validity bitsets, and `PreparedConflicts` affinity CSR + `assigned_partner_mask`
+
+Base `438b25f06ba4` on Windows x86_64.
+
+### Retained changes
+
+1. **`nominal_cleanup_subject` owner pre-check (`05_checked-trees-to-lowered-psi/src/machine_lowering.rs`):**
+   - Checked `validation::nominal_cleanup_owner(&checked.typed, source).is_none()` at the top of `nominal_cleanup_subject` before rendering `type_ids` into `Vec<(String, StructuralTypeId)>`, skipping `~1,000,000` string allocations across `~2,000` non-cleanup machines on `examples/gallery`.
+2. **`BlockLookup` virtual transfer & constraint-operand memoization (`selected-instructions/src/selected_instructions/blocks.rs`, `04_selected-instructions-to-selected-instructions/src/analyses/liveness/compute.rs`, `flow.rs`):**
+   - Added `upward_virtual_uses_bits: Vec<u64>`, `virtual_kills_bits: Vec<u64>`, and `has_constraint_operands: bool` to `BlockLookup` on `BlockEntry`, with `block_virtual_transfer` and `block_has_constraint_operands` accessors on `SelectedBlocks`.
+   - Filtered `reject_unsupported_constraints` by `block_has_constraint_operands(block_index)` so constraint-free blocks are skipped in $O(1)$, and copied memoized `block_virtual_transfer(block_index)` bitsets in `FunctionFlow::compute_domains` without rescanning unchanged block instructions across spill-recovery reanalyses.
+3. **Bitwise edge liveness propagation & `O(1)` `valid_register_bits` (`04_selected-instructions-to-selected-instructions/src/analyses/liveness/compute/flow.rs`, `compute.rs`, `live_ranges/compute/function.rs`, `fragments.rs`):**
+   - Replaced sorted `registers: Vec<VirtualRegisterId>` binary searches with `valid_register_bits: Vec<u64>` (`seen_bits & !duplicate_bits`) and precomputed `param_bits: Vec<u64>` on `EdgeFlow`, propagating `virtual_entry_bits` across edges in 64-bit word operations inside the fixed-point worklist loop and materializing `virtual_entry`/`virtual_exit` once after convergence.
+   - Fast-pathed `materialize_block` successor `virtual_live` when `edge.substitutions.is_empty()`, used `std::mem::take(&mut edge_rows[canonical_idx])` in `live_ranges/compute/function.rs` when `!has_duplicate_register_ids`, and replaced `BTreeMap<SelectedBlockId, Vec<...>>` in `fragments::interference` with a dense `Vec<Vec<...>>` indexed by `fragment.block.0 as usize`.
+4. **Pointer-equality precheck in `FunctionHomeReuse::probe_all`, `PreparedConflicts` affinity CSR, and `assigned_partner_mask` (`05_selected-instructions-to-register-homes/src/assignment/home_assignment/compute/mod.rs`, `prepared_conflicts.rs`, `placement.rs`):**
+   - Checked `Arc::ptr_eq(&prior.legality, legality) && Arc::ptr_eq(&prior.ranges, ranges)` before `legality.machine != ranges.machine` in `FunctionHomeReuse::probe_all` to avoid dereferencing unchanged function `Arc`s.
+   - Filtered self-edges (`left == right`) and fast-pathed strictly sorted rows (`row.windows(2).all(|w| w[0].0 < w[1].0)`) in `PreparedConflicts::new`, exposed $O(1)$ `conflicts.degree(domain)`, built `affinity_offsets`/`affinity_entries` CSR for affinity-bearing constrained neighbors, and maintained `assigned_partner_mask: Vec<u64>` in `compute_function_bitmask` so `preferred_view_mask` skips neighbors with `(assigned_partner_mask[neighbor] & pool_mask & viable_masks[neighbor]) == 0`.
+
+### Measured results
+
+- **`samples/cli/facts/thirtytwo_arg_stack_calling_plan/other_machine/main.omg`:**
+  - Unprofiled `total elapsed`: **`2,383.3 ms`** (down from `2,906.5 ms` in Iter 12 — **`-18.0%`**; `Stage 05`: `820.7 ms`, `terminal-production`: `35.9 ms`).
+  - Profiled (`OMEGA_PHASE_PROFILE=1`): `06.1.d.05.i_batch_reanalyze` (`103x`) falls from `379.5 ms` to **`300.8 ms`** (`-20.7%`), and `06.1.d.05.j_probe_all` (`103x`) falls from `530.4 ms` to **`457.9 ms`** (`-13.7%`). Native `.exe` exits `0`.
+- **Cathedral `source/distribution/libraries/omega-ui/examples/gallery/main.omg`:**
+  - Unmodified `--check --verify`: **`21,884.1 ms` (`21.9s`)** (down from `55,000 ms` at `685d805e366` — **`2.51x` faster**).
+  - End-to-end native `.exe` build (`OMEGA_PHASE_PROFILE=1`): `06.1.d.05_stage_register_allocation` falls from `10,205.2 ms` to **`8,945.2 ms`** (`-1,260.1 ms` / **`-12.3%`**):
+    - `06.1.d.05.i_batch_reanalyze` (`1,984x`): **`3,625.5 ms` -> `2,890.8 ms`** (**`-734.7 ms` / `-20.3%`**)
+    - `06.1.d.05.h_bounded_spill` (`8,373x`): **`1,755.1 ms` -> `1,565.0 ms`** (**`-190.1 ms` / `-10.8%`**)
+    - `06.1.d.05.j_probe_all` (`1,984x`): **`3,035.2 ms` -> `2,933.3 ms`** (`-101.9 ms`)
+    - `06.1.d.04b_optimize_selected_instructions`: **`386.0 ms` -> `336.3 ms`** (`-12.9%`)
 

@@ -18,10 +18,15 @@ use terminal_psi::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PreparedLoanCompletion {
-    place: PlaceId,
-    path: Vec<StructuralPathSegment>,
-    multiplicity: StructuralMultiplicity,
-    claims: Vec<(PermissionClaimIdentity, Vec<StructuralPathSegment>, bool)>,
+    pub(crate) place: PlaceId,
+    pub(crate) path: Vec<StructuralPathSegment>,
+    pub(crate) multiplicity: StructuralMultiplicity,
+    pub(crate) claims: Vec<(PermissionClaimIdentity, Vec<StructuralPathSegment>, bool)>,
+    pub(crate) qualifications: Vec<(
+        language_semantics::SemanticDomainId,
+        Vec<StructuralPathSegment>,
+        Option<StructuralTypeId>,
+    )>,
 }
 
 pub(crate) fn prepare(
@@ -107,10 +112,64 @@ pub(crate) fn prepare(
             );
             claims.push((event.claim_identity, terminal_path, introduces));
         }
+        let point = facts::ProgramPoint::CallEnsures {
+            machine_symbol: machine,
+            state_symbol: coordinate.state,
+            statement_index: coordinate.statement_index,
+            call_ordinal: coordinate.call_ordinal,
+        };
+        let mut qualifications = Vec::new();
+        for (_, fact) in checked.facts.semantic.facts.iter() {
+            if fact.origin != facts::FactOrigin::CallEnsures || fact.point != point {
+                continue;
+            }
+            let Some(place_handle) = fact.place.as_place() else {
+                continue;
+            };
+            let place = checked.facts.semantic.places.get(place_handle);
+            if place.root != region.root {
+                continue;
+            }
+            let segments = checked
+                .facts
+                .semantic
+                .place_segments
+                .span_or_empty(place.segments);
+            if !segments.starts_with(canonical) {
+                continue;
+            }
+            let Some((_, _, _domain_symbol, semantic_domain)) = fact.payload.domain_membership()
+            else {
+                continue;
+            };
+            let (fact_path, _) =
+                validation::structural_owned_path(&checked.typed, reference, segments)
+                    .map_err(LoweringError::Unsupported)?;
+            let mut full_path = owner.path.clone();
+            full_path.extend(
+                crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
+                    identities,
+                    &fact_path,
+                    structural_type,
+                    types,
+                )?,
+            );
+            let carrier = if full_path.is_empty() {
+                Some(structural_type)
+            } else {
+                terminal_semantics::qualification_path_carrier(
+                    types.iter(),
+                    structural_type,
+                    &full_path,
+                )
+            };
+            qualifications.push((semantic_domain, full_path, carrier));
+        }
         completions.push(PreparedLoanCompletion {
             place: owner.place,
             path: completed_path,
             claims,
+            qualifications,
             multiplicity: match region.multiplicity {
                 language_semantics::Multiplicity::Unrestricted => {
                     StructuralMultiplicity::Unrestricted
@@ -128,6 +187,7 @@ pub(crate) fn emit(
     coordinate: SourceCallCoordinate,
     operations: &mut OperationBuffer,
     calls: &mut CallEmissionContext<'_>,
+    current_claims: &mut crate::emission::current_claims::CurrentClaimNames,
 ) -> Result<(), LoweringError> {
     if prepared.is_empty() {
         return Ok(());
@@ -164,6 +224,19 @@ pub(crate) fn emit(
             })
             .collect::<Result<Vec<_>, LoweringError>>()?;
         claims.sort();
+        let relative = claims
+            .iter()
+            .map(|claim| {
+                let path = claim.path.strip_prefix(completion.path.as_slice()).ok_or(
+                    LoweringError::Unsupported("loan completion claim escapes its exact region"),
+                )?;
+                Ok(StructuralResultClaimBinding {
+                    claim: claim.claim,
+                    path: path.to_vec(),
+                })
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
+        current_claims.replace(completion.place, &completion.path, &relative)?;
         operations.loan_completions.push(LoanCompletion {
             operation,
             place: completion.place,
@@ -171,6 +244,42 @@ pub(crate) fn emit(
             multiplicity: completion.multiplicity,
             claims,
         });
+
+        let mut qualifications = Vec::new();
+        let mut projected_qualifications = Vec::new();
+        for (semantic_domain, path, carrier) in &completion.qualifications {
+            let domain = if let Some(carrier) = carrier {
+                crate::terminal_identities::lookup_domain_id_for_carrier(
+                    calls.domain_ids,
+                    *semantic_domain,
+                    *carrier,
+                )
+                .or_else(|_| {
+                    crate::terminal_identities::lookup_domain_id(calls.domain_ids, *semantic_domain)
+                })?
+            } else {
+                crate::terminal_identities::lookup_domain_id(calls.domain_ids, *semantic_domain)?
+            };
+            if path.is_empty() {
+                qualifications.push(domain);
+            } else {
+                projected_qualifications.push(terminal_psi::StructuralPathQualification {
+                    path: path.clone(),
+                    domain,
+                });
+            }
+        }
+        qualifications.sort();
+        qualifications.dedup();
+        projected_qualifications.sort();
+        projected_qualifications.dedup();
+        if !qualifications.is_empty() || !projected_qualifications.is_empty() {
+            operations.add_structural_qualifications(
+                completion.place,
+                &qualifications,
+                &projected_qualifications,
+            );
+        }
     }
     operations.loan_completions.sort_by(|left, right| {
         (left.operation, left.place, &left.path).cmp(&(right.operation, right.place, &right.path))

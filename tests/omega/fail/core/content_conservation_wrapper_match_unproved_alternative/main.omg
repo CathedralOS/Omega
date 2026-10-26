@@ -68,7 +68,7 @@ machine Main::construct(whole: Region in Owned, head: u64) -> SplitResult
 requires head <= whole.remaining
 {
     let left: Region in Owned = Region { remaining: head };
-    let right: Region in Owned = Region { remaining: whole.remaining - head };
+    let right: Region in Owned = Region { remaining: whole.remaining };
     drop(whole);
     SplitResult { left: left, right: right }
 }

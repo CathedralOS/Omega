@@ -2,6 +2,24 @@
 //! shared by source custody and consumers of immutable completed-storage cuts;
 //! neither caller may invent a different meaning for a captured selector.
 
+/// A discriminator survives resolved payload writes. Whole-value/ancestor
+/// replacement and unresolved overlap retain ordinary conservative invalidation.
+pub fn case_tag_segments_may_overlap(
+    program: &dyn crate::CheckingInput,
+    observed: &[facts::PlaceSegment],
+    written: &[facts::PlaceSegment],
+) -> bool {
+    if written.len() > observed.len()
+        && written
+            .iter()
+            .chain(observed)
+            .all(|segment| !place_segment_has_unresolved_identity(*segment))
+    {
+        return false;
+    }
+    canonical_place_segments_may_overlap(program, observed, written)
+}
+
 /// A copied observation may retain only selectors fixed at its capture.
 /// Runtime selectors need separate dependency/capture evidence.
 pub fn place_segment_has_static_identity(segment: &facts::PlaceSegment) -> bool {

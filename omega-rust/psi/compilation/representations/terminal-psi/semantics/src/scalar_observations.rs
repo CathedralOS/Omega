@@ -41,6 +41,9 @@ pub fn structural_read_scalar_type<'a>(
     let mut case_fields: Option<&[StructuralFieldDeclaration]> = None;
     for projection in path {
         match projection {
+            // Canonical predicate coordinates must cross through the shared
+            // conversion; this duplicate scalar-read spelling is not admitted.
+            ScalarReadProjection::Static(Static::Referent) => return None,
             ScalarReadProjection::Extent => {
                 if case_fields.is_some() {
                     return None;
@@ -59,10 +62,17 @@ pub fn structural_read_scalar_type<'a>(
                     Target::Bytes(carrier) => Some(carrier),
                     Target::Scalar(_) => return None,
                 };
-                if matches!(carrier, Some(
-                    ByteSequenceCarrier::BorrowedView { access: Some(StructuralAccess::WriteOnlyBorrow) }
-                    | ByteSequenceCarrier::BoundedView { access: Some(StructuralAccess::WriteOnlyBorrow), .. }
-                )) {
+                if matches!(
+                    carrier,
+                    Some(
+                        ByteSequenceCarrier::BorrowedView {
+                            access: Some(StructuralAccess::WriteOnlyBorrow)
+                        } | ByteSequenceCarrier::BoundedView {
+                            access: Some(StructuralAccess::WriteOnlyBorrow),
+                            ..
+                        }
+                    )
+                ) {
                     return None;
                 }
                 target = Target::Scalar(ScalarType::Integer(

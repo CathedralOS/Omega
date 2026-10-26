@@ -1,0 +1,30 @@
+// Expected exit: 0
+// Earlier emitted sibling operands cannot consume this arm's incoming homes.
+data Token { value: u64; }
+machine Token::drop(token: &mut Token) {}
+data Pair { left: Token; right: Token; }
+machine identity(token: Token) -> Token { token }
+machine choose(outer: bool, inner: bool) -> u64 {
+    let first: Token = Token { value: 11 };
+    let second: Token = Token { value: 22 };
+    let third: Token = Token { value: 33 };
+    let selected: Pair = match outer {
+        true -> Pair { left: identity(first), right: identity(first) },
+        false -> Pair {
+            left: identity(match inner { true -> first, false -> second, }),
+            right: third,
+        },
+    };
+    selected.left.value
+}
+machine main() crashes Trap {
+    let first: u64 = choose(true, false);
+    let second: u64 = choose(false, true);
+    let third: u64 = choose(false, false);
+    transition first == 11 && second == 11 && third == 22 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

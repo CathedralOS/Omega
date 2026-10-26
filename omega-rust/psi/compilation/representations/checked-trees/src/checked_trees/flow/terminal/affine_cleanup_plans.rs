@@ -22,9 +22,48 @@ pub struct CheckedCleanupControlPlans {
     pub value_completions: arena::Arena<CheckedValueCompletionPlan>,
     pub actions: arena::Arena<CheckedNormalCleanupAction>,
     pub normal_exit_regions: arena::Arena<super::CheckedUnitStructuralArgumentPlan>,
+    /// Owned backing dispositions completed at the last authenticated holder
+    /// release. Their action spans use the same cleanup transaction arena.
+    pub reference_owner_cleanups: arena::Arena<CheckedReferenceOwnerCleanup>,
+}
+
+/// One source-selected owner death and its already-materialized value home.
+/// Selection retains the original call disposition even when a returned child
+/// or shared cohort delays physical cleanup beyond that call's continuation.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedReferenceOwnerCleanup {
+    pub disposition: arena::Handle<crate::ContextualCleanupDisposition>,
+    pub owner: super::CheckedUnitStructuralArgumentPlan,
+    pub actions: arena::HandleSpan<CheckedNormalCleanupAction>,
 }
 
 impl CheckedCleanupControlPlans {
+    /// Immediate call dispositions and delayed backing dispositions share
+    /// one executable action stream and callable/effect dependency closure.
+    pub fn operation_actions<'plan>(
+        &'plan self,
+        operation: &'plan super::CheckedUnitEffectOperationPlan,
+    ) -> impl Iterator<Item = &'plan CheckedNormalCleanupAction> {
+        let direct = match operation {
+            super::CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                cleanup_actions, ..
+            } => cleanup_actions.as_slice(),
+            _ => &[],
+        };
+        let owners = match operation {
+            super::CheckedUnitEffectOperationPlan::ReleaseReference { owner_cleanups, .. } => {
+                *owner_cleanups
+            }
+            _ => arena::HandleSpan::empty(),
+        };
+        direct.iter().chain(
+            self.reference_owner_cleanups
+                .span_or_empty(owners)
+                .iter()
+                .flat_map(|owner| self.actions.span_or_empty(owner.actions)),
+        )
+    }
+
     pub fn normal_exits(
         &self,
         rows: arena::HandleSpan<CheckedNormalExitCleanupPlan>,

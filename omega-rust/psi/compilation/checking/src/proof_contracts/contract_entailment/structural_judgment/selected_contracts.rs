@@ -23,6 +23,8 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::signature::SignatureContractKind;
 use typed_trees::types::TypeReferenceHandle;
 
+mod metadata_paths;
+
 /// Keep the original completed producer of an immutable Boolean copy. Only
 /// exact local identities participate; parameters, projections and mutable
 /// observations cannot acquire a body-wide constant through a saved name.
@@ -158,6 +160,11 @@ fn recorded_boolean_exit(
         .map(RecordedBooleanExit::Expression)
 }
 
+pub(super) struct SelectedGuarantees {
+    pub(super) equations: Vec<(StructuralTerm, StructuralTerm)>,
+    pub(super) content: Vec<super::super::content_conservation::ObservedContentEquation>,
+}
+
 /// Exact selected carrier and denotational owner, without importing conclusions.
 struct SelectedApplicationCarrier<'program> {
     owner: SelectedCallContract<'program>,
@@ -166,6 +173,44 @@ struct SelectedApplicationCarrier<'program> {
 }
 
 impl StructuralJudge<'_> {
+    pub(in crate::proof_contracts::contract_entailment) fn captured_metadata_predicate_judgment(
+        &self,
+        owner: SymbolHandle,
+        parameters: &[typed_trees::signature::StateParameter],
+        expression: ExpressionHandle,
+        substitution: &[(String, StructuralTerm)],
+    ) -> StructuralJudgment {
+        let bindings = parameters
+            .iter()
+            .filter_map(|parameter| {
+                substitution
+                    .iter()
+                    .find(|(name, _)| name == parameter.name.as_str())
+                    .map(|(_, value)| (parameter.symbol, value.clone()))
+            })
+            .collect::<Vec<_>>();
+        let Some(term) = bound_term(
+            self.program,
+            expression,
+            owner,
+            parameters,
+            owner,
+            &bindings,
+            None,
+            0,
+        ) else {
+            return StructuralJudgment::Unknown;
+        };
+        fn contains_measure(term: &StructuralTerm) -> bool {
+            matches!(term, StructuralTerm::CollectionMeasure { .. })
+                || term.any_child(contains_measure)
+        }
+        if !contains_measure(&term) {
+            return StructuralJudgment::Unknown;
+        }
+        self.judge_observed_predicate(term, 0)
+    }
+
     /// Normalize an exact selected result or a view of a nested selected
     /// result. Equations are instantiated in the callable's own telescope;
     /// this does not execute the application or create a runtime occurrence.
@@ -387,21 +432,22 @@ impl StructuralJudge<'_> {
             .zip(arguments)
             .map(|(parameter, value)| (parameter.symbol, value.clone()))
             .collect::<Vec<_>>();
-        self.selected_guarantee_equations(&owner, &bindings, &bindings, application, depth)
+        self.selected_guarantees(&owner, &bindings, &bindings, application, depth)
+            .map(|guarantees| guarantees.equations)
     }
 
     /// A portable family guarantees only equations supplied by every member.
     /// Bind each member's formals to the same already-observed operands and
     /// result occurrence before intersecting; private declaration symbols and
     /// differing parameter names never become portable value identities.
-    pub(super) fn selected_guarantee_equations(
+    pub(super) fn selected_guarantees(
         &self,
         owner: &SelectedCallContract<'_>,
         entry_bindings: &[(SymbolHandle, StructuralTerm)],
         bindings: &[(SymbolHandle, StructuralTerm)],
         result: &StructuralTerm,
         depth: usize,
-    ) -> Option<Vec<(StructuralTerm, StructuralTerm)>> {
+    ) -> Option<SelectedGuarantees> {
         let program = self.program;
         if let SelectedCallContract::Concrete(machine, state) = owner
             && machine.target_family_interface
@@ -410,13 +456,50 @@ impl StructuralJudge<'_> {
                 return None;
             }
             let parameters = program.state_parameters(state);
+            let static_parameters = program.machine_type_parameters(machine);
+            let static_binders = static_parameters
+                .iter()
+                .enumerate()
+                .map(|(ordinal, parameter)| (parameter.symbol, format!("static{ordinal}")))
+                .collect::<Vec<_>>();
             let members = crate::machine_calls::calls::target_family_members(program, machine)?;
-            let mut common: Option<Vec<(StructuralTerm, StructuralTerm)>> = None;
+            let mut common: Option<SelectedGuarantees> = None;
             for member in members {
                 let machine = program.machine(member.machine)?;
                 let entry = program.machine_states(machine).first()?;
                 let member_parameters = program.state_parameters(entry);
-                if parameters.len() != member_parameters.len() {
+                let member_static = program.machine_type_parameters(machine);
+                if parameters.len() != member_parameters.len()
+                    || static_parameters.len() != member_static.len()
+                {
+                    return None;
+                }
+                let member_binders = member_static
+                    .iter()
+                    .enumerate()
+                    .map(|(ordinal, parameter)| (parameter.symbol, format!("static{ordinal}")))
+                    .collect::<Vec<_>>();
+                // The public family and each body own distinct binder symbols.
+                // Preserve complete declaration order and exact const carriers
+                // before transporting a known static value to a member.
+                if !static_parameters.iter().zip(member_static).all(|(parameter, member)| {
+                    use typed_trees::data::TypeParameterKind;
+                    match (&parameter.kind, &member.kind) {
+                        (TypeParameterKind::Type, TypeParameterKind::Type) => true,
+                        (TypeParameterKind::Const { type_reference: parameter },
+                         TypeParameterKind::Const { type_reference: member }) => {
+                            let identity = |reference, binders| {
+                                program.type_identity(typed_trees::type_identity::TypeIdentityRequest {
+                                    binders,
+                                    ..typed_trees::type_identity::TypeIdentityRequest::ordinary(reference)
+                                })
+                            };
+                            let parameter = identity(*parameter, &static_binders);
+                            parameter.is_valid() && parameter == identity(*member, &member_binders)
+                        }
+                        _ => false,
+                    }
+                }) {
                     return None;
                 }
                 let member_bindings = |bindings: &[(SymbolHandle, StructuralTerm)]| {
@@ -429,9 +512,17 @@ impl StructuralJudge<'_> {
                                 .find(|(symbol, _)| *symbol == parameter.symbol)
                                 .map(|(_, value)| (member.symbol, value.clone()))
                         })
+                        .chain(static_parameters.iter().zip(member_static).filter_map(
+                            |(parameter, member)| {
+                                bindings
+                                    .iter()
+                                    .find(|(symbol, _)| *symbol == parameter.symbol)
+                                    .map(|(_, value)| (member.symbol, value.clone()))
+                            },
+                        ))
                         .collect::<Vec<_>>()
                 };
-                let equations = self.declared_guarantee_equations(
+                let guarantees = self.declared_guarantees(
                     &SelectedCallContract::Concrete(machine, entry),
                     &member_bindings(entry_bindings),
                     &member_bindings(bindings),
@@ -439,29 +530,45 @@ impl StructuralJudge<'_> {
                     depth,
                 )?;
                 if let Some(common) = &mut common {
-                    common.retain(|(left, right)| {
-                        equations.iter().any(|(other_left, other_right)| {
-                            (left == other_left && right == other_right)
-                                || (left == other_right && right == other_left)
-                        })
+                    common.equations.retain(|(left, right)| {
+                        guarantees
+                            .equations
+                            .iter()
+                            .any(|(other_left, other_right)| {
+                                (left == other_left && right == other_right)
+                                    || (left == other_right && right == other_left)
+                            })
+                    });
+                    common.content.retain_mut(|law| {
+                        let Some(other) = guarantees
+                            .content
+                            .iter()
+                            .find(|other| law.same_equation(other))
+                        else {
+                            return false;
+                        };
+                        // Every portable member owes its own proved source.
+                        // Equal substituted equations do not merge authorities.
+                        law.retain_family_sources(other);
+                        true
                     });
                 } else {
-                    common = Some(equations);
+                    common = Some(guarantees);
                 }
             }
             return common;
         }
-        self.declared_guarantee_equations(owner, entry_bindings, bindings, result, depth)
+        self.declared_guarantees(owner, entry_bindings, bindings, result, depth)
     }
 
-    fn declared_guarantee_equations(
+    fn declared_guarantees(
         &self,
         owner: &SelectedCallContract<'_>,
         entry_bindings: &[(SymbolHandle, StructuralTerm)],
         bindings: &[(SymbolHandle, StructuralTerm)],
         result: &StructuralTerm,
         depth: usize,
-    ) -> Option<Vec<(StructuralTerm, StructuralTerm)>> {
+    ) -> Option<SelectedGuarantees> {
         if depth >= 32 {
             return None;
         }
@@ -535,7 +642,24 @@ impl StructuralJudge<'_> {
                 equations.push(equation);
             }
         }
-        Some(equations)
+        // Conservation snapshots belong to executed normal returns. A pure
+        // specification application has no call-entry storage epoch and must
+        // not initialize normalization while forming a projection's own body.
+        let content =
+            if self.runtime_body_values && matches!(result, StructuralTerm::CapturedValue { .. }) {
+                super::super::content_conservation::call_content_guarantees(
+                    program,
+                    self,
+                    owner_symbol(owner),
+                    parameters,
+                    entry_bindings,
+                    bindings,
+                    result,
+                )
+            } else {
+                Vec::new()
+            };
+        Some(SelectedGuarantees { equations, content })
     }
 
     /// A body-wide constant does not depend on entry premises this judge could
@@ -547,9 +671,12 @@ impl StructuralJudge<'_> {
         owner: &SelectedCallContract<'_>,
         result: &StructuralTerm,
         depth: usize,
-    ) -> Option<Vec<(StructuralTerm, StructuralTerm)>> {
+    ) -> Option<SelectedGuarantees> {
         let literal = self.recorded_body_boolean(owner, depth + 1)?;
-        Some(vec![(result.clone(), literal)])
+        Some(SelectedGuarantees {
+            equations: vec![(result.clone(), literal)],
+            content: Vec::new(),
+        })
     }
 
     fn recorded_body_boolean(
@@ -1161,7 +1288,10 @@ pub(in crate::proof_contracts::contract_entailment) fn bound_term(
                 return result.cloned();
             }
             if path.symbol.is_valid()
-                && program.symbols.get(path.symbol).kind != symbols::SymbolKind::Parameter
+                && !matches!(
+                    program.symbols.get(path.symbol).kind,
+                    symbols::SymbolKind::Parameter | symbols::SymbolKind::TypeParameter
+                )
             {
                 return Some(StructuralTerm::BoundValue(path.symbol));
             }
@@ -1180,6 +1310,25 @@ pub(in crate::proof_contracts::contract_entailment) fn bound_term(
                 reference,
                 || {
                     bound_term(
+                        program,
+                        member.receiver,
+                        scope,
+                        parameters,
+                        callable,
+                        bindings,
+                        result,
+                        depth + 1,
+                    )
+                },
+            ) {
+                return Some(measure);
+            }
+            if let Some(measure) = super::super::structural_terms::collection_measure_term(
+                program,
+                member,
+                reference,
+                || {
+                    metadata_paths::bound_descriptor(
                         program,
                         member.receiver,
                         scope,
@@ -1225,6 +1374,32 @@ pub(in crate::proof_contracts::contract_entailment) fn bound_term(
                 program, reference, value, &path,
             )
         }
+        ExpressionNode::Indexed(indexed) => super::super::structural_terms::indexed_term_in_scope(
+            program,
+            None,
+            Some((scope, parameters)),
+            expression,
+            bound_term(
+                program,
+                indexed.collection,
+                scope,
+                parameters,
+                callable,
+                bindings,
+                result,
+                depth + 1,
+            )?,
+            bound_term(
+                program,
+                indexed.index,
+                scope,
+                parameters,
+                callable,
+                bindings,
+                result,
+                depth + 1,
+            )?,
+        ),
         ExpressionNode::Call(call) => {
             if let Some((_, argument)) = crate::integer_embedding_argument(program, expression) {
                 let reference = crate::parameter_expression_result_type_reference(

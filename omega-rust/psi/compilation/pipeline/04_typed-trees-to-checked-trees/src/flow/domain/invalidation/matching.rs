@@ -32,7 +32,7 @@ pub(in crate::flow) fn matching_mutation_for_fact_place<'a, 'b>(
         // Replacing this value (or an ancestor) retires the observation;
         // writing a resolved descendant cannot change the enclosing tag.
         // Unresolved paths retain the ordinary conservative overlap law.
-        if matches!(fact.payload, facts::FactPayload::AssignedCase { .. })
+        if matches!(fact.payload, facts::FactPayload::CaseValue { .. })
             && !crate::flow::operand_contexts::case_overwrite(
                 program,
                 &fact_canonical_place,

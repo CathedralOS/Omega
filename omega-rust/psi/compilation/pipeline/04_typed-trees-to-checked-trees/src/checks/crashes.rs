@@ -293,19 +293,26 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
                 let mut guards = fallthrough
                     .map(|site| site.guards.clone())
                     .unwrap_or_default();
-                guards.extend(source_fallthrough::selected_call_guards(
+                let mut entry_value_consequences = fallthrough
+                    .map(|site| site.entry_value_consequences.clone())
+                    .unwrap_or_default();
+                if let Some(selected) = source_fallthrough::selected_call_path(
                     program,
                     machine,
                     call.location(),
                     &parameter_names,
                     &content_conservation,
-                ));
+                ) {
+                    guards.extend(selected.guards);
+                    entry_value_consequences.extend(selected.entry_value_consequences);
+                }
                 let call_path = source_fallthrough::SiteFallthrough {
                     location: checked_trees::CrashSiteLocation::new(
                         call.location().state(),
                         call.location().statement_ordinal(),
                     ),
                     guards,
+                    entry_value_consequences,
                 };
                 let (path_guard_conjuncts, path_guard_consequences) = site_path_classification(
                     program,
@@ -513,6 +520,7 @@ fn site_path_classification(
     let mut path_guard_consequences = entry_requirements.consequences.clone();
     path_guard_consequences.extend(classification.consequences.iter().cloned());
     if let Some(fallthrough) = fallthrough {
+        path_guard_consequences.extend(fallthrough.entry_value_consequences.iter().cloned());
         let mut order_relations = classification.order_relations.clone();
         let mut integer_disequalities = classification.disequalities.clone();
         for &(guard, negated) in &fallthrough.guards {

@@ -1,5 +1,5 @@
-//! One call's flow fact. `build_call_flow_fact` joins the call into the callee's
-//! incoming values, builds entry, requires, invalidation, and exit contexts
+//! One call's flow fact. `build_call_flow_fact` records conservative invocation
+//! inputs, builds entry, requires, invalidation, and exit contexts
 //! (`call_phases`), adds carry and domain facts to the exit, then appends boundary
 //! edges. The functions after it answer flow qualifications; exact callable types
 //! are owned by validation.
@@ -68,7 +68,7 @@ pub(super) fn build_call_flow_fact<'plans>(
         state,
         borrow_call,
         captured_operands,
-        entry.constraints,
+        entry.contexts,
     );
     let requires = build_call_requires_contexts(semantic, build, machine, state, borrow_call);
     let argument_sources = super::call_phases::ArgumentSources::new(
@@ -179,6 +179,7 @@ pub(super) fn build_call_flow_fact<'plans>(
         build.control.operand_origin_writes.append_to_span(
             &mut normal_return_writes,
             checked_trees::FlowOperandReferent {
+                formation: arena::Handle::invalid(),
                 root: place.root,
                 segments,
             },
@@ -732,6 +733,8 @@ fn collect_callable_contracts_indexed<'plans>(
 /// independent custody consumer. A conservation primitive may state `result
 /// in D` in ensures rather than on the carrier type; that is still an exact
 /// result promise, not issuer authorization or an argument qualification.
+/// Enumerating a selected public promise does not authenticate its provenance:
+/// the actual invoked declaration must justify each transported ensures fact.
 pub(crate) fn call_result_qualification_identities(
     program: &dyn ::validation::CheckingInput,
     target: SymbolHandle,
@@ -758,7 +761,15 @@ pub(crate) fn call_result_qualification_identities(
                 .collect()
         })
         .unwrap_or_else(|| collect_callable_contracts(program, target));
-    result_identity_rows(program, return_type, parameters, &contracts)
+    let qualification_contract =
+        validation::CallQualificationContract::prepare(program, target, selected);
+    result_identity_rows(
+        program,
+        return_type,
+        parameters,
+        &contracts,
+        &qualification_contract,
+    )
 }
 
 /// `call_result_qualification_identities` on the context's memoized lookups
@@ -802,7 +813,15 @@ fn call_result_qualification_identities_indexed<'plans>(
         .or_insert_with(|| std::rc::Rc::new(result_type_domain_rows(program, return_type)))
         .clone();
     let mut domains = (*domain_rows).clone();
-    append_ensures_result_rows(program, parameters, &contracts, &mut domains);
+    let qualification_contract =
+        validation::CallQualificationContract::prepare(program, target, selected);
+    append_ensures_result_rows(
+        program,
+        parameters,
+        &contracts,
+        &qualification_contract,
+        &mut domains,
+    );
     domains
 }
 
@@ -859,6 +878,7 @@ fn result_identity_rows(
     return_type: typed_trees::types::TypeReferenceHandle,
     parameters: Option<&[typed_trees::signature::StateParameter]>,
     contracts: &[&typed_trees::signature::SignatureContract],
+    qualification_contract: &validation::CallQualificationContract<'_>,
 ) -> Vec<(
     Vec<facts::PlaceSegment>,
     SymbolHandle,
@@ -868,7 +888,13 @@ fn result_identity_rows(
         return Vec::new();
     }
     let mut domains = result_type_domain_rows(program, return_type);
-    append_ensures_result_rows(program, parameters, contracts, &mut domains);
+    append_ensures_result_rows(
+        program,
+        parameters,
+        contracts,
+        qualification_contract,
+        &mut domains,
+    );
     domains
 }
 
@@ -876,6 +902,7 @@ fn append_ensures_result_rows(
     program: &dyn ::validation::CheckingInput,
     parameters: Option<&[typed_trees::signature::StateParameter]>,
     contracts: &[&typed_trees::signature::SignatureContract],
+    qualification_contract: &validation::CallQualificationContract<'_>,
     domains: &mut Vec<(
         Vec<facts::PlaceSegment>,
         SymbolHandle,
@@ -886,10 +913,22 @@ fn append_ensures_result_rows(
         .iter()
         .filter(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Ensures)
     {
-        for fact in program.proof_facts.span_or_empty(contract.facts) {
+        for (fact_handle, fact) in contract
+            .facts
+            .handles()
+            .zip(program.proof_facts.span_or_empty(contract.facts))
+        {
             let Some(membership) = fact.as_membership() else {
                 continue;
             };
+            if qualification_contract
+                .fact_source(contract.kind.clone(), fact)
+                .is_none()
+                && !qualification_contract
+                    .declares_membership_obligation(contract.kind.clone(), fact_handle)
+            {
+                continue;
+            }
             // This occurrence is already selected from this exact callable's
             // ensures, including bodyless trait requirements. It must be the
             // reserved result form, never a same-spelled parameter.
@@ -941,7 +980,9 @@ pub(crate) fn call_parameter_qualification_identities(
                 .collect()
         })
         .unwrap_or_else(|| collect_callable_contracts(program, target));
-    parameter_identity_rows(program, parameters, &contracts)
+    let qualification_contract =
+        validation::CallQualificationContract::prepare(program, target, selected);
+    parameter_identity_rows(program, parameters, &contracts, &qualification_contract)
 }
 
 /// `call_parameter_qualification_identities` on the context's memoized
@@ -967,23 +1008,38 @@ fn call_parameter_qualification_identities_indexed<'plans>(
                 .collect()
         })
         .unwrap_or_else(|| collect_callable_contracts_indexed(program, build, target));
-    parameter_identity_rows(program, parameters, &contracts)
+    let qualification_contract =
+        validation::CallQualificationContract::prepare(program, target, selected);
+    parameter_identity_rows(program, parameters, &contracts, &qualification_contract)
 }
 
 fn parameter_identity_rows(
     program: &dyn ::validation::CheckingInput,
     parameters: &[typed_trees::signature::StateParameter],
     contracts: &[&typed_trees::signature::SignatureContract],
+    qualification_contract: &validation::CallQualificationContract<'_>,
 ) -> Vec<(usize, SymbolHandle, language_semantics::SemanticDomainId)> {
     let mut rows = Vec::new();
     for contract in contracts
         .iter()
         .filter(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Ensures)
     {
-        for fact in program.proof_facts.span_or_empty(contract.facts) {
+        for (fact_handle, fact) in contract
+            .facts
+            .handles()
+            .zip(program.proof_facts.span_or_empty(contract.facts))
+        {
             let Some(membership) = fact.as_membership() else {
                 continue;
             };
+            if qualification_contract
+                .fact_source(contract.kind.clone(), fact)
+                .is_none()
+                && !qualification_contract
+                    .declares_membership_obligation(contract.kind.clone(), fact_handle)
+            {
+                continue;
+            }
             let Some(position) = ensured_parameter_position(program, parameters, membership.value)
             else {
                 continue;

@@ -41,8 +41,10 @@ pub mod constant_recipes;
 mod frozen;
 pub use frozen::FrozenTypedTrees;
 pub mod control_flow;
+mod data_definitions;
 pub mod declaration_index;
 mod declaration_tables;
+pub use data_definitions::DataDefinitionTable;
 pub mod declarations;
 pub mod evidence;
 pub mod inspection;
@@ -319,7 +321,7 @@ pub struct TypedTreeTables {
     authored_declaration_selections:
         language_semantics::declaration_selection::AuthoredDeclarationSelections,
     pub const_declarations: Arena<crate::constant::ConstDeclaration>,
-    pub data_definitions: Arena<data::DataDefinition>,
+    pub data_definitions: DataDefinitionTable,
     /// Applied field views, indexed by the exact type-reference row. A symbolic
     /// view retains its caller's binders without granting closed storage.
     /// Their definitions live in the declaration arena but not the authored
@@ -656,6 +658,7 @@ impl Deref for TypedTrees {
 impl DerefMut for TypedTrees {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
+        self.invalidate_state_declaration_index();
         &mut self.tables
     }
 }

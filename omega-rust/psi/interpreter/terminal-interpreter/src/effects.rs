@@ -9,6 +9,7 @@
 //! Host buffers never name mutable interpreter storage; scalar restrictions
 //! and endpoint queries remain owned by `scalar_loans.rs`.
 
+pub(crate) mod boundary_predicates;
 pub(crate) mod byte_buffers;
 pub(crate) mod crash_outcome;
 pub(crate) mod original_storage;

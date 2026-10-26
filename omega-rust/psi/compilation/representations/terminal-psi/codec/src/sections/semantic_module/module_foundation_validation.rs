@@ -10,7 +10,9 @@
 //! provider candidates in `declaration_foundations`, and each machine in
 //! `machine_foundations`, whose `validate_operation_foundation` dispatches
 //! each operation kind to its `validate_*` function in `value_foundations`,
-//! `storage_foundations` or `call_foundations`.
+//! `storage_foundations` or `call_foundations`. Only after every machine's
+//! foundations and activation relationships pass does `storage_foundations`
+//! replay the complete declared reference-membership contracts.
 
 mod call_foundations;
 mod declaration_foundations;
@@ -248,6 +250,9 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
         terminal_semantics::activation_storage::validate_machine(module, machine)
             .map_err(CodecError::MalformedStructuralFoundation)?;
     }
+    storage_foundations::validate_reference_memberships(module)?;
+    terminal_semantics::validate_runtime_evidence_inputs(module)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
     Ok(())
 }
 
@@ -708,6 +713,34 @@ fn validate_structural_parameters(
         )?;
     }
     Ok(())
+}
+
+/// Preserve the exact operation context for both shape admission and the
+/// later reference-membership replay, without changing the underlying reason.
+pub(super) fn operation_foundation_error(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    block: semantic_vocabulary::BlockId,
+    operation: &Operation,
+    error: CodecError,
+) -> CodecError {
+    let CodecError::MalformedStructuralFoundation(reason) = error else {
+        return error;
+    };
+    let declaration = machine.declaration.as_ref();
+    CodecError::MalformedOperationFoundation {
+        machine: declaration
+            .and_then(|declaration| module.identities.text(declaration.machine.identity()))
+            .map(str::to_owned)
+            .unwrap_or_else(|| format!("{:?}", machine.id)),
+        state: declaration
+            .and_then(|declaration| module.identities.text(declaration.state.identity()))
+            .unwrap_or("synthetic")
+            .to_owned(),
+        block,
+        operation: operation.id,
+        reason,
+    }
 }
 
 fn validate_operation_foundation(

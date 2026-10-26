@@ -4,8 +4,8 @@ Two invocation-local instances of `Counter<T>` retain independent fields. Static
 machines take explicit borrowed counters: the integer counter records 30 then 12,
 yielding value 12 and count 2; the Boolean counter records true, yielding true
 and count 1. The checksum is `12 + 2 + 1 + 1`: process exit **16**, without
-printing. Only observed scalars and the Console context pass to the final state.
-The context's `Binding<Console>` is supplied by the selected entry.
+printing. Only the observed scalars pass explicitly to the nested final machine;
+the entry and final machines declare `reaches Console`.
 
 ## Review the project
 
@@ -61,7 +61,11 @@ omega run --both samples/cli/basics/generic_counters/main.omg
 Windows x86-64 is verified at `b80e3d12bdd` with an optimized dev compiler:
 after local package review, EOF and finite Enter each produce empty stdout,
 native exit 16 and Terminal exit 16. The CLI comparison checks exits.
-Both Linux hosts remain untested for this migration.
+On Linux x86-64, candidate 29 at `9da02bdb200017e97206ed4986b7c68dff221806`
+completes checking after repairing nested/root boundary classification. Project
+update stops with exit 3 at the generated package review; its pending decisions
+have not been accepted, so current execution remains unqualified. Linux ARM64
+also remains untested for this migration.
 Remaining coverage is in [STATIC-MACHINE-MIGRATION](../../../../TASKS.md).
 
 ## Native regression

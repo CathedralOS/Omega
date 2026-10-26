@@ -13,13 +13,14 @@
 //! Value inputs cross state boundaries along transitions and ordinary call
 //! argument deliveries, including another machine's entry, so machines
 //! joined by such invocations form independent groups. Each group reaches its
-//! own fixed point, or its own unknown-input fallback, on a worker over a copy
-//! of the baseline plan, writing every machine on page
+//! own fixed point, or its own unknown-input fallback, on a worker over a fork
+//! of the shared baseline plan, writing every machine on page
 //! `MACHINE_PAGE_BASE + roster position` of each output arena; the owner
 //! adopts those pages, so handles and order follow the roster. A group's facts
 //! depend only on machines its values reach: a loop in an unrelated machine
 //! neither re-sweeps it nor sends it to the fallback.
 use crate::flow::FlowBuildContext;
+use crate::flow::SharedFlowTables;
 use crate::flow::StateMutationSummaryCache;
 use crate::flow::attach_reach_summaries;
 use crate::flow::build_state_flow_fact;
@@ -94,8 +95,9 @@ pub(crate) fn build_flow_facts(
     // changes with the incoming value inputs. Keep first-demand construction
     // lazy; the check pass owns the table so later consumers reuse it rather
     // than rebuilding identical rows.
+    let shared_tables = std::sync::Arc::new(SharedFlowTables::new(program, scalar_expressions));
     let new_build = || {
-        FlowBuildContext::new(
+        FlowBuildContext::with_shared_tables(
             program,
             borrow,
             proof,
@@ -106,6 +108,7 @@ pub(crate) fn build_flow_facts(
             expression_intervals,
             call_frames,
             state_mutation_summary_cache,
+            shared_tables.clone(),
         )
     };
 
@@ -145,7 +148,6 @@ fn build_groups<'plans>(
             .adopt_additional_pages(pages.invalidations);
         flow.borrow_lifetimes
             .adopt_additional_pages(pages.borrow_lifetimes);
-        flow.ownership.adopt_additional_pages(pages.ownership);
         flow.boundaries.adopt_additional_pages(pages.boundaries);
         flow.control.adopt_additional_pages(pages.control);
         semantic.adopt_additional_pages(semantic_pages);
@@ -302,7 +304,10 @@ fn machine_groups(
             && let Some(origin_position) = program.machine_position_by_symbol(origin.machine)
             && origin_position != position
         {
-            let (left, right) = (root(&mut owner, position), root(&mut owner, origin_position));
+            let (left, right) = (
+                root(&mut owner, position),
+                root(&mut owner, origin_position),
+            );
             owner[left.max(right)] = left.min(right);
         }
     }
@@ -321,9 +326,33 @@ fn machine_groups(
             {
                 continue;
             }
-            if callee != caller {
-                let (left, right) = (root(&mut owner, caller), root(&mut owner, callee));
-                owner[left.max(right)] = left.min(right);
+            // Keep every authored family body in the same dependency group.
+            // Each body is checked under its declared premises; grouping grants
+            // no selected-case or scalar assumption from a caller.
+            let mut callees = vec![callee];
+            let machine_symbol = machines[callee].symbol;
+            if let Some(family) = program.target_machine_families.iter().find(|family| {
+                family.canonical == machine_symbol
+                    || family
+                        .members
+                        .iter()
+                        .any(|member| member.machine == machine_symbol)
+            }) {
+                for member in std::iter::once(family.canonical)
+                    .chain(family.members.iter().map(|member| member.machine))
+                {
+                    if let Some(position) = program.machine_position_by_symbol(member) {
+                        if !callees.contains(&position) {
+                            callees.push(position);
+                        }
+                    }
+                }
+            }
+            for callee in callees {
+                if callee != caller {
+                    let (left, right) = (root(&mut owner, caller), root(&mut owner, callee));
+                    owner[left.max(right)] = left.min(right);
+                }
             }
         }
     }

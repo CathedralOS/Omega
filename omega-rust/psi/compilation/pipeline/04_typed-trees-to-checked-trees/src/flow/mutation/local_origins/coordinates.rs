@@ -38,6 +38,11 @@ fn source_place(
     statement_index: usize,
     source: &validation::LocalWriteSource,
 ) -> Option<(CanonicalPlace, OriginPrecision)> {
+    if source.invocation_output.is_some() {
+        // Opaque output identity is not a declaration-relative write region.
+        // Unknown physical aliasing must not fall back to its display label.
+        return None;
+    }
     if let Some(first) = source.recasts.first() {
         for recast in &source.recasts {
             if matches!(

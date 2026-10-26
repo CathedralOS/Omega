@@ -67,6 +67,9 @@ mod delivered_types;
 pub(crate) use call_carriers::argument_matches_call_carrier;
 mod reference_values;
 mod result_type;
+pub(crate) use result_type::{
+    BuiltinBinaryResult, builtin_binary_result, builtin_binary_result_type_reference,
+};
 mod scalar_observations;
 
 pub use match_dispatch::match_subject_primitive_type;
@@ -102,7 +105,7 @@ pub(crate) use float_coercions::{
 
 pub(crate) use operator_validation::{
     report_non_bool_logical_not, report_non_integer_bitwise_not, report_non_integer_index,
-    validate_binary_operand_types,
+    validate_binary_operand_types, validate_builtin_comparison_operand_landing,
 };
 
 pub(crate) use shape_validation::{
@@ -143,6 +146,21 @@ pub fn argument_matches_type_reference_handle(
     type_reference: TypeReferenceHandle,
 ) -> bool {
     argument_matches_type_reference_with_substitutions(program, argument, type_reference, &[])
+}
+
+/// Compare completed value types without consulting a receiving expression.
+/// References use the same declaration-backed correspondence as ordinary
+/// arguments: a shared view may forget a referee qualification, but cannot
+/// acquire access or a required qualification. Other values retain identity.
+pub(crate) fn completed_value_type_matches(
+    program: &dyn crate::CheckingInput,
+    actual: TypeReferenceHandle,
+    required: TypeReferenceHandle,
+) -> bool {
+    crate::value_custody::type_references::type_references_match(program, actual, required)
+        || (actual.is_valid()
+            && required.is_valid()
+            && reference_values::reference_type_matches(program, actual, required, &[], &[]))
 }
 
 /// Declaration-backed correspondence under an exact simultaneous telescope.
@@ -606,6 +624,25 @@ fn argument_matches_type_reference_using(
             name: type_name,
         } => {
             if let Some(primitive_type) = PrimitiveType::from_name(type_name) {
+                if matches!(argument_node, ExpressionNode::Atomic(_)) {
+                    let Some(actual) = delivered_types::delivered_value_type(program, argument)
+                    else {
+                        return false;
+                    };
+                    // A selected load has an exact resident carrier. Its
+                    // syntax cannot authorize a different width or format;
+                    // access, ordering and destination predicates retain
+                    // their independent checking obligations.
+                    return program.type_identity(TypeIdentityRequest {
+                        substitutions: &actual.substitutions,
+                        ..TypeIdentityRequest::ordinary(actual.reference)
+                    }) == program.type_identity_with_simultaneous_substitutions(
+                        TypeIdentityRequest {
+                            substitutions: required_substitutions,
+                            ..TypeIdentityRequest::ordinary(type_reference)
+                        },
+                    );
+                }
                 if crate::value_custody::literals::land_anonymous_integer_expression(
                     program,
                     argument,
@@ -713,8 +750,9 @@ fn argument_matches_type_reference_using(
 }
 
 /// Compiler-owned value members have declaration types without being storage
-/// places in a callable telescope. Share this exact-symbol query with both
-/// abstract and executed result typing; spelling and the host width add none.
+/// places in a callable telescope. Exact symbol custody supplies only the type,
+/// never a value, model-bound premise or authority. Abstract and executed result
+/// typing share this query; ordinary names retain their scoped binder lookup.
 fn builtin_member_type_reference(
     program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
@@ -749,10 +787,7 @@ pub(crate) fn named_value_type_reference(
     // supplies the declared carrier; a same-spelled binder supplies nothing.
     if path.symbol.is_valid()
         && path.head_symbol == path.symbol
-        && let Some((_, parameter)) = program
-            .data_type_parameters
-            .iter()
-            .find(|(_, parameter)| parameter.symbol == path.symbol)
+        && let Some(parameter) = program.first_data_type_parameter_by_symbol(path.symbol)
         && let typed_trees::data::TypeParameterKind::Const { type_reference }
         | typed_trees::data::TypeParameterKind::Value { type_reference } = parameter.kind
     {
@@ -774,46 +809,11 @@ pub(crate) fn named_value_type_reference(
         return Some(type_reference);
     }
 
-    // Bodyless operators and trait signatures have formals but no executable
-    // state to visit below. Their formals share the parameter arena with state
-    // formals, so the exact retained symbol supplies the same declared type.
-    // This matters for anonymous contract endpoints: `input: f32` compared
-    // with `128.0` must land that literal as f32, not guess a default format.
-    if path.symbol.is_valid()
-        && path.head_symbol == path.symbol
-        && let Some((_, parameter)) = program
-            .state_parameters
-            .iter()
-            .find(|(_, parameter)| parameter.symbol == path.symbol)
-    {
-        return Some(parameter.type_reference);
-    }
-
-    for machine in program.machines() {
-        if let Some(owned) = program
-            .machine_owned_data(machine)
-            .iter()
-            .find(|owned| matches_symbol(owned.symbol))
-        {
-            return Some(owned.type_reference);
-        }
-        for state in program.machine_states(machine) {
-            if let Some(type_reference) = state_symbol_declared_type(program, state, matches_symbol)
-            {
-                return Some(type_reference);
-            }
-        }
-    }
-    for proposition in program.propositions() {
-        if let Some(parameter) = program
-            .proposition_parameters(proposition)
-            .iter()
-            .find(|parameter| matches_symbol(parameter.symbol))
-        {
-            return Some(parameter.type_reference);
-        }
-    }
-    None
+    // The shared declaration owner retains the same flat-formal precedence and
+    // full authored first-match order for both exact symbols. A missing hinted
+    // binder still searches the complete roster, without a whole-program walk
+    // for each named operand.
+    program.first_named_value_declared_type(path.symbol, path.head_symbol)
 }
 
 /// Parent-hinted lookup for [`named_value_type_reference`]. The retained

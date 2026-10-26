@@ -583,10 +583,11 @@ pub fn has_builtin_anonymous_operands(
                             | symbols::SymbolKind::State
                             | symbols::SymbolKind::Operator
                     ),
-                    // Executable membership expands a declaration's predicates
-                    // while retaining which domain was selected. That nominal
-                    // provenance does not select the expanded arithmetic's
-                    // operator; its own retained occurrences still govern it.
+                    // Expanding a membership retains the selected domain on
+                    // the predicate root beside its own operator occurrence.
+                    // That row records membership provenance, not an operator
+                    // override. Every predicate operator still passes this
+                    // same complete occurrence check independently.
                     Target::Resolved(resolved) if selection.kind() == Kind::DomainMembership => {
                         program.symbols.get(resolved.selected_symbol()).kind
                             == symbols::SymbolKind::Domain

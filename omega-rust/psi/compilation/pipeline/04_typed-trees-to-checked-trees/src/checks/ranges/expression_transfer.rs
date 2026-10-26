@@ -25,6 +25,10 @@ use super::facts::RangeFacts;
 use super::guards::{seed_guard_facts, seed_negated_guard_facts, seed_value_vs_value_endpoints};
 
 pub(super) trait ExpressionTransferSink {
+    fn checks_indexed(&self) -> bool {
+        true
+    }
+
     fn indexed_access(
         &mut self,
         _facts: &RangeFacts<'_>,
@@ -34,6 +38,208 @@ pub(super) trait ExpressionTransferSink {
     }
 
     fn call_entry(&mut self, _facts: &RangeFacts<'_>, _call: &TableCallExpression) {}
+}
+
+pub(in crate::checks::ranges) fn expression_has_transfer_effect(
+    program: &dyn ::validation::CheckingInput,
+    expression: ExpressionHandle,
+    checks_indexed: bool,
+) -> bool {
+    expression_has_effect_at_depth(program, expression, checks_indexed, true, 0)
+}
+
+pub(in crate::checks::ranges) fn expression_has_sink_effect(
+    program: &dyn ::validation::CheckingInput,
+    expression: ExpressionHandle,
+    checks_indexed: bool,
+) -> bool {
+    expression_has_effect_at_depth(program, expression, checks_indexed, false, 0)
+}
+
+fn expression_has_effect_at_depth(
+    program: &dyn ::validation::CheckingInput,
+    expression: ExpressionHandle,
+    checks_indexed: bool,
+    include_fact_mutations: bool,
+    depth: usize,
+) -> bool {
+    let Some(node) = program
+        .expression_table
+        .expression_at_depth(expression, depth)
+    else {
+        return false;
+    };
+    let next = depth + 1;
+    match node {
+        ExpressionNode::SavedSubject(_) => false,
+        ExpressionNode::Call(_) => true,
+        ExpressionNode::Indexed(indexed) => {
+            checks_indexed
+                || expression_has_effect_at_depth(
+                    program,
+                    indexed.collection,
+                    checks_indexed,
+                    include_fact_mutations,
+                    next,
+                )
+                || expression_has_effect_at_depth(
+                    program,
+                    indexed.index,
+                    checks_indexed,
+                    include_fact_mutations,
+                    next,
+                )
+        }
+        ExpressionNode::Cast(cast) => {
+            include_fact_mutations
+                || expression_has_effect_at_depth(
+                    program,
+                    cast.value,
+                    checks_indexed,
+                    include_fact_mutations,
+                    next,
+                )
+        }
+        ExpressionNode::Atomic(atomic) => {
+            include_fact_mutations
+                || if let Some(carrier) = validation::atomic_once_carrier(program, expression) {
+                    expression_has_effect_at_depth(
+                        program,
+                        carrier.place,
+                        checks_indexed,
+                        include_fact_mutations,
+                        next,
+                    ) || carrier.operands.into_iter().any(|operand| {
+                        expression_has_effect_at_depth(
+                            program,
+                            operand,
+                            checks_indexed,
+                            include_fact_mutations,
+                            next,
+                        )
+                    })
+                } else {
+                    expression_has_effect_at_depth(
+                        program,
+                        atomic.value,
+                        checks_indexed,
+                        include_fact_mutations,
+                        next,
+                    )
+                }
+        }
+        ExpressionNode::Match(dispatch) => {
+            expression_has_effect_at_depth(
+                program,
+                dispatch.subject,
+                checks_indexed,
+                include_fact_mutations,
+                next,
+            ) || program
+                .expression_table
+                .match_arms(dispatch.arms)
+                .iter()
+                .any(|arm| {
+                    program
+                        .expression_table
+                        .match_pattern_operands(arm.pattern)
+                        .any(|operand| {
+                            expression_has_effect_at_depth(
+                                program,
+                                operand,
+                                checks_indexed,
+                                include_fact_mutations,
+                                next,
+                            )
+                        })
+                        || expression_has_effect_at_depth(
+                            program,
+                            arm.value,
+                            checks_indexed,
+                            include_fact_mutations,
+                            next,
+                        )
+                })
+        }
+        ExpressionNode::Binary(binary) => {
+            expression_has_effect_at_depth(
+                program,
+                binary.left,
+                checks_indexed,
+                include_fact_mutations,
+                next,
+            ) || expression_has_effect_at_depth(
+                program,
+                binary.right,
+                checks_indexed,
+                include_fact_mutations,
+                next,
+            )
+        }
+        ExpressionNode::ArrayLiteral(values) => program
+            .expression_table
+            .expression_handles(*values)
+            .iter()
+            .any(|value| {
+                expression_has_effect_at_depth(
+                    program,
+                    *value,
+                    checks_indexed,
+                    include_fact_mutations,
+                    next,
+                )
+            }),
+        ExpressionNode::Member(member) => expression_has_effect_at_depth(
+            program,
+            member.receiver,
+            checks_indexed,
+            include_fact_mutations,
+            next,
+        ),
+        ExpressionNode::Borrow(borrow) => expression_has_effect_at_depth(
+            program,
+            borrow.target,
+            checks_indexed,
+            include_fact_mutations,
+            next,
+        ),
+        ExpressionNode::Unary(unary) => expression_has_effect_at_depth(
+            program,
+            unary.operand,
+            checks_indexed,
+            include_fact_mutations,
+            next,
+        ),
+        ExpressionNode::Range(range) => {
+            expression_has_effect_at_depth(
+                program,
+                range.start,
+                checks_indexed,
+                include_fact_mutations,
+                next,
+            ) || expression_has_effect_at_depth(
+                program,
+                range.end,
+                checks_indexed,
+                include_fact_mutations,
+                next,
+            )
+        }
+        ExpressionNode::StructLiteral(literal) => program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .any(|field| {
+                expression_has_effect_at_depth(
+                    program,
+                    field.value,
+                    checks_indexed,
+                    include_fact_mutations,
+                    next,
+                )
+            }),
+        typed_trees::literal_expression_pattern!() => false,
+    }
 }
 
 pub(super) struct ExpressionTransfer<'program, 'frames> {
@@ -110,89 +316,116 @@ impl ExpressionTransfer<'_, '_> {
         expression: ExpressionHandle,
         sink: &mut impl ExpressionTransferSink,
     ) {
-        if !expression.is_valid() {
+        let checks_indexed = sink.checks_indexed();
+        if !expression.is_valid()
+            || !expression_has_transfer_effect(self.program, expression, checks_indexed)
+        {
             return;
         }
         match self.program.expression_table.expression(expression) {
             ExpressionNode::SavedSubject(_) => {}
             ExpressionNode::Match(dispatch) => {
                 self.transfer(facts, dispatch.subject, sink);
-                let mut remaining = facts.clone();
-                // Selected equality need not mean builtin equality. Rejoin
-                // the same checked operator roster used by semantic flow;
-                // missing authority cannot establish comparison evidence.
-                let builtin_comparison = facts.checked_operators.is_some_and(|operators| {
-                    let mut builtin = true;
-                    operators.for_each_expression_use(expression, |_, selected| {
-                        if selected.occurrence
-                            != checked_trees::CheckedOperatorOccurrence::Expression
-                        {
-                            builtin = false;
-                        }
-                    });
-                    builtin
-                });
-                let mut stable_subject = builtin_comparison && self.is_read_only(dispatch.subject);
-                let mut boolean_coverage = [false; 2];
-                for arm in self.program.expression_table.match_arms(dispatch.arms) {
-                    let mut outcome = None;
-                    for pattern in self
-                        .program
+                let arms = self.program.expression_table.match_arms(dispatch.arms);
+                let any_arm_needs_visit = arms.iter().any(|arm| {
+                    self.program
                         .expression_table
                         .match_pattern_operands(arm.pattern)
-                    {
-                        self.transfer(&mut remaining, pattern, sink);
-                        stable_subject &= self.is_read_only(pattern);
-                    }
-                    if let MatchPattern::Value(pattern) = arm.pattern {
-                        // The comparison uses the captured subject. A pattern
-                        // write must not turn its old truth into a fresh fact
-                        // about storage the arm will read.
-                        if let Some(value) = self.program.expression_table.boolean_node(pattern) {
-                            outcome = Some(*value);
-                            if builtin_comparison {
-                                boolean_coverage[usize::from(*value)] = true;
+                        .any(|pattern| {
+                            expression_has_transfer_effect(self.program, pattern, checks_indexed)
+                        })
+                        || expression_has_sink_effect(self.program, arm.value, checks_indexed)
+                });
+                if any_arm_needs_visit {
+                    let mut remaining = facts.clone();
+                    // Selected equality need not mean builtin equality. Rejoin
+                    // the same checked operator roster used by semantic flow;
+                    // missing authority cannot establish comparison evidence.
+                    let builtin_comparison = facts.checked_operators.is_some_and(|operators| {
+                        let mut builtin = true;
+                        operators.for_each_expression_use(expression, |_, selected| {
+                            if selected.occurrence
+                                != checked_trees::CheckedOperatorOccurrence::Expression
+                            {
+                                builtin = false;
+                            }
+                        });
+                        builtin
+                    });
+                    let mut stable_subject =
+                        builtin_comparison && self.is_read_only(dispatch.subject);
+                    let mut boolean_coverage = [false; 2];
+                    for arm in arms {
+                        let mut outcome = None;
+                        for pattern in self
+                            .program
+                            .expression_table
+                            .match_pattern_operands(arm.pattern)
+                        {
+                            self.transfer(&mut remaining, pattern, sink);
+                            stable_subject &= self.is_read_only(pattern);
+                        }
+                        if let MatchPattern::Value(pattern) = arm.pattern {
+                            // The comparison uses the captured subject. A pattern
+                            // write must not turn its old truth into a fresh fact
+                            // about storage the arm will read.
+                            if let Some(value) = self.program.expression_table.boolean_node(pattern)
+                            {
+                                outcome = Some(*value);
+                                if builtin_comparison {
+                                    boolean_coverage[usize::from(*value)] = true;
+                                }
                             }
                         }
-                    }
-                    let mut selected = remaining.clone();
-                    if stable_subject && let Some(truth) = outcome {
-                        self.seed_outcome(&mut selected, dispatch.subject, truth);
-                        self.seed_outcome(&mut remaining, dispatch.subject, !truth);
-                    }
-                    if stable_subject
-                        && builtin_comparison
-                        && let MatchPattern::Value(pattern) = arm.pattern
-                    {
-                        // Equality is arm-local. `remaining` is the path that
-                        // failed this pattern, so it must not take the value.
-                        self.seed_matched_integer(&mut selected, dispatch.subject, pattern);
-                    }
-                    self.transfer(&mut selected, arm.value, sink);
-                    if matches!(arm.pattern, MatchPattern::Wildcard)
-                        || boolean_coverage.iter().all(|covered| *covered)
-                    {
-                        break;
+                        if expression_has_sink_effect(self.program, arm.value, checks_indexed) {
+                            let mut selected = remaining.clone();
+                            if stable_subject && let Some(truth) = outcome {
+                                self.seed_outcome(&mut selected, dispatch.subject, truth);
+                            }
+                            if stable_subject
+                                && builtin_comparison
+                                && let MatchPattern::Value(pattern) = arm.pattern
+                            {
+                                // Equality is arm-local. `remaining` is the path that
+                                // failed this pattern, so it must not take the value.
+                                self.seed_matched_integer(&mut selected, dispatch.subject, pattern);
+                            }
+                            self.transfer(&mut selected, arm.value, sink);
+                        }
+                        if stable_subject && let Some(truth) = outcome {
+                            self.seed_outcome(&mut remaining, dispatch.subject, !truth);
+                        }
+                        if matches!(arm.pattern, MatchPattern::Wildcard)
+                            || boolean_coverage.iter().all(|covered| *covered)
+                        {
+                            break;
+                        }
                     }
                 }
                 // No branch-only promise escapes. Conservatively retire the
                 // union of possible writes, without applying an arm to the
                 // failed-pattern path of a later arm.
-                self.invalidate_writes(facts, expression);
+                if expression_has_transfer_effect(self.program, expression, false) {
+                    self.invalidate_writes(facts, expression);
+                }
             }
             ExpressionNode::Binary(binary) => {
                 self.transfer(facts, binary.left, sink);
                 if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
-                    let mut selected = facts.clone();
-                    if self.is_read_only(binary.left) {
-                        self.seed_outcome(
-                            &mut selected,
-                            binary.left,
-                            binary.operator == BinaryOperator::And,
-                        );
+                    if expression_has_sink_effect(self.program, binary.right, checks_indexed) {
+                        let mut selected = facts.clone();
+                        if self.is_read_only(binary.left) {
+                            self.seed_outcome(
+                                &mut selected,
+                                binary.left,
+                                binary.operator == BinaryOperator::And,
+                            );
+                        }
+                        self.transfer(&mut selected, binary.right, sink);
                     }
-                    self.transfer(&mut selected, binary.right, sink);
-                    self.invalidate_writes(facts, binary.right);
+                    if expression_has_transfer_effect(self.program, binary.right, false) {
+                        self.invalidate_writes(facts, binary.right);
+                    }
                 } else {
                     self.transfer(facts, binary.right, sink);
                 }

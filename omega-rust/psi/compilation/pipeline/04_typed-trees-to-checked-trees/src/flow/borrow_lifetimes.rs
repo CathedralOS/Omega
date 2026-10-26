@@ -53,7 +53,7 @@ pub(crate) fn filter_expired_borrow_loans(
                 }
                 keep
             }
-            FlowConstraintKind::Unknown | checked_trees::borrow_context_quint_pattern!(..) => true,
+            FlowConstraintKind::Unknown | checked_trees::nonloan_constraint_pattern!(..) => true,
         }
     })
 }
@@ -76,6 +76,9 @@ pub(crate) fn filter_reassigned_borrow_loans(
     statement: &typed_trees::statement::StatementNode,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> arena::HandleSpan<FlowConstraintRef> {
+    // Calls on the lexical continuation publish one current occurrence per
+    // exact slot. Outgoing-arm replacements do not retire the guard's retained
+    // fallthrough inventory; their selected call already owns that custody.
     // Completed calls publish one current occurrence for each exact slot,
     // including incoming alternatives on no-write routes. Their former
     // occurrences retire only after RHS formation. Weak stores leave other
@@ -83,14 +86,33 @@ pub(crate) fn filter_reassigned_borrow_loans(
     if !constraint_refs
         .span_or_empty(source)
         .iter()
-        .any(|constraint| matches!(constraint.kind, FlowConstraintKind::BorrowLoan { .. }))
+        .any(|constraint| {
+            matches!(
+                constraint.kind,
+                FlowConstraintKind::BorrowLoan { .. }
+                    | FlowConstraintKind::BorrowIncomingReference { .. }
+            )
+        })
     {
         return source;
     }
-    let source = if let Some(effects) =
-        call_frames.and_then(|frames| frames.stored_reference_effects(machine, statement))
+    let source = if let Some(effects) = call_frames
+        .and_then(|frames| frames.stored_reference_fallthrough_effects(machine, statement))
     {
         reference_spans::filter_constraint_refs(constraint_refs, source, |constraint| {
+            if let FlowConstraintKind::BorrowIncomingReference { identity } = constraint.kind {
+                let incoming = borrow.incoming_references.get(identity);
+                return !effects.iter().any(|effect| {
+                    !effect.may_select
+                        && facts::PlaceRoot::Symbol(incoming.parameter_symbol())
+                            == facts::PlaceRoot::Symbol(effect.destination.local_symbol)
+                        && crate::borrow::place_path_covers_owner(
+                            program,
+                            &effect.destination.local_segments,
+                            borrow.owner_segments.span_or_empty(incoming.owner_path),
+                        )
+                });
+            }
             let FlowConstraintKind::BorrowLoan { loan } = constraint.kind else {
                 return true;
             };
@@ -167,7 +189,13 @@ pub(crate) fn filter_reassigned_borrow_loans(
     if !constraint_refs
         .span_or_empty(source)
         .iter()
-        .any(|constraint| matches!(constraint.kind, FlowConstraintKind::BorrowLoan { .. }))
+        .any(|constraint| {
+            matches!(
+                constraint.kind,
+                FlowConstraintKind::BorrowLoan { .. }
+                    | FlowConstraintKind::BorrowIncomingReference { .. }
+            )
+        })
     {
         return source;
     }
@@ -197,7 +225,27 @@ pub(crate) fn filter_reassigned_borrow_loans(
                 }
                 keep
             }
-            FlowConstraintKind::Unknown | checked_trees::borrow_context_quint_pattern!(..) => true,
+            FlowConstraintKind::BorrowIncomingReference { identity } => {
+                let incoming = borrow.incoming_references.get(identity);
+                let owner = borrow.owner_segments.span_or_empty(incoming.owner_path);
+                // Canonical roots retain opaque invocation referent/output
+                // namespaces; only this parameter's descriptor slot can die.
+                destination.root != facts::PlaceRoot::Symbol(incoming.parameter_symbol())
+                    || (writes_referent
+                        && authored_carrier.as_ref() == Some(&destination)
+                        && owner.len() == destination.segments.len())
+                    || !crate::borrow::place_path_covers_owner(
+                        program,
+                        &destination.segments,
+                        owner,
+                    )
+            }
+            FlowConstraintKind::Unknown
+            | FlowConstraintKind::SemanticContext { .. }
+            | FlowConstraintKind::BorrowState { .. }
+            | FlowConstraintKind::BorrowCall { .. }
+            | FlowConstraintKind::BorrowWritableRoot { .. }
+            | FlowConstraintKind::BorrowAccess { .. } => true,
         }
     })
 }

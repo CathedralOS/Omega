@@ -95,18 +95,12 @@ pub fn materialize_selected_fixed_occurrences(
         .constraint(environment.selected_keys().copy_i64)
         .ok_or(FixedOccurrencesError::ConstraintMismatch)?;
     let mut transformed = source.selected_plan().clone();
-    for (function_index, function) in transformed.functions.iter_mut().enumerate() {
+    let function_count = transformed.functions.len();
+    for function_index in 0..function_count {
+        let function = &transformed.functions[function_index];
         let operand_count = function
-            .instructions()
-            .chain(
-                function
-                    .blocks
-                    .iter()
-                    .map(|block| selected_instructions::terminator_instruction(&block.terminator)),
-            )
-            .try_fold(0usize, |total, instruction| {
-                total.checked_add(instruction.operands.len())
-            })
+            .blocks
+            .total_operand_count()
             .ok_or(FixedOccurrencesError::IdentityOverflow)?;
         let transport_count =
             super::function_transports(function).ok_or(FixedOccurrencesError::IdentityOverflow)?;
@@ -114,57 +108,48 @@ pub fn materialize_selected_fixed_occurrences(
         // component. Its complete arity bounds tie closure's selected roster
         // before doing that work, including duplicates. Charge the selection
         // and lookups against this bound, never an unrelated aggregate's size.
-        let constrained_operand_bound = function
-            .instructions()
-            .chain(
-                function
-                    .blocks
-                    .iter()
-                    .map(|block| selected_instructions::terminator_instruction(&block.terminator)),
-            )
-            .try_fold(0usize, |total, instruction| {
-                total.checked_add(
-                    if instruction
-                        .operands
-                        .iter()
-                        .any(|operand| operand.fixed_view.is_some())
-                    {
-                        instruction.operands.len()
-                    } else {
-                        0
-                    },
-                )
-            })
-            .ok_or(FixedOccurrencesError::IdentityOverflow)?;
-        let register_depth =
-            usize::BITS as usize - constrained_operand_bound.max(1).leading_zeros() as usize;
-        let tie_steps = function
-            .instructions()
-            .chain(
-                function
-                    .blocks
-                    .iter()
-                    .map(|block| selected_instructions::terminator_instruction(&block.terminator)),
-            )
-            .try_fold(0usize, |total, instruction| {
-                let arity = instruction.operands.len();
-                let ties = instruction
-                    .operands
-                    .iter()
-                    .filter(|operand| operand.tied_to.is_some())
-                    .count();
-                // Untied wide call rows need one scan, not a cubic search.
-                // Each tie can search an arity-wide row for at most arity+1
-                // closure rounds; the row scans fit the same bound.
-                total.checked_add(
-                    arity.checked_mul(2)?.checked_add(
+        let mut constrained_operand_bound = 0usize;
+        let mut tie_steps = 0usize;
+        for instruction in function.instructions().chain(
+            function
+                .blocks
+                .iter()
+                .map(|block| selected_instructions::terminator_instruction(&block.terminator)),
+        ) {
+            let arity = instruction.operands.len();
+            if instruction
+                .operands
+                .iter()
+                .any(|operand| operand.fixed_view.is_some())
+            {
+                constrained_operand_bound = constrained_operand_bound
+                    .checked_add(arity)
+                    .ok_or(FixedOccurrencesError::IdentityOverflow)?;
+            }
+            let ties = instruction
+                .operands
+                .iter()
+                .filter(|operand| operand.tied_to.is_some())
+                .count();
+            // Untied wide call rows need one scan, not a cubic search.
+            // Each tie can search an arity-wide row for at most arity+1
+            // closure rounds; the row scans fit the same bound.
+            let step = arity
+                .checked_mul(2)
+                .and_then(|base| {
+                    base.checked_add(
                         ties.checked_mul(arity)?
                             .checked_mul(arity.checked_add(1)?)?
                             .checked_mul(2)?,
-                    )?,
-                )
-            })
-            .ok_or(FixedOccurrencesError::IdentityOverflow)?;
+                    )
+                })
+                .ok_or(FixedOccurrencesError::IdentityOverflow)?;
+            tie_steps = tie_steps
+                .checked_add(step)
+                .ok_or(FixedOccurrencesError::IdentityOverflow)?;
+        }
+        let register_depth =
+            usize::BITS as usize - constrained_operand_bound.max(1).leading_zeros() as usize;
         let settlement_steps = function
             .blocks
             .len()
@@ -203,11 +188,12 @@ pub fn materialize_selected_fixed_occurrences(
             })
             .and_then(|steps| steps.checked_add(tie_steps))
             .and_then(|steps| steps.checked_add(settlement_steps))
-            .and_then(|steps| steps.checked_add(source.selected_plan().functions.len()))
+            .and_then(|steps| steps.checked_add(function_count))
             .ok_or(FixedOccurrencesError::IdentityOverflow)?;
         let required_budget =
             super::required_rewrite_budget(source.selected_plan(), function, budget)
                 .ok_or(FixedOccurrencesError::IdentityOverflow)?;
+        let registers_len = function.virtual_registers.len();
         super::charge_steps(
             steps,
             required_budget,
@@ -216,14 +202,19 @@ pub fn materialize_selected_fixed_occurrences(
                 function: function_index,
                 required: steps,
                 limit: required_budget.validation_steps(),
-                registers: function.virtual_registers.len(),
+                registers: registers_len,
                 operands: operand_count,
                 transports: transport_count,
                 tie_steps,
                 settlement_steps,
             },
         )?;
-        rewrite_function(function, row)?;
+        rewrite_function(
+            &mut transformed.functions,
+            function_index,
+            row,
+            constrained_operand_bound,
+        )?;
     }
     Ok(super::sealed!(
         ValidatedFixedOccurrences,
@@ -234,43 +225,131 @@ pub fn materialize_selected_fixed_occurrences(
 }
 
 fn rewrite_function(
-    function: &mut SelectedFunction,
+    functions: &mut selected_instructions::SelectedFunctions,
+    function_index: usize,
     row: &RegisterInstructionConstraint,
+    constrained_operand_bound: usize,
 ) -> Result<(), FixedOccurrencesError> {
-    let mut next_register = function
-        .virtual_registers
-        .iter()
-        .map(|register| register.id.0)
-        .max()
-        .unwrap_or(0)
-        .checked_add(1)
+    let function = &functions[function_index];
+    let mut next_register = super::runtime_spill::next_register_id(function)
         .ok_or(FixedOccurrencesError::IdentityOverflow)?;
-    let mut next_instruction = function
-        .instructions()
-        .map(|instruction| instruction.id.0)
-        .chain(function.blocks.iter().map(|block| {
-            selected_instructions::terminator_instruction(&block.terminator)
-                .id
-                .0
-        }))
-        .max()
-        .unwrap_or(0)
-        .checked_add(1)
+    let mut next_instruction = super::runtime_spill::next_instruction_id(function)
         .ok_or(FixedOccurrencesError::IdentityOverflow)?;
+    if constrained_operand_bound == 0 {
+        for instruction in function.instructions().chain(
+            function
+                .blocks
+                .iter()
+                .map(|block| selected_instructions::terminator_instruction(&block.terminator)),
+        ) {
+            for operand in &instruction.operands {
+                if let Some(tied) = operand.tied_to
+                    && !instruction
+                        .operands
+                        .iter()
+                        .any(|candidate| candidate.operand == tied)
+                {
+                    return Err(FixedOccurrencesError::ConstraintMismatch);
+                }
+            }
+        }
+        for block in &function.blocks {
+            if u32::try_from(block.instructions.len()).is_err() {
+                return Err(FixedOccurrencesError::IdentityOverflow);
+            }
+            for settlement in &function.boundary_settlements {
+                if settlement.block == block.id
+                    && (settlement.instruction_index as usize) > block.instructions.len()
+                {
+                    return Err(FixedOccurrencesError::SourceMismatch);
+                }
+            }
+        }
+        return Ok(());
+    }
     let occurrences = local_occurrence_registers(function)?;
+    if occurrences
+        .registers
+        .iter()
+        .all(|register| register.instruction_local)
+    {
+        for block in &function.blocks {
+            if u32::try_from(block.instructions.len()).is_err() {
+                return Err(FixedOccurrencesError::IdentityOverflow);
+            }
+            for settlement in &function.boundary_settlements {
+                if settlement.block == block.id
+                    && (settlement.instruction_index as usize) > block.instructions.len()
+                {
+                    return Err(FixedOccurrencesError::SourceMismatch);
+                }
+            }
+        }
+        return Ok(());
+    }
     let mut prepared_instructions = occurrences.instructions.iter();
-    let mut registers = function.virtual_registers.clone();
-    for block in &mut function.blocks {
-        let original = std::mem::take(&mut block.instructions);
-        let mut positions = Vec::with_capacity(original.len() + 1);
-        for mut instruction in original {
+    let mut registers: Option<Vec<VirtualRegister>> = None;
+    let mut block_updates = Vec::new();
+    let mut settlement_updates = Vec::new();
+    for (block_index, block) in function.blocks.iter().enumerate() {
+        let block_inst_count = block.instructions.len();
+        let slice = prepared_instructions.as_slice();
+        if slice.len() < block_inst_count + 1 {
+            return Err(FixedOccurrencesError::SourceMismatch);
+        }
+        let block_prepared = &slice[..block_inst_count + 1];
+        let block_has_candidate = block_prepared.iter().any(|prepared| {
+            prepared.operands.iter().any(|slot| {
+                slot.is_some_and(|roster_index| {
+                    occurrences
+                        .registers
+                        .get(roster_index)
+                        .is_none_or(|occ| !occ.instruction_local)
+                })
+            })
+        });
+        if !block_has_candidate {
+            if u32::try_from(block_inst_count).is_err() {
+                return Err(FixedOccurrencesError::IdentityOverflow);
+            }
+            for (original, prepared) in block
+                .instructions
+                .iter()
+                .chain(std::iter::once(
+                    selected_instructions::terminator_instruction(&block.terminator),
+                ))
+                .zip(block_prepared)
+            {
+                if original.id != prepared.id || original.operands.len() != prepared.operands.len()
+                {
+                    return Err(FixedOccurrencesError::SourceMismatch);
+                }
+            }
+            for _ in 0..=block_inst_count {
+                prepared_instructions.next();
+            }
+            for settlement in &function.boundary_settlements {
+                if settlement.block == block.id
+                    && (settlement.instruction_index as usize) > block_inst_count
+                {
+                    return Err(FixedOccurrencesError::SourceMismatch);
+                }
+            }
+            continue;
+        }
+        let regs = registers.get_or_insert_with(|| function.virtual_registers.clone());
+        let mut new_instructions = Vec::with_capacity(block_inst_count + 4);
+        let mut positions = Vec::with_capacity(block_inst_count + 1);
+        let mut block_changed = false;
+        for original_inst in &block.instructions {
             positions.push(
-                u32::try_from(block.instructions.len())
+                u32::try_from(new_instructions.len())
                     .map_err(|_| FixedOccurrencesError::IdentityOverflow)?,
             );
+            let mut instruction = original_inst.clone();
             let (before, after) = materialize(
                 &mut instruction,
-                &mut registers,
+                regs,
                 &occurrences,
                 prepared_instructions
                     .next()
@@ -279,24 +358,34 @@ fn rewrite_function(
                 &mut next_register,
                 &mut next_instruction,
             )?;
-            block.instructions.extend(before);
-            block.instructions.push(instruction);
-            block.instructions.extend(after);
+            if !before.is_empty()
+                || !after.is_empty()
+                || instruction.operands != original_inst.operands
+            {
+                block_changed = true;
+            }
+            new_instructions.extend(before);
+            new_instructions.push(instruction);
+            new_instructions.extend(after);
         }
         positions.push(
-            u32::try_from(block.instructions.len())
+            u32::try_from(new_instructions.len())
                 .map_err(|_| FixedOccurrencesError::IdentityOverflow)?,
         );
-        for settlement in &mut function.boundary_settlements {
+        for (settlement_idx, settlement) in function.boundary_settlements.iter().enumerate() {
             if settlement.block == block.id {
-                settlement.instruction_index = *positions
+                let new_pos = *positions
                     .get(settlement.instruction_index as usize)
                     .ok_or(FixedOccurrencesError::SourceMismatch)?;
+                if new_pos != settlement.instruction_index {
+                    settlement_updates.push((settlement_idx, new_pos));
+                }
             }
         }
+        let mut new_terminator = block.terminator.clone();
         let (before, after) = materialize(
-            control_mut(&mut block.terminator),
-            &mut registers,
+            control_mut(&mut new_terminator),
+            regs,
             &occurrences,
             prepared_instructions
                 .next()
@@ -308,12 +397,36 @@ fn rewrite_function(
         if !after.is_empty() {
             return Err(FixedOccurrencesError::ConstraintMismatch);
         }
-        block.instructions.extend(before);
+        if !before.is_empty()
+            || control_mut(&mut new_terminator).operands
+                != selected_instructions::terminator_instruction(&block.terminator).operands
+        {
+            block_changed = true;
+        }
+        new_instructions.extend(before);
+        if block_changed {
+            block_updates.push((block_index, new_instructions, new_terminator));
+        }
     }
     if prepared_instructions.next().is_some() {
         return Err(FixedOccurrencesError::SourceMismatch);
     }
-    function.virtual_registers = registers;
+    if !block_updates.is_empty() || !settlement_updates.is_empty() {
+        let function = functions
+            .get_mut(function_index)
+            .ok_or(FixedOccurrencesError::SourceMismatch)?;
+        if let Some(regs) = registers {
+            function.virtual_registers = regs;
+        }
+        for (settlement_idx, new_pos) in settlement_updates {
+            function.boundary_settlements[settlement_idx].instruction_index = new_pos;
+        }
+        for (block_index, new_instructions, new_terminator) in block_updates {
+            function
+                .blocks
+                .replace_block_contents(block_index, new_instructions, new_terminator, 0, 0);
+        }
+    }
     Ok(())
 }
 

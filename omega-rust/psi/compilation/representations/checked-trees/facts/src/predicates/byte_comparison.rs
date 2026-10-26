@@ -32,6 +32,7 @@ impl CheckedBooleanExpression {
                 .unwrap_or(bytes.len()),
         ) {
             let read = CheckedScalarExpression::StructuralParameterIndexedRead {
+                observation: typed_trees::expression::ExpressionHandle::invalid(),
                 root,
                 path: path.clone(),
                 index: Box::new(super::CheckedScalarSelector {

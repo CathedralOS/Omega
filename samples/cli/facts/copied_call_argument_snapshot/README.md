@@ -213,13 +213,19 @@ grant no new access authority.
 The changed-input, swapped-field and shortened-window controls under
 `tests/omega/fail/contracts/cyclic_descriptor_result_*` must refuse the helper's
 own length guarantee. Ranking and recursive premise checks remain independent.
-Terminal invocations retain the selected machine identity, including recursive
-and attached calls; a signature's entry-state coordinate is not an internal
-arrival. Each recursive return discharges the enclosing invocation's guarantees
-against its own captured inputs. Only actual private state arrivals defer that
-completion obligation. The changed-input and swapped-field controls expose the
-previous loss of this distinction; descriptor backing alone cannot discharge
-the caller's original length guarantee.
+Terminal machine calls retain their invocation identity and completion
+obligations, including when a recursive call reuses activation storage.
+Invocation-local parameter origins stay separate from whole-activation
+invariants: the latter follow actual entry backedges and keep the original
+inputs distinct from replaced entry slots. The invariant solver builds its
+components from that same arrival roster. It discharges a recursive completion
+only after every reachable normal-result producer proves the same guarantee;
+unsupported exits withhold that proof. Ordinary call-result reasoning may also
+use a recursive guarantee when that exact call edge independently proves strict
+descent; its captured actuals and ordinary premise checks remain mandatory.
+A whole-component termination promise alone grants no such hypothesis. The scalar changed-actual control
+`fail/contracts/recursive_result_bound_changed_actual` also rejects, while
+ordinary, mutable and forwarding-state scalar controls retain their results.
 
 
 ## Public local dispatch results

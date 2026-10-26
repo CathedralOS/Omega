@@ -9,7 +9,7 @@ use super::{
 };
 use checked_trees::BorrowLoanFact;
 
-pub(super) use crate::borrow::carrier_path;
+pub(super) use crate::borrow::{carrier_path, named_carrier_path};
 
 /// Historical carrier transport, not a new loan descent. A copy and an owned
 /// move retain the supplying occurrence's immediate parents; neither makes
@@ -44,12 +44,12 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
     // adding relationships recovered from retained constructor value graphs.
     for (receiver, loan) in facts.borrow.loan_group(borrowing.loans)? {
         for supplier in facts.borrow.loan_suppliers.span(loan.supplying_loans)? {
-            if !facts.borrow.state_owns_loan(borrowing, *supplier)
-                || !order.precedes(
-                    facts.borrow.loans.get(*supplier).statement_index,
-                    loan.statement_index,
-                )
-            {
+            // Checking published this historical supplier from the receiver's
+            // exact predecessor roster. Several ordered invocations can share
+            // one authored statement, so statement precedence cannot replay
+            // that formation judgment. Retain the published edge itself;
+            // state membership still authenticates both occurrence handles.
+            if !facts.borrow.state_owns_loan(borrowing, *supplier) {
                 return None;
             }
             if !output.contains(&(receiver, *supplier)) {
@@ -78,13 +78,14 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
         let reference = validation::reference_result_custody::storage_owner_type_reference(
             program, state, owner, formation,
         )?;
-        for (receiver, loan) in facts
-            .borrow
-            .loan_group(borrowing.loans)?
-            .filter(|(_, loan)| {
-                loan.storage_owner == facts::PlaceRoot::Symbol(owner)
-                    && loan.statement_index == formation as usize
-            })
+        for (receiver, loan) in
+            facts
+                .borrow
+                .statement_resource_loans(borrowing)?
+                .filter(|(_, loan)| {
+                    loan.storage_owner == facts::PlaceRoot::Symbol(owner)
+                        && loan.statement_index == formation as usize
+                })
         {
             let CheckedUnitEffectOperationPlan::EstablishLocal(
                 checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
@@ -92,7 +93,13 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
             else {
                 continue;
             };
-            let path = carrier_path(program, reference, facts.borrow.loan_owner_path(loan))?;
+            let path = named_carrier_path(
+                program,
+                state,
+                owner,
+                reference,
+                facts.borrow.loan_owner_path(loan),
+            )?;
             let sources = validation::reference_result_custody::stored_carrier_sources(
                 program, facts, *value, &path,
             )?;
@@ -139,7 +146,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
                 for (handle, candidate) in
                     facts
                         .borrow
-                        .loan_group(borrowing.loans)?
+                        .statement_resource_loans(borrowing)?
                         .filter(|(_, candidate)| {
                             candidate.storage_owner == facts::PlaceRoot::Symbol(source_owner)
                                 && order.precedes(candidate.statement_index, loan.statement_index)
@@ -147,8 +154,10 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
                                     .is_none_or(|formation| candidate.statement_index == formation)
                         })
                 {
-                    if carrier_path(
+                    if named_carrier_path(
                         program,
+                        state,
+                        source_owner,
                         supplying_type,
                         facts.borrow.loan_owner_path(candidate),
                     )? == source.path
@@ -180,4 +189,31 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
         }
     }
     Some(output)
+}
+
+/// Follow complete historical suppliers, including intermediate invocation
+/// associations. Only callers select the receiving resource whose death is
+/// owed; reachability itself neither disposes a supplier nor grants access.
+pub(super) fn supplies(
+    transported: &TransportedLoans,
+    supplier: arena::Handle<BorrowLoanFact>,
+    receiver: arena::Handle<BorrowLoanFact>,
+) -> bool {
+    let mut pending = vec![receiver];
+    let mut visited = Vec::new();
+    while let Some(receiver) = pending.pop() {
+        if receiver == supplier {
+            return true;
+        }
+        if visited.contains(&receiver) {
+            continue;
+        }
+        visited.push(receiver);
+        pending.extend(
+            transported
+                .iter()
+                .filter_map(|(received, supplying)| (*received == receiver).then_some(*supplying)),
+        );
+    }
+    false
 }

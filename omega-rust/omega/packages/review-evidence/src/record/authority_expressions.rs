@@ -6,6 +6,7 @@ pub type PackageReviewPrimitiveType = typed_trees::types::PrimitiveType;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackageReviewStructuralPredicatePathSegment {
+    Referent,
     Field(String),
     Case(String),
     FixedIndex(u64),

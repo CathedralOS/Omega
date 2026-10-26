@@ -93,6 +93,28 @@ pub enum EvidenceContractLaneKind {
     Ensures,
 }
 
+/// Source-independent meaning of a nominal proposition's argument. Parameter
+/// positions retain their scalar/owned-structural namespaces and full typed
+/// projection. Unknown is not a closed argument and cannot prove transport.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum EvidenceArgumentSubject {
+    Parameter(super::contracts::OutcomeSpecificCallArgumentSubstitution),
+    Result { argument_position: u32 },
+    Closed { argument_position: u32 },
+    Unknown { argument_position: u32 },
+}
+
+impl EvidenceArgumentSubject {
+    pub fn argument_position(&self) -> u32 {
+        match self {
+            Self::Parameter(parameter) => parameter.argument_position,
+            Self::Result { argument_position }
+            | Self::Closed { argument_position }
+            | Self::Unknown { argument_position } => *argument_position,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct EvidenceContractLane {
     pub machine: MachineId,
@@ -102,6 +124,9 @@ pub struct EvidenceContractLane {
     /// Public named proof output. Present exactly on an
     /// `ensures` lane; `requires` names remain local input aliases.
     pub output_field: Option<String>,
+    /// Complete declaration-owned argument roster. It never imports an
+    /// application label as runtime subject or snapshot identity.
+    pub argument_subjects: Vec<EvidenceArgumentSubject>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

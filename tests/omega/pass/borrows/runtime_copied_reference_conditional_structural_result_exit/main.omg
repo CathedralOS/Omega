@@ -1,0 +1,29 @@
+// Expected exit: 0
+// A selected copied reference retires before its earlier anonymous nominal backing.
+data Code { value: u64; }
+data Receipt [linear] { code: u64; }
+machine Receipt::drop(receipt: &mut Receipt) {}
+data Pair { first: Receipt; second: Receipt; }
+machine Pair::drop(pair: &mut Pair) {}
+data View<'storage> [copy] { target: &'storage Receipt; }
+data Choice<'storage> { case Some(payload: View<'storage>); case Empty; }
+machine retain<'storage>(receipt: &'storage Receipt) -> &'storage Receipt { receipt }
+machine probe(selected: bool) -> Code {
+    let choice: Choice = match selected {
+        true -> Choice::Some { payload: View {
+            target: retain(&Pair { first: Receipt { code: 17 }, second: Receipt { code: 23 } }.second)
+        } }
+        false -> Choice::Empty {}
+    };
+    transition choice {
+        Choice::Some { payload } -> Code { value: payload.target.code }
+        Choice::Empty {} -> Code { value: 0 }
+    }
+}
+machine main() crashes Trap {
+    let retained: Code = probe(true);
+    let empty: Code = probe(false);
+    transition retained.value == 23 && empty.value == 0 { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

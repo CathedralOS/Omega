@@ -1,0 +1,14 @@
+// Expected exit: 0
+data Index<Limit:u32> [copy] where value < Limit { value:u32; }
+machine consume<Count:u32>(first:Index<Count>,second:Index<Count>)->u32 { first.value }
+machine probe(limit:u32)->u32 requires limit>=9 && limit<=10 {
+ let supplied:u32=limit+1u32;
+ let first:Index<limit> = Index{value:4};
+ let second:Index<limit> = Index{value:4};
+ consume<supplied>(first,second)
+}
+machine main() crashes Trap {
+ let value:u32=probe(9);
+ transition value==4 {true->done() _->bad()}
+ state done(){} state bad(){crash Trap;}
+}

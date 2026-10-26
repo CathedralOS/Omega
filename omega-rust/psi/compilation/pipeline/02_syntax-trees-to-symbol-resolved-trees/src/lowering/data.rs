@@ -235,6 +235,7 @@ fn lower_data_definition_with_argument_origins(
     let type_equations = crate::preparation::generic_data::template_type_equation_offsets(
         syntax_trees,
         data_definition,
+        lowerer.constant_selection.as_ref(),
     )?;
     let where_facts = crate::lowering::domain::lower_proof_facts_excluding(
         lowerer,
@@ -273,7 +274,17 @@ fn lower_data_definition_with_argument_origins(
                 carry: data_definition.properties.carry,
                 multiplicity: data_definition.properties.multiplicity,
             },
-            cleanup_selection: data_definition.cleanup_selection.as_ref().map(|selection| crate::lowering::expression::lower_static_machine_argument(lowerer, syntax_trees, selection)).transpose()?,
+            cleanup_selection: data_definition
+                .cleanup_selection
+                .as_ref()
+                .map(|selection| {
+                    crate::lowering::expression::lower_static_machine_argument(
+                        lowerer,
+                        syntax_trees,
+                        selection,
+                    )
+                })
+                .transpose()?,
             quotient,
             where_facts,
             zero_gated,

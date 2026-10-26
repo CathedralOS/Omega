@@ -276,7 +276,13 @@ pub(super) fn reject_unsupported_constraints(
 ) -> Result<(), LivenessError> {
     let mut tied_edges = Vec::new();
     let mut early_rows = Vec::new();
-    for instruction in function.blocks.iter().flat_map(block_instructions) {
+    for instruction in function
+        .blocks
+        .iter()
+        .enumerate()
+        .filter(|&(block_index, _)| function.blocks.block_has_constraint_operands(block_index))
+        .flat_map(|(_, block)| block_instructions(block))
+    {
         for operand in &instruction.operands {
             if operand.access == RegisterOperandAccess::UseDef {
                 return Err(LivenessError::UnsupportedUseDef {
@@ -568,26 +574,28 @@ fn materialize_block(
     let successors = control::successors(&block.terminator)
         .enumerate()
         .map(|(ordinal, successor)| {
-            let mut virtual_live = flow.blocks[flow.edges[block_index][ordinal].target]
-                .virtual_entry
-                .iter()
-                .map(|register| {
-                    flow.incoming_argument(
-                        function_index,
-                        &flow.edges[block_index][ordinal],
-                        *register,
-                    )
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            virtual_live.sort_unstable();
-            virtual_live.dedup();
+            let edge = &flow.edges[block_index][ordinal];
+            let target_entry = &flow.blocks[edge.target].virtual_entry;
+            let virtual_live = if edge.substitutions.is_empty()
+                && target_entry.iter().all(|&reg| flow.is_valid_register(reg))
+            {
+                target_entry.clone()
+            } else {
+                let mut virtual_live = target_entry
+                    .iter()
+                    .map(|register| flow.incoming_argument(function_index, edge, *register))
+                    .collect::<Result<Vec<_>, _>>()?;
+                virtual_live.sort_unstable();
+                virtual_live.dedup();
+                virtual_live
+            };
             Ok(SuccessorLiveness {
                 terminator: terminator.id,
                 polarity_ordinal: ordinal as u8,
                 psi_edge: successor.psi_edge,
                 target: successor.block,
                 virtual_live,
-                unit_live: sorted(&flow.blocks[flow.edges[block_index][ordinal].target].unit_entry),
+                unit_live: sorted(&flow.blocks[edge.target].unit_entry),
             })
         })
         .collect::<Result<Vec<_>, LivenessError>>()?;

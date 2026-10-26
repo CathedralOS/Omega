@@ -17,6 +17,8 @@ pub(super) struct BorrowFactArenas<'arenas> {
     pub(super) owner_segments: &'arenas mut arena::Arena<checked_trees::BorrowLoanOwnerSegment>,
     pub(super) argument_accesses: &'arenas mut arena::Arena<BorrowArgumentAccessFact>,
     pub(super) calls: &'arenas mut arena::Arena<BorrowCallFact>,
+    pub(super) reference_slot_effects:
+        &'arenas mut arena::Arena<checked_trees::BorrowCallReferenceSlotEffect>,
     pub(super) loans: &'arenas mut arena::Arena<BorrowLoanFact>,
     pub(super) loan_suppliers: &'arenas mut arena::Arena<arena::Handle<BorrowLoanFact>>,
     pub(super) returned_loans: &'arenas mut arena::Arena<checked_trees::BorrowReturnedLoanFact>,
@@ -32,7 +34,8 @@ pub(super) fn append_state_borrow_facts(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<(), diagnostics::Diagnostic> {
     state_loan_trackers.clear();
-    append_incoming_reference_trackers(program, machine, state, arenas, state_loan_trackers);
+    let incoming_references =
+        append_incoming_reference_trackers(program, machine, state, arenas, state_loan_trackers);
     // Formation reads the carrier's current contents, while last-use analysis
     // retains every earlier occurrence. Replacement retires the old slot only
     // after its RHS has been resolved against the entry roster.
@@ -53,6 +56,10 @@ pub(super) fn append_state_borrow_facts(
         .statement_table
         .admitted_execution_statements(state.statement_nodes)
     {
+        // A call's entry namespace contains only descriptors established by
+        // preceding statements. Computed backing rows collected below retain
+        // their own formation occurrences and cannot become future suppliers.
+        let statement_entry_loans = current_loans.clone();
         // Establish computed storage before any descriptor consumes its
         // contents, including the state's normal result. Child homes belong
         // to this same current roster, not a second return-source analysis.
@@ -73,6 +80,7 @@ pub(super) fn append_state_borrow_facts(
             state_loan_trackers,
             backing_loans,
             statement_index,
+            Default::default(),
         );
         // Capture result leaves against the same current roster as a local or
         // store. Reconstructing them later from historical loans loses entry
@@ -84,6 +92,7 @@ pub(super) fn append_state_borrow_facts(
             machine.symbol,
             statement,
             &current_loans,
+            call_frames,
         )
         .map_err(|reason| {
             diagnostics::Diagnostic::error(format!(
@@ -149,6 +158,7 @@ pub(super) fn append_state_borrow_facts(
             state_loan_trackers,
             pending_loans,
             statement_index,
+            Default::default(),
         );
         let mut call_ordinal = 0usize;
         collect_statement_borrow_calls(
@@ -163,6 +173,18 @@ pub(super) fn append_state_borrow_facts(
             arenas.calls,
             &mut calls_span,
         );
+        super::calls::append_reference_custody(
+            program,
+            machine,
+            state,
+            statement_index,
+            call_frames,
+            arenas,
+            calls_span,
+            &mut loans_span,
+            state_loan_trackers,
+            &statement_entry_loans,
+        )?;
     }
 
     update_state_loan_last_uses(
@@ -179,6 +201,7 @@ pub(super) fn append_state_borrow_facts(
     arenas.states.append(StateBorrowFact {
         machine_symbol: machine.symbol,
         state_symbol: state.symbol,
+        incoming_references,
         writable_roots: writable_roots_span,
         mutable_parameter_count: mutable_parameter_count(program, state),
         calls: calls_span,
@@ -192,24 +215,76 @@ pub(super) fn append_state_borrow_facts(
 /// Leaving a pending origin on a returned row would turn its external referent
 /// into a temporary descriptor home during the independent escape check.
 fn capture_incoming_origin(arenas: &mut BorrowFactArenas<'_>, loan: &mut StatementBorrowLoan) {
-    if let Some(incoming) = loan.incoming_origin.take() {
-        loan.place.incoming_reference = arenas.incoming_references.append(incoming);
+    if let Some(pending) = loan.incoming_origin.take() {
+        let mut incoming = pending.identity;
+        // The statement-completion roster and its performed-call transport
+        // refer to the same supplied output, rather than two independent grants.
+        let existing = matches!(
+            incoming.origin,
+            checked_trees::IncomingReferenceOrigin::Output { .. }
+        )
+        .then(|| {
+            arenas
+                .incoming_references
+                .iter()
+                .find_map(|(handle, prior)| {
+                    (prior.machine_symbol == incoming.machine_symbol
+                        && prior.state_symbol == incoming.state_symbol
+                        && prior.origin == incoming.origin
+                        && prior.carrier_type == incoming.carrier_type
+                        && arenas.owner_segments.span(prior.owner_path)
+                            == Some(pending.owner_path.as_slice()))
+                    .then_some(handle)
+                })
+        })
+        .flatten();
+        let identity = if let Some(identity) = existing {
+            identity
+        } else {
+            incoming.owner_path = arenas.owner_segments.insert_many(pending.owner_path);
+            arenas.incoming_references.append(incoming)
+        };
+        loan.place.incoming_reference = identity;
+        if let Some(address) = &mut loan.representation_address {
+            address.incoming_reference = identity;
+        }
     }
 }
 
-fn append_carrier_loans(
+pub(super) fn append_carrier_loans(
     arenas: &mut BorrowFactArenas<'_>,
     loans_span: &mut arena::HandleSpan<BorrowLoanFact>,
     current: &mut Vec<StateLoanTracker>,
     history: &mut Vec<StateLoanTracker>,
     pending: Vec<StatementBorrowLoan>,
     statement_index: usize,
-) {
+    established_by_call: arena::Handle<BorrowCallFact>,
+) -> arena::HandleSpan<BorrowLoanFact> {
+    let first = loans_span.count();
     for mut pending in grouped_carrier_loans(pending) {
         capture_incoming_origin(arenas, &mut pending);
         let segments = arenas
             .access_segments
             .insert_many(pending.place.segments.clone());
+        if pending
+            .representation_address
+            .as_ref()
+            .is_some_and(|address| {
+                address.root != pending.place.root
+                    || address.incoming_reference != pending.place.incoming_reference
+            })
+        {
+            pending.representation_address = None;
+        }
+        let representation_address =
+            pending
+                .representation_address
+                .as_ref()
+                .map_or_else(Default::default, |address| {
+                    arenas
+                        .access_segments
+                        .insert_many(address.segments.iter().copied())
+                });
         let owner_path = arenas
             .owner_segments
             .insert_many(pending.owner_path.iter().copied());
@@ -217,7 +292,9 @@ fn append_carrier_loans(
             loans_span,
             BorrowLoanFact {
                 incoming_reference: pending.place.incoming_reference,
+                representation_address,
                 statement_index,
+                established_by_call,
                 formation_expression: pending.formation_expression,
                 formation_owner_path: pending
                     .formation_owner_path
@@ -246,10 +323,17 @@ fn append_carrier_loans(
             call_result: pending.call_result,
             owner_path: pending.owner_path,
             place: pending.place,
+            representation_address: pending.representation_address,
             retained_operand: pending.retained_operand,
         };
         current.push(tracker.clone());
         history.push(tracker);
+    }
+    let count = loans_span.count() - first;
+    if count == 0 {
+        arena::HandleSpan::empty()
+    } else {
+        arena::HandleSpan::from_parts(loans_span.handle_at(first), count)
     }
 }
 
@@ -273,6 +357,11 @@ fn grouped_carrier_loans(mut loans: Vec<StatementBorrowLoan>) -> Vec<StatementBo
                     (2u8, reference.arena_index(), reference.generation())
                 }
                 facts::PlaceRoot::Unknown => (3u8, 0, 0),
+                facts::PlaceRoot::InvocationOutput(identity) => (
+                    5u8,
+                    identity.state_symbol.arena_index(),
+                    identity.state_symbol.generation(),
+                ),
                 facts::PlaceRoot::InvocationReferent { parameter, .. } => {
                     (4u8, parameter.arena_index(), parameter.generation())
                 }
@@ -303,7 +392,8 @@ fn grouped_carrier_loans(mut loans: Vec<StatementBorrowLoan>) -> Vec<StatementBo
                 previous.owner_symbol == loan.owner_symbol && previous.owner_path == loan.owner_path
             })
             .find(|previous| {
-                previous.formation_expression == loan.formation_expression
+                previous.incoming_origin == loan.incoming_origin
+                    && previous.formation_expression == loan.formation_expression
                     && previous.formation_owner_path == loan.formation_owner_path
                     && previous.storage_owner == loan.storage_owner
                     && previous.source_owner_symbol == loan.source_owner_symbol
@@ -313,6 +403,7 @@ fn grouped_carrier_loans(mut loans: Vec<StatementBorrowLoan>) -> Vec<StatementBo
                             .owner_path
                             .contains(&checked_trees::BorrowLoanOwnerSegment::DynamicIndex))
                     && previous.place == loan.place
+                    && previous.representation_address == loan.representation_address
                     && previous.retained_operand == loan.retained_operand
                     && previous.kind == loan.kind
                     && previous.lineage == loan.lineage
@@ -344,8 +435,8 @@ fn retire_replaced_carrier_loans(
     replacement: Option<&super::loans::CarrierReplacement>,
     current: &mut Vec<StateLoanTracker>,
 ) {
-    if let Some(effects) =
-        call_frames.and_then(|frames| frames.stored_reference_effects(machine, statement))
+    if let Some(effects) = call_frames
+        .and_then(|frames| frames.stored_reference_fallthrough_effects(machine, statement))
     {
         // Exact effects install a complete post-call descriptor, including
         // preservation alternatives. Retire the former occurrence even when
@@ -378,7 +469,8 @@ fn append_incoming_reference_trackers(
     state: &typed_trees::state::State,
     arenas: &mut BorrowFactArenas<'_>,
     trackers: &mut Vec<StateLoanTracker>,
-) {
+) -> arena::HandleSpan<checked_trees::IncomingReferenceIdentity> {
+    let mut incoming = arena::HandleSpan::empty();
     for parameter in program
         .state_parameters(state)
         .iter()
@@ -414,6 +506,7 @@ fn append_incoming_reference_trackers(
                     owner_name: parameter.name.clone(),
                     kind: checked_trees::BorrowAccessKind::Read,
                     lineage: checked_trees::BorrowLoanLineage::LifetimeDependency,
+                    representation_address: None,
                     call_result: false,
                     owner_path,
                     retained_operand: None,
@@ -453,19 +546,20 @@ fn append_incoming_reference_trackers(
             let path = arenas
                 .owner_segments
                 .insert_many(owner_path.iter().copied());
-            let incoming_reference =
-                arenas
-                    .incoming_references
-                    .append(checked_trees::IncomingReferenceIdentity {
-                        machine_symbol: machine.symbol,
-                        state_symbol: state.symbol,
-                        origin: checked_trees::IncomingReferenceOrigin::Parameter {
-                            symbol: parameter.symbol,
-                        },
-                        carrier_type: carrier,
-                        owner_path: path,
-                    });
+            let incoming_reference = arenas.incoming_references.append_to_span(
+                &mut incoming,
+                checked_trees::IncomingReferenceIdentity {
+                    machine_symbol: machine.symbol,
+                    state_symbol: state.symbol,
+                    origin: checked_trees::IncomingReferenceOrigin::Parameter {
+                        symbol: parameter.symbol,
+                    },
+                    carrier_type: carrier,
+                    owner_path: path,
+                },
+            );
             trackers.push(StateLoanTracker {
+                representation_address: None,
                 handle: arena::Handle::invalid(),
                 owner_symbol: parameter.symbol,
                 storage_owner: facts::PlaceRoot::Symbol(parameter.symbol),
@@ -483,4 +577,5 @@ fn append_incoming_reference_trackers(
             });
         }
     }
+    incoming
 }

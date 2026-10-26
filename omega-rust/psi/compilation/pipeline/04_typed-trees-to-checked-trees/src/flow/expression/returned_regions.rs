@@ -217,8 +217,8 @@ fn region_sources<'program>(
             })
             .enumerate()
             .find(|(_, parameter)| parameter.symbol == origin.source.root)?;
-        let (projection, endpoint, extent) =
-            validation::reference_result_custody::reference_origin_path(
+        let (entry_reference_hops, projection, endpoint, extent) =
+            validation::reference_result_custody::parameter_reference_origin_path(
                 program,
                 parameter.type_reference,
                 &origin.source.segments,
@@ -240,6 +240,7 @@ fn region_sources<'program>(
                 root: CheckedReferenceOriginRoot::Parameter {
                     index: u32::try_from(index).ok()?,
                 },
+                entry_reference_hops,
                 path: projection,
                 extent,
                 type_identity: program.normalized_type_identity(endpoint),

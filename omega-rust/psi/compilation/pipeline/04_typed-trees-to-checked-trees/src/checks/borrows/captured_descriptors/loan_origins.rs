@@ -14,7 +14,31 @@ pub(super) fn places(
     operand: Handle<FlowOperandFact>,
     path: &[facts::PlaceSegment],
 ) -> Option<Vec<CapturedPlace>> {
-    let capture = facts.flow.control.operands.get(operand);
+    let control = &facts.flow.control;
+    if !control.operands.is_valid(operand) {
+        return None;
+    }
+    let capture = control.operands.get(operand);
+    match validation::completed_storage::frozen_reference_leaf(program, control, operand, path) {
+        validation::completed_storage::FrozenReferenceSelection::Unavailable => None,
+        validation::completed_storage::FrozenReferenceSelection::Endpoint { owner, leaf, path } => {
+            captured_places(program, facts, state, &owner, &path, leaf.constraints)
+        }
+        validation::completed_storage::FrozenReferenceSelection::NotFrozen
+        | validation::completed_storage::FrozenReferenceSelection::ThroughReference => {
+            captured_places(program, facts, state, capture, path, capture.constraints)
+        }
+    }
+}
+
+fn captured_places(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    capture: &FlowOperandFact,
+    path: &[facts::PlaceSegment],
+    constraints: arena::HandleSpan<checked_trees::FlowConstraintRef>,
+) -> Option<Vec<CapturedPlace>> {
     if capture.state_symbol != state.state_symbol {
         return None;
     }
@@ -30,7 +54,7 @@ pub(super) fn places(
         facts,
         state,
         capture.statement_index,
-        capture.constraints,
+        constraints,
         CapturedPlace {
             incoming_reference: Handle::invalid(),
             root: source.root,
@@ -52,6 +76,13 @@ pub(super) fn places(
                 return None;
             }
             if source.place.incoming_reference.is_valid() {
+                if !facts
+                    .borrow
+                    .incoming_references
+                    .is_valid(source.place.incoming_reference)
+                {
+                    return None;
+                }
                 let incoming = facts
                     .borrow
                     .incoming_references

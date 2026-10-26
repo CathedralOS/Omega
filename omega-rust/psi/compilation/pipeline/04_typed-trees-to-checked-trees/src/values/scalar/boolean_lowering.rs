@@ -337,8 +337,8 @@ fn byte_carrier_literal_equality(
             continue;
         };
         let maximum_length = match geometry {
-            ByteObservationCarrier::FixedArray { length } => Some(length),
-            ByteObservationCarrier::Sequence(
+            validation::ByteObservationCarrier::FixedArray { length } => Some(length),
+            validation::ByteObservationCarrier::Sequence(
                 checked_trees::CheckedByteSequenceCarrier::BoundedView { capacity, .. }
                 | checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity },
             ) => Some(capacity),
@@ -369,14 +369,14 @@ fn byte_carrier_pair_equality(
         (left, right);
     let capacities = match (left_carrier, right_carrier) {
         (
-            ByteObservationCarrier::FixedArray { length: left },
-            ByteObservationCarrier::FixedArray { length: right },
+            validation::ByteObservationCarrier::FixedArray { length: left },
+            validation::ByteObservationCarrier::FixedArray { length: right },
         ) => Some((left, right)),
         (
-            ByteObservationCarrier::Sequence(
+            validation::ByteObservationCarrier::Sequence(
                 checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity: left },
             ),
-            ByteObservationCarrier::Sequence(
+            validation::ByteObservationCarrier::Sequence(
                 checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity: right },
             ),
         ) => Some((left, right)),
@@ -410,6 +410,7 @@ fn byte_carrier_pair_equality(
     let read = |root, path: &Vec<_>, index| {
         Some(Box::new(
             CheckedScalarExpression::StructuralParameterIndexedRead {
+                observation: ExpressionHandle::invalid(),
                 root,
                 path: path.clone(),
                 index: Box::new(checked_trees::CheckedScalarSelector {
@@ -475,77 +476,15 @@ pub(crate) fn comparable_byte_carrier(
 ) -> Option<(
     checked_trees::CheckedStorageRoot,
     Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
-    ByteObservationCarrier,
+    validation::ByteObservationCarrier,
 )> {
     let (root, path, type_reference) =
         structural_fields::structural_storage_place(program, authored_parameters, carrier)?;
     // The selected leaf defines its byte carrier. Its enclosing record may
     // own storage while this field borrows bytes; retain both identities so
     // downstream observation replay checks the actual backing and extent.
-    let carrier = comparable_byte_carrier_type(program, type_reference)?;
+    let carrier = validation::comparable_byte_carrier_type(program, type_reference)?;
     Some((root, path, carrier))
-}
-
-/// The carrier of `type_reference` when it has a live byte length and
-/// readable bytes: a bounded owned byte buffer, or a shared or mutable
-/// borrowed byte view.
-/// Observation geometry is independent of the stored collection kind. A
-/// fixed array contributes its declared extent; an explicit byte carrier
-/// contributes the extent its own representation exposes.
-#[derive(Clone)]
-pub(crate) enum ByteObservationCarrier {
-    FixedArray { length: u64 },
-    Sequence(checked_trees::CheckedByteSequenceCarrier),
-}
-
-pub(crate) fn comparable_byte_carrier_type(
-    program: &dyn ::validation::CheckingInput,
-    type_reference: typed_trees::types::TypeReferenceHandle,
-) -> Option<ByteObservationCarrier> {
-    // Observation follows a readable loan to its actual array. Custody and
-    // qualification remain on the original operand; write-only access never
-    // authorizes a byte observation.
-    let observed_type = match validation::reference_shell(program, type_reference) {
-        Some(shell) if shell.access == language_semantics::ReferenceAccess::WriteOnly => {
-            return None;
-        }
-        Some(shell) => shell.referee,
-        None => type_reference,
-    };
-    let storage = program
-        .type_reference_table
-        .unconstrained_type_reference(observed_type);
-    if let typed_trees::types::TypeReferenceNode::FixedArray {
-        element_type,
-        length: typed_trees::types::FixedArrayLength::Literal(length),
-    } = program.type_reference_table.type_reference(storage)
-        && program.primitive_type_reference(*element_type) == Some(PrimitiveType::U8)
-    {
-        return Some(ByteObservationCarrier::FixedArray {
-            length: u64::try_from(*length).ok()?,
-        });
-    }
-    crate::execution::terminal_unit::types::byte_sequence_carrier(program, type_reference, &[])
-        .filter(|carrier| {
-            matches!(
-                carrier,
-                checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
-                    | checked_trees::CheckedByteSequenceCarrier::BoundedView {
-                        access: Some(
-                            checked_trees::CheckedStructuralAccess::SharedBorrow
-                                | checked_trees::CheckedStructuralAccess::MutableBorrow
-                        ),
-                        ..
-                    }
-                    | checked_trees::CheckedByteSequenceCarrier::BorrowedView {
-                        access: Some(
-                            checked_trees::CheckedStructuralAccess::SharedBorrow
-                                | checked_trees::CheckedStructuralAccess::MutableBorrow
-                        ),
-                    }
-            )
-        })
-        .map(ByteObservationCarrier::Sequence)
 }
 
 fn integer_literal(value: u64, primitive_type: PrimitiveType) -> Option<CheckedScalarExpression> {

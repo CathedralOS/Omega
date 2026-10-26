@@ -3,6 +3,8 @@
 //! alone consumes the live parent accounts and publishes the derived result;
 //! a later local binding or return never backdates authority to construction.
 
+mod boundary_correspondence;
+
 use super::{Emission, LoweringError, StructuralArgument, unsupported};
 use semantic_vocabulary::{ContentPlaceSegment, ContentPlaceVersion, ContentStructuralPlace};
 use terminal_psi::{
@@ -65,32 +67,22 @@ impl Emission<'_, '_, '_> {
         &self,
         node: &checked_trees::CheckedStructuralValue,
     ) -> Result<Option<checked_trees::facts::ContentBodyTransformation>, LoweringError> {
-        let mut matching = self
-            .checked
-            .facts
-            .qualifications
-            .content
-            .body_transformations
-            .iter()
-            .filter_map(|(_, transaction)| {
-                let occurrence = self
-                    .checked
-                    .facts
-                    .flow
-                    .control
-                    .operands
-                    .get(transaction.completed_value);
-                (transaction.machine_symbol == node.machine
-                    && transaction.state_symbol == node.state
-                    && occurrence.statement_index == node.statement_index as usize
-                    && occurrence.expression == node.expression)
-                    .then_some(transaction)
-            });
-        let selected = matching.next().cloned();
-        if matching.next().is_some() {
-            return unsupported("content completion has ambiguous evaluation transactions");
+        let content = &self.checked.facts.qualifications.content;
+        if !node.content_transformation.is_valid() {
+            return Ok(None);
         }
-        Ok(selected)
+        if !content
+            .body_transformations
+            .is_valid(node.content_transformation)
+        {
+            return unsupported("content value lost its exact completion transaction");
+        }
+        Ok(Some(
+            content
+                .body_transformations
+                .get(node.content_transformation)
+                .clone(),
+        ))
     }
 
     pub(super) fn transform_content(
@@ -111,10 +103,13 @@ impl Emission<'_, '_, '_> {
         if source.access != StructuralAccess::Owned || !source.path.is_empty() {
             return unsupported("content formation requires its complete owned payload");
         }
-        // Completion may consume existing local storage rather than establish
-        // a fresh carrier. Its actual producer owns the claim roster; the
-        // current expression's establishment list cannot replace that roster.
-        let claims = super::completed_place_claims(self.operations, source.place).collect();
+        let claims =
+            self.evaluation
+                .current_claims
+                .source(&source)?
+                .ok_or(LoweringError::Unsupported(
+                    "content payload has no completed custody",
+                ))?;
         let (whole, projected) =
             self.completed_memberships(source.place)
                 .ok_or(LoweringError::Unsupported(
@@ -134,10 +129,10 @@ impl Emission<'_, '_, '_> {
             let mut inputs = Vec::new();
             let mut outputs = Vec::new();
             let mut algebra = None;
-            for available in content
-                .body_available_inputs
-                .span_or_empty(equation.available_inputs)
-            {
+            let mut input_bindings = Vec::new();
+            let mut output_bindings = Vec::new();
+            for available_handle in equation.available_inputs.handles() {
+                let available = content.body_available_inputs.get(available_handle);
                 let binding = content.body_claim_bindings.get(available.binding);
                 let (mut argument, carrier) =
                     crate::expression_preparation::bindings::owned_structural_home(
@@ -185,7 +180,7 @@ impl Emission<'_, '_, '_> {
                 }
                 let projection = self.content_projection(binding.semantic_domain)?;
                 algebra = Some(projection.algebra.clone());
-                inputs.push(ContentClaimProjection {
+                let input = ContentClaimProjection {
                     claim: crate::terminal_identities::lookup_claim_id(
                         self.calls.claims.bindings(),
                         binding.claim_identity,
@@ -196,9 +191,12 @@ impl Emission<'_, '_, '_> {
                         root: argument.place,
                         segments,
                     },
-                });
+                };
+                input_bindings.push((available_handle, input.clone()));
+                inputs.push(input);
             }
-            for binding in content.body_claim_bindings.span_or_empty(equation.outputs) {
+            for binding_handle in equation.outputs.handles() {
+                let binding = content.body_claim_bindings.get(binding_handle);
                 let segments = source_path(
                     self.checked,
                     ownership.segments.span_or_empty(binding.segments),
@@ -220,15 +218,20 @@ impl Emission<'_, '_, '_> {
                     .ok_or(LoweringError::Unsupported(
                         "derived membership has no exact domain",
                     ))?;
-                if path.is_empty() {
-                    qualifications.push(domain.id);
-                } else {
-                    projected_qualifications.push(StructuralPathQualification {
-                        path,
-                        domain: domain.id,
-                    });
+                if matches!(
+                    derived.custody,
+                    checked_trees::facts::ContentBodyCustody::Derived
+                ) {
+                    if path.is_empty() {
+                        qualifications.push(domain.id);
+                    } else {
+                        projected_qualifications.push(StructuralPathQualification {
+                            path,
+                            domain: domain.id,
+                        });
+                    }
                 }
-                outputs.push(ContentClaimProjection {
+                let output = ContentClaimProjection {
                     claim: crate::terminal_identities::lookup_claim_id(
                         self.calls.claims.bindings(),
                         binding.claim_identity,
@@ -239,8 +242,11 @@ impl Emission<'_, '_, '_> {
                         root: place,
                         segments,
                     },
-                });
+                };
+                output_bindings.push((binding_handle, output.clone()));
+                outputs.push(output);
             }
+            let custody = self.boundary_body_custody(derived, &input_bindings, &output_bindings)?;
             inputs.sort();
             outputs.sort();
             let conservation = semantic_vocabulary::ContentConservation::new(
@@ -254,11 +260,24 @@ impl Emission<'_, '_, '_> {
             );
             derivations.push(ContentTransformationDerivation {
                 conservation,
-                lineage_anchor: crate::terminal_identities::lookup_claim_id(
-                    self.calls.claims.bindings(),
-                    derived.lineage_anchor,
-                )?,
+                lineage_roots: {
+                    let mut roots = content
+                        .body_claim_bindings
+                        .span_or_empty(derived.lineage_roots)
+                        .iter()
+                        .map(|binding| {
+                            crate::terminal_identities::lookup_claim_id(
+                                self.calls.claims.bindings(),
+                                binding.claim_identity,
+                            )
+                        })
+                        .collect::<Result<Vec<_>, LoweringError>>()?;
+                    roots.sort();
+                    roots.dedup();
+                    roots
+                },
                 ancestry: self.content_ancestry(derived.conservation)?,
+                custody,
                 inputs,
                 outputs,
             });
@@ -268,6 +287,20 @@ impl Emission<'_, '_, '_> {
         projected_qualifications.sort();
         projected_qualifications.dedup();
         derivations.sort();
+        // The transaction consumes these exact subtrees. Keep unaffected
+        // siblings at their homes; only the receiving operation may publish
+        // the payload's transported names after this completion.
+        for consumed in parents.iter().chain(std::iter::once(&source)) {
+            if self.evaluation.current_claims.contains(consumed.place) {
+                self.evaluation
+                    .current_claims
+                    .replace(consumed.place, &consumed.path, &[])?;
+            }
+        }
+        self.evaluation.retire_consumed_structural_arguments(
+            parents.iter().chain(std::iter::once(&source)),
+            self.operations,
+        )?;
         self.operations.push(Operation {
             id: operation,
             static_reach_binding: None,
@@ -316,21 +349,19 @@ impl Emission<'_, '_, '_> {
             .operands
             .get(equation.completed_value);
         let mut retained = Vec::new();
-        for entry in equation.inputs.handles() {
-            let frontier = content
-                .descendant_frontier(
-                    entry,
-                    equation.machine_symbol,
-                    equation.state_symbol,
-                    completed.statement_index,
-                    equation.evaluation,
-                    conservation,
-                )
-                .map_err(LoweringError::Unsupported)?;
-            for (handle, _, _) in frontier.replacements {
-                if !retained.contains(&handle) {
-                    retained.push(handle);
-                }
+        let frontier = content
+            .descendant_frontier(
+                equation.inputs,
+                equation.machine_symbol,
+                equation.state_symbol,
+                completed.statement_index,
+                equation.evaluation,
+                conservation,
+            )
+            .map_err(LoweringError::Unsupported)?;
+        for (handle, _, _) in frontier.replacements {
+            if !retained.contains(&handle) {
+                retained.push(handle);
             }
         }
         let mut ancestry = Vec::new();

@@ -115,8 +115,103 @@ pub(crate) enum PreparedStructuralPathSegment {
     },
     RuntimeIndex(checked_trees::CheckedRuntimeIndex),
     ComputedIndex(checked_trees::CheckedScalarComputationHandle),
+    /// Execute this exact authored child while retaining its fixed geometry.
+    EvaluatedFixedIndex {
+        index: u64,
+        computation: checked_trees::CheckedScalarComputationHandle,
+    },
     /// A silent alias keeps its declaration-time selector in original storage.
     CapturedIndex(semantic_vocabulary::PlaceId),
+}
+
+/// Typed preparation may insert view markers or consume a logical reference
+/// hop, but preserves the exact index roster. Join positions through that
+/// roster and verify the fixed value before adding executable bookkeeping.
+pub(crate) fn retain_selector_evaluations(
+    checked_path: &[CheckedUnitStructuralPathSegment],
+    evaluations: arena::HandleSpan<checked_trees::CheckedScalarComputationHandle>,
+    operands: &arena::Arena<checked_trees::CheckedScalarComputationHandle>,
+    prepared: &mut [PreparedStructuralPathSegment],
+) -> Result<(), LoweringError> {
+    if evaluations.is_empty() {
+        return Ok(());
+    }
+    if !checked_trees::CheckedUnitStructuralArgumentPlan::projection_evaluations_match(
+        checked_path,
+        evaluations,
+        operands,
+    ) {
+        return unsupported("selector child roster changes its checked projection");
+    }
+    let children = operands
+        .span(evaluations)
+        .ok_or(LoweringError::Unsupported(
+            "selector projection has a stale computation child span",
+        ))?;
+    let checked_indexes = checked_path
+        .iter()
+        .enumerate()
+        .filter_map(|(position, segment)| {
+            matches!(
+                segment,
+                CheckedUnitStructuralPathSegment::FixedIndex(_)
+                    | CheckedUnitStructuralPathSegment::RuntimeIndex(_)
+                    | CheckedUnitStructuralPathSegment::ComputedIndex(_)
+            )
+            .then_some(position)
+        })
+        .collect::<Vec<_>>();
+    let prepared_indexes = prepared
+        .iter()
+        .enumerate()
+        .filter_map(|(position, segment)| {
+            matches!(
+                segment,
+                PreparedStructuralPathSegment::Static(StructuralPathSegment::FixedIndex(_))
+                    | PreparedStructuralPathSegment::RuntimeIndex(_)
+                    | PreparedStructuralPathSegment::ComputedIndex(_)
+                    | PreparedStructuralPathSegment::CapturedIndex(_)
+            )
+            .then_some(position)
+        })
+        .collect::<Vec<_>>();
+    if checked_indexes.len() != prepared_indexes.len() {
+        return unsupported("prepared projection changes its checked index roster");
+    }
+    let inherited =
+        checked_indexes
+            .len()
+            .checked_sub(children.len())
+            .ok_or(LoweringError::Unsupported(
+                "selector child roster exceeds its projection suffix",
+            ))?;
+    for (ordinal, computation) in children.iter().enumerate() {
+        let index_ordinal = ordinal + inherited;
+        let position = checked_indexes[index_ordinal];
+        let target = &mut prepared[prepared_indexes[index_ordinal]];
+        match checked_path[position] {
+            CheckedUnitStructuralPathSegment::FixedIndex(index) => {
+                if *target
+                    != PreparedStructuralPathSegment::Static(StructuralPathSegment::FixedIndex(
+                        index,
+                    ))
+                {
+                    return unsupported(
+                        "selector evaluation changes its prepared fixed coordinate",
+                    );
+                }
+                *target = PreparedStructuralPathSegment::EvaluatedFixedIndex {
+                    index,
+                    computation: *computation,
+                };
+            }
+            CheckedUnitStructuralPathSegment::ComputedIndex(expected)
+                if expected == *computation
+                    && *target == PreparedStructuralPathSegment::ComputedIndex(expected) => {}
+            _ => return unsupported("selector child lost its exact dynamic coordinate"),
+        }
+    }
+    Ok(())
 }
 
 /// The actual endpoint of a prepared projection, including inline carriers
@@ -127,6 +222,31 @@ enum PreparedArgumentTip<'a> {
     Inline(&'a terminal_psi::StructuralFieldType),
     ByteElement,
     ByteWindow,
+}
+
+/// The coordinate system in which a checked projection was produced. A
+/// completed value already names its published carrier; a logical local loan
+/// instead names the backing that its carrier presents. Neither choice grants
+/// access: the consuming operation retains its separately checked custody.
+#[derive(Clone, Copy)]
+pub(crate) enum ProjectionRoot {
+    Published(semantic_vocabulary::StructuralTypeId),
+    Borrowed {
+        published: semantic_vocabulary::StructuralTypeId,
+        logical: typed_trees::type_identity::TypeIdentityId,
+        /// Root crossings actually spelled by this checked producer before its
+        /// logical suffix. Physical publication emits its own typed crossings;
+        /// only this explicit prefix may be consumed, never a nested field hop.
+        spelled_reference_hops: u32,
+    },
+    /// The origin producer explicitly retained formal-entry reference steps.
+    /// The published borrowed parameter already denotes that storage; no
+    /// nested pointer step may be erased by this root-only adaptation.
+    BorrowedEntry {
+        published: semantic_vocabulary::StructuralTypeId,
+        access: StructuralAccess,
+        reference_hops: u32,
+    },
 }
 
 /// Join a logical loan root to its exact published selected carrier, preserving
@@ -180,32 +300,20 @@ pub(crate) fn prepare_call_argument_path(
     )
 }
 
-/// Resolve a prepared storage observation in its actual published namespace.
+/// Complete a checked projection in its producer's coordinate system. Physical
+/// paths stay strict; logical loans retain their explicit carrier adaptation.
 /// The endpoint is a declaration view, not a fabricated invocation operand.
-pub(crate) fn prepare_observation_path(
+pub(crate) fn prepare_projection_path(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
     projection: &[CheckedUnitStructuralPathSegment],
-    root: semantic_vocabulary::StructuralTypeId,
-    logical_root: typed_trees::type_identity::TypeIdentityId,
+    root: ProjectionRoot,
     endpoint: typed_trees::type_identity::TypeIdentityId,
     access: StructuralAccess,
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Vec<PreparedStructuralPathSegment>, LoweringError> {
-    if !logical_root.is_valid() {
-        return Err(LoweringError::Unsupported(
-            "storage observation has no logical root declaration",
-        ));
-    }
-    let (path, tip) = prepare_declared_projection(
-        identities,
-        checked,
-        projection,
-        root,
-        Some(logical_root),
-        access,
-        types,
-    )?;
+    let (path, tip) =
+        prepare_root_projection(identities, checked, projection, root, access, types)?;
     complete_lent_path(identities, checked, path, tip, endpoint, access, types)
 }
 
@@ -339,29 +447,78 @@ fn prepare_structural_argument_projection<'a>(
     published_root: semantic_vocabulary::StructuralTypeId,
     types: &'a [terminal_psi::StructuralTypeDeclaration],
 ) -> Result<(Vec<PreparedStructuralPathSegment>, PreparedArgumentTip<'a>), LoweringError> {
-    prepare_declared_projection(
+    let root = match argument.borrowed_root_type_identity() {
+        Some(logical) => ProjectionRoot::Borrowed {
+            published: published_root,
+            logical,
+            spelled_reference_hops: argument.borrowed_root_reference_hops(),
+        },
+        None => ProjectionRoot::Published(published_root),
+    };
+    let (mut path, tip) = prepare_root_projection(
         identities,
         checked,
         projection,
-        published_root,
-        argument.borrowed_root_type_identity(),
+        root,
         terminal_access(argument.access),
         types,
-    )
+    )?;
+    if !projection.is_empty() {
+        retain_selector_evaluations(
+            projection,
+            argument.projection_evaluations,
+            &checked.facts.values.scalar_computations.operands,
+            &mut path,
+        )?;
+    }
+    Ok((path, tip))
 }
 
-fn prepare_declared_projection<'a>(
+fn prepare_root_projection<'a>(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
     projection: &[CheckedUnitStructuralPathSegment],
-    published_root: semantic_vocabulary::StructuralTypeId,
-    logical_identity: Option<typed_trees::type_identity::TypeIdentityId>,
+    root: ProjectionRoot,
     requested: StructuralAccess,
     types: &'a [terminal_psi::StructuralTypeDeclaration],
 ) -> Result<(Vec<PreparedStructuralPathSegment>, PreparedArgumentTip<'a>), LoweringError> {
-    let Some(identity) = logical_identity else {
-        return prepare_argument_projection(identities, projection, published_root, types);
+    let (published_root, identity, spelled_reference_hops) = match root {
+        ProjectionRoot::Published(published) => {
+            return prepare_argument_projection(identities, projection, published, types);
+        }
+        ProjectionRoot::Borrowed {
+            published,
+            logical,
+            spelled_reference_hops,
+        } => (published, logical, spelled_reference_hops),
+        ProjectionRoot::BorrowedEntry {
+            published,
+            access,
+            reference_hops,
+        } => {
+            if access == StructuralAccess::Owned
+                || requested == StructuralAccess::Owned
+                || !structural_access_can_supply(access, requested)
+            {
+                return unsupported("reference origin entry changes its borrowed access");
+            }
+            let mut remainder = projection;
+            for _ in 0..reference_hops {
+                let Some((CheckedUnitStructuralPathSegment::Referent, suffix)) =
+                    remainder.split_first()
+                else {
+                    return unsupported("reference origin lost its declared entry crossing");
+                };
+                remainder = suffix;
+            }
+            return prepare_argument_projection(identities, remainder, published, types);
+        }
     };
+    if !identity.is_valid() {
+        return Err(LoweringError::Unsupported(
+            "borrowed projection has no logical root declaration",
+        ));
+    }
     let mut roots = types.iter().filter(|row| {
         row.identity == identities.intern(&checked.type_identity_text(identity).unwrap_or_default())
     });
@@ -378,35 +535,42 @@ fn prepare_declared_projection<'a>(
             "logical borrowed argument cannot transfer its carrier",
         ));
     }
-    let mut prepared = Vec::new();
     let mut remainder = projection;
-    if published_root != logical_root.id {
-        let mut carriers = types.iter().filter(|row| row.id == published_root);
+    for _ in 0..spelled_reference_hops {
+        let Some((CheckedUnitStructuralPathSegment::Referent, suffix)) = remainder.split_first()
+        else {
+            return unsupported("borrowed projection lost its producer-spelled root crossing");
+        };
+        remainder = suffix;
+    }
+    let mut prepared = Vec::new();
+    let mut carrier_id = published_root;
+    // A path cannot cross more distinct declarations than the canonical type
+    // catalog holds. This also fails closed on recursive reference-only cycles,
+    // without a spelling/depth limit or a second structural graph.
+    let mut remaining = types.len();
+    while carrier_id != logical_root.id {
+        remaining = remaining.checked_sub(1).ok_or(LoweringError::Unsupported(
+            "borrowed argument has a cyclic reference presentation",
+        ))?;
+        let mut carriers = types.iter().filter(|row| row.id == carrier_id);
         let carrier = carriers.next().ok_or(LoweringError::Unsupported(
             "borrowed argument lost its published carrier",
         ))?;
         if carriers.next().is_some() {
-            return Err(LoweringError::Unsupported(
-                "borrowed argument published carrier is ambiguous",
-            ));
+            return unsupported("borrowed argument published carrier is ambiguous");
         }
-        // Ordinary references cross a separate referent declaration. Stored
-        // descriptors instead retain an access ceiling that can distinguish
-        // their identity from the checked logical view of the same backing.
-        // Reuse the shared presentation judgment for exact element/extent
-        // geometry, then check access separately. Descriptor projections need
-        // no extra pointer crossing, and keep their original bounds below.
-        let presents_root = match &carrier.shape {
+        match &carrier.shape {
             terminal_psi::StructuralTypeShape::Reference { referent, access } => {
-                if *referent != logical_root.id || !structural_access_can_supply(*access, requested)
-                {
-                    false
-                } else {
-                    prepared.push(PreparedStructuralPathSegment::Static(
-                        StructuralPathSegment::Referent,
-                    ));
-                    true
+                if !structural_access_can_supply(*access, requested) {
+                    return unsupported(
+                        "borrowed argument crosses an incompatible reference access",
+                    );
                 }
+                prepared.push(PreparedStructuralPathSegment::Static(
+                    StructuralPathSegment::Referent,
+                ));
+                carrier_id = *referent;
             }
             terminal_psi::StructuralTypeShape::ElementView { access, .. }
             | terminal_psi::StructuralTypeShape::ByteSequence(
@@ -415,29 +579,20 @@ fn prepare_declared_projection<'a>(
             | terminal_psi::StructuralTypeShape::ByteSequence(
                 terminal_psi::ByteSequenceCarrier::BoundedView { access, .. },
             ) => {
-                terminal_semantics::borrowed_referent_presentation(
+                if terminal_semantics::borrowed_referent_presentation(
                     types.iter(),
                     carrier.id,
                     logical_root.id,
-                ) == Some(terminal_semantics::BorrowedReferentPresentation::Unchanged)
-                    && access.is_none_or(|access| structural_access_can_supply(access, requested))
+                ) != Some(terminal_semantics::BorrowedReferentPresentation::Unchanged)
+                    || access.is_some_and(|access| !structural_access_can_supply(access, requested))
+                {
+                    return unsupported("borrowed argument changes its descriptor presentation");
+                }
+                // Descriptor presentation is implicit; it emits no pointer
+                // crossing. Its element/count rules remain in the strict suffix.
+                carrier_id = logical_root.id;
             }
-            _ => false,
-        };
-        if !presents_root {
-            return Err(LoweringError::Unsupported(
-                "borrowed argument changes its published root or reference access",
-            ));
-        }
-        // The plan may spell the logical hop already consumed by the carrier
-        // presentation above. Ordinary references emitted that hop explicitly;
-        // descriptors address their backing implicitly. Neither
-        // may dereference the logical referent a second time.
-        if matches!(
-            remainder.first(),
-            Some(CheckedUnitStructuralPathSegment::Referent)
-        ) {
-            remainder = &remainder[1..];
+            _ => return unsupported("borrowed argument changes its published root"),
         }
     }
     let (suffix, tip) = prepare_argument_projection(identities, remainder, logical_root.id, types)?;
@@ -755,12 +910,23 @@ pub(crate) fn lower_reference_origin_path(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
     mut path: &[checked_trees::CheckedReferenceOriginProjection],
-    mut root: semantic_vocabulary::StructuralTypeId,
+    coordinate: ProjectionRoot,
+    access: StructuralAccess,
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Vec<terminal_psi::ReferenceOriginProjection>, LoweringError> {
     use checked_trees::CheckedReferenceOriginProjection as CheckedOrigin;
     use terminal_psi::ReferenceOriginProjection as Origin;
     let mut output = Vec::with_capacity(path.len());
+    let mut coordinate = coordinate;
+    let mut root = match coordinate {
+        ProjectionRoot::Published(root)
+        | ProjectionRoot::Borrowed {
+            published: root, ..
+        }
+        | ProjectionRoot::BorrowedEntry {
+            published: root, ..
+        } => root,
+    };
     loop {
         let next_projection = path.iter().position(|projection| {
             matches!(
@@ -780,7 +946,9 @@ pub(crate) fn lower_reference_origin_path(
                 CheckedOrigin::Element => unsupported("returned origin lost its collection step"),
             })
             .collect::<Result<Vec<_>, LoweringError>>()?;
-        let prefix = lower_static_argument_path(identities, &prefix, root, types)?;
+        let (prefix, _) =
+            prepare_root_projection(identities, checked, &prefix, coordinate, access, types)?;
+        let prefix = emit_argument_path(&prefix, None, &mut std::iter::empty(), None)?;
         let prefix = terminal_semantics::reference_source_storage_path(types.iter(), root, &prefix);
         let prefix = prefix
             .iter()
@@ -838,6 +1006,9 @@ pub(crate) fn lower_reference_origin_path(
         ))?;
         output.push(projection);
         path = &path[position + 1..];
+        // Entry presentation belongs to the root, never to a later element,
+        // view or nested reference prefix.
+        coordinate = ProjectionRoot::Published(root);
     }
 }
 
@@ -893,6 +1064,12 @@ pub(crate) fn emit_argument_path(
     let mut calls = calls;
     path.iter()
         .map(|segment| match segment {
+            PreparedStructuralPathSegment::EvaluatedFixedIndex { index, .. } => {
+                selector_values.next().ok_or(LoweringError::Unsupported(
+                    "fixed selector lost its authored evaluation",
+                ))?;
+                Ok(StructuralPathSegment::FixedIndex(*index))
+            }
             PreparedStructuralPathSegment::RuntimeIndex(
                 checked_trees::CheckedRuntimeIndex::Parameter { position }
                 | checked_trees::CheckedRuntimeIndex::Local { position },
@@ -1042,10 +1219,19 @@ pub(crate) fn emit_captured_argument_path(
             dynamic_extent = true;
             continue;
         }
-        if dynamic_extent
-            && let PreparedStructuralPathSegment::Static(StructuralPathSegment::FixedIndex(index)) =
-                segment
-        {
+        let fixed_index = match segment {
+            PreparedStructuralPathSegment::Static(StructuralPathSegment::FixedIndex(index)) => {
+                Some(*index)
+            }
+            PreparedStructuralPathSegment::EvaluatedFixedIndex { index, .. } => {
+                selectors.next().ok_or(LoweringError::Unsupported(
+                    "fixed selector lost its authored evaluation",
+                ))?;
+                Some(*index)
+            }
+            _ => None,
+        };
+        if dynamic_extent && let Some(index) = fixed_index {
             let Some((next_value, operations)) = emission.as_mut() else {
                 unreachable!("extent required emission frame")
             };
@@ -1058,7 +1244,7 @@ pub(crate) fn emit_captured_argument_path(
             );
             let index = emit_scalar_leaf(
                 terminal_psi::OperationKind::IntegerConstant {
-                    value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(*index)),
+                    value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(index)),
                 },
                 scalar_type,
                 next_value,
@@ -1071,6 +1257,8 @@ pub(crate) fn emit_captured_argument_path(
                 ))?
                 .allocate_requirement()?;
             output.push(StructuralPathSegment::RuntimeIndex { index, obligation });
+        } else if let Some(index) = fixed_index {
+            output.push(StructuralPathSegment::FixedIndex(index));
         } else {
             output.extend(emit_argument_path(
                 std::slice::from_ref(segment),

@@ -17,6 +17,7 @@ pub(super) fn validate_named_conformance_call(
     scope: &CallScope<'_>,
     arguments: &[ExpressionHandle],
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) -> bool {
     let CallScope {
         program,
@@ -51,6 +52,7 @@ pub(super) fn validate_named_conformance_call(
                 &requirement,
                 writable_roots,
                 diagnostics,
+                formation_obligations,
             );
             return true;
         }
@@ -86,6 +88,7 @@ pub(super) fn validate_named_conformance_call(
                 &dynamic,
                 writable_roots,
                 diagnostics,
+                formation_obligations,
             );
             true
         }

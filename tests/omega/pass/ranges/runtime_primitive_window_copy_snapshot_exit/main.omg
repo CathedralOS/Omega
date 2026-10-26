@@ -1,0 +1,18 @@
+// Expected exit: 0. A packed scalar copied into a write-only window keeps
+// the untouched neighbor and completed owned snapshots independent.
+machine fill(values: &write [u32; 2], value: u32) {
+    values[0..1] = [value];
+}
+machine main() crashes Trap {
+    let mut values: [u32; 2] = [3, 91];
+    fill(&write values, 7);
+    let copied: [u32; 2] = values;
+    values[0] = 11;
+    transition copied[0] == 7 && copied[1] == 91
+        && values[0] == 11 && values[1] == 91 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

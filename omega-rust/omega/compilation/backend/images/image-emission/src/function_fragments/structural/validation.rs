@@ -23,6 +23,7 @@ pub(in crate::function_fragments) fn validate_function(
     }
     let invalid = || Error::Mismatch("structural object differs from current ABI or call evidence");
     let selected = selected(source, function.machine)?;
+    let (abstracted, _) = source::function(source, function.machine)?;
     let fragment = fragment(source, function.machine)?;
     let parameters = selected
         .structural
@@ -57,7 +58,7 @@ pub(in crate::function_fragments) fn validate_function(
             != selected
                 .calls
                 .iter()
-                .filter(|row| published_call(selected, row))
+                .filter(|row| published_call(abstracted, selected, row))
                 .count()
     {
         return Err(invalid());
@@ -95,7 +96,7 @@ pub(in crate::function_fragments) fn validate_function(
         selected
             .calls
             .iter()
-            .filter(|row| published_call(selected, row)),
+            .filter(|row| published_call(abstracted, selected, row)),
     ) {
         let expected = &contract.call;
         let span = rows

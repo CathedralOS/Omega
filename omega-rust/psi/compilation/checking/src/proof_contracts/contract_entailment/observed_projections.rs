@@ -15,6 +15,7 @@ pub(super) fn project_observed_value(
     path: &[PlaceSegment],
 ) -> Option<StructuralTerm> {
     for segment in path {
+        (reference, value) = inline_projection_source(program, reference, value)?;
         let owned = super::structural_terms::owned_observation_type(program, &value).is_some();
         if owned && !super::structural_terms::scalar_operand_is_observed(program, reference, &value)
         {
@@ -124,7 +125,9 @@ pub(super) fn project_declared_field(
     value: StructuralTerm,
     field_name: &str,
 ) -> Option<StructuralTerm> {
-    let Some(reference) = super::structural_terms::owned_observation_type(program, &value) else {
+    let Some(reference) = super::structural_terms::owned_observation_type(program, &value)
+        .or_else(|| super::structural_terms::shared_inline_observation_type(program, &value))
+    else {
         return project_field(value, field_name);
     };
     let data = crate::value_custody::places::data_definition_for_type(program, reference)?;
@@ -153,6 +156,7 @@ pub(super) fn project_index(
     value: StructuralTerm,
     index: StructuralTerm,
 ) -> Option<StructuralTerm> {
+    let (reference, value) = inline_projection_source(program, reference, value)?;
     readable_projection_crossings(program, reference, &value)?;
     if !super::structural_terms::scalar_operand_is_observed(program, reference, &value) {
         return None;
@@ -201,17 +205,61 @@ fn readable_projection_crossings(
     Some(())
 }
 
+/// The exact declared carrier selected while classifying a storage read.
+/// This record does not prove the read executed or survived a later write;
+/// the normal-value owner independently authenticates its current epoch.
+#[derive(Clone, Copy)]
+pub(super) struct ResolvedScalarStorageRead {
+    pub(super) reference: TypeReferenceHandle,
+    pub(super) primitive: typed_trees::types::PrimitiveType,
+}
+
+/// Select a primitive storage read without turning a reference descriptor or
+/// collection metadata into a scalar value. Ordinary access admission remains
+/// with checking; the normal owner separately authenticates its coordinate.
+pub(super) fn scalar_storage_read(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<ResolvedScalarStorageRead> {
+    use typed_trees::expression::ExpressionNode;
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Member(_) => {
+            return declared_scalar_field_read(program, machine, state, expression);
+        }
+        ExpressionNode::Name(_) => {}
+        ExpressionNode::Indexed(_)
+            if crate::value_custody::places::place_has_builtin_coordinates(
+                program,
+                machine,
+                Some(state),
+                expression,
+            ) => {}
+        _ => return None,
+    }
+    crate::value_custody::places::canonical_place_from_expression(program, expression)?;
+    // A reference descriptor is not its scalar referent. The expression must
+    // already select an ordinary primitive read; access checks remain separate.
+    let reference = crate::expression_result_type_reference(program, machine, state, expression)?;
+    let primitive = program.primitive_type_reference(reference)?;
+    observable_scalar(primitive).then_some(ResolvedScalarStorageRead {
+        reference,
+        primitive,
+    })
+}
+
 /// Authenticate an actual scalar data field; collection metadata is not a field.
-/// Integers and addresses keep their numeric read epochs. IEEE floats join that
-/// roster because a float has no integer relation: the completed read is the
-/// observation an exclusive loan must retire, and only an overlapping loan does.
+/// Integers, addresses, booleans, and IEEE floats retain their completed read
+/// epochs. Arithmetic consumers select the integer subset separately; a float
+/// observation carries no integer equality or native-width bound.
 /// This observation carries neither a native-width bound nor storage authority.
 pub(super) fn declared_scalar_field_read(
     program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
-) -> Option<typed_trees::types::PrimitiveType> {
+) -> Option<ResolvedScalarStorageRead> {
     let typed_trees::expression::ExpressionNode::Member(member) =
         program.expression_table.expression(expression)
     else {
@@ -234,24 +282,64 @@ pub(super) fn declared_scalar_field_read(
     }
     let reference = crate::expression_result_type_reference(program, machine, state, expression)?;
     let primitive = program.primitive_type_reference(reference)?;
-    (primitive.is_fixed_integer()
-        || primitive == typed_trees::types::PrimitiveType::Addr
-        || matches!(
-            primitive,
-            typed_trees::types::PrimitiveType::F32 | typed_trees::types::PrimitiveType::F64
-        ))
-    .then_some(primitive)
+    observable_scalar(primitive).then_some(ResolvedScalarStorageRead {
+        reference,
+        primitive,
+    })
 }
 
-/// Integer and address subset of [`declared_scalar_field_read`]. Arithmetic
-/// observations still exclude IEEE equality and its NaN cases.
+fn observable_scalar(primitive: typed_trees::types::PrimitiveType) -> bool {
+    use typed_trees::types::PrimitiveType;
+    primitive.is_fixed_integer()
+        || matches!(
+            primitive,
+            PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::Addr
+        )
+}
+
+/// Integer consumers retain their existing carrier policy. The normal-value
+/// owner captures every ordinary scalar read through the shared classifier.
+pub(super) fn integer_storage_read(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<ResolvedScalarStorageRead> {
+    scalar_storage_read(program, machine, state, expression).filter(|read| {
+        read.primitive.is_fixed_integer()
+            || (read.primitive == typed_trees::types::PrimitiveType::Addr
+                && matches!(
+                    program.expression_table.expression(expression),
+                    typed_trees::expression::ExpressionNode::Member(_)
+                ))
+    })
+}
+
 pub(super) fn declared_integer_field_read(
     program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
-) -> Option<typed_trees::types::PrimitiveType> {
-    declared_scalar_field_read(program, machine, state, expression).filter(|primitive| {
-        primitive.is_fixed_integer() || *primitive == typed_trees::types::PrimitiveType::Addr
+) -> Option<ResolvedScalarStorageRead> {
+    declared_scalar_field_read(program, machine, state, expression).filter(|read| {
+        read.primitive.is_fixed_integer()
+            || read.primitive == typed_trees::types::PrimitiveType::Addr
     })
+}
+
+fn inline_projection_source(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+    value: StructuralTerm,
+) -> Option<(TypeReferenceHandle, StructuralTerm)> {
+    let Some(observed) = super::structural_terms::shared_inline_observation_type(program, &value)
+    else {
+        return Some((reference, value));
+    };
+    crate::declared_carriers_match(program, reference, observed).then_some(())?;
+    let shell = crate::reference_shell(program, observed)?;
+    let StructuralTerm::ObservedValue { value, .. } = value else {
+        return None;
+    };
+    Some((shell.referee, *value))
 }

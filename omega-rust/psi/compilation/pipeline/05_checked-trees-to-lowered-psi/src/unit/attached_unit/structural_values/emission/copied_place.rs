@@ -4,7 +4,6 @@
 
 use super::{Emission, LoweringError, StructuralAccess, StructuralArgument};
 use crate::emission::operation_emission::expressions::{emit_element_length, emit_scalar_leaf};
-use crate::expression_preparation::bindings::StructuralScalarFieldBinding;
 use checked_trees::CheckedUnitStructuralArgumentPlan;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use terminal_psi::{OperationKind, StructuralPathSegment, StructuralTypeShape};
@@ -38,105 +37,16 @@ impl Emission<'_, '_, '_> {
                 root,
                 bindings.structural_declarations(),
             )?;
-        let mut selectors = self
-            .capture_projection_selectors(identities, expression, source)?
-            .into_iter();
-        let place = home.place;
         let prepared = home.path.into_iter().map(
             crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::Static,
         ).chain(prepared).collect::<Vec<_>>();
-        let path =
-            crate::expression_preparation::bindings::structural_paths::emit_captured_argument_path(
-                &prepared,
-                place,
-                Some(self.values.as_slice()),
-                &mut selectors,
-                Some(&mut *self.calls),
-                Some((&mut *self.next_value, &mut *self.operations)),
-            )?;
-        Ok(StructuralArgument {
-            place,
-            path,
-            access: StructuralAccess::SharedBorrow,
-        })
-    }
-
-    /// Copies and reference formation evaluate the same retained projection
-    /// operands in order. Later selector control flow transports earlier saved
-    /// values; no consumer replays their source expressions after capture.
-    pub(super) fn capture_projection_selectors(
-        &mut self,
-        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-        expression: checked_trees::expression::ExpressionHandle,
-        source: &CheckedUnitStructuralArgumentPlan,
-    ) -> Result<Vec<semantic_vocabulary::ValueId>, LoweringError> {
-        let fields = StructuralScalarFieldBinding::collect(
-            &self.evaluation.structural_parameters,
-            self.structural_types,
-        );
-        let source_count = self.values.len();
-        let mut computation_ordinal = 0u32;
-        for segment in &source.path {
-            match segment {
-                checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(value) => {
-                    let selector = self.scalar(
-                        identities,
-                        checked_trees::CheckedScalarExpressionRole::StructuralValueSelector {
-                            expression,
-                            selector_ordinal: computation_ordinal,
-                        },
-                        *value,
-                        source_count,
-                    )?;
-                    computation_ordinal =
-                        computation_ordinal
-                            .checked_add(1)
-                            .ok_or(LoweringError::Unsupported(
-                                "projection selector ordinal overflow",
-                            ))?;
-                    self.values.push(selector);
-                }
-                checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
-                    checked_trees::CheckedRuntimeIndex::StructuralField(_)
-                    | checked_trees::CheckedRuntimeIndex::StorageRead { .. },
-                ) => {
-                    let selected = super::super::super::parameters::mint_runtime_index_selectors(
-                        identities,
-                        &[checked_trees::CheckedUnitStructuralArgumentPlan {
-                            path: vec![segment.clone()],
-                            ..source.clone()
-                        }],
-                        &fields,
-                        &self.evaluation.contextual_bindings(),
-                        self.values.as_slice(),
-                        self.next_value,
-                        self.operations,
-                    )?;
-                    for id in selected {
-                        let value = self
-                            .operations
-                            .iter()
-                            .rev()
-                            .filter_map(|operation| operation.result.scalar())
-                            .find(|value| value.id == id)
-                            .or_else(|| self.values.iter().find(|value| value.id == id).copied())
-                            .ok_or(LoweringError::Unsupported(
-                                "projection field selector lost its evaluated value",
-                            ))?;
-                        self.values.push(value);
-                    }
-                }
-                _ => {}
-            }
-        }
-        // Private selector control flow transports the earlier saved
-        // values. Read their final identities after all evaluations.
-        let captured = self.values[source_count..]
-            .iter()
-            .map(|value| value.id)
-            .collect::<Vec<_>>();
-        self.values.truncate(source_count);
-        Ok(captured)
+        self.complete_projection(
+            identities,
+            expression,
+            home.place,
+            prepared,
+            StructuralAccess::SharedBorrow,
+        )
     }
 
     /// Only root views have a length observation in the receiving projection
@@ -155,16 +65,18 @@ impl Emission<'_, '_, '_> {
         }
         let root_type = self
             .evaluation
-            .structural_parameters
-            .iter()
-            .map(|(_, parameter)| parameter)
-            .chain(self.evaluation.block_structural_parameters.iter())
-            .chain(self.evaluation.block_structural_parameters.iter())
+            .structural_root_parameters()
             .find(|parameter| parameter.place == argument.place)
             .map(|parameter| parameter.structural_type)
             .or_else(|| {
                 self.operations
                     .iter()
+                    .chain(
+                        self.evaluation
+                            .blocks
+                            .iter()
+                            .flat_map(|block| block.operations.iter()),
+                    )
                     .filter_map(|operation| operation.result.structural())
                     .find(|result| result.place == argument.place)
                     .map(|result| result.structural_type)

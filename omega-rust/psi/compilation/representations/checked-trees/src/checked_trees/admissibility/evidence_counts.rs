@@ -27,7 +27,7 @@ pub(super) fn borrow_constraint_count(
 ) -> usize {
     self::constraints(flow, constraints)
         .iter()
-        .filter(|constraint| matches!(constraint.kind, crate::borrow_set_quint_pattern!(..)))
+        .filter(|constraint| matches!(constraint.kind, crate::borrow_resource_pattern!(..)))
         .count()
 }
 

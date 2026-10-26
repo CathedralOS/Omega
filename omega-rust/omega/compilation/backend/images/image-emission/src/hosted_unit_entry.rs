@@ -12,48 +12,42 @@ use object_file::{
     ObjectPlan, ObjectSymbolHandle, SectionKind, SymbolKind, SymbolPlan, SymbolSection,
 };
 
+/// One installed entry surface: the symbol and text offset every entry
+/// surface retains, plus the surface that completes through it.
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub(super) enum EntryShim {
-    Physical {
-        symbol: ObjectSymbolHandle,
-        offset: usize,
-    },
-    DarwinReceiver {
-        symbol: ObjectSymbolHandle,
-        offset: usize,
-    },
-    LinuxReceiver {
-        symbol: ObjectSymbolHandle,
-        offset: usize,
-    },
-    LinuxArm64Receiver {
-        symbol: ObjectSymbolHandle,
-        offset: usize,
-    },
-    WindowsReceiver {
-        symbol: ObjectSymbolHandle,
-        offset: usize,
-    },
-    DarwinUnit {
-        symbol: ObjectSymbolHandle,
-        offset: usize,
-    },
-    DarwinX86_64Unit {
-        symbol: ObjectSymbolHandle,
-        offset: usize,
-    },
-    WindowsUnit {
-        symbol: ObjectSymbolHandle,
-        offset: usize,
-    },
-    LinuxUnit {
-        symbol: ObjectSymbolHandle,
-        offset: usize,
-    },
-    LinuxArm64Unit {
-        symbol: ObjectSymbolHandle,
-        offset: usize,
-    },
+pub(super) struct EntryShim {
+    pub(super) surface: EntrySurface,
+    pub(super) symbol: ObjectSymbolHandle,
+    pub(super) offset: usize,
+}
+
+/// The entry surface a shim completes through: physical arrival, one of the
+/// hosted receiver shims, or a free Unit adapter. Each names the exact target
+/// leg its encoder and header probe publish.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum EntrySurface {
+    Physical,
+    DarwinReceiver,
+    LinuxReceiver,
+    LinuxArm64Receiver,
+    WindowsReceiver,
+    DarwinUnit,
+    DarwinX86_64Unit,
+    WindowsUnit,
+    LinuxUnit,
+    LinuxArm64Unit,
+}
+
+impl EntrySurface {
+    /// The carrier row for one installed entry: the surface plus the exact
+    /// symbol and text offset it completes over.
+    pub(super) const fn shim(self, symbol: ObjectSymbolHandle, offset: usize) -> EntryShim {
+        EntryShim {
+            surface: self,
+            symbol,
+            offset,
+        }
+    }
 }
 
 impl EntryShim {
@@ -61,18 +55,7 @@ impl EntryShim {
     /// physical arrival, hosted receiver, free Unit — retains these two
     /// coordinates, so replay reads them without re-matching the kind.
     pub(super) const fn symbol_offset(&self) -> (ObjectSymbolHandle, usize) {
-        match self {
-            Self::Physical { symbol, offset }
-            | Self::DarwinReceiver { symbol, offset }
-            | Self::LinuxReceiver { symbol, offset }
-            | Self::LinuxArm64Receiver { symbol, offset }
-            | Self::WindowsReceiver { symbol, offset }
-            | Self::DarwinUnit { symbol, offset }
-            | Self::DarwinX86_64Unit { symbol, offset }
-            | Self::WindowsUnit { symbol, offset }
-            | Self::LinuxUnit { symbol, offset }
-            | Self::LinuxArm64Unit { symbol, offset } => (*symbol, *offset),
-        }
+        (self.symbol, self.offset)
     }
 }
 
@@ -120,13 +103,12 @@ pub(super) fn prepared_parts<'a>(
 /// decode, and the final header check, so the rows live behind one form
 /// rather than four parallel bodies.
 struct UnitEntryForm {
-    target: fn() -> target::NativeTarget,
     label: &'static str,
     name: &'static str,
     byte_count: usize,
     encode: fn(usize, usize) -> Result<Vec<u8>, Diagnostic>,
     decode: fn(&[u8], usize) -> Option<usize>,
-    shim: fn(ObjectSymbolHandle, usize) -> EntryShim,
+    surface: EntrySurface,
     header_check: fn(&image::EmittedImageOutput, usize, &[u8]) -> bool,
     header_error: &'static str,
 }
@@ -141,13 +123,12 @@ struct UnitEntryForm {
 fn unit_entry_form(target: target::NativeTarget) -> Option<UnitEntryForm> {
     Some(if target == target::NativeTarget::macos_arm64() {
         UnitEntryForm {
-            target: target::NativeTarget::macos_arm64,
             label: "Darwin",
             name: "omega_darwin_unit_entry",
             byte_count: 20,
             encode,
             decode,
-            shim: |symbol, offset| EntryShim::DarwinUnit { symbol, offset },
+            surface: EntrySurface::DarwinUnit,
             header_check: |output, offset, _expected| {
                 main_points_to(&output.bytes, offset, target::NativeTarget::macos_arm64())
             },
@@ -155,13 +136,12 @@ fn unit_entry_form(target: target::NativeTarget) -> Option<UnitEntryForm> {
         }
     } else if target == target::NativeTarget::macos_x64() {
         UnitEntryForm {
-            target: target::NativeTarget::macos_x64,
             label: "Darwin x86-64",
             name: "omega_darwin_x86_64_unit_entry",
             byte_count: 16,
             encode: encode_darwin_x86_64,
             decode: decode_x86_64_call_return,
-            shim: |symbol, offset| EntryShim::DarwinX86_64Unit { symbol, offset },
+            surface: EntrySurface::DarwinX86_64Unit,
             header_check: |output, offset, _expected| {
                 main_points_to(&output.bytes, offset, target::NativeTarget::macos_x64())
             },
@@ -169,13 +149,12 @@ fn unit_entry_form(target: target::NativeTarget) -> Option<UnitEntryForm> {
         }
     } else if target == target::NativeTarget::windows_x64() {
         UnitEntryForm {
-            target: target::NativeTarget::windows_x64,
             label: "Windows",
             name: "omega_windows_unit_entry",
             byte_count: 16,
             encode: encode_windows,
             decode: decode_x86_64_call_return,
-            shim: |symbol, offset| EntryShim::WindowsUnit { symbol, offset },
+            surface: EntrySurface::WindowsUnit,
             header_check: |output, offset, expected| {
                 pe_entry_points_to(&output.bytes, offset, expected)
             },
@@ -183,13 +162,12 @@ fn unit_entry_form(target: target::NativeTarget) -> Option<UnitEntryForm> {
         }
     } else if target == target::NativeTarget::linux_x64() {
         UnitEntryForm {
-            target: target::NativeTarget::linux_x64,
             label: "Linux x86-64",
             name: "omega_linux_x86_64_unit_entry",
             byte_count: 19,
             encode: encode_linux_x86_64,
             decode: decode_linux_x86_64,
-            shim: |symbol, offset| EntryShim::LinuxUnit { symbol, offset },
+            surface: EntrySurface::LinuxUnit,
             header_check: |output, offset, expected| {
                 elf_entry_points_to(
                     &output.bytes,
@@ -203,13 +181,12 @@ fn unit_entry_form(target: target::NativeTarget) -> Option<UnitEntryForm> {
         }
     } else if target == target::NativeTarget::linux_arm64() {
         UnitEntryForm {
-            target: target::NativeTarget::linux_arm64,
             label: "Linux ARM64",
             name: "omega_linux_arm64_unit_entry",
             byte_count: 20,
             encode: encode_linux_arm64,
             decode: decode_linux_arm64,
-            shim: |symbol, offset| EntryShim::LinuxArm64Unit { symbol, offset },
+            surface: EntrySurface::LinuxArm64Unit,
             header_check: |output, offset, expected| {
                 elf_entry_points_to(
                     &output.bytes,
@@ -249,7 +226,7 @@ pub(super) fn prepare(
     Ok(Some(PreparedEntry {
         object,
         text,
-        shim: (form.shim)(symbol, offset),
+        shim: form.surface.shim(symbol, offset),
         relocations: artifact.relocations.clone(),
     }))
 }
@@ -499,6 +476,7 @@ pub(super) fn unique_region(
 /// it. Each leg only rebinds its byte width, decoder, and final header probe.
 fn validate_unit_entry(
     form: &UnitEntryForm,
+    target: target::NativeTarget,
     artifact: &crate::ObjectArtifact,
     object: &ObjectPlan,
     text: &[u8],
@@ -509,7 +487,7 @@ fn validate_unit_entry(
     let end = offset
         .checked_add(form.byte_count)
         .ok_or_else(|| Diagnostic::error(format!("{} entry range overflow", form.label)))?;
-    if artifact.target != (form.target)()
+    if artifact.target != target
         || !crate::function_fragments::replay::has_free_unit_entry(artifact)?
         || offset != artifact.text_bytes.len()
         || object.layout.entry_symbol != symbol
@@ -546,27 +524,18 @@ pub(super) fn validate_unit_shim(
     text: &[u8],
     output: &image::EmittedImageOutput,
 ) -> Result<(), Diagnostic> {
-    let (target, symbol, offset) = match shim {
-        EntryShim::DarwinUnit { symbol, offset } => {
-            (target::NativeTarget::macos_arm64(), symbol, offset)
-        }
-        EntryShim::DarwinX86_64Unit { symbol, offset } => {
-            (target::NativeTarget::macos_x64(), symbol, offset)
-        }
-        EntryShim::WindowsUnit { symbol, offset } => {
-            (target::NativeTarget::windows_x64(), symbol, offset)
-        }
-        EntryShim::LinuxUnit { symbol, offset } => {
-            (target::NativeTarget::linux_x64(), symbol, offset)
-        }
-        EntryShim::LinuxArm64Unit { symbol, offset } => {
-            (target::NativeTarget::linux_arm64(), symbol, offset)
-        }
-        EntryShim::Physical { .. }
-        | EntryShim::DarwinReceiver { .. }
-        | EntryShim::LinuxReceiver { .. }
-        | EntryShim::LinuxArm64Receiver { .. }
-        | EntryShim::WindowsReceiver { .. } => {
+    let EntryShim {
+        surface,
+        symbol,
+        offset,
+    } = shim;
+    let target = match surface {
+        EntrySurface::DarwinUnit => target::NativeTarget::macos_arm64(),
+        EntrySurface::DarwinX86_64Unit => target::NativeTarget::macos_x64(),
+        EntrySurface::WindowsUnit => target::NativeTarget::windows_x64(),
+        EntrySurface::LinuxUnit => target::NativeTarget::linux_x64(),
+        EntrySurface::LinuxArm64Unit => target::NativeTarget::linux_arm64(),
+        _ => {
             return Err(Diagnostic::error(
                 "Unit entry validation requires a free-Unit adapter shim",
             ));
@@ -574,7 +543,9 @@ pub(super) fn validate_unit_shim(
     };
     let form = unit_entry_form(target)
         .ok_or_else(|| Diagnostic::error("Unit entry has no mechanics row"))?;
-    validate_unit_entry(&form, artifact, object, text, symbol, offset, output)
+    validate_unit_entry(
+        &form, target, artifact, object, text, symbol, offset, output,
+    )
 }
 
 /// Independently parse the emitted PE32+ headers: `AddressOfEntryPoint` must
@@ -830,7 +801,7 @@ pub(super) fn main_points_to(
 #[cfg(test)]
 mod tests {
     use super::{
-        decode, decode_linux_arm64, decode_linux_x86_64, decode_x86_64_call_return,
+        EntrySurface, decode, decode_linux_arm64, decode_linux_x86_64, decode_x86_64_call_return,
         elf_entry_points_to, encode, encode_darwin_x86_64, encode_linux_arm64, encode_linux_x86_64,
         encode_windows, main_points_to, pe_entry_points_to, unit_entry_form,
     };
@@ -937,7 +908,7 @@ mod tests {
         assert_eq!(decode_x86_64_call_return(&bytes, 0x1f), Some(0));
         let form = unit_entry_form(target::NativeTarget::macos_x64()).unwrap();
         assert_eq!(form.byte_count, bytes.len());
-        assert_eq!((form.target)(), target::NativeTarget::macos_x64());
+        assert_eq!(form.surface, EntrySurface::DarwinX86_64Unit);
         assert_eq!((form.decode)(&bytes, 0x1f), Some(0));
         assert!(encode_darwin_x86_64(0x1_0000_0000, 0).is_err());
     }

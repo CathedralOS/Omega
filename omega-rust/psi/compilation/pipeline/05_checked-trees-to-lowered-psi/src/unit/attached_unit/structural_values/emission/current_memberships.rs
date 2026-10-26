@@ -36,7 +36,6 @@ impl Emission<'_, '_, '_> {
                 &source,
                 arena::HandleSpan::empty(),
                 expression,
-                None,
             )?;
             Ok(StructuralArgument::whole(
                 place,
@@ -86,6 +85,7 @@ impl Emission<'_, '_, '_> {
                         .structural()
                         .is_some_and(|result| result.place == source.place)
                 }) || self
+                    .operations
                     .arrival_claims
                     .iter()
                     .any(|(place, _)| *place == source.place));
@@ -147,7 +147,16 @@ impl Emission<'_, '_, '_> {
                         &self.checked.typed,
                         *left,
                         *right,
-                    )
+                    ) || match (left, right) {
+                        (
+                            facts::PlaceSegment::Field { symbol: left },
+                            facts::PlaceSegment::Field { symbol: right },
+                        ) => {
+                            self.checked.typed.symbols.name(*left)
+                                == self.checked.typed.symbols.name(*right)
+                        }
+                        _ => false,
+                    }
                 })
         {
             return Err(LoweringError::Unsupported(

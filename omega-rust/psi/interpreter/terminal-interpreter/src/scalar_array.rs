@@ -12,10 +12,12 @@ use terminal_psi::StructuralPathSegment;
 use terminal_psi::StructuralTypeShape;
 use terminal_psi::TerminalMachine;
 
+mod bindings;
 mod loans;
 mod storage;
 #[cfg(test)]
 mod tests;
+pub(crate) use bindings::{PackedHomeRetirement, ScalarArrayBindings};
 pub(crate) use loans::borrowed_array_memberships_match;
 use std::sync::Arc;
 use storage::ScalarArrayStorage;
@@ -289,7 +291,7 @@ impl TerminalExecution<'_> {
             self.account.as_ref(),
         )?;
         self.validate_scalar_array_qualifications(&snapshot, &result.qualifications)?;
-        self.scalar_array_values.insert(result.place, snapshot)?;
+        self.scalar_array_values.publish(result.place, snapshot)?;
         Ok(())
     }
 }

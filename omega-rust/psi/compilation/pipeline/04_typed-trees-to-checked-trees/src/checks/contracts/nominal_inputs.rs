@@ -211,13 +211,15 @@ pub(super) fn check(
                                     invocation,
                                     (source_state, source_statement),
                                 )| {
-                                    let selection = operand_contexts.for_operand(
+                                    let Some(selection) = operand_contexts.for_operand(
                                         operand,
                                         reference,
                                         invocation,
                                         source_state,
                                         source_statement,
-                                    );
+                                    ) else {
+                                        return false;
+                                    };
                                     subjects.is_some_and(|subjects| {
                                         !subjects.is_empty()
                                             && subjects.iter().all(|place| {
@@ -228,7 +230,7 @@ pub(super) fn check(
                                                 // pointwise ancestor is vacuous.
                                                 if pointwise_field_is_empty(
                                                     program,
-                                                    operand,
+                                                    &operand,
                                                     &place.projected,
                                                 ) {
                                                     return true;

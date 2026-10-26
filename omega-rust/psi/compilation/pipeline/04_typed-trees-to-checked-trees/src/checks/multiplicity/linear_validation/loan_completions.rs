@@ -43,6 +43,9 @@ pub(crate) fn regions_for_calls(
             let borrowed = checked_trees::BorrowCallFact {
                 statement_index: call.statement_index,
                 call_ordinal: call.call_ordinal,
+                authored_expression: call.authored_expression,
+                reference_slot_effects: Default::default(),
+                completed_reference_loans: Default::default(),
                 receiver_symbol: call.receiver_symbol,
                 target_symbol: call.target_symbol,
                 has_receiver: call.has_receiver,

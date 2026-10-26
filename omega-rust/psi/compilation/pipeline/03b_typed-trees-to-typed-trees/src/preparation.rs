@@ -9,6 +9,7 @@ mod default_domain_zero;
 mod deferred_constants;
 mod opaque_property_receipts;
 mod runtime_index_fields;
+mod runtime_value_applications;
 mod selections;
 
 pub(crate) use data_applications::elaborate_projected_receivers;
@@ -215,6 +216,7 @@ pub fn prepare_typed_trees(
     // Token syntax must expose its ordinary call before specialization sees
     // the program. Otherwise a concrete caller keeps a generic requirement
     // merely because it wrote `items[index]` rather than the named call.
+    runtime_value_applications::materialize(&mut program)?;
     crate::operators::bind_selected_operator_calls(
         &mut program,
         &typed_trees::references::DeclarationSelection::all(),
@@ -336,6 +338,7 @@ pub fn prepare_typed_trees(
     // immutable checking. Form their signature after those producers finish;
     // checking before preparation would capture an incomplete source value.
     // This remains one kernel-checked signature, carried into the proof facts.
+    crate::monomorphization::require_complete_dispatch_subjects(&program)?;
     let mathematics = phase_profile::scope("05.c.3.n.mathematical_declarations", || {
         proof::mathematical_declarations::check_mathematical_declarations(&program)
     })?;
@@ -412,8 +415,10 @@ pub fn specialize_static_machine_calls(
     // This private preparation can execute before ordinary source checking.
     // Admit its completed static edges once at that execution boundary, never
     // inside the executable derivation loop.
-    validation::static_arguments::validate_authored_static_arguments(program)?;
-    validation::static_bindings::validate_static_machine_bindings(program)?;
+    // This preliminary query retains authored applications on the typed tree.
+    // Final program validation collects their conditional formation rows.
+    validation::static_arguments::validate_authored_static_arguments(program, &mut Vec::new())?;
+    validation::static_bindings::validate_static_machine_bindings(program, &mut Vec::new())?;
     validation::conformance_applications::validate_conformance_applications(program)?;
     validation::validate_static_machine_selections(program)?;
     validation::validate_generic_machine_contract_entailment(program)
@@ -431,6 +436,7 @@ pub fn prepare_constant_execution(
     settle_value_destinations(&mut program)?;
     crate::constructed_results::retain_constructed_result_types(&mut program);
     crate::assignment_destinations::prepare(&mut program);
+    crate::monomorphization::require_complete_dispatch_subjects(&program)?;
     Ok(program)
 }
 

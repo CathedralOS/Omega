@@ -20,9 +20,9 @@ use checked_trees::{
 };
 
 enum Operand {
-    Copy {
+    Structural {
         effect: LoweredScalarEffect,
-        value: EstablishedValue,
+        value: Option<EstablishedValue>,
     },
     Range {
         argument: checked_trees::CheckedUnitStructuralArgumentPlan,
@@ -36,10 +36,6 @@ enum Operand {
     /// A selector call's dispatch operand: evaluated first, then named by the
     /// call as its selector rather than passed as an argument.
     DispatchSelector(Argument),
-    Selector {
-        structural_ordinal: usize,
-        value: Argument,
-    },
     /// Evaluation, not reservation, establishes this complete owned value.
     /// Its producer is shared with local bindings and expression observations.
     Produced(produced_values::Slot),
@@ -269,6 +265,7 @@ impl Expansion<'_> {
         let mut scalar_ordinal = 0usize;
         let mut structural_ordinal = 0usize;
         let mut operands = Vec::new();
+        let mut argument_homes = Vec::new();
         if callee.authority_value().is_valid() {
             let slot = self
                 .produced_values
@@ -351,119 +348,154 @@ impl Expansion<'_> {
                         .clone();
                     operands.push(Operand::ByteLiteral(slot));
                 }
-                if matches!(
-                    argument,
+                if !matches!(argument,
                     CheckedScalarComputationStructuralArgument::Place(argument)
-                        if !matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. } | checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. })
-                ) && parameter.access == checked_trees::CheckedStructuralAccess::Owned
-                    && parameter.multiplicity == language_semantics::Multiplicity::Unrestricted
+                        if matches!(argument.source,
+                            checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }
+                            | checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }
+                            | checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice { .. }))
                 {
-                    let slot = self
-                        .copies
-                        .iter()
-                        .find(|slot| {
-                            slot.source_call == source_call
-                                && slot.argument_ordinal == structural_ordinal
-                        })
-                        .ok_or(LoweringError::Unsupported(
-                            "computed copy has no reserved operand place",
-                        ))?;
-                    let actual = &mut structural_arguments[structural_ordinal];
-                    // A value argument snapshots readable contents now, before
-                    // evaluating the next argument. Passing its original place
-                    // would defer this read until the call, after later effects.
-                    let expression = self
-                        .checked
-                        .facts
-                        .flow
-                        .control
-                        .call_arguments
-                        .span(source.authored_arguments)
-                        .and_then(|arguments| arguments.get(position))
-                        .copied()
-                        .ok_or(LoweringError::Unsupported(
-                            "computed copy lost its authored operand",
-                        ))?;
-                    let value = EstablishedValue::Copied {
-                        expression,
-                        place: slot.place,
-                        structural_type: slot.structural_type,
-                        source: actual.clone(),
-                    };
-                    // Selectors are ordinary operands before the snapshot. They
-                    // retain their values through later selectors and argument calls.
-                    let mut position = input_types.len()
-                        + operands
-                            .iter()
-                            .filter(|operand| {
-                                matches!(
-                                    operand,
-                                    Operand::Scalar(_)
-                                        | Operand::DispatchSelector(_)
-                                        | Operand::Selector { .. }
-                                        | Operand::Snapshot(_)
-                                )
-                            })
-                            .count();
-                    let source = site.bindings.structural_copy_source(
-                        identities,
-                        actual.source.known_place()?,
-                        &actual.path,
-                        self.structural_types,
-                        |identities, selector| {
-                            use crate::expression_preparation::bindings::StructuralCopySelector;
-                            let argument = match selector {
-                                StructuralCopySelector::Computation(root) => {
-                                    Argument::Computation(root)
-                                }
-                                StructuralCopySelector::Value(value) => Argument::Value(value),
-                            };
-                            let value_type =
-                                self.argument_type(identities, &argument, site, input_types)?;
-                            operands.push(Operand::Snapshot(argument));
-                            let saved = super::parameter(position, value_type);
-                            position += 1;
-                            Ok(saved)
-                        },
-                    )?;
-                    operands.push(Operand::Copy {
-                        effect: LoweredScalarEffect::CopyStructuralValue {
-                            source,
-                            place: slot.place,
-                            structural_type: slot.structural_type,
-                            multiplicity: crate::emission::borrowed_window::terminal_multiplicity(
-                                parameter.multiplicity,
-                            ),
-                        },
-                        value,
-                    });
-                    actual.source = slot.place.into();
-                    actual.path.clear();
-                    actual.selector_positions.clear();
-                }
-                for segment in &structural_arguments[structural_ordinal].path {
+                    use crate::emission::completed_place::Frontier;
                     use crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment;
-                    let value = match segment {
-                        PreparedStructuralPathSegment::RuntimeIndex(
-                            checked_trees::CheckedRuntimeIndex::StorageRead { symbol },
-                        ) => Some(Argument::Value(
-                            site.bindings.runtime_index_storage(*symbol)?,
-                        )),
-                        PreparedStructuralPathSegment::RuntimeIndex(
-                            checked_trees::CheckedRuntimeIndex::StructuralField(field),
-                        ) => Some(Argument::Value(
-                            site.bindings.runtime_index_field(identities, field)?,
-                        )),
-                        PreparedStructuralPathSegment::ComputedIndex(root) => {
-                            Some(Argument::Computation(*root))
-                        }
-                        _ => None,
+                    let actual = &mut structural_arguments[structural_ordinal];
+                    let copy = parameter.access == checked_trees::CheckedStructuralAccess::Owned
+                        && parameter.multiplicity == language_semantics::Multiplicity::Unrestricted;
+                    let frontiers = if let Some(root) = actual.root_type {
+                        crate::emission::completed_place::plan(
+                            self.structural_types,
+                            root,
+                            &actual.path,
+                            copy,
+                            actual.access,
+                            crate::emission::completed_place::endpoint_use(
+                                identities,
+                                self.checked,
+                                self.structural_types,
+                                parameter,
+                            )?,
+                        )?
+                    } else if actual.path.is_empty() && !copy {
+                        Vec::new()
+                    } else {
+                        return unsupported("computed actual lost its physical root type");
                     };
-                    if let Some(value) = value {
-                        operands.push(Operand::Selector {
-                            structural_ordinal,
-                            value,
-                        });
+                    let original_path = actual.path.clone();
+                    let mut removed = 0;
+                    for frontier in frontiers {
+                        match frontier {
+                            Frontier::Selector { position } => {
+                                let value = match &original_path[position] {
+                                    PreparedStructuralPathSegment::ComputedIndex(root)
+                                    | PreparedStructuralPathSegment::EvaluatedFixedIndex {
+                                        computation: root,
+                                        ..
+                                    } => Argument::Computation(*root),
+                                    PreparedStructuralPathSegment::RuntimeIndex(
+                                        checked_trees::CheckedRuntimeIndex::StorageRead { symbol },
+                                    ) => Argument::Value(
+                                        site.bindings.runtime_index_storage(*symbol)?,
+                                    ),
+                                    PreparedStructuralPathSegment::RuntimeIndex(
+                                        checked_trees::CheckedRuntimeIndex::StructuralField(field),
+                                    ) => Argument::Value(
+                                        site.bindings.runtime_index_field(identities, field)?,
+                                    ),
+                                    _ => {
+                                        return unsupported(
+                                            "computed place selector has no authored evaluation",
+                                        );
+                                    }
+                                };
+                                actual.selector_positions.push(
+                                    input_types.len()
+                                        + operands
+                                            .iter()
+                                            .filter(|operand| {
+                                                matches!(
+                                                    operand,
+                                                    Operand::Scalar(_)
+                                                        | Operand::DispatchSelector(_)
+                                                        | Operand::Snapshot(_)
+                                                )
+                                            })
+                                            .count(),
+                                );
+                                operands.push(Operand::Snapshot(value));
+                            }
+                            Frontier::Capture { prefix, capture } => {
+                                let length = prefix.checked_sub(removed).ok_or(
+                                    LoweringError::Unsupported(
+                                        "computed place frontier precedes its saved address",
+                                    ),
+                                )?;
+                                let mut source = actual.clone();
+                                source.path.truncate(length);
+                                let place = crate::terminal_identities::place_id(
+                                    crate::terminal_identities::allocate_dense(self.next_place)?,
+                                );
+                                let access = match actual.access {
+                                    terminal_psi::StructuralAccess::Owned => {
+                                        terminal_psi::StructuralAccess::SharedBorrow
+                                    }
+                                    access => access,
+                                };
+                                operands.push(Operand::Structural {
+                                    effect: LoweredScalarEffect::CaptureStructuralPlace {
+                                        source,
+                                        place,
+                                        capture: capture.clone(),
+                                        access,
+                                    },
+                                    value: None,
+                                });
+                                actual.source = place.into();
+                                actual.path.drain(..length);
+                                // Descriptor identity is chosen later from actual
+                                // memberships. Emission does not use this planning
+                                // cache; never publish a speculative physical type.
+                                actual.root_type = match capture {
+                                    crate::emission::completed_place::Capture::Address(identity) => Some(identity),
+                                    crate::emission::completed_place::Capture::DescriptorValue { .. } => None,
+                                };
+                                actual.selector_positions.clear();
+                                removed = prefix;
+                            }
+                            Frontier::Value { structural_type } => {
+                                let expression = self
+                                    .checked
+                                    .facts
+                                    .flow
+                                    .control
+                                    .call_arguments
+                                    .span(source.authored_arguments)
+                                    .and_then(|arguments| arguments.get(position))
+                                    .copied()
+                                    .ok_or(LoweringError::Unsupported(
+                                        "computed copy lost its authored operand",
+                                    ))?;
+                                let place = crate::terminal_identities::place_id(
+                                    crate::terminal_identities::allocate_dense(self.next_place)?,
+                                );
+                                operands.push(Operand::Structural {
+                                    effect: LoweredScalarEffect::CopyStructuralValue {
+                                        source: actual.clone(),
+                                        place,
+                                        structural_type,
+                                    },
+                                    value: Some(EstablishedValue::Copied {
+                                        expression,
+                                        place,
+                                        structural_type,
+                                        source: actual.clone(),
+                                    }),
+                                });
+                                argument_homes.push(place);
+                                actual.source = place.into();
+                                actual.path.clear();
+                                actual.root_type = Some(structural_type);
+                                actual.selector_positions.clear();
+                            }
+                        }
                     }
                 }
                 structural_ordinal += 1;
@@ -529,15 +561,6 @@ impl Expansion<'_> {
                     let value_type = self.argument_type(identities, argument, site, input_types)?;
                     selector_actual = Some(parameter(prefix.len(), value_type));
                     prefix.push(value_type);
-                }
-                Operand::Selector {
-                    structural_ordinal,
-                    value,
-                } => {
-                    structural_arguments[*structural_ordinal]
-                        .selector_positions
-                        .push(prefix.len());
-                    prefix.push(self.argument_type(identities, value, site, input_types)?);
                 }
                 _ => {}
             }
@@ -708,6 +731,23 @@ impl Expansion<'_> {
         // The checked call owns retirement, not the producer's source family
         // or its borrowed access. Keep the scalar result and caller prefix live
         // across the exact normal continuation; a crashing call never reaches it.
+        let target = if argument_homes.is_empty() {
+            target
+        } else {
+            let mut types = input_types.to_vec();
+            types.push(result_type);
+            self.push(LoweredScalarBranchState {
+                structural_parameters: Vec::new(),
+                parameter_types: types.clone(),
+                erased_formal_types: Vec::new(),
+                erased_proof_formals: Vec::new(),
+                bindings: Vec::new(),
+                structural_effects: vec![LoweredScalarEffect::CompleteArgumentSnapshots {
+                    places: argument_homes,
+                }],
+                terminator: LoweredScalarBranchTerminator::jump(target, super::parameters(&types)),
+            })
+        };
         let target = if temporary_cleanups.is_empty() {
             target
         } else {
@@ -748,11 +788,9 @@ impl Expansion<'_> {
                         .filter_map(|(earlier, operand)| match operand {
                             Operand::Snapshot(Argument::Computation(computation))
                             | Operand::Scalar(Argument::Computation(computation))
-                            | Operand::DispatchSelector(Argument::Computation(computation))
-                            | Operand::Selector {
-                                value: Argument::Computation(computation),
-                                ..
-                            } => Some((*computation, prefixes[earlier].len())),
+                            | Operand::DispatchSelector(Argument::Computation(computation)) => {
+                                Some((*computation, prefixes[earlier].len()))
+                            }
                             _ => None,
                         }),
                 );
@@ -764,7 +802,7 @@ impl Expansion<'_> {
                             Operand::Produced(slot) => {
                                 Some(EstablishedValue::Produced { root: slot.root })
                             }
-                            Operand::Copy { value, .. } => Some(value.clone()),
+                            Operand::Structural { value, .. } => value.clone(),
                             _ => None,
                         }),
                 );
@@ -778,11 +816,9 @@ impl Expansion<'_> {
                     };
                     self.argument(identities, argument, prefix, arrival, site, active)?
                 }
-                Operand::Snapshot(argument)
-                | Operand::DispatchSelector(argument)
-                | Operand::Selector {
-                    value: argument, ..
-                } => self.argument(identities, argument, prefix, continuation, site, active)?,
+                Operand::Snapshot(argument) | Operand::DispatchSelector(argument) => {
+                    self.argument(identities, argument, prefix, continuation, site, active)?
+                }
                 Operand::ByteLiteral(slot) => self.push(LoweredScalarBranchState {
                     structural_parameters: Vec::new(),
                     parameter_types: prefix.clone(),
@@ -807,7 +843,7 @@ impl Expansion<'_> {
                     site,
                     active,
                 )?,
-                Operand::Copy { effect, .. } => self.push(LoweredScalarBranchState {
+                Operand::Structural { effect, .. } => self.push(LoweredScalarBranchState {
                     structural_parameters: Vec::new(),
                     parameter_types: prefix.clone(),
                     erased_formal_types: Vec::new(),
@@ -820,19 +856,14 @@ impl Expansion<'_> {
                     ),
                 }),
                 Operand::Produced(slot) => {
-                    if self.established_values.iter().any(|value| {
-                        matches!(value,
-                        EstablishedValue::Produced { root } if *root == slot.root)
-                    }) {
-                        continuation
-                    } else {
-                        let arrival =
-                            crate::scalar_lowering::branch_states::structural_values::ValueRequest {
-                                value: slot.root,
-                                structural_type: slot.structural_type,
-                            };
-                        arrival.finish(prefix, continuation, self)
-                    }
+                    let arrival =
+                        crate::scalar_lowering::branch_states::structural_values::ValueRequest::prepare(
+                            identities,
+                            self.checked,
+                            slot.root,
+                            self.structural_types,
+                        )?;
+                    arrival.finish(prefix, continuation, self)
                 }
             };
             self.established_values.truncate(established_prefix);

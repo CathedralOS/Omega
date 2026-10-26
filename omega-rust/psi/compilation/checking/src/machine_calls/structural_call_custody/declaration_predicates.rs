@@ -368,6 +368,7 @@ impl RowEmitter<'_, '_> {
     ) -> Option<CheckedBooleanExpression> {
         let (carrier_minimum, carrier_maximum) = carrier_bounds(primitive)?;
         let leaf = || CheckedScalarExpression::StructuralParameterField {
+            observation: Default::default(),
             parameter_position: self.parameter_position,
             path: path.clone(),
             primitive_type: primitive,
@@ -637,6 +638,7 @@ impl FactSpelling<'_> {
                 let (path, leaf_type) = self.field_path(expression)?;
                 (self.program.primitive_type_reference(leaf_type) == Some(PrimitiveType::Bool))
                     .then_some(CheckedBooleanExpression::StructuralParameterField {
+                        observation: Default::default(),
                         parameter_position: self.parameter_position,
                         path,
                     })
@@ -831,6 +833,7 @@ impl FactSpelling<'_> {
                 }
                 Some((
                     CheckedScalarExpression::StructuralParameterField {
+                        observation: Default::default(),
                         parameter_position: self.parameter_position,
                         path,
                         primitive_type: primitive,

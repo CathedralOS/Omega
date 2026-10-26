@@ -388,11 +388,10 @@ impl<'program> ShapeCollector<'program> {
     /// A shared, mutable or write-only view spells
     /// its own type reference: the reference shell is the loan custody the
     /// plan carries, so unlike `add_type` it is retained as a `Reference`
-    /// shape over the peeled referee rather than peeled away. The accesses
-    /// admit different referees. An exclusive shell lends whatever it
-    /// borrows — a `&mut u8`, a `&mut Record` or a `&mut [T]` — while a
-    /// shared shell registers here only over a named or generic referee;
-    /// Stored slice descriptors register through `add_stored_type`.
+    /// shape over its exact stored referee rather than peeled away. Each
+    /// reference edge retains its own access; shape collection grants neither
+    /// a pointee read nor its ownership. Stored slice descriptors register
+    /// through `add_stored_type`.
     pub(in crate::execution::terminal_unit) fn add_view_type(
         &mut self,
         reference: TypeReferenceHandle,
@@ -415,6 +414,9 @@ impl<'program> ShapeCollector<'program> {
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
         access: language_semantics::ReferenceAccess,
     ) -> Option<typed_trees::type_identity::TypeIdentityId> {
+        if !validation::structural_storage_type(self.program, reference, substitutions).is_valid() {
+            return None;
+        }
         let shell = validation::reference_shell(self.program, reference)?;
         if shell.access != access {
             return None;
@@ -422,13 +424,32 @@ impl<'program> ShapeCollector<'program> {
         // A stored pointer does not depend on the referent's source family.
         // Storage demands collect that referent independently; classifying it
         // as a named view here would reject fixed-array backing during cleanup.
-        let referee = shell.referee;
+        let referee = substituted_formal_type(self.program, shell.referee, substitutions);
         let referent_identity = validation::stored_structural_type_identity(
             self.program,
             referee,
             binders,
             substitutions,
         );
+        // A pointer to another pointer preserves that descriptor edge. Do not
+        // recursively expand nominal pointees: only the finite reference chain
+        // is required by this physical carrier. Repeated identities fail closed.
+        if validation::reference_shell(self.program, referee).is_some() {
+            let identity = validation::stored_structural_type_identity(
+                self.program,
+                reference,
+                binders,
+                substitutions,
+            );
+            if !self.in_progress.insert(identity) {
+                return None;
+            }
+            let collected = self.add_stored_type(referee, binders, substitutions);
+            self.in_progress.remove(&identity);
+            if collected != Some(referent_identity) {
+                return None;
+            }
+        }
         self.add_reference_shape(
             reference,
             binders,
@@ -555,9 +576,6 @@ impl<'program> ShapeCollector<'program> {
         }
         if validation::stores_reference_shape(self.program, reference, substitutions) {
             let shell = validation::reference_shell(self.program, reference)?;
-            // The pointed-to carrier retains its full stored identity, including
-            // another reference shell. Its load and occurrence qualifications
-            // remain explicit; a pointer to it never inlines its pointee.
             return self.add_view_type_for_substitutions(
                 reference,
                 binders,
@@ -568,19 +586,60 @@ impl<'program> ShapeCollector<'program> {
         self.add_type(reference, binders, substitutions)
     }
 
+    /// Demand a source root's logical presentation without treating a view
+    /// descriptor as by-value unsized backing. Stored pointers contribute
+    /// physical crossings; a view already presents its elements implicitly.
+    /// The finite type graph bounds this geometry walk and grants no access.
+    pub(in crate::execution::terminal_unit) fn add_logical_type(
+        &mut self,
+        mut reference: TypeReferenceHandle,
+        binders: &[(SymbolHandle, String)],
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    ) -> Option<typed_trees::type_identity::TypeIdentityId> {
+        if !validation::structural_storage_type(self.program, reference, substitutions).is_valid() {
+            return None;
+        }
+        for _ in 0..=self.program.type_reference_table.type_reference_count() {
+            reference = substituted_formal_type(self.program, reference, substitutions);
+            let Some(shell) = validation::reference_shell(self.program, reference) else {
+                return self.add_type(reference, binders, substitutions);
+            };
+            if !validation::stores_reference_shape(self.program, reference, substitutions) {
+                return self.add_type(reference, binders, substitutions);
+            }
+            reference = shell.referee;
+        }
+        None
+    }
+
     pub(in crate::execution::terminal_unit) fn add_type(
         &mut self,
         type_reference: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     ) -> Option<typed_trees::type_identity::TypeIdentityId> {
+        // A borrowed occurrence erases its outer access edge once. Its storage
+        // may itself be a reference, which occupies a descriptor rather than
+        // inline backing. Register the same stored shape used by fields/results.
+        let storage =
+            validation::structural_storage_type(self.program, type_reference, substitutions);
+        if !storage.is_valid() {
+            return None;
+        }
+        if validation::reference_shell(self.program, storage).is_some() {
+            let identity = self.add_stored_type(storage, binders, substitutions)?;
+            // A root demand also retains the final backing's independent
+            // geometry; this does not expand every stored nominal pointer.
+            self.add_logical_type(storage, binders, substitutions)?;
+            return Some(identity);
+        }
         // Usage multiplicity permits repeated exclusive-reference access; it
         // does not permit copying that descriptor, including inside an array.
         // Ask the same declared-property owner as stored-value copy planning.
         let copyable = validation::type_satisfies_declared_property(
             self.program,
             &[],
-            validation::structural_identity_type(self.program, type_reference, substitutions),
+            validation::structural_storage_type(self.program, type_reference, substitutions),
             validation::DeclaredPropertyRequirement::Copy,
         );
         // One identity names one plan for the whole module, and lowering
@@ -596,13 +655,13 @@ impl<'program> ShapeCollector<'program> {
         );
         let no_code_affine_cleanup = validation::has_contents(
             self.program,
-            validation::structural_identity_type(self.program, type_reference, substitutions),
+            validation::structural_storage_type(self.program, type_reference, substitutions),
             substitutions,
             validation::ContentsRequirement::RepresentedOwned,
         );
         let descriptor_cleanup = validation::has_contents(
             self.program,
-            validation::structural_identity_type(self.program, type_reference, substitutions),
+            validation::structural_storage_type(self.program, type_reference, substitutions),
             substitutions,
             validation::ContentsRequirement::DescriptorCleanup,
         );
@@ -706,7 +765,7 @@ impl<'program> ShapeCollector<'program> {
         // loan. Scalar receiving restrictions retain their own identity and
         // declaration; membership-only qualifications remain separate.
         let type_reference =
-            validation::structural_identity_type(self.program, type_reference, substitutions);
+            validation::structural_storage_type(self.program, type_reference, substitutions);
         // The same nonconstructible carrier can be a field, a parameter or
         // reference backing. Storage collection must not depend on which
         // owner first demanded its shape. Occurrence closure and established
@@ -1236,14 +1295,18 @@ impl<'program> ShapeCollector<'program> {
         // shell, not reach add_type's referent-oriented fallback as plain T.
         let field_type_reference =
             substituted_formal_type(self.program, field.type_reference, substitutions);
+        let receiving_type_identity = self.program.type_identity(TypeIdentityRequest {
+            binders,
+            substitutions,
+            ..TypeIdentityRequest::ordinary(field_type_reference)
+        });
+        if !receiving_type_identity.is_valid() {
+            return None;
+        }
         let mut byte_sequence_type_identity = Default::default();
         let field_type = if field.relevance.is_erased() {
             CheckedUnitStructuralFieldType::Erased {
-                type_identity: self.program.type_identity(TypeIdentityRequest {
-                    binders,
-                    substitutions,
-                    ..TypeIdentityRequest::ordinary(field_type_reference)
-                }),
+                type_identity: receiving_type_identity,
             }
         } else if let Some((binding_carrier, provider_node)) =
             provider_backed_field(self.program, field_type_reference)
@@ -1368,11 +1431,7 @@ impl<'program> ShapeCollector<'program> {
         }
         Some(CheckedUnitStructuralFieldPlan {
             type_reference: field_type_reference,
-            receiving_type_identity: self.program.type_identity(TypeIdentityRequest {
-                binders,
-                substitutions,
-                ..TypeIdentityRequest::ordinary(field_type_reference)
-            }),
+            receiving_type_identity,
             identity: checked_trees::CheckedMemberIdentity::of_member(
                 field.identity,
                 field.name.clone(),

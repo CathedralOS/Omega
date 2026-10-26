@@ -10,6 +10,7 @@ mod borrowed_storage;
 mod descriptor_io;
 mod integer_absolute;
 mod integer_division;
+mod integer_parsing;
 mod native_foreign_frame;
 mod network_address;
 pub use native_foreign_frame::{
@@ -32,10 +33,11 @@ pub use descriptor_io::{
 };
 pub use integer_absolute::host_integer_absolute;
 pub use integer_division::{HostIntegerDivision, host_integer_division};
+pub use integer_parsing::parse_host_long;
 pub use network_address::HostInternetAddress;
 pub use processor_flags::capture_host_x86_flags;
 pub use runtime_abi::{FatDescriptorLayout, fat_descriptor_layout};
-pub use scalar_reference::ScalarStorageCodec;
+pub use scalar_reference::{ScalarReferenceLayout, ScalarStorageCodec};
 pub use windows_provider::{
     WINDOWS_INTERNET_PROVIDER_LIBRARY, image_imports_windows_internet_provider,
     windows_internet_provider_dll,

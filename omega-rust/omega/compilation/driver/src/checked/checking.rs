@@ -347,7 +347,7 @@ pub(super) fn complete_prepared_build(
     } = prepared;
     let retained_build_check = built.retained_build_check.take();
     let base_sources = built.base_sources.clone();
-    let (typed, pending_pre_checks, computed_build_config, admission) =
+    let (typed, pending_pre_checks, source_completion_accounting, computed_build_config, admission) =
         build_continuation::complete_product_frontend(
             built,
             &mut build_sources,
@@ -359,6 +359,7 @@ pub(super) fn complete_prepared_build(
             diagnostics
         })?;
     Ok(PreparedProductSource {
+        source_completion_accounting,
         typed,
         pending_pre_checks,
         computed_build_config,
