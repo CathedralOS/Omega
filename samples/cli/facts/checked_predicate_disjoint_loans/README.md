@@ -58,7 +58,15 @@ All positives bind all four hosted `ProgramEntry` targets and declare exit 0.
   does not establish separation of wider windows. An
   [ordered result](controls/ordered_result/invalid/main.omg) can equal the other
   index even when its source differs: disequality transports only through an
-  exact completed-result equation, never through another inequality.
+  exact completed-result equation, never through another inequality. The
+  [reversed equation](controls/reversed_equality/main.omg) remains positive;
+  [a shifted middle](controls/nonzero_middle_shift/invalid/main.omg),
+  [a partial true branch](controls/partial_true_branch/invalid/main.omg),
+  [mixed signed carriers](controls/mixed_signed_carriers/invalid/main.omg),
+  and [an overloaded comparison](controls/overloaded_comparison/invalid/main.omg)
+  grant no missing separation. A [predicate requiring exclusive arguments](controls/borrow_formation/invalid/main.omg)
+  cannot use its desired truth to form those borrow arguments or bypass
+  observation-free specification-call admission.
   Unsupported/effectful bodies and exhausted proof work supply no evidence.
 - **Psi 05–07:** admitted loans and stores use the existing Terminal Psi route;
   pure proof reasoning introduces no runtime authority or proof replay. Public
