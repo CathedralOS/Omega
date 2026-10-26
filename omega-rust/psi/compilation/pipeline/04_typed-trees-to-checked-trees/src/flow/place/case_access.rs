@@ -118,8 +118,33 @@ impl<'program> CaseEvidence<'program> {
     pub(crate) fn inactive_owned_cases(&self) -> Vec<CanonicalPlace> {
         let mut inactive = Vec::new();
         let mut previous = None;
+        let mut previous_root = None;
+        let mut root_has_no_cleanup = false;
         for observation in &self.observations {
             let subject = &observation.place;
+            if previous_root != Some(&subject.root) {
+                // A nested plain field may still serve an ancestor's hook or
+                // descriptor cleanup. Only the original whole root can prove
+                // this cleanup-only batch irrelevant. The cache lives at one
+                // immutable evidence cut, never across writes or joins.
+                let root = CanonicalPlace {
+                    root: subject.root,
+                    segments: Vec::new(),
+                };
+                root_has_no_cleanup = validation::canonical_owned_place_type_reference(
+                    self.program,
+                    self.state.symbol,
+                    self.statement_index,
+                    &root,
+                )
+                .is_some_and(|reference| {
+                    validation::has_no_owned_cleanup_obligations(self.program, reference)
+                });
+                previous_root = Some(&subject.root);
+            }
+            if root_has_no_cleanup {
+                continue;
+            }
             if previous == Some(subject) {
                 continue;
             }

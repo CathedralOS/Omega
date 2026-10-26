@@ -6,7 +6,7 @@
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId;
 use language_semantics::{
-    MachineSupplyMode, ReferenceAccess, TerminationGuarantee, TerminationInterface,
+    MachineSupplyMode, Multiplicity, ReferenceAccess, TerminationGuarantee, TerminationInterface,
 };
 use std::collections::BTreeSet;
 use symbols::SymbolHandle;
@@ -16,6 +16,27 @@ use typed_trees::signature::SignatureContractKind;
 use typed_trees::statement::TransitionTargetNode;
 use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+
+/// A complete plain copy has no owned cleanup state. Keep the original
+/// qualified reference: peeling it could erase a domain-selected hook.
+/// Unknown contents or selections retain ordinary cleanup processing.
+pub fn has_no_owned_cleanup_obligations(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> bool {
+    crate::reference_result_custody::result_multiplicity(program, reference)
+        == Multiplicity::Unrestricted
+        && super::storage_contents::has_contents(
+            program,
+            reference,
+            &[],
+            super::storage_contents::ContentsRequirement::PlainOwned,
+        )
+        && matches!(
+            super::cleanup_selection::selected_application(program, reference),
+            Ok(None)
+        )
+}
 
 pub fn type_graph_requires_nominal_drop(
     program: &dyn crate::CheckingInput,
