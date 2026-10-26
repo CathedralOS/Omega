@@ -17,6 +17,8 @@ mod normalized_foreign_calls;
 mod private_functions;
 pub(crate) mod replay;
 pub(crate) mod stack_demand;
+#[cfg(test)]
+pub(crate) mod test_support;
 
 pub use carriers::{
     ObjectArtifact, ObjectBoundarySettlement, ObjectCodeAttribution, ObjectForeignCall,
