@@ -41,9 +41,10 @@ pub fn normalize_terminal_transition_calls(
                     // A named implementation is code, not a state container.
                     // Its exact scoped head permits ordinary member binding,
                     // even before a selected member receives its final symbol.
-                    let implementation_namespace = path.head_symbol.is_valid()
+                    let implementation_namespace = !path.symbol.is_valid()
+                        && path.receiver_symbol.is_valid()
                         && matches!(
-                            program.symbols.get(path.head_symbol).kind,
+                            program.symbols.get(path.receiver_symbol).kind,
                             SymbolKind::Conformance | SymbolKind::ConformanceParameter
                         );
                     // Attached machines require an explicit value-call spelling
@@ -115,21 +116,10 @@ pub fn normalize_terminal_transition_calls(
             .name_path_members(path.members)
             .to_vec();
         let leaf = members.pop().expect("boundary declaration has a path");
-        // An owned implementation's machine is allocated at the root. Its
-        // semantic namespace is the owning conformance, not that allocation
-        // parent. Rejoin only the retained owned-realization relationship;
-        // a referenced row or a conflicting lexical head lends no namespace.
-        let owned_namespace = program
-            .machine_by_symbol(path.symbol)
-            .or_else(|| program.machine_holding_state(path.symbol))
-            .map(|machine| program.declaration_scope_parent(machine.symbol))
-            .filter(|owner| program.conformance_by_symbol(*owner).is_some());
+        // Both ends come from source resolution. Neither package aliases nor
+        // root-allocated implementation machines recreate a missing qualifier.
         let namespace_head = path.head_symbol;
-        let namespace_endpoint = if members.len() == 1 {
-            namespace_head
-        } else {
-            owned_namespace.unwrap_or_default()
-        };
+        let namespace_endpoint = path.receiver_symbol;
         let receiver = if members.is_empty() {
             ExpressionHandle::invalid()
         } else {

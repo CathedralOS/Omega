@@ -64,6 +64,7 @@ pub(in crate::symbols) fn assign_transition_target_symbols(
         return;
     };
 
+    named.receiver_symbol = SymbolHandle::invalid();
     assign_expression_span_symbols(
         symbols,
         machine,
@@ -140,6 +141,7 @@ pub(in crate::symbols) fn assign_transition_target_symbols(
         if receiver_head.is_valid() {
             named.head_symbol = receiver_head;
         }
+        named.receiver_symbol = receiver;
         if let Some(leaf) = target_name.as_ref() {
             // Qualified terminal invocations use the ordinary scoped callable
             // owner, including trait requirements with Unit results. A failed
@@ -253,6 +255,7 @@ fn reclassify_state_call_value_target(
     statement_path_members.append_to_span(&mut path, call.target.clone());
 
     Some(symbol_resolved_trees::statement::NamedTransitionTarget {
+        receiver_symbol: Default::default(),
         head_symbol: state_symbol,
         symbol: state_symbol,
         storage: symbol_resolved_trees::statement::NamedTransitionTargetStorage {

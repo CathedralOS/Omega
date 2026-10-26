@@ -1199,6 +1199,7 @@ mod tests {
         occurrence: crate::AuthoredDeclarationSelectionOccurrenceId,
     ) -> statement::TransitionTarget {
         statement::TransitionTarget::Named(statement::NamedTransitionTarget {
+            receiver_symbol: Default::default(),
             head_symbol: SymbolHandle::from_arena_index(8),
             symbol: SymbolHandle::from_arena_index(9),
             storage: statement::NamedTransitionTargetStorage {

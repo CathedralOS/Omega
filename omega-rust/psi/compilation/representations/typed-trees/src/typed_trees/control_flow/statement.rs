@@ -190,6 +190,7 @@ impl StatementTable {
                     static_machine_parameter: *static_machine_parameter,
                     path: TableNamePath {
                         members,
+                        receiver_symbol: path.receiver_symbol,
                         head_symbol: path.head_symbol,
                         symbol: path.symbol,
                     },
@@ -230,6 +231,7 @@ impl StatementTable {
                 else {
                     unreachable!();
                 };
+                current.receiver_symbol = remapped(path.receiver_symbol, symbols);
                 current.head_symbol = remapped(path.head_symbol, symbols);
                 current.symbol = remapped(path.symbol, symbols);
             }
@@ -630,6 +632,8 @@ pub enum TransitionTargetNode {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct TableNamePath {
+    /// Exact endpoint of the qualified prefix; zero for an unqualified target.
+    pub receiver_symbol: SymbolHandle,
     pub members: HandleSpan<Identifier>,
     pub head_symbol: SymbolHandle,
     pub symbol: SymbolHandle,
