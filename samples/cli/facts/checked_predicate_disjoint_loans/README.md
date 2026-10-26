@@ -20,15 +20,15 @@ That weaker fact permits equal indices and must reject the same loans.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| local | [program](local/main.omg), [exclusive call](local/exclusive_call/main.omg) | [insufficient predicate](local/invalid/main.omg), [call twin](local/exclusive_call/invalid/main.omg) |
-| field | [program](field/main.omg), [exclusive call](field/exclusive_call/main.omg) | [insufficient predicate](field/invalid/main.omg), [call twin](field/exclusive_call/invalid/main.omg) |
-| parameter | [program](parameter/main.omg), [exclusive call](parameter/exclusive_call/main.omg) | [insufficient predicate](parameter/invalid/main.omg), [call twin](parameter/exclusive_call/invalid/main.omg) |
-| call_result | [program](call_result/main.omg), [exclusive call](call_result/exclusive_call/main.omg) | [insufficient predicate](call_result/invalid/main.omg), [call twin](call_result/exclusive_call/invalid/main.omg) |
-| match_join | [program](match_join/main.omg), [exclusive call](match_join/exclusive_call/main.omg) | [insufficient predicate](match_join/invalid/main.omg), [call twin](match_join/exclusive_call/invalid/main.omg) |
-| const_name | [program](const_name/main.omg), [exclusive call](const_name/exclusive_call/main.omg) | [insufficient predicate](const_name/invalid/main.omg), [call twin](const_name/exclusive_call/invalid/main.omg) |
-| other_state | [program](other_state/main.omg), [exclusive call](other_state/exclusive_call/main.omg) | [insufficient predicate](other_state/invalid/main.omg), [call twin](other_state/exclusive_call/invalid/main.omg) |
-| other_machine | [program](other_machine/main.omg), [exclusive call](other_machine/exclusive_call/main.omg) | [insufficient predicate](other_machine/invalid/main.omg), [call twin](other_machine/exclusive_call/invalid/main.omg) |
-| target_body | [program](target_body/main.omg), [exclusive call](target_body/exclusive_call/main.omg) | [insufficient predicate](target_body/invalid/main.omg), [call twin](target_body/exclusive_call/invalid/main.omg) |
+| local | [program](local/main.omg), [exclusive call](local/exclusive_call/main.omg), [record predicate](local/record_predicate/main.omg) | [insufficient predicate](local/invalid/main.omg), [call twin](local/exclusive_call/invalid/main.omg), [record twin](local/record_predicate/invalid/main.omg) |
+| field | [program](field/main.omg), [exclusive call](field/exclusive_call/main.omg), [record predicate](field/record_predicate/main.omg) | [insufficient predicate](field/invalid/main.omg), [call twin](field/exclusive_call/invalid/main.omg), [record twin](field/record_predicate/invalid/main.omg) |
+| parameter | [program](parameter/main.omg), [exclusive call](parameter/exclusive_call/main.omg), [record predicate](parameter/record_predicate/main.omg) | [insufficient predicate](parameter/invalid/main.omg), [call twin](parameter/exclusive_call/invalid/main.omg), [record twin](parameter/record_predicate/invalid/main.omg) |
+| call_result | [program](call_result/main.omg), [exclusive call](call_result/exclusive_call/main.omg), [record predicate](call_result/record_predicate/main.omg) | [insufficient predicate](call_result/invalid/main.omg), [call twin](call_result/exclusive_call/invalid/main.omg), [record twin](call_result/record_predicate/invalid/main.omg) |
+| match_join | [program](match_join/main.omg), [exclusive call](match_join/exclusive_call/main.omg), [record predicate](match_join/record_predicate/main.omg) | [insufficient predicate](match_join/invalid/main.omg), [call twin](match_join/exclusive_call/invalid/main.omg), [record twin](match_join/record_predicate/invalid/main.omg) |
+| const_name | [program](const_name/main.omg), [exclusive call](const_name/exclusive_call/main.omg), [record predicate](const_name/record_predicate/main.omg) | [insufficient predicate](const_name/invalid/main.omg), [call twin](const_name/exclusive_call/invalid/main.omg), [record twin](const_name/record_predicate/invalid/main.omg) |
+| other_state | [program](other_state/main.omg), [exclusive call](other_state/exclusive_call/main.omg), [record predicate](other_state/record_predicate/main.omg) | [insufficient predicate](other_state/invalid/main.omg), [call twin](other_state/exclusive_call/invalid/main.omg), [record twin](other_state/record_predicate/invalid/main.omg) |
+| other_machine | [program](other_machine/main.omg), [exclusive call](other_machine/exclusive_call/main.omg), [record predicate](other_machine/record_predicate/main.omg) | [insufficient predicate](other_machine/invalid/main.omg), [call twin](other_machine/exclusive_call/invalid/main.omg), [record twin](other_machine/record_predicate/invalid/main.omg) |
+| target_body | [program](target_body/main.omg), [exclusive call](target_body/exclusive_call/main.omg), [record predicate](target_body/record_predicate/main.omg) | [insufficient predicate](target_body/invalid/main.omg), [call twin](target_body/exclusive_call/invalid/main.omg), [record twin](target_body/record_predicate/invalid/main.omg) |
 
 Each place also contains an `exclusive_call/` production with the same
 predicate, indices, writes and oracle. Instead of retaining local element
@@ -46,6 +46,21 @@ admits zero and therefore cannot justify the same two loans. These pairs pin
 `_through_<place>_unary_predicate_{exit,rejected}`. Necessary interval hulls
 never replace an authored public contract: exact envelope conversion retains
 its independent converse check.
+
+The `record_predicate/` production passes a shared `Indices` record to the
+ordinary checked predicate. Its two scalar fields retain their exact record
+identity and complete typed projection paths; another record with the same field
+names supplies no relation. All nine places carry that record into the same two
+loan writes, and each twin weakens only `!=` to `<=`. Predicate consequences do
+not authorize stored-reference traversal or mutable observation replay. Caller
+establishment uses a complete equivalent scalar formula and the existing
+source-ordered captured operands; a necessary relation alone cannot establish
+the predicate. These pairs are pinned as
+`_through_<place>_record_predicate_{exit,rejected}`. The
+[record exclusive-call control](controls/record_exclusive_call/main.omg) and
+[weakened twin](controls/record_exclusive_call/invalid/main.omg) also consume
+that relation in two simultaneously formed `write_pair` arguments. Execution qualification of
+this production is tracked separately from the earlier scalar observations.
 
 The pairs are pinned under `tests/omega/{pass,fail}/facts/` as
 `checked_predicate_disjoint_loans_through_<place>_{exit,rejected}`.
@@ -94,6 +109,18 @@ All positives bind all four hosted `ProgramEntry` targets and declare exit 0.
   returns true whenever its second index is nonzero, independently of the first.
   A decreasing first index cannot justify reusing a lemma about the original
   pair unless its instantiated conclusion is still the requested conclusion.
+  The record production retains [two exact roots](controls/record_two_roots/main.omg)
+  and [nested owned paths](controls/record_nested_path/main.omg); an
+  [unrelated root](controls/record_unrelated_root/invalid/main.omg) or
+  [sibling path](controls/record_unrelated_path/invalid/main.omg) supplies no
+  separation. [A saved field snapshot](controls/record_snapshot/main.omg)
+  retains its meaning after the original changes, while a
+  [stale original](controls/record_stale_field/invalid/main.omg) and a
+  [stronger predicate](controls/record_stronger/invalid/main.omg) cannot
+  establish the caller requirement. The
+  [operand-time snapshot](controls/record_operand_snapshot/main.omg) and its
+  [equal-input twin](controls/record_operand_snapshot/invalid/main.omg) bind
+  the constructed record before a later argument mutates its source.
   Unsupported/effectful bodies and exhausted proof work supply no evidence.
 - **Psi 05–07:** admitted loans and stores use the existing Terminal Psi route;
   pure proof reasoning introduces no runtime authority or proof replay. Public
@@ -108,7 +135,9 @@ All positives bind all four hosted `ProgramEntry` targets and declare exit 0.
 
 Canonical authority: [loan compatibility and captured premises](../../../../wiki/spec/terminal-psi/loans.md),
 [invocation contracts](../../../../wiki/spec/language/state_contracts.md), and
-[checked predicate consequences](../../../../wiki/spec/language/dependent_values.md#collection-invariants).
+[checked predicate consequences](../../../../wiki/spec/language/dependent_values.md#collection-invariants),
+[structural predicate paths](../../../../wiki/spec/terminal-psi/structural_predicates.md), and
+[fact identity and lifetime](../../../../wiki/spec/terminal-psi/fact_validity.md).
 
 ## Recorded baseline and acceptance
 
@@ -153,3 +182,45 @@ observations successfully; the seven custody tests and five fixed-baseline
 comparisons also pass. Two focused consumers preserve main's domain-match field
 interval and reborrowed stored-view parameter behavior, including their reject
 controls. Earlier producer observations retain their original identities.
+
+The shared-record production was frozen against fresh optimized current-main
+`7810a10b28a58ad23f342fd1bb8bc3560eb9ed4e`: the predicate program refused
+both the loans and caller establishment, while the direct field relation ran
+with native and Terminal exit 0. Producer
+`39b908e3a33f98afcdd7169e0b1bcfcc8ec7b2e0` establishes the owned integer-field
+observation mechanism through all nine places and their weakened-predicate
+twins. Complete scoped retained checking observes 45 accepted programs and 59
+intended rejects; all 45 executable fixtures agree at native/Terminal exit 0.
+The public program route also supplies 46 dual-engine successes and 59 intended
+rejects, including the root program and exact root/path, saved snapshot,
+source-ordered operand, sibling-write and exclusive-call controls. The final
+operand oracle also observes the later argument's resulting field value.
+
+These are source-specific records: the final operand-oracle pair replaces its
+earlier observations with focused fresh public and retained runs. Other inputs
+and compiler components retain their verified hashes. Five affected historical
+fixtures lose no behavior against the recorded baseline; the ranked recursive
+helper-theorem core separately checks. Checking and native goldens record only
+the 31 new fixtures and their 15 executable positives. Source bundles, producer
+profiles, per-program input/oracle hashes and raw engine/rejection streams are
+retained in qualification evidence. Execution is measured on macOS ARM64;
+other hosted targets have bindings and source checking, not claimed execution.
+
+This closes common owned integer-field observations and complete owned field
+paths for this fact. It does not close the parent structured-callee/domain,
+runtime-projection or same-statement/theorem acceptance. Stored-reference
+crossings and other predicate control forms retain their own admission and
+validity obligations. Immutable formals have write restrictions distinct from
+owned local contents; caller facts use captured value/storage epochs rather
+than replaying an immutable local's aggregate initializer.
+
+An actual PR291 conflict with main `e4d9c74577f9ed221697b73113b045220364f9de`
+was resolved at `a0a9721ff70b7998760011d1e6feaf0c59ac62ed`, retaining the
+predicate-subject export and all incoming exports. All ten implementation blobs
+of this repair remain identical to the previously reviewed source. A fresh
+optimized integrated producer repeats all 105 public observations, all 104
+checking outcomes and all 45 native/Terminal agreements successfully, with no
+golden moves. The five fixed-baseline comparisons and ranked theorem-core
+checking also pass. Earlier producer observations retain their historical
+identities; this integrated validation covers the incoming compiler, library,
+readiness and native-pipeline changes.

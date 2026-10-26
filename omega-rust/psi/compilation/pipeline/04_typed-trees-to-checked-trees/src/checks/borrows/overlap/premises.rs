@@ -110,6 +110,47 @@ impl PremiseScope<'_> {
         }
     }
 
+    fn projected_bound(
+        &self,
+        program: &dyn ::validation::CheckingInput,
+        lookup: &validation::ImmutableBoundLookup<'_>,
+        expression: ExpressionHandle,
+        projection: &[facts::PlaceSegment],
+    ) -> Option<NormalizedBound> {
+        if projection.is_empty() {
+            return self.bound(program, lookup, expression);
+        }
+        if let Some(base) = self.bound(program, lookup, expression) {
+            return super::indexes::append_immutable_projection(program, lookup, base, projection);
+        }
+        let (expression, mut prefix) = match self {
+            Self::State { .. } => (expression, Vec::new()),
+            Self::Call { guarantee, .. } => guarantee.actual_projection(program, expression)?,
+            Self::Proposition {
+                parameters,
+                arguments,
+                ..
+            } => {
+                let place = validation::canonical_place_from_expression(program, expression)?;
+                let facts::PlaceRoot::Symbol(symbol) = place.root else {
+                    return None;
+                };
+                let position =
+                    typed_trees::signature::state_parameter_position(parameters, symbol)?;
+                (arguments[position], place.segments)
+            }
+            Self::Domain { .. } => return None,
+        };
+        let place = validation::canonical_place_from_expression(program, expression)?;
+        let facts::PlaceRoot::Symbol(symbol) = place.root else {
+            return None;
+        };
+        let mut segments = place.segments;
+        segments.append(&mut prefix);
+        let base = NormalizedBound::Projected { symbol, segments };
+        super::indexes::append_immutable_projection(program, lookup, base, projection)
+    }
+
     fn bound(
         &self,
         program: &dyn ::validation::CheckingInput,
@@ -591,9 +632,16 @@ fn decompose_premise_expression(
         if !negated {
             for consequence in validation::predicate_ordering_consequences(program, expression) {
                 let operand_bound = |operand| match operand {
-                    validation::PredicateIntegerOperand::Argument(expression) => scope
-                        .has_builtin_meaning(program, expression)
-                        .then(|| scope.bound(program, lookup, expression))
+                    validation::PredicateIntegerOperand::Argument(subject) => scope
+                        .has_builtin_meaning(program, subject.expression)
+                        .then(|| {
+                            scope.projected_bound(
+                                program,
+                                lookup,
+                                subject.expression,
+                                &subject.projection,
+                            )
+                        })
                         .flatten(),
                     validation::PredicateIntegerOperand::Integer(value) => {
                         i64::try_from(value).ok().map(NormalizedBound::Integer)

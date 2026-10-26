@@ -43,8 +43,15 @@ use typed_trees::statement::{
 };
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+mod record_observations;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Value {
+    Record {
+        identity: usize,
+        reference: TypeReferenceHandle,
+        projection: Vec<facts::PlaceSegment>,
+    },
     Integer {
         value: Integer,
         carrier: Option<TypeReferenceHandle>,
@@ -135,6 +142,7 @@ struct Implication<'program> {
     next_identity: usize,
     lemmas: Vec<Lemma>,
     updates: Vec<CollectionUpdate>,
+    records: Vec<record_observations::Observation>,
     antecedents: Vec<Boolean>,
 }
 
@@ -160,6 +168,7 @@ pub(super) fn proves(
         next_identity: 0,
         lemmas: Vec::new(),
         updates: Vec::new(),
+        records: Vec::new(),
         antecedents: Vec::new(),
     };
     let started = std::time::Instant::now();
@@ -220,17 +229,7 @@ fn ordering_relations(
         return Vec::new();
     };
     let parameters = program.state_parameters(entry);
-    if parameters.len() != application.arguments.len()
-        || parameters
-            .iter()
-            .filter(|parameter| {
-                program
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_some_and(|primitive| primitive.is_fixed_integer())
-            })
-            .count()
-            < 2
-    {
+    if parameters.len() != application.arguments.len() {
         return Vec::new();
     }
     let mut proof = Implication {
@@ -240,6 +239,7 @@ fn ordering_relations(
         next_identity: 0,
         lemmas: Vec::new(),
         updates: Vec::new(),
+        records: Vec::new(),
         antecedents: Vec::new(),
     };
     let mut path = Path::default();
@@ -250,15 +250,18 @@ fn ordering_relations(
     else {
         return Vec::new();
     };
+    let mut subjects = Vec::new();
+    for (argument, value) in application.arguments.iter().zip(&arguments) {
+        if proof
+            .integer_subjects(*argument, value.clone(), &mut path, &mut subjects, 0)
+            .is_none()
+        {
+            return Vec::new();
+        }
+    }
     let mut consequences = Vec::new();
-    for (left_position, left) in arguments.iter().enumerate() {
-        let Value::Integer { value: left, .. } = left else {
-            continue;
-        };
-        for (right_position, right) in arguments.iter().enumerate().skip(left_position + 1) {
-            let Value::Integer { value: right, .. } = right else {
-                continue;
-            };
+    for (left_position, (left_subject, left)) in subjects.iter().enumerate() {
+        for (right_subject, right) in subjects.iter().skip(left_position + 1) {
             for operator in [
                 BinaryOperator::NotEqual,
                 BinaryOperator::Equal,
@@ -307,10 +310,16 @@ fn ordering_relations(
                     }
                     consequences.push(super::PredicateOrderingConsequence {
                         left: super::PredicateIntegerOperand::Argument(
-                            application.arguments[left_position],
+                            super::PredicateIntegerSubject {
+                                expression: left_subject.expression,
+                                projection: left_subject.projection.clone(),
+                            },
                         ),
                         right: super::PredicateIntegerOperand::Argument(
-                            application.arguments[right_position],
+                            super::PredicateIntegerSubject {
+                                expression: right_subject.expression,
+                                projection: right_subject.projection.clone(),
+                            },
                         ),
                         operator,
                     });
@@ -739,6 +748,15 @@ impl Implication<'_> {
                     element: element_type,
                 })
             }
+            ValueShape::Record(reference) => {
+                let identity = self.next_identity;
+                self.next_identity += 1;
+                Some(Value::Record {
+                    identity,
+                    reference,
+                    projection: Vec::new(),
+                })
+            }
             ValueShape::Boolean => None,
         }
     }
@@ -1019,6 +1037,18 @@ impl Implication<'_> {
                         ))
                     })
                     .collect()
+            }
+            ExpressionNode::Member(member) => {
+                let symbol = crate::value_custody::places::effective_member_symbol(
+                    self.program,
+                    member.receiver,
+                    member,
+                );
+                let mut result = Vec::new();
+                for (path, receiver) in self.expression(frame, path, member.receiver, depth + 1)? {
+                    result.push(self.record_member(path, receiver, symbol)?);
+                }
+                Some(result)
             }
             ExpressionNode::Indexed(indexed) => {
                 if !crate::value_custody::places::place_has_builtin_coordinates(
@@ -1420,6 +1450,18 @@ impl Implication<'_> {
                             identity: *identity,
                             length: length.clone(),
                             element: element_type,
+                        },
+                        (
+                            ValueShape::Record(reference),
+                            Value::Record {
+                                identity,
+                                projection,
+                                ..
+                            },
+                        ) => Value::Record {
+                            identity: *identity,
+                            reference,
+                            projection: projection.clone(),
                         },
                         (ValueShape::Boolean, Value::Boolean(value)) => {
                             Value::Boolean(value.clone())
@@ -1856,6 +1898,7 @@ fn substitute(value: &Integer, replacements: &[(Integer, Integer)]) -> Integer {
 
 fn substitute_value(value: &Value, replacements: &[(Integer, Integer)]) -> Value {
     match value {
+        Value::Record { .. } => value.clone(),
         Value::Integer { value, carrier } => Value::Integer {
             value: substitute(value, replacements),
             carrier: *carrier,
@@ -2070,6 +2113,18 @@ fn declared_value(
             length,
             element: element_type,
         },
+        (
+            ValueShape::Record(reference),
+            Value::Record {
+                identity,
+                projection,
+                ..
+            },
+        ) => Value::Record {
+            identity,
+            reference,
+            projection,
+        },
         (ValueShape::Boolean, Value::Boolean(value)) => Value::Boolean(value),
         _ => return None,
     })
@@ -2138,6 +2193,7 @@ fn substitutions(
                 && first_length == second_length
                 && program.primitive_type_reference(*first_element)
                     == program.primitive_type_reference(*second_element) => {}
+            (Value::Record { .. }, Value::Record { .. }) if formal == argument => {}
             _ => return None,
         }
     }

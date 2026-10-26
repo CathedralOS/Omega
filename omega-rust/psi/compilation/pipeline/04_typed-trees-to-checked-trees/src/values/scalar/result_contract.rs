@@ -736,6 +736,82 @@ impl ContractPredicates<'_, '_> {
             })
     }
 
+    /// Rejoin a callee-relative observation with this contract's exact formal
+    /// or result root. Stored-reference crossings need a distinct live epoch;
+    /// they cannot be encoded as another field below the descriptor storage.
+    fn numeric_subject(
+        &self,
+        subject: validation::PredicateIntegerSubject,
+        depth: usize,
+    ) -> Option<(CheckedScalarExpression, TypeReferenceHandle)> {
+        if subject.projection.is_empty() {
+            return self.numeric_term(subject.expression, depth);
+        }
+        let (position, mut path, reference) = if self.allow_result
+            && let Some(result) =
+                validation::reserved_result_place(self.program, subject.expression)
+        {
+            if result.machine_symbol != self.owner
+                || validation::reserved_result_owner(self.program, result.root)
+                    != Some((self.owner, self.result_type))
+            {
+                return None;
+            }
+            let reference = validation::owned_projection_type_reference(
+                self.program,
+                self.result_type,
+                &result.segments,
+            )?;
+            (
+                u32::try_from(self.parameters.len()).ok()?,
+                super::structural_fields::structural_projection_path(
+                    self.program,
+                    &result.segments,
+                )?,
+                reference,
+            )
+        } else {
+            let (root, path, reference) = super::structural_fields::structural_storage_place(
+                self.program,
+                self.parameters,
+                subject.expression,
+            )?;
+            let position = root.parameter()?;
+            if !contract_storage_root(
+                self.program,
+                self.parameters.get(position as usize)?,
+                self.allow_result,
+            ) {
+                return None;
+            }
+            (position, path, reference)
+        };
+        let segments = super::structural_fields::applied_projection_segments(
+            self.program,
+            reference,
+            &subject.projection,
+        )?;
+        let reference =
+            validation::owned_projection_type_reference(self.program, reference, &segments)?;
+        let primitive_type = self.program.primitive_type_reference(reference)?;
+        if !is_integer(primitive_type) {
+            return None;
+        }
+        path.extend(super::structural_fields::structural_projection_path(
+            self.program,
+            &segments,
+        )?);
+        Some((
+            CheckedScalarExpression::StructuralParameterField {
+                observation: Default::default(),
+                parameter_position: position,
+                path,
+                primitive_type,
+            },
+            reference,
+        ))
+    }
+
     /// Publish a whole predicate only after checked bidirectional equivalence.
     /// Actual observations still pass the ordinary closed formal namespace and
     /// readable descriptor gates; the explorer supplies no executable access.
@@ -758,8 +834,8 @@ impl ContractPredicates<'_, '_> {
             };
             return construct_integer_comparison(
                 relation.operator,
-                self.numeric_term(left, depth + 1)?.0,
-                self.numeric_term(right, depth + 1)?.0,
+                self.numeric_subject(left, depth + 1)?.0,
+                self.numeric_subject(right, depth + 1)?.0,
             );
         }
         let rows = validation::exact_predicate_intervals(self.program, self.owner, expression)?;
