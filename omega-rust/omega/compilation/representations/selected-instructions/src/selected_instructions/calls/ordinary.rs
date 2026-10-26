@@ -2,11 +2,11 @@
 //! Calls retain their real operation owner or exact cleanup edge/action owner.
 use crate::{SelectedBlockId, SelectedInstructionId};
 use optimization_unit::{EffectLink, OwnershipEvent};
-use semantic_vocabulary::{BlockId, BoundaryInvocationSite, EdgeId, OperationId, PlaceId};
+use semantic_vocabulary::{BlockId, EdgeId, InvocationSite, OperationId, PlaceId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct OutgoingArgumentSlotId {
-    pub invocation_site: BoundaryInvocationSite,
+    pub invocation_site: InvocationSite,
     pub argument_index: u32,
     pub role: OutgoingArgumentSlotRole,
 }
@@ -399,14 +399,14 @@ pub enum SelectedBoundarySettlementPayload {
 }
 
 impl SelectedBoundarySettlementPayload {
-    pub fn invocation_site(&self) -> semantic_vocabulary::BoundaryInvocationSite {
+    pub fn invocation_site(&self) -> semantic_vocabulary::InvocationSite {
         match self {
             Self::ClaimCompletion(settlement) => settlement.operation.into(),
             Self::HostedReadByte { operation, .. } | Self::HostedWriteByteI32 { operation, .. } => {
                 (*operation).into()
             }
             Self::HostedExitProcessI32 { edge, .. } => {
-                semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(*edge)
+                semantic_vocabulary::InvocationSite::ExternalCompletion(*edge)
             }
         }
     }

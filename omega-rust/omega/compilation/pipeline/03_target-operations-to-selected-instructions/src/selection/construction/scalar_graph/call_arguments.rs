@@ -103,7 +103,7 @@ pub(super) fn register_ordered_operands(
 /// Scalar transport is identical at an ordinary operation and a completion
 /// edge. Stack slots retain that occurrence instead of inventing an operation.
 pub(super) fn scalar_argument(
-    invocation_site: semantic_vocabulary::BoundaryInvocationSite,
+    invocation_site: semantic_vocabulary::InvocationSite,
     argument_index: usize,
     value: semantic_vocabulary::ValueId,
     placement: &calling_conventions::ValuePlacement,

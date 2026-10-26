@@ -1,6 +1,6 @@
 //! Terminal identities and exact call-site ownership.
 
-use semantic_vocabulary::{BoundaryInvocationSite, EdgeId, OperationId};
+use semantic_vocabulary::{EdgeId, InvocationSite, OperationId};
 
 /// Ordered terminal-Psi sources refined into one target function.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -46,11 +46,11 @@ impl CallSiteOwner {
     }
 }
 
-impl From<BoundaryInvocationSite> for CallSiteOwner {
-    fn from(site: BoundaryInvocationSite) -> Self {
+impl From<InvocationSite> for CallSiteOwner {
+    fn from(site: InvocationSite) -> Self {
         match site {
-            BoundaryInvocationSite::Operation(operation) => Self::Operation(operation),
-            BoundaryInvocationSite::ExternalCompletion(edge) => Self::ExternalCompletion(edge),
+            InvocationSite::Operation(operation) => Self::Operation(operation),
+            InvocationSite::ExternalCompletion(edge) => Self::ExternalCompletion(edge),
         }
     }
 }

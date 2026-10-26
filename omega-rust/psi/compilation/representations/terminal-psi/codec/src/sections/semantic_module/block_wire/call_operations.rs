@@ -26,6 +26,35 @@ use terminal_psi::{
 };
 use terminal_psi::{CrashRouteBucket, StructuralArgument};
 
+/// The same entry payload crosses ordinary calls and no-normal invocation edges.
+pub(super) fn encode_module_invocation_inputs(
+    writer: &mut Writer,
+    invocation: terminal_psi::ModuleInvocationInputs<'_>,
+) -> Result<(), CodecError> {
+    writer.id(invocation.callee);
+    writer.len(
+        "module invocation scalar arguments",
+        invocation.arguments.len(),
+    )?;
+    for argument in invocation.arguments {
+        writer.id(*argument);
+    }
+    encode_scalar_terms(writer, invocation.erased_arguments)?;
+    encode_proof_terms(writer, invocation.erased_proof_arguments)?;
+    encode_structural_arguments(writer, invocation.structural_arguments)?;
+    writer.len(
+        "module invocation claim transfers",
+        invocation.claim_transfers.len(),
+    )?;
+    for transfer in invocation.claim_transfers {
+        writer.id(transfer.claim);
+        writer.u32(transfer.argument_index);
+        encode_structural_path(writer, "call claim transfer path", &transfer.path)?;
+    }
+    encode_obligation_ids(writer, invocation.requirement_obligations)?;
+    encode_crash_routes(writer, invocation.crash_continuations)
+}
+
 pub(super) fn encode_call(
     writer: &mut Writer,
     callee: MachineId,
@@ -83,26 +112,25 @@ pub(super) fn encode_call_unit(
     crash_continuations: Vec<CrashRouteBucket>,
 ) -> Result<(), CodecError> {
     writer.u8(operation_tags::CALL_UNIT);
-    writer.id(callee);
-    writer.len("unit-call scalar arguments", arguments.len())?;
-    for argument in arguments {
-        writer.id(argument);
-    }
-    encode_scalar_terms(writer, &erased_arguments)?;
-    encode_proof_terms(writer, &erased_proof_arguments)?;
-    encode_structural_arguments(writer, &structural_arguments)?;
-    writer.len("unit-call claim transfers", claim_transfers.len())?;
-    for transfer in claim_transfers {
-        writer.id(transfer.claim);
-        writer.u32(transfer.argument_index);
-        encode_structural_path(writer, "call claim transfer path", &transfer.path)?;
-    }
-    encode_obligation_ids(writer, &requirement_obligations)?;
-    encode_crash_routes(writer, &crash_continuations)?;
+    encode_module_invocation_inputs(
+        writer,
+        terminal_psi::ModuleInvocationInputs {
+            callee,
+            arguments: &arguments,
+            erased_arguments: &erased_arguments,
+            erased_proof_arguments: &erased_proof_arguments,
+            structural_arguments: &structural_arguments,
+            claim_transfers: &claim_transfers,
+            requirement_obligations: &requirement_obligations,
+            crash_continuations: &crash_continuations,
+        },
+    )?;
     Ok(())
 }
 
-fn decode_claim_transfers(reader: &mut Reader<'_>) -> Result<Vec<ClaimTransfer>, CodecError> {
+pub(super) fn decode_claim_transfers(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<ClaimTransfer>, CodecError> {
     decode_counted(reader, |reader| {
         Ok(ClaimTransfer {
             claim: reader.id("ClaimId")?,
@@ -207,25 +235,19 @@ pub(super) fn encode_call_structural_scalar(
     crash_continuations: Vec<CrashRouteBucket>,
 ) -> Result<(), CodecError> {
     writer.u8(operation_tags::CALL_STRUCTURAL_SCALAR);
-    writer.id(callee);
-    writer.len("structural-scalar-call scalar arguments", arguments.len())?;
-    for argument in arguments {
-        writer.id(argument);
-    }
-    encode_scalar_terms(writer, &erased_arguments)?;
-    encode_proof_terms(writer, &erased_proof_arguments)?;
-    encode_structural_arguments(writer, &structural_arguments)?;
-    writer.len(
-        "structural-scalar-call claim transfers",
-        claim_transfers.len(),
+    encode_module_invocation_inputs(
+        writer,
+        terminal_psi::ModuleInvocationInputs {
+            callee,
+            arguments: &arguments,
+            erased_arguments: &erased_arguments,
+            erased_proof_arguments: &erased_proof_arguments,
+            structural_arguments: &structural_arguments,
+            claim_transfers: &claim_transfers,
+            requirement_obligations: &requirement_obligations,
+            crash_continuations: &crash_continuations,
+        },
     )?;
-    for transfer in claim_transfers {
-        writer.id(transfer.claim);
-        writer.u32(transfer.argument_index);
-        encode_structural_path(writer, "call claim transfer path", &transfer.path)?;
-    }
-    encode_obligation_ids(writer, &requirement_obligations)?;
-    encode_crash_routes(writer, &crash_continuations)?;
     Ok(())
 }
 
@@ -432,25 +454,19 @@ pub(super) fn encode_call_structural_with_scalar_arguments(
     selected_evidence: Vec<OutcomeSpecificCallEvidence>,
 ) -> Result<(), CodecError> {
     writer.u8(operation_tags::CALL_STRUCTURAL_WITH_SCALAR_ARGUMENTS);
-    writer.id(callee);
-    writer.len("mixed structural-call scalar arguments", arguments.len())?;
-    for argument in arguments {
-        writer.id(argument);
-    }
-    encode_scalar_terms(writer, &erased_arguments)?;
-    encode_proof_terms(writer, &erased_proof_arguments)?;
-    encode_structural_arguments(writer, &structural_arguments)?;
-    writer.len(
-        "mixed structural-call claim transfers",
-        claim_transfers.len(),
+    encode_module_invocation_inputs(
+        writer,
+        terminal_psi::ModuleInvocationInputs {
+            callee,
+            arguments: &arguments,
+            erased_arguments: &erased_arguments,
+            erased_proof_arguments: &erased_proof_arguments,
+            structural_arguments: &structural_arguments,
+            claim_transfers: &claim_transfers,
+            requirement_obligations: &requirement_obligations,
+            crash_continuations: &crash_continuations,
+        },
     )?;
-    for transfer in claim_transfers {
-        writer.id(transfer.claim);
-        writer.u32(transfer.argument_index);
-        encode_structural_path(writer, "call claim transfer path", &transfer.path)?;
-    }
-    encode_obligation_ids(writer, &requirement_obligations)?;
-    encode_crash_routes(writer, &crash_continuations)?;
     encode_selected_evidence(writer, selected_evidence)
 }
 

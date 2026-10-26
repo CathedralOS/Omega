@@ -232,12 +232,11 @@ fn decode_kind(
                         } else {
                             crate::OutgoingArgumentSlotRole::ValueCopy
                         },
-                        invocation_site:
-                            semantic_vocabulary::BoundaryInvocationSite::from_tagged_identity(
-                                cursor.byte()?,
-                                cursor.u64()?,
-                            )
-                            .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+                        invocation_site: semantic_vocabulary::InvocationSite::from_tagged_identity(
+                            cursor.byte()?,
+                            cursor.u64()?,
+                        )
+                        .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
                         argument_index: cursor.u32()?,
                     })
                 }

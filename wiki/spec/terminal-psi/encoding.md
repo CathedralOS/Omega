@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 192 even when every table
+order below. This layout uses semantic format marker 193 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -656,6 +656,7 @@ A terminator row is a `u8` tag followed by its fields.
 | 7 | ReturnUnitPartialAffine | edge id + counted trivial discards + counted residual discards |
 | 8 | ReturnUnitNominalAffine | edge id + counted cleanups (place id + structural type id + cleanup machine id + optional receiver place id + obligation id list) |
 | 16 | StructuralCase | source place id + structural subject path + counted case successors (edge id + target block id + case id + counted field ids + counted affine cleanup actions) |
+| 19 | InvokeNoNormal | edge id + callee machine id + counted scalar value ids + scalar term list + proof term list + counted structural arguments + counted claim transfers + obligation id list + crash routes |
 
 A Jump with no residual affine discards uses tag 1; a nonempty residual list
 uses tag 10. Both have the same jump semantics. Tag 10 with an empty list is
@@ -695,7 +696,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 192 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 193 + `u16` vocabulary
 marker 130 + the entry callable, followed by the module tables in the
 declaration order below. The entry callable uses its ordinary machine-or-boundary
 tag and identifier encoding.

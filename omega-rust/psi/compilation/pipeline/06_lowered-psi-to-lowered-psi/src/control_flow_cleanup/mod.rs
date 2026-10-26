@@ -56,10 +56,10 @@ pub(super) fn cleanup(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationS
     let mut sidecar_values = BTreeSet::new();
     for occurrence in &before.source_call_occurrences {
         match occurrence.terminal_site {
-            semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
+            semantic_vocabulary::InvocationSite::Operation(operation) => {
                 sidecar_operations.insert(operation);
             }
-            semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+            semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
                 sidecar_edges.insert(edge);
             }
         }

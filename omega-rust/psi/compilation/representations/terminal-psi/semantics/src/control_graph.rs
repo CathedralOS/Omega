@@ -28,6 +28,82 @@ pub fn successors(machine: &TerminalMachine) -> BTreeMap<BlockId, Vec<(EdgeId, B
         .collect()
 }
 
+/// Failure to establish an exact, closed module control graph is not evidence
+/// that an invocation cannot return.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompletionGraphError {
+    UnknownMachine(semantic_vocabulary::MachineId),
+    InvalidControl {
+        machine: semantic_vocabulary::MachineId,
+        error: ControlGraphError,
+    },
+}
+
+/// Reconstruct potential normal completion from actual module control, never
+/// from a caller's marker or the callee's crash ceiling. A closed cycle has no
+/// normal exit, but supplies no termination, disposal or abandonment authority.
+/// Ordinary prefix calls remain conservatively returning; an explicit
+/// no-normal invocation transfers this query to its exact callee entry.
+pub fn normal_completion_possible(
+    module: &terminal_psi::TerminalModule,
+    initial: semantic_vocabulary::MachineId,
+) -> Result<bool, CompletionGraphError> {
+    use terminal_psi::Terminator;
+    let entry = module
+        .machine(initial)
+        .ok_or(CompletionGraphError::UnknownMachine(initial))?
+        .entry;
+    let mut validated = BTreeSet::new();
+    let mut visited = BTreeSet::new();
+    let mut pending = vec![(initial, entry)];
+    while let Some((machine_id, block_id)) = pending.pop() {
+        if !visited.insert((machine_id, block_id)) {
+            continue;
+        }
+        let machine = module
+            .machine(machine_id)
+            .ok_or(CompletionGraphError::UnknownMachine(machine_id))?;
+        if validated.insert(machine_id) {
+            validate_control_graph(machine).map_err(|error| {
+                CompletionGraphError::InvalidControl {
+                    machine: machine_id,
+                    error,
+                }
+            })?;
+        }
+        let block = machine
+            .block(&block_id)
+            .ok_or(CompletionGraphError::InvalidControl {
+                machine: machine_id,
+                error: ControlGraphError::UnknownTarget(block_id),
+            })?;
+        match &block.terminator {
+            Terminator::Return { .. }
+            | Terminator::ReturnUnit { .. }
+            | Terminator::ReturnStructural { .. } => return Ok(true),
+            Terminator::InvokeNoNormal { callee, .. } => {
+                let target = module
+                    .machine(*callee)
+                    .ok_or(CompletionGraphError::UnknownMachine(*callee))?;
+                pending.push((*callee, target.entry));
+            }
+            Terminator::Crash { .. } | Terminator::ExternalCompletion { .. } => {}
+            Terminator::Jump { .. }
+            | Terminator::Conditional { .. }
+            | Terminator::StructuralCase { .. } => {
+                pending.extend(
+                    block
+                        .terminator
+                        .successor_targets()
+                        .into_iter()
+                        .map(|target| (machine_id, target)),
+                );
+            }
+        }
+    }
+    Ok(false)
+}
+
 /// Iterative DFS returning blocks in first-finished order — the shared
 /// pending-stack walk behind `cyclic_components` and `reverse_postorder`.
 /// `successor(block, position)` projects the block's edge table.

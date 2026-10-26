@@ -530,10 +530,10 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     || ieee_float_builtin_retained(operation, targeted, selected)
                     || placed_scalar_retained(operation, targeted, selected)
                     || selected.calls.iter().any(|row| row.owner.operation() == Some(*psi_operation) && matches!(row.call.source, legalized_operations::NativeCallOrigin::InstalledProvider { .. } | legalized_operations::NativeCallOrigin::TargetFamily { .. } | legalized_operations::NativeCallOrigin::ProgramEntry { .. }))
-                    || selected.normalized_foreign_calls.iter().any(|row| row.invocation_site == semantic_vocabulary::BoundaryInvocationSite::Operation(*psi_operation)),
+                    || selected.normalized_foreign_calls.iter().any(|row| row.invocation_site == semantic_vocabulary::InvocationSite::Operation(*psi_operation)),
                 AbstractOperation::Crash { .. } => control_flow::retained(operation, targeted),
                 AbstractOperation::ExternalCompletion { psi_edge, boundary, .. } => {
-                    let site = semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(*psi_edge);
+                    let site = semantic_vocabulary::InvocationSite::ExternalCompletion(*psi_edge);
                     (selected.boundary_settlements.iter().filter(|row| row.settlement.invocation_site() == site).count()
                         + selected.normalized_foreign_calls.iter().filter(|row| row.invocation_site == site && row.call.boundary == *boundary).count()
                         + selected.calls.iter().filter(|row| row.owner == target_operations::CallSiteOwner::ExternalCompletion(*psi_edge)
@@ -1052,9 +1052,11 @@ fn temporary_stack_bytes_for_function(
     selected.function(machine).ok_or(Error::Mismatch(
         "missing selected function for temporary stack replay",
     ))?;
-    temporary_stack_bytes_for_selected_functions(selected, rows, encoded)?.remove(&machine).ok_or(
-        Error::Mismatch("missing selected function for temporary stack replay"),
-    )
+    temporary_stack_bytes_for_selected_functions(selected, rows, encoded)?
+        .remove(&machine)
+        .ok_or(Error::Mismatch(
+            "missing selected function for temporary stack replay",
+        ))
 }
 
 fn temporary_stack_bytes_for_selected_functions(

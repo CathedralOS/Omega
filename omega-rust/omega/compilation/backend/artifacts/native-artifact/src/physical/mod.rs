@@ -96,7 +96,7 @@ pub(crate) enum NativeCompilerBuiltinCatalogIdentity {
 pub struct OptimizedBoundaryOccurrence {
     terminal: TerminalPsiIdentity,
     machine: MachineId,
-    invocation_site: semantic_vocabulary::BoundaryInvocationSite,
+    invocation_site: semantic_vocabulary::InvocationSite,
     boundary: BoundaryMachineId,
     operation_ordinal: usize,
     identity: OptimizedBoundaryOccurrenceIdentity,
@@ -115,7 +115,7 @@ impl OptimizedBoundaryOccurrence {
         self.invocation_site.operation()
     }
 
-    pub const fn invocation_site(&self) -> semantic_vocabulary::BoundaryInvocationSite {
+    pub const fn invocation_site(&self) -> semantic_vocabulary::InvocationSite {
         self.invocation_site
     }
 
@@ -529,7 +529,7 @@ pub struct NormalizedForeignCallImportField {
     locator_identity: [u8; 32],
     boundary_plan_identity: [u8; 32],
     caller: MachineId,
-    invocation_site: semantic_vocabulary::BoundaryInvocationSite,
+    invocation_site: semantic_vocabulary::InvocationSite,
     boundary: BoundaryMachineId,
     ordinal: u32,
     object_symbol: object_file::ObjectLocalSymbolId,
@@ -553,7 +553,7 @@ impl NormalizedForeignCallImportField {
         self.caller
     }
 
-    pub const fn invocation_site(&self) -> semantic_vocabulary::BoundaryInvocationSite {
+    pub const fn invocation_site(&self) -> semantic_vocabulary::InvocationSite {
         self.invocation_site
     }
 
@@ -1014,7 +1014,7 @@ pub(crate) fn normalized_foreign_call_import_field(
     locator_identity: [u8; 32],
     boundary_plan_identity: [u8; 32],
     caller: MachineId,
-    invocation_site: semantic_vocabulary::BoundaryInvocationSite,
+    invocation_site: semantic_vocabulary::InvocationSite,
     boundary: BoundaryMachineId,
     ordinal: u32,
     object_symbol: object_file::ObjectLocalSymbolId,
@@ -1061,7 +1061,7 @@ fn normalized_foreign_callback_relocation(
 fn optimized_boundary_occurrence(
     terminal: TerminalPsiIdentity,
     machine: MachineId,
-    invocation_site: impl Into<semantic_vocabulary::BoundaryInvocationSite>,
+    invocation_site: impl Into<semantic_vocabulary::InvocationSite>,
     boundary: BoundaryMachineId,
     operation_ordinal: usize,
     identity: OptimizedBoundaryOccurrenceIdentity,

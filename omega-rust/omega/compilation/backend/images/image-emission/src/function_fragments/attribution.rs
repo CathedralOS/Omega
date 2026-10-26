@@ -238,7 +238,7 @@ pub(super) fn produce(
             Control::NormalizedForeignCall {
                 invocation_site, ..
             } => {
-                if let semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) =
+                if let semantic_vocabulary::InvocationSite::ExternalCompletion(edge) =
                     invocation_site
                 {
                     push(SemanticCodeSite::Edge(*edge), offset, length)?;
@@ -391,8 +391,8 @@ pub(super) fn validate(
             Control::NormalizedForeignCall {
                 invocation_site, ..
             } => match invocation_site {
-                semantic_vocabulary::BoundaryInvocationSite::Operation(_) => Vec::new(),
-                semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+                semantic_vocabulary::InvocationSite::Operation(_) => Vec::new(),
+                semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
                     vec![*edge]
                 }
             },
@@ -487,7 +487,7 @@ fn supports(
             } => {
                 ordinary
                     && *invocation_site
-                        == semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge)
+                        == semantic_vocabulary::InvocationSite::ExternalCompletion(edge)
             }
         },
     }

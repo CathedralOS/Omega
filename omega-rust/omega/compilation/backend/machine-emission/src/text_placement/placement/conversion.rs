@@ -4,15 +4,15 @@ use super::TextPlacementError;
 /// Constructor charges may precede either kind of invocation, but cannot choose
 /// the owner: normal calls retain their final operation, completions their edge.
 pub(super) fn validate_boundary_invocation_site(
-    site: semantic_vocabulary::BoundaryInvocationSite,
+    site: semantic_vocabulary::InvocationSite,
     operations: &[semantic_vocabulary::OperationId],
     edges: &[semantic_vocabulary::EdgeId],
 ) -> Result<(), TextPlacementError> {
     let matches = match site {
-        semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
+        semantic_vocabulary::InvocationSite::Operation(operation) => {
             operations.last() == Some(&operation) && edges.is_empty()
         }
-        semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => edges == [edge],
+        semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => edges == [edge],
     };
     if !matches {
         return Err(TextPlacementError::SourceShapeMismatch);

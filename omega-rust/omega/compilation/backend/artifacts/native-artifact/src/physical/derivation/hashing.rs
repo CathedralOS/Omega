@@ -116,11 +116,11 @@ pub(crate) fn hash_boundary_settlement_record(
     settlement: &machine_code::BoundarySettlementRecord,
 ) -> Result<(), &'static str> {
     match settlement.invocation_site {
-        semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
+        semantic_vocabulary::InvocationSite::Operation(operation) => {
             digest.byte(0);
             digest.raw(&operation.get().to_le_bytes());
         }
-        semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+        semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
             digest.byte(1);
             digest.raw(&edge.get().to_le_bytes());
         }

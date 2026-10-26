@@ -36,7 +36,7 @@ pub(super) fn replay_installed_provider_calls(
                     continue;
                 };
                 let invocation_site =
-                    semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(*psi_edge);
+                    semantic_vocabulary::InvocationSite::ExternalCompletion(*psi_edge);
                 let malformed = || ProviderInstallationError::InstalledCallReplayMismatch {
                     caller: caller.machine,
                     invocation_site,

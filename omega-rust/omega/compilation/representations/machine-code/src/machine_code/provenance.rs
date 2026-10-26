@@ -5,12 +5,12 @@
 pub type SemanticCodeSite = optimization_unit::PsiProvenance;
 
 /// The boundary invocation's emitted provenance, verbatim.
-pub fn semantic_code_site(site: semantic_vocabulary::BoundaryInvocationSite) -> SemanticCodeSite {
+pub fn semantic_code_site(site: semantic_vocabulary::InvocationSite) -> SemanticCodeSite {
     match site {
-        semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
+        semantic_vocabulary::InvocationSite::Operation(operation) => {
             SemanticCodeSite::Operation(operation)
         }
-        semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+        semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
             SemanticCodeSite::Edge(edge)
         }
     }

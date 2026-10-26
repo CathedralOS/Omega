@@ -583,8 +583,7 @@ fn lower_proof_output_runtime_call(
     } else {
         None
     };
-    let semantic_vocabulary::BoundaryInvocationSite::Operation(operation_id) =
-        occurrence.terminal_site
+    let semantic_vocabulary::InvocationSite::Operation(operation_id) = occurrence.terminal_site
     else {
         return unsupported("runtime proof-output call completes the machine");
     };

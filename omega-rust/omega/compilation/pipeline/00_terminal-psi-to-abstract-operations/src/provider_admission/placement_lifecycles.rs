@@ -12,7 +12,7 @@
 use super::{AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedTerminalMechanism};
 use crate::provider_installation::{AdmittedInstalledProviderCall, AdmittedProviderInstallation};
 use diagnostics::Diagnostic;
-use semantic_vocabulary::{BoundaryInvocationSite, MachineId, OperationId};
+use semantic_vocabulary::{InvocationSite, MachineId, OperationId};
 use terminal_psi::{
     OperationKind, StructuralAccess, StructuralArgument, TerminalModule,
     TerminalPlacementLifecycleExecution, TerminalPlacementLifecycleOperation,
@@ -262,8 +262,7 @@ fn selected_profile_call(
     requirement: semantic_vocabulary::BoundaryMachineId,
 ) -> Result<&AdmittedInstalledProviderCall, &'static str> {
     let mut matching = calls.iter().filter(|call| {
-        call.caller() == caller
-            && call.invocation_site() == BoundaryInvocationSite::Operation(producer)
+        call.caller() == caller && call.invocation_site() == InvocationSite::Operation(producer)
     });
     let call = matching
         .next()
@@ -330,7 +329,7 @@ mod tests {
         let boundary = BoundaryMachineId::new(7).unwrap();
         AdmittedInstalledProviderCall {
             caller: MachineId::new(3).unwrap(),
-            invocation_site: BoundaryInvocationSite::Operation(OperationId::new(11).unwrap()),
+            invocation_site: InvocationSite::Operation(OperationId::new(11).unwrap()),
             boundary,
             // This is a coordinate-join unit test, not an installation claim.
             // The public native path separately supplies admitted installation.
@@ -379,11 +378,10 @@ mod tests {
         changed.boundary = BoundaryMachineId::new(8).unwrap();
         assert!(selected_profile_call(&[changed], caller, operation, boundary).is_err());
         let mut changed = call.clone();
-        changed.invocation_site = BoundaryInvocationSite::Operation(OperationId::new(12).unwrap());
+        changed.invocation_site = InvocationSite::Operation(OperationId::new(12).unwrap());
         assert!(selected_profile_call(&[changed], caller, operation, boundary).is_err());
         let mut changed = call;
-        changed.invocation_site =
-            BoundaryInvocationSite::ExternalCompletion(EdgeId::new(11).unwrap());
+        changed.invocation_site = InvocationSite::ExternalCompletion(EdgeId::new(11).unwrap());
         assert!(selected_profile_call(&[changed], caller, operation, boundary).is_err());
     }
 }

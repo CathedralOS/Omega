@@ -1244,10 +1244,10 @@ fn validate_boundary_settlements(
             });
         }
         if !match settlement.invocation_site {
-            semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
+            semantic_vocabulary::InvocationSite::Operation(operation) => {
                 function.provenance.operations.contains(&operation)
             }
-            semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+            semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
                 function.provenance.edges.contains(&edge)
             }
         } {

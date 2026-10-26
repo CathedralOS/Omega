@@ -148,7 +148,7 @@ pub(super) fn entry(
 
 pub(super) fn invocation_argument(
     builder: &mut Builder<'_>,
-    invocation_site: semantic_vocabulary::BoundaryInvocationSite,
+    invocation_site: semantic_vocabulary::InvocationSite,
     argument_index: usize,
     value: ValueId,
     placement: &ValuePlacement,
@@ -179,7 +179,7 @@ pub(super) fn invocation_argument(
     let provenance = SelectedInstructionProvenance {
         operations: invocation_site.operation().into_iter().collect(),
         edges: match invocation_site {
-            semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => vec![edge],
+            semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => vec![edge],
             _ => Vec::new(),
         },
         values: vec![value],

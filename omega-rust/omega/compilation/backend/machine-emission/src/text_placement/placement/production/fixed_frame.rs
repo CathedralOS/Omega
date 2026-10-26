@@ -87,9 +87,7 @@ pub(in crate::text_placement::placement) fn place(
                                 == operation => {}
                         target_operations::CallSiteOwner::ExternalCompletion(edge) => {
                             super::super::conversion::validate_boundary_invocation_site(
-                                semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(
-                                    edge,
-                                ),
+                                semantic_vocabulary::InvocationSite::ExternalCompletion(edge),
                                 &instruction.provenance.operations,
                                 &instruction.provenance.edges,
                             )?;
@@ -436,7 +434,7 @@ fn resolve_foreign(
     caller: MachineId,
     block: selected_instructions::SelectedBlockId,
     instruction: selected_instructions::SelectedInstructionId,
-    invocation_site: semantic_vocabulary::BoundaryInvocationSite,
+    invocation_site: semantic_vocabulary::InvocationSite,
     instruction_offset: u64,
     instruction_bytes: &[u8],
     function_section_offset: u64,

@@ -265,7 +265,7 @@ fn join_import_coverage_rows<'input>(
                 ..
             } => (
                 boundary,
-                semantic_vocabulary::BoundaryInvocationSite::Operation(*psi_operation),
+                semantic_vocabulary::InvocationSite::Operation(*psi_operation),
             ),
             abstract_operations::AbstractOperation::ExternalCompletion {
                 boundary,
@@ -273,7 +273,7 @@ fn join_import_coverage_rows<'input>(
                 ..
             } => (
                 boundary,
-                semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(*psi_edge),
+                semantic_vocabulary::InvocationSite::ExternalCompletion(*psi_edge),
             ),
             _ => continue,
         };

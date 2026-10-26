@@ -14,7 +14,7 @@ pub use error::ProviderInstallationError;
 
 use abstract_operations::CompletionClaimSource;
 pub(crate) use admission::admit_provider_installation_with_projection;
-use semantic_vocabulary::{BoundaryInvocationSite, MachineId};
+use semantic_vocabulary::{InvocationSite, MachineId};
 use terminal_psi::{CompletionReceipt, ProviderCandidateConformance, StructuralArgument};
 
 /// Bind Omega's provider policy only to exact rows preserved from the verified
@@ -39,7 +39,7 @@ pub struct SelectedProviderAdapter {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdmittedInstalledProviderCall {
     pub(crate) caller: MachineId,
-    pub(crate) invocation_site: BoundaryInvocationSite,
+    pub(crate) invocation_site: InvocationSite,
     pub(crate) boundary: semantic_vocabulary::BoundaryMachineId,
     /// Supplied requirement's real checked conformance, never relabelled.
     pub(crate) provider: ProviderCandidateConformance,
@@ -56,7 +56,7 @@ impl AdmittedInstalledProviderCall {
         self.caller
     }
 
-    pub const fn invocation_site(&self) -> BoundaryInvocationSite {
+    pub const fn invocation_site(&self) -> InvocationSite {
         self.invocation_site
     }
 

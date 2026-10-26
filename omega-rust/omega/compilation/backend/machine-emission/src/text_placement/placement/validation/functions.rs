@@ -107,9 +107,7 @@ pub(super) fn check(
                             if source_row.provenance.operations.last() == Some(&operation) => {}
                         target_operations::CallSiteOwner::ExternalCompletion(edge) => {
                             super::super::conversion::validate_boundary_invocation_site(
-                                semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(
-                                    edge,
-                                ),
+                                semantic_vocabulary::InvocationSite::ExternalCompletion(edge),
                                 &source_row.provenance.operations,
                                 &source_row.provenance.edges,
                             )?;

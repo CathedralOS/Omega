@@ -55,7 +55,7 @@ pub(crate) fn derive_normalized_foreign_child(
     let source_operation = invocation_site.operation();
     let (boundary, arguments, structural_arguments, source_result, completion) =
         match invocation_site {
-            semantic_vocabulary::BoundaryInvocationSite::Operation(operation_id) => {
+            semantic_vocabulary::InvocationSite::Operation(operation_id) => {
                 let mut operations = module
                     .machines
                     .iter()
@@ -88,7 +88,7 @@ pub(crate) fn derive_normalized_foreign_child(
                     semantic_vocabulary::BoundaryCompletion::NormalReturn,
                 )
             }
-            semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge_id) => {
+            semantic_vocabulary::InvocationSite::ExternalCompletion(edge_id) => {
                 let mut completions = module
                     .machine(occurrence.machine())
                     .into_iter()

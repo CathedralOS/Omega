@@ -61,9 +61,17 @@ pub(super) fn validate_machine(
             })?;
         }
     }
+    for invocation in machine.module_invocations() {
+        super::call_foundations::validate_module_invocation_entry(
+            module,
+            machine,
+            invocation.inputs,
+        )?;
+    }
     validate_operation_result_places(machine)?;
     for block in &machine.blocks {
         super::call_foundations::validate_external_completion(module, machine, block)?;
+        super::call_foundations::validate_no_normal_invocation(module, block)?;
         validate_partial_affine_discards(module, machine, block)?;
     }
     Ok(())

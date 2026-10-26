@@ -210,16 +210,16 @@ mod tests {
 /// representations never collide as raw integers.
 pub fn boundary_relocation_origin(
     symbol: ObjectSymbolHandle,
-    site: semantic_vocabulary::BoundaryInvocationSite,
+    site: semantic_vocabulary::InvocationSite,
 ) -> RelocationOrigin {
     match site {
-        semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
+        semantic_vocabulary::InvocationSite::Operation(operation) => {
             RelocationOrigin::SemanticOperation {
                 function_symbol_handle: symbol,
                 operation_identity: operation.get(),
             }
         }
-        semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+        semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
             RelocationOrigin::SemanticEdge {
                 function_symbol_handle: symbol,
                 edge_identity: edge.get(),

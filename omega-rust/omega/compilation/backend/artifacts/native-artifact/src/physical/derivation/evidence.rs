@@ -156,10 +156,10 @@ pub(crate) fn derive_physical_evidence(
     for foreign in object.foreign_calls() {
         let invocation_site = match foreign.owner {
             CallSiteOwner::Operation(operation) => {
-                semantic_vocabulary::BoundaryInvocationSite::Operation(operation)
+                semantic_vocabulary::InvocationSite::Operation(operation)
             }
             CallSiteOwner::ExternalCompletion(edge) => {
-                semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge)
+                semantic_vocabulary::InvocationSite::ExternalCompletion(edge)
             }
             CallSiteOwner::CleanupAction { .. } => {
                 return Ok(blocked(
@@ -605,7 +605,7 @@ fn derive_identity_projection(
             if let terminal_psi::Terminator::ExternalCompletion { edge, boundary, .. } =
                 &block.terminator
             {
-                let site = semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(*edge);
+                let site = semantic_vocabulary::InvocationSite::ExternalCompletion(*edge);
                 let identity = boundary_occurrence_identity(
                     terminal,
                     machine.id,
@@ -669,7 +669,7 @@ pub(crate) fn operator_occurrence_identity(
 pub(crate) fn boundary_occurrence_identity(
     terminal: terminal_psi::TerminalPsiIdentity,
     machine: semantic_vocabulary::MachineId,
-    site: impl Into<semantic_vocabulary::BoundaryInvocationSite>,
+    site: impl Into<semantic_vocabulary::InvocationSite>,
     boundary: semantic_vocabulary::BoundaryMachineId,
     operation_ordinal: usize,
 ) -> OptimizedBoundaryOccurrenceIdentity {
@@ -761,11 +761,11 @@ pub(crate) fn physical_child_identity(
         digest.raw(field.boundary_plan_identity());
         digest.raw(&field.caller().get().to_le_bytes());
         match field.invocation_site() {
-            semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
+            semantic_vocabulary::InvocationSite::Operation(operation) => {
                 digest.byte(0);
                 digest.raw(&operation.get().to_le_bytes());
             }
-            semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+            semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
                 digest.byte(1);
                 digest.raw(&edge.get().to_le_bytes());
             }

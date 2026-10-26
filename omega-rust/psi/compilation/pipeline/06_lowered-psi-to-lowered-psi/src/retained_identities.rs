@@ -122,11 +122,11 @@ pub(crate) fn contains_source_call(
     occurrence: &lowered_psi::LoweredSourceCallOccurrence,
 ) -> bool {
     match occurrence.terminal_site {
-        semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => machine
+        semantic_vocabulary::InvocationSite::Operation(operation) => machine
             .blocks
             .iter()
             .any(|block| block.operations.iter().any(|row| row.id == operation)),
-        semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+        semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
             machine.blocks.iter().any(|block| {
                 matches!(block.terminator,
                 terminal_psi::Terminator::ExternalCompletion { edge: actual, .. } if actual == edge)
