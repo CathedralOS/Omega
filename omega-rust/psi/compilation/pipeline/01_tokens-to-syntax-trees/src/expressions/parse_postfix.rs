@@ -15,7 +15,22 @@ use super::primary::parse_primary_expression_handle;
 
 pub(crate) fn parse_argument_list_after_open_paren_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<
+    'tokens,
+    'source,
+    (
+        HandleSpan<ExpressionHandle>,
+        Box<[syntax_trees::identifier::Identifier]>,
+    ),
+> {
+    parse_arguments_in(syntax_trees, input, ExpressionContext::Default)
+}
+
+fn parse_arguments_in<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
+    context: ExpressionContext,
 ) -> ParseResult<
     'tokens,
     'source,
@@ -30,7 +45,8 @@ pub(crate) fn parse_argument_list_after_open_paren_handle<'tokens, 'source>(
         && !input.at_punctuation(PunctuationKind::Semicolon)
     {
         loop {
-            let (expression, rest) = parse_expression_handle(syntax_trees, input)?;
+            let (expression, rest) =
+                parse_expression_handle_in(syntax_trees, input, context.value())?;
             arguments.push(expression);
             input = rest;
 
@@ -81,7 +97,7 @@ pub(crate) fn parse_postfix_expression_handle<'tokens, 'source>(
     context: ExpressionContext,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
     let (expression, input) = parse_primary_expression_handle(syntax_trees, input, context)?;
-    parse_postfix_suffixes_handle(syntax_trees, expression, input)
+    parse_postfix_suffixes_handle(syntax_trees, expression, input, context)
 }
 
 // Keep suffix construction scratch off the stack while parsing a nested primary.
@@ -89,6 +105,7 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut expression: ExpressionHandle,
     mut input: Input<'tokens, 'source>,
+    context: ExpressionContext,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
     loop {
         if input.at_punctuation(PunctuationKind::Less)
@@ -97,7 +114,7 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
         {
             let after_open = rest.take_punctuation(PunctuationKind::LeftParen, "(")?;
             let ((arguments, evidence_arguments), rest) =
-                parse_argument_list_after_open_paren_handle(syntax_trees, after_open)?;
+                parse_arguments_in(syntax_trees, after_open, context)?;
             input = rest;
             expression = build_call_expression_handle(
                 syntax_trees,
@@ -112,7 +129,7 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
         if input.at_punctuation(PunctuationKind::LeftParen) {
             input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
             let ((arguments, evidence_arguments), rest) =
-                parse_argument_list_after_open_paren_handle(syntax_trees, input)?;
+                parse_arguments_in(syntax_trees, input, context)?;
             input = rest;
             expression = build_call_expression_handle(
                 syntax_trees,
@@ -131,7 +148,8 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
                 .map(|token| input.source_span(token))
                 .expect("recognized index punctuation has a source token");
             input = input.take_punctuation(PunctuationKind::LeftBracket, "[")?;
-            let (index, rest) = parse_index_or_range_expression_handle(syntax_trees, input)?;
+            let (index, rest) =
+                parse_index_or_range_expression_handle(syntax_trees, input, context.value())?;
             input = rest.take_punctuation(PunctuationKind::RightBracket, "]")?;
             expression =
                 syntax_trees
@@ -362,13 +380,13 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
 fn parse_index_or_range_expression_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
+    context: ExpressionContext,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
     // A leading separator has no start; both forms share the same range tail.
     let (start, input, end_inclusive) = if let Some(end_inclusive) = range_separator(&input) {
         (ExpressionHandle::invalid(), input, end_inclusive)
     } else {
-        let (start, input) =
-            parse_expression_handle_in(syntax_trees, input, ExpressionContext::Default)?;
+        let (start, input) = parse_expression_handle_in(syntax_trees, input, context)?;
         let Some(end_inclusive) = range_separator(&input) else {
             return Ok((start, input));
         };
@@ -385,8 +403,7 @@ fn parse_index_or_range_expression_handle<'tokens, 'source>(
         }
         (ExpressionHandle::invalid(), input)
     } else {
-        let (end, input) =
-            parse_expression_handle_in(syntax_trees, input, ExpressionContext::Default)?;
+        let (end, input) = parse_expression_handle_in(syntax_trees, input, context)?;
         (end, input)
     };
     Ok((

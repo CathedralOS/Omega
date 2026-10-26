@@ -6,6 +6,7 @@ pub(crate) enum ExpressionContext {
     ProofFact,
     GroupedProofFact,
     LogicalProofFact,
+    LogicalValue,
     GroupedLogicalProofFact,
 }
 
@@ -13,7 +14,10 @@ impl ExpressionContext {
     pub(crate) fn allows_struct_literal(self) -> bool {
         matches!(
             self,
-            Self::Default | Self::GroupedProofFact | Self::GroupedLogicalProofFact
+            Self::Default
+                | Self::GroupedProofFact
+                | Self::GroupedLogicalProofFact
+                | Self::LogicalValue
         )
     }
 
@@ -35,11 +39,24 @@ impl ExpressionContext {
     }
 
     pub(crate) fn allows_logical_subject(self) -> bool {
-        matches!(self, Self::LogicalProofFact | Self::GroupedLogicalProofFact)
+        matches!(
+            self,
+            Self::LogicalProofFact | Self::GroupedLogicalProofFact | Self::LogicalValue
+        )
+    }
+
+    pub(crate) fn value(self) -> Self {
+        if self.allows_logical_subject() {
+            Self::LogicalValue
+        } else {
+            Self::Default
+        }
     }
 
     pub(crate) fn grouped(self) -> Self {
-        if self.allows_logical_subject() {
+        if self == Self::LogicalValue {
+            Self::LogicalValue
+        } else if self.allows_logical_subject() {
             Self::GroupedLogicalProofFact
         } else if self.allows_type_expression() {
             Self::GroupedProofFact
