@@ -1,4 +1,4 @@
-name: Compiler regression
+name: Post-merge smoke
 
 on:
   push:
