@@ -115,15 +115,13 @@ pub struct ConstantBranchReceipt {
 }
 
 impl ConstantBranchReceipt {
+    receipt_accessor_rows!(ref ConstantBranchReceipt {
     /// The transformed function index carrying the folded branch.
-    pub const fn function_index(&self) -> usize {
-        self.function_index
-    }
+        function_index: usize,
     /// The folded branch instruction — the `Jump` terminator instruction
     /// carries this identity across.
-    pub const fn branch(&self) -> SelectedInstructionId {
-        self.branch
-    }
+        branch: SelectedInstructionId,
+    });
     /// The durable transformation identity the post-allocation manifest
     /// ledger records: the receipt's exact fields under the
     /// constant-branch domain separator.

@@ -48,39 +48,14 @@ pub struct FixedPrecoloredSplitRequirementValidationReceipt {
 }
 
 impl FixedPrecoloredSplitRequirementValidationReceipt {
-    pub const fn identity(self) -> FixedPrecoloredSplitRequirementPlanIdentity {
-        self.identity
-    }
-    pub const fn fixed_intervals(self) -> FixedPrecoloredIntervalPlanIdentity {
-        self.fixed_intervals
-    }
-    pub const fn ranges(self) -> LiveRangeIdentity {
-        self.ranges
-    }
-    pub const fn legality(self) -> AllocationLegalityIdentity {
-        self.legality
-    }
-    pub const fn register_environment(self) -> TargetRegisterEnvironmentIdentity {
-        self.register_environment
-    }
-    pub const fn allocator_availability(self) -> AllocatorAvailabilityIdentity {
-        self.allocator_availability
-    }
-    pub const fn optimization_unit(self) -> OptimizationUnitIdentity {
-        self.optimization_unit
-    }
-    pub const fn fuel_schedule(self) -> FuelScheduleIdentity {
-        self.fuel_schedule
-    }
-    pub const fn target(self) -> NativeTarget {
-        self.target
-    }
-    pub const fn policy(self) -> FixedPrecoloredSplitRequirementPolicy {
-        self.policy
-    }
-    pub const fn usage(self) -> OptimizationWorkUsage {
-        self.usage
-    }
+    receipt_accessor_rows!(FixedPrecoloredSplitRequirementValidationReceipt {
+        identity: FixedPrecoloredSplitRequirementPlanIdentity,
+        fixed_intervals: FixedPrecoloredIntervalPlanIdentity,
+        target: NativeTarget,
+        policy: FixedPrecoloredSplitRequirementPolicy,
+        usage: OptimizationWorkUsage,
+    });
+    shared_analysis_identity_accessors!(pub);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -93,9 +68,9 @@ impl ValidatedFixedPrecoloredSplitRequirements {
     pub const fn plan(&self) -> &FixedPrecoloredSplitRequirementPlan {
         &self.plan
     }
-    pub const fn receipt(&self) -> FixedPrecoloredSplitRequirementValidationReceipt {
-        self.receipt
-    }
+    receipt_accessor_rows!(ref ValidatedFixedPrecoloredSplitRequirements {
+        receipt: FixedPrecoloredSplitRequirementValidationReceipt,
+    });
 }
 
 /// Sort key for a virtual fixed-constraint site — the total order both the

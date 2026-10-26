@@ -49,21 +49,12 @@ pub struct LivenessValidationReceipt {
 }
 
 impl LivenessValidationReceipt {
-    pub const fn identity(self) -> LivenessIdentity {
-        self.identity
-    }
-
-    pub const fn selected(self) -> SelectedInstructionPlanIdentity {
-        self.selected
-    }
-
-    pub const fn optimization_unit(self) -> OptimizationUnitIdentity {
-        self.optimization_unit
-    }
-
-    pub const fn fuel_schedule(self) -> FuelScheduleIdentity {
-        self.fuel_schedule
-    }
+    receipt_accessor_rows!(LivenessValidationReceipt {
+        identity: LivenessIdentity,
+        selected: SelectedInstructionPlanIdentity,
+        optimization_unit: OptimizationUnitIdentity,
+        fuel_schedule: FuelScheduleIdentity,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -80,9 +71,9 @@ impl ValidatedLiveness {
         &self.plan
     }
 
-    pub const fn receipt(&self) -> LivenessValidationReceipt {
-        self.receipt
-    }
+    receipt_accessor_rows!(ref ValidatedLiveness {
+        receipt: LivenessValidationReceipt,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

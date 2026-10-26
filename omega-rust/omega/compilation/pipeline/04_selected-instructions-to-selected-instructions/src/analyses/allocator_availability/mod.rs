@@ -44,17 +44,11 @@ pub struct AllocatorAvailabilityValidationReceipt {
 }
 
 impl AllocatorAvailabilityValidationReceipt {
-    pub const fn identity(self) -> AllocatorAvailabilityIdentity {
-        self.identity
-    }
-
-    pub const fn register_environment(self) -> TargetRegisterEnvironmentIdentity {
-        self.register_environment
-    }
-
-    pub const fn physical(self) -> PhysicalRegisterModelIdentity {
-        self.physical
-    }
+    receipt_accessor_rows!(AllocatorAvailabilityValidationReceipt {
+        identity: AllocatorAvailabilityIdentity,
+        physical: PhysicalRegisterModelIdentity,
+        register_environment: TargetRegisterEnvironmentIdentity,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -68,9 +62,9 @@ impl ValidatedAllocatorAvailability {
         &self.plan
     }
 
-    pub const fn receipt(&self) -> AllocatorAvailabilityValidationReceipt {
-        self.receipt
-    }
+    receipt_accessor_rows!(ref ValidatedAllocatorAvailability {
+        receipt: AllocatorAvailabilityValidationReceipt,
+    });
 
     pub(crate) fn unconstrained_views(&self, class: RegisterClassId) -> Option<&[RegisterViewId]> {
         self.plan

@@ -285,37 +285,19 @@ pub struct PressureRematerializationValidationReceipt {
 }
 
 impl PressureRematerializationValidationReceipt {
-    pub const fn identity(self) -> PressureRematerializationIdentity {
-        self.identity
-    }
-    pub const fn source_selected(self) -> SelectedInstructionPlanIdentity {
-        self.source_selected
-    }
-    pub const fn spill_choices(self) -> SpillChoiceIdentity {
-        self.spill_choices
-    }
-    pub const fn recovery_classifications(self) -> RecoveryClassificationIdentity {
-        self.recovery_classifications
-    }
+    receipt_accessor_rows!(PressureRematerializationValidationReceipt {
+        identity: PressureRematerializationIdentity,
+        spill_choices: SpillChoiceIdentity,
+        recovery_classifications: RecoveryClassificationIdentity,
+        policy: PressureRematerializationPolicy,
+        usage: OptimizationWorkUsage,
+        function_count: usize,
+        applied_count: usize,
+        rewritten_use_count: usize,
+        source_selected: SelectedInstructionPlanIdentity,
+        transformed_selected: SelectedInstructionPlanIdentity,
+    });
     shared_analysis_identity_accessors!(pub);
-    pub const fn transformed_selected(self) -> SelectedInstructionPlanIdentity {
-        self.transformed_selected
-    }
-    pub const fn policy(self) -> PressureRematerializationPolicy {
-        self.policy
-    }
-    pub const fn usage(self) -> OptimizationWorkUsage {
-        self.usage
-    }
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-    pub const fn applied_count(self) -> usize {
-        self.applied_count
-    }
-    pub const fn rewritten_use_count(self) -> usize {
-        self.rewritten_use_count
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -337,9 +319,9 @@ impl ValidatedPressureRematerialization {
     pub fn transformed(&self) -> &SelectedInstructionPlan {
         &self.transformed
     }
-    pub const fn receipt(&self) -> PressureRematerializationValidationReceipt {
-        self.receipt
-    }
+    receipt_accessor_rows!(ref ValidatedPressureRematerialization {
+        receipt: PressureRematerializationValidationReceipt,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -85,14 +85,12 @@ pub struct RedundantExtensionReceipt {
 }
 
 impl RedundantExtensionReceipt {
+    receipt_accessor_rows!(ref RedundantExtensionReceipt {
     /// The function the redundant extension was rewritten in.
-    pub const fn function_index(&self) -> usize {
-        self.function_index
-    }
+        function_index: usize,
     /// The rewritten extension instruction's source-side identity.
-    pub const fn extension(&self) -> SelectedInstructionId {
-        self.extension
-    }
+        extension: SelectedInstructionId,
+    });
     /// The durable transformation identity the post-allocation manifest
     /// ledger records: the receipt's exact fields under the
     /// redundant-extension domain separator.
