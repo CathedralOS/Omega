@@ -387,8 +387,7 @@ impl BuildTimeAdmissionPlan {
                 .machine_by_symbol(machine)
                 .is_some_and(|declaration| {
                     declaration.supplies_checked_body()
-                        && (!declaration.conformance_bounds.is_empty()
-                            || !declaration.evidence_parameters.is_empty())
+                        && !declaration.conformance_bounds.is_empty()
                 })
             {
                 return true;

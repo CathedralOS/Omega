@@ -36,6 +36,6 @@ machine limit() -> u64 {
 machine take_bounded(value: u64) -> u64 requires value <= limit() { value }
 
 data Main {}
-machine Main::main(main: &mut Main) {
+machine main(main: &mut Main) {
     let bounded: u64 = take_bounded(7);
 }
