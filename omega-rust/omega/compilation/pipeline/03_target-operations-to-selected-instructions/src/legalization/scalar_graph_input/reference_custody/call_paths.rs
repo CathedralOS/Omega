@@ -227,7 +227,7 @@ fn observe_direct_reference_custody(
                 // a live enclosing loan; traversing that exact ancestor is the
                 // only non-shared exemption, retained separately on each cursor.
                 if custody.leaves.iter().any(|(_, enclosing)| {
-                    super::lifetime_storage_access_conflicts(
+                    let conflicts = super::lifetime_storage_access_conflicts(
                         function,
                         custody,
                         types,
@@ -244,7 +244,13 @@ fn observe_direct_reference_custody(
                             observed_carrier_place,
                             observed_carrier_path,
                             StructuralAccess::SharedBorrow,
-                        )
+                        );
+                    if conflicts && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                        eprintln!("CHECKSITE descriptor-storage-conflict machine={:?} position={:?} carrier={:?}:{:?} ancestors={:?} enclosing={:?} root={:?} backing={:?}",
+                            function.machine, custody.reference_position, observed_carrier_place,
+                            observed_carrier_path, ancestors, enclosing.identity, enclosing.root, enclosing.backing);
+                    }
+                    conflicts
                 }) {
                     return Err(invalid());
                 }
