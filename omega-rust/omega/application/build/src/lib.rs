@@ -31,8 +31,8 @@ mod build_boundary;
 
 pub use build::build;
 pub use build_execution::source_resolution::{
-    ProjectSourceResolutionError, ResolvedPackageBuild, ResolvedProjectBuilds,
-    resolve_project_sources,
+    ProjectSourceRequest, ProjectSourceResolutionError, ResolvedPackageBuild,
+    ResolvedProjectBuilds, resolve_project_sources,
 };
 pub use check_project::{
     CheckPreparedLocalProjectError, CheckedProjectTargetOutcome, PreparedLocalProjectCheckRequest,

@@ -89,28 +89,6 @@ pub fn prepare_filesystem_scope(
         retained_input.map(|_| crate::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>()));
     let build_snapshot = build_snapshot.or(automatic_snapshot.as_ref());
     if let Some(build_snapshot) = build_snapshot {
-        // Named immutable inputs are assignment-bound to exact dependency
-        // occurrences before any filesystem work: an input keyed to an edge
-        // the reconciled graph does not contain is extra and rejects rather
-        // than attaching to the nearest edge.
-        for (occurrence, _) in build_snapshot.dependency_inputs() {
-            let admitted =
-                package_inputs.is_some_and(|inputs| inputs.has_dependency_occurrence(occurrence));
-            if !admitted {
-                return Err(vec![Diagnostic::error(format!(
-                    "named build inputs are assigned to a dependency occurrence that does not exist: requester {:?}, purpose {:?}, alias `{}`, target {:?}",
-                    occurrence.requester(),
-                    occurrence.purpose(),
-                    occurrence.alias(),
-                    occurrence.target(),
-                ))]);
-            }
-        }
-        if build_snapshot.dependency_inputs().next().is_some() {
-            return Err(vec![Diagnostic::error(
-                "named dependency inputs must be routed by package-closure preparation before build activation",
-            )]);
-        }
         // Review supplies a session sponsor; ordinary compilation does not.
         // Both must use the same captured-output custody. Provision only a
         // fresh private write root, never adopt earlier publication contents.

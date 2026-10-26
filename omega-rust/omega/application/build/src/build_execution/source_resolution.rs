@@ -23,6 +23,16 @@ pub enum ProjectSourceResolutionError {
     Resources(package_manager::review::CompileResolvedPackageReviewsError),
 }
 
+/// Inputs known before the anonymous root executes. Product targets and
+/// accepted package bindings join after its declaration; input inventory and
+/// required outputs cannot wait until then. This snapshot belongs only to the
+/// root activation; dependency activations never inherit its named inputs.
+pub struct ProjectSourceRequest {
+    pub preparation: LocalProjectPreparation,
+    pub execution_profile: TargetProfile,
+    pub snapshot: Option<build_evaluation::BuildSnapshotRequest>,
+}
+
 /// Source acquisition and returned Build work share one lifetime. The roster
 /// is discovery-ordered, not dependency completion order; consumers schedule
 /// its exact package identities using the resolved inputs, never source paths.
@@ -67,19 +77,24 @@ impl ResolvedPackageBuild {
 /// their pinned acquisition adapters are connected.
 pub fn resolve_project_sources(
     session: &mut PackageBuildSession,
-    preparation: LocalProjectPreparation,
-    profile: TargetProfile,
+    request: ProjectSourceRequest,
 ) -> Result<ResolvedProjectBuilds, ProjectSourceResolutionError> {
     use ProjectSourceResolutionError::{Compilation, Preparation, Resources, Source};
+    let ProjectSourceRequest {
+        preparation,
+        execution_profile,
+        snapshot,
+    } = request;
 
     let acquired = preparation.acquire_root().map_err(Preparation)?;
-    let request = session
+    let mut request = session
         .source_build_request(
             acquired.source_capture(),
             &preparation.entry_path(),
-            profile,
+            execution_profile,
         )
         .map_err(Resources)?;
+    request.build_snapshot = snapshot;
     let root = execute_returned_build(session.compiler(), request).map_err(Compilation)?;
     let declared = acquired
         .declare_build(normal_return(&root)?)
@@ -100,7 +115,7 @@ pub fn resolve_project_sources(
                 };
                 let capture = acquired.source_capture();
                 let request = session
-                    .source_build_request(capture, &acquired.entry_path(), profile)
+                    .source_build_request(capture, &acquired.entry_path(), execution_profile)
                     .map_err(Resources)?;
                 let build =
                     execute_returned_build(session.compiler(), request).map_err(Compilation)?;

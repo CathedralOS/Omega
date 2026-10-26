@@ -34,6 +34,10 @@ fn main() {
         anonymous_generator_source_scope();
         return;
     }
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--source-inputs")) {
+        source_discovery_root_inputs();
+        return;
+    }
     initial_build_source_isolation();
     deferred_product_uses_captured_imports();
     unbound_build_invocation("separate_build_product_imports_exit");
@@ -49,6 +53,7 @@ fn main() {
     interleaved_build_invocations();
     terminal_build_filesystem();
     anonymous_generator_source_scope();
+    source_discovery_root_inputs();
     foreign_build_return_refuses();
     ignored_build_request_still_requires_join();
     let root = fixture_package_inputs::repo_root()
@@ -195,6 +200,151 @@ fn main() {
     logged_build_reuse();
     anonymous_build_completes_before_product();
     sliced_build_retains_effects();
+}
+
+/// Discovery binds the complete root snapshot before its first effect.
+fn source_discovery_root_inputs() {
+    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "discovery-root-inputs",
+        false,
+    )
+    .unwrap();
+    let repository = fixture_package_inputs::repo_root();
+    let fixture = repository.join("tests/omega/pass/build/captured_named_input_required_output");
+    let project = temporary.path().join("project");
+    std::fs::create_dir(&project).unwrap();
+    for name in ["main.omg", "build.omg", "input.txt", "package-only.txt"] {
+        std::fs::copy(fixture.join(name), project.join(name)).unwrap();
+    }
+    std::fs::copy(fixture.join("README.md"), project.join("unselected.txt")).unwrap();
+    let template = fixture_package_inputs::sealed_fixture_staging::stage_sealed_snapshot(
+        &repository,
+        &fixture.join("build-inputs/template"),
+    );
+    let input = package_compilation::capture_package_source_input(&template).unwrap();
+    let expected = std::fs::read(template.join("input.txt")).unwrap();
+    let profile = target::TargetProfile::host_if_supported().unwrap();
+    let snapshot = |required| {
+        let source = package_compilation::BuildSourceCaptureRequest::new(
+            ["main.omg", "build.omg", "input.txt", "package-only.txt"].map(|name| {
+                (
+                    name.as_bytes().to_vec(),
+                    package_compilation::BuildSourceCaptureObligation::Required,
+                )
+            }),
+        )
+        .unwrap();
+        package_compilation::BuildSnapshotRequest::scoped(required, source)
+            .with_inputs([(b"template".to_vec(), input.clone())])
+            .unwrap()
+    };
+    let preparation = || {
+        package_manager::operations::begin_local_project_preparation(
+            &project.join("main.omg"),
+            &[profile],
+            true,
+        )
+        .unwrap()
+        .unwrap()
+    };
+
+    // Absence cannot fall back to the root's same-named input.txt or acquire
+    // an ambient host path for the slot.
+    let mut session =
+        package_manager::PackageBuildSession::create(&temporary.path().join("absent")).unwrap();
+    let error = omega_build::resolve_project_sources(
+        &mut session,
+        omega_build::ProjectSourceRequest {
+            preparation: preparation(),
+            execution_profile: profile,
+            snapshot: None,
+        },
+    )
+    .err()
+    .expect("an unassigned named slot must reject");
+    let omega_build::ProjectSourceResolutionError::Compilation(error) = error else {
+        panic!("named-slot refusal must come from execution: {error:?}");
+    };
+    let diagnostics = error.into_diagnostics();
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("named build input `template` is not assigned")),
+        "{diagnostics:?}"
+    );
+    session.close().unwrap();
+
+    let mut session =
+        package_manager::PackageBuildSession::create(&temporary.path().join("assigned")).unwrap();
+    let before = counters::build_execution_count();
+    let mut resolved = omega_build::resolve_project_sources(
+        &mut session,
+        omega_build::ProjectSourceRequest {
+            preparation: preparation(),
+            execution_profile: profile,
+            snapshot: Some(snapshot(vec![b"named.txt".to_vec()])),
+        },
+    )
+    .unwrap_or_else(|error| panic!("assigned input discovery: {error:?}"));
+    let root = resolved.builds.pop().unwrap();
+    assert!(resolved.builds.is_empty());
+    let inputs = root.package_inputs().clone();
+    let build = root.complete(session.compiler(), profile, inputs).unwrap();
+    let checked = session.compiler().check_package_build(build).unwrap();
+    let observations = checked.build().observation_summary.as_ref().unwrap();
+    assert_eq!(
+        observations
+            .captured_source_inventory()
+            .unwrap()
+            .entry_count(),
+        5
+    );
+    assert_eq!(observations.named_input_inventories().len(), 1);
+    assert_eq!(observations.required_output_settlements().len(), 1);
+    let output = observations
+        .staged_output_tree()
+        .unwrap()
+        .sealed_entry(b"named.txt")
+        .unwrap();
+    let build_output::BuildStagedOutputEntryKind::File { bytes, .. } = output.kind() else {
+        panic!("named output must be a file");
+    };
+    assert_eq!(bytes, expected.as_slice());
+    assert_eq!(counters::build_execution_count() - before, 1);
+    session.close().unwrap();
+
+    let mut session =
+        package_manager::PackageBuildSession::create(&temporary.path().join("required")).unwrap();
+    let mut resolved = omega_build::resolve_project_sources(
+        &mut session,
+        omega_build::ProjectSourceRequest {
+            preparation: preparation(),
+            execution_profile: profile,
+            snapshot: Some(snapshot(vec![
+                b"named.txt".to_vec(),
+                b"missing.txt".to_vec(),
+            ])),
+        },
+    )
+    .unwrap();
+    let root = resolved.builds.pop().unwrap();
+    let inputs = root.package_inputs().clone();
+    let error = root
+        .complete(session.compiler(), profile, inputs)
+        .err()
+        .expect("caller-required output cannot disappear after discovery");
+    let diagnostics = error.into_diagnostics();
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("required build output `missing.txt`")
+            && diagnostic.message.contains("omitted")),
+        "{diagnostics:?}"
+    );
+    session.close().unwrap();
+    println!(
+        "source_discovery_binds_the_complete_root_snapshot_and_preserves_named_slot_and_output_controls"
+    );
 }
 
 /// Acquired source supplies both the compiler namespace and Build's input
@@ -454,8 +604,15 @@ fn anonymous_generator_source_scope() {
         package_manager::PackageBuildSession::create(&temporary.path().join("application-session"))
             .unwrap();
     let before = counters::build_execution_count();
-    let mut resolved = omega_build::resolve_project_sources(&mut session, preparation, profile)
-        .unwrap_or_else(|error| panic!("application generator discovery: {error:?}"));
+    let mut resolved = omega_build::resolve_project_sources(
+        &mut session,
+        omega_build::ProjectSourceRequest {
+            preparation,
+            execution_profile: profile,
+            snapshot: None,
+        },
+    )
+    .unwrap_or_else(|error| panic!("application generator discovery: {error:?}"));
     assert_eq!(resolved.builds.len(), 1);
     for name in ["main.omg", "build.omg", "asset.txt"] {
         std::fs::remove_file(project.join(name)).unwrap();
@@ -955,8 +1112,15 @@ fn application_source_resolution(project: &str, private_call: bool) {
             .expect("one project resource owner");
     let sponsor = session.evaluation_sponsor().clone();
     let before = counters::build_execution_count();
-    let resolved = omega_build::resolve_project_sources(&mut session, preparation, profile)
-        .unwrap_or_else(|error| panic!("application source resolution: {error:?}"));
+    let resolved = omega_build::resolve_project_sources(
+        &mut session,
+        omega_build::ProjectSourceRequest {
+            preparation,
+            execution_profile: profile,
+            snapshot: None,
+        },
+    )
+    .unwrap_or_else(|error| panic!("application source resolution: {error:?}"));
     assert_eq!(resolved.builds.len(), 2);
     assert_eq!(counters::build_execution_count(), before + 2);
     let discovery_fuel = sponsor.consumed_fuel_units();
@@ -1401,9 +1565,16 @@ fn project_session_lifecycle() {
         .charge_result_custody(maximum, 0)
         .unwrap();
     let before = counters::build_execution_count();
-    let error = omega_build::resolve_project_sources(&mut session, preparation(), profile)
-        .err()
-        .expect("source work cannot replenish a spent allowance");
+    let error = omega_build::resolve_project_sources(
+        &mut session,
+        omega_build::ProjectSourceRequest {
+            preparation: preparation(),
+            execution_profile: profile,
+            snapshot: None,
+        },
+    )
+    .err()
+    .expect("source work cannot replenish a spent allowance");
     match error {
         omega_build::ProjectSourceResolutionError::Compilation(failure) => {
             let diagnostics = failure.into_diagnostics();
@@ -1420,9 +1591,16 @@ fn project_session_lifecycle() {
     assert_eq!(counters::build_execution_count(), before + 1);
     session.close().unwrap();
     let before = counters::build_execution_count();
-    let error = omega_build::resolve_project_sources(&mut session, preparation(), profile)
-        .err()
-        .expect("closed session cannot admit another source Build");
+    let error = omega_build::resolve_project_sources(
+        &mut session,
+        omega_build::ProjectSourceRequest {
+            preparation: preparation(),
+            execution_profile: profile,
+            snapshot: None,
+        },
+    )
+    .err()
+    .expect("closed session cannot admit another source Build");
     assert!(
         matches!(
             error,
@@ -1460,8 +1638,15 @@ fn completed_build_target_fanout() {
     let mut session =
         package_manager::PackageBuildSession::create(&temporary.path().join("session")).unwrap();
     let before = counters::build_execution_count();
-    let mut resolved =
-        omega_build::resolve_project_sources(&mut session, preparation, host).unwrap();
+    let mut resolved = omega_build::resolve_project_sources(
+        &mut session,
+        omega_build::ProjectSourceRequest {
+            preparation,
+            execution_profile: host,
+            snapshot: None,
+        },
+    )
+    .unwrap();
     let build = resolved.builds.pop().unwrap();
     let inputs = build.package_inputs().clone();
     let build = build

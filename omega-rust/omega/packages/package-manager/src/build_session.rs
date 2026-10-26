@@ -5,10 +5,8 @@
 //! checked results retain immutable output custody after session disposal.
 
 mod bindings;
-mod inputs;
 mod order;
 pub use bindings::PackageSourceBindings;
-pub(crate) use inputs::{OccurrenceBuildInputs, reconcile_build_inputs};
 pub(crate) use order::{dependency_first_package_order, package_build_root};
 
 use crate::review::CompileResolvedPackageReviewsError;

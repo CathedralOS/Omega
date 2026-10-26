@@ -7,10 +7,8 @@
 mod identity;
 pub(crate) use identity::compiler_input_identity;
 
-use crate::build_session::{
-    PackageBuildSession, dependency_first_package_order, reconcile_build_inputs,
-};
-use crate::declarations::{PackageKey, purpose_slot};
+use crate::build_session::{PackageBuildSession, dependency_first_package_order};
+use crate::declarations::PackageKey;
 use crate::lock::{PackageCheckedContext, PackageLockTarget, PackageOccurrenceRoster};
 use crate::resolution::PackageCompilationScope;
 use crate::resolution::graph::{
@@ -344,12 +342,6 @@ fn prepare_occurrences(
     .map_err(|error| failure(root, error.to_string()))?;
     let roster = PackageOccurrenceRoster::derive(&source)
         .map_err(|error| failure(root, error.to_string()))?;
-    let snapshots = reconcile_build_inputs(&request.closure, &roster, request.snapshot).map_err(
-        |diagnostics| Error::Compilation {
-            package: root.clone(),
-            diagnostics,
-        },
-    )?;
     let execution_profile = target::TargetProfile::host_if_supported();
     let checkpoint = if request.verify {
         None
@@ -360,9 +352,6 @@ fn prepare_occurrences(
     let mut packages = Vec::new();
 
     for key in dependency_first_package_order(closure) {
-        let position = graph
-            .package_position(&key)
-            .ok_or_else(|| failure(&key, "resolved package has no graph position"))?;
         let custody = closure
             .custody(&key)
             .ok_or_else(|| failure(&key, "resolved package has no source custody"))?;
@@ -411,14 +400,9 @@ fn prepare_occurrences(
                 )
             };
             let snapshot = if is_root {
-                request
-                    .snapshot
-                    .cloned()
-                    .map(build_evaluation::BuildSnapshotRequest::without_dependency_inputs)
+                request.snapshot.cloned()
             } else {
-                snapshots[position][purpose_slot(purpose)]
-                    .as_ref()
-                    .map(|assignment| assignment.snapshot.clone())
+                None
             }
             .unwrap_or_else(|| {
                 build_evaluation::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>())

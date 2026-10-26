@@ -1163,7 +1163,14 @@ narrows realization only.
   root or Build import before effects; caller-required outputs remain mandatory
   at settlement.
   The application source-resolution route retains this generator through Product
-  completion without replay. Required-output path byte results remain explicitly
+  completion without replay. Its single request now carries the root snapshot
+  before execution, preserving scoped source selection, named immutable inputs
+  and caller-required outputs. Missing slots and omitted outputs still refuse.
+  Dependency input assignment remains unimplemented: the removed edge-map carrier
+  had no writer or constructor input, so its routing and validation only ever
+  processed empty maps. Implement the specified pre-execution assignment and
+  shared-node conflict checks at actual dependency activation admission; never
+  inherit the root's slots. Required-output path byte results remain explicitly
   refused.
   Ordinary one-shot compiler calls still own their execution loop.
   Extend pinned Git/workspace acquisition and preserve

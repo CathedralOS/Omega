@@ -15,8 +15,7 @@ mod errors;
 mod generated_sources;
 
 pub use bindings::{
-    BuildDependencyOccurrence, IndependentComponentDescription, PackageDependencyBinding,
-    PackageSourceBinding,
+    IndependentComponentDescription, PackageDependencyBinding, PackageSourceBinding,
 };
 pub(crate) use construction::canonical_source_root;
 pub use dependency_graph::PackageDependencyClosure;
