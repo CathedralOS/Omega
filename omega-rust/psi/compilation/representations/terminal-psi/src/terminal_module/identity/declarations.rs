@@ -153,6 +153,8 @@ pub struct CheckedMachineSpecialization {
     /// from the template's nominal declaration path. Issuer routes name this
     /// declaration, not a same-spelled specialization or sibling overload.
     pub template_callable: TerminalIdentityIndex,
+    /// Issuer routes use this semantic declaration coordinate. `template`
+    /// retains the independent nominal encoding and cannot substitute for it.
     pub template_semantic_declaration: TerminalIdentityIndex,
     pub commitment: [u8; 32],
 }

@@ -36,6 +36,8 @@ pub enum ClosedConformanceSchemaKind {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ClosedConformanceSchema {
+    /// Declaration ownership survives independently of the overload's path and
+    /// types; another package may declare an equally shaped requirement.
     pub requirement_declaration: crate::NominalDeclarationIdentity,
     pub declaring_trait_identity: TerminalIdentityIndex,
     pub public_requirement_identity: TerminalIdentityIndex,
@@ -97,6 +99,8 @@ pub struct ClosedConformanceParameterBinding {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ClosedConformanceRow {
+    /// Same source declaration coordinate as the original schema, retained
+    /// through each closed family row for authorized scalar issuance.
     pub requirement_declaration: crate::NominalDeclarationIdentity,
     pub declaring_trait_identity: TerminalIdentityIndex,
     /// Canonical normalized overload identity of the public requirement.
