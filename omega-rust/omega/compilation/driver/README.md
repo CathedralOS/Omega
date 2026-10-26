@@ -8,9 +8,10 @@ The coordinator sequences typed owner results; it does
 not implement package loading, build evaluation, transformation algorithms or
 visualization semantics. See the [pipeline map](../../../pipeline.md).
 
-[Terminal production](terminal-production/README.md) is the shared stage-05–07
-sequence used by ordinary and package compilation. It is a narrow coordinator
-package under this driver, not a Psi transform. Permission-ledger validation
+[Terminal production](../../../psi/compilation/driver/terminal-production/README.md)
+is the Psi-owned stage-05–07 sequence called directly by ordinary, package and
+inspection consumers. This driver supplies its product exclusion policy and
+timing observer, not a second production entrance. Permission-ledger validation
 belongs to stage 05; entry eligibility, source receipt joins and publication
 belong to stage 07. Their language rules do not live in the coordinator.
 

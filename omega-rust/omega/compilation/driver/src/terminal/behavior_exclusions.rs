@@ -13,16 +13,16 @@ use diagnostics::Diagnostic;
 ///
 /// A product caller lends this policy as the `admission` of the
 /// [`psi_compiler::TerminalApplicationCustody`] row it submits to
-/// [`crate::produce_terminal_artifact`]; the caller owns the policy value for
+/// [`psi_compiler::TerminalProductionRequest::produce`]; the caller owns the policy value for
 /// as long as production borrows it.
-pub struct TerminalBehaviorExclusions<'a> {
+pub(super) struct TerminalBehaviorExclusions<'a> {
     authored: &'a [effects::AuthoredBehaviorExclusion],
     providers: &'a effects::SelectedProviderPlanFacts,
     profile: target::TargetProfile,
 }
 
 impl<'a> TerminalBehaviorExclusions<'a> {
-    pub fn new(
+    pub(super) fn new(
         authored: &'a [effects::AuthoredBehaviorExclusion],
         providers: &'a effects::SelectedProviderPlanFacts,
         profile: target::TargetProfile,

@@ -498,7 +498,6 @@ dependencies = [
  "terminal-fuel",
  "terminal-installation",
  "terminal-interpreter",
- "terminal-production",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
  "terminal-runtime",
@@ -2379,20 +2378,6 @@ dependencies = [
  "terminal-installation",
  "terminal-psi",
  "terminal-semantics",
-]
-
-[[package]]
-name = "terminal-production"
-version = "0.1.0"
-dependencies = [
- "artifacts",
- "diagnostics",
- "effects",
- "psi-compiler",
- "semantic-vocabulary",
- "target",
- "terminal-psi",
- "trust-model",
 ]
 
 [[package]]

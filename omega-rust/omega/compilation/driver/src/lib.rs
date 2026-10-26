@@ -20,7 +20,8 @@ mod compiler;
 mod execution_settlement;
 mod identity;
 mod inspection;
-pub use terminal_production::ProducedTerminalProgram;
+pub use psi_compiler::ProducedTerminalProgram;
+mod observations;
 mod product_execution;
 
 #[cfg(test)]

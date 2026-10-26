@@ -43,7 +43,7 @@ impl CompilationProduct {
 /// Finished output; checked source and continuation state stay in the compiler.
 pub enum CompilationOutput {
     Report(CompileReport),
-    Inspection(terminal_production::ProducedTerminalProgram),
+    Inspection(psi_compiler::ProducedTerminalProgram),
 }
 
 impl CompilationOutput {
@@ -58,7 +58,7 @@ impl CompilationOutput {
 
     pub fn into_inspection(
         self,
-    ) -> Result<terminal_production::ProducedTerminalProgram, CompilationProductError> {
+    ) -> Result<psi_compiler::ProducedTerminalProgram, CompilationProductError> {
         match self {
             Self::Inspection(artifact) => Ok(artifact),
             Self::Report(_) => Err(CompilationProductError::Production(vec![

@@ -220,6 +220,27 @@ fn selected_execution_does_not_copy_checked_programs() {
 }
 
 #[test]
+fn terminal_consumers_call_psi_without_a_product_wrapper() {
+    let manifest = include_str!("../Cargo.toml");
+    assert!(!manifest.contains("terminal-production ="));
+    let inspection = include_str!("inspection.rs");
+    let product = include_str!("terminal/terminal_artifact.rs");
+    for source in [inspection, product] {
+        assert!(source.contains("TerminalProductionRequest"));
+        assert!(source.contains(".produce("));
+        assert!(!source.contains("produce_terminal_artifact("));
+    }
+    let observations = include_str!("observations.rs");
+    assert!(observations.contains("PsiCompilationStage::Lowering"));
+    assert_eq!(
+        observations.matches("record_terminal_production()").count(),
+        1
+    );
+    let policy = include_str!("terminal/behavior_exclusions.rs");
+    assert!(policy.contains("impl psi_compiler::TerminalCompositionAdmission"));
+}
+
+#[test]
 fn early_constants_share_terminal_production_without_tree_fallback() {
     let early = include_str!(
         "../../../../psi/compilation/compile-time/src/machine_execution/build_machines.rs"

@@ -401,7 +401,7 @@ pub(super) fn lower_typed_frontier(
             Arc::new(inputs.clone()) as Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
         }),
     };
-    let source = request.prepare(&mut terminal_production::PsiStageTimings::new(timings))?;
+    let source = request.prepare(&mut crate::observations::PsiStageTimings::new(timings))?;
     Ok(TypedCompilationFrontier {
         source,
         anonymous_source: syntax.anonymous_owner,
@@ -440,7 +440,7 @@ pub(super) fn complete_product_frontend(
         retained_build_check: _,
     } = built;
     let source =
-        source.complete_authored(&mut terminal_production::PsiStageTimings::new(timings))?;
+        source.complete_authored(&mut crate::observations::PsiStageTimings::new(timings))?;
     // Package custody, generated-byte admission and parsing stay outside Psi's
     // resolver/typing owner. No authored Build effects repeat on this path.
     let prepared = if let Some((extension, package_inputs)) = sources.admit_generated_extension(
@@ -461,7 +461,7 @@ pub(super) fn complete_product_frontend(
                     first_source: source::SourceId(base_sources.len()),
                     selection_authority: Arc::new(package_inputs.clone()),
                 },
-                &mut terminal_production::PsiStageTimings::new(timings),
+                &mut crate::observations::PsiStageTimings::new(timings),
             )
             .map_err(|mut diagnostics| {
                 super::attribute_diagnostics(
