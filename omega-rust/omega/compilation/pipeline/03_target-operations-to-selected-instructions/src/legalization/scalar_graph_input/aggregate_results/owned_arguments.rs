@@ -64,7 +64,7 @@ pub(super) fn reconstruct(
     if block_parameters.next().is_some() {
         return Err(LegalizationError::custody());
     }
-    let (source, root_structural_type, source_byte_offset) = if let Some(parameter) =
+    let (source, root_structural_type, projection) = if let Some(parameter) =
         caller.structural_parameter(argument.place)
     {
         if parameter.access != destination.access
@@ -160,7 +160,7 @@ pub(super) fn reconstruct(
                 psi_operation: producer,
             },
             structural_type,
-            0,
+            (0, Vec::new()),
         )
     } else {
         let (producer, result) = structural_case::source_result(caller, argument.place)?;
@@ -206,6 +206,17 @@ pub(super) fn reconstruct(
             offset,
         )
     };
+    // Replay the actual selector sources at this invocation's CFG position.
+    // The producer's target roster is compared against this independent
+    // reconstruction; neither an equal byte offset nor an unavailable SSA
+    // value can supply the operand's custody.
+    let (source_byte_offset, elements) = projection;
+    let indices = target::control_flow::sources::call_indices(
+        native,
+        caller,
+        target_operations::CallSiteOwner::Operation(call_operation),
+        &elements,
+    )?;
     let placement = call
         .parameters
         .get(callee.scalar_parameter_count() + position)
@@ -223,7 +234,7 @@ pub(super) fn reconstruct(
         source_byte_offset,
         fixed_array_length: None,
         element_stride: None,
-        indices: Vec::new(),
+        indices,
         source,
         destination: placement.clone(),
     })
@@ -237,10 +248,16 @@ fn owned_projection(
     destination: semantic_vocabulary::StructuralTypeId,
     argument: &terminal_psi::StructuralArgument,
     plan: &AbstractOperationPlan,
-) -> Result<u32, LegalizationError> {
+) -> Result<
+    (
+        u32,
+        Vec<crate::structural_inputs::structural_reference_input::RuntimeElement>,
+    ),
+    LegalizationError,
+> {
     if argument.path.is_empty() {
         return (root == destination)
-            .then_some(0)
+            .then_some((0, Vec::new()))
             .ok_or(LegalizationError::custody());
     }
     let (selected, offset, indices) =
@@ -250,10 +267,10 @@ fn owned_projection(
             &plan.structural_types,
         )
         .ok_or(LegalizationError::custody())?;
-    if selected != destination || !indices.is_empty() {
+    if selected != destination {
         return Err(LegalizationError::custody());
     }
-    Ok(offset)
+    Ok((offset, indices))
 }
 
 /// The block and position of the one node `matches` selects.

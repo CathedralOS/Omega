@@ -7692,6 +7692,9 @@ pass/ownership/runtime_first_match_pattern_consumption_exit built 4099ms exit:0 
 pass/ownership/runtime_generic_borrowed_case_restore_exit built 2830ms exit:0 @a92f16431042
 pass/ownership/runtime_generic_linear_case_restore_exit built 3875ms exit:0 @a92f16431042
 pass/ownership/runtime_inactive_case_carrier_transfer_exit built 6048ms exit:0 @a92f16431042
+pass/ownership/runtime_indexed_recoverable_replacement_exit built 2518ms exit:0 @036605466510+wt
+pass/ownership/runtime_indexed_replacement_effectful_singleton_exit built 2479ms exit:0 @036605466510+wt
+pass/ownership/runtime_indexed_replacement_index_one_exit built 2394ms exit:0 @036605466510+wt
 pass/ownership/runtime_known_case_scalar_call_exit built 3377ms exit:0 @a92f16431042
 pass/ownership/runtime_linear_case_payload_forward_exit built 4189ms exit:0 @a92f16431042
 pass/ownership/runtime_local_subslice_element_window_exit built 3289ms exit:0 @a92f16431042

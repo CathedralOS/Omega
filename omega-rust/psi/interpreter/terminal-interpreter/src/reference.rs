@@ -220,7 +220,68 @@ impl TerminalExecution<'_> {
                 && claim.multiplicity == Some(StructuralMultiplicity::Linear)
                 && prefix.starts_with(&claim.path)
         });
-        resident.then_some(authority).ok_or_else(malformed)
+        if resident || self.resident_storage_region(place, structural_type, prefix)? {
+            Ok(authority)
+        } else {
+            Err(malformed())
+        }
+    }
+
+    /// A composite loan can contain several independently resident claims and
+    /// affine subtrees. Prove complete coverage of its typed carrier region;
+    /// one live child cannot authorize a parent with another child absent.
+    /// This scratch partition never consumes or relocates real custody.
+    fn resident_storage_region(
+        &self,
+        place: PlaceId,
+        root_type: StructuralTypeId,
+        prefix: &[StructuralPathSegment],
+    ) -> Result<bool, TerminalInterpretError> {
+        let types = self.program.structural_types();
+        crate::structural_inputs::case_membership::validate_case_projection(
+            &types,
+            &self.structural_values,
+            self.structural_cases.as_map(),
+            place,
+            prefix,
+        )?;
+        let selected_type = resolve_structural_path_type(&types, root_type, prefix)?;
+        let root = crate::custody::verified_structural_place(&self.structural_values, place)?;
+        let mut remaining = std::collections::BTreeSet::from([StructuralAffineDiscard {
+            place,
+            path: prefix.to_vec(),
+            structural_type: selected_type,
+        }]);
+        let claims = self
+            .live_claims
+            .values()
+            .filter(|claim| {
+                claim.place == Some(place)
+                    && claim.multiplicity == Some(StructuralMultiplicity::Linear)
+                    && claim.path.starts_with(prefix)
+            })
+            .map(|claim| claim.path.as_slice());
+        let affine = self
+            .live_affine_frontier
+            .iter()
+            .filter(|entry| entry.place == place && entry.path.starts_with(prefix))
+            .map(|entry| entry.path.as_slice());
+        // Subtract authenticated resident regions from scratch debt only.
+        // An absent child remains uncovered; no live custody is consumed.
+        crate::custody::exclude_linear_regions(
+            &types,
+            &mut remaining,
+            claims.chain(affine).map(|path| (place, path)),
+            &|entry| {
+                crate::structural_inputs::case_membership::stored_case_at_projection(
+                    &types,
+                    root,
+                    self.structural_cases.as_map(),
+                    &entry.path,
+                )
+            },
+        )?;
+        Ok(remaining.is_empty())
     }
 
     /// A descriptor observation borrows its exact carrier, without consuming

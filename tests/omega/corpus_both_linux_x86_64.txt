@@ -7789,6 +7789,9 @@ pass/ownership/runtime_first_match_pattern_consumption_exit built 2084ms exit:0 
 pass/ownership/runtime_generic_borrowed_case_restore_exit built 2052ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/ownership/runtime_generic_linear_case_restore_exit built 2589ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/ownership/runtime_inactive_case_carrier_transfer_exit built 4177ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/ownership/runtime_indexed_recoverable_replacement_exit built 2502ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/ownership/runtime_indexed_replacement_effectful_singleton_exit built 2477ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/ownership/runtime_indexed_replacement_index_one_exit built 2463ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
 pass/ownership/runtime_known_case_scalar_call_exit built 3049ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/ownership/runtime_linear_case_payload_forward_exit built 2665ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/ownership/runtime_local_subslice_element_window_exit built 2456ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042

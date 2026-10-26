@@ -77,6 +77,7 @@ pub(crate) fn prepare_permission_events(
     facts.flow.ownership.storage_transfers = Default::default();
     facts.flow.ownership.selected_cleanup_permissions = Default::default();
     let mut permission_events = Vec::new();
+    let mut selector_lookup = None;
     let mut conditional_carrier_transfers = Vec::new();
     let mut selection_diagnostics = Vec::new();
     facts.flow.ownership.owned_selections = Default::default();
@@ -152,7 +153,7 @@ pub(crate) fn prepare_permission_events(
             continue;
         }
 
-        let moves = crate::flow::discover_state_move_events(
+        let mut moves = crate::flow::discover_state_move_events(
             program,
             &facts.borrow,
             &facts.operators,
@@ -160,6 +161,54 @@ pub(crate) fn prepare_permission_events(
             state,
             &mut facts.flow.ownership.segments,
         );
+        // Publish one exact storage coordinate for each actual owned move.
+        // Every downstream custody/cleanup reader consumes this same path;
+        // unresolved selectors retain their conservative original identity.
+        for event in &mut moves {
+            let original = facts
+                .flow
+                .ownership
+                .segments
+                .span_or_empty(event.segments)
+                .to_vec();
+            let statement_index = super::linear_validation::event_statement_index(event.source)
+                .expect("every discovered move belongs to a statement");
+            if !original
+                .iter()
+                .any(|segment| matches!(segment, facts::PlaceSegment::Index { .. }))
+                || !super::transfers_owned_storage(
+                    program,
+                    state.symbol,
+                    statement_index,
+                    event,
+                    &original,
+                )
+            {
+                continue;
+            }
+            let lookup = selector_lookup
+                .get_or_insert_with(|| validation::ImmutableBoundLookup::new(program));
+            let mut selected = original.clone();
+            for segment in &mut selected {
+                let facts::PlaceSegment::Index { expression } = *segment else {
+                    continue;
+                };
+                if let Some(index) = crate::checks::captured_storage_index(
+                    program,
+                    crate::checks::StorageSelectorFacts {
+                        flow: &facts.flow,
+                        semantic: &facts.semantic,
+                    },
+                    lookup,
+                    expression,
+                ) {
+                    *segment = facts::PlaceSegment::FixedIndex { index };
+                }
+            }
+            if selected != original {
+                event.segments = facts.flow.ownership.segments.insert_many(selected);
+            }
+        }
         // Snapshot the state's ordered calls once while permission production
         // mutates ownership arenas. Each evaluation selects from this snapshot.
         let calls = facts

@@ -354,11 +354,6 @@ impl TerminalExecution<'_> {
             .enumerate()
         {
             if usize::try_from(parameter.position).ok() != Some(position)
-                || (parameter.access != StructuralAccess::Owned
-                    && self
-                        .live_claims
-                        .values()
-                        .any(|claim| claim.place == Some(argument.place)))
                 || argument.access != parameter.access
             {
                 return Err(malformed());

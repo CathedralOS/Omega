@@ -194,11 +194,10 @@ pub fn index_place_segment(
     {
         return facts::PlaceSegment::FixedRange { start, end };
     }
-    // A selector that every execution fixes to one ordinal is that element.
-    // The same store then retires and lowers the slot a literal would: a
-    // parameter required equal to 0, a call that ensures that result, an
-    // immutable binding of either, or a field of such a value. A wider
-    // interval remains a runtime index and cannot name one home.
+    // Inert singleton snapshots can name a fixed element. Executable calls
+    // retain their selector occurrence even when the completed value is known;
+    // later captured-value proofs establish geometry without erasing effects.
+    // A wider interval keeps its conservative runtime coordinate.
     element_place_segment(program, expression)
 }
 
@@ -208,6 +207,26 @@ pub fn element_place_segment(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> facts::PlaceSegment {
+    // A singleton postcondition describes the completed coordinate; it does
+    // not erase the invocation that produces it. Keep executable selectors
+    // represented until their operand owner has evaluated them. Closed
+    // constants retain their ordinary compile-time meaning, and reading an
+    // immutable stored snapshot still has no invocation to repeat.
+    if program
+        .closed_integer_expression_value(expression)
+        .is_none()
+    {
+        let mut nodes = Vec::new();
+        crate::expression_traversal::collect_expression_tree(program, expression, &mut nodes);
+        if nodes.iter().any(|node| {
+            matches!(
+                program.expression_table.expression(*node),
+                ExpressionNode::Call(_)
+            )
+        }) {
+            return facts::PlaceSegment::Index { expression };
+        }
+    }
     exact_fixed_element(program, expression, 0)
         .map(|index| facts::PlaceSegment::FixedIndex { index })
         .unwrap_or(facts::PlaceSegment::Index { expression })

@@ -18286,6 +18286,8 @@ fail/ownership/generic_linear_constructor_keeps_backing_loan rejected 4246ms exp
 	statement 2 mutates `backing` while local borrow `token` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
 fail/ownership/generic_linear_constructor_second_transfer rejected 4462ms expected @a92f16431042
 	cannot use `token` in machine `main` state `entry` (statement 2) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
+fail/ownership/indexed_borrowed_window_wrong_place_repair rejected 2030ms expected @036605466510+wt
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 4): `holder.tokens[index]` must hold a value again before this state's exits consume the borrow
 fail/ownership/linear_array_call_argument_wrong_element rejected 1110ms expected @a92f16431042
 	array literal element expects the `Receipt` data type but got `Other` in the `element` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
 fail/ownership/linear_array_call_argument_wrong_extent rejected 1106ms expected @a92f16431042
@@ -28989,6 +28991,9 @@ pass/ownership/runtime_first_match_pattern_consumption_exit checked 3080ms check
 pass/ownership/runtime_generic_borrowed_case_restore_exit checked 2623ms check-target:macos_arm64 @a92f16431042
 pass/ownership/runtime_generic_linear_case_restore_exit checked 3366ms check-target:macos_arm64 @a92f16431042
 pass/ownership/runtime_inactive_case_carrier_transfer_exit checked 3765ms check-target:macos_arm64 @a92f16431042
+pass/ownership/runtime_indexed_recoverable_replacement_exit checked 2783ms check-target:macos_arm64 @036605466510+wt
+pass/ownership/runtime_indexed_replacement_effectful_singleton_exit checked 2712ms check-target:macos_arm64 @036605466510+wt
+pass/ownership/runtime_indexed_replacement_index_one_exit checked 2715ms check-target:macos_arm64 @036605466510+wt
 pass/ownership/runtime_known_case_scalar_call_exit checked 1896ms check-target:macos_arm64 @a92f16431042
 pass/ownership/runtime_linear_case_payload_forward_exit checked 3845ms check-target:macos_arm64 @a92f16431042
 pass/ownership/runtime_local_subslice_element_window_exit checked 2000ms check-target:macos_arm64 @a92f16431042
