@@ -365,7 +365,7 @@ impl BuildTimeAdmissionPlan {
         Ok(self)
     }
 
-    pub(crate) fn closure_needs_operator_selection(
+    pub(crate) fn closure_needs_execution_preparation(
         &self,
         program: &TypedTrees,
         root: SymbolHandle,
@@ -378,6 +378,21 @@ impl BuildTimeAdmissionPlan {
                 continue;
             }
             visited.push(machine);
+            // An ordinary body with proof-static implementation evidence must
+            // close that exact application before its selected call graph is
+            // available. Retain the work; preparation still owes every actual
+            // and denotation obligation. Mathematical/bodyless declarations
+            // never acquire a value job from an abstract evidence telescope.
+            if program
+                .machine_by_symbol(machine)
+                .is_some_and(|declaration| {
+                    declaration.supplies_checked_body()
+                        && (!declaration.conformance_bounds.is_empty()
+                            || !declaration.evidence_parameters.is_empty())
+                })
+            {
+                return true;
+            }
             // A portable family head has no executable body in shared Psi.
             // Its exact scoped member is another selected realization demand,
             // even when every member contains only ordinary checked code.

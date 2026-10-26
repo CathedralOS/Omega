@@ -90,7 +90,7 @@ pub(super) fn roots(
             .constant_recipe_for_contract_expression(expression)
             .is_valid()
             || invocations.iter().any(|call| {
-                admission.closure_needs_operator_selection(program, call.machine, &selections)
+                admission.closure_needs_execution_preparation(program, call.machine, &selections)
             })
         {
             roots.push(ContractRoot {
