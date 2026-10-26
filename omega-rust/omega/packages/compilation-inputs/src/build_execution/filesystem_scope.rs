@@ -173,7 +173,7 @@ impl BuildMachineFilesystemScope {
     }
 
     #[doc(hidden)]
-    pub(crate) fn for_package_root(
+    pub(crate) fn for_admitted_root(
         source_root: PathBuf,
         build_dir: PathBuf,
         sponsor: Option<BuildMachineFilesystemSponsor>,

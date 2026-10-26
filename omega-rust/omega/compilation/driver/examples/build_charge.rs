@@ -29,6 +29,11 @@ fn main() {
         println!("{}", compiler::compiler_build_profile());
         return;
     }
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--anonymous-generator"))
+    {
+        anonymous_generator_source_scope();
+        return;
+    }
     initial_build_source_isolation();
     deferred_product_uses_captured_imports();
     unbound_build_invocation("separate_build_product_imports_exit");
@@ -43,6 +48,7 @@ fn main() {
     completed_build_target_fanout();
     interleaved_build_invocations();
     terminal_build_filesystem();
+    anonymous_generator_source_scope();
     foreign_build_return_refuses();
     ignored_build_request_still_requires_join();
     let root = fixture_package_inputs::repo_root()
@@ -189,6 +195,284 @@ fn main() {
     logged_build_reuse();
     anonymous_build_completes_before_product();
     sliced_build_retains_effects();
+}
+
+/// Acquired source supplies both the compiler namespace and Build's input
+/// inventory before a package name exists. Neither execution nor Product
+/// completion may reopen the live project after that acquisition.
+fn anonymous_generator_source_scope() {
+    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "anonymous-build-generator",
+        false,
+    )
+    .unwrap();
+    let fixture = fixture_package_inputs::repo_root()
+        .join("tests/omega/pass/build/captured_source_generated_constant");
+    let project = temporary.path().join("project");
+    std::fs::create_dir(&project).unwrap();
+    for name in ["main.omg", "build.omg", "asset.txt"] {
+        std::fs::copy(fixture.join(name), project.join(name)).unwrap();
+    }
+    std::fs::copy(fixture.join("README.md"), project.join("unselected.txt")).unwrap();
+    let expected = std::fs::read(project.join("asset.txt")).unwrap();
+    let root = project.join("main.omg");
+    let profile = target::TargetProfile::host_if_supported().unwrap();
+    let preparation =
+        package_manager::operations::begin_local_project_preparation(&root, &[profile], true)
+            .unwrap()
+            .unwrap();
+    let acquired = preparation
+        .acquire_root()
+        .expect("acquire anonymous source");
+    let capture = acquired.source_capture().clone();
+    let entry = preparation.entry_path();
+    let mut session =
+        package_manager::PackageBuildSession::create(&temporary.path().join("session")).unwrap();
+    let request = session
+        .source_build_request(
+            acquired.source_capture(),
+            &preparation.entry_path(),
+            profile,
+        )
+        .unwrap();
+    let before = counters::build_execution_count();
+    let mut invocation = session
+        .compiler()
+        .begin_package_build(request)
+        .unwrap_or_else(|error| {
+            panic!(
+                "anonymous generator admission: {:?}",
+                error.into_diagnostics()
+            )
+        });
+    for name in ["main.omg", "build.omg", "asset.txt"] {
+        std::fs::remove_file(project.join(name)).unwrap();
+    }
+    std::fs::remove_file(project.join("unselected.txt")).unwrap();
+    let mut returned = return_build(&mut invocation).expect("anonymous generator return");
+    let declared = acquired
+        .declare_build(&returned)
+        .expect("declare executed application");
+    let package_manager::resolution::source::ExecutedSourceResolution::Complete(resolved) =
+        declared.resolve().unwrap()
+    else {
+        panic!("generator authored no dependency request");
+    };
+    let inputs = resolved.join_build(resolved.root(), &mut returned).unwrap();
+    invocation
+        .join_product_context(profile, inputs.clone())
+        .unwrap();
+    let build = session
+        .compiler()
+        .complete_package_build(invocation, Some(returned))
+        .unwrap_or_else(|error| {
+            panic!(
+                "anonymous generator completion: {:?}",
+                error.into_diagnostics()
+            )
+        });
+    assert_eq!(build.generated_source_bundle().sources().len(), 1);
+    assert_eq!(
+        build.generated_source_bundle().sources()[0].bytes(),
+        expected
+    );
+    let checked = session
+        .compiler()
+        .check_package_build(build)
+        .unwrap_or_else(|error| panic!("generated Product source: {:?}", error.into_diagnostics()));
+    let observations = checked.build().observation_summary.as_ref().unwrap();
+    assert!(observations.captured_source_inventory().is_some());
+    assert_eq!(observations.required_output_settlements().len(), 1);
+    assert_eq!(observations.filesystem_operation_attempts().len(), 6);
+    assert_eq!(counters::build_execution_count() - before, 1);
+
+    // Explicit narrowing still uses the same acquired bytes, even after the
+    // live files disappear. The requested root and its Build inputs remain
+    // visible, but an unselected asset from the complete capture does not.
+    let selection = package_compilation::BuildSourceCaptureRequest::new(
+        ["main.omg", "build.omg", "asset.txt"].map(|name| {
+            (
+                name.as_bytes().to_vec(),
+                package_compilation::BuildSourceCaptureObligation::Required,
+            )
+        }),
+    )
+    .unwrap();
+    let mut scoped = session
+        .source_build_request(&capture, &entry, profile)
+        .unwrap();
+    scoped.build_snapshot = Some(package_compilation::BuildSnapshotRequest::scoped(
+        [b"generated.omg".to_vec()],
+        selection,
+    ));
+    let mut invocation = session
+        .compiler()
+        .begin_package_build(scoped)
+        .unwrap_or_else(|error| {
+            panic!(
+                "narrowed anonymous admission: {:?}",
+                error.into_diagnostics()
+            )
+        });
+    let returned = return_build(&mut invocation);
+    invocation
+        .join_product_context(profile, inputs.clone())
+        .unwrap();
+    let build = session
+        .compiler()
+        .complete_package_build(invocation, returned)
+        .unwrap_or_else(|error| {
+            panic!(
+                "narrowed anonymous completion: {:?}",
+                error.into_diagnostics()
+            )
+        });
+    assert_eq!(
+        build.generated_source_bundle().sources()[0].bytes(),
+        expected
+    );
+    let checked = session.compiler().check_package_build(build).unwrap();
+    assert_eq!(
+        checked
+            .build()
+            .observation_summary
+            .as_ref()
+            .unwrap()
+            .captured_source_inventory()
+            .unwrap()
+            .entry_count(),
+        4
+    );
+
+    let before_refusal = counters::build_execution_count();
+    let missing_build = package_compilation::BuildSourceCaptureRequest::new(
+        ["main.omg", "asset.txt"].map(|name| {
+            (
+                name.as_bytes().to_vec(),
+                package_compilation::BuildSourceCaptureObligation::Required,
+            )
+        }),
+    )
+    .unwrap();
+    let mut omitted = session
+        .source_build_request(&capture, &entry, profile)
+        .unwrap();
+    omitted.build_snapshot = Some(package_compilation::BuildSnapshotRequest::scoped(
+        [],
+        missing_build,
+    ));
+    let error = session
+        .compiler()
+        .begin_package_build(omitted)
+        .err()
+        .expect("already-consumed Build source cannot be omitted");
+    let diagnostics = error.into_diagnostics();
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("scoped source inventory omits required source member build.omg")),
+        "{diagnostics:?}"
+    );
+    assert_eq!(
+        counters::build_execution_count(),
+        before_refusal,
+        "narrowing refuses before execution"
+    );
+
+    let missing_root = package_compilation::BuildSourceCaptureRequest::new(
+        ["build.omg", "asset.txt"].map(|name| {
+            (
+                name.as_bytes().to_vec(),
+                package_compilation::BuildSourceCaptureObligation::Required,
+            )
+        }),
+    )
+    .unwrap();
+    let mut omitted = session
+        .source_build_request(&capture, &entry, profile)
+        .unwrap();
+    omitted.build_snapshot = Some(package_compilation::BuildSnapshotRequest::scoped(
+        [],
+        missing_root,
+    ));
+    let error = session
+        .compiler()
+        .begin_package_build(omitted)
+        .err()
+        .expect("the explicitly requested Product root remains required before it is loaded");
+    let diagnostics = error.into_diagnostics();
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("scoped source inventory omits required source member main.omg")),
+        "{diagnostics:?}"
+    );
+    assert_eq!(counters::build_execution_count(), before_refusal);
+
+    let mut missing_output = session
+        .source_build_request(&capture, &entry, profile)
+        .unwrap();
+    missing_output.build_snapshot = Some(package_compilation::BuildSnapshotRequest::new([
+        b"missing.txt".to_vec(),
+    ]));
+    let mut invocation = session
+        .compiler()
+        .begin_package_build(missing_output)
+        .unwrap();
+    let returned = return_build(&mut invocation);
+    invocation.join_product_context(profile, inputs).unwrap();
+    let error = session
+        .compiler()
+        .complete_package_build(invocation, returned)
+        .err()
+        .expect("caller-required outputs survive anonymous discovery");
+    let diagnostics = error.into_diagnostics();
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("required build output `missing.txt`")
+            && diagnostic.message.contains("omitted")),
+        "{diagnostics:?}"
+    );
+    assert_eq!(counters::build_execution_count(), before_refusal + 1);
+    preparation.complete_source_resolution(resolved).unwrap();
+    session.close().unwrap();
+    println!(
+        "anonymous_generator_uses_captured_assets_after_live_deletion_preserves_narrowing_and_required_output_refusals"
+    );
+
+    // Exercise the application coordinator, not only its individual facade
+    // calls. The returned activation remains the one Product completes.
+    for name in ["main.omg", "build.omg", "asset.txt"] {
+        std::fs::copy(fixture.join(name), project.join(name)).unwrap();
+    }
+    let preparation =
+        package_manager::operations::begin_local_project_preparation(&root, &[profile], true)
+            .unwrap()
+            .unwrap();
+    let mut session =
+        package_manager::PackageBuildSession::create(&temporary.path().join("application-session"))
+            .unwrap();
+    let before = counters::build_execution_count();
+    let mut resolved = omega_build::resolve_project_sources(&mut session, preparation, profile)
+        .unwrap_or_else(|error| panic!("application generator discovery: {error:?}"));
+    assert_eq!(resolved.builds.len(), 1);
+    for name in ["main.omg", "build.omg", "asset.txt"] {
+        std::fs::remove_file(project.join(name)).unwrap();
+    }
+    let root = resolved.builds.pop().unwrap();
+    let inputs = root.package_inputs().clone();
+    let build = root.complete(session.compiler(), profile, inputs).unwrap();
+    assert_eq!(
+        build.generated_source_bundle().sources()[0].bytes(),
+        expected
+    );
+    session.compiler().check_package_build(build).unwrap();
+    assert_eq!(counters::build_execution_count() - before, 1);
+    session.close().unwrap();
+    println!(
+        "application_discovery_retains_the_anonymous_generator_through_product_without_replay"
+    );
 }
 
 /// One source fixture crosses the complete Terminal filesystem protocol. A

@@ -242,6 +242,7 @@ impl SourceStorage {
         Ok(Some(crate::AnonymousSourceCapture {
             root: self.default_package_root.clone(),
             capture: capture.clone(),
+            filesystem: self.filesystem.clone(),
             semantic_dependencies: std::iter::once(core_identity)
                 .chain(contracts.into_iter().map(|(_, identity)| identity))
                 .collect(),

@@ -48,6 +48,7 @@ fn produce(
     let scope = package_compilation::build_execution::prepare_filesystem_scope(
         &prepared.root_path,
         None,
+        None,
         &source::SourceMap::default(),
         None,
         None,

@@ -28,6 +28,7 @@ pub struct BuildEvaluationRequest<'request> {
     pub build_source_id: Option<source::SourceId>,
     pub sources: &'request source::SourceMap,
     pub package_inputs: Option<&'request PackageCompilationInputs>,
+    pub anonymous_source: Option<&'request package_compilation::AnonymousSourceCapture>,
     pub generated_source_custody:
         &'request [(source::SourceId, build_output::PackageGeneratedSource)],
     pub execution_profile: Option<target::TargetProfile>,
@@ -145,6 +146,7 @@ pub fn prepare_build_evaluation(
         build_source_id,
         sources,
         package_inputs,
+        anonymous_source,
         generated_source_custody,
         execution_profile,
         build_directory,
@@ -221,6 +223,7 @@ pub fn prepare_build_evaluation(
     let filesystem_scope = crate::prepare_filesystem_scope(
         root_path,
         package_inputs,
+        anonymous_source,
         sources,
         execution_profile,
         build_directory,

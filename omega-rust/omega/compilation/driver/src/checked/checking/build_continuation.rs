@@ -50,6 +50,7 @@ pub(super) fn prepare_build_invocation(
     } = child;
     let TypedCompilationFrontier {
         mut source,
+        anonymous_source,
         product_sources,
         build_source_id,
         source_file_count,
@@ -66,6 +67,7 @@ pub(super) fn prepare_build_invocation(
             build_source_id,
             sources: &base_sources,
             package_inputs,
+            anonymous_source: anonymous_source.as_ref(),
             generated_source_custody: &generated_source_custody,
             execution_profile: build_execution_profile,
             build_directory: build_dir,
@@ -88,6 +90,7 @@ pub(super) fn prepare_build_invocation(
     Ok(BuildSourceInvocation {
         frontier: TypedCompilationFrontier {
             source,
+            anonymous_source,
             product_sources,
             build_source_id,
             source_file_count,
@@ -207,6 +210,7 @@ fn complete_build_source(
 ) -> Result<(BuiltTypedProgram, BuildSourceCustody), CompileFailure> {
     let TypedCompilationFrontier {
         mut source,
+        anonymous_source: _,
         product_sources,
         build_source_id: _,
         mut source_file_count,
@@ -325,6 +329,7 @@ pub(super) fn lower_typed_frontier(
     let source = request.prepare(&mut terminal_production::PsiStageTimings::new(timings))?;
     Ok(TypedCompilationFrontier {
         source,
+        anonymous_source: syntax.anonymous_owner,
         product_sources: syntax.product_sources,
         build_source_id,
         source_file_count,

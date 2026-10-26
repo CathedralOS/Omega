@@ -1155,8 +1155,16 @@ narrows realization only.
   unsealed outputs and pre-effect budget exhaustion refuse. Filesystem vocabulary
   and output records no longer belong to the checked-tree interpreter, and
   filesystem reach follows the exact protocol rather than helper-name guesses.
-  Anonymous source discovery still needs its captured inventory joined to this
-  execution scope; required-output path byte results remain explicitly refused.
+  Anonymous source custody now survives frontend preparation into Build's
+  execution scope, without a provisional declaration owner or a second live
+  capture. The same generator executes after its live source files are deleted,
+  then joins its executed package declaration and checks Product source. Explicit
+  narrowing still excludes unselected members and refuses an omitted requested
+  root or Build import before effects; caller-required outputs remain mandatory
+  at settlement.
+  The application source-resolution route retains this generator through Product
+  completion without replay. Required-output path byte results remain explicitly
+  refused.
   Ordinary one-shot compiler calls still own their execution loop.
   Extend pinned Git/workspace acquisition and preserve
   review/lock/offline recovery while replacing static Build projection,

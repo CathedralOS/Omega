@@ -102,7 +102,12 @@ impl BuildFilesystemRuntime<'_> {
             .iter()
             .find(|input| input.name == name)
             .map(|input| input.root)
-            .ok_or_else(|| "Build named input was not admitted".into())
+            .ok_or_else(|| {
+                format!(
+                    "named build input `{}` is not assigned to this activation",
+                    String::from_utf8_lossy(name),
+                )
+            })
     }
 
     pub fn resolve(

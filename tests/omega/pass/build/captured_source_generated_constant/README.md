@@ -19,3 +19,9 @@ compilation. `cargo run -p compiler --example build_charge` exercises this path
 across single-fuel pauses and refuses before file creation when the fourth I/O
 operation exceeds its sponsor. This does not close the broader Terminal Build
 or production-discovery migration.
+
+`cargo run -p compiler --example build_charge -- --anonymous-generator` also
+acquires this fixture before its package is named, deletes the live files, and
+runs Build plus Product completion from retained custody. Its controls keep
+explicit input narrowing and caller-required output obligations intact. The
+application discovery route exercises the same program without replay.

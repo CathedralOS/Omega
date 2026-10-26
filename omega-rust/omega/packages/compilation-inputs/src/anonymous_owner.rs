@@ -22,11 +22,28 @@ use std::sync::Arc;
 pub struct AnonymousSourceCapture {
     pub(crate) root: std::path::PathBuf,
     pub(crate) capture: Arc<CapturedSourceTree>,
+    pub(crate) filesystem: source::SourceFileSystem,
     pub(crate) semantic_dependencies: Vec<[u8; 32]>,
     pub(crate) sources: Arc<source::SourceMap>,
 }
 
 impl AnonymousSourceCapture {
+    pub fn root(&self) -> &std::path::Path {
+        &self.root
+    }
+
+    /// The same captured namespace used by source assembly, including exact
+    /// link resolution. A later Build snapshot must not reopen the live root.
+    pub fn filesystem(&self) -> &source::SourceFileSystem {
+        &self.filesystem
+    }
+
+    /// Derive Build's inventory in its own commitment domain, sharing acquired
+    /// file bytes. This does not assign a package or declaration owner.
+    pub fn build_input(&self) -> Result<build_output::CapturedBuildSourceInput, String> {
+        crate::source_snapshot::retained_source_input(&self.capture)
+    }
+
     pub fn sources(&self) -> &Arc<source::SourceMap> {
         &self.sources
     }
