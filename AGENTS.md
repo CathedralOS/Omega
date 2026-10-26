@@ -199,9 +199,13 @@ whose header documents `Expected exit` or `Expected output contains`. A
 passing witness completes that repair, not every requirement of its parent
 capability.
 
-1. **Choose the outcome, then its witness.** Repair known main regressions
-   first, honor explicit user scope, and otherwise retain the current capability
-   assignment. For new automatic work, choose an actionable `TASKS.md` outcome
+1. **Choose the outcome, then its witness.** Honor explicit user scope and
+   retain the current capability assignment first; sessions with an active
+   capability or user assignment never pivot to unrelated `main` regressions.
+   For new automatic work without a current assignment, repair an unclaimed
+   active `main` regression (where the newest completed `Post-merge smoke` run
+   on `main` failed and no live claim already covers it) before choosing an
+   actionable `TASKS.md` outcome
    by its stated priority and release dependencies, then discharge it inside
    `samples/cli/facts`. Read its full acceptance
    and verify its remaining gap with an optimized exact-source producer
@@ -246,8 +250,10 @@ capability.
    uncovered requirement needs one, not to manufacture a failure or fill a slot.
    Close the task only when its full acceptance passes. Switch capabilities on
    closure, explicit reprioritization, or a genuine external prerequisite after
-   exhausting feasible work on that outcome. Regressions may interrupt this
-   chain; return afterward. Respect user stops, budgets and explicitly bounded
+   exhausting feasible work on that outcome. Never interrupt an active
+   capability chain for an unrelated `main` regression, and keep chaining next
+   witnesses directly on the worktree's warm local commit rather than resetting
+   to `origin/main` between witnesses. Respect user stops, budgets and explicitly bounded
    assignments, preserving the parent outcome and next requirement for resumption.
    A green facts queue does not establish capability closure. Open-ended
    advancement stays inside `samples/cli/facts` and takes the next uncovered
@@ -608,26 +614,30 @@ are byte-sensitive.
   signal: two sessions are changing one decision point, so reconcile them into
   one implementation at rebase. Conflicts only show textual overlap; semantic
   breakage can still land without one; post-merge checks detect those regressions.
-- Keep regressions visible and repair or revert them. Required merge admission is
-  the small GitHub `compiler-check`, not the entire corpus or customer matrix.
-  The hosted Compiler regression workflow runs Linux native/Terminal smoke after
-  merge and nightly. The regressing PR's author owns repair/revert; until
-  attributed, the first observer records the failure and takes triage ownership.
-  No machine runs all three OSes, so each host with
-  a native golden runs `python tools/native_watch.py` on a
-  schedule ([testing](tools/testing.md#corpus-outcome-gate)). The watch runs
-  the corpus only, and admission checks compilation only, so the Windows
-  x86-64 development host also runs the full
+- Keep regressions visible without dogpiling or thrashing `main`. Required merge
+  admission is the small GitHub `compiler-check`, not the entire corpus or
+  customer matrix. The hosted `Post-merge smoke` workflow
+  (`.github/workflows/compiler-regression.yml`) runs Linux native/Terminal smoke
+  after merge and nightly. `pending`, `in_progress`, or `cancelled` runs are
+  never regressions, and an older failed run is already resolved once a newer
+  `main` commit succeeds. Only when the **newest completed** run on `main`
+  failed is `main` red. Sessions working on an assigned capability or sample
+  ignore unrelated `main` regressions and keep their warm base. The regressing
+  PR's author owns repair/revert; otherwise at most **one** unassigned session
+  claims the regression (`python tools/claims.py claim --item REGRESSION-<sha>`)
+  and drives a focused repair or revert through the queue. Once a live claim
+  exists for a regression, every other session skips it and takes normal
+  unassigned work. Never `git bisect` or check out historical `main` commits in
+  a warm worktree to attribute a regression (inspect the diff or CI log instead
+  so the compiler build cache stays warm). No machine runs all three OSes, so
+  each host with a native golden runs `python tools/native_watch.py` on a
+  schedule ([testing](tools/testing.md#corpus-outcome-gate)), and the Windows
+  x86-64 development host runs the full
   `python tools/sample_native_gate.py --programs-only` once a day from Task
-  Scheduler ([testing](tools/testing.md#corpus-outcome-gate)); a sample that
-  passed in the previous full record in `build/sample-gate-runs/` and fails
-  now is a regression. Agent sessions, local or cloud, never start a full
-  programs-only run for this check. Between 1483ea14d01 and 50ace165363, at
-  least 10 passing samples, including `basics/print_number`, stopped
-  building and no check saw it. Whoever sees a
-  regression attributes it to its first bad commit and drives a focused repair
-  or revert through the queue. Record it in `TASKS.md` only when it cannot be
-  repaired in that session, and say exactly what prevents the repair.
+  Scheduler ([testing](tools/testing.md#corpus-outcome-gate)). Agent sessions,
+  local or cloud, never start a full programs-only run for this check. Record a
+  regression in `TASKS.md` only when it cannot be repaired in that session, and
+  say exactly what prevents the repair.
 - After landing a sample, an agent may take a bounded
   iteration-performance or test-environment outcome based on an experienced
   obstruction. Record the workflow and adequate target before repair; return
