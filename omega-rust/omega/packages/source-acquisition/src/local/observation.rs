@@ -3,7 +3,8 @@
 use std::path::Path;
 
 use super::resolution_observations::{LocalSourceResolutionObservation, ResolvedLocalSource};
-use super::snapshot::local_snapshot_custody_identity;
+use super::snapshot::LocalSnapshotAddress;
+use crate::identity::SourceContentDigest;
 use crate::identity::digest::format_sha256;
 use crate::limits::{
     LOCAL_RESOLUTION_OBSERVATION_DOMAIN, LOCAL_RESOLUTION_OBSERVATION_SCHEMA_VERSION,
@@ -17,8 +18,10 @@ pub(super) fn issue_local_source_resolution_observation(
     final_snapshot: &ResolvedLocalSource,
     limits: LocalSourceLimits,
 ) -> LocalSourceResolutionObservation {
-    let custody_identity =
-        local_snapshot_custody_identity(canonical_live_root, &final_snapshot.content_identity);
+    let content = SourceContentDigest::derive(final_snapshot.content_identity.as_bytes());
+    let custody_identity = LocalSnapshotAddress::new(canonical_live_root, &content)
+        .custody_identity()
+        .to_owned();
     let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(b"");
     hasher.bytes(LOCAL_RESOLUTION_OBSERVATION_DOMAIN);
     hash_u64(
