@@ -117,7 +117,9 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Nominal evidence lanes retain complete typed argument subjects.
 // Scalar reads have one explicit Referent lane; the former nested-static
 // spelling is noncanonical even though both old grammars used tag five.
-pub(crate) const FORMAT_MARKER: u16 = 190;
+// Normal-return parameter membership preservation is distinct from entry demands.
+// Fresh union marker distinguishes both prior wire schemas.
+pub(crate) const FORMAT_MARKER: u16 = 191;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

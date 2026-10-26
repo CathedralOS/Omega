@@ -89,7 +89,7 @@ registers it again. It retains the allocation seal through the ordinary owned
 storage transaction; a scalar resident alone cannot authorize a new root.
 
 The controls additionally require early disposal, capacity reuse, repeated
-completion, mutable/call-scoped retention and unsupported persistent retention
+completion, call-scoped retention and unsupported persistent retention
 to reject for their stated obligations. Two simultaneous registrations remain
 independent; completing one leaves the other loan live. A post-completion write
 and raw values of the same carrier (including a factory with an unused borrow)
@@ -107,7 +107,7 @@ foreign effects and executes in both engines.
 - Composition: the consuming completion receives the retained token through the
   nine places. No caller guard re-establishes the loan or authorizes a write.
 - Authority: nonspatial dependencies cannot supply reference-result pointers or
-  access exemptions. Phantom lifetime spelling supplies no loan. Unpropagated
+  spatial access exemptions. Phantom lifetime spelling supplies no loan. Unpropagated
   persistent stores remain rejected.
 - Psi 05–07: checked boundary custody retains its exact source/result projection;
   ordinary loan flow carries the token's dependency without a fabricated
@@ -122,6 +122,9 @@ foreign effects and executes in both engines.
 
 This covers the direct shared fixed-record rung. The whole-move control covers
 ordinary owned movement between completed registrations. Transferring backing
-ownership into a foreign protocol, explicit snapshots, mutable retention,
+ownership into a foreign protocol, explicit snapshots,
 wider/recursive graphs, more general retained provider installations and wider
 resident codecs remain open.
+
+The former shared-only mutable rejection is superseded by the
+[retained mutable row](../foreign_retained_mutable_borrow/README.md).

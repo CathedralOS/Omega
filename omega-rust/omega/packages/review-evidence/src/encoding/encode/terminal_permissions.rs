@@ -1,8 +1,10 @@
 //! Exact service-schema permission meaning under one aggregate writer budget.
 
 use super::{
-    encoder::Encoder, public_api::type_parameter as encode_type_parameter,
-    selected_providers::encode_service_method, values::identity::encode_nominal,
+    encoder::{Encoder, encode_canonical_component},
+    public_api::type_parameter as encode_type_parameter,
+    selected_providers::encode_service_method,
+    values::identity::encode_nominal,
 };
 use crate::encoding::{
     PACKAGE_TERMINAL_PERMISSION_POLICY_VERSION, PackageReviewEncodingError,
@@ -12,14 +14,11 @@ use crate::record::{PackagePolicyTerminalPermission, PackagePolicyTerminalPermis
 use effects::TerminalAuthorityClass;
 
 impl PackagePolicyTerminalPermissions {
-    pub fn canonical_bytes(&self) -> Result<Vec<u8>, PackageReviewEncodingError> {
-        Encoder::policy_bytes(
-            TERMINAL_PERMISSION_POLICY_MAGIC,
-            PACKAGE_TERMINAL_PERMISSION_POLICY_VERSION,
-            self,
-            policy,
-        )
-    }
+    encode_canonical_component!(
+        TERMINAL_PERMISSION_POLICY_MAGIC,
+        PACKAGE_TERMINAL_PERMISSION_POLICY_VERSION,
+        policy,
+    );
 }
 
 pub(super) fn policy(

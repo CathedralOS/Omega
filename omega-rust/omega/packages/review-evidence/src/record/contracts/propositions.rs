@@ -135,10 +135,7 @@ pub struct PackageReviewPropositionShape {
 }
 
 impl PackageReviewPropositionShape {
-    pub const fn identity(&self) -> &PackageReviewNominalIdentity {
-        &self.identity
-    }
-
+    crate::record::accessors::record_accessors!(identity);
     pub fn binders(&self) -> &[PackageReviewPropositionBinder] {
         &self.binders
     }

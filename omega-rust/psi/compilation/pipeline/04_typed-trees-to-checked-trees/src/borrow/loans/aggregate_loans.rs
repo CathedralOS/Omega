@@ -325,7 +325,7 @@ pub(super) fn aggregate_expression_borrow_loans(
             rebase_borrow_places_through_local_loans(program, source, loan_trackers)
                 .iter()
                 .flat_map(|source| {
-                    let storage = if source.lifetime_only {
+                    let storage = if source.lifetime_access.is_some() {
                         &source.source_place
                     } else {
                         &source.place
@@ -430,9 +430,16 @@ pub(super) fn result_source_loans(
                         loan_trackers,
                     )
                 {
-                    super::returned_carriers::attenuate(&mut loans, &field.kind);
+                    // A lifetime debt retains its supplier's access; only a
+                    // physical reference result may attenuate observation.
+                    if !field.lifetime_only {
+                        super::returned_carriers::attenuate(&mut loans, &field.kind);
+                    }
                     for loan in &mut loans {
                         loan.owner_path = owner_path.clone();
+                        if field.lifetime_only {
+                            loan.lineage = checked_trees::BorrowLoanLineage::LifetimeDependency;
+                        }
                         loan.retained_operand
                             .get_or_insert(checked_trees::BorrowRetainedOperand {
                                 formation_expression: Default::default(),
@@ -509,10 +516,19 @@ pub(super) fn result_source_loans(
                             } else {
                                 Vec::new()
                             },
-                            lineage: retained_reference_lineage(
-                                program, argument, source, &rebased,
-                            ),
-                            kind: field.kind.clone(),
+                            lineage: if field.lifetime_only {
+                                checked_trees::BorrowLoanLineage::LifetimeDependency
+                            } else {
+                                retained_reference_lineage(program, argument, source, &rebased)
+                            },
+                            kind: if field.lifetime_only {
+                                source
+                                    .lifetime_access
+                                    .clone()
+                                    .unwrap_or_else(|| field.kind.clone())
+                            } else {
+                                field.kind.clone()
+                            },
                             call_result: false,
                         }
                     })

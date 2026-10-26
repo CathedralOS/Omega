@@ -427,8 +427,14 @@ pub(in crate::symbols) fn resolve_static_machine_argument_symbol(
         if concrete_type.is_valid() {
             return concrete_type;
         }
-        return match crate::symbols::lookup::lexical_machine_lookup(symbols, machine_symbol, target.as_str()) {
-            SymbolLookup::Unique(declaration) => machine_entry_symbol(symbols, declaration, target.as_str()),
+        return match crate::symbols::lookup::lexical_machine_lookup(
+            symbols,
+            machine_symbol,
+            target.as_str(),
+        ) {
+            SymbolLookup::Unique(declaration) => {
+                machine_entry_symbol(symbols, declaration, target.as_str())
+            }
             SymbolLookup::Ambiguous { .. } => SymbolHandle::invalid(),
             SymbolLookup::NotFound => resolve_free_machine_entry_state_symbol(symbols, target),
         };
@@ -520,6 +526,70 @@ pub(in crate::symbols) fn assign_runtime_subject_argument_symbol(
         &[SymbolKind::Parameter, SymbolKind::Local],
         name.as_str(),
     );
+}
+
+/// Whether a call target names a proof-position declaration: propositions,
+/// their binders, and mathematical definitions take proof-static operands
+/// rather than executable static-machine arguments.
+pub(in crate::symbols) fn proof_static_call_target(
+    symbols: &SymbolTable,
+    target_symbol: SymbolHandle,
+) -> bool {
+    target_symbol.is_valid()
+        && matches!(
+            symbols.get(target_symbol).kind,
+            SymbolKind::Proposition
+                | SymbolKind::PropositionParameter
+                | SymbolKind::MathematicalDefinition
+        )
+}
+
+/// Route every machine argument of one call through the operand route its
+/// already-selected target implies: build-operation operands take their own
+/// exact declaration resolvers, ordinary operands of a proof-position target
+/// take the proof-static resolver, and the rest take the static-machine
+/// resolver with the state-scope subject fallback. Body expression calls and
+/// statement calls share this one owner.
+pub(in crate::symbols) fn assign_call_machine_argument_symbols(
+    symbols: &SymbolTable,
+    machine: &super::super::scope::MachineScope<'_>,
+    state_symbol: SymbolHandle,
+    target: &symbol_resolved_trees::name::DiagnosticName,
+    target_symbol: SymbolHandle,
+    machine_arguments: &mut [symbol_resolved_trees::expression::StaticMachineArgument],
+) {
+    let operand_route = build_operand_route(target.as_str(), target_symbol);
+    let proof_static = proof_static_call_target(symbols, target_symbol);
+    for (index, argument) in machine_arguments.iter_mut().enumerate() {
+        match operand_route {
+            Some(BuildOperation::AssumedBindingContract) => {
+                assign_assumed_binding_argument_symbol(symbols, argument);
+            }
+            Some(BuildOperation::RepresentationSelection) => {
+                assign_representation_selection_argument_symbol(symbols, argument, index == 0);
+            }
+            Some(operation) => assign_provider_selection_argument_symbol(
+                symbols,
+                argument,
+                matches!(
+                    operation,
+                    BuildOperation::ProviderSelection | BuildOperation::BoundaryAcceptance
+                ) && index == 0,
+            ),
+            None => {
+                assign_static_argument_symbols(
+                    symbols,
+                    machine.symbol,
+                    machine.type_parameters,
+                    argument,
+                    proof_static,
+                );
+                if !proof_static {
+                    assign_runtime_subject_argument_symbol(symbols, state_symbol, argument);
+                }
+            }
+        }
+    }
 }
 
 /// The build operation whose static operands name declarations rather than

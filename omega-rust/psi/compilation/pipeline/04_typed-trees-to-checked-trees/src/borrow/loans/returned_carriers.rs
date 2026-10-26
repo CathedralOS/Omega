@@ -4,6 +4,10 @@
 //! Resolve the complete producer relation before selecting result leaves, then
 //! translate those leaves into the destination's checked storage paths. Runtime
 //! carrier equality erases regions and cannot equate prepared member symbols.
+//! Lifetime-only carriers transport the supplier's complete existing loan debt.
+//! They contain no reference view whose declared access could attenuate that
+//! debt: treating an opaque Pending as a shared view would release exclusive
+//! suspension while the provider still retains its mutable original pointer.
 use super::is_reference_type;
 use super::owner_paths::owner_place_segments as place_segments;
 use crate::borrow::BorrowOwnerSegment;
@@ -253,7 +257,9 @@ pub(crate) fn returned_body_source_mismatch(
         if !fields.iter().any(|field| {
             field.parameter_index == parameter_index
                 && field.source == source
-                && field.kind == returned.kind
+                && ((field.lifetime_only
+                    && returned.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency)
+                    || field.kind == returned.kind)
                 && structural_owner_path(program, &field.owner_path).as_ref() == Some(&owner_path)
                 && source_path_covers(program, &field.source_path, source_path)
         }) {
@@ -789,10 +795,13 @@ pub(super) fn argument_loans(
         .map(|mut loan| {
             loan.owner_path = result_owner_path.to_vec();
             // A result's declared exclusivity cannot promote a captured shared loan.
-            if matches!(
-                field.kind,
-                checked_trees::BorrowAccessKind::Read | checked_trees::BorrowAccessKind::WriteOnly
-            ) {
+            if !field.lifetime_only
+                && matches!(
+                    field.kind,
+                    checked_trees::BorrowAccessKind::Read
+                        | checked_trees::BorrowAccessKind::WriteOnly
+                )
+            {
                 loan.kind = field.kind.clone();
             }
             loan.lineage = loan.lineage.derived();

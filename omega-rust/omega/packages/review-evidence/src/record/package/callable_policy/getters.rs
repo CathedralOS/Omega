@@ -6,19 +6,23 @@ use crate::record::PackagePolicyCrash;
 use crate::record::PackagePolicyMutation;
 use crate::record::PackagePolicyServiceReachDependency;
 use crate::record::PackagePolicyTermination;
-use crate::record::PackagePolicyTypeParameter;
 use crate::record::PackageReviewCallableContract;
 use crate::record::PackageReviewCallableSupply;
 use crate::record::PackageReviewCheckedServiceReach;
-use crate::record::PackageReviewConformanceBound;
 use crate::record::PackageReviewInstallationReach;
 use crate::record::PackageReviewNominalIdentity;
 use crate::record::PackageReviewOperatorRealization;
-use crate::record::PackageReviewSignatureParameter;
 use crate::record::PackageReviewSynchronousInvocation;
-use crate::record::PackageReviewTypeIdentity;
 
 impl PackagePolicyCallable {
+    crate::record::accessors::record_accessors!(
+        spelling,
+        lifetime_parameter_count,
+        type_parameters,
+        conformance_bounds,
+        parameters,
+        return_type
+    );
     pub const fn target_context(&self) -> &crate::record::PackagePolicyTargetContext {
         &self.target_context
     }
@@ -33,30 +37,6 @@ impl PackagePolicyCallable {
 
     pub const fn supply(&self) -> PackageReviewCallableSupply {
         self.supply
-    }
-
-    pub const fn spelling(&self) -> Option<language_core::OperatorSpelling> {
-        self.spelling
-    }
-
-    pub const fn lifetime_parameter_count(&self) -> usize {
-        self.lifetime_parameter_count
-    }
-
-    pub fn type_parameters(&self) -> &[PackagePolicyTypeParameter] {
-        &self.type_parameters
-    }
-
-    pub fn conformance_bounds(&self) -> &[PackageReviewConformanceBound] {
-        &self.conformance_bounds
-    }
-
-    pub fn parameters(&self) -> &[PackageReviewSignatureParameter] {
-        &self.parameters
-    }
-
-    pub const fn return_type(&self) -> Option<&PackageReviewTypeIdentity> {
-        self.return_type.as_ref()
     }
 
     pub fn conformances(&self) -> &[PackagePolicyCallableConformance] {

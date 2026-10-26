@@ -64,6 +64,7 @@ pub(crate) enum PackagePolicyNativeParameterOrigin {
 }
 
 impl PackagePolicyCallingPlan {
+    crate::record::accessors::record_accessors!(static_parameters);
     pub const fn boundary_trait(&self) -> &PackageReviewNominalIdentity {
         &self.boundary_trait
     }
@@ -94,9 +95,7 @@ impl PackagePolicyCallingPlan {
     pub const fn requirement_lifetime_parameter_count(&self) -> u32 {
         self.requirement_lifetime_parameter_count
     }
-    pub fn static_parameters(&self) -> &[PackagePolicyTypeParameter] {
-        &self.static_parameters
-    }
+
     pub const fn target(&self) -> &PackageReviewRepresentationTarget {
         &self.target
     }

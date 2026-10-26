@@ -1,4 +1,4 @@
-//! Source-independent retention of checked foreign shared-borrow custody.
+//! Source-independent retention of checked foreign retained-borrow custody.
 use super::{
     BoundaryContentGuarantee, BoundaryMachineDeclaration, BoundaryMachineId, BoundaryMachineResult,
     CheckedTrees, ContentPlaceVersion, DomainSemanticId, LoweringError, Multiplicity,
@@ -83,7 +83,11 @@ fn lower_custody(
         || parameter.name.as_str() != name
         || fact.source.version != language_semantics::content::ContentPlaceVersion::Entry
         || !fact.source.segments.is_empty()
-        || fact.access != language_semantics::ReferenceAccess::Shared
+        || !matches!(
+            fact.access,
+            language_semantics::ReferenceAccess::Shared
+                | language_semantics::ReferenceAccess::Mutable
+        )
     {
         return unsupported("retained-borrow source place or access does not replay");
     }
@@ -91,13 +95,17 @@ fn lower_custody(
         .type_reference_table
         .unconstrained_type_reference(parameter.type_reference);
     let TypeReferenceNode::Reference {
-        access: language_core::ReferenceAccess::Shared,
+        access,
         lifetime: Some(_),
         ..
     } = checked.type_reference_table.type_reference(source_ty)
     else {
-        return unsupported("retained-borrow source is not one explicit direct shared reference");
+        return unsupported("retained-borrow source is not one explicit direct reference");
     };
+
+    if *access != fact.access {
+        return unsupported("retained-borrow source access differs from its checked loan");
+    }
 
     if fact.result.version != language_semantics::content::ContentPlaceVersion::Current
         || !matches!(
@@ -162,7 +170,13 @@ fn lower_custody(
             root: terminal_psi::RetainedBorrowPlaceRoot::Result,
             segments: Vec::new(),
         },
-        access: StructuralAccess::SharedBorrow,
+        access: match fact.access {
+            language_semantics::ReferenceAccess::Shared => StructuralAccess::SharedBorrow,
+            language_semantics::ReferenceAccess::Mutable => StructuralAccess::MutableBorrow,
+            language_semantics::ReferenceAccess::WriteOnly => {
+                return unsupported("retained-borrow access requires readable storage");
+            }
+        },
         callable_lifetime_parameter_count,
         callable_lifetime_parameter_ordinal: fact.callable_lifetime_parameter_ordinal,
         result_nominal_identity: identities
@@ -252,6 +266,7 @@ pub(crate) fn retain_foreign_borrow_custodies(
                 "retained-borrow boundary identity space is exhausted",
             ))?;
         module.boundary_machines.push(BoundaryMachineDeclaration {
+            normal_qualifications: Vec::new(),
             scalar_domain_requirements: Vec::new(),
             declaration: None,
             role: terminal_psi::BoundaryDeclarationRole::ContractEvidence,

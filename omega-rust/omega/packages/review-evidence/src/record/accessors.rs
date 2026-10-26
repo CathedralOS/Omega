@@ -106,3 +106,68 @@ macro_rules! signature_parameter_accessors {
     };
 }
 pub(crate) use signature_parameter_accessors;
+
+/// The single-field accessor surfaces the review and policy record impls
+/// restate: identical `self` projections over identically-named fields,
+/// declared once so each record impl names only the accessors it carries.
+macro_rules! record_accessors {
+    ($($name:ident),+ $(,)?) => {
+        $( $crate::record::accessors::record_accessors!(@emit $name); )+
+    };
+    (@emit identity) => {
+        pub const fn identity(&self) -> &crate::record::PackageReviewNominalIdentity {
+            &self.identity
+        }
+    };
+    (@emit package) => {
+        pub const fn package(&self) -> semantic_vocabulary::PackageKeyIdentity {
+            self.package
+        }
+    };
+    (@emit target) => {
+        pub const fn target(&self) -> target::TargetProfile {
+            self.target
+        }
+    };
+    (@emit lifetime_parameter_count) => {
+        pub const fn lifetime_parameter_count(&self) -> usize {
+            self.lifetime_parameter_count
+        }
+    };
+    (@emit type_parameters) => {
+        pub fn type_parameters(&self) -> &[crate::record::PackagePolicyTypeParameter] {
+            &self.type_parameters
+        }
+    };
+    (@emit static_parameters) => {
+        pub fn static_parameters(&self) -> &[crate::record::PackagePolicyTypeParameter] {
+            &self.static_parameters
+        }
+    };
+    (@emit parameters) => {
+        pub fn parameters(&self) -> &[crate::record::PackageReviewSignatureParameter] {
+            &self.parameters
+        }
+    };
+    (@emit conformance_bounds) => {
+        pub fn conformance_bounds(&self) -> &[crate::record::PackageReviewConformanceBound] {
+            &self.conformance_bounds
+        }
+    };
+    (@emit return_type) => {
+        pub const fn return_type(&self) -> Option<&crate::record::PackageReviewTypeIdentity> {
+            self.return_type.as_ref()
+        }
+    };
+    (@emit spelling) => {
+        pub const fn spelling(&self) -> Option<language_core::OperatorSpelling> {
+            self.spelling
+        }
+    };
+    (@emit requirement) => {
+        pub fn requirement(&self) -> &crate::record::PackageReviewNominalIdentity {
+            &self.requirement
+        }
+    };
+}
+pub(crate) use record_accessors;

@@ -194,6 +194,39 @@ impl From<ProjectedDependencies> for DependencyProjections {
 }
 
 impl DependencySourceRequest {
+    /// Retain acquisition's exact request in the shared executed vocabulary.
+    pub(crate) fn build_request(
+        &self,
+        purpose: DependencyPurpose,
+    ) -> Result<build_declarations::BuildRequest, String> {
+        use build_declarations::{BuildDependencySource, BuildRequest, ProjectName};
+        let alias = self
+            .explicit_alias()
+            .map(|name| ProjectName::parse(name.as_str()))
+            .transpose()?;
+        let source = match self {
+            Self::Path { location, .. } => BuildDependencySource::Path(location.clone()),
+            Self::Git {
+                repository,
+                revision,
+                selection,
+                ..
+            } => BuildDependencySource::Git {
+                repository: repository.clone(),
+                revision: revision.clone(),
+                package: match selection {
+                    PackageSelection::Root => None,
+                    PackageSelection::Named(name) => Some(ProjectName::parse(name.as_str())?),
+                },
+            },
+        };
+        Ok(BuildRequest::Dependency {
+            purpose,
+            alias,
+            source,
+        })
+    }
+
     pub fn explicit_alias(&self) -> Option<&AliasName> {
         match self {
             Self::Path { explicit_alias, .. } | Self::Git { explicit_alias, .. } => {

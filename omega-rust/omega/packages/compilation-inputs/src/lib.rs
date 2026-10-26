@@ -51,8 +51,9 @@ pub use checked_source_cache::{CheckedSourceCache, CheckedSourceCacheLimits};
 pub use compilation_reuse::SourceAssemblyInputs;
 pub use package_compilation::{
     IndependentComponentDescription, PackageCompilationInputError, PackageCompilationInputs,
-    PackageCompilationSourceInputs, PackageCompilationTargetInputs, PackageDependencyBinding,
-    PackageDependencyClosure, PackageGeneratedSourceBundle, PackageSourceBinding,
+    PackageCompilationSourceInputs, PackageCompilationTargetInputs, PackageDependencyAcquisition,
+    PackageDependencyBinding, PackageDependencyClosure, PackageGeneratedSourceBundle,
+    PackageSourceBinding,
 };
 pub use review_cache_digests::{review_cache_inputs_digest, review_cache_snapshot_digest};
 pub use semantic_bindings::{

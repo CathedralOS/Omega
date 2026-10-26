@@ -1122,7 +1122,11 @@ narrows realization only.
   reject; private dependency machines remain inaccessible. Captured dependency
   bytes no longer imply root-only Build metadata authority. Reconciliation keeps
   its scope/alias/cycle/limit checks; compiler completion refuses any unjoined
-  request. Project preparation now retains transaction recovery, lock selection
+  request. Pre-acquired source inputs retain the exact request value, purpose,
+  ordinal and selected source; bound compilation rejoins those receipts against
+  the executed ledger rather than treating an alias graph as settlement. The
+  same validation serves post-execution acquisition, and changed locators still
+  refuse with unchanged aliases. Project preparation retains recovery, lock selection
   and concurrent-edit checks across application-owned source execution; its
   begin/finish boundary accepts the actual acquired graph without parsing Build
   declarations. Application source discovery now drives the executed traversal
@@ -1678,15 +1682,16 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     The [Linear continuation](samples/cli/facts/opaque_closed_carrier_exchange/independent_linear/README.md)
     carries actual whole ownership claims through independent inputs and returns
     across all nine places on all four targets.
-  - Complete installed-provider custody and native marshaling for moved
-    backing, mutable retention, permitted snapshots and the wider resident/view
+  - Complete installed-provider custody and native marshaling for protocol-owned
+    backing, permitted snapshots and the wider resident/view
     codecs those boundaries require. Preserve the complete lifetime, range and
     revision/lease records through stage 05
     `retention/retained_borrow_custody.rs` and the selected provider; private
     per-call captures cannot supply original backing.
 
   Acceptance: `samples/cli/facts/opaque_closed_carrier_exchange`,
-  `samples/cli/facts/foreign_retained_shared_borrow`, and the `providers/foreign_*`
+  `samples/cli/facts/foreign_retained_shared_borrow`,
+  `samples/cli/facts/foreign_retained_mutable_borrow`, and the `providers/foreign_*`
   corpus fixtures pass `omega run --both` across matching hosts with exact
   register/stack placement, occurrence preservation, and retention leases, while
   carrier/target/lifecycle/multiplicity drift and unauthorized retention reject.

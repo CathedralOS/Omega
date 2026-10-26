@@ -61,7 +61,9 @@ pub(crate) fn lower_declarations(
             .iter()
             .map(|parameter| terminal_scalar_type(parameter.primitive_type))
             .collect::<Result<Vec<_>, _>>()?;
-        let requires = lower_requirements(plan, &parameters, domain_ids)?;
+        let requires = lower_requirements(&plan.domain_requirements, &parameters, domain_ids)?;
+        let normal_qualifications =
+            lower_requirements(&plan.normal_qualifications, &parameters, domain_ids)?;
         // Terminal call operands use packed structural positions; checked
         // predicates retain authored positions across interleaved scalar lanes.
         // Reuse the allocated places and types, changing only predicate lookup.
@@ -149,6 +151,7 @@ pub(crate) fn lower_declarations(
         )?;
         declarations.push(BoundaryMachineDeclaration {
             scalar_domain_requirements,
+            normal_qualifications,
             declaration: crate::machine_lowering::declarations::boundary_identity(
                 identities,
                 checked,
@@ -431,12 +434,11 @@ fn canonical_scalar_contract_rows(
 /// A boundary's structural domain requirements, each naming one of its
 /// structural parameters, in canonical order and without repetition.
 fn lower_requirements(
-    plan: &CheckedBoundaryMachinePlan,
+    requirements: &[checked_trees::CheckedUnitStructuralDomainRequirementPlan],
     parameters: &[terminal_psi::StructuralParameterDeclaration],
     domain_ids: &[StructuralDomainBinding],
 ) -> Result<Vec<StructuralDomainRequirement>, LoweringError> {
-    let mut requires = plan
-        .domain_requirements
+    let mut requires = requirements
         .iter()
         .map(|requirement| {
             let parameter = parameters.get(requirement.argument_index as usize).ok_or(

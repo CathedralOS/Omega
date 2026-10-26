@@ -1,7 +1,7 @@
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::signature::SignatureContractKind;
-use symbols::{SymbolHandle, SymbolKind, SymbolTable};
+use symbols::{SymbolHandle, SymbolTable};
 
 use super::expression_paths::resolve_expression_table_call_target_symbol;
 use super::expressions::{
@@ -472,14 +472,11 @@ fn assign_contract_call_symbols(
             );
             if let ExpressionNode::Call(call) = expression_table.expression_mut(expression) {
                 call.target_symbol = target_symbol;
+                // Contract operands carry no executable operand route: their
+                // machine arguments are always static, proof-static only when
+                // the target is a proof-position declaration.
+                let proof_static = super::targets::proof_static_call_target(symbols, target_symbol);
                 for argument in &mut call.machine_arguments {
-                    let proof_static = target_symbol.is_valid()
-                        && matches!(
-                            symbols.get(target_symbol).kind,
-                            SymbolKind::Proposition
-                                | SymbolKind::PropositionParameter
-                                | SymbolKind::MathematicalDefinition
-                        );
                     assign_static_argument_symbols(
                         symbols,
                         machine.symbol,

@@ -79,6 +79,7 @@ pub(super) fn validate(
         || !boundary.requires.is_empty()
         || !boundary.scalar_requires.is_empty()
         || !boundary.scalar_ensures.is_empty()
+        || !boundary.normal_qualifications.is_empty()
         || !boundary.program_local_root_introductions.is_empty()
         || !boundary.content_guarantees.is_empty()
         || !boundary.crash_routes.is_empty()

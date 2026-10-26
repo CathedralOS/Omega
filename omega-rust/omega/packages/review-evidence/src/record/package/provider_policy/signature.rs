@@ -19,12 +19,7 @@ pub struct PackagePolicyServiceSignature {
 }
 
 impl PackagePolicyServiceSignature {
-    pub fn static_parameters(&self) -> &[PackagePolicyTypeParameter] {
-        &self.static_parameters
-    }
-    pub fn parameters(&self) -> &[PackageReviewSignatureParameter] {
-        &self.parameters
-    }
+    crate::record::accessors::record_accessors!(static_parameters, parameters);
     pub fn result(&self) -> Option<&PackageReviewTypeIdentity> {
         self.result.as_ref()
     }

@@ -16,12 +16,7 @@ pub struct PackagePolicyTerminalPermissions {
 }
 
 impl PackagePolicyTerminalPermissions {
-    pub const fn package(&self) -> PackageKeyIdentity {
-        self.package
-    }
-    pub const fn target(&self) -> TargetProfile {
-        self.target
-    }
+    crate::record::accessors::record_accessors!(package, target);
     pub fn services(&self) -> &[PackagePolicyTerminalService] {
         &self.services
     }
@@ -71,12 +66,11 @@ pub struct PackagePolicyTerminalService {
 }
 
 impl PackagePolicyTerminalService {
+    crate::record::accessors::record_accessors!(static_parameters);
     pub fn service(&self) -> &PackageReviewNominalIdentity {
         &self.service
     }
-    pub fn static_parameters(&self) -> &[PackagePolicyTypeParameter] {
-        &self.static_parameters
-    }
+
     pub const fn lifetime_parameter_count(&self) -> u32 {
         self.lifetime_parameter_count
     }
@@ -95,9 +89,7 @@ pub struct PackagePolicyTerminalPermission {
 }
 
 impl PackagePolicyTerminalPermission {
-    pub fn requirement(&self) -> &PackageReviewNominalIdentity {
-        &self.requirement
-    }
+    crate::record::accessors::record_accessors!(requirement);
     pub fn permitted(&self) -> &TerminalAuthorityDisposition {
         &self.permitted
     }

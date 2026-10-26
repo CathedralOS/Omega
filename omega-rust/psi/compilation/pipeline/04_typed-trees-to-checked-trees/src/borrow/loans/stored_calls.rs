@@ -211,7 +211,7 @@ pub(in crate::borrow) fn from_effects(
             // across the complete source roster, never a convenient subset.
             // Lifetime debts are separate obligations, not spatial choices.
             let relevant = |candidate: &&super::RebasedBorrowPlace| {
-                source.lifetime_access.is_some() || !candidate.lifetime_only
+                source.lifetime_access.is_some() || candidate.lifetime_access.is_none()
             };
             let complete_carrier = captured.iter().filter(relevant).next().is_some()
                 && captured.iter().filter(relevant).all(|candidate| {
@@ -285,15 +285,19 @@ pub(in crate::borrow) fn from_effects(
                         .into_iter()
                         .collect(),
                     lineage: if source.lifetime_access.is_some()
-                        || supplier.is_some_and(|source| source.lifetime_only)
+                        || supplier.is_some_and(|source| source.lifetime_access.is_some())
                     {
                         checked_trees::BorrowLoanLineage::LifetimeDependency
                     } else {
                         checked_trees::BorrowLoanLineage::UnretainedDerived
                     },
-                    kind: checked_trees::BorrowAccessKind::from(
-                        source.lifetime_access.unwrap_or(effect.access),
-                    ),
+                    kind: supplier
+                        .and_then(|source| source.lifetime_access.clone())
+                        .unwrap_or_else(|| {
+                            checked_trees::BorrowAccessKind::from(
+                                source.lifetime_access.unwrap_or(effect.access),
+                            )
+                        }),
                     call_result: true,
                 });
             }
@@ -312,7 +316,7 @@ fn transferred_place(
     lifetime_only: bool,
     candidate: &super::RebasedBorrowPlace,
 ) -> Option<checked_trees::CapturedPlace> {
-    if candidate.lifetime_only && !lifetime_only {
+    if candidate.lifetime_access.is_some() && !lifetime_only {
         return None;
     }
     // Preserve the existing exact join, including its presentation metadata

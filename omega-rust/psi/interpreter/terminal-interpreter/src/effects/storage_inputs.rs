@@ -83,6 +83,9 @@ struct StructuralLoanBinding {
     source: semantic_vocabulary::PlaceId,
     access: terminal_psi::StructuralAccess,
     referent: TerminalStructuralValue,
+    /// Preservation promised for this exact formal, captured before dispatch.
+    /// It can retain an existing membership, never introduce one from C bytes.
+    normal_qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
     original: Vec<TerminalBoundaryStorageValue>,
     leaves: Vec<contents::StorageLeaf>,
     completed_leaves: Option<Vec<contents::StorageLeaf>>,
@@ -162,6 +165,7 @@ impl BoundaryStorageInputs {
         referent: &TerminalStructuralValue,
         array_loan: Option<&crate::element_views::ElementView>,
         argument_index: usize,
+        normal_guarantees: &[terminal_psi::StructuralDomainRequirement],
     ) -> Result<(), TerminalInterpretError> {
         if parameter.access == terminal_psi::StructuralAccess::Owned {
             if argument.access != parameter.access
@@ -177,6 +181,7 @@ impl BoundaryStorageInputs {
                 array_loan,
                 parameter.access,
                 &leaves,
+                &[],
             )?;
             let identity = Arc::new(());
             self.buffers.push(TerminalBoundaryStorageBuffer::Structural(
@@ -201,17 +206,29 @@ impl BoundaryStorageInputs {
         if parameter.access != argument.access
             || parameter.structural_type != referent.structural_type
             || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-            || (parameter.access == terminal_psi::StructuralAccess::MutableBorrow
-                && (!parameter.qualifications.is_empty()
-                    || !parameter.projected_qualifications.is_empty()
-                    || !referent.qualifications.is_empty()
-                    || !referent.projected_qualifications.is_empty()))
         {
             return Err(malformed());
         }
+        let normal_qualifications = normal_guarantees
+            .iter()
+            .filter(|guarantee| guarantee.argument_index as usize == argument_index)
+            .map(|guarantee| guarantee.domain)
+            .collect::<Vec<_>>();
         if parameter.access == terminal_psi::StructuralAccess::MutableBorrow {
-            execution.validate_storage_loan_qualifications(
+            if !parameter.projected_qualifications.is_empty()
+                || !referent.projected_qualifications.is_empty()
+                || parameter
+                    .qualifications
+                    .iter()
+                    .any(|domain| !normal_qualifications.contains(domain))
+            {
+                return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                    "mutable host storage lacks exact normal qualification preservation",
+                ));
+            }
+            execution.validate_storage_loan_restoration(
                 &crate::values::StructuralRuntimePlace::from(referent),
+                &normal_qualifications,
             )?;
         }
         let leaves = contents::describe(execution, referent, parameter.access, None)?;
@@ -222,6 +239,7 @@ impl BoundaryStorageInputs {
             array_loan,
             parameter.access,
             &leaves,
+            &normal_qualifications,
         )?;
         let identity = Arc::new(());
         self.buffers.push(TerminalBoundaryStorageBuffer::Structural(
@@ -242,6 +260,7 @@ impl BoundaryStorageInputs {
             source: argument.place,
             access: parameter.access,
             referent: referent.clone(),
+            normal_qualifications,
             original,
             leaves,
             completed_leaves: None,

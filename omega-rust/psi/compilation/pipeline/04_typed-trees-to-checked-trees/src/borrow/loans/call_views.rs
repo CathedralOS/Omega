@@ -89,7 +89,7 @@ impl CallViewReturnContract<'_> {
         match self.source(program) {
             ViewReturnSource::Fields { fields } => Some(fields),
             ViewReturnSource::Parameter { parameter_index } => Some(vec![ViewReturnFieldSource {
-                lifetime_only: false,
+                lifetime_access: None,
                 source: validation::borrow_contracts::ViewReturnInputSource::Referent,
                 owner_path: Vec::new(),
                 source_path: Vec::new(),
@@ -469,7 +469,7 @@ fn rebase_borrow_places_following(
             source_owner_symbol: SymbolHandle::invalid(),
             parent_loan: Handle::invalid(),
             parent_lineage_is_retained: false,
-            lifetime_only: false,
+            lifetime_access: None,
         }];
     }
 
@@ -522,7 +522,7 @@ fn rebase_borrow_places_following(
             RebasedBorrowPlace {
                 source_place: place.clone(),
                 representation_address: address,
-                lifetime_only,
+                lifetime_access: lifetime_only.then(|| source_loan.kind.clone()),
                 // A projection can narrow an ordinary reborrow. It cannot
                 // release the input held by an earlier call result, including
                 // an identity result that named the entire input.
@@ -546,7 +546,7 @@ fn rebase_borrow_places_following(
             }
         })
         .flat_map(|source| {
-            if source.lifetime_only {
+            if source.lifetime_access.is_some() {
                 // The dependency was captured before the provider call. It is
                 // not a pointer to follow through today's carrier contents.
                 return vec![source];
@@ -589,7 +589,7 @@ pub(super) fn retained_reference_lineage(
     source: &RebasedBorrowPlace,
     rebased: &[RebasedBorrowPlace],
 ) -> checked_trees::BorrowLoanLineage {
-    if source.lifetime_only {
+    if source.lifetime_access.is_some() {
         return checked_trees::BorrowLoanLineage::LifetimeDependency;
     }
     // The formation operation decides lineage, not whether the descriptor is

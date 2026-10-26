@@ -95,7 +95,10 @@ pub(super) fn admit_exact_foreign_call(
     // The shared interpreter boundary owner evaluates every scalar Requires
     // against the captured invocation before calling any trusted host adapter.
     // This adapter supplies no evidence and cannot bypass that gate.
-    if !declaration.scalar_ensures.is_empty()
+    // Normal-return memberships are output guarantees, not caller ingress.
+    // An unmodeled host adapter cannot establish them.
+    if !declaration.normal_qualifications.is_empty()
+        || !declaration.scalar_ensures.is_empty()
         || !declaration.content_guarantees.is_empty()
         || !declaration.program_local_root_introductions.is_empty()
         || !declaration.crash_routes.is_empty()
