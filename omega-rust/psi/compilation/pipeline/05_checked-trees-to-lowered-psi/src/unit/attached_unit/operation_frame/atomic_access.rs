@@ -169,11 +169,6 @@ impl OperationFrame<'_, '_> {
             return unsupported("atomic event orderings are not source-legal");
         }
         let resident_obligation = if event.modifies_resident() && resident_bounds.is_some() {
-            if event.replacement().is_none() {
-                return unsupported(
-                    "bounded fetch requires universal atomic resident preservation",
-                );
-            }
             if !crate::emission::structural_scalar_store::atomic_source_range_decided(
                 self.checked,
                 access.primitive_type,

@@ -1027,11 +1027,6 @@ fn validate_operation_foundation(
                 declaration.field_type,
                 terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
             );
-            if bounded && event.modifies_resident() && event.replacement().is_none() {
-                return malformed(
-                    "bounded atomic fetch requires universal resident-transition evidence",
-                );
-            }
             if resident_obligation.is_some() != (bounded && event.modifies_resident()) {
                 return malformed(
                     "atomic resident establishment obligation disagrees with its declaration and event",

@@ -9,7 +9,7 @@ use crate::proof_contracts::arithmetic_domains::integer_ranges::{
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 
-pub(super) fn binary(
+pub(crate) fn binary(
     operator: BinaryOperator,
     primitive: PrimitiveType,
     left: Interval,
