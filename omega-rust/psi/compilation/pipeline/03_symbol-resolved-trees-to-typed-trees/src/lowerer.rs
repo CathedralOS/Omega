@@ -378,6 +378,11 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.machines,
     )?;
+    validation::normalize_terminal_transition_calls(
+        &mut lowerer.typed_trees,
+        cohort.typed_machines,
+        cohort.completed_machines,
+    );
     bind_dynamic_call_targets(&mut lowerer.typed_trees)?;
     crate::expressions::build_product_requests::normalize(
         &mut lowerer.typed_trees,

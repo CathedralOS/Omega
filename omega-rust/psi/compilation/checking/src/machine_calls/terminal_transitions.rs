@@ -11,9 +11,16 @@ use typed_trees::expression::{
 };
 use typed_trees::statement::TransitionTargetNode;
 
-pub(super) fn normalize_terminal_transition_calls(program: &mut TypedTrees) {
+pub fn normalize_terminal_transition_calls(
+    program: &mut TypedTrees,
+    first_machine: usize,
+    completed_machines: &[symbols::SymbolHandle],
+) {
     let mut targets = Vec::new();
-    for machine in program.machines() {
+    for (index, machine) in program.machines().iter().enumerate() {
+        if index < first_machine && !completed_machines.contains(&machine.symbol) {
+            continue;
+        }
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
                 let Some(transition) = statement.as_transition() else {
@@ -31,6 +38,14 @@ pub(super) fn normalize_terminal_transition_calls(program: &mut TypedTrees) {
                     }
                     let callable =
                         crate::terminal_callable_target(program, machine, path.symbol).is_some();
+                    // A named implementation is code, not a state container.
+                    // Its exact scoped head permits ordinary member binding,
+                    // even before a selected member receives its final symbol.
+                    let implementation_namespace = path.head_symbol.is_valid()
+                        && matches!(
+                            program.symbols.get(path.head_symbol).kind,
+                            SymbolKind::Conformance | SymbolKind::ConformanceParameter
+                        );
                     // Attached machines require an explicit value-call spelling
                     // for a bare foreign-machine name. Keep that independent
                     // source-admission refusal visible to its validator.
@@ -44,6 +59,7 @@ pub(super) fn normalize_terminal_transition_calls(program: &mut TypedTrees) {
                     }
                     if path.symbol.is_valid()
                         && !callable
+                        && !implementation_namespace
                         && program.operator_definition_by_symbol(path.symbol).is_none()
                     {
                         continue;
@@ -67,6 +83,7 @@ pub(super) fn normalize_terminal_transition_calls(program: &mut TypedTrees) {
                         continue;
                     }
                     if (callable
+                        || implementation_namespace
                         || program.operators().iter().any(|operator| {
                             operator.is_boundary
                                 && operator.spelling.is_none()
