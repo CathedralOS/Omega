@@ -153,26 +153,6 @@ helper that passes does not close an item.
 
 ## Immediate product closure
 
-- **STATIC-CALLBACK-REACH-RETENTION.** Retain static callback reach dependencies
-  end to end through `samples/cli/facts/` witnesses and `omega run --both` under
-  [static callback reach dependencies](wiki/spec/language/effects.md#static-callback-reach-dependencies).
-  Owners: `omega-rust/psi/compilation/checking/src/machine_calls/static_machine_call_contracts.rs`
-  and `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/closed_reach_applications.rs`.
-  - `retain_closed_reach_applications` skips proposition and requirement-identity
-    binders, and `prune_incomplete_closed_reach_applications` removes incomplete
-    annotations and their dependents. Retain the original dependency and
-    telescope instead, including for inlined or absent emitted callees, reusing
-    exact specialization/contract identities.
-  Acceptance: nine-place fact witnesses and corpus fixtures (covering a named
-  traversal with pure and Console callbacks, nested/private helpers, recursive
-  components, selected generic schemas, and unused selections) execute via
-  `omega run --both`, while selections exceeding requirement bounds, redirected
-  same-shaped calls, and incomplete telescopes reject. Inlining or a missing
-  callee never removes reach coverage, and the pure callback's ordinary callers
-  see its specialized empty row without consuming the generic definition. Keep
-  `tests/omega/pass/effects/{nominal_callback_dependency,generic_callback_schema_reach,structural_callback_reach}`
-  passing.
-
 - **CHECKED-PACKAGE-REUSE.** (new-scope) A dependent's check re-judges its
   dependencies' bodies (`std` is checked once at package review, then re-judged
   in dependents). Dependents must consume that judgment through compiler-private

@@ -1,5 +1,5 @@
 //! Sum inspection retains declared order, layout, and edge-produced parameters.
-use super::LiveDefinitions;
+use super::{LiveDefinitions, RowSite};
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
@@ -15,12 +15,9 @@ use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
 
 pub(super) fn observe(
     operation: &AbstractOperation,
-    function: &AbstractFunction,
-    types: &StructuralTypeLookup<'_>,
-    live: &mut LiveDefinitions,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
+    site: &mut RowSite<'_>,
 ) -> Result<(), LoweringError> {
+    let (function, types, live, operations, provenance) = site.parts();
     let AbstractOperation::StructuralCaseMembership {
         psi_operation,
         result,
