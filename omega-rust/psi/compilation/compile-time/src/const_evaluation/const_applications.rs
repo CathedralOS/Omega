@@ -1096,8 +1096,10 @@ fn visit_argument(
                                 SymbolKind::Local
                                     | SymbolKind::Parameter
                                     | SymbolKind::Field
-                                    | SymbolKind::TypeParameter
-                            )
+                            ) || typed.data_type_parameter_by_symbol(path.symbol)
+                                .is_some_and(|parameter| {
+                                    matches!(parameter.kind, TypeParameterKind::Value { .. })
+                                })
                         }
                         _ => false,
                     }

@@ -123,7 +123,7 @@ fn checked_constant_retains_unsigned_result_meaning() {
 fn checked_constant_does_not_install_boundary_imports() {
     on_compilation_stack(|| {
         let program = checked(
-            "boundary trait Counter { machine read() -> u64; }
+            "boundary trait Counter { machine read() -> u64 reaches; }
              machine answer() -> u64 reaches Counter { Counter::read() }",
         );
         let symbol = program

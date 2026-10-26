@@ -43,22 +43,30 @@ impl Scope<'_> {
         &self,
         argument: TypeReferenceHandle,
     ) -> Option<typed_trees::type_identity::NormalizedTypeIdentity> {
-        let TypeReferenceNode::Named { symbol, .. } =
-            self.program.type_reference_table.type_reference(argument)
-        else {
-            return None;
+        let is_const_symbol = |symbol: SymbolHandle| {
+            !symbol.is_valid()
+                || self.program.const_declaration_by_symbol(symbol).is_some()
+                || self
+                    .program
+                    .machine_type_parameters(self.machine)
+                    .iter()
+                    .any(|p| p.symbol == symbol && matches!(p.kind, TypeParameterKind::Const { .. }))
         };
-        // Never use symbolic identity as equality of mutable runtime subjects.
-        // This path preserves already-admitted non-integer static values too.
-        if symbol.is_valid() && self.program.const_declaration_by_symbol(*symbol).is_none() {
-            return None;
+        let table = &self.program.type_reference_table;
+        match table.type_reference(argument) {
+            TypeReferenceNode::Named { symbol, .. } => {
+                if !is_const_symbol(*symbol) {
+                    return None;
+                }
+                typed_trees::type_identity::applied_index_identity(
+                    self.program,
+                    typed_trees::type_identity::IndexIdentityArgument::TypeReference(argument),
+                    self.machine.symbol,
+                    &[],
+                )
+            }
+            _ => None,
         }
-        typed_trees::type_identity::applied_index_identity(
-            self.program,
-            typed_trees::type_identity::IndexIdentityArgument::TypeReference(argument),
-            self.machine.symbol,
-            &[],
-        )
     }
     fn values(&self, at: usize) -> Option<CurrentScalarValues<'_>> {
         CurrentScalarValues::at(
@@ -142,14 +150,63 @@ impl Scope<'_> {
         if let TypeReferenceNode::ConstExpression(expression) =
             *self.program.type_reference_table.type_reference(argument)
         {
-            return self
-                .values(application.formation)?
-                .application_value_with_captured(
+            if let Some(values) = self.values(application.formation)
+                && let Some(term) = values.application_value_with_captured(
                     expression,
                     &application.arguments,
                     &application.substitutions,
                 )
-                .map(ScopedArithmeticValue::Term);
+            {
+                return Some(ScopedArithmeticValue::Term(term));
+            }
+            if let ExpressionNode::Call(call) = self.program.expression_table.expression(expression)
+                && let Some(callee) = self.program.machine_by_own_or_state_symbol(call.target_symbol)
+                && let Some(entry) = self.program.machine_states(callee).first()
+            {
+                let statements = self.program.statement_table.statements(entry.statement_nodes);
+                let return_expr = statements.last().and_then(|s| match s {
+                    StatementNode::Expression(e) => Some(*e),
+                    _ => None,
+                });
+                if let Some(return_expr) = return_expr {
+                    let callee_params = self.program.machine_type_parameters(callee);
+                    let mut callee_substitutions = Vec::new();
+                    for (param, actual_arg) in callee_params.iter().zip(call.machine_arguments.iter()) {
+                        let value = if actual_arg.symbol.is_valid() {
+                            application
+                                .substitutions
+                                .iter()
+                                .find(|(s, _)| *s == actual_arg.symbol)
+                                .and_then(|(_, v)| v.clone())
+                        } else if let Some(lit) = &actual_arg.const_literal {
+                            lit.value_bignum().map(ScopedArithmeticValue::Integer)
+                        } else if actual_arg.type_reference.is_valid() {
+                            self.program
+                                .type_reference_table
+                                .anonymous_numeric_literal_value(actual_arg.type_reference)
+                                .map(|v| ScopedArithmeticValue::Integer(numerics::bignum::BigInt::from_i128(v as i128)))
+                        } else {
+                            None
+                        };
+                        callee_substitutions.push((param.symbol, value));
+                    }
+                    if let Some(values) = self.values(application.formation)
+                        && let Some(term) = values.application_value_with_captured(
+                            return_expr,
+                            &[],
+                            &callee_substitutions,
+                        )
+                    {
+                        return Some(ScopedArithmeticValue::Term(term));
+                    }
+                    if let ExpressionNode::Name(path) = self.program.expression_table.expression(return_expr)
+                        && let Some((_, Some(val))) = callee_substitutions.iter().find(|(s, _)| *s == path.symbol)
+                    {
+                        return Some(val.clone());
+                    }
+                }
+            }
+            return None;
         }
         let TypeReferenceNode::Named { symbol, name } =
             self.program.type_reference_table.type_reference(argument)
@@ -601,7 +658,23 @@ impl Scope<'_> {
             )
             .is_some_and(|actual| actual == required)
         });
+        let expression_equal = typed_trees::type_identity::applied_index_identity(
+            self.program,
+            typed_trees::type_identity::IndexIdentityArgument::TypeReference(argument),
+            self.machine.symbol,
+            &[],
+        )
+        .is_some_and(|required| {
+            typed_trees::type_identity::applied_index_identity(
+                self.program,
+                typed_trees::type_identity::IndexIdentityArgument::Expression(value),
+                self.machine.symbol,
+                &[],
+            )
+            .is_some_and(|actual| actual == required)
+        });
         let equal = static_equal
+            || expression_equal
             || self.values(self.statement).is_some_and(|values| {
                 let Some(required) = self.index(argument, application) else {
                     return false;

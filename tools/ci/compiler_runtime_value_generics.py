@@ -23,7 +23,8 @@ RUNTIME_NAMED = ("runtime_index_application_root_exit", "runtime_value_generic_s
                  "runtime_computed_proof_only_exit", "runtime_computed_closed_identity_exit",
                  "runtime_computed_direct_result_exit", "runtime_computed_qualified_carrier_exit", "runtime_computed_selected_token_once_exit", "runtime_computed_ordinary_call_once_exit",
                  "runtime_computed_ordered_indices_exit", "runtime_computed_closed_call_identity_exit",
-                 "runtime_computed_nested_const_call_exit", "runtime_computed_machine_value_call_exit")
+                 "runtime_computed_nested_const_call_exit", "runtime_computed_machine_value_call_exit",
+                 "runtime_computed_nested_carrier_exit", "runtime_computed_const_forwarded_call_exit")
 NAMED = RUNTIME_NAMED + ("const_generic_runtime_argument", "const_data_machine_call_runtime_argument")
 
 

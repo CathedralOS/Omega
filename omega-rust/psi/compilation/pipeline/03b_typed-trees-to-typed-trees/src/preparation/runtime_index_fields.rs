@@ -6,7 +6,6 @@
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteralField};
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -141,6 +140,23 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic
                         ));
                     }
                 }
+            }
+        }
+        let references = typed_trees::references::collect_selected_program_references(
+            program,
+            &typed_trees::references::DeclarationSelection::from_symbols([machine.symbol]),
+        );
+        for expression in references.expressions {
+            if program.expression_table.call_node(expression).is_some()
+                && frames.as_ref().is_some_and(|frames| {
+                    frames.declaration_expression_has_empty_write_frame(expression, &|operation| {
+                        validation::has_builtin_binary_expression_meaning(
+                            program, machine, None, operation,
+                        )
+                    })
+                })
+            {
+                no_write_calls.push(expression);
             }
         }
         no_write_calls.sort_by_key(|call| (call.arena_index(), call.generation()));
@@ -385,47 +401,18 @@ fn fill(
             // authored payloads. Keep authored field order unchanged.
             implicit_fields.extend(fields);
             fields = implicit_fields;
-            let definition = program.data_application_definition(reference).or_else(|| {
-                program
-                    .type_reference_table
-                    .type_head_symbol(reference)
-                    .and_then(|symbol| program.data_definition_by_symbol(symbol))
-            });
             let mut prior = earlier_effects;
-            let children: Vec<_> = definition
-                .map(|definition| {
-                    fields
-                        .iter()
-                        .filter_map(|field| {
-                            let field_prior = prior;
-                            prior |= !effects.inert(program, field.value);
-                            let reference =
-                                program.data_members(definition).iter().find_map(|member| {
-                                    match member {
-                                        DataMember::Field(declared)
-                                            if declared.symbol == field.field_symbol =>
-                                        {
-                                            Some(declared.type_reference)
-                                        }
-                                        DataMember::Variant(case)
-                                            if Some(case.symbol) == literal.case_symbol =>
-                                        {
-                                            program
-                                                .data_payload_fields(case)
-                                                .iter()
-                                                .find(|declared| {
-                                                    declared.symbol == field.field_symbol
-                                                })
-                                                .map(|declared| declared.type_reference)
-                                        }
-                                        _ => None,
-                                    }
-                                })?;
-                            Some((field.value, reference, field_prior))
-                        })
-                        .collect()
+            let children: Vec<_> = fields
+                .iter()
+                .filter_map(|field| {
+                    let field_prior = prior;
+                    prior |= !effects.inert(program, field.value);
+                    let selected = program.data_constructor_field(
+                        reference, literal.type_symbol, field.field_symbol,
+                    )?;
+                    Some((field.value, selected.type_reference, field_prior))
                 })
-                .unwrap_or_default();
+                .collect();
             literal.fields = program.expression_table.insert_struct_fields(fields);
             *program.expression_table.expression_mut(expression) =
                 ExpressionNode::StructLiteral(literal);
