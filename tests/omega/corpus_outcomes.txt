@@ -1307,11 +1307,13 @@ fail/borrows/guard_observation_not_retired_during_guard rejected 2173ms expected
 	state `mutate` receives `cell` while local borrow `saved` is still active (borrowed at statement 0; its last use is at statement 2)
 	statement 1 borrows `cell` while local borrow `saved` is still active (borrowed at statement 0; its last use is at statement 2)
 	statement 1 mutates `cell.value` while local borrow `saved` is still active (borrowed at statement 0; its last use is at statement 2)
-fail/borrows/guard_subject_alias_held_through_call rejected 1895ms expected @a92f16431042
-	state `clear_and_read` receives `frames` while local borrow `saved` is still active (borrowed at statement 0; its last use is at statement 4 and it is released at state exit)
+fail/borrows/guard_subject_alias_held_through_call rejected 668ms expected @09efd3f91286
+	state `clear_and_read` receives `frames` as both mutable and read-only
+	state `clear_and_read` receives `frames` while local borrow `saved` is still active (borrowed at statement 0; its last use is at statement 6 and it is released at state exit)
+	state `clear_and_read` receives `frames` as both mutable and read-only
 	state `clear_and_read` receives `frames` while local borrow `saved` is still active
-	statement 3 mutates `frames[__hoist_15]` while local borrow `saved` is still active (borrowed at statement 0; its last use is at statement 4 and it is released at state exit)
-	statement 4 mutates `frames[__hoist_15]` while local borrow `saved` is still active (borrowed at statement 0)
+	statement 5 mutates `frames[__hoist_15]` while local borrow `saved` is still active (borrowed at statement 0; its last use is at statement 6 and it is released at state exit)
+	statement 6 mutates `frames[__hoist_15]` while local borrow `saved` is still active (borrowed at statement 0)
 fail/borrows/guarded_structural_producer_shared_argument_cannot_mutate rejected 578ms expected @a92f16431042
 	mutable argument `envelope` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 fail/borrows/imported_range_retains_backing_loan rejected 2282ms expected @a92f16431042
@@ -3039,10 +3041,10 @@ fail/control_flow/projected_float_payload_after_negated_guard_mutation rejected 
 	machine `read` state `entry` statement 1: cannot prove selected case for payload access
 fail/control_flow/projected_float_payload_without_case rejected 20838ms expected @a92f16431042
 	machine `read` state `entry` statement 0: cannot prove selected case for payload access
-fail/control_flow/saved_case_predicate_guard_write_retires rejected 3737ms expected @a92f16431042
-	machine `quotient` state `entry` statement 2: cannot prove selected case for payload access
-fail/control_flow/saved_case_predicate_local_write_retires rejected 6254ms expected @a92f16431042
-	machine `quotient` state `entry` statement 2: cannot prove selected case for payload access
+fail/control_flow/saved_case_predicate_guard_write_retires rejected 667ms expected @09efd3f91286
+	machine `quotient` state `entry` statement 2: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
+fail/control_flow/saved_case_predicate_local_write_retires rejected 667ms expected @09efd3f91286
+	machine `quotient` state `entry` statement 3: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
 fail/control_flow/single_case_guarded_arm_nonexhaustive rejected 129ms expected @a92f16431042
 	match over `Carried` is not exhaustive: it relies on arms the compiler cannot count (predicate domains, guarded patterns, or value compares); add a `_` arm
 fail/control_flow/state_result_differs_from_machine_result rejected 1648ms expected @a92f16431042
