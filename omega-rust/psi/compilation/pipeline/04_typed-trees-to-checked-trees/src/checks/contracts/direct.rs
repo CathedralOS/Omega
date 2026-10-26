@@ -2,13 +2,123 @@ use facts::FactPlace;
 use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
 
-use super::labels::{ContractTargetParameters, instantiate_call_contract_expression_label};
+use super::labels::instantiate_call_contract_expression_label;
 use super::places::{expression_is_boolean_place_like, expression_place_matches};
 use crate::labels::semantic_boolean_fact_label;
 
 mod guard_values;
 mod match_patterns;
 pub(super) use guard_values::proves_with as guard_value_proves_with;
+
+#[derive(Clone, Copy)]
+pub(super) struct InvocationScope<'program, 'proof> {
+    pub program: &'program dyn ::validation::CheckingInput,
+    pub facts: &'proof checked_trees::CheckFacts,
+    pub call_flow: &'proof checked_trees::FlowCallFact,
+    pub contexts: &'proof [facts::FactContextHandle],
+    pub caller_state_symbol: SymbolHandle,
+    pub statement_index: usize,
+    pub call_site: &'proof validation::CallSite<'program>,
+    pub parameters: &'program [typed_trees::signature::StateParameter],
+    pub target_state_symbol: SymbolHandle,
+}
+
+/// One invocation owns the preparation shared by its recursive Boolean clauses
+/// and entry-context alternatives. All inputs are borrowed immutably for this
+/// proof: neither a later call nor a changed context selection can reuse these
+/// observations. Context-specific Boolean evidence stays with each alternative.
+pub(super) struct InvocationProof<'program, 'proof> {
+    scope: InvocationScope<'program, 'proof>,
+    assignments: Option<Vec<crate::values::AssignmentObservation>>,
+    scalars: Vec<(validation::CanonicalPlace, Option<facts::ScalarValue>)>,
+    labels: Vec<(typed_trees::expression::ExpressionHandle, String)>,
+}
+
+impl<'program, 'proof> InvocationProof<'program, 'proof> {
+    pub(super) fn new(scope: InvocationScope<'program, 'proof>) -> Self {
+        Self {
+            scope,
+            assignments: None,
+            scalars: Vec::new(),
+            labels: Vec::new(),
+        }
+    }
+
+    pub(super) fn scope(&self) -> InvocationScope<'program, 'proof> {
+        self.scope
+    }
+
+    fn scalar_value_at_place(
+        &mut self,
+        subject: &validation::CanonicalPlace,
+    ) -> Option<facts::ScalarValue> {
+        let InvocationScope {
+            program,
+            facts,
+            contexts,
+            ..
+        } = self.scope;
+        let semantic = &facts.semantic;
+        if let Some(payload) = crate::values::literal_assignment_payload(program, subject) {
+            return crate::values::scalar_value_from_payloads(program, semantic, [payload]);
+        }
+        if let Some((_, value)) = self.scalars.iter().find(|(place, _)| place == subject) {
+            return value.clone();
+        }
+        let assignments = self.assignments.get_or_insert_with(|| {
+            contexts
+                .iter()
+                .flat_map(|context| {
+                    crate::values::prepare_assignment_observations(
+                        program,
+                        semantic,
+                        semantic.contexts.get(*context),
+                    )
+                })
+                .collect()
+        });
+        let value = crate::values::scalar_value_from_payloads(
+            program,
+            semantic,
+            assignments
+                .iter()
+                .filter(|observation| {
+                    crate::flow::canonical_places_agree(program, &observation.place, subject)
+                })
+                .map(|observation| observation.payload),
+        );
+        // Cache only the exact query. Semantic place matching admits different
+        // spellings of a static index, but need not produce identical match
+        // sets for those spellings. The shared reducer still sees every matching
+        // payload, including unknown and conflicting observations.
+        self.scalars.push((subject.clone(), value.clone()));
+        value
+    }
+
+    pub(super) fn required_label(
+        &mut self,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> &str {
+        let position = self
+            .labels
+            .iter()
+            .position(|(handle, _)| *handle == expression);
+        let position = position.unwrap_or_else(|| {
+            let scope = self.scope;
+            let label = instantiate_call_contract_expression_label(
+                scope.program,
+                scope.caller_state_symbol,
+                scope.statement_index,
+                scope.call_site,
+                scope.parameters,
+                expression,
+            );
+            self.labels.push((expression, label));
+            self.labels.len() - 1
+        });
+        &self.labels[position].1
+    }
+}
 
 pub(super) fn direct_context_proves_boolean_expression(
     program: &dyn ::validation::CheckingInput,
@@ -54,21 +164,22 @@ pub(super) fn direct_context_proves_boolean_expression(
 }
 
 pub(super) fn direct_context_proves_instantiated_boolean_expression(
-    program: &dyn ::validation::CheckingInput,
-    facts: &checked_trees::CheckFacts,
-    call_flow: &checked_trees::FlowCallFact,
+    proof: &mut InvocationProof<'_, '_>,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     context: &facts::FactContext,
-    contexts: &[facts::FactContextHandle],
-    caller_state_symbol: SymbolHandle,
-    statement_index: usize,
-    call_site: &validation::CallSite<'_>,
-    target_state: &(impl ContractTargetParameters + ?Sized),
-    target_state_symbol: SymbolHandle,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
+    let InvocationScope {
+        program,
+        facts,
+        caller_state_symbol,
+        statement_index,
+        call_site,
+        parameters,
+        target_state_symbol,
+        ..
+    } = proof.scope();
     let semantic = &facts.semantic;
-    let parameters = target_state.contract_parameters(program);
     let arguments = validation::call_site_argument_expressions(program, call_site);
     let substitute = |expression| {
         let typed_trees::expression::ExpressionNode::Name(path) =
@@ -106,28 +217,10 @@ pub(super) fn direct_context_proves_instantiated_boolean_expression(
     }) {
         return true;
     }
-    if instantiated_live_value_proves(
-        program,
-        facts,
-        call_flow,
-        context,
-        contexts,
-        caller_state_symbol,
-        statement_index,
-        call_site,
-        target_state,
-        expression,
-    ) {
+    if instantiated_live_value_proves(proof, context, expression) {
         return true;
     }
-    let required_label = instantiate_call_contract_expression_label(
-        program,
-        caller_state_symbol,
-        statement_index,
-        call_site,
-        target_state,
-        expression,
-    );
+    let required_label = proof.required_label(expression);
 
     let denotations = guard_values::denotations::Denotations {
         program,
@@ -181,35 +274,28 @@ pub(super) fn direct_context_proves_instantiated_boolean_expression(
         candidate_label == required_label
             || (expression_is_boolean_place_like(program, expression)
                 && matches!(fact.place, FactPlace::Place(candidate_place)
-                    if instantiate_call_contract_expression_label(
-                        program,
-                        caller_state_symbol,
-                        statement_index,
-                        call_site,
-                        target_state,
-                        expression,
-                ) == semantic.place_label(program, candidate_place)))
+                    if required_label == semantic.place_label(program, candidate_place)))
     })
 }
 
-#[allow(clippy::too_many_arguments)]
 fn instantiated_live_value_proves(
-    program: &dyn ::validation::CheckingInput,
-    facts: &checked_trees::CheckFacts,
-    call_flow: &checked_trees::FlowCallFact,
+    proof: &mut InvocationProof<'_, '_>,
     context: &facts::FactContext,
-    contexts: &[facts::FactContextHandle],
-    caller_state_symbol: SymbolHandle,
-    statement_index: usize,
-    call_site: &validation::CallSite<'_>,
-    target: &(impl ContractTargetParameters + ?Sized),
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
     use super::prover::{ScalarValue, evaluate_scalar};
     use typed_trees::expression::ExpressionNode;
 
+    let InvocationScope {
+        program,
+        facts,
+        caller_state_symbol,
+        statement_index,
+        call_site,
+        parameters,
+        ..
+    } = proof.scope();
     let semantic = &facts.semantic;
-    let parameters = target.contract_parameters(program);
     let arguments = validation::call_site_argument_expressions(program, call_site);
     evaluate_scalar(
         program,
@@ -233,17 +319,7 @@ fn instantiated_live_value_proves(
                 // expression computes. Substitute the formal's root for the
                 // argument's referent place and read the projection there.
                 _ => {
-                    return projected_formal_leaf_value(
-                        program,
-                        facts,
-                        call_flow,
-                        contexts,
-                        caller_state_symbol,
-                        statement_index,
-                        parameters,
-                        arguments,
-                        formal,
-                    );
+                    return projected_formal_leaf_value(proof, arguments, formal);
                 }
             };
             evaluate_scalar(
@@ -260,11 +336,7 @@ fn instantiated_live_value_proves(
                         statement_index,
                         leaf,
                     ) && let Some(value) = scalar_value_at_observation(
-                        program,
-                        semantic,
-                        contexts,
-                        caller_state_symbol,
-                        statement_index,
+                        proof,
                         validation::expression_result_type_reference(
                             program,
                             program.machine_holding_state(caller_state_symbol)?,
@@ -303,18 +375,21 @@ fn instantiated_live_value_proves(
 /// retained member suffix (`rooms[i].count`); the live snapshot at that exact
 /// place is the only evidence this route accepts, and a runtime index segment
 /// narrows to its currently recorded element or the read refuses.
-#[allow(clippy::too_many_arguments)]
 fn projected_formal_leaf_value(
-    program: &dyn ::validation::CheckingInput,
-    facts: &checked_trees::CheckFacts,
-    call_flow: &checked_trees::FlowCallFact,
-    contexts: &[facts::FactContextHandle],
-    caller_state_symbol: SymbolHandle,
-    statement_index: usize,
-    parameters: &[typed_trees::signature::StateParameter],
+    proof: &mut InvocationProof<'_, '_>,
     arguments: &[typed_trees::expression::ExpressionHandle],
     leaf: typed_trees::expression::ExpressionHandle,
 ) -> Option<facts::ScalarValue> {
+    let InvocationScope {
+        program,
+        facts,
+        call_flow,
+        contexts,
+        caller_state_symbol,
+        statement_index,
+        parameters,
+        ..
+    } = proof.scope();
     let semantic = &facts.semantic;
     // A collection measure observes the receiver's exact current descriptor.
     // Keep substitution and selector narrowing identical to ordinary scalar
@@ -366,11 +441,7 @@ fn projected_formal_leaf_value(
             continue;
         };
         let Some(facts::ScalarValue::Integer(value)) = scalar_value_at_observation(
-            program,
-            semantic,
-            contexts,
-            caller_state_symbol,
-            statement_index,
+            proof,
             validation::expression_result_type_reference(
                 program,
                 program.machine_holding_state(caller_state_symbol)?,
@@ -425,40 +496,28 @@ fn projected_formal_leaf_value(
             numerics::bignum::BigInt::from_u64(length),
         ));
     }
-    scalar_value_at_observation(
-        program,
-        semantic,
-        contexts,
-        caller_state_symbol,
-        statement_index,
-        observed_type,
-        &actual,
-    )
+    scalar_value_at_observation(proof, observed_type, &actual)
 }
 
 /// Backing coordinates do not establish the scalar observation's interpretation.
 /// A recast needs its own checked value transform; matching address or width
 /// cannot import the backing carrier's live scalar facts.
 fn scalar_value_at_observation(
-    program: &dyn ::validation::CheckingInput,
-    semantic: &facts::FactPlan,
-    contexts: &[facts::FactContextHandle],
-    state: SymbolHandle,
-    statement_index: usize,
+    proof: &mut InvocationProof<'_, '_>,
     observed_type: typed_trees::types::TypeReferenceHandle,
     place: &validation::CanonicalPlace,
 ) -> Option<facts::ScalarValue> {
-    if !observation_carriers_agree(program, state, statement_index, observed_type, place) {
+    let scope = proof.scope();
+    if !observation_carriers_agree(
+        scope.program,
+        scope.caller_state_symbol,
+        scope.statement_index,
+        observed_type,
+        place,
+    ) {
         return None;
     }
-    super::prover::scalar_value_at_place(
-        program,
-        semantic,
-        contexts
-            .iter()
-            .map(|context| semantic.contexts.get(*context)),
-        place,
-    )
+    proof.scalar_value_at_place(place)
 }
 
 /// A stored observation retains its declaration's interpretation across the

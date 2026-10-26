@@ -1,10 +1,6 @@
+use super::direct::InvocationProof;
+use super::labels::domain_proves_expression_label;
 use facts::FactPayload;
-use symbols::SymbolHandle;
-
-use super::labels::{
-    ContractTargetParameters, domain_proves_expression_label,
-    instantiate_call_contract_expression_label,
-};
 
 pub(super) fn prove_boolean_expression_via_context_domain_membership(
     program: &dyn ::validation::CheckingInput,
@@ -27,39 +23,28 @@ pub(super) fn prove_boolean_expression_via_context_domain_membership(
 }
 
 pub(super) fn prove_instantiated_boolean_expression_via_context_domain_membership(
-    program: &dyn ::validation::CheckingInput,
-    semantic: &facts::FactPlan,
+    proof: &mut InvocationProof<'_, '_>,
     context: &facts::FactContext,
-    contexts: &[facts::FactContextHandle],
-    caller_state_symbol: SymbolHandle,
-    statement_index: usize,
-    call_site: &validation::CallSite<'_>,
-    target_state: &(impl ContractTargetParameters + ?Sized),
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
-    let candidate_label = instantiate_call_contract_expression_label(
-        program,
-        caller_state_symbol,
-        statement_index,
-        call_site,
-        target_state,
-        expression,
-    );
+    let scope = proof.scope();
+    let program = scope.program;
+    let candidate_label = proof.required_label(expression);
 
-    let Some(machine) = program.machine_holding_state(caller_state_symbol) else {
+    let Some(machine) = program.machine_holding_state(scope.caller_state_symbol) else {
         return false;
     };
     context_domain_proves_label(
         program,
-        semantic,
+        &scope.facts.semantic,
         context,
-        contexts,
+        scope.contexts,
         facts::ProgramPoint::Statement {
             machine_symbol: machine.symbol,
-            state_symbol: caller_state_symbol,
-            statement_index,
+            state_symbol: scope.caller_state_symbol,
+            statement_index: scope.statement_index,
         },
-        &candidate_label,
+        candidate_label,
     )
 }
 
@@ -72,7 +57,7 @@ fn context_domain_proves_label(
     context: &facts::FactContext,
     contexts: &[facts::FactContextHandle],
     point: facts::ProgramPoint,
-    candidate_label: &String,
+    candidate_label: &str,
 ) -> bool {
     let availability = crate::facts::boolean_predicates::CasePremiseAvailability::new(
         program, semantic, contexts, point,

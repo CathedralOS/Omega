@@ -283,21 +283,24 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
     if field_proof == Some(true) {
         return true;
     }
+    let mut proof = super::direct::InvocationProof::new(super::direct::InvocationScope {
+        program,
+        facts,
+        call_flow,
+        contexts: entry_contexts,
+        caller_state_symbol: state_flow.state_symbol,
+        statement_index: call_flow.statement_index,
+        call_site: &call_site,
+        parameters: target_parameters,
+        target_state_symbol: call_flow.target_symbol,
+    });
     (field_proof.is_none()
         && entry_contexts.iter().any(|entry_context| {
             let context = semantic.contexts.get(*entry_context);
             semantic_context_proves_instantiated_boolean_expression(
-                program,
-                facts,
-                call_flow,
+                &mut proof,
                 call_frames,
                 context,
-                entry_contexts,
-                state_flow.state_symbol,
-                call_flow.statement_index,
-                &call_site,
-                target_parameters,
-                call_flow.target_symbol,
                 expression,
             )
         }))

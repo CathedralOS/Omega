@@ -1,9 +1,6 @@
-use symbols::SymbolHandle;
-
-use super::super::labels::ContractTargetParameters;
-
 use super::super::direct::{
-    direct_context_proves_boolean_expression, direct_context_proves_instantiated_boolean_expression,
+    InvocationProof, direct_context_proves_boolean_expression,
+    direct_context_proves_instantiated_boolean_expression,
 };
 use super::super::domains::{
     prove_boolean_expression_via_context_domain_membership,
@@ -79,51 +76,26 @@ pub(super) fn semantic_context_proves_boolean_expression(
 }
 
 pub(super) fn semantic_context_proves_instantiated_boolean_expression(
-    program: &dyn ::validation::CheckingInput,
-    facts: &checked_trees::CheckFacts,
-    call_flow: &checked_trees::FlowCallFact,
+    proof: &mut InvocationProof<'_, '_>,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     context: &facts::FactContext,
-    contexts: &[facts::FactContextHandle],
-    caller_state_symbol: SymbolHandle,
-    statement_index: usize,
-    call_site: &validation::CallSite<'_>,
-    target_state: &(impl ContractTargetParameters + ?Sized),
-    target_state_symbol: SymbolHandle,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
-    let semantic = &facts.semantic;
     if direct_context_proves_instantiated_boolean_expression(
-        program,
-        facts,
-        call_flow,
+        proof,
         call_frames,
         context,
-        contexts,
-        caller_state_symbol,
-        statement_index,
-        call_site,
-        target_state,
-        target_state_symbol,
         expression,
     ) {
         return true;
     }
-
+    let program = proof.scope().program;
     match program.expression_table.expression(expression) {
         typed_trees::expression::ExpressionNode::Borrow(inner) => {
             semantic_context_proves_instantiated_boolean_expression(
-                program,
-                facts,
-                call_flow,
+                proof,
                 call_frames,
                 context,
-                contexts,
-                caller_state_symbol,
-                statement_index,
-                call_site,
-                target_state,
-                target_state_symbol,
                 inner.target,
             )
         }
@@ -131,17 +103,9 @@ pub(super) fn semantic_context_proves_instantiated_boolean_expression(
             typed_trees::expression::BinaryOperator::And => {
                 [binary.left, binary.right].iter().all(|operand| {
                     semantic_context_proves_instantiated_boolean_expression(
-                        program,
-                        facts,
-                        call_flow,
+                        proof,
                         call_frames,
                         context,
-                        contexts,
-                        caller_state_symbol,
-                        statement_index,
-                        call_site,
-                        target_state,
-                        target_state_symbol,
                         *operand,
                     )
                 })
@@ -149,43 +113,19 @@ pub(super) fn semantic_context_proves_instantiated_boolean_expression(
             typed_trees::expression::BinaryOperator::Or => {
                 [binary.left, binary.right].iter().any(|operand| {
                     semantic_context_proves_instantiated_boolean_expression(
-                        program,
-                        facts,
-                        call_flow,
+                        proof,
                         call_frames,
                         context,
-                        contexts,
-                        caller_state_symbol,
-                        statement_index,
-                        call_site,
-                        target_state,
-                        target_state_symbol,
                         *operand,
                     )
                 })
             }
             _ => prove_instantiated_boolean_expression_via_context_domain_membership(
-                program,
-                semantic,
-                context,
-                contexts,
-                caller_state_symbol,
-                statement_index,
-                call_site,
-                target_state,
-                expression,
+                proof, context, expression,
             ),
         },
         _ => prove_instantiated_boolean_expression_via_context_domain_membership(
-            program,
-            semantic,
-            context,
-            contexts,
-            caller_state_symbol,
-            statement_index,
-            call_site,
-            target_state,
-            expression,
+            proof, context, expression,
         ),
     }
 }
