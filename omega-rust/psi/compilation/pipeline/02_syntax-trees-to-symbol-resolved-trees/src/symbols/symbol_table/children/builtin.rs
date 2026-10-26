@@ -1,6 +1,5 @@
 use symbols::{
-    BuiltinTypeAtom, SymbolHandle, SymbolKind, SymbolNameRef, SymbolTableBuilder,
-    builtin_type_member_symbols,
+    SymbolHandle, SymbolKind, SymbolNameRef, SymbolTableBuilder, builtin_type_member_symbols,
 };
 
 pub(in crate::symbols::symbol_table) fn insert_builtin_type_symbol_children(
@@ -11,10 +10,7 @@ pub(in crate::symbols::symbol_table) fn insert_builtin_type_symbol_children(
     let SymbolNameRef::Static(name) = builtin_type.1 else {
         return;
     };
-    let Some(builtin_type) = BuiltinTypeAtom::ALL
-        .into_iter()
-        .find(|atom| atom.symbol_name() == name)
-    else {
+    let Some(builtin_type) = crate::symbols::builtin_type_atom_by_symbol_name(name) else {
         return;
     };
 

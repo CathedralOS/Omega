@@ -2,10 +2,8 @@ mod calls;
 mod transitions;
 
 pub(super) use calls::{
-    SOURCE_CALL_KINDS, assign_assumed_binding_argument_symbol,
-    assign_provider_selection_argument_symbol, assign_representation_selection_argument_symbol,
-    assign_runtime_subject_argument_symbol, assign_static_argument_symbols, build_operand_route,
-    resolve_call_target_symbol, resolve_free_call_target_symbol,
+    SOURCE_CALL_KINDS, assign_call_machine_argument_symbols, assign_static_argument_symbols,
+    proof_static_call_target, resolve_call_target_symbol, resolve_free_call_target_symbol,
     resolve_free_machine_entry_state_symbol,
 };
 pub(super) use transitions::assign_transition_target_symbols;

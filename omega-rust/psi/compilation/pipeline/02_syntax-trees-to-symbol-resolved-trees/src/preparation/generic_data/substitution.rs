@@ -536,10 +536,7 @@ pub(crate) fn closed_name_identity(
     selection: Option<&declaration_selection::ConstantSelection>,
     name: &Identifier,
 ) -> Option<ClosedArgumentIdentity> {
-    if let Some(atom) = symbols::BuiltinTypeAtom::ALL
-        .into_iter()
-        .find(|atom| atom.symbol_name() == name.as_str(syntax))
-    {
+    if let Some(atom) = crate::symbols::builtin_type_atom_by_symbol_name(name.as_str(syntax)) {
         return Some(ClosedArgumentIdentity::Builtin(atom));
     }
     if let Some(declaration) = selected_data_item(syntax, selection, name) {

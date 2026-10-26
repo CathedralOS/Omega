@@ -459,9 +459,8 @@ pub(crate) fn closed_argument_identity(
             name.as_str(syntax).to_owned(),
         )),
         TypeReferenceNode::Named(name) => {
-            if let Some(atom) = symbols::BuiltinTypeAtom::ALL
-                .into_iter()
-                .find(|atom| atom.symbol_name() == name.as_str(syntax))
+            if let Some(atom) =
+                crate::symbols::builtin_type_atom_by_symbol_name(name.as_str(syntax))
             {
                 return Some(ClosedArgumentIdentity::Builtin(atom));
             }

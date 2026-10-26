@@ -1,5 +1,16 @@
 use symbols::{SymbolHandle, SymbolKind, SymbolLookup, SymbolTable};
 
+/// The closed builtin type atom installed under `symbol_name`, or `None` for
+/// a name outside the roster. Every name-based builtin-type lookup reads the
+/// roster here instead of re-scanning `BuiltinTypeAtom::ALL`.
+pub(crate) fn builtin_type_atom_by_symbol_name(
+    symbol_name: &str,
+) -> Option<symbols::BuiltinTypeAtom> {
+    symbols::BuiltinTypeAtom::ALL
+        .into_iter()
+        .find(|atom| atom.symbol_name() == symbol_name)
+}
+
 /// Search declaration scopes only. Enclosing invocation parameters, locals and
 /// live facts are never lexical machine bindings. Stop at a shadowing cohort,
 /// including ambiguity; root/module visibility remains the ordinary lookup's job.
