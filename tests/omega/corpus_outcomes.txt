@@ -4702,6 +4702,42 @@ fail/facts/atomic_bounded_resident/prior_is_not_zero rejected 411ms expected @03
 	exact arithmetic in machine `reject` state `entry` local `invalid` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/atomic_bounded_resident/target_body rejected 464ms expected @036605466510+wt
 	machine `publish` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/atomic_compare_exchange_once_bounded/call_result rejected 573ms expected @2e70a865669c+wt
+	machine `attempt` state `entry` local `outcome` stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/atomic_compare_exchange_once_bounded/const_name rejected 623ms expected @2e70a865669c+wt
+	machine `probe` state `entry` local `outcome` stores a value not provably within its data's `where` facts at replacement completion
+	machine `mismatch` state `entry` local `outcome` stores a value not provably within its data's `where` facts at replacement completion
+fail/facts/atomic_compare_exchange_once_bounded/dynamic_replacement rejected 563ms expected @2e70a865669c+wt
+	machine `attempt` state `entry` local `outcome` stores a value not provably within its data's `where` facts at replacement completion
+fail/facts/atomic_compare_exchange_once_bounded/field rejected 498ms expected @2e70a865669c+wt
+	machine `probe` state `entry` local `raw` stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+	machine `mismatch` state `entry` local `raw` stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/atomic_compare_exchange_once_bounded/local rejected 586ms expected @2e70a865669c+wt
+	machine `probe` state `entry` local `outcome` stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+	machine `mismatch` state `entry` local `outcome` stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/atomic_compare_exchange_once_bounded/match_join rejected 579ms expected @2e70a865669c+wt
+	machine `probe` state `entry` local `raw` stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+	machine `mismatch` state `entry` local `raw` stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/atomic_compare_exchange_once_bounded/ordered_replacement rejected 579ms expected @2e70a865669c+wt
+	machine `probe` state `entry` local `outcome` stores a value not provably within its data's `where` facts at replacement completion
+fail/facts/atomic_compare_exchange_once_bounded/other_machine rejected 600ms expected @2e70a865669c+wt
+	machine `probe` state `entry` local `outcome` stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/atomic_compare_exchange_once_bounded/other_state rejected 552ms expected @2e70a865669c+wt
+	machine `probe` state `entry` local `outcome` stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/atomic_compare_exchange_once_bounded/parameter rejected 528ms expected @2e70a865669c+wt
+	machine `probe` state `entry` local `outcome` stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+	machine `mismatch` state `entry` local `outcome` stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/atomic_compare_exchange_once_bounded/replacement_left_snapshot rejected 530ms expected @2e70a865669c+wt
+	machine `probe` state `entry` local `outcome` stores a value not provably within its data's `where` facts at replacement completion
+fail/facts/atomic_compare_exchange_once_bounded/replacement_right_snapshot rejected 459ms expected @2e70a865669c+wt
+	machine `probe` state `entry` local `outcome` stores a value not provably within its data's `where` facts at replacement completion
+fail/facts/atomic_compare_exchange_once_bounded/target_body rejected 719ms expected @2e70a865669c+wt
+	machine `attempt` state `entry` local `outcome` stores a value not provably within its data's `where` facts at replacement completion
+	machine `attempt` state `entry` local `outcome` stores a value not provably within its data's `where` facts at replacement completion
+	machine `attempt` state `entry` local `outcome` stores a value not provably within its data's `where` facts at replacement completion
+	machine `attempt` state `entry` local `outcome` stores a value not provably within its data's `where` facts at replacement completion
+fail/facts/atomic_compare_exchange_once_bounded/unrestored_helper rejected 529ms expected @2e70a865669c+wt
+	machine `break_invariant` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/facts/atomic_compare_exchange_once_composition_rejected rejected 2ms expected @a92f16431042
 	tests/omega/fail/facts/atomic_compare_exchange_once_composition_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
 fail/facts/atomic_compare_exchange_once_forged_outcome_rejected rejected 942ms expected @a92f16431042
@@ -23087,6 +23123,20 @@ pass/facts/atomic_bounded_resident/other_machine checked 1942ms check-target:mac
 pass/facts/atomic_bounded_resident/other_state checked 2284ms check-target:macos_arm64 @036605466510+wt
 pass/facts/atomic_bounded_resident/parameter checked 1995ms check-target:macos_arm64 @036605466510+wt
 pass/facts/atomic_bounded_resident/target_body checked 2546ms check-target:macos_arm64 @036605466510+wt
+pass/facts/atomic_compare_exchange_once_bounded/call_result checked 4436ms check-target:macos_arm64 @2e70a865669c+wt
+pass/facts/atomic_compare_exchange_once_bounded/const_name checked 4839ms check-target:macos_arm64 @2e70a865669c+wt
+pass/facts/atomic_compare_exchange_once_bounded/dynamic_replacement checked 3275ms check-target:macos_arm64 @2e70a865669c+wt
+pass/facts/atomic_compare_exchange_once_bounded/field checked 3149ms check-target:macos_arm64 @2e70a865669c+wt
+pass/facts/atomic_compare_exchange_once_bounded/local checked 2812ms check-target:macos_arm64 @2e70a865669c+wt
+pass/facts/atomic_compare_exchange_once_bounded/match_join checked 2630ms check-target:macos_arm64 @2e70a865669c+wt
+pass/facts/atomic_compare_exchange_once_bounded/operand_effect checked 2253ms check-target:macos_arm64 @2e70a865669c+wt
+pass/facts/atomic_compare_exchange_once_bounded/ordered_replacement checked 2525ms check-target:macos_arm64 @2e70a865669c+wt
+pass/facts/atomic_compare_exchange_once_bounded/other_machine checked 2756ms check-target:macos_arm64 @2e70a865669c+wt
+pass/facts/atomic_compare_exchange_once_bounded/other_state checked 2482ms check-target:macos_arm64 @2e70a865669c+wt
+pass/facts/atomic_compare_exchange_once_bounded/parameter checked 2082ms check-target:macos_arm64 @2e70a865669c+wt
+pass/facts/atomic_compare_exchange_once_bounded/replacement_left_snapshot checked 2587ms check-target:macos_arm64 @2e70a865669c+wt
+pass/facts/atomic_compare_exchange_once_bounded/replacement_right_snapshot checked 2122ms check-target:macos_arm64 @2e70a865669c+wt
+pass/facts/atomic_compare_exchange_once_bounded/target_body checked 2083ms check-target:macos_arm64 @2e70a865669c+wt
 pass/facts/atomic_compare_exchange_once_composition_exit checked 4403ms check-target:macos_arm64 @a92f16431042
 pass/facts/atomic_compare_exchange_once_high_bit_exit checked 4369ms check-target:macos_arm64 @a92f16431042
 pass/facts/atomic_compare_exchange_once_local_exit checked 4033ms check-target:macos_arm64 @a92f16431042

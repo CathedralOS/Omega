@@ -78,6 +78,75 @@ pub fn completed_value_is_bounded_by_static(
     complete == Some(true) && proven
 }
 
+/// Prove a finite receiving interval on the actual completed scalar value.
+/// The goal contributes no premises; ordered child snapshots and checked call
+/// guarantees come only from the normal-return owner at this occurrence.
+pub(crate) fn completed_value_fits_integer_interval(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    interval: crate::proof_contracts::arithmetic_domains::Interval,
+) -> bool {
+    let Some(reference) =
+        crate::expression_result_type_reference(program, machine, state, expression)
+    else {
+        return false;
+    };
+    let Some(primitive) = program
+        .primitive_type_reference(reference)
+        .filter(|p| p.is_fixed_integer())
+    else {
+        return false;
+    };
+    let mut proven = true;
+    let complete = observe_completed_values(
+        program,
+        machine,
+        state,
+        statement_index,
+        expression,
+        reference,
+        |judge, value| {
+            for (bound, lower) in [(interval.low, true), (interval.high, false)] {
+                let Some(bound) = bound else {
+                    continue;
+                };
+                let bound = StructuralTerm::Integer(super::BigInt::from_i128(i128::from(bound)));
+                let (left, right) = if lower {
+                    (bound, value.clone())
+                } else {
+                    (value.clone(), bound)
+                };
+                let predicate = StructuralTerm::ScalarBinary {
+                    references: [reference; 2],
+                    operator: typed_trees::expression::BinaryOperator::LessOrEqual,
+                    meaning: [(primitive, numerics::arithmetic::ArithmeticDomain::Exact); 2],
+                    left: Box::new(left),
+                    right: Box::new(right),
+                };
+                let judgment = judge.judge_observed_predicate(predicate.clone(), 0);
+                if super::struct_trace() {
+                    eprintln!(
+                        "STRUCT completed interval expression={expression:?} predicate={predicate:?} judgment={judgment:?}"
+                    );
+                }
+                proven &= matches!(
+                    judgment,
+                    super::structural_judgment::StructuralJudgment::Proven
+                );
+            }
+        },
+    );
+    if super::struct_trace() {
+        eprintln!(
+            "STRUCT completed interval expression={expression:?} coverage={complete:?} proven={proven}"
+        );
+    }
+    complete == Some(true) && proven
+}
+
 /// Visit every reachable completion. None means the prefix was unavailable;
 /// false means that the callbacks do not cover all reachable completions.
 /// Partial observations may refute a predicate, but cannot establish one.

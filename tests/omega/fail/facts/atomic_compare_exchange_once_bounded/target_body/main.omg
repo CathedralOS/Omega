@@ -1,0 +1,50 @@
+// Expected exit: 0.
+// Bounded production: the selected atomic resident remains <= 100 on every outcome.
+// A single-attempt exchange reports success or the instruction-observed failure value at its exact atomic cell.
+use omega::language::core::layout;
+const REPLACEMENT: u32 = 99;
+data Cells where selected <= 98 { selected: AtomicU32; untouched: AtomicU32; }
+data Held { outcome: AtomicCompareExchangeOnceOutcome<u32>; }
+linux_x86_64 machine attempt(cells: &Cells, expected: u32) -> AtomicCompareExchangeOnceOutcome<u32> {
+    let outcome: AtomicCompareExchangeOnceOutcome<u32> = cells.selected.compare_exchange_once(expected, REPLACEMENT, ReceivePublish, Receive);
+    outcome
+}
+windows_x86_64 machine attempt(cells: &Cells, expected: u32) -> AtomicCompareExchangeOnceOutcome<u32> {
+    let outcome: AtomicCompareExchangeOnceOutcome<u32> = cells.selected.compare_exchange_once(expected, REPLACEMENT, ReceivePublish, Receive);
+    outcome
+}
+linux_arm64 machine attempt(cells: &Cells, expected: u32) -> AtomicCompareExchangeOnceOutcome<u32> {
+    let outcome: AtomicCompareExchangeOnceOutcome<u32> = cells.selected.compare_exchange_once(expected, REPLACEMENT, ReceivePublish, Receive);
+    outcome
+}
+macos_arm64 machine attempt(cells: &Cells, expected: u32) -> AtomicCompareExchangeOnceOutcome<u32> {
+    let outcome: AtomicCompareExchangeOnceOutcome<u32> = cells.selected.compare_exchange_once(expected, REPLACEMENT, ReceivePublish, Receive);
+    outcome
+}
+machine carry(outcome: AtomicCompareExchangeOnceOutcome<u32>) -> AtomicCompareExchangeOnceOutcome<u32> { outcome }
+machine probe(cells: &Cells, expected: u32, want_success: bool, branch: bool) -> bool {
+    cells.selected.store(10, NoOrdering);
+    cells.untouched.store(17, NoOrdering);
+    let raw: AtomicCompareExchangeOnceOutcome<u32> = attempt(cells, expected);
+    let held: Held = Held { outcome: raw };
+    let joined: AtomicCompareExchangeOnceOutcome<u32> = match branch {
+        true -> carry(held.outcome),
+        false -> carry(held.outcome),
+    };
+    transition { _ -> inspect(joined, cells, want_success) }
+    state inspect(outcome: AtomicCompareExchangeOnceOutcome<u32>, cells: &Cells, want_success: bool) -> bool {
+        let after: u32 = cells.selected.load(NoOrdering);
+        let sibling: u32 = cells.untouched.load(NoOrdering);
+        transition outcome {
+            AtomicCompareExchangeOnceOutcome::Exchanged -> (want_success && after == 99 && sibling == 17)
+            AtomicCompareExchangeOnceOutcome::Mismatched { observed } -> (!want_success && observed == 10 && after == 10 && sibling == 17)
+            AtomicCompareExchangeOnceOutcome::Uncommitted { observed } -> (want_success && observed == 10 && after == 10 && sibling == 17)
+        }
+    }
+}
+machine main() crashes Trap {
+    let cells: Cells;
+    transition probe(&cells, 10, true, true) && probe(&cells, 9, false, false) { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}
