@@ -1,0 +1,1 @@
+const `WRONG` declares type `ImpostorToken`, but the parameter requires `Token`

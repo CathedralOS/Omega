@@ -1,0 +1,7 @@
+public data Token [copy] { marker: u64; }
+public data Tokens {}
+public const Tokens::READY: Token = Token { marker: 1 };
+public domain<T, const Tag: Token> T::Tagged<Tag>;
+public data Holder<const Tag: Token> { value: u64; }
+public data Container { value: Holder<Tokens::READY>; }
+public machine selected(value: u64 in Tagged<Tokens::READY>) -> u64 in Tagged<Tokens::READY> { value }

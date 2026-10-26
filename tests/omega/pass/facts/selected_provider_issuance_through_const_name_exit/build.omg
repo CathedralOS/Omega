@@ -1,0 +1,13 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "selected_provider_issuance");
+    Build::accept_boundary<InitialSupply>(builder);
+    Build::select_provider<InitialSupply, InitialSupplyProvider>(builder);
+    Build::accept_boundary<Writer>(builder);
+    Build::select_provider<Writer, WriterProvider>(builder);
+    Build::accept_boundary<NativeBytes>(builder);
+    Build::select_provider<NativeBytes, HostedBytes>(builder);
+    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
+    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
+    Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
+}
