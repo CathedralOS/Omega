@@ -599,6 +599,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::ByteViewAddress => 22,
         SelectedInstructionKind::Store64 { .. } => 17,
         SelectedInstructionKind::FrameAddress { .. } => 18,
+        SelectedInstructionKind::InvokeNoNormal { .. } => 248,
         SelectedInstructionKind::CallUnit { .. } => 19,
 
         SelectedInstructionKind::Jump => 14,
@@ -666,7 +667,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
             bytes.push(width.byte_size());
         }
         SelectedInstructionKind::ReturnAggregate { fragment_count } => bytes.push(fragment_count),
-        SelectedInstructionKind::CallAggregate { target } => target.encode_identity(bytes),
+        crate::selected_call_pattern!(target, ..) => target.encode_identity(bytes),
         crate::hosted_slot_quad_pattern!(slot, ..) => {
             contracts::frame_slot(bytes, crate::FrameStorageSlotId::Local(slot));
         }
@@ -797,10 +798,6 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         | SelectedInstructionKind::HostedExitProcessI32
         | SelectedInstructionKind::ReturnUnit
         | SelectedInstructionKind::Jump => {}
-        SelectedInstructionKind::CallScalar { target }
-        | SelectedInstructionKind::CallUnit { target } => {
-            target.encode_identity(bytes);
-        }
         SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } => {
             crate::codec_bytes::push_encoded(bytes, boundary.get().to_le_bytes());
             crate::codec_bytes::push_encoded(bytes, ordinal.to_le_bytes());
