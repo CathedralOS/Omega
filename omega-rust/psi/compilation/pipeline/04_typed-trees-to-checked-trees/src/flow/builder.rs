@@ -20,6 +20,7 @@
 //! depend only on machines its values reach: a loop in an unrelated machine
 //! neither re-sweeps it nor sends it to the fallback.
 use crate::flow::FlowBuildContext;
+use crate::flow::SharedFlowTables;
 use crate::flow::StateMutationSummaryCache;
 use crate::flow::attach_reach_summaries;
 use crate::flow::build_state_flow_fact;
@@ -93,8 +94,9 @@ pub(crate) fn build_flow_facts(
     // changes with the incoming value inputs. Keep first-demand construction
     // lazy; the check pass owns the table so later consumers reuse it rather
     // than rebuilding identical rows.
+    let shared_tables = std::sync::Arc::new(SharedFlowTables::new(program, scalar_expressions));
     let new_build = || {
-        FlowBuildContext::new(
+        FlowBuildContext::with_shared_tables(
             program,
             borrow,
             proof,
@@ -104,6 +106,7 @@ pub(crate) fn build_flow_facts(
             exact_integer_casts,
             call_frames,
             state_mutation_summary_cache,
+            shared_tables.clone(),
         )
     };
 
@@ -143,7 +146,6 @@ fn build_groups<'plans>(
             .adopt_additional_pages(pages.invalidations);
         flow.borrow_lifetimes
             .adopt_additional_pages(pages.borrow_lifetimes);
-        flow.ownership.adopt_additional_pages(pages.ownership);
         flow.boundaries.adopt_additional_pages(pages.boundaries);
         flow.control.adopt_additional_pages(pages.control);
         semantic.adopt_additional_pages(semantic_pages);

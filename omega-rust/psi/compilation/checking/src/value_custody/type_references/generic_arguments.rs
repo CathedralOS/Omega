@@ -12,6 +12,7 @@ use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, T
 
 mod closed_expressions;
 pub use closed_expressions::normalize_closed_const_expression;
+pub(crate) use closed_expressions::normalize_closed_const_expression_in_carrier;
 
 /// Check the supplying expression before a closed value can specialize another
 /// declaration's theory. The destination supplies a carrier, never assumptions

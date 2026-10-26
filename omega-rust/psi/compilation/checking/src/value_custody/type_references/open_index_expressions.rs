@@ -468,6 +468,11 @@ fn validate_indexed_domain_argument_pack(
     if parameters.is_empty() {
         return;
     }
+    // A closed scalar cannot discharge a receiving carrier whose other actuals
+    // still belong to the caller. Preserve ordinary scoped/open formation.
+    let closed_application = arguments
+        .iter()
+        .all(|argument| typed_trees::domain::index_argument_is_closed(program, *argument));
     for (parameter, argument) in parameters.iter().zip(arguments) {
         let TypeParameterKind::Const {
             type_reference: expected,
@@ -481,6 +486,7 @@ fn validate_indexed_domain_argument_pack(
             if let TypeReferenceNode::ConstExpression(expression) =
                 program.type_reference_table.type_reference(*argument)
             {
+                let prior_diagnostics = diagnostics.len();
                 validate_open_index_expression(
                     program,
                     *expression,
@@ -490,6 +496,38 @@ fn validate_indexed_domain_argument_pack(
                     owner,
                     diagnostics,
                 );
+                // Form the supplying recipe before replaying any completed
+                // value against the whole receiving carrier and its bounds.
+                if closed_application
+                    && typed_trees::domain::index_argument_is_closed(program, expected)
+                    && diagnostics.len() == prior_diagnostics
+                {
+                    let carrier = super::generic_arguments::AppliedValueCarrier::applied(
+                        expected, parameters, arguments,
+                    );
+                    let completed =
+                        super::generic_arguments::normalize_closed_const_expression_in_carrier(
+                            program,
+                            scope.lexical_owner,
+                            *expression,
+                            carrier,
+                        )
+                        .and_then(|value| {
+                            if let Some(value) = value {
+                                super::generic_arguments::validate_exact_const_identity_in_carrier(
+                                    program,
+                                    carrier,
+                                    &value.identity(),
+                                )?;
+                            }
+                            Ok(())
+                        });
+                    if let Err(reason) = completed {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "{owner} supplies an invalid closed argument for indexed domain `{domain_name}`: {reason}"
+                        )));
+                    }
+                }
             } else {
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} supplies a noncanonical argument for indexed domain `{}`",
@@ -498,6 +536,22 @@ fn validate_indexed_domain_argument_pack(
             }
             continue;
         };
+        // Closed preparation data is not an admission receipt. Even an unused
+        // indexed type owes its full receiving carrier before derived theory
+        // can supply a premise; reuse the ordinary immutable tuple judgment.
+        if closed_application && !symbol.is_valid() {
+            if let Err(mut failures) = super::generic_arguments::validate_closed_const_argument(
+                program,
+                domain_name,
+                parameter,
+                *argument,
+                parameters,
+                arguments,
+            ) {
+                diagnostics.append(&mut failures);
+            }
+            continue;
+        }
         if let Some(value) =
             language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
         {

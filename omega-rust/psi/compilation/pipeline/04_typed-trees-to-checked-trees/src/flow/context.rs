@@ -103,6 +103,48 @@ impl SymbolIndex {
     }
 }
 
+pub(super) struct SharedFlowTables {
+    dynamic_conformances: Option<std::sync::Arc<checked_trees::DynamicConformanceFacts>>,
+    symbol_index: SymbolIndex,
+    scalar_bindings_by_site: HashMap<
+        (SymbolHandle, u32),
+        Vec<arena::Handle<checked_trees::CheckedScalarExpressionBindings>>,
+    >,
+    scalar_expressions_by_site: HashMap<(SymbolHandle, u32), Vec<usize>>,
+    integer_literal_thresholds: std::sync::OnceLock<std::sync::Arc<Vec<numerics::bignum::BigInt>>>,
+}
+
+impl SharedFlowTables {
+    pub(super) fn new(
+        program: &dyn ::validation::CheckingInput,
+        scalar_expressions: &checked_trees::CheckedScalarExpressionPlans,
+    ) -> Self {
+        let mut scalar_bindings_by_site = HashMap::default();
+        for (handle, binding) in scalar_expressions.source_bindings.iter() {
+            scalar_bindings_by_site
+                .entry((binding.state, binding.statement_ordinal))
+                .or_insert_with(Vec::new)
+                .push(handle);
+        }
+        let mut scalar_expressions_by_site = HashMap::default();
+        for (row, expression) in scalar_expressions.expressions.iter().enumerate() {
+            scalar_expressions_by_site
+                .entry((expression.state, expression.statement_ordinal))
+                .or_insert_with(Vec::new)
+                .push(row);
+        }
+        Self {
+            dynamic_conformances: crate::facts::build_dynamic_conformance_facts(program)
+                .ok()
+                .map(std::sync::Arc::new),
+            symbol_index: SymbolIndex::build(program),
+            scalar_bindings_by_site,
+            scalar_expressions_by_site,
+            integer_literal_thresholds: std::sync::OnceLock::new(),
+        }
+    }
+}
+
 pub(super) struct FlowBuildContext<'plans> {
     /// Chronological normal-call descriptor values for the state being built.
     /// Completed by-value payloads of the target currently being evaluated.
@@ -113,9 +155,10 @@ pub(super) struct FlowBuildContext<'plans> {
     pub(super) operators: &'plans checked_trees::CheckedOperatorFacts,
     pub(super) exact_integer_casts: &'plans [validation::ExactIntegerCastFact],
     pub(super) call_frames: Option<&'plans validation::CallFrameResolver<'plans>>,
+    shared_tables: std::sync::Arc<SharedFlowTables>,
     /// Immutable constructor/row receipts, never a closed-world roster of
     /// possible incoming selectors. Only a completed value can select a row.
-    pub(super) dynamic_conformances: Option<checked_trees::DynamicConformanceFacts>,
+    pub(super) dynamic_conformances: Option<std::sync::Arc<checked_trees::DynamicConformanceFacts>>,
     pub(super) state_value_inputs: Vec<super::state_values::StateValues>,
     pub(super) dirty_state_value_inputs: Vec<SymbolHandle>,
     pub(super) new_state_field_input_height: usize,
@@ -191,18 +234,6 @@ pub(super) struct FlowBuildContext<'plans> {
         typed_trees::types::TypeReferenceHandle,
         Option<Rc<Vec<validation::field_domains::FieldDomainIdentity>>>,
     >,
-    /// Lazily built on the first symbol lookup; positions only, so it holds
-    /// no typed-tree borrow and survives `discard_output`.
-    symbol_index: Option<SymbolIndex>,
-    /// Checked scalar plan rows grouped by their binding site, keyed
-    /// (state, statement_ordinal). Both plans tables are program-immutable;
-    /// role filtering stays at the call site, so the row lists keep the
-    /// table's iteration order. `selected_scalar_at` is their only reader.
-    scalar_bindings_by_site: HashMap<
-        (SymbolHandle, u32),
-        Vec<arena::Handle<checked_trees::CheckedScalarExpressionBindings>>,
-    >,
-    scalar_expressions_by_site: HashMap<(SymbolHandle, u32), Vec<usize>>,
     /// Program-pure per-site answers repeated on every pass: canonical
     /// places, expression result types, transition call targets, entry
     /// parameter origin chains, and reference-local candidate places. The
@@ -262,12 +293,6 @@ pub(super) struct FlowBuildContext<'plans> {
         arena::Handle<typed_trees::domain::ProofFact>,
         Rc<Vec<typed_trees::expression::ExpressionHandle>>,
     >,
-    /// Sorted unique integer literals authored anywhere in the program -- the
-    /// widening thresholds `state_values::fields` consults when a joined bound
-    /// keeps extending. Program-pure like the memo tables above, so the
-    /// whole-arena scan and its literal parsing run at most once per build
-    /// rather than once per widening rejoin.
-    integer_literal_thresholds: Option<Rc<Vec<numerics::bignum::BigInt>>>,
     /// Sorted by exact source occurrence, populated only for guards reached by
     /// flow. Retain unsuccessful source binding as well as successful binding.
     guard_predicates: Vec<GuardPreparation>,
@@ -275,7 +300,6 @@ pub(super) struct FlowBuildContext<'plans> {
     pub(super) contexts: FlowContextFacts,
     pub(super) invalidations: FlowInvalidationFacts,
     pub(super) borrow_lifetimes: FlowBorrowLifetimeFacts,
-    pub(super) ownership: FlowOwnershipFacts,
     pub(super) boundaries: FlowBoundaryFacts,
     pub(super) control: FlowControlFacts,
     /// Current state's contiguous statement frontier while its flow is built.
@@ -321,6 +345,7 @@ impl<'plans> FlowBuildContext<'plans> {
         effects
     }
 
+    #[cfg(test)]
     #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
         program: &'plans dyn ::validation::CheckingInput,
@@ -333,20 +358,35 @@ impl<'plans> FlowBuildContext<'plans> {
         call_frames: Option<&'plans validation::CallFrameResolver<'plans>>,
         state_mutation_summary_cache: &'plans StateMutationSummaryCache,
     ) -> Self {
-        let mut scalar_bindings_by_site = HashMap::default();
-        for (handle, binding) in scalar_expressions.source_bindings.iter() {
-            scalar_bindings_by_site
-                .entry((binding.state, binding.statement_ordinal))
-                .or_insert_with(Vec::new)
-                .push(handle);
-        }
-        let mut scalar_expressions_by_site = HashMap::default();
-        for (row, expression) in scalar_expressions.expressions.iter().enumerate() {
-            scalar_expressions_by_site
-                .entry((expression.state, expression.statement_ordinal))
-                .or_insert_with(Vec::new)
-                .push(row);
-        }
+        let shared_tables = std::sync::Arc::new(SharedFlowTables::new(program, scalar_expressions));
+        Self::with_shared_tables(
+            program,
+            borrow,
+            proof,
+            semantic,
+            scalar_expressions,
+            operators,
+            exact_integer_casts,
+            call_frames,
+            state_mutation_summary_cache,
+            shared_tables,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn with_shared_tables(
+        program: &'plans dyn ::validation::CheckingInput,
+        _borrow: &BorrowFacts,
+        _proof: &ProofFacts,
+        _semantic: &FactPlan,
+        scalar_expressions: &'plans checked_trees::CheckedScalarExpressionPlans,
+        operators: &'plans checked_trees::CheckedOperatorFacts,
+        exact_integer_casts: &'plans [validation::ExactIntegerCastFact],
+        call_frames: Option<&'plans validation::CallFrameResolver<'plans>>,
+        state_mutation_summary_cache: &'plans StateMutationSummaryCache,
+        shared_tables: std::sync::Arc<SharedFlowTables>,
+    ) -> Self {
+        let dynamic_conformances = shared_tables.dynamic_conformances.clone();
         Self {
             active_completed_copies: arena::HandleSpan::empty(),
             program,
@@ -356,7 +396,8 @@ impl<'plans> FlowBuildContext<'plans> {
             operators,
             exact_integer_casts,
             call_frames,
-            dynamic_conformances: crate::facts::build_dynamic_conformance_facts(program).ok(),
+            shared_tables,
+            dynamic_conformances,
             state_value_inputs: Vec::new(),
             dirty_state_value_inputs: Vec::new(),
             new_state_field_input_height: 0,
@@ -369,9 +410,6 @@ impl<'plans> FlowBuildContext<'plans> {
             result_identity_domain_rows: HashMap::default(),
             call_parameter_identities: HashMap::default(),
             referent_type_paths: HashMap::default(),
-            symbol_index: None,
-            scalar_bindings_by_site,
-            scalar_expressions_by_site,
             canonical_places: HashMap::default(),
             expression_result_types: HashMap::default(),
             transition_call_targets: HashMap::default(),
@@ -382,60 +420,28 @@ impl<'plans> FlowBuildContext<'plans> {
             correspondence_root_types: HashMap::default(),
             expression_occurrences: HashMap::default(),
             proof_fact_occurrences: HashMap::default(),
-            integer_literal_thresholds: None,
             guard_predicates: Vec::new(),
             state_mutation_summary_cache,
             assignment_observations: Default::default(),
-            contexts: FlowContextFacts::with_roots(
-                arena::PagedArenaSet::with_capacity(semantic.contexts.len().saturating_mul(2)),
-                arena::PagedArenaSet::with_capacity(
-                    semantic
-                        .contexts
-                        .len()
-                        .saturating_mul(3)
-                        .saturating_add(borrow.states.len())
-                        .saturating_add(borrow.calls.len())
-                        .saturating_add(borrow.loans.len()),
-                ),
-            ),
-            invalidations: FlowInvalidationFacts::with_roots(
-                arena::PagedArenaSet::default(),
-                arena::PagedArenaSet::default(),
-            ),
-            borrow_lifetimes: FlowBorrowLifetimeFacts::with_roots(
-                arena::PagedArenaSet::default(),
-                arena::PagedArenaSet::default(),
-            ),
-            ownership: FlowOwnershipFacts::with_roots(
-                arena::PagedArenaSet::default(),
-                arena::PagedArenaSet::default(),
-                arena::PagedArenaSet::default(),
-                arena::PagedArenaSet::default(),
-            ),
-            boundaries: FlowBoundaryFacts::with_roots(arena::PagedArenaSet::with_capacity(
-                borrow.calls.len(),
-            )),
-            control: FlowControlFacts::with_roots(
-                arena::PagedArenaSet::with_capacity(borrow.calls.len()),
-                arena::PagedArenaSet::with_capacity(borrow.calls.len()),
-                arena::PagedArenaSet::with_capacity(proof.contract_exits.len()),
-                arena::PagedArenaSet::with_capacity(borrow.states.len()),
-            ),
+            contexts: FlowContextFacts::default(),
+            invalidations: FlowInvalidationFacts::default(),
+            borrow_lifetimes: FlowBorrowLifetimeFacts::default(),
+            boundaries: FlowBoundaryFacts::default(),
+            control: FlowControlFacts::default(),
         }
     }
 
-    fn symbol_index(&mut self, program: &dyn ::validation::CheckingInput) -> &SymbolIndex {
-        self.symbol_index
-            .get_or_insert_with(|| SymbolIndex::build(program))
+    fn symbol_index(&self) -> &SymbolIndex {
+        &self.shared_tables.symbol_index
     }
 
     /// Position of `machine_symbol` in `program.machines()`.
     pub(super) fn machine_index(
-        &mut self,
-        program: &dyn ::validation::CheckingInput,
+        &self,
+        _program: &dyn ::validation::CheckingInput,
         machine_symbol: SymbolHandle,
     ) -> Option<usize> {
-        self.symbol_index(program)
+        self.symbol_index()
             .machine_index
             .get(&machine_symbol)
             .copied()
@@ -443,12 +449,12 @@ impl<'plans> FlowBuildContext<'plans> {
 
     /// Position of `state_symbol` inside `machine_symbol`'s state list.
     pub(super) fn state_index_in_machine(
-        &mut self,
-        program: &dyn ::validation::CheckingInput,
+        &self,
+        _program: &dyn ::validation::CheckingInput,
         machine_symbol: SymbolHandle,
         state_symbol: SymbolHandle,
     ) -> Option<usize> {
-        self.symbol_index(program)
+        self.symbol_index()
             .state_index_in_machine
             .get(&(machine_symbol, state_symbol))
             .copied()
@@ -457,11 +463,11 @@ impl<'plans> FlowBuildContext<'plans> {
     /// `(machines index, in-machine state index)` of a state symbol anywhere
     /// in the program -- the shape `TypedTrees::state_by_symbol` resolves.
     pub(super) fn state_location(
-        &mut self,
-        program: &dyn ::validation::CheckingInput,
+        &self,
+        _program: &dyn ::validation::CheckingInput,
         state_symbol: SymbolHandle,
     ) -> Option<(usize, usize)> {
-        self.symbol_index(program)
+        self.symbol_index()
             .state_location
             .get(&state_symbol)
             .copied()
@@ -802,12 +808,13 @@ impl<'plans> FlowBuildContext<'plans> {
     /// set cannot change mid-build, so the collection and its per-literal
     /// `BigInt` parsing memoize on first widening demand.
     pub(super) fn integer_literal_thresholds_at(
-        &mut self,
+        &self,
         program: &dyn ::validation::CheckingInput,
-    ) -> Rc<Vec<numerics::bignum::BigInt>> {
-        self.integer_literal_thresholds
-            .get_or_insert_with(|| {
-                Rc::new(super::state_values::fields::integer_literal_thresholds(
+    ) -> std::sync::Arc<Vec<numerics::bignum::BigInt>> {
+        self.shared_tables
+            .integer_literal_thresholds
+            .get_or_init(|| {
+                std::sync::Arc::new(super::state_values::fields::integer_literal_thresholds(
                     program,
                 ))
             })
@@ -836,6 +843,7 @@ impl<'plans> FlowBuildContext<'plans> {
     > {
         let plans = self.scalar_expressions;
         let mut bindings = self
+            .shared_tables
             .scalar_bindings_by_site
             .get(&(state, statement_ordinal))
             .into_iter()
@@ -847,6 +855,7 @@ impl<'plans> FlowBuildContext<'plans> {
             return Some(None);
         }
         let mut expressions = self
+            .shared_tables
             .scalar_expressions_by_site
             .get(&(state, statement_ordinal))
             .into_iter()
@@ -914,7 +923,6 @@ impl<'plans> FlowBuildContext<'plans> {
         self.contexts.reset_pages();
         self.invalidations.reset_pages();
         self.borrow_lifetimes.reset_pages();
-        self.ownership.reset_pages();
         self.boundaries.reset_pages();
         self.control.reset_pages();
         self.new_state_field_input_height = 0;
@@ -925,7 +933,6 @@ impl<'plans> FlowBuildContext<'plans> {
         self.contexts.begin_page(generation);
         self.invalidations.begin_page(generation);
         self.borrow_lifetimes.begin_page(generation);
-        self.ownership.begin_page(generation);
         self.boundaries.begin_page(generation);
         self.control.begin_page(generation);
     }
@@ -938,7 +945,7 @@ impl<'plans> FlowBuildContext<'plans> {
             self.contexts.take_additional_pages(),
             self.invalidations.take_additional_pages(),
             self.borrow_lifetimes.take_additional_pages(),
-            self.ownership.take_additional_pages(),
+            FlowOwnershipFacts::default(),
             self.boundaries.take_additional_pages(),
             self.control.take_additional_pages(),
         );

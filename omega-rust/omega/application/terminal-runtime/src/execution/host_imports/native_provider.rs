@@ -8,6 +8,7 @@
 //! services retain their explicit bindings before this route is considered.
 
 mod original_homes;
+mod record_fields;
 mod values;
 pub(super) use original_homes::NativeContext;
 use original_homes::rejection;
@@ -172,7 +173,12 @@ impl NativeImport {
                     .result
                     .and_then(|root| application.signature.shapes.get(root as usize))
                     .ok_or_else(|| missing("native record result has no public shape".into()))?;
-                validate_record_shape(&application.signature, *shape, &codec)
+                let semantic = program
+                    .structural_type(codec.structural_type)
+                    .ok_or_else(|| {
+                        missing("native result lost its semantic record declaration".into())
+                    })?;
+                validate_record_shape(&application.signature, *shape, &codec, semantic)
                     .map_err(|error| missing(error.reason))?;
                 ResultCodec::Record(codec)
             }
@@ -219,7 +225,46 @@ fn validate_record_shape(
     signature: &calling_conventions::BoundarySignatureGeometry,
     shape: calling_conventions::BoundaryValueShape,
     codec: &StorageCodec,
+    semantic: &terminal_psi::StructuralTypeDeclaration,
 ) -> Result<(), TerminalEffectRejection> {
+    // Borrowed storage can expose a complete nested scalar roster. Value ABI
+    // transport and the scalar aggregate publisher still require the exact
+    // direct-field semantic shape; equal flattened bytes cannot establish it.
+    // Checking the declaration also retains nested empty fields with no leaves.
+    let terminal_psi::StructuralTypeShape::Record {
+        fields: semantic_fields,
+        ..
+    } = &semantic.shape
+    else {
+        return Err(rejection("native value ABI needs a semantic record"));
+    };
+    let semantic_fields = semantic_fields
+        .iter()
+        .filter(|field| !field.relevance.is_erased());
+    if semantic.id != codec.structural_type || semantic_fields.clone().count() != codec.fields.len()
+    {
+        return Err(rejection(
+            "native value ABI changes its semantic field roster",
+        ));
+    }
+    for (semantic_field, field) in semantic_fields.zip(&codec.fields) {
+        let logical = match semantic_field.field_type {
+            terminal_psi::StructuralFieldType::Scalar(scalar) => scalar,
+            terminal_psi::StructuralFieldType::IeeeFloat(format) => ScalarType::IeeeFloat(format),
+            _ => {
+                return Err(rejection(
+                    "native value ABI needs direct scalar semantic fields",
+                ));
+            }
+        };
+        if !matches!(field.path.as_slice(), [semantic_vocabulary::CanonicalStructuralPathSegment::Field(identity)] if *identity == semantic_field.id)
+            || field.logical != logical
+        {
+            return Err(rejection(
+                "native value ABI changes its direct semantic field path",
+            ));
+        }
+    }
     if !matches!(shape.class, BoundaryValueClass::Record { .. })
         || usize::from(shape.byte_size) != codec.extent
         || usize::from(shape.alignment) != codec.alignment
@@ -353,7 +398,15 @@ fn admit_parameters(
                 let codec = StorageCodec::admit(program, layouts, parameter.structural_type)?;
                 match parameter.access {
                     StructuralAccess::Owned => {
-                        validate_record_shape(&application.signature, *shape, &codec)?;
+                        let semantic =
+                            program
+                                .structural_type(codec.structural_type)
+                                .ok_or_else(|| {
+                                    rejection(
+                                        "native value input lost its semantic record declaration",
+                                    )
+                                })?;
+                        validate_record_shape(&application.signature, *shape, &codec, semantic)?;
                         if matches!(
                             physical.class,
                             ValueClass::BorrowedReference | ValueClass::BorrowedScalarReference
@@ -605,7 +658,7 @@ mod tests {
     #[test]
     fn equal_record_extent_does_not_admit_changed_scalar_class_or_field_offset() {
         let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
-        let codec = StorageCodec {
+        let mut codec = StorageCodec {
             structural_type: StructuralTypeId::new(1).unwrap(),
             extent: 8,
             alignment: 8,
@@ -617,6 +670,26 @@ mod tests {
                 logical: scalar,
                 stored: scalar,
             }],
+        };
+        let mut semantic = terminal_psi::StructuralTypeDeclaration {
+            quotient_carrier: None,
+            id: codec.structural_type,
+            identity: terminal_psi::TerminalIdentityIndex(1),
+            owns_linear_claim: false,
+            copyable: false,
+            no_code_affine_cleanup: false,
+            descriptor_cleanup: false,
+            scalar_restriction: None,
+            shape: terminal_psi::StructuralTypeShape::Record {
+                fields: vec![terminal_psi::StructuralFieldDeclaration {
+                    id: StructuralFieldId::new(1).unwrap(),
+                    identity: terminal_psi::TerminalIdentityIndex(2),
+                    relevance: terminal_psi::BindingRelevance::Relevant,
+                    field_type: terminal_psi::StructuralFieldType::Scalar(scalar),
+                    storage: None,
+                }],
+                storage: terminal_psi::StructuralRecordStorage::Packed,
+            },
         };
         let record = BoundaryValueShape {
             class: BoundaryValueClass::Record {
@@ -651,12 +724,40 @@ mod tests {
             callback_layouts: Default::default(),
             callback_layout_rows: Default::default(),
         };
-        assert!(validate_record_shape(&signature, record, &codec).is_ok());
+        assert!(validate_record_shape(&signature, record, &codec, &semantic).is_ok());
+        // Equal flat public bytes do not authenticate a nested semantic path.
+        codec.fields[0]
+            .path
+            .push(CanonicalStructuralPathSegment::Field(
+                StructuralFieldId::new(2).unwrap(),
+            ));
+        assert!(validate_record_shape(&signature, record, &codec, &semantic).is_err());
+        codec.fields[0].path.pop();
+        // A nested empty field has no scalar leaf. Its semantic declaration
+        // must still prevent publication through a flat public record graph.
+        let terminal_psi::StructuralTypeShape::Record { fields, .. } = &mut semantic.shape else {
+            unreachable!()
+        };
+        fields.push(terminal_psi::StructuralFieldDeclaration {
+            id: StructuralFieldId::new(2).unwrap(),
+            identity: terminal_psi::TerminalIdentityIndex(3),
+            relevance: terminal_psi::BindingRelevance::Relevant,
+            field_type: terminal_psi::StructuralFieldType::Structural(
+                StructuralTypeId::new(2).unwrap(),
+            ),
+            storage: None,
+        });
+        assert!(validate_record_shape(&signature, record, &codec, &semantic).is_err());
+        let terminal_psi::StructuralTypeShape::Record { fields, .. } = &mut semantic.shape else {
+            unreachable!()
+        };
+        fields.pop();
+        assert!(validate_record_shape(&signature, record, &codec, &semantic).is_ok());
         signature.fields[0].shape = 2;
-        assert!(validate_record_shape(&signature, record, &codec).is_err());
+        assert!(validate_record_shape(&signature, record, &codec, &semantic).is_err());
         signature.fields[0].shape = 1;
         signature.fields[0].byte_offset = 1;
-        assert!(validate_record_shape(&signature, record, &codec).is_err());
+        assert!(validate_record_shape(&signature, record, &codec, &semantic).is_err());
         signature.fields[0].byte_offset = 0;
         let changed_span = BoundaryValueShape {
             class: BoundaryValueClass::Record {
@@ -665,6 +766,6 @@ mod tests {
             },
             ..record
         };
-        assert!(validate_record_shape(&signature, changed_span, &codec).is_err());
+        assert!(validate_record_shape(&signature, changed_span, &codec, &semantic).is_err());
     }
 }
