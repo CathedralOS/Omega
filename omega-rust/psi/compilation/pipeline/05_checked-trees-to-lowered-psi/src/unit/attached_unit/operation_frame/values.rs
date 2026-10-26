@@ -160,7 +160,7 @@ impl OperationEnvironment<'_> {
             value,
             &evaluation.contextual_bindings(),
             self.type_ids,
-            self.structural_types.declarations(),
+            self.structural_types,
             &mut Vec::new(),
         );
         let source_value_count = values.len();
