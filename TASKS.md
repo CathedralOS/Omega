@@ -1323,11 +1323,7 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     `omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/boundary_signatures.rs::opaque_representation_movement`
     to provider call-frame transport and backend emission for remaining
     qualified and view-backed opaque inputs with exact composition-edge drift
-    rejection, and restore the Build selection path across the deferred Product
-    source/dependency join for `select_representation` Data operands in
-    `samples/cli/facts/opaque_closed_carrier_exchange` (including
-    [independent_copy](samples/cli/facts/opaque_closed_carrier_exchange/independent_copy/README.md)
-    and [independent_linear](samples/cli/facts/opaque_closed_carrier_exchange/independent_linear/README.md)).
+    rejection.
   - **FOREIGN-RETAINED-ARGUMENT-BACKING:** complete installed-provider custody
     and native marshaling for protocol-owned backing, permitted snapshots, and
     remaining resident/view codecs (arrays, tagged/dynamic carriers,
