@@ -110,6 +110,47 @@ impl PremiseScope<'_> {
         }
     }
 
+    fn projected_bound(
+        &self,
+        program: &dyn ::validation::CheckingInput,
+        lookup: &validation::ImmutableBoundLookup<'_>,
+        expression: ExpressionHandle,
+        projection: &[facts::PlaceSegment],
+    ) -> Option<NormalizedBound> {
+        if projection.is_empty() {
+            return self.bound(program, lookup, expression);
+        }
+        if let Some(base) = self.bound(program, lookup, expression) {
+            return append_projection(program, lookup, base, projection);
+        }
+        let (expression, mut prefix) = match self {
+            Self::State { .. } => (expression, Vec::new()),
+            Self::Call { guarantee, .. } => guarantee.actual_projection(program, expression)?,
+            Self::Proposition {
+                parameters,
+                arguments,
+                ..
+            } => {
+                let place = validation::canonical_place_from_expression(program, expression)?;
+                let facts::PlaceRoot::Symbol(symbol) = place.root else {
+                    return None;
+                };
+                let position =
+                    typed_trees::signature::state_parameter_position(parameters, symbol)?;
+                (arguments[position], place.segments)
+            }
+            Self::Domain { .. } => return None,
+        };
+        let place = validation::canonical_place_from_expression(program, expression)?;
+        let facts::PlaceRoot::Symbol(symbol) = place.root else {
+            return None;
+        };
+        let mut segments = place.segments;
+        segments.append(&mut prefix);
+        let base = NormalizedBound::Projected { symbol, segments };
+        append_projection(program, lookup, base, projection)
+    }
+
     fn bound(
         &self,
         program: &dyn ::validation::CheckingInput,
@@ -304,6 +345,38 @@ impl PremiseScope<'_> {
             }
         }
     }
+}
+
+fn append_projection(
+    program: &dyn ::validation::CheckingInput,
+    lookup: &validation::ImmutableBoundLookup<'_>,
+    bound: NormalizedBound,
+    projection: &[facts::PlaceSegment],
+) -> Option<NormalizedBound> {
+    let (symbol, mut segments, storage) = match bound {
+        NormalizedBound::Symbol { symbol, offset: 0 } => (symbol, Vec::new(), false),
+        NormalizedBound::Projected { symbol, segments } => (symbol, segments, false),
+        NormalizedBound::Storage { symbol } => (symbol, Vec::new(), true),
+        NormalizedBound::StorageProjected { symbol, segments } => (symbol, segments, true),
+        _ => return None,
+    };
+    let mut reference = lookup.immutable_binding_type(symbol)?;
+    if let Some(shell) = validation::reference_shell(program, reference) {
+        if shell.access != language_core::ReferenceAccess::Shared {
+            return None;
+        }
+        reference = shell.referee;
+    }
+    segments.extend_from_slice(projection);
+    let leaf = validation::owned_projection_type_reference(program, reference, &segments)?;
+    if !program.primitive_type_reference(leaf)?.is_fixed_integer() {
+        return None;
+    }
+    Some(if storage {
+        NormalizedBound::StorageProjected { symbol, segments }
+    } else {
+        NormalizedBound::Projected { symbol, segments }
+    })
 }
 
 /// The bound of one receiver-rooted field projection as a stated premise
@@ -591,9 +664,16 @@ fn decompose_premise_expression(
         if !negated {
             for consequence in validation::predicate_ordering_consequences(program, expression) {
                 let operand_bound = |operand| match operand {
-                    validation::PredicateIntegerOperand::Argument(expression) => scope
-                        .has_builtin_meaning(program, expression)
-                        .then(|| scope.bound(program, lookup, expression))
+                    validation::PredicateIntegerOperand::Argument(subject) => scope
+                        .has_builtin_meaning(program, subject.expression)
+                        .then(|| {
+                            scope.projected_bound(
+                                program,
+                                lookup,
+                                subject.expression,
+                                &subject.projection,
+                            )
+                        })
                         .flatten(),
                     validation::PredicateIntegerOperand::Integer(value) => {
                         i64::try_from(value).ok().map(NormalizedBound::Integer)

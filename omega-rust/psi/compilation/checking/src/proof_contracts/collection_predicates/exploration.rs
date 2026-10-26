@@ -97,6 +97,7 @@ pub(crate) enum ValueShape {
         element_type: TypeReferenceHandle,
     },
     Integer(TypeReferenceHandle),
+    Record(TypeReferenceHandle),
     Boolean,
 }
 
@@ -118,6 +119,10 @@ pub(crate) fn value_shape(
             } if *access == language_core::ReferenceAccess::Shared => {
                 reference = *referee;
             }
+            TypeReferenceNode::Reference { .. } => return None,
+            TypeReferenceNode::Constrained { base_type, .. } => {
+                reference = *base_type;
+            }
             TypeReferenceNode::FixedArray {
                 element_type,
                 length: FixedArrayLength::Literal(length),
@@ -135,6 +140,11 @@ pub(crate) fn value_shape(
                     length: None,
                     element_type: *element_type,
                 });
+            }
+            _ if crate::value_custody::places::data_definition_for_type(program, reference)
+                .is_some() =>
+            {
+                return Some(ValueShape::Record(reference));
             }
             _ => {
                 return match program.primitive_type_reference(reference)? {
