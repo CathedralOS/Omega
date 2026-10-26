@@ -9,7 +9,7 @@ use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::runtime_rows::RuntimeRows;
-use crate::scalar_array::TerminalScalarArrayValue;
+use crate::scalar_array::ScalarArrayBindings;
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::{MachineId, PlaceId, ValueId};
 use terminal_psi::{StructuralAccess, StructuralArgument, StructuralParameterDeclaration};
@@ -24,7 +24,7 @@ pub(crate) struct StructuralCallArguments {
     pub(crate) aggregate_backings: RuntimeRows<PlaceId, crate::reference::AggregateBacking>,
     pub(crate) byte_sequences: RuntimeRows<PlaceId, ByteSequenceBinding>,
     pub(crate) primitive_loans: RuntimeRows<PlaceId, crate::primitive_storage::PrimitiveLoan>,
-    pub(crate) scalar_arrays: RuntimeRows<PlaceId, TerminalScalarArrayValue>,
+    pub(crate) scalar_arrays: ScalarArrayBindings,
     pub(crate) element_views: RuntimeRows<PlaceId, crate::element_views::ElementView>,
 }
 
@@ -89,7 +89,7 @@ impl TerminalExecution<'_> {
         // Bind payload-bearing arrays directly to callee places. The remaining
         // arguments use the existing opaque/borrowed-backing preparation; their
         // filtered positions must never be rebound against the full signature.
-        let mut scalar_arrays = RuntimeRows::new(self.account.as_ref());
+        let mut scalar_arrays = ScalarArrayBindings::new(self.account.as_ref());
         let mut opaque_parameters = Vec::new();
         let mut opaque_arguments = Vec::new();
         for (parameter, argument) in machine.structural_parameters.iter().zip(arguments) {
@@ -102,9 +102,7 @@ impl TerminalExecution<'_> {
                 && parameter.projected_qualifications.is_empty()
             {
                 let value = self.prepare_scalar_array_argument(machine, parameter, argument)?;
-                if scalar_arrays.insert(parameter.place, value)?.is_some() {
-                    return Err(malformed());
-                }
+                scalar_arrays.publish(parameter.place, value)?;
             } else {
                 opaque_parameters.push(parameter.clone());
                 opaque_arguments.push(argument.clone());

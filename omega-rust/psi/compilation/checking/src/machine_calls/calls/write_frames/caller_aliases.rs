@@ -114,6 +114,8 @@ pub struct CallWriteOrigins {
 /// coarse; exact structured coordinates are composed and checked independently.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalWriteSource {
+    /// An explicitly performed output, not a declaration-relative address.
+    pub invocation_output: Option<facts::InvocationOutputIdentity>,
     /// Literal-produced image backing cannot alias writable declaration storage.
     /// This category survives projection independently of coordinate precision;
     /// an absent declaration root alone never establishes static backing.
@@ -155,7 +157,9 @@ pub enum ReferenceResultTransport {
 
 impl LocalWriteSource {
     pub(super) fn frame_origin(&self) -> FramePlaceOrigin {
-        let mut source = if self.is_image_storage {
+        let mut source = if let Some(identity) = self.invocation_output {
+            super::place_paths::FrameSourcePlace::invocation_output(identity, self.segments.clone())
+        } else if self.is_image_storage {
             super::place_paths::FrameSourcePlace::image_storage()
         } else {
             super::place_paths::FrameSourcePlace::default()
@@ -164,7 +168,8 @@ impl LocalWriteSource {
         source.root = self.root;
         source.segments = self.segments.clone();
         source.representation = self.representation.clone();
-        source.builtin_coordinates = self.root.is_valid() || self.is_image_storage;
+        source.builtin_coordinates =
+            self.root.is_valid() || self.is_image_storage || self.invocation_output.is_some();
         FramePlaceOrigin {
             path: self.path.clone(),
             precision: if self.collection_coarse {
@@ -176,8 +181,16 @@ impl LocalWriteSource {
         }
     }
 
-    pub(crate) fn write_path(&self, program: &dyn crate::CheckingInput) -> String {
-        super::place_paths::project_write_path(program, &self.frame_origin(), "")
+    pub(crate) fn write_path(&self, program: &dyn crate::CheckingInput) -> Option<String> {
+        // Performed output permissions are not physical write coordinates.
+        if self.invocation_output.is_some() {
+            return None;
+        }
+        Some(super::place_paths::project_write_path(
+            program,
+            &self.frame_origin(),
+            "",
+        ))
     }
 
     /// Substitute relative storage using the frame owner's coordinate algebra.
@@ -187,7 +200,11 @@ impl LocalWriteSource {
         program: &dyn crate::CheckingInput,
         relative: &Self,
     ) -> Option<Self> {
-        if !self.root.is_valid() || !relative.root.is_valid() {
+        if self.invocation_output.is_some()
+            || relative.invocation_output.is_some()
+            || !self.root.is_valid()
+            || !relative.root.is_valid()
+        {
             return None;
         }
         let coordinate = |source: &Self| super::place_paths::FrameSourcePlace {
@@ -200,6 +217,7 @@ impl LocalWriteSource {
         };
         let source = coordinate(self).append_relative(program, &coordinate(relative));
         Some(Self {
+            invocation_output: self.invocation_output,
             is_image_storage: self.is_image_storage,
             recasts: source.recasts,
             root: source.root,
@@ -215,6 +233,7 @@ impl LocalWriteSource {
 impl From<FramePlaceOrigin> for LocalWriteSource {
     fn from(origin: FramePlaceOrigin) -> Self {
         Self {
+            invocation_output: origin.source.output_identity(),
             is_image_storage: origin.source.is_static(),
             recasts: origin.source.recasts,
             representation: origin.source.representation,
@@ -284,12 +303,10 @@ pub(super) fn assignment_write_paths(
                 state_assignments,
             )?
             .destinations;
-            Some(
-                destinations
-                    .iter()
-                    .map(|destination| destination.write_path(program))
-                    .collect(),
-            )
+            destinations
+                .iter()
+                .map(|destination| destination.write_path(program))
+                .collect()
         }
     }
 }
@@ -367,6 +384,7 @@ pub(super) fn assignment_storage_origins(
         );
         return Some(AssignmentStorageOrigins {
             destinations: vec![LocalWriteSource {
+                invocation_output: None,
                 is_image_storage: false,
                 recasts: Vec::new(),
                 representation: None,
@@ -397,6 +415,7 @@ pub(super) fn assignment_storage_origins(
         );
         return Some(AssignmentStorageOrigins {
             destinations: vec![LocalWriteSource {
+                invocation_output: None,
                 is_image_storage: source.is_static(),
                 recasts: source.recasts,
                 representation: source.representation,

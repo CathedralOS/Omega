@@ -599,3 +599,51 @@ impl TypedTrees {
             .map(|application| &application.theory)
     }
 }
+
+/// Whether a domain index recipe has no remaining declaration-owned binding.
+/// This structural reference query grants neither formation nor const admission.
+pub fn index_argument_is_closed(
+    program: &TypedTrees,
+    reference: crate::types::TypeReferenceHandle,
+) -> bool {
+    struct Closure<'a> {
+        program: &'a TypedTrees,
+        types: std::collections::HashSet<crate::types::TypeReferenceHandle>,
+        expressions: std::collections::HashSet<crate::expression::ExpressionHandle>,
+        open: bool,
+    }
+    impl Extend<symbols::SymbolHandle> for Closure<'_> {
+        fn extend<T: IntoIterator<Item = symbols::SymbolHandle>>(&mut self, symbols: T) {
+            self.open |= symbols
+                .into_iter()
+                .filter(|symbol| symbol.is_valid())
+                .any(|symbol| {
+                    matches!(
+                        self.program.symbols.get(symbol).kind,
+                        symbols::SymbolKind::TypeParameter
+                            | symbols::SymbolKind::MachineParameter
+                            | symbols::SymbolKind::ConformanceParameter
+                            | symbols::SymbolKind::PropositionParameter
+                            | symbols::SymbolKind::Parameter
+                            | symbols::SymbolKind::Local
+                    )
+                });
+        }
+    }
+    impl crate::references::TypedReferences for Closure<'_> {
+        fn type_reference(&mut self, reference: crate::types::TypeReferenceHandle) -> bool {
+            self.types.insert(reference)
+        }
+        fn expression(&mut self, expression: crate::expression::ExpressionHandle) -> bool {
+            self.expressions.insert(expression)
+        }
+    }
+    let mut closure = Closure {
+        program,
+        types: Default::default(),
+        expressions: Default::default(),
+        open: false,
+    };
+    crate::references::visit_type_reference(program, &mut closure, reference);
+    !closure.open
+}

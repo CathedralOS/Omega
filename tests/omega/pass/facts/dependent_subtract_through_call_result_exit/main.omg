@@ -1,19 +1,24 @@
-// `count - used` under `used <= count` is exact and non-negative.
+// `count - used` under `used <= count` is non-negative in exact u32.
+// `data where count <= 11` keeps that fact standing for `as i32`.
 // Expected exit: 0
 data Main where count <= 11 { count: u32; j: u32; out: i32; }
 
-machine gap(count: u32, used: u32) -> i32
-requires used <= count && count <= 11
+machine used_amount(main: &Main) -> u32
+requires main.j <= main.count
+ensures result <= main.count
+{ main.j }
+machine Main::main(main: &mut Main)
+    requires main.j <= main.count
 {
-    let remaining: u32 = count - used;
-    remaining as i32
+    let remaining: u32 = main.count - used_amount(main);
+    main.out = remaining as i32;
 }
 
 machine entry() crashes Trap {
     let mut a: Main = Main { count: 11, j: 4, out: 0 };
-    a.out = gap(a.count, a.j);
+    Main::main(&mut a);
     let mut b: Main = Main { count: 11, j: 11, out: 0 };
-    b.out = gap(b.count, b.j);
+    Main::main(&mut b);
     transition a.out == 7 && b.out == 0 {
         true -> done()
         _ -> bad()

@@ -26,6 +26,42 @@ pub(crate) fn selection_for_call(
     expected_return: Option<TypeReferenceHandle>,
     caller_is_generic: bool,
 ) -> Option<CallSelection> {
+    // A runtime `Value` subject resolves only against the locals the call can
+    // see: the caller's parameters and `let` declarations before its own
+    // statement.
+    let scope_limit =
+        enclosing_statement_ordinal(program, caller_state, site).unwrap_or(usize::MAX);
+    selection_for_call_with_local_prefix(
+        program,
+        caller_machine,
+        caller_state,
+        candidates,
+        callee_states,
+        site,
+        target_symbol,
+        machine_arguments,
+        arguments,
+        expected_return,
+        caller_is_generic,
+        scope_limit,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn selection_for_call_with_local_prefix(
+    program: &dyn ::validation::CheckingInput,
+    caller_machine: &typed_trees::machine::Machine,
+    caller_state: &typed_trees::state::State,
+    candidates: &[Candidate],
+    callee_states: &[CalleeState],
+    site: CallSite,
+    target_symbol: SymbolHandle,
+    machine_arguments: &[StaticMachineArgument],
+    arguments: &[ExpressionHandle],
+    expected_return: Option<TypeReferenceHandle>,
+    caller_is_generic: bool,
+    scope_limit: usize,
+) -> Option<CallSelection> {
     // Query selection reuses the tuple solver, not invocation inference:
     // ordinary runtime parameters are neither supplied nor evaluated and the
     // descriptor carrier cannot infer an omitted selected-machine argument.
@@ -62,11 +98,6 @@ pub(crate) fn selection_for_call(
     let callee = resolve_callee(callee_states, target_symbol)?;
     let candidate = &candidates[callee.candidate_index];
     let mut proposals = StaticProposals::default();
-    // A runtime `Value` subject resolves only against the locals the call can
-    // see: the caller's parameters and `let` declarations before its own
-    // statement.
-    let scope_limit =
-        enclosing_statement_ordinal(program, caller_state, site).unwrap_or(usize::MAX);
     let explicit_arguments = collect_call_proposals(
         program,
         caller_machine,

@@ -58,10 +58,9 @@ pub(in crate::execution) fn structural_access_for_type_reference(
     let Some(shell) = validation::reference_shell(program, type_reference) else {
         return Some(CheckedStructuralAccess::Owned);
     };
-    // A structural carrier represents one referent occurrence. Nested
-    // reference values need a separate pointer-as-data shape and therefore
-    // remain outside this rung.
-    (!is_reference(program, shell.referee)).then(|| shell.access.into())
+    // Access belongs to this outer loan only. Any reference in its referee
+    // is a stored descriptor with its own independent access and custody.
+    Some(shell.access.into())
 }
 
 /// The identity a byte carrier's structural plan registers under, or `None`
@@ -158,6 +157,7 @@ pub(in crate::execution::terminal_unit) fn lent_storage_identity(
     let storage = validation::reference_shell(program, type_reference)
         .map_or(type_reference, |shell| shell.referee);
     base_type_identity(program, storage, &[], substitutions)
+        .map(|_| validation::stored_structural_type_identity(program, storage, &[], substitutions))
 }
 
 /// The last checked substitution binding `parameter`, if the call edge

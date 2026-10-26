@@ -21,6 +21,7 @@ impl CanonicalPlace {
         use facts::{PlaceRoot, PlaceSegment};
         let root_key = |root| match root {
             PlaceRoot::Unknown => (0, 0, 0, 0, 0),
+            PlaceRoot::InvocationOutput(_) => (5, 0, 0, 0, 0),
             PlaceRoot::Symbol(handle) => (1, handle.arena_index(), handle.generation(), 0, 0),
             PlaceRoot::Expression(handle) => (2, handle.arena_index(), handle.generation(), 0, 0),
             PlaceRoot::TypeReference(handle) => {
@@ -51,6 +52,12 @@ impl CanonicalPlace {
         };
         root_key(self.root)
             .cmp(&root_key(other.root))
+            .then_with(|| match (self.root, other.root) {
+                (PlaceRoot::InvocationOutput(left), PlaceRoot::InvocationOutput(right)) => {
+                    left.compare_identity(right)
+                }
+                _ => std::cmp::Ordering::Equal,
+            })
             .then_with(|| {
                 self.segments
                     .iter()

@@ -1,6 +1,6 @@
 //! Prepare immutable returned guarantees once, not once per incoming fact.
 //!
-//! Exact static places admit a sorted structural-identity join. A captured
+//! Exact static places admit a collision-checked scratch bucket join. A captured
 //! runtime selector does not become a static identity: those rows retain the
 //! existing conditional occurrence judgment. Neither index caches a live
 //! preservation verdict or excuses any affecting writer.
@@ -19,19 +19,28 @@ pub(super) struct ReturnedGuarantee {
 
 pub(super) struct PreparedGuarantees {
     exact: Vec<ReturnedGuarantee>,
+    exact_positions: facts::places::PlaceBucketIndex,
     selected: Vec<ReturnedGuarantee>,
 }
 
 impl PreparedGuarantees {
     pub fn prepare(rows: Vec<ReturnedGuarantee>) -> Self {
-        let (mut exact, selected): (Vec<_>, Vec<_>) = rows.into_iter().partition(|row| {
+        let (exact, selected): (Vec<_>, Vec<_>) = rows.into_iter().partition(|row| {
             row.place
                 .segments
                 .iter()
                 .all(crate::flow::place_segment_has_static_identity)
         });
-        exact.sort_by(|left, right| left.place.compare_identity(&right.place));
-        Self { exact, selected }
+        let exact_positions = facts::places::PlaceBucketIndex::new(
+            exact
+                .iter()
+                .map(|row| facts::places::place_bucket_hash(row.place.root, &row.place.segments)),
+        );
+        Self {
+            exact,
+            exact_positions,
+            selected,
+        }
     }
 
     /// The caller has independently established the concrete fact's static
@@ -48,17 +57,13 @@ impl PreparedGuarantees {
         let matches_contract = |row: &ReturnedGuarantee| {
             parameter == Some(row.parameter) && domain == row.domain && identity == row.identity
         };
-        let start = self
-            .exact
-            .partition_point(|row| row.place.compare_identity(concrete).is_lt());
-        self.exact[start..]
-            .iter()
-            .take_while(|row| row.place == *concrete)
-            .any(matches_contract)
-            || self.selected.iter().any(|row| {
-                matches_contract(row)
-                    && same_occurrence_when_selected(program, concrete, &row.place)
-            })
+        let key = facts::places::place_bucket_hash(concrete.root, &concrete.segments);
+        self.exact_positions.candidates(key).any(|position| {
+            let row = &self.exact[position];
+            row.place == *concrete && matches_contract(row)
+        }) || self.selected.iter().any(|row| {
+            matches_contract(row) && same_occurrence_when_selected(program, concrete, &row.place)
+        })
     }
 }
 

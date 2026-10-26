@@ -58,7 +58,7 @@ use validation::mathematical_applications::{
     PreparedMathematicalApplications,
 };
 
-use super::{FixedCore, FixedCoreVocabulary};
+use super::FixedCoreVocabulary;
 use proof_admission::{
     Budget, Context, DEFAULT_CONVERSION_STEPS, Declaration, Level, Signature, Sort, Term,
     TermArena, TermHandle, check_signature_with_attribution, infer_sort,
@@ -446,41 +446,21 @@ impl<'a> Elaborator<'a> {
     /// spelling — classify as vocabulary (the same rule the checked surface
     /// leg uses).
     fn carrier_head(&self, carrier: TypeReferenceHandle) -> CarrierHead {
-        if !self
-            .program
-            .type_reference_table
-            .contains_type_reference(carrier)
-        {
-            return CarrierHead::Term;
-        }
-        match self.program.type_reference_table.type_reference(carrier) {
-            TypeReferenceNode::Named { symbol, name } => {
-                match self.fixed_core.classify(*symbol, name) {
-                    Some(FixedCore::Level) => CarrierHead::Level,
-                    Some(FixedCore::Type) => CarrierHead::Type(LevelArgument::Generalized),
-                    _ => CarrierHead::Term,
-                }
-            }
-            TypeReferenceNode::Generic {
-                base_symbol,
-                base_name,
-                arguments,
-                ..
-            } => match self.fixed_core.classify(*base_symbol, base_name) {
-                Some(FixedCore::Level) => CarrierHead::MalformedLevel,
-                Some(FixedCore::Type) => {
-                    let arguments = self
-                        .program
-                        .type_reference_table
-                        .type_reference_handles(*arguments);
-                    match arguments {
-                        [universe] => CarrierHead::Type(LevelArgument::Authored(*universe)),
-                        _ => CarrierHead::MalformedType(arguments.len()),
-                    }
-                }
-                _ => CarrierHead::Term,
-            },
-            _ => CarrierHead::Term,
+        use validation::mathematical_applications::MathematicalCarrierHead;
+        match validation::mathematical_applications::mathematical_carrier_head(
+            self.program,
+            carrier,
+            &self.fixed_core,
+        ) {
+            MathematicalCarrierHead::Level => CarrierHead::Level,
+            MathematicalCarrierHead::Type(universe) => CarrierHead::Type(if universe.is_valid() {
+                LevelArgument::Authored(universe)
+            } else {
+                LevelArgument::Generalized
+            }),
+            MathematicalCarrierHead::MalformedLevel => CarrierHead::MalformedLevel,
+            MathematicalCarrierHead::MalformedType(count) => CarrierHead::MalformedType(count),
+            MathematicalCarrierHead::Term => CarrierHead::Term,
         }
     }
 

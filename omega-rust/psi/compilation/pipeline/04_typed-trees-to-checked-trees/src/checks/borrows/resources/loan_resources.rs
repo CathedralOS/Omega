@@ -321,7 +321,9 @@ pub(crate) fn reconstruct_borrow_resource_rosters(
                 }
 
                 // Remaining lineages stay outside both rosters.
-                BorrowLoanLineage::LifetimeDependency | BorrowLoanLineage::UnretainedDerived => {}
+                BorrowLoanLineage::LifetimeDependency
+                | BorrowLoanLineage::UnretainedDerived
+                | BorrowLoanLineage::SuppliedOutput => {}
             }
         }
     }

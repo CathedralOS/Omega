@@ -89,10 +89,12 @@ pub(in crate::unit::attached_unit) fn emit(
             shared.machine_ids.to_vec(),
             shared.scalar_requirement_counts.to_vec(),
             *counters.call_obligation,
+            shared.prepared_scalar_qualifications.catalog(),
         )
         .with_callable_namespace(
             shared.boundary_parameters,
             shared.domain_ids,
+            shared.domain_declarations,
             shared
                 .signatures
                 .iter()

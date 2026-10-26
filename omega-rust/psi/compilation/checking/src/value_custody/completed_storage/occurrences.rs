@@ -74,11 +74,17 @@ pub fn consumer_captures(
         pending.extend(
             control
                 .operand_children
-                .span_or_empty(operand.children)
+                .span(operand.constructed_children())?
                 .iter()
                 .map(|child| child.value),
         );
-        pending.extend(operand.alternatives.handles());
+        if let checked_trees::FlowOperandCompletion::Selected(alternatives) = operand.completion {
+            let rows = control.operand_alternatives.span(alternatives)?;
+            if rows.is_empty() || rows.iter().any(|row| !row.source_arm.is_valid()) {
+                return None;
+            }
+            pending.extend(rows.iter().map(|row| row.value));
+        }
     }
     (!selected.is_empty()).then_some(selected)
 }

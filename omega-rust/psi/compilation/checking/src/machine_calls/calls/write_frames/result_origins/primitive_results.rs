@@ -4,8 +4,8 @@
 //! placement admission nor independent permission to use the returned view.
 
 use super::{
-    AggregateOrigins, FramePathPrecision, FramePlaceOrigin, Machine, ReferenceLeaf, State,
-    TypeReferenceHandle,
+    AggregateOrigins, FramePathPrecision, FramePlaceOrigin, Machine, ReferenceLeaf,
+    ReferenceSource, State, TypeReferenceHandle,
 };
 use crate::machine_calls::calls::write_frames::stored_origins::{
     StoredOriginKind, declared_origins_for_query, place_suffix, projected_storage_type,
@@ -48,7 +48,10 @@ pub(in crate::machine_calls::calls::write_frames) fn extent_view_types(
     let [leaf] = relation.references.as_slice() else {
         return None;
     };
-    let [formation] = leaf.origin.as_ref()?.source.recasts.as_slice() else {
+    let ReferenceSource::Symbolic(origin) = leaf.origin.as_ref()? else {
+        return None;
+    };
+    let [formation] = origin.source.recasts.as_slice() else {
         return None;
     };
     if formation.formation != ReferenceViewFormation::ExtentView(declaration) {
@@ -116,7 +119,7 @@ fn placement_view_result_origins(
             local_segments: leaf.local_segments.clone(),
             may_select: false,
             lifetime_dependencies: Vec::new(),
-            origin: Some(FramePlaceOrigin {
+            origin: Some(ReferenceSource::Symbolic(FramePlaceOrigin {
                 path: storage.name.as_str().to_owned(),
                 precision: FramePathPrecision::Exact,
                 source: FrameSourcePlace {
@@ -132,7 +135,7 @@ fn placement_view_result_origins(
                     }],
                     ..Default::default()
                 },
-            }),
+            })),
         }],
         cases: frontier.cases,
         ..Default::default()
@@ -179,7 +182,7 @@ fn activation_borrow_result_origins(
             local_segments: Vec::new(),
             may_select: false,
             lifetime_dependencies: Vec::new(),
-            origin: Some(FramePlaceOrigin {
+            origin: Some(ReferenceSource::Symbolic(FramePlaceOrigin {
                 path: parameter.name.as_str().to_owned(),
                 precision: FramePathPrecision::Exact,
                 source: FrameSourcePlace {
@@ -187,7 +190,7 @@ fn activation_borrow_result_origins(
                     builtin_coordinates: true,
                     ..Default::default()
                 },
-            }),
+            })),
         }],
         ..Default::default()
     })

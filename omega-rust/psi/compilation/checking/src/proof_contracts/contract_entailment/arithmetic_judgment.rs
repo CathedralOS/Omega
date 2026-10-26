@@ -5,11 +5,19 @@ use super::{
 mod difference_matrix;
 mod integer_operations;
 mod intervals;
-mod polynomial_bounds;
+mod lower_bound_queries;
 use crate::proof_contracts::arithmetic_domains::BigIntInterval as Interval;
+pub(super) use lower_bound_queries::LowerBoundQueries;
 mod captured_calls;
 mod mathematical_terms;
 mod strict_bindings;
+impl<'program> Engine<'program> {
+    /// Prepare pure queries only after the invocation has finalized its facts.
+    pub(super) fn lower_bound_queries(&self) -> LowerBoundQueries<'_, 'program> {
+        LowerBoundQueries::prepared(self)
+    }
+}
+
 pub(super) enum Judgment {
     Proven,
     /// Disproved purely by folding both sides to constants.
@@ -246,6 +254,7 @@ pub(super) enum OpaqueTerm {
 /// Conditional facts of a completed Boolean observation. Keeping normalized
 /// operands, rather than its initializer, prevents later scope substitution
 /// from replaying the comparison against different values.
+#[derive(Clone)]
 pub(super) struct SavedCondition {
     pub(super) symbol: SymbolHandle,
     pub(super) holds: bool,
@@ -253,6 +262,7 @@ pub(super) struct SavedCondition {
     pub(super) fully_visible: bool,
 }
 
+#[derive(Clone)]
 pub(super) struct Engine<'program> {
     pub(super) program: &'program dyn crate::CheckingInput,
     /// The machine this engine judges (entry-range hypotheses resolve
@@ -261,6 +271,7 @@ pub(super) struct Engine<'program> {
     /// Source declaration for the currently installed scoped expression.
     /// Nested actual terms retain their own owner before formal substitution.
     source_owner: SymbolHandle,
+    source_type_bindings: Vec<(SymbolHandle, typed_trees::types::TypeReferenceHandle)>,
     /// Canonical atom names for the machine's parameters.
     pub(super) parameter_atoms: Vec<String>,
     /// Authority-bearing adapters bind resolved symbols directly. When this
@@ -310,7 +321,7 @@ pub(super) struct Engine<'program> {
     opaque_terms: Vec<(String, OpaqueTerm)>,
     /// Difference-bound matrix over atoms + the virtual ZERO atom:
     /// `matrix[a][b]` = best known lower bound of `a - b`.
-    matrix: BTreeMap<String, BTreeMap<String, BigInt>>,
+    matrix: difference_matrix::DifferenceBounds,
     pub(super) requires_unsatisfiable: bool,
 }
 
@@ -346,6 +357,7 @@ impl<'program> Engine<'program> {
             program,
             machine_symbol: owner,
             source_owner: owner,
+            source_type_bindings: Vec::new(),
             parameter_atoms: Vec::new(),
             strict_symbol_bindings,
             formal_arguments: None,
@@ -361,9 +373,21 @@ impl<'program> Engine<'program> {
             nonzero_differences: Vec::new(),
             arithmetic_intervals: BTreeMap::new(),
             opaque_terms: Vec::new(),
-            matrix: BTreeMap::new(),
+            matrix: difference_matrix::DifferenceBounds::default(),
             requires_unsatisfiable: false,
         }
+    }
+
+    /// Numeric projection may register atoms, derived terms, intervals and the
+    /// symbolic address-model bound before a later operand proves unavailable.
+    /// This footprint distinguishes that partial work from a noninteger term.
+    pub(super) fn integer_projection_registrations(&self) -> (usize, usize, usize, usize) {
+        (
+            self.parameter_atoms.len(),
+            self.opaque_terms.len(),
+            self.arithmetic_intervals.len(),
+            self.bounds.len(),
+        )
     }
 
     /// Declare one atom identity: every declared atom is a parameter atom, and
@@ -439,8 +463,7 @@ impl<'program> Engine<'program> {
                 );
             }
         }
-        self.seed_matrix();
-        self.close_matrix();
+        self.refresh_difference_bounds();
     }
 
     /// Both operands mapped through the argument map together — `None` when
@@ -863,8 +886,7 @@ impl<'program> Engine<'program> {
             self.bounds.push((polynomial, bound));
         }
 
-        self.seed_matrix();
-        self.close_matrix();
+        self.refresh_difference_bounds();
         // Disequality alone has no direction. Once the ordinary bounds prove
         // a direction, excluding zero strengthens that integer bound by one.
         // Strict integer adapters also retain an unoriented difference as
@@ -888,8 +910,7 @@ impl<'program> Engine<'program> {
             }
         }
         if self.bounds.len() != previous_bounds {
-            self.seed_matrix();
-            self.close_matrix();
+            self.refresh_difference_bounds();
         }
         fully_visible
     }
@@ -1690,8 +1711,7 @@ impl<'program> Engine<'program> {
             self.bounds
                 .push((bound.sub(&polynomial), BigInt::from_i64(1)));
         }
-        self.seed_matrix();
-        self.close_matrix();
+        self.refresh_difference_bounds();
         Some(polynomial)
     }
 }

@@ -108,6 +108,7 @@ pub(super) fn descriptor_store(
                 return None;
             }
             checked_trees::CheckedUnitStructuralArgumentPlan {
+                projection_evaluations: Default::default(),
                 source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                     binding_ordinal,
                 },

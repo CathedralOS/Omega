@@ -93,7 +93,8 @@ pub(crate) fn settle(
         // Extending work with a private probe preserves the original execution
         // selection: a Product description in a Build forest grants no body demand.
         let prepared = crate::PreparedBuildMachineProgram::prepare_in(&probes, &work)?;
-        let checked = CheckedInitializers::prepare(&prepared, authority.clone(), &[owner])?;
+        let checked =
+            CheckedInitializers::prepare(&prepared, authority.clone(), &[owner], &work.accounting)?;
         let execution = checked.typed();
         let machine = execution
             .machine(owner)

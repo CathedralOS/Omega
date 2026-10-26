@@ -175,20 +175,19 @@ fn observe_direct_reference_custody(
                 {
                     return Err(invalid());
                 }
-                let Some(observed) =
-                    super::observations::observe(function, custody, types, place, &path)
-                else {
-                    if !further_crossing
-                        && !path.contains(&StructuralPathSegment::Referent)
-                        && path
-                            .iter()
-                            .any(|segment| matches!(segment, StructuralPathSegment::Case(_)))
-                    {
-                        absent_case_descriptors = true;
-                        continue;
-                    }
-                    return Err(invalid());
-                };
+                let observed =
+                    match super::observations::observe(function, custody, types, place, &path) {
+                        Ok(observed) => observed,
+                        Err(reason) => {
+                            if super::descriptor_backing::path_is_impossible(
+                                function, custody, types, place, &path,
+                            ) {
+                                absent_case_descriptors = true;
+                                continue;
+                            }
+                            return Err(reason.into_error(function, custody, types, place, &path));
+                        }
+                    };
                 let leaf = observed
                     .resident
                     .as_ref()

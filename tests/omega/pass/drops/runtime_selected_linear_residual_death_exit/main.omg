@@ -1,0 +1,30 @@
+// Expected exit: 0. Selected custody follows actual completed values.
+use omega::language::core::drop;
+data Counter { count: u64 in Wrapping; }
+data Token [linear] { counter: &mut Counter; value: u64; }
+machine Token::drop(token: &mut Token) { token.counter.count = token.counter.count + 1; }
+machine scenario(enabled: bool, original: &mut Counter, fresh: &mut Counter) -> u64 {
+    let old: Token = Token { counter: original, value: 1 };
+    let selected: Token = match enabled {
+        true -> old,
+        _ -> Token { counter: fresh, value: 2 },
+    };
+    let selected_value: u64 = selected.value;
+    drop(selected);
+    selected_value
+}
+machine main() crashes Trap {
+    let mut first_old: Counter = Counter { count: 0 };
+    let mut first_fresh: Counter = Counter { count: 0 };
+    let first: u64 = scenario(true, &mut first_old, &mut first_fresh);
+    let first_correct: bool = first == 1 && first_old.count == 1 && first_fresh.count == 0;
+    let mut second_old: Counter = Counter { count: 0 };
+    let mut second_fresh: Counter = Counter { count: 0 };
+    let second: u64 = scenario(false, &mut second_old, &mut second_fresh);
+    transition first_correct && second == 2 && second_old.count == 1 && second_fresh.count == 1 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

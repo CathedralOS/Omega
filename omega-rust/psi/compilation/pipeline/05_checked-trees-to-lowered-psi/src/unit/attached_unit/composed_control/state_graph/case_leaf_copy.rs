@@ -6,14 +6,15 @@
 //! copying observes contents like a scalar field read.
 use super::super::super::{
     Operation, OperationKind, OperationResult, PlaceId, StructuralMultiplicity,
-    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, StructuralTypeShape,
-    unsupported,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, unsupported,
 };
 use super::super::LoweringError;
 use crate::emission::operation_emission::buffer::OperationBuffer;
-use checked_trees::{CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment};
+use crate::emission::structural_observations;
+use checked_trees::{
+    CheckedMemberIdentity, CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
+};
 use language_semantics::Multiplicity;
-use semantic_vocabulary::CanonicalStructuralPathSegment;
 use terminal_psi::StructuralTypeDeclaration;
 
 /// Emit the copy into `operations` and return the owned place declaration the
@@ -26,52 +27,36 @@ pub(super) fn emit(
     source: PlaceId,
     root_type: StructuralTypeId,
     subject_path: &[CheckedUnitStructuralPathSegment],
-    case_identity: &str,
-    field_identity: &str,
+    case_identity: &CheckedMemberIdentity,
+    field_identity: &CheckedMemberIdentity,
     payload_path: &[CheckedUnitStructuralPathSegment],
     target: &CheckedUnitStructuralParameterPlan,
     destination: PlaceId,
     operations: &mut OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
-    let mut canonical = Vec::with_capacity(subject_path.len() + payload_path.len() + 2);
-    let mut visited = Vec::new();
-    let projected = walk_fields(
-        identities,
-        types,
-        &mut canonical,
-        &mut visited,
-        root_type,
-        subject_path,
-    )?;
-    // The case step enters exactly the proven case's payloads.
-    let declaration = unique_type(types, projected)?;
-    let cases = match &declaration.shape {
-        StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => cases,
-        _ => return unsupported("Unit graph case-payload subject is not a sum"),
-    };
-    let selected =
-        terminal_psi::structural_case_by_identity(cases, identities.intern(&case_identity)).ok_or(
-            LoweringError::Unsupported("Unit graph case-payload case is absent"),
-        )?;
-    canonical.push(CanonicalStructuralPathSegment::Case(selected.id));
-    let payload =
-        terminal_psi::live_field_by_identity(&selected.fields, identities.intern(&field_identity))
-            .ok_or(LoweringError::Unsupported(
-                "Unit graph case-payload field is absent",
-            ))?;
-    canonical.push(CanonicalStructuralPathSegment::Field(payload.id));
-    let Some(leaf) = payload.field_type.as_structural() else {
-        return unsupported("Unit graph case payload is not a structural leaf");
-    };
-    let leaf = walk_fields(
-        identities,
-        types,
-        &mut canonical,
-        &mut visited,
-        leaf,
-        payload_path,
-    )?;
-    unique_type(types, leaf)?;
+    let mut path = Vec::with_capacity(subject_path.len() + payload_path.len() + 2);
+    path.extend_from_slice(subject_path);
+    path.push(CheckedUnitStructuralPathSegment::Case(
+        case_identity.clone(),
+    ));
+    path.push(CheckedUnitStructuralPathSegment::Field(
+        field_identity.clone(),
+    ));
+    path.extend_from_slice(payload_path);
+    // Resolve the whole proven case path once. Intermediate reference loads
+    // stay explicit; a reference-valued payload endpoint keeps its descriptor.
+    let selected = structural_observations::stored_value_path(identities, root_type, &path, types)?;
+    let canonical = selected
+        .static_observation_path()
+        .ok_or(LoweringError::Unsupported(
+            "Unit graph case-payload copy requires static observation coordinates",
+        ))?;
+    let leaf = selected
+        .field_type()?
+        .as_structural()
+        .ok_or(LoweringError::Unsupported(
+            "Unit graph case payload is not a structural leaf",
+        ))?;
     // Affine payloads use rooted projected transfers, preserving their one
     // ownership obligation. This operation only materializes copyable data.
     if target.multiplicity != Multiplicity::Unrestricted {
@@ -131,75 +116,4 @@ pub(super) fn emit(
             structural_type: leaf,
         },
     })
-}
-
-/// Walk literal record-field and fixed-index segments, appending the resolved
-/// canonical steps and returning the structural type the path selects. A sum
-/// carrier mid-path is rejected: entering a payload requires the explicit
-/// `Case` step only the proven edge can mint.
-fn walk_fields(
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-    types: &[StructuralTypeDeclaration],
-    canonical: &mut Vec<CanonicalStructuralPathSegment>,
-    visited: &mut Vec<StructuralTypeId>,
-    mut structural_type: StructuralTypeId,
-    segments: &[CheckedUnitStructuralPathSegment],
-) -> Result<StructuralTypeId, LoweringError> {
-    for segment in segments {
-        if visited.contains(&structural_type) {
-            return unsupported("Unit graph case-payload path has a cyclic carrier");
-        }
-        visited.push(structural_type);
-        let declaration = unique_type(types, structural_type)?;
-        structural_type = match (segment, &declaration.shape) {
-            (
-                CheckedUnitStructuralPathSegment::Field(identity),
-                terminal_psi::record_or_mixed_shape_pattern!(fields),
-            ) => {
-                let mut matching = fields
-                    .iter()
-                    .filter(|field| field.identity == identities.intern(&identity.spelling()));
-                let field = matching.next().ok_or(LoweringError::Unsupported(
-                    "Unit graph case-payload field is absent",
-                ))?;
-                if matching.next().is_some() || field.relevance.is_erased() {
-                    return unsupported("Unit graph case-payload field is erased or ambiguous");
-                }
-                canonical.push(CanonicalStructuralPathSegment::Field(field.id));
-                let Some(child) = field.field_type.as_structural() else {
-                    return unsupported(
-                        "Unit graph case-payload field is not a structural carrier",
-                    );
-                };
-                child
-            }
-            (
-                CheckedUnitStructuralPathSegment::FixedIndex(index),
-                StructuralTypeShape::FixedArray { element, length },
-            ) if index < length => {
-                canonical.push(CanonicalStructuralPathSegment::FixedIndex(*index));
-                *element
-            }
-            _ => {
-                return unsupported("Unit graph case-payload path is incompatible");
-            }
-        };
-    }
-    Ok(structural_type)
-}
-
-fn unique_type(
-    types: &[StructuralTypeDeclaration],
-    identity: StructuralTypeId,
-) -> Result<&StructuralTypeDeclaration, LoweringError> {
-    let mut matching = types
-        .iter()
-        .filter(|declaration| declaration.id == identity);
-    let declaration = matching.next().ok_or(LoweringError::Unsupported(
-        "Unit graph case-payload type is absent",
-    ))?;
-    if matching.next().is_some() {
-        return unsupported("Unit graph case-payload type is ambiguous");
-    }
-    Ok(declaration)
 }

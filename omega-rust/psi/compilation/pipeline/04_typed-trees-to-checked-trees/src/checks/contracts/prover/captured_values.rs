@@ -24,7 +24,7 @@ pub(in crate::checks::contracts) fn scalar_at_path(
         &facts.flow,
         &facts.semantic,
         state,
-        capture,
+        crate::flow::CapturedOperand::unrecorded(capture),
         capture.type_reference,
         path,
     )?;
@@ -57,7 +57,7 @@ pub(in crate::checks::contracts) fn scalar_at_path(
                 &facts.flow.contexts,
                 &facts.flow.control,
                 &facts.semantic,
-                operand,
+                &operand,
                 reference,
                 invocation,
             );

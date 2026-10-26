@@ -576,13 +576,14 @@ fn plan_inner(
             // A call-valued local owns the same normal operand continuation
             // as a statement call. The result remains with the local; only
             // the exact anonymous argument owners retire here.
-            super::super::super::cleanup::anonymous::append_continuation(
+            super::super::super::cleanup::anonymous::insert_continuation(
                 program,
                 facts,
                 shapes,
                 machine,
                 state,
                 coordinate,
+                operations.len(),
                 structural_results,
                 operations,
                 trace,

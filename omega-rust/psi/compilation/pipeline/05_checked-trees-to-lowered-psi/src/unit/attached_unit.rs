@@ -81,6 +81,9 @@ pub(crate) mod argument_schedule;
 pub(crate) mod bodies;
 mod composed_control;
 mod operation_frame;
+pub(crate) use operation_frame::completed_arguments::{
+    emit_snapshot as emit_argument_snapshot, selected_memberships as argument_memberships,
+};
 pub(crate) use operation_frame::{BoundaryParameters, OperationEnvironment};
 mod normal_guarantees;
 mod ordinary_machine;

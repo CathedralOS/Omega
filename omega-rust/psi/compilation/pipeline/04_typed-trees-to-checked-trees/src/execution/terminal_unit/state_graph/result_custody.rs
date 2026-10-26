@@ -42,6 +42,7 @@ pub(super) fn account<'calls>(
         checked_trees::CheckedStructuralValueHandle,
     ) -> Option<&'calls [checked_trees::CheckedStructuralValueCall]>,
     shapes: &super::ShapeCollector<'_>,
+    prepared_calls: &crate::execution::terminal_unit::structural_value_calls::PreparedCalls,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
@@ -565,6 +566,7 @@ pub(super) fn account<'calls>(
             let mut paths = super::super::storage_transfers::transfers(
                 program,
                 facts,
+                prepared_calls,
                 structural_results,
                 result.binding_ordinal,
                 operations,

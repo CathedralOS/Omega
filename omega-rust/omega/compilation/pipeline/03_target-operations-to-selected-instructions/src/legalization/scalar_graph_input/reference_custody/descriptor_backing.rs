@@ -27,6 +27,17 @@ pub(super) enum Backing {
 type Observation = (OperationId, PlaceId, Vec<StructuralPathSegment>);
 #[derive(Default)]
 pub(super) struct Observations {
+    pub(super) flow:
+        BTreeMap<DescriptorPosition, terminal_semantics::descriptor_results::FlowFeasibility>,
+    pub(super) edges: BTreeMap<
+        semantic_vocabulary::EdgeId,
+        terminal_semantics::descriptor_results::FlowFeasibility,
+    >,
+    inactive_cases: BTreeSet<(
+        DescriptorPosition,
+        terminal_semantics::descriptor_lifetimes::DescriptorLocation,
+        semantic_vocabulary::StructuralCaseId,
+    )>,
     sources: BTreeMap<Observation, Option<Vec<Backing>>>,
     positions: BTreeMap<OperationId, DescriptorPosition>,
     ordering: Option<terminal_semantics::scalar_ordering::ScalarOrdering>,
@@ -93,16 +104,53 @@ pub(super) fn prepare(
     };
     let current = descriptor_machine(&graph, function.machine).ok_or_else(|| invalid())?;
     let mut analysis = DescriptorAnalysis::new(types, &graph);
+    observations.flow = analysis.flow_feasibility(function.machine);
     for block in &function.blocks {
         for (node_index, node) in block.nodes.iter().enumerate() {
+            let position = (block.id, u32::try_from(node_index).map_err(|_| invalid())?);
+            for (ordinal, edge) in node.successors.iter().enumerate() {
+                if observations
+                    .edges
+                    .insert(
+                        edge.psi_edge,
+                        analysis.edge_feasibility(function.machine, position, ordinal),
+                    )
+                    .is_some()
+                {
+                    return Err(invalid());
+                }
+            }
             let Some(operation) = node.operation.psi_operation() else {
                 continue;
             };
-            let position = (block.id, u32::try_from(node_index).map_err(|_| invalid())?);
             if observations.positions.insert(operation, position).is_some() {
                 return Err(invalid());
             }
             let step = current.flow.get(&position).ok_or_else(|| invalid())?;
+            for input in step
+                .inputs
+                .iter()
+                .chain(step.derivations.iter().map(|(source, _)| source))
+                .chain(
+                    step.successors
+                        .iter()
+                        // Uncertain arrivals observe only a whole root, so
+                        // they supply no selected-case path to authenticate.
+                        .flat_map(|edge| {
+                            edge.bindings
+                                .iter()
+                                .filter_map(|binding| binding.source.exact_location())
+                        }),
+                )
+            {
+                capture_case_feasibility(
+                    &mut observations,
+                    &mut analysis,
+                    function.machine,
+                    position,
+                    input,
+                );
+            }
             let mut slots = BTreeSet::new();
             for input in &step.inputs {
                 let Some(ty) = current.place_types.get(&input.root) else {
@@ -117,6 +165,13 @@ pub(super) fn prepare(
                 );
             }
             for location in slots {
+                capture_case_feasibility(
+                    &mut observations,
+                    &mut analysis,
+                    function.machine,
+                    position,
+                    &location,
+                );
                 let ty = *current
                     .place_types
                     .get(&location.root)
@@ -145,6 +200,69 @@ pub(super) fn prepare(
         }
     }
     Ok(observations)
+}
+
+fn capture_case_feasibility(
+    observations: &mut Observations,
+    analysis: &mut DescriptorAnalysis<'_>,
+    machine: semantic_vocabulary::MachineId,
+    position: DescriptorPosition,
+    input: &terminal_semantics::descriptor_lifetimes::DescriptorLocation,
+) {
+    for (case_position, segment) in input.path.iter().enumerate() {
+        let terminal_semantics::descriptor_lifetimes::DescriptorPathSegment::Case(case) = segment
+        else {
+            continue;
+        };
+        let subject = terminal_semantics::descriptor_lifetimes::DescriptorLocation {
+            root: input.root,
+            path: input.path[..case_position].to_vec(),
+        };
+        let predicate = terminal_semantics::descriptor_results::DescriptorCasePredicate {
+            subject: subject.clone(),
+            case: *case,
+        };
+        if analysis.case_feasibility(machine, position, &predicate)
+            == terminal_semantics::descriptor_results::FlowFeasibility::ProvedImpossible
+        {
+            observations
+                .inactive_cases
+                .insert((position, subject, *case));
+        }
+    }
+}
+
+pub(super) fn path_is_impossible(
+    function: &PsiOptimizationFunction,
+    custody: &Custody,
+    types: &[StructuralTypeDeclaration],
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+) -> bool {
+    let Some(position) = custody.reference_position else {
+        return false;
+    };
+    let Some(root_type) = source_contract(function, custody, place) else {
+        return false;
+    };
+    path.iter().enumerate().any(|(index, segment)| {
+        let StructuralPathSegment::Case(case) = segment else {
+            return false;
+        };
+        let Some(subject) = terminal_semantics::descriptor_lifetimes::descriptor_location(
+            types,
+            place,
+            root_type,
+            &path[..index],
+            None,
+        ) else {
+            return false;
+        };
+        custody
+            .descriptor_backing
+            .inactive_cases
+            .contains(&(position, subject, *case))
+    })
 }
 
 pub(super) fn capture(

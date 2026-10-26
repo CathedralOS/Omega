@@ -27,10 +27,13 @@ use checked_trees::{CheckedUnitCallPlan, CheckedUnitStructuralReturnPlan};
 
 /// A planned body's final state, with the inputs completion reads.
 pub(super) struct Completion<'a, 'program, 'shapes> {
+    pub(super) owner_candidates: super::reference_retirement::OwnerCandidates,
     pub(super) program: &'program dyn ::validation::CheckingInput,
     pub(super) facts: &'program CheckFacts,
     pub(super) scalar_callees: ScalarCalleeClosure,
     pub(super) shapes: &'a mut ShapeCollector<'shapes>,
+    pub(super) prepared_calls:
+        &'a mut crate::execution::terminal_unit::structural_value_calls::PreparedCalls,
     pub(super) machine: &'program typed_trees::machine::Machine,
     pub(super) state: &'program typed_trees::state::State,
     pub(super) structural_parameters: &'a mut [CheckedUnitStructuralParameterPlan],
@@ -55,10 +58,12 @@ pub(super) struct Completion<'a, 'program, 'shapes> {
 
 pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSequence> {
     let Completion {
+        owner_candidates,
         program,
         facts,
         scalar_callees,
         shapes,
+        prepared_calls,
         machine,
         state,
         structural_parameters,
@@ -351,9 +356,23 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         .or_else(|| statements.len().checked_sub(1));
     if let Some(statement_index) = completion_entry {
         trace.phase("statement sequence: statement-entry descriptor retirement");
-        append_reference_releases(
+        prepared_calls.prepare_before(
             program,
             facts,
+            shapes,
+            machine,
+            state,
+            structural_parameters,
+            trivial_affine_locals,
+            entry_claims,
+            &operations,
+            statement_index,
+        );
+        append_reference_releases(
+            &owner_candidates,
+            program,
+            facts,
+            prepared_calls,
             shapes,
             structural_parameters,
             machine.symbol,
@@ -425,10 +444,27 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             returned_scalar_call = Some(result);
         }
     }
-    trace.phase("statement sequence: completion descriptor retirement");
-    append_exit_reference_releases(
+    prepared_calls.prepare_before(
         program,
         facts,
+        shapes,
+        machine,
+        state,
+        structural_parameters,
+        trivial_affine_locals,
+        entry_claims,
+        &operations,
+        program
+            .statement_table
+            .statements(state.statement_nodes)
+            .len(),
+    );
+    trace.phase("statement sequence: completion descriptor retirement");
+    append_exit_reference_releases(
+        &owner_candidates,
+        program,
+        facts,
+        prepared_calls,
         shapes,
         structural_parameters,
         machine.symbol,

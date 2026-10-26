@@ -55,6 +55,29 @@ use crate::checks::ownership_occurrences::{EvaluationBranch, routes_compatible};
 use diagnostics::Diagnostic;
 use typed_trees::statement::StatementNode;
 
+/// The occurrence replay and permission producer reject the same consumed
+/// storage use. A producer with only exact path provenance omits the move's
+/// statement number rather than inventing one or replacing the cause with an
+/// unrelated missing-establishment diagnostic.
+pub(super) fn consumed_use_message(
+    machine_name: &str,
+    state_name: &str,
+    statement_index: usize,
+    spelling: &str,
+    consumed_spelling: &str,
+    moved_statement: Option<usize>,
+) -> String {
+    let moved_at = moved_statement
+        .map(|index| format!(" at statement {index}"))
+        .unwrap_or_default();
+    format!(
+        "cannot use `{spelling}` in machine `{machine_name}` state `{state_name}` \
+         (statement {statement_index}) after `{consumed_spelling}` was transferred or \
+         consumed{moved_at}: it holds no value; read what is needed before the transfer \
+         or assign a whole value to `{consumed_spelling}` first"
+    )
+}
+
 /// One owned place whose custody an earlier occurrence transferred.
 struct ConsumedPlace {
     root: facts::PlaceRoot,
@@ -153,16 +176,13 @@ impl ConsumedOwners {
         let spelling = place_spelling(program, place.root, &place.segments);
         push_once(
             diagnostics,
-            format!(
-                "cannot use `{spelling}` in machine `{}` state `{}` (statement \
-                 {statement_index}) after `{}` was transferred or consumed at statement {}: it \
-                 holds no value; read what is needed before the transfer or assign a whole \
-                 value to `{}` first",
+            consumed_use_message(
                 machine.name.as_str(),
                 state.name.as_str(),
-                consumed.spelling,
-                consumed.moved_statement,
-                consumed.spelling,
+                statement_index,
+                &spelling,
+                &consumed.spelling,
+                Some(consumed.moved_statement),
             ),
         );
     }

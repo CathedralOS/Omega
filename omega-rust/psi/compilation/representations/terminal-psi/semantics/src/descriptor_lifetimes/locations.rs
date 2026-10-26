@@ -24,6 +24,7 @@ pub fn canonical_descriptor_location(
                 DescriptorPathSegment::FixedIndex(*index)
             }
             CanonicalStructuralPathSegment::Case(case) => DescriptorPathSegment::Case(*case),
+            CanonicalStructuralPathSegment::Referent => DescriptorPathSegment::Referent,
         })
         .collect::<Vec<_>>();
     resolved_path(types, root_type, &path)?;
@@ -241,7 +242,15 @@ fn resolved_path(
                 }
                 tip = match field.field_type {
                     StructuralFieldType::Structural(id) => Some(id),
-                    _ => None,
+                    // An inline scalar still has its complete leaf contract.
+                    // Recover only its unique exact declaration: geometry-only
+                    // byte views and atomic cells keep separate protocols. A
+                    // missing declaration does not invalidate the address path.
+                    _ => field
+                        .field_type
+                        .canonical_leaf_type()
+                        .and_then(|leaf| leaf.leaf_declaration(types.iter()))
+                        .map(|declaration| declaration.id),
                 };
                 StructuralPathSegment::Field(field.identity.clone())
             }

@@ -418,13 +418,12 @@ impl Engine<'_> {
             }
             _ => None,
         };
-        if let Some(bound) = consequence {
-            if !self.bounds.contains(&bound) {
-                self.bounds.push(bound);
-                self.seed_matrix();
-                self.close_matrix();
-                return true;
-            }
+        if let Some(bound) = consequence
+            && !self.bounds.contains(&bound)
+        {
+            self.bounds.push(bound);
+            self.refresh_difference_bounds();
+            return true;
         }
         false
     }

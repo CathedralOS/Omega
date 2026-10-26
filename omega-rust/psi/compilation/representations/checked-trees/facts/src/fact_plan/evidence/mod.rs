@@ -199,11 +199,13 @@ pub enum FactPayload {
     BooleanPredicate {
         predicate: Handle<crate::BooleanPredicate>,
     },
-    /// The nominal tag installed at this place by a completed construction.
+    /// A signed nominal tag observation on the value at this place. Construction
+    /// and guarantees publish true; a rejected case guard publishes false.
     /// Payload expressions are not retained or reevaluated. Ordinary storage
     /// invalidation retires the observation when the sum is replaced.
-    AssignedCase {
+    CaseValue {
         variant: SymbolHandle,
+        value: bool,
     },
     /// Inclusive bounds on the value captured at this program point, not a
     /// deferred expression or a claim that any particular value was produced.
@@ -476,7 +478,7 @@ impl QualificationPayloadIdentity {
             | FactPayload::DomainMembership { .. }
             | FactPayload::ContractDomainMembership { .. }
             | FactPayload::BooleanPredicate { .. }
-            | FactPayload::AssignedCase { .. }
+            | FactPayload::CaseValue { .. }
             | FactPayload::AssignedValue { .. }
             | FactPayload::AssignedIntegerBounds { .. }
             | FactPayload::FloatPredicate { .. }

@@ -34,10 +34,40 @@ use super::{
 use crate::emission::operation_emission::buffer::structural_result_declaration;
 use crate::unit::StructuralTypeDeclaration;
 
+/// One immutable module namespace for scalar-to-storage correspondence.
+#[derive(Clone, Copy)]
+pub(crate) struct PrimitiveStorageCatalog<'a> {
+    pub(crate) types: &'a [StructuralTypeDeclaration],
+    pub(crate) domains: &'a [terminal_psi::StructuralDomainDeclaration],
+    pub(crate) scalars: &'a terminal_psi::ScalarQualificationCatalog,
+}
+
 #[derive(Clone, Copy)]
 pub(crate) struct PrimitiveLocal {
     pub symbol: symbols::SymbolHandle,
     pub declaration: StructuralPlaceDeclaration,
+}
+
+/// Rejoin an already emitted scalar to its complete declared type. Borrowing
+/// storage cannot recover erased nominal membership from the payload bits.
+pub(crate) fn completed_scalar(
+    value: semantic_vocabulary::ValueId,
+    parameters: &[terminal_psi::ValueDeclaration],
+    operations: &crate::emission::operation_emission::buffer::OperationBuffer,
+) -> Result<terminal_psi::ValueDeclaration, LoweringError> {
+    parameters
+        .iter()
+        .chain(
+            operations
+                .operations
+                .iter()
+                .filter_map(|operation| operation.result.scalar_ref()),
+        )
+        .find(|declaration| declaration.id == value)
+        .copied()
+        .ok_or(LoweringError::Unsupported(
+            "primitive initializer lost its completed SSA declaration",
+        ))
 }
 
 /// One `mut` scalar formal's storage, established before the first statement.
@@ -82,7 +112,7 @@ pub(super) fn register_mut_formal_storage_homes(
         // Stores, projected consumers and loans resolve the established home,
         // including its exact restricted declaration. The scalar binding only
         // supplies its dense signature position; it is not another storage type.
-        evaluation.structural_locals.push(
+        evaluation.bind_structural_local(
             crate::expression_preparation::bindings::StructuralLocalBinding {
                 result_binding_ordinal: None,
                 root,
@@ -134,9 +164,9 @@ pub(crate) fn initialization_obligation(
 pub(super) fn push_established_local(
     next_place: &mut u64,
     operations: &mut crate::emission::operation_emission::buffer::OperationBuffer,
-    value: semantic_vocabulary::ValueId,
+    value: terminal_psi::ValueDeclaration,
     structural_type: semantic_vocabulary::StructuralTypeId,
-    declarations: &[StructuralTypeDeclaration],
+    catalog: PrimitiveStorageCatalog<'_>,
     range_obligation: Option<semantic_vocabulary::ObligationId>,
 ) -> Result<(semantic_vocabulary::PlaceId, StructuralPlaceDeclaration), LoweringError> {
     let place = place_id(allocate_dense(next_place)?);
@@ -145,7 +175,7 @@ pub(super) fn push_established_local(
         operations,
         value,
         structural_type,
-        declarations,
+        catalog,
         range_obligation,
     )?;
     Ok((place, declaration))
@@ -157,11 +187,12 @@ pub(super) fn push_established_local(
 pub(crate) fn establish_at(
     place: semantic_vocabulary::PlaceId,
     operations: &mut crate::emission::operation_emission::buffer::OperationBuffer,
-    value: semantic_vocabulary::ValueId,
+    value: terminal_psi::ValueDeclaration,
     structural_type: semantic_vocabulary::StructuralTypeId,
-    declarations: &[StructuralTypeDeclaration],
+    catalog: PrimitiveStorageCatalog<'_>,
     range_obligation: Option<semantic_vocabulary::ObligationId>,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
+    let declarations = catalog.types;
     let mut matching = declarations.iter().filter(|row| row.id == structural_type);
     let declaration = matching.next().ok_or(LoweringError::Unsupported(
         "primitive home has no declared receiving type",
@@ -172,18 +203,30 @@ pub(crate) fn establish_at(
     {
         return unsupported("primitive home lost its receiving restriction obligation");
     }
+    let qualifications = terminal_semantics::primitive_scalar_memberships(
+        catalog.types.iter(),
+        catalog.domains.iter(),
+        catalog.scalars,
+        structural_type,
+        &value,
+    )
+    .ok_or(LoweringError::Unsupported(
+        "primitive initializer lost its exact scalar membership correspondence",
+    ))?;
     let producer = operations.allocate();
+    let mut result =
+        structural_result_declaration(place, structural_type, StructuralMultiplicity::Unrestricted);
+    let terminal_psi::OperationResult::Structural(declared) = &mut result else {
+        unreachable!("structural declaration");
+    };
+    declared.qualifications = qualifications;
     operations.push(Operation {
         static_reach_binding: None,
         suspension_crossing: None,
         id: producer,
-        result: structural_result_declaration(
-            place,
-            structural_type,
-            StructuralMultiplicity::Unrestricted,
-        ),
+        result,
         kind: OperationKind::EstablishPrimitiveLocal {
-            value,
+            value: value.id,
             range_obligation,
         },
     });
@@ -207,11 +250,12 @@ pub(super) fn establish_parameter_storage(
         typed_trees::type_identity::TypeIdentityId,
         semantic_vocabulary::StructuralTypeId,
     )],
-    declarations: &[StructuralTypeDeclaration],
+    catalog: PrimitiveStorageCatalog<'_>,
     next_place: &mut u64,
     next_obligation: &mut u64,
     operations: &mut crate::emission::operation_emission::buffer::OperationBuffer,
 ) -> Result<Vec<ParameterStorage>, LoweringError> {
+    let declarations = catalog.types;
     storage
         .iter()
         .map(|storage| {
@@ -240,9 +284,9 @@ pub(super) fn establish_parameter_storage(
             let (_, declaration) = push_established_local(
                 next_place,
                 operations,
-                value.id,
+                *value,
                 structural_type,
-                declarations,
+                catalog,
                 range_obligation,
             )?;
             Ok(ParameterStorage {
@@ -354,16 +398,20 @@ impl OperationFrame<'_, '_> {
         let (place, declaration) = push_established_local(
             self.next_place,
             self.operations,
-            initializer.id,
+            initializer,
             structural_type,
-            declarations,
+            PrimitiveStorageCatalog {
+                types: declarations,
+                domains: self.calls.domain_declarations,
+                scalars: self.calls.scalar_qualifications,
+            },
             range_obligation,
         )?;
         self.operations
             .register_structural_materialization(place, self.state, *statement_index)?;
         // Publish the original home once, rather than copying its initializer
         // or leaving constructor consumers with a private primitive index.
-        self.evaluation.structural_locals.push(
+        self.evaluation.bind_structural_local(
             crate::expression_preparation::bindings::StructuralLocalBinding {
                 result_binding_ordinal: None,
                 root: facts::PlaceRoot::Symbol(*symbol),
@@ -395,6 +443,7 @@ impl super::argument_evaluation::Evaluation {
         source: &checked_trees::CheckedUnitStructuralArgumentPlan,
         values: &[terminal_psi::ValueDeclaration],
         types: &[StructuralTypeDeclaration],
+        domains: &[terminal_psi::StructuralDomainDeclaration],
         next_place: &mut u64,
         operations: &mut crate::emission::operation_emission::buffer::OperationBuffer,
         places: &mut Vec<StructuralPlaceDeclaration>,
@@ -443,7 +492,6 @@ impl super::argument_evaluation::Evaluation {
             if carriers.next().is_some()
                 || carrier.shape != StructuralTypeShape::PrimitiveScalar(scalar_type)
                 || value.scalar_type != scalar_type
-                || !value.qualifications.is_empty()
             {
                 return unsupported("primitive ingress value and storage carrier disagree");
             }
@@ -463,6 +511,7 @@ impl super::argument_evaluation::Evaluation {
                     value,
                     carrier.id,
                     types,
+                    domains,
                     next_place,
                     operations,
                     places,
@@ -485,6 +534,7 @@ impl super::argument_evaluation::Evaluation {
                 source.structural_storage_root(),
                 values,
                 types,
+                domains,
                 next_place,
                 operations,
                 places,
@@ -506,6 +556,7 @@ impl super::argument_evaluation::Evaluation {
         root: Option<facts::PlaceRoot>,
         values: &[terminal_psi::ValueDeclaration],
         structural_types: &[StructuralTypeDeclaration],
+        domains: &[terminal_psi::StructuralDomainDeclaration],
         next_place: &mut u64,
         operations: &mut crate::emission::operation_emission::buffer::OperationBuffer,
         places: &mut Vec<StructuralPlaceDeclaration>,
@@ -550,6 +601,7 @@ impl super::argument_evaluation::Evaluation {
             value,
             structural_type,
             structural_types,
+            domains,
             next_place,
             operations,
             places,
@@ -584,7 +636,7 @@ impl super::argument_evaluation::Evaluation {
                 return unsupported("immutable primitive home changes its established custody");
             }
         } else {
-            self.structural_locals.push(home);
+            self.bind_structural_local(home);
         }
         // This home now belongs to the common structural roster, not two
         // competing storage indexes. Later scalar reads follow its authored
@@ -605,6 +657,7 @@ impl super::argument_evaluation::Evaluation {
         value: &terminal_psi::ValueDeclaration,
         structural_type: semantic_vocabulary::StructuralTypeId,
         declarations: &[StructuralTypeDeclaration],
+        domains: &[terminal_psi::StructuralDomainDeclaration],
         next_place: &mut u64,
         operations: &mut crate::emission::operation_emission::buffer::OperationBuffer,
         places: &mut Vec<StructuralPlaceDeclaration>,
@@ -641,9 +694,13 @@ impl super::argument_evaluation::Evaluation {
         let (place, declaration) = push_established_local(
             next_place,
             operations,
-            value.id,
+            *value,
             structural_type,
-            declarations,
+            PrimitiveStorageCatalog {
+                types: declarations,
+                domains,
+                scalars: self.shared_qualifications.catalog(),
+            },
             None,
         )?;
         places.push(declaration);

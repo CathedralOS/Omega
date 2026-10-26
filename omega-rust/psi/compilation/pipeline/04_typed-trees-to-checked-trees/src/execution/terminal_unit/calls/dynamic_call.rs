@@ -158,6 +158,7 @@ pub(super) fn build(
     } else {
         Vec::new()
     };
+    let (target_machine, target_state) = super::ResolvedCallTarget::DynamicSlot(slot).identity();
     let parts = CheckedUnitCallParts {
         coordinate,
         completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
@@ -167,8 +168,8 @@ pub(super) fn build(
         // No single implementation's contract report describes the call;
         // the slot is the target identity.
         target: CheckedUnitCallTarget {
-            machine: slot.symbol,
-            state: slot.symbol,
+            machine: target_machine,
+            state: target_state,
             contract_report_fingerprint: 0,
             service_reach: call.service_reach,
         },

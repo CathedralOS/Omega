@@ -48,7 +48,6 @@ impl TerminalExecution<'_> {
                 result.multiplicity,
                 terminal_psi::nonlinear_multiplicity_pair_pattern!()
             )
-            || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
             || !result.claims.is_empty()
         {
@@ -166,7 +165,7 @@ impl TerminalExecution<'_> {
         result_case: semantic_vocabulary::StructuralCaseId,
         fields: &[terminal_psi::RecordFieldInitializer],
     ) -> Result<(), TerminalInterpretError> {
-        if self.structural_values.contains_key(&result.place) || !result.qualifications.is_empty() {
+        if self.structural_values.contains_key(&result.place) {
             return Err(malformed());
         }
         let (common, cases) = match self
@@ -203,7 +202,7 @@ impl TerminalExecution<'_> {
         let mut value = TerminalStructuralValue {
             opaque_identity: self.local_structural_identities.allocate()?,
             structural_type: result.structural_type,
-            qualifications: Vec::new(),
+            qualifications: result.qualifications.clone(),
             projected_qualifications: Vec::new(),
             path: Vec::new(),
         };
@@ -1598,16 +1597,24 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
+        let scalar_array_result = terminal_semantics::scalar_array_leaf_shape(
+            self.program.structural_types().values(),
+            result.structural_type,
+        )
+        .is_some();
+        let primitive_result = self
+            .program
+            .structural_types()
+            .get(&result.structural_type)
+            .is_some_and(|declaration| {
+                matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(_))
+            });
         if let OperationKind::StructuralLeafCopy { source, path } = &operation.kind
-            && terminal_semantics::scalar_array_leaf_shape(
-                self.program.structural_types().values(),
-                result.structural_type,
-            )
-            .is_some()
+            && (scalar_array_result || primitive_result)
         {
             // Copy through the original source, not its opaque metadata alone:
-            // a borrowed array's payload can live in a suspended caller frame.
-            // Packed, placed and borrowed arrays establish independent completed
+            // a borrowed scalar tree can live in a suspended caller frame.
+            // Packed and placed scalar leaves establish independent completed
             // payloads; none transfers or fabricates source ownership.
             let argument = StructuralArgument {
                 place: *source,
@@ -1626,15 +1633,15 @@ impl TerminalExecution<'_> {
                 if self.scalar_array_values.contains_key(&result.place) {
                     return Err(malformed());
                 }
-                // Plain results retain the completed row-major batch. Besides
+                // Plain arrays retain the completed row-major batch. Besides
                 // avoiding a cell map per scalar, this makes a huge outer
                 // dimension with zero inner extent constant-size storage.
-                // Evidence-bearing results retain their placed metadata below.
-                if result.is_unrestricted_plain() {
+                // Primitive endpoints and evidence-bearing arrays retain typed placed metadata below.
+                if scalar_array_result && result.is_unrestricted_plain() {
                     let mut copied =
                         self.scalar_array_snapshot(&argument, result.structural_type)?;
                     copied.qualifications.clone_from(&result.qualifications);
-                    self.scalar_array_values.insert(result.place, copied)?;
+                    self.scalar_array_values.publish(result.place, copied)?;
                     return Ok(OperationFlow::Advance);
                 }
                 let mut elements = Vec::new();
@@ -1808,54 +1815,22 @@ impl TerminalExecution<'_> {
                 matches!(declaration.shape, StructuralTypeShape::ByteSequence(_))
             })
         {
-            let root = self.structural_values.get(&source).ok_or_else(malformed)?;
-            let bytes = if StructuralRuntimePlace::from(root) == StructuralRuntimePlace::from(&leaf)
-                && root.structural_type == leaf.structural_type
-            {
-                let bytes = self
-                    .byte_sequence_values
-                    .get(&source)
-                    .ok_or_else(malformed)?
-                    .immutable()?;
-                if !bytes.matches_descriptor_home(root) {
-                    return Err(malformed());
-                }
-                bytes.clone()
-            } else if let Some(bytes) = self
-                .structural_byte_storage
-                .get(&StructuralRuntimePlace::from(&leaf))
-            {
-                bytes.clone()
-            } else {
-                let mut parent = StructuralRuntimePlace::from(&leaf);
-                parent.path.pop().ok_or_else(malformed)?;
-                let namespace = match &operation.kind {
-                    OperationKind::StructuralLeafCopy { path, .. } => {
-                        StructuralFieldNamespace::for_carrier(&path[..path.len().saturating_sub(1)])
-                    }
-                    OperationKind::StructuralCaseLeafCopy { path, .. } => {
-                        if matches!(
-                            path.iter().rev().nth(1),
-                            Some(semantic_vocabulary::CanonicalStructuralPathSegment::Case(_))
-                        ) {
-                            StructuralFieldNamespace::CasePayload
-                        } else {
-                            StructuralFieldNamespace::Member
-                        }
-                    }
-                    _ => return Err(malformed()),
-                };
-                let cell = StructuralByteSequenceRuntimeField {
-                    parent,
-                    namespace,
-                    field: endpoint_field.ok_or_else(malformed)?,
-                };
-                self.structural_byte_sequence_fields
-                    .get(&cell)
-                    .ok_or_else(malformed)?
-                    .immutable()?
-                    .clone()
+            // Resolve the exact selected descriptor through the same custody
+            // owner as calls and byte observations. Aggregate constructors store
+            // descriptors separately from inline byte cells; descriptor copying
+            // retains their existing backing and window, not the source home.
+            let argument = StructuralArgument {
+                place: source,
+                path: copy_path.clone(),
+                access: StructuralAccess::SharedBorrow,
             };
+            self.validate_descriptor_borrow(&argument, StructuralAccess::SharedBorrow)?;
+            let binding = self.byte_descriptor_binding(&argument, &leaf)?;
+            self.byte_descriptor_length(&binding, &leaf)?;
+            let bytes = self
+                .reborrow_byte_sequence_binding(&binding, &leaf, StructuralAccess::SharedBorrow)?
+                .immutable()?
+                .clone();
             // ByteSequenceView clones its backing handle and exact window.
             // This copies the descriptor, not octets; replacing the source
             // slot cannot retarget this completed value's retained backing.
@@ -1930,7 +1905,7 @@ impl TerminalExecution<'_> {
         let mut copied = self.scalar_array_snapshot(source, result.structural_type)?;
         self.validate_scalar_array_qualifications(&copied, &result.qualifications)?;
         copied.qualifications = result.qualifications.clone();
-        self.scalar_array_values.insert(result.place, copied)?;
+        self.scalar_array_values.publish(result.place, copied)?;
         Ok(OperationFlow::Advance)
     }
     /// Mint the copied record a byte-carrier leaf copy names: the resolved
@@ -2171,6 +2146,20 @@ impl TerminalExecution<'_> {
         .ok_or_else(malformed)?;
         if declaration.field_type.scalar_type() != Some(scalar_type) {
             return Err(malformed());
+        }
+        if path.contains(&semantic_vocabulary::CanonicalStructuralPathSegment::Referent) {
+            let mut selected = path.to_vec();
+            selected.push(semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                field,
+            ));
+            let physical = terminal_semantics::canonical_structural_storage_path(
+                self.program.structural_types().values(),
+                declared_root,
+                &selected,
+            )
+            .ok_or_else(malformed)?;
+            let (storage, actual, shared) = self.primitive_access(source, false, &physical)?;
+            return self.read_primitive_storage(source, storage, actual, scalar_type, shared);
         }
         if let Some(view) = view {
             let carrier = terminal_semantics::record_field_carrier(

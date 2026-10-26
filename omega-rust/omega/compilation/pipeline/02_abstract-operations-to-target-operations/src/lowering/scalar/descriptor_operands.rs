@@ -183,6 +183,10 @@ pub(in crate::lowering) fn storage_backs_view_parameter(
     parameter: &StructuralParameterDeclaration,
     structural_types: &StructuralTypeLookup<'_>,
 ) -> bool {
+    if !terminal_semantics::view_descriptor_parameter(parameter, structural_types.values().copied())
+    {
+        return false;
+    }
     let Some(declaration) = structural_types.get(&parameter.structural_type).copied() else {
         return false;
     };

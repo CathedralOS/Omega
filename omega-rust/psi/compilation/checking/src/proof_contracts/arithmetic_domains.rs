@@ -73,6 +73,7 @@ mod live_integer_constraints;
 mod monotonic_update;
 mod operand_reports;
 mod ordered_values;
+pub(crate) use ordered_values::{Operand as ScalarOperand, operand as scalar_operand};
 mod place_paths;
 mod range_constraints;
 pub(crate) use range_constraints::declares_bracketed_range;
@@ -112,7 +113,8 @@ pub(crate) use expression_analysis::ArithmeticDecisions;
 pub(crate) use float_arithmetic::float_source_proves_integer_conversion;
 pub(crate) use float_arithmetic::{FloatSourceBounds, float_source_bounds};
 pub use guard_narrowing::{
-    arrival_integer_expression_bounds, occurrence_collection_footprint_fits,
+    OccurrenceIntegerBounds, arrival_integer_expression_bounds,
+    occurrence_collection_footprint_fits, occurrence_integer_bounds,
     occurrence_integer_expression_bounds, occurrence_integer_expression_fits_range,
     occurrence_integer_expressions_bounds,
 };
@@ -124,6 +126,7 @@ pub(crate) use guard_narrowing::{
 pub use integer_ranges::integer_widen_is_total;
 pub(crate) use integer_ranges::{
     integer_bit_width, integer_source_bounds, literal_i64, primitive_range,
+    validate_anonymous_address_landing, validate_anonymous_integer_primitive_range,
     validate_anonymous_integer_range, validate_value_range,
     validate_value_range_retaining_decisions,
 };
@@ -137,9 +140,7 @@ pub use invariant_bounds::{
     stored_integer_bounds,
 };
 pub use monotonic_update::builtin_monotonic_integer_update_bounds;
-pub(crate) use operand_reports::{
-    is_arithmetic, report_mismatched_integer_operands, report_out_of_range_comparison_literal,
-};
+pub(crate) use operand_reports::{is_arithmetic, report_mismatched_integer_operands};
 pub(crate) use ordered_values::observation_survives_writes;
 pub use ordered_values::validate_ordered_requirement_call_totality;
 pub(crate) use place_paths::place_path;

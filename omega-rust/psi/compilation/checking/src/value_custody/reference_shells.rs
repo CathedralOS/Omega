@@ -88,7 +88,7 @@ pub fn slice_view_shell(
 /// node that is neither. A parameter bound to itself has no actual to stand
 /// for, and a walk longer than the table has nodes has revisited one and
 /// would never end; both answer `None`.
-fn peel_carrier_shells(
+pub(crate) fn peel_carrier_shells(
     program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],

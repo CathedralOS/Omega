@@ -3,7 +3,7 @@
 
 use super::{ArgumentInputs, StateValues, fields};
 use arena::HandleSpan;
-use checked_trees::{BorrowCallFact, FlowConstraintRef, FlowOperandFact};
+use checked_trees::{BorrowCallFact, FlowOperandFact, FlowSemanticContextRef};
 use facts::{FactPlan, ScalarValue};
 
 #[allow(clippy::too_many_arguments)]
@@ -15,7 +15,7 @@ pub(in crate::flow) fn record<'plans>(
     state: &typed_trees::state::State,
     call: &BorrowCallFact,
     captured: &[FlowOperandFact],
-    invocation: HandleSpan<FlowConstraintRef>,
+    invocation: HandleSpan<FlowSemanticContextRef>,
 ) {
     let Some((owner_index, state_index)) = build.state_location(program, call.target_symbol) else {
         return;
@@ -62,35 +62,26 @@ pub(in crate::flow) fn record<'plans>(
                 .then(|| captured.get(ordinal))
                 .flatten()
                 .and_then(|capture| {
-                    let contexts = crate::flow::operand_contexts(
-                        program,
-                        &build.contexts,
-                        &build.control,
-                        semantic,
-                        capture,
-                        parameter.type_reference,
-                        invocation,
-                    );
-                    super::argument_places(
-                        program,
-                        build,
-                        machine,
-                        state,
-                        capture,
-                        parameter.type_reference,
-                    )?
-                    .iter()
-                    .find_map(|place| {
+                    let completed =
+                        super::completed_argument_facts(program, build, capture, invocation)?;
+                    // Every retained alternative must agree at this read cut.
+                    // A missing candidate is unknown, not a narrower predecessor.
+                    let mut values = completed.places.iter().map(|place| {
                         crate::values::scalar_value_at_place(
                             program,
                             semantic,
-                            contexts
+                            completed
+                                .contexts
                                 .iter()
                                 .map(|context| semantic.contexts.get(*context)),
-                            place,
+                            &place.projected,
                         )
-                    })
-                    .or_else(|| super::literal(program, capture.expression))
+                        .or_else(|| super::literal(program, capture.expression))
+                    });
+                    let first = values.next()??;
+                    values
+                        .all(|value| value.as_ref() == Some(&first))
+                        .then_some(first)
                 })
                 .unwrap_or(ScalarValue::Unknown);
             (parameter.symbol, observed)

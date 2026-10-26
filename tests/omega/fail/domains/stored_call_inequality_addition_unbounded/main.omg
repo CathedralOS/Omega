@@ -1,0 +1,21 @@
+// Expected rejection: the completed call permits u64::MAX, so the next exact addition may overflow.
+machine below(limit: u64) -> u64
+    requires limit > 0;
+    ensures result <= limit;
+{ limit }
+
+machine increase(limit: u64) -> u64 requires limit > 0; {
+    let value: u64 = below(limit);
+    value + 1
+}
+
+machine main() crashes Trap {
+    let upper: u64 = increase(18446744073709551615);
+    let lower: u64 = increase(1);
+    transition upper == 18446744073709551615 && lower == 1 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

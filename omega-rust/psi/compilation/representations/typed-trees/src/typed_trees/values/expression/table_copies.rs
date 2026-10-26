@@ -189,6 +189,54 @@ impl ExpressionTable {
         copy
     }
 
+    /// Replace a structural occurrence with an existing expression node while
+    /// retaining its selected meaning and declaration-selection provenance.
+    /// Children stay the exact existing occurrences. The caller owns whether
+    /// another execution is permitted; this does not snapshot a computed value.
+    pub fn replace_with_existing(
+        &mut self,
+        destination: ExpressionHandle,
+        source: ExpressionHandle,
+    ) {
+        let node = self.expression(source).clone();
+        let authority = self.index_expression_authority(source).cloned();
+        let source_index = super::source_span_index(source);
+        let destination_index = super::source_span_index(destination);
+        let occurrences = self.authored_selection_occurrences[source_index];
+        let source_span = self.source_span(source);
+        let carrier = self.constructed_value_type_reference(source);
+        *self.expression_mut(destination) = node;
+        self.set_source_span(destination, source_span);
+        self.authored_selection_occurrences[destination_index] = occurrences;
+        // Replacement invalidates both an absent source result and the old
+        // receiving context. Neither may survive as authority on a new node.
+        if carrier.is_valid() {
+            self.set_constructed_value_type_reference(destination, carrier);
+        } else if let Some(previous) = self
+            .constructed_value_type_handles
+            .get_mut(destination_index)
+        {
+            *previous = Default::default();
+        }
+        if let Some(previous) = self
+            .construction_required_type_handles
+            .get_mut(destination_index)
+        {
+            *previous = Default::default();
+        }
+        if let Some(mut authority) = authority {
+            if let Some(operation) = &mut authority.operation {
+                operation.expression = destination;
+            }
+            *self.index_expression_authority_mut(destination) = authority;
+        } else if let Some(previous) = self
+            .index_expression_authority_handles
+            .get_mut(destination_index)
+        {
+            *previous = Default::default();
+        }
+    }
+
     pub fn copy_from(
         &mut self,
         source: &ExpressionTable,

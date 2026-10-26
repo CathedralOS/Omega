@@ -1,0 +1,25 @@
+// Expected exit: 0.
+// Each call-produced complement dies before its selected route reconverges.
+data Payload { left: u64; right: u64; }
+data Pair { first: Payload; second: Payload; }
+
+machine supply(value: u64) -> Pair {
+    Pair {
+        first: Payload { left: value, right: value },
+        second: Payload { left: value, right: value }
+    }
+}
+machine choose(enabled: bool) -> Payload {
+    let result: Payload = match enabled { true -> supply(1).first, _ -> supply(2).second };
+    result
+}
+machine main() crashes Trap {
+    let first: Payload = choose(true);
+    let second: Payload = choose(false);
+    transition first.left == 1 && first.right == 1 && second.left == 2 && second.right == 2 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

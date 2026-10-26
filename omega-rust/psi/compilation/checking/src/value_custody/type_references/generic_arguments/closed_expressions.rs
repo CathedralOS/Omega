@@ -23,7 +23,22 @@ pub fn normalize_closed_const_expression(
     expression: ExpressionHandle,
     carrier: TypeReferenceHandle,
 ) -> Result<Option<CanonicalConstValue>, String> {
-    let carrier = AppliedValueCarrier::ordinary(carrier);
+    normalize_closed_const_expression_in_carrier(
+        program,
+        owner,
+        expression,
+        AppliedValueCarrier::ordinary(carrier),
+    )
+}
+
+/// One receiving application keeps its complete carrier substitution while
+/// source leaves retain their independent lexical owner and formation.
+pub(crate) fn normalize_closed_const_expression_in_carrier(
+    program: &dyn crate::CheckingInput,
+    owner: SymbolHandle,
+    expression: ExpressionHandle,
+    carrier: AppliedValueCarrier<'_>,
+) -> Result<Option<CanonicalConstValue>, String> {
     if !exact_structured_const_carrier_is_eligible(program, carrier, &mut Vec::new()) {
         return Ok(None);
     }

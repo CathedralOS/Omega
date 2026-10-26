@@ -1586,7 +1586,8 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   on Windows, macOS, and both Linux targets, and fail fixtures reject reads,
   bare forwarding, readable widening, and overlapping exclusive arguments.
 
-- **STRUCTURAL-BORROW-IDENTITY.** (Also covers **`PLACED-ACCESS-NATIVE-OPS`**.)
+- **STRUCTURAL-BORROW-IDENTITY.** (Also covers **`PLACED-ACCESS-NATIVE-OPS`** and
+  **`GENERIC-FIXED-ARRAY-VIEWS`**.)
   Preserve original caller storage and exact-once computed/indexed selector
   semantics through every projection, call preparation, and native placement
   end to end (`Psi 04–07` and `Omega 00–09`) under
@@ -1609,6 +1610,20 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     [the constrained shared-field witness](tests/omega/pass/layouts/runtime_indexed_restricted_field_read/README.md),
     and `borrows/runtime_indexed_{stored_reference_call,scalar_descriptor_call,reference_call_regions}`
     across Windows x86-64, macOS ARM64, Linux x86-64, and Linux AArch64.
+  - Carry ordinary generic fixed-array views from `&[T; Count]` to `&[T]`
+    through the range protocol, preserving symbolic extent and backing custody.
+    Distinct extents 3 and 4 must check in all four target bodies and return 0
+    in both engines; wrong extents, stale descriptors and conflicting backing
+    writes reject.
+  - Qualify the nine-place
+    [reference recast backing-footprint row](samples/cli/facts/reference_recast_backing_footprint/README.md)
+    on the other three declared hosted targets, preserving the original address
+    and full backing loan alongside its fact-sensitive reject twins.
+  - Keep `pass/ownership/runtime_{captured_exclusive_argument,exclusive_argument_before_descriptor_retarget}_exit`
+    and `runtime_{fixed_selector_collection_capture,index_before_descriptor_retarget,fixed_selector_owned_argument}_exit`
+    at 0 in both engines: capture the collection before its selector, execute
+    the selector once and retain completed arguments before later siblings.
+    `fail/ownership/fixed_selector_owned_argument_second_consume` must reject.
   - Keep all `calls/unread_multistate_receiver_exit` and `borrows/*_exit`
     snapshot, subloan, and linear-owner controls passing.
 
@@ -1841,12 +1856,20 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     `source/library/core/{content,extent}.omg` identities (keeping
     `tests/omega/pass/core/content_conservation_wrapper_match_exit` and
     `tests/omega/fail/core/content_conservation_wrapper_match_unproved_alternative`).
+    Only proved bodies and admitted declarations supply theorem roots; unproved
+    guarantees and recursive cycles cannot seed their own evidence. Keep every
+    reachable return alternative, capture epoch and invocation correlation.
   - Carry per-invocation geometry, backing, and live supply through provider
     planning and native settlement in
     `omega-rust/omega/compilation/realization/provider-planning/src/{service_schema/mod.rs,provider_planning/qualification_grants.rs}`
     and stage 05 `unit/attached_unit/catalog.rs` so
     `tests/omega/pass/core/content_retained_custody_round_trip` receives an
-    authorized initial claim and executes its submit/complete cycle.
+    authorized initial claim from its selected admitted `InitialSupply::acquire`
+    invocation and executes its submit/complete cycle. Fresh native allocation
+    and constructor shape alone do not establish the initial claim.
+  - Complete canonical execution qualification of the hosted-entry programs
+    `tests/omega/pass/terminal_psi/{content_custody_exit,structural_content_passthrough}`
+    alongside the custody path, using bundled Content and quantity identities.
   - Implement usable `Extent` split and merge machines in
     `source/library/core/extent.omg` that consume and account for all inputs,
     preserve vacancy independently of the backing grant, and return Cathedral's

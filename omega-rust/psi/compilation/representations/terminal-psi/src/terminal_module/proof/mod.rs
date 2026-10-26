@@ -10,9 +10,10 @@ mod scalar_block_invariants;
 mod values;
 
 pub use content::{
-    ClaimContentProjection, ContentClaimProjection, ContentEntryClaim, ContentIdentityReshuffle,
-    ContentLineageStep, ContentPartitionComposition, ContentPlaceSubstitution,
-    ContentTransformationDerivation,
+    ClaimContentProjection, ContentBackingAddressTransport, ContentBodyProjectionSubstitution,
+    ContentBoundaryBodyRequirement, ContentClaimAddress, ContentClaimProjection, ContentEntryClaim,
+    ContentIdentityReshuffle, ContentLineageStep, ContentPartitionComposition,
+    ContentPlaceSubstitution, ContentTransformationCustody, ContentTransformationDerivation,
 };
 pub use contracts::{
     ContractClause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard, MachineContract,
@@ -22,9 +23,9 @@ pub use contracts::{
     OutcomeSpecificGuard,
 };
 pub use declarations::{
-    EvidenceContractLane, EvidenceContractLaneKind, EvidenceInterfaceIdentity,
-    EvidenceProjectionIdentity, EvidenceRequirementIdentity, EvidenceTermDeclaration,
-    PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
+    EvidenceArgumentSubject, EvidenceContractLane, EvidenceContractLaneKind,
+    EvidenceInterfaceIdentity, EvidenceProjectionIdentity, EvidenceRequirementIdentity,
+    EvidenceTermDeclaration, PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
     PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
     PropositionDeclaration, PropositionEvidence,
 };

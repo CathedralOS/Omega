@@ -22,6 +22,12 @@ pub(super) struct TypedElementView {
 }
 
 impl TypedElementView {
+    pub(super) fn retain_storage(&self, retained: &mut crate::structural_storage::RetainedStorage) {
+        if let Some(home) = &self.home {
+            retained.primitive_home(home.storage);
+        }
+    }
+
     fn selected<'a>(
         &'a self,
         view: &ElementView,

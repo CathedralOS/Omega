@@ -50,6 +50,21 @@ pub(crate) fn lower_reference_source(
     );
     if has_leaf_marker {
         prefix.path.pop();
+        if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow {
+            root_reference_hops,
+            ..
+        } = &mut prefix.source
+            && usize::try_from(*root_reference_hops).ok() == Some(source.path.len())
+        {
+            // This ending marker was one of the producer's whole-root steps.
+            // Removing it cannot reclassify a nested reference suffix as root.
+            *root_reference_hops =
+                root_reference_hops
+                    .checked_sub(1)
+                    .ok_or(LoweringError::Unsupported(
+                        "reference root marker count underflows",
+                    ))?;
+        }
     }
     let mut empty_selectors = std::iter::empty();
     let (values, selectors, calls, emission) = match evaluation {
@@ -70,6 +85,7 @@ pub(crate) fn lower_reference_source(
         identities,
         checked,
         std::slice::from_ref(&prefix),
+        None,
         structural_types,
         parameters,
         trivial_affine_locals,
@@ -216,7 +232,7 @@ pub(crate) fn lower_reference_result_sources(
         }) {
             return unsupported("returned origin has no borrowed carrier leaf");
         }
-        let (place, root_type) = match reference.source.root {
+        let (place, root_type, root_coordinate) = match reference.source.root {
             checked_trees::CheckedReferenceOriginRoot::Parameter { index } => {
                 let parameter =
                     parameters
@@ -224,7 +240,16 @@ pub(crate) fn lower_reference_result_sources(
                         .ok_or(LoweringError::Unsupported(
                             "returned origin lost its input parameter",
                         ))?;
-                (Some(parameter.place), parameter.structural_type)
+                let coordinate = if reference.source.entry_reference_hops == 0 {
+                    crate::expression_preparation::bindings::structural_paths::ProjectionRoot::Published(parameter.structural_type)
+                } else {
+                    crate::expression_preparation::bindings::structural_paths::ProjectionRoot::BorrowedEntry {
+                        published: parameter.structural_type,
+                        access: parameter.access,
+                        reference_hops: reference.source.entry_reference_hops,
+                    }
+                };
+                (Some(parameter.place), parameter.structural_type, coordinate)
             }
             checked_trees::CheckedReferenceOriginRoot::Invocation { carrier_type } => {
                 let declaration = crate::terminal_identities::structural_declaration_by_identity(
@@ -234,7 +259,10 @@ pub(crate) fn lower_reference_result_sources(
                     carrier_type,
                     "returned invocation origin lost its carrier type",
                 )?;
-                (None, declaration.id)
+                if reference.source.entry_reference_hops != 0 {
+                    return unsupported("invocation origin cannot erase a formal entry");
+                }
+                (None, declaration.id, crate::expression_preparation::bindings::structural_paths::ProjectionRoot::Published(declaration.id))
             }
         };
         let path =
@@ -242,7 +270,10 @@ pub(crate) fn lower_reference_result_sources(
                 identities,
                 checked,
                 &reference.source.path,
-                root_type,
+                root_coordinate,
+                crate::expression_preparation::bindings::structural_paths::terminal_access(
+                    reference.source.access,
+                ),
                 structural_types,
             )?;
         let access = crate::expression_preparation::bindings::structural_paths::terminal_access(

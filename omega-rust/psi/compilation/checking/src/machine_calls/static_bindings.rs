@@ -236,6 +236,7 @@ fn is_declared_open_tuple(
 
 pub fn validate_static_machine_bindings(
     program: &dyn crate::CheckingInput,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let mut judged: Vec<(SymbolHandle, SymbolHandle, StaticMachineApplicationHandle)> = Vec::new();
@@ -499,6 +500,31 @@ pub fn validate_static_machine_bindings(
         }
         judged.push((machine.symbol, scope, handle));
         let parameters = machine.parameters;
+        // The full simultaneous receiving telescope interprets dependent
+        // carriers. Actual references retain their supplying scope; missing,
+        // duplicate or wrong-kind rows cannot donate a carrier.
+        let applied_arguments = parameters
+            .iter()
+            .map(|parameter| {
+                let mut selected = bindings
+                    .iter()
+                    .filter(|binding| binding.parameter == parameter.symbol);
+                let Some(binding) = selected.next() else {
+                    return TypeReferenceHandle::invalid();
+                };
+                if selected.next().is_some() {
+                    return TypeReferenceHandle::invalid();
+                }
+                match (&parameter.kind, &binding.value) {
+                    (TypeParameterKind::Type, StaticMachineBindingValue::Type(actual))
+                    | (
+                        TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. },
+                        StaticMachineBindingValue::Const(actual),
+                    ) => *actual,
+                    _ => TypeReferenceHandle::invalid(),
+                }
+            })
+            .collect::<Vec<_>>();
         let scope_parameters: &[TypeParameter] =
             StaticDeclaration::find(program, application.lexical_owner)
                 .map_or(&[], |owner| owner.parameters);
@@ -542,7 +568,9 @@ pub fn validate_static_machine_bindings(
                         &machine,
                         parameter,
                         *actual,
+                        &applied_arguments,
                         &mut diagnostics,
+                        formation_obligations,
                     );
                 }
                 StaticMachineBindingValue::RuntimeValue { .. }
@@ -617,7 +645,9 @@ fn validate_const_binding(
     machine: &StaticDeclaration<'_>,
     parameter: &TypeParameter,
     actual: TypeReferenceHandle,
+    applied_arguments: &[TypeReferenceHandle],
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     if let TypeReferenceNode::ConstExpression(expression) =
         program.type_reference_table.type_reference(actual)
@@ -647,6 +677,7 @@ fn validate_const_binding(
                 caller.name, parameter.name
             ),
             diagnostics,
+            formation_obligations,
         );
         return;
     }
@@ -676,15 +707,24 @@ fn validate_const_binding(
             | TypeParameterKind::Value {
                 type_reference: actual,
             } = forwarded.kind
-            && program.package_qualified_type_identity(expected)
-                == program.package_qualified_type_identity(actual)
+            && crate::value_custody::type_references::AppliedValueCarrier::applied(
+                expected,
+                machine.parameters,
+                applied_arguments,
+            )
+            .matches(program, actual)
         {
             return;
         }
     }
-    if let Err(mut errors) =
-        crate::validate_closed_const_argument(program, machine.name.as_str(), parameter, actual)
-    {
+    if let Err(mut errors) = crate::validate_closed_const_argument(
+        program,
+        machine.name.as_str(),
+        parameter,
+        actual,
+        machine.parameters,
+        applied_arguments,
+    ) {
         diagnostics.append(&mut errors);
     }
 }

@@ -198,17 +198,23 @@ impl RangeStorage {
             .ok_or(LoweringError::Unsupported(
                 "range source lost its published storage type",
             ))?;
-        let prepared =
-            crate::expression_preparation::bindings::structural_paths::prepare_observation_path(
+        // The subslice producer omits inherited root reference shells from
+        // its checked path. Its logical root metadata is distinct from this
+        // selected physical home; nested suffix crossings stay on the path.
+        let mut prepared =
+            crate::expression_preparation::bindings::structural_paths::prepare_projection_path(
                 identities,
                 checked,
                 &argument.path,
-                root,
-                argument
-                    .subslice_root_type_identity()
-                    .ok_or(LoweringError::Unsupported(
-                        "range source lost its logical root",
-                    ))?,
+                crate::expression_preparation::bindings::structural_paths::ProjectionRoot::Borrowed {
+                    published: root,
+                    logical: argument
+                        .subslice_root_type_identity()
+                        .ok_or(LoweringError::Unsupported(
+                            "range source lost its logical root",
+                        ))?,
+                    spelled_reference_hops: 0,
+                },
                 argument
                     .subslice_storage_type_identity()
                     .ok_or(LoweringError::Unsupported(
@@ -219,6 +225,12 @@ impl RangeStorage {
                 ),
                 declarations,
             )?;
+        crate::expression_preparation::bindings::structural_paths::retain_selector_evaluations(
+            &argument.path,
+            argument.projection_evaluations,
+            &checked.facts.values.scalar_computations.operands,
+            &mut prepared,
+        )?;
         let path = source
             .path
             .into_iter()
@@ -315,6 +327,7 @@ fn collection_path(
                 Ok(LoweredElementPathSegment::ViewExtent { source, bytes })
             }
             PreparedStructuralPathSegment::ComputedIndex(_)
+            | PreparedStructuralPathSegment::EvaluatedFixedIndex { .. }
             | PreparedStructuralPathSegment::CapturedIndex(_) => {
                 unsupported("computed view selector requires its owning operand evaluation")
             }
@@ -689,6 +702,10 @@ pub(crate) fn emit(
     });
     let (start, end) = (start?, end?);
     let end = exclusive_end(site.range.end_inclusive, end)?;
+    // Endpoints have already completed in their actual execution frame. Only
+    // the following straight-line emission publishes this descriptor's birth;
+    // a later constructor, store or return must not infer it from a catalog.
+    let first_operation = operations.operations.len();
     let declaration = view_subslice::emit(
         source.family,
         terminal_psi::StructuralArgument {
@@ -704,6 +721,9 @@ pub(crate) fn emit(
         next_value,
         operations,
     )?;
+    evaluation
+        .current_claims
+        .publish_operations(&operations.operations[first_operation..])?;
     values.truncate(retained_count);
     Ok(declaration)
 }

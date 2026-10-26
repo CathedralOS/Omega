@@ -75,10 +75,19 @@ pub(in crate::machine_calls::calls::write_frames) fn relative_effects(
             if let Some(sources) = effect.sources.as_mut() {
                 for source in sources {
                     (remap_place(&mut source.origin.source, parameters, slot))?;
-                    if !source.origin.source.is_static() {
+                    if !source.origin.source.is_static()
+                        && source.origin.source.output_identity().is_none()
+                    {
                         source.origin.path = super::path(program, &source.origin.source);
                     }
                     (remap_place(&mut source.carrier, parameters, slot))?;
+                    if let Some(backing) = source.carrier_backing.as_mut() {
+                        (remap_place(&mut backing.source, parameters, slot))?;
+                        if !backing.source.is_static() && backing.source.output_identity().is_none()
+                        {
+                            backing.path = super::path(program, &backing.source);
+                        }
+                    }
                 }
             }
         }
@@ -131,7 +140,7 @@ fn remap_place(
     parameters: &[StateParameter],
     slot: &DynamicSlotSignature,
 ) -> Option<()> {
-    if place.is_static() {
+    if place.is_static() || place.output_identity().is_some() {
         return Some(());
     }
     place.root = remap_root(place.root, parameters, slot)?;

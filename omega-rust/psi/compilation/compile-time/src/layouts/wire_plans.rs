@@ -131,8 +131,7 @@ pub(crate) fn compute_wire_plans_in(
         .machines()
         .iter()
         .any(|machine| machine.name.as_str() == WIRE_GRAMMAR_POLICY);
-    let admission = policy_exists
-        .then(|| crate::BuildTimeAdmissionPlan::infer(&execution, selection_authority));
+    let admission = policy_exists.then(|| domain.admission(&execution, selection_authority));
 
     let mut plans = Vec::with_capacity(classified.len());
     for (symbol, schema_name, fields) in classified {

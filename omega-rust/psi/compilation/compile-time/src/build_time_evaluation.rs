@@ -11,19 +11,49 @@ use typed_trees::references::DeclarationSelection;
 /// completed Build jobs but still needs shared toolchain declarations. Build
 /// execution instead keeps exactly its admitted roster: a Product descriptor
 /// operand must never promote a Product implementation into callable context.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone)]
 pub(crate) struct EvaluationDomain {
     work: DeclarationSelection,
     execution: DeclarationSelection,
     product_frontier: Option<Arc<typed_trees::TypedTrees>>,
+    pub(crate) accounting: crate::evaluation_accounting::EvaluationAccounting,
 }
 
+// Accounting is per-attempt scratch, never semantic input. Projection and
+// demanded-root clones share it only during the synchronous recorded precheck;
+// returned deferred work drops it before any later admission can resume.
+impl PartialEq for EvaluationDomain {
+    fn eq(&self, other: &Self) -> bool {
+        self.work == other.work
+            && self.execution == other.execution
+            && self.product_frontier == other.product_frontier
+    }
+}
+impl Eq for EvaluationDomain {}
+
 impl EvaluationDomain {
+    pub(crate) fn with_accounting(
+        mut self,
+        accounting: crate::evaluation_accounting::EvaluationAccounting,
+    ) -> Self {
+        self.accounting = accounting;
+        self
+    }
+
+    pub(crate) fn admission(
+        &self,
+        program: &typed_trees::TypedTrees,
+        authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    ) -> crate::BuildTimeAdmissionPlan {
+        crate::BuildTimeAdmissionPlan::infer(program, authority)
+            .with_accounting(self.accounting.clone())
+    }
     pub(crate) fn selected(work: DeclarationSelection, execution: DeclarationSelection) -> Self {
         Self {
             work,
             execution,
             product_frontier: None,
+            accounting: Default::default(),
         }
     }
 
@@ -32,6 +62,7 @@ impl EvaluationDomain {
             work: DeclarationSelection::all(),
             execution: DeclarationSelection::all(),
             product_frontier: None,
+            accounting: Default::default(),
         }
     }
 
@@ -79,6 +110,7 @@ impl EvaluationDomain {
         );
         domain.execution = domain.execution.intersect(&self.execution);
         domain.product_frontier = self.product_frontier.clone();
+        domain.accounting = self.accounting.clone();
         domain
     }
 
@@ -409,6 +441,7 @@ impl PreCheckEvaluation {
                 work: self.domain.work.intersect(&selected),
                 execution: self.domain.execution.intersect(&selected),
                 product_frontier: projection.product_declaration_frontier.clone(),
+                accounting: self.domain.accounting.clone(),
             },
         )
     }
@@ -431,6 +464,7 @@ impl PreCheckEvaluation {
                     .excluding(&DeclarationSelection::from_program(completed_projection)),
                 execution: self.domain.execution.clone(),
                 product_frontier: self.domain.product_frontier.clone(),
+                accounting: self.domain.accounting.clone(),
             },
         )
     }
@@ -470,6 +504,27 @@ impl PreCheckEvaluation {
             selection_authority: self.selection_authority.clone(),
             selected_operators: self.selected_operators.clone(),
             provider_bodies: self.provider_bodies.clone(),
+        })
+    }
+
+    /// Execute the existing precheck route with explicit invocation accounting.
+    /// A deferred continuation does not retain the scratch collector: later
+    /// selected-provider work belongs to its own completion/admission.
+    pub fn evaluate_or_defer_recorded(
+        mut self,
+        typed: &mut typed_trees::TypedTrees,
+    ) -> Result<crate::RecordedPreCheck, Vec<diagnostics::Diagnostic>> {
+        let accounting = crate::evaluation_accounting::EvaluationAccounting::recording();
+        self.domain.accounting = accounting.clone();
+        let mut pending = self.evaluate_or_defer(typed)?;
+        if let Some(pending) = &mut pending {
+            pending.domain.accounting = Default::default();
+        }
+        Ok(crate::RecordedPreCheck {
+            pending,
+            accounting: accounting
+                .finish()
+                .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?,
         })
     }
 

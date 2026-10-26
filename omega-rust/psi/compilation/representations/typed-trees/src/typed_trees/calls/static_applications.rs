@@ -109,3 +109,21 @@ impl StaticMachineBinding {
         }
     }
 }
+
+/// Read one source type leaf under a simultaneous static application. An actual
+/// reference belongs to its supplying scope and is returned without applying
+/// the receiving substitutions again. Graph readers compose this operation at
+/// source leaves; it neither copies a graph nor strips its qualifications.
+pub fn project_type_operand(
+    program: &crate::TypedTrees,
+    reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> TypeReferenceHandle {
+    if let crate::types::TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(reference)
+        && let Some((_, actual)) = substitutions.iter().find(|(formal, _)| formal == symbol)
+    {
+        return *actual;
+    }
+    reference
+}

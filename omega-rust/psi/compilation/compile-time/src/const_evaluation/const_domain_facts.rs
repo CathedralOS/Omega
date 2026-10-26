@@ -25,8 +25,6 @@ use typed_trees::TypedTrees;
 use typed_trees::domain::{ProofFact, ProofMembershipFact};
 use typed_trees::expression::ExpressionNode;
 
-use crate::BuildTimeAdmissionPlan;
-
 mod fact_expression;
 mod membership;
 
@@ -92,7 +90,7 @@ pub(crate) fn pending_memberships_need_operator_selection(
     // the check reads it directly.
     let execution = domain.execution_program(typed);
     let facts = validation::derive_pre_flow_operator_selections(&execution);
-    let admission = BuildTimeAdmissionPlan::infer(&execution, selection_authority);
+    let admission = domain.admission(&execution, selection_authority);
     Ok(pending.iter().any(|pending| {
         membership::domain_facts_need_operator_selection(
             &execution,
@@ -148,7 +146,8 @@ pub(crate) fn evaluate_selected_domain_facts(
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let execution_program = domain.execution_program(selected_program.as_ref().unwrap_or(typed));
     let execution = &execution_program;
-    let admission = BuildTimeAdmissionPlan::infer(execution, selection_authority)
+    let admission = domain
+        .admission(execution, selection_authority)
         .with_selected_operators(execution, selected.operators)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let mut replacements = Vec::new();

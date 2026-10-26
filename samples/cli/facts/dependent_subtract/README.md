@@ -1,75 +1,121 @@
 # dependent_subtract
 
-The relational subtraction rule: `count - used` under `used <= count` proves
-exact and non-negative in exact `u32`, so the difference also fits exact
-`as i32`. A `count <= 11` premise keeps the destination conversion standing.
+`count - used` under `used <= count` is non-negative in exact `u32`.
+The standing `count <= 11` bound makes the exact result conversion to `i32`
+valid. Every place retains that fact, bound and operation.
 
-The row is pinned by `tests/omega/{pass,fail}/facts/dependent_subtract_through_*`;
-every positive records native exit 0.
+The parent outcomes are `CONSERVATION-CONTRACT` and
+`CANONICALIZE-SCALAR-RANGE-CONTRACTS` in `TASKS.md`. This row establishes exact
+relational subtraction across the nine transport places below; it does not
+close either parent outcome.
 
-## Places
+## Places and controls
 
-| Place | Positive | Fact-sensitive reject twin |
-| --- | --- | --- |
-| root | [main.omg](main.omg) | — |
-| local | [local/main.omg](local/main.omg) | [local/invalid/main.omg](local/invalid/main.omg) |
-| field | [field/main.omg](field/main.omg) | [field/invalid/main.omg](field/invalid/main.omg) |
-| parameter | [parameter/main.omg](parameter/main.omg) | [parameter/invalid/main.omg](parameter/invalid/main.omg) |
-| call_result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) |
-| match_join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) |
-| const_name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) |
-| other_state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) |
-| other_machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) |
-| target_body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) |
+| Place | Positive | Reject twin | Transport at the consuming operation |
+| --- | --- | --- | --- |
+| local | [local/main.omg](local/main.omg) | [local/invalid/main.omg](local/invalid/main.omg) | Copies the two fields into named locals before subtracting. |
+| field | [field/main.omg](field/main.omg) | [field/invalid/main.omg](field/invalid/main.omg) | Subtracts the two field projections directly. |
+| parameter | [parameter/main.omg](parameter/main.omg) | [parameter/invalid/main.omg](parameter/invalid/main.omg) | Checks the relation on the subtraction machine's parameters. |
+| call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | Subtracts the actual `used_amount(main)` result under its exact result postcondition. |
+| match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | Subtracts a match result justified on both arms; the runtime entry exercises both arms. |
+| const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | Subtracts `USED` directly under its relation to the field. |
+| another state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | Carries count and used to `finish`, whose arrival contract justifies subtraction there. |
+| another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | `copied_used` transports the relation through its result contract into the consuming machine call. |
+| another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | Each of the four authored target bodies proves the same parameter subtraction. |
 
-Every positive (including the root witness) binds `ProgramEntry` for `windows_x86_64`,
-`linux_x86_64`, `macos_arm64` and `linux_arm64` in its `build.omg`, declares
-`Expected exit: 0`, and carries an authored `expected_native_exit.txt` of zero.
-Each place copies the same fact sentence and the same subtraction operation
-(`count - used`); only how the two operands reach that operation changes.
+The root [main.omg](main.omg) is a runnable representative. Every positive and
+the root bind `ProgramEntry` for `windows_x86_64`, `linux_x86_64`,
+`macos_arm64` and `linux_arm64`, declare `Expected exit: 0`, and retain an
+`expected_native_exit.txt` of zero. The nine places are pinned under
+`tests/omega/pass/facts/dependent_subtract_through_<place>_exit/`; their
+check-only reject bodies are pinned under
+`tests/omega/fail/facts/dependent_subtract_through_<place>_rejected/`.
+Sample and fixture main sources match byte for byte for each place.
 
-Run one place or root directly:
+The reject twins retain their original consuming operations. They remove the
+relevant relational premise, not the transport construct: the call-result twin
+removes `ensures result <= main.count`; the match twin still subtracts the
+match result; the state twin still subtracts in `finish`. Parameter, machine
+and target-body twins remove the subtraction machine's `used <= count`
+precondition. The positive runtime entry checks 7 and 0 as output oracles;
+those post-operation checks supply no fact to the earlier subtraction. Negative
+bodies need no runtime entry because checking must refuse them before execution.
+
+Run a place and its control:
 
 ```sh
-omega --check samples/cli/facts/dependent_subtract/main.omg
-omega run --both samples/cli/facts/dependent_subtract/main.omg
+omega run --both samples/cli/facts/dependent_subtract/call_result/main.omg
+omega --check --verify samples/cli/facts/dependent_subtract/call_result/invalid/main.omg
 ```
 
-`omega run --both` reports the native exit and the Terminal Psi exit; agreement
-at zero is the place's runtime oracle.
+A positive must report actual native exit 0 and Terminal exit 0. A reject must
+exit 1 with ``local `remaining` may overflow `u32`:`` in the original consuming
+machine/state. The target-body twin reports that obligation for all four bodies.
+An import, setup or unrelated rejection does not count.
 
-## Reject twins
+## Requirements established and limits
 
-Each twin keeps the operation, the record and the construction shape identical
-and removes only the `used <= count` premise at the subtraction site. Every twin
-rejects with exit 1 at the `subtracted` call:
+- **Establishment:** `requires` clauses establish `used <= count` before exact
+  subtraction. The call-result postcondition establishes the bound on the exact
+  returned value; every selected match arm justifies the joined bound. The data
+  `where count <= 11` or the explicit parameter/state contract retains the
+  conversion bound. See [dependent values](../../../../wiki/spec/language/dependent_values.md)
+  and [scalar contracts](../../../../wiki/spec/language/domains.md).
+- **Identity and lifetime:** locals, fields, parameters, call results and const
+  values retain their exact scalar subjects. This row has no intervening source
+  mutation; write invalidation remains separate acceptance.
+- **Composition:** ordinary calls substitute their actual values and published
+  result facts; match joins justify every arm; state transitions prove their
+  arrival requirements. The operation consumes those facts directly. See
+  [fact validity](../../../../wiki/spec/terminal-psi/fact_validity.md).
+- **Soundness boundaries:** each control removes the subtraction premise and
+  refuses at that operation. A callee body cannot assume a relation merely
+  because its current callers happen to supply related values. These programs
+  add no authority, trusted arithmetic axiom or termination exception.
+- **Checked-to-Terminal Psi:** the positive programs lower through the ordinary
+  Terminal Psi route and run in its interpreter. Erased relational evidence
+  justifies executable exact integer arithmetic; it is not a runtime assertion.
+- **Provider settlement, layout and calling plans:** the macOS ARM64 runs cover
+  the row's scalar/record layout, `ProgramEntry`, ordinary call and state
+  argument/return placement. They do not establish unrelated stack-argument,
+  aggregate-return or foreign-call lanes.
+- **Instruction and frame realization:** macOS ARM64 execution covers the exact
+  subtraction, conversion, calls and state branches needed by this row. It is
+  not evidence for other ISA instruction families or physical ABI boundaries.
+- **Encoding and native emission:** the generated macOS ARM64 image executes and
+  agrees with Terminal Psi. Four hosted source bindings are present; execution
+  on Windows, Linux x86_64 and Linux ARM64 remains unverified by this local run.
 
-```
-error: exact arithmetic in machine `subtracted` ... local `remaining` may
-overflow `u32`: the operands are not provably in range
-```
+## Current evidence
 
-The `target_body` twin reports it once for each of its four target bodies.
-Check a twin with `omega --check samples/cli/facts/dependent_subtract/<place>/invalid/main.omg`.
+On 2026-10-20, the original `9b2bf86d5b44c98a763fbf4074ba92f028a23ea6`
+nine-place sources and oracles were frozen before restoring this row. Against
+immutable `canonical-field-contracts-1`, all nine positives ran with native and
+Terminal exit 0 and all nine original controls rejected at their intended
+exact-arithmetic obligation. No compiler edit was required. The restored tracked
+row was then run separately: the nine positives plus root returned 0 in both
+engines, and the nine restored controls rejected as intended. Direct execution
+of the pinned fixture paths also produced native/Terminal exit 0 for all nine
+positives and the intended arithmetic refusal for all nine controls. The focused
+18-fixture corpus check admitted nine positives and rejected nine controls; its
+nonzero comparison exit records nine expected diagnostic-location changes from
+the replaced helper to the restored consuming machine/state. Those golden
+updates remain part of integration.
 
-## Requirements and Evidence
+The CLI SHA256 is
+`de3d601bfc1cdd4fdebbcdca7cc52d02e82051c7865513b6a2bf354a0ede24c2`,
+with verified optimization level 1. Its source is base
+`11f36ca90e8ea9ff93a52577592d8b8d60bca6be` plus the recorded
+`canonical-field-contracts-1` patch, not a clean commit masquerading as that
+producer. Raw baseline and restored-row records are retained under
+`.codex/recovery/current-resume-20261020/dependent-subtract-original-9b2/`
+and `dependent-subtract-restored-row-2/`, including source, SDK and producer
+hashes. Pinned-path runtime records are in `dependent-subtract-fixture-runtime-1/`
+and the corpus comparison is in `dependent-subtract-fixture-corpus-1/` under the
+same recovery root. An interrupted mixed-source attempt is retained as
+invalidated and supplies no acceptance.
 
-- **Parent Outcome:** `CONSERVATION-CONTRACT` / `CANONICALIZE-SCALAR-RANGE-CONTRACTS` (`TASKS.md`).
-- **Requirement Established:** A relational bound (`used <= count`) proves exact integer subtraction non-negative (`count - used >= 0`) and in range (`as i32` under `count <= 11`) across source checking, Terminal Psi representation, backend code generation, and native execution across all nine places.
-
-### Full 8-Layer Specification and Lowering Evidence
-
-- **Establishment:** The relational/dependent bound `requires used <= count && count <= 11` (or local/field/call contract) establishes that the exact subtraction `count - used` cannot underflow in `u32`, without any post-hoc caller equality guard (`transition x == 100`). The precondition introduces the relational constraint between the two operands directly into the proof environment prior to evaluating the subtraction expression.
-- **Identity and lifetime:** The relational fact between `count` and `used` tracks the exact scalar values or field/parameter versions across value copies, record construction, parameter passing, and state hops. The subtraction consumes those exact scalar values; intervening writes or re-assignments to either operand would invalidate the relational fact unless re-established.
-- **Composition:** The dependent subtraction fact travels through all 9 places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`) to prove the consuming subtraction, and `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in the construct's own bound or operand relationship (removing the `used <= count` premise).
-- **Soundness boundaries:** All 9 `<place>/invalid/main.omg` reject twins fail closed with underflow/contract diagnostics (`error: exact arithmetic in machine ... local `remaining` may overflow `u32`: the operands are not provably in range`) when the relational bound does not hold on every path, refusing to compile rather than admitting potential arithmetic underflow.
-- **Checked-to-Terminal Psi lowering (`Psi 05–07`):** The relational proof obligation and integer subtraction certificate lower into canonical target-neutral Terminal Psi (`PSITERM\0`) exact integer subtraction without runtime trap overhead where proved, and execute in the Terminal Psi interpreter (`omega run --both`).
-- **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `ProgramEntry` settles across the four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), record/scalar layout geometry validates (`data Main where count <= 11 { count: u32; j: u32; out: i32; }`), and `CallPlan`/`StatePlan` place operands and results across registers and stack slots according to target ABIs.
-- **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects native integer subtraction (`sub`) and comparison instructions, assigns register homes and disjoint stack-frame storage with live-across-call preservation, and inserts entry prologues and multi-return epilogues.
-- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements resolve, basic blocks and branches relax with offset reflow, machine-state footprint evidence validates, and direct PE/ELF/Mach-O emission agrees with Terminal Psi (`omega run --both` exit 0) across hosted targets including `windows_x86_64` and `macos_arm64`.
-
-### Verification Evidence
-
-- `sample_native_gate.py --filter cli/facts/dependent_subtract`: 10/10 samples meet their documented oracle on windows_x86_64 (root + 9 places pass with exit 0); 9/9 intended-invalid controls match their authored rejection (`may overflow `u32``).
-- The oracle discriminates: corrupting the subtraction expectation in `entry()` triggers the `bad()` state and traps with `crash Trap`, proving the exit 0 oracle actively validates the computation.
-- Remaining open: relational/dependent arithmetic across variable array slice lengths and non-linear multi-variable constraints under `CONSERVATION-CONTRACT`.
+These observations establish this frozen producer's behavior. Integrated
+candidate qualification, independent review and authorized landing remain with
+the owning integration. Variable array/slice lengths and nonlinear
+multi-variable relational constraints remain outside this row's acceptance.

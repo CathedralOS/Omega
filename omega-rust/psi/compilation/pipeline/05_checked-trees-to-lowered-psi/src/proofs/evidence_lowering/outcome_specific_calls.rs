@@ -82,16 +82,35 @@ pub(crate) fn lower_outcome_specific_call_evidence(
             .outcome_specific_guarantees
             .get(first_row.guarantee)
             .machine_symbol;
-        let occurrence = lowered
-            .source_call_occurrences
-            .iter()
-            .find(|occurrence| {
-                occurrence.source_state == arm.caller_state_symbol
-                    && occurrence.statement_index == arm.result_call_statement_index
-            })
-            .ok_or(LoweringError::Unsupported(
-                "outcome-specific arm has no lowered call occurrence",
-            ))?;
+        // A statement can evaluate several calls, including a later operand
+        // that mutates an earlier captured actual. The checked arm retains the
+        // exact producing expression; statement order cannot select its call.
+        let mut occurrences = lowered.source_call_occurrences.iter().filter(|occurrence| {
+            occurrence.source_state == arm.caller_state_symbol
+                && occurrence.statement_index == arm.result_call_statement_index
+                && occurrence.source_site
+                    == Some(checked_trees::NominalMachineUseSite::Expression(
+                        arm.result_call_expression,
+                    ))
+        });
+        let occurrence = occurrences.next().ok_or(LoweringError::Unsupported(
+            "outcome-specific arm has no exact lowered call occurrence",
+        ))?;
+        if occurrences.next().is_some() {
+            return Err(LoweringError::Unsupported(
+                "outcome-specific arm call occurrence is not unique",
+            ));
+        }
+        if occurrence.source_target != arm.result_call_target
+            || checked
+                .typed
+                .machine_state(callee_symbol, arm.result_call_target)
+                .is_none()
+        {
+            return Err(LoweringError::Unsupported(
+                "outcome-specific arm call disagrees with its checked target owner",
+            ));
+        }
         let operation_id =
             occurrence
                 .terminal_site
@@ -147,8 +166,15 @@ pub(crate) fn lower_outcome_specific_call_evidence(
             || !callee.contract.requires.is_empty()
             || !callee.contract.ensures.is_empty()
             || !callee.contract.crash_routes.is_empty()
-            || !lower_evidence_contract_lanes(checked, callee_symbol, callee_id, term_ids)?
-                .is_empty()
+            || !lower_evidence_contract_lanes(
+                identities,
+                checked,
+                &lowered.semantic_module,
+                callee_symbol,
+                callee_id,
+                term_ids,
+            )?
+            .is_empty()
         {
             return Err(LoweringError::Unsupported(
                 "outcome-specific selection from a callee with structural inputs or other contracts is unimplemented",
@@ -340,7 +366,28 @@ pub(crate) fn lower_outcome_specific_call_evidence(
                     evidence_interface,
                     interface_dependencies,
                 },
-                expected_use_count: 0,
+                expected_use_count: u32::try_from(
+                    checked
+                        .facts
+                        .proof
+                        .proof_output_calls
+                        .iter()
+                        .filter(|(_, invocation)| {
+                            invocation.caller_machine_symbol == arm.caller_machine_symbol
+                                && invocation.runtime_call.is_some()
+                        })
+                        .map(|(_, invocation)| {
+                            invocation
+                                .evidence_arguments
+                                .iter()
+                                .filter(|argument| Some(argument.source) == row.selected_term)
+                                .count()
+                        })
+                        .sum::<usize>(),
+                )
+                .map_err(|_| {
+                    LoweringError::Unsupported("selected evidence use cardinality exceeds u32")
+                })?,
                 uses: Vec::new(),
             });
         }
@@ -377,39 +424,67 @@ pub(super) fn lower_argument_subjects(
     module: &terminal_psi::TerminalModule,
     roots: &[checked_trees::OutcomeOccurrenceRoot],
 ) -> Result<Vec<terminal_psi::OutcomeSpecificCallArgumentSubstitution>, LoweringError> {
+    let mut subjects = Vec::new();
+    for (position, root) in roots.iter().enumerate() {
+        match lower_argument_subject(identities, checked, machine, callee, module, position, root)?
+        {
+            terminal_psi::EvidenceArgumentSubject::Parameter(subject) => subjects.push(subject),
+            terminal_psi::EvidenceArgumentSubject::Closed { .. }
+            | terminal_psi::EvidenceArgumentSubject::Result { .. } => {}
+            terminal_psi::EvidenceArgumentSubject::Unknown { .. } => {
+                return Err(LoweringError::Unsupported(
+                    "outcome-specific substitution of a computed proposition argument is unimplemented",
+                ));
+            }
+        }
+    }
+    Ok(subjects)
+}
+
+pub(super) fn lower_argument_subject(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    callee: &terminal_psi::TerminalMachine,
+    module: &terminal_psi::TerminalModule,
+    position: usize,
+    root: &checked_trees::OutcomeOccurrenceRoot,
+) -> Result<terminal_psi::EvidenceArgumentSubject, LoweringError> {
+    use terminal_psi::EvidenceArgumentSubject as Subject;
+    let argument_position = u32::try_from(position)
+        .map_err(|_| LoweringError::Unsupported("evidence argument position exceeds u32"))?;
+    match root {
+        checked_trees::OutcomeOccurrenceRoot::CalleeResult => {
+            return Ok(Subject::Result { argument_position });
+        }
+        checked_trees::OutcomeOccurrenceRoot::ClosedValue => {
+            return Ok(Subject::Closed { argument_position });
+        }
+        checked_trees::OutcomeOccurrenceRoot::Other => {
+            return Ok(Subject::Unknown { argument_position });
+        }
+        _ => {}
+    }
     let Some(entry) = checked
         .facts
         .flow
         .terminal_unit_effects
         .callable_entry_for_machine(machine)
     else {
-        if roots.iter().all(|root| {
-            !matches!(
-                root,
-                checked_trees::OutcomeOccurrenceRoot::CalleeParameter { .. }
-                    | checked_trees::OutcomeOccurrenceRoot::CalleeParameterProjection { .. }
-            )
-        }) {
-            return Ok(Vec::new());
-        }
         return Err(LoweringError::Unsupported(
             "outcome-specific subject has no published callable entry",
         ));
     };
-    let mut subjects = Vec::new();
-    for (position, root) in roots.iter().enumerate() {
-        let argument_position = u32::try_from(position).map_err(|_| {
-            LoweringError::Unsupported("outcome-specific argument position exceeds u32")
-        })?;
-        let (parameter_position, structural_path) = match root {
+    let (parameter_position, structural_path) =
+        match root {
             checked_trees::OutcomeOccurrenceRoot::CalleeParameter { source_position } => {
-                let position = entry
+                let Some(position) = entry
                     .scalar_parameters
                     .iter()
                     .position(|parameter| parameter.source_position == *source_position)
-                    .ok_or(LoweringError::Unsupported(
-                        "outcome-specific argument names no scalar parameter of its callee",
-                    ))?;
+                else {
+                    return Ok(Subject::Unknown { argument_position });
+                };
                 (position, None)
             }
             checked_trees::OutcomeOccurrenceRoot::CalleeParameterProjection {
@@ -448,27 +523,23 @@ pub(super) fn lower_argument_subjects(
                 )
                 .is_none()
                 {
-                    return Err(LoweringError::Unsupported(
-                        "outcome-specific structural projection has no exact readable primitive field",
-                    ));
+                    return Ok(Subject::Unknown { argument_position });
                 }
                 (position, Some(path))
             }
             checked_trees::OutcomeOccurrenceRoot::CalleeResult
-            | checked_trees::OutcomeOccurrenceRoot::ClosedValue => continue,
-            checked_trees::OutcomeOccurrenceRoot::Other => {
-                return Err(LoweringError::Unsupported(
-                    "outcome-specific substitution of a computed proposition argument is unimplemented",
-                ));
+            | checked_trees::OutcomeOccurrenceRoot::ClosedValue
+            | checked_trees::OutcomeOccurrenceRoot::Other => {
+                unreachable!("non-parameter subjects returned above")
             }
         };
-        subjects.push(terminal_psi::OutcomeSpecificCallArgumentSubstitution {
+    Ok(Subject::Parameter(
+        terminal_psi::OutcomeSpecificCallArgumentSubstitution {
             argument_position,
             parameter_position: u32::try_from(parameter_position).map_err(|_| {
                 LoweringError::Unsupported("outcome-specific parameter position exceeds u32")
             })?,
             structural_path,
-        });
-    }
-    Ok(subjects)
+        },
+    ))
 }

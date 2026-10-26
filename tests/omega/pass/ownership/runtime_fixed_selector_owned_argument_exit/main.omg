@@ -1,0 +1,30 @@
+// Expected exit: 0.
+// An effectful selector runs once while its fixed coordinate carries the exact owned claim.
+use omega_language_std::console;
+use omega::language::core::drop;
+
+data Receipt [linear] { code: u64; }
+data Counter [copy] { calls: u64 in Wrapping; }
+machine Receipt::drop(receipt: &mut Receipt) {}
+
+machine select(counter: &mut Counter) -> u64 ensures result == 0 {
+    counter.calls += 1;
+    0
+}
+machine consume(receipt: Receipt) -> u64 {
+    let observed: u64 = receipt.code;
+    drop(receipt);
+    observed
+}
+machine main() reaches Console {
+    let mut counter: Counter = Counter { calls: 0 };
+    let receipts: [Receipt; 2] = [Receipt { code: 11 }, Receipt { code: 22 }];
+    let first: u64 = consume(receipts[select(&mut counter)]);
+    let second: u64 = consume(receipts[1]);
+    transition counter.calls == 1 && first == 11 && second == 22 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() { Console::exit_process(0); }
+    state wrong() { Console::exit_process(71); }
+}

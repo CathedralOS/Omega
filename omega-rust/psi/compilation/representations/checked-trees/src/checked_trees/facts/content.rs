@@ -20,6 +20,8 @@ pub struct ContentProjectionFacts {
     /// theorem. These facts retain the exact source theorem, call site,
     /// transfer-stable input claims, and any exact result-identity rewrite rows
     /// used by the substitution; they never add a new `separate(...)` node.
+    /// A row may hold only on selected alternatives. Consumers requiring an
+    /// exit theorem must use `partition_returns`, which records full coverage.
     pub partition_compositions: Vec<ContentPartitionCompositionFact>,
     /// Independently proved body equations joined to exact entry and returned
     /// carrier claims. These rows prove the numeric relation, not permission
@@ -33,6 +35,15 @@ pub struct ContentProjectionFacts {
     /// anchor: the anchor alone is not qualification or backing evidence.
     pub body_transformations: arena::Arena<ContentBodyTransformation>,
     pub body_derivations: arena::Arena<ContentBodyDerivation>,
+    /// Conditional checked-provider custody laws. These are not theorem roots
+    /// for ordinary calls and do not establish a result qualification.
+    pub boundary_requirement_plans: Vec<ContentConservationPlan>,
+    pub boundary_body_requirements: arena::Arena<ContentBoundaryBodyRequirement>,
+    pub backing_addresses: arena::Arena<ContentBackingAddressTransport>,
+    /// A theorem whose exact-call derivations cover every value alternative
+    /// at this ordinary outgoing occurrence. Individual composition rows may
+    /// be conditional and cannot independently establish an exit guarantee.
+    pub partition_returns: Vec<ContentPartitionReturnFact>,
     /// Causal ownership replacements, appended only at successful completions.
     /// These retain exact claim occurrences, not inferred address relationships.
     pub claim_transformations: arena::Arena<ContentClaimTransformation>,
@@ -89,6 +100,39 @@ pub struct ContentBodyDerivation {
     /// Existing qualified ancestor, never an identity minted by arithmetic.
     /// This supplements the parent bindings rather than replacing them.
     pub lineage_anchor: PermissionClaimIdentity,
+    pub custody: ContentBodyCustody,
+}
+
+/// Same-owner derivation and checked-provider custody are different authority
+/// judgments. The latter transports debt/backing into an existing raw result;
+/// membership introduction remains at an admitted selected invocation.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum ContentBodyCustody {
+    #[default]
+    Derived,
+    Boundary {
+        requirements: HandleSpan<ContentBoundaryBodyRequirement>,
+        addresses: HandleSpan<ContentBackingAddressTransport>,
+    },
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ContentBoundaryBodyRequirement {
+    pub declaring_trait: SymbolHandle,
+    pub requirement: SymbolHandle,
+    pub realization_state: SymbolHandle,
+    /// Index in the private boundary requirement plan table, never the public
+    /// callable theorem table. Its exact normalized law is retained there.
+    pub conservation_plan_index: usize,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ContentBackingAddressTransport {
+    pub input: arena::Handle<ContentBodyAvailableInput>,
+    pub output: arena::Handle<ContentBodyClaimBinding>,
+    /// Address paths relative to those exact current claim occurrences.
+    pub input_segments: HandleSpan<facts::PlaceSegment>,
+    pub output_segments: HandleSpan<facts::PlaceSegment>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -179,6 +223,12 @@ pub struct ContentIdentityReshuffleFact {
     pub input_parameter_symbol: SymbolHandle,
     pub input_segments: HandleSpan<facts::PlaceSegment>,
     pub output_segments: HandleSpan<facts::PlaceSegment>,
+    pub plan: ContentConservationPlan,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContentPartitionReturnFact {
+    pub returned_at: arena::Handle<crate::FlowStateOutgoingFact>,
     pub plan: ContentConservationPlan,
 }
 
@@ -331,7 +381,7 @@ impl ContentProjectionFacts {
                 let mut children = flow
                     .control
                     .operand_children
-                    .span_or_empty(capture.children)
+                    .span_or_empty(capture.constructed_children())
                     .iter()
                     .filter_map(|child| {
                         let destination =
@@ -357,6 +407,9 @@ impl ContentProjectionFacts {
                     .span_or_empty(transaction.derivations)
                     .iter()
                     .any(|derived| {
+                        if !matches!(derived.custody, ContentBodyCustody::Derived) {
+                            return false;
+                        }
                         let equation = self.body_conservations.get(derived.conservation);
                         self.body_claim_bindings
                             .span_or_empty(equation.outputs)
@@ -400,6 +453,9 @@ impl ContentProjectionFacts {
                     .span_or_empty(transaction.derivations)
                     .iter()
                     .any(|derived| {
+                        if !matches!(derived.custody, ContentBodyCustody::Derived) {
+                            return false;
+                        }
                         let equation = self.body_conservations.get(derived.conservation);
                         self.body_claim_bindings
                             .span_or_empty(equation.outputs)

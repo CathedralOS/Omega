@@ -58,35 +58,84 @@ its logical result and obligations; an encoded proof cannot select them.
 
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
-qualification catalog follows the entry identity as five counted tables:
+qualification catalog follows the entry identity as six counted tables, in the
+order below. This layout uses semantic format marker 191 even when every table
+is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
 | --- | --- |
-| domain definitions | domain id + semantic domain id + canonical identity string + scalar carrier type + counted establishment routes |
+| domain definitions | domain id + semantic domain id + `u32` canonical identity-table index + scalar carrier type + optional predicate + counted establishment routes |
+| return qualifications | machine id + edge id + source value id + result value id + return site + domain id + counted return origins |
 | normalized sets | `u64` set identity + counted domain identities |
 | qualification-change edges | machine id + edge id + `u32` argument ordinal + source value id + destination value id |
 | float entry ranges | machine id + parameter value id + minimum IEEE float value + maximum IEEE float value + `bool` maximum-inclusive flag |
 | integer entry ranges | machine id + parameter value id + integer type + minimum integer value + maximum integer value |
+
+An optional predicate is a presence Boolean, followed when present by its
+subject value id and one canonical proposition. Its domain-local subject is
+value id 1 of the declared scalar carrier; every value reference in the
+proposition names that subject. A routed domain retains this predicate component,
+including `Truth` for a predicate-free routed theory. Neither the predicate nor
+the catalog declaration establishes membership.
+
+A return site is a `u8` tag:
+
+| Tag | Scalar return site | Fields after the tag |
+| --- | --- | --- |
+| 0 | NormalExit | none |
+| 1 | Completion | `u32` successor argument ordinal |
+
+Each return origin is a `u8` tag. Origins are nonempty and strictly increasing
+in the order shown, with established origins ordered by route index:
+
+| Tag | Scalar return origin | Fields after the tag |
+| --- | --- | --- |
+| 0 | Forwarded | none |
+| 1 | Established | `u32` zero-based index into this domain's establishment routes |
+| 2 | Vacuous | none |
+
+A normal-exit row names an actual `Return` edge and its source, and the machine's
+scalar result declaration. A completion row names an actual `Jump` edge and the
+exact argument/destination-parameter pair at its ordinal; its destination is a
+fresh value carrying the domain and its source does not already carry it. The
+source, destination and domain have the same payload carrier. These rows retain
+the checker's original normal-exit decisions and alternatives; they are not
+portable predicate-proof certificates or an arbitrary successor-coercion grant.
+
+Forwarding requires the source's existing membership. A vacuous origin belongs
+only to a completion introducing a predicate-free, route-free tag. An established
+origin must match the exact checked machine callable, its retained authored
+template callable for a specialization, or an exact closed checked-requirement
+realization. A boundary-requirement route does not authorize an ordinary body
+return. Every routed scalar normal return has a row. For each normal-exit row
+with a predicate, the result-substituted predicate must occur in its ordinary
+result `ensures` clauses, retaining every conjunct; representation validation
+checks containment rather than re-proving that predicate. Missing or detached
+subjects, edges, results, issuers and predicates reject.
 
 Each scalar domain establishment route is a `u8` tag:
 
 <!-- scalar-domain-establishment-route-tags -->
 | Tag | Scalar domain establishment route | Fields after the tag |
 | --- | --- | --- |
-| 0 | CheckedRequirement | requirement identity string |
-| 1 | BoundaryRequirement | requirement identity string |
-| 2 | ExactMachine | machine identity string |
+| 0 | CheckedRequirement | `u32` requirement identity-table index |
+| 1 | BoundaryRequirement | `u32` requirement identity-table index |
+| 2 | ExactMachine | `u32` machine callable identity-table index |
 
 Definitions bind their local and semantic identities, canonical theory
 identity, and scalar carrier, and are strictly ordered by domain identity.
 Sets are nonempty, contain strictly ordered unique domain identities, and have
-unique nonzero identities; duplicate sets reject. Qualification-change rows are
+unique nonzero identities; duplicate sets reject. Return rows are strictly ordered
+by `(machine, edge, domain)`. Qualification-change rows are
 ordered strictly by `(machine, edge, argument ordinal)`; float entry ranges by
 `(machine, parameter)`, with both bounds carrying the same IEEE format. All
 these bytes participate in semantic identity. Canonical encoding does not
 itself authorize membership: verification checks the exact arrival and strict
 same-carrier addition or subset erasure under the
 [scalar qualification rules](calls_and_outcomes.md#scalar-qualifications).
+An ordinary qualification-change edge introduces only predicate-free, route-free
+atoms; introducing predicate or routed membership requires its checked return
+completion instead. Erasure retains the existing strict subset rule.
 
 IEEE scalar comparison uses operation tag 65, followed by a one-byte relation
 (`Equal`, `NotEqual`, `Less`, `LessOrEqual`, `Greater`, `GreaterOrEqual` as 0–5)
@@ -162,9 +211,9 @@ byte limit. Any tag value absent from a closed-sum table rejects.
 | IEEE float relation | `u8`: 0 Equal, 1 NotEqual, 2 Less, 3 LessOrEqual, 4 Greater, 5 GreaterOrEqual |
 | IEEE float comparison kind | `u8`: 1 Equal, 2 NotEqual; propositions only — a distinct space from the relation byte |
 | structural path | counted segments, each `u8`: 1 + `u32` interned field identity; 2 + `u64` fixed index; 3 referent; 4 + `u64` start + `u64` end for a fixed byte range; 6 + value id + obligation id for a runtime index; 7 + case id; 8 + structural type id + `bool` scalar-codec presence + optional scalar type for a representation view; retired tag 5 rejects |
-| canonical path segment | `u8`: 1 + field id; 2 + `u64` fixed index; 3 + case id |
+| canonical path segment | `u8`: 1 + field id; 2 + `u64` fixed index; 3 + case id; 4 referent |
 | canonical structural field | root place id + counted canonical path segments |
-| scalar field carrier path | counted segments, each `u8` 1 + field id or 2 + `u64` fixed index; record carriers only — other segment tags reject |
+| scalar field carrier path | counted segments, each `u8`: 1 + field id; 2 + `u64` fixed index; 3 + case id; 4 referent; declared types and readable access validate every step |
 | structural access | `u8`: 1 owned, 2 shared borrow, 3 mutable borrow, 4 write-only borrow |
 | structural multiplicity | `u8`: 1 unrestricted, 2 affine, 3 linear |
 | structural argument | place id + structural access + structural path |
@@ -319,6 +368,9 @@ A scalar-read projection is a tag followed by its payload: `1` selects a field
 id, `2` a fixed `u64` index, `3` a case id, and `4` a recursively encoded scalar
 index term. Tag `5` is `Referent`, has no payload, and crosses one readable
 first-class reference; it does not select inline storage in the carrier.
+Canonical predicate paths retain their separate `Referent` segment; conversion
+into a scalar read produces this explicit tag. A nested static-reference
+spelling is noncanonical and rejects rather than selecting another dialect.
 Tag `6` is `Extent`, has no payload, and ends the path by observing the
 selected readable byte/element descriptor's current `u64` count. A scalar or
 fixed-array leaf cannot supply a live descriptor extent.
@@ -643,10 +695,20 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 187 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 191 + `u16` vocabulary
 marker 130 + the entry callable, followed by the module tables in the
 declaration order below. The entry callable uses its ordinary machine-or-boundary
 tag and identifier encoding.
+
+A `Reference` type is stored pointer data. Element and byte view descriptors
+with access `Some(access)` likewise retain their stored permission ceiling;
+access `None` denotes a canonical view occurrence whose access is on the
+parameter or operation. A borrowed parameter of stored descriptor type lends
+that descriptor's original storage address. A canonical view parameter
+transports the descriptor value. An owned stored-descriptor arrival transports
+its words by shared copy or exclusive transfer, independently of ownership of
+its backing. Projection, live-loan and current-backing checks remain separate;
+these roles provide no read permission from write-only access.
 
 The indexed theorem root row encodes a checked-machine declaration, `u32` ensure
 ordinal, `u32` evidence source position, `u32` carrier identity-table index,
@@ -701,7 +763,7 @@ Older markers are rejected before their payload is read.
 | 1 | identity catalog | counted UTF-8 identity strings |
 | 2 | indexed theorem roots | counted cited theorem root rows, above |
 | 3 | mathematical carriers | counted closed carrier keys, above |
-| 4 | scalar qualification catalog | the five counted catalog tables above |
+| 4 | scalar qualification catalog | the six counted catalog tables above |
 | 5 | quotient catalog | the canonical quotient catalog |
 | 6 | folded constant closure | optional primary target and counted selected-realization dependencies, below |
 | 7 | structural types | counted structural type declarations |
@@ -800,12 +862,18 @@ Several callback applications may share a registrar operation. Occurrence number
 are local to the producing compilation and remain stable under pruning; they
 are not source arena handles and alone authorize nothing.
 
-A checked-machine declaration encodes exact-owner machine and initial-state
-identity strings, a 32-byte contract commitment, then an optional specialization
-(presence Boolean, template identity string, 32-byte commitment). Identities and
-commitments are nonempty. Each machine envelope encodes an optional declaration
-immediately after its machine id; synthetic bodies may omit it. A callback body
-must retain it, and native admission compares it to the caller's selected body.
+A checked-machine declaration encodes `u32` identity-table indices for the
+exact-owner machine, initial state and semantic declaration; counted `u32`
+parameter-type identity indices; `u32` callable and result-type identity indices;
+a 32-byte contract commitment; then a specialization-presence Boolean. A present
+specialization encodes the template nominal identity index, the exact authored
+template callable identity index (both `u32`), and its 32-byte commitment, in
+that order. The callable is distinct from the template's nominal path and the
+instantiated callable, so a sibling overload cannot supply issuer authority.
+Required identities and commitments are nonempty. Each machine envelope encodes
+an optional declaration immediately after its machine id; synthetic bodies may
+omit it. A callback body must retain it, and native admission compares it to the
+caller's selected body.
 
 A boundary's optional checked callable adds its counted closed method arguments
 and a `u8` execution owner: `0` provider, `1` compiler placement initialization,
@@ -815,9 +883,9 @@ that row cannot change the declaration into a provider-supplied boundary.
 
 A candidate carries the same requirement and application encoding without an
 operation id, followed by its selecting callable identity, optional selecting
-package identity, optional target string, body and entry nominal identities,
-32-byte contract commitment, and optional specialization (template nominal
-identity plus 32-byte commitment). Optional fields use a presence Boolean.
+package identity, optional target string, and the complete checked-machine
+declaration above, including both specialization template identities when present.
+Optional fields use a presence Boolean.
 Identities and commitments are nonempty; candidates are strictly ordered by
 their complete record and duplicates reject. Repeated calls share this catalog;
 target selection does not alter it.
@@ -1401,7 +1469,23 @@ the referenced semantic contract row and is checked against it.
 | evidence interface | trait identity string + counted argument strings + counted requirements |
 | evidence interface requirement | declaring trait identity string + counted declaring trait argument strings + requirement identity string |
 | evidence term | evidence term id + proposition id + evidence interface |
-| evidence contract lane | machine id + lane kind + `u32` position + evidence term id + optional output field string |
+| evidence contract lane | machine id + lane kind + `u32` position + evidence term id + optional output field string + counted typed argument subjects |
+| evidence argument subject | `u8` tag + `u32` proposition argument position + tag-specific fields |
+
+Every declaration argument has one positional subject row. Parameter subjects
+name either a scalar-formal position or a structural-formal position with its
+exact physical projection. These rows express declaration substitution; they
+introduce no executable observation, read permission, or storage. Runtime
+consumption joins them with evaluated operands and current snapshot history.
+Application display strings do not establish runtime value equality. An unknown
+subject remains explicitly unavailable to that consumption.
+
+| tag | Evidence argument subject | Fields after argument position |
+| --- | --- | --- |
+| 1 | Parameter | `u32` formal position + optional structural path |
+| 2 | Result | — |
+| 3 | Closed | — |
+| 4 | Unknown | — |
 
 <!-- proposition-binder-kind-tags -->
 
@@ -1824,7 +1908,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 151 | yes |
+| semantic module | `PSITERM\0` | 174 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |
@@ -1883,6 +1967,18 @@ no-authority observation is exactly `SystemRead(Rflags)`, whose semantics are
 the x86 PUSHFQ image. Both decoding and structural admission reject a tag whose
 service presence differs from the catalog. Target and environment admission
 remain required; an absent service supplies neither a target nor environment.
+
+A canonical `Referent` step observes the current live reference descriptor and
+then its authenticated backing. Every crossing retains its exact carrier.
+Executable observations independently require live readable access; write-only
+reads reject. Typed predicate/postcondition geometry itself grants no read,
+including for an initialized write-only destination. Borrowed formal entry
+access is represented by the root declaration and does not add a physical
+descriptor step. The path grants no pointer, loan, lifetime, case or membership authority.
+Substitution retains every crossing under the actual prefix. Descriptor writes
+and possibly aliasing backing writes invalidate dependent observations; an
+inline-owner framing or byte-offset query cannot treat a pointer crossing as
+an inline child. Existing path tags retain their encodings.
 
 Closed reach declaration-kind rosters use bytes: `0` Type, `1` Const/value,
 `2` Proposition, `3` callable Machine, `4` requirement declaration identity,

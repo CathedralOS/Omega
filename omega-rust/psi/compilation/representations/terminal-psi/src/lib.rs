@@ -47,3 +47,7 @@ pub use terminal_module::quotients::{
     TerminalQuotientAdaptation, TerminalQuotientAdaptationLicense, TerminalQuotientCatalog,
     TerminalQuotientOperation, TerminalQuotientRepresentation,
 };
+mod direct_calls;
+pub use direct_calls::{
+    DirectCallParts, DirectCallRole, call_structural_arguments, direct_call_parts,
+};

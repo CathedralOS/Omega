@@ -546,6 +546,9 @@ pub fn activation_claim_byte_carrier(
     program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<TypeReferenceHandle> {
+    // Every successful contract authenticates this exact claim declaration.
+    // Ordinary returned types need no activation-machine roster traversal.
+    // The full contract below still supplies the carrier, never this premise.
     if !sealed(program, symbol, "toolchain::ActivationClaim") {
         return None;
     }

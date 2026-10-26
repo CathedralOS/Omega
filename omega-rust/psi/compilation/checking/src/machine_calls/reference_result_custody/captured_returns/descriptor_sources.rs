@@ -71,6 +71,7 @@ impl Captures<'_> {
                 }
                 place.segments.extend_from_slice(path);
                 let origin = crate::LocalWriteSource {
+                    invocation_output: None,
                     is_image_storage: false,
                     recasts: Vec::new(),
                     representation: None,
@@ -102,6 +103,7 @@ impl Captures<'_> {
                     for referent in control.operand_referents.span(descriptor.referents)? {
                         let root = referent.root.as_symbol()?;
                         let origin = crate::LocalWriteSource {
+                            invocation_output: None,
                             is_image_storage: false,
                             recasts: Vec::new(),
                             representation: None,

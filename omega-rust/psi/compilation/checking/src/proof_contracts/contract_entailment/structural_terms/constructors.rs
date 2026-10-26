@@ -16,6 +16,52 @@ use typed_trees::types::{
 
 use super::StructuralTerm;
 
+/// Read an already carrier-validated canonical value in the structural term
+/// vocabulary. Encoded names retain no declaration authority here: the static
+/// application intake must first replay the value against its resolved carrier.
+pub(in super::super) fn admitted_const_value_term(
+    value: &language_semantics::const_value::CanonicalConstIdentity,
+) -> Option<StructuralTerm> {
+    fn decoded(
+        value: language_semantics::const_value::DecodedCanonicalConstValue,
+    ) -> Option<StructuralTerm> {
+        use language_semantics::const_value::DecodedCanonicalConstValue;
+        let (data, case, fields) = match value {
+            DecodedCanonicalConstValue::Integer { value, .. } => {
+                return Some(StructuralTerm::Integer(BigInt::from_i128(value)));
+            }
+            DecodedCanonicalConstValue::Boolean(value) => {
+                return Some(StructuralTerm::Constructor {
+                    data: "bool".to_owned(),
+                    case: value.to_string(),
+                    fields: Vec::new(),
+                });
+            }
+            DecodedCanonicalConstValue::Record { type_name, fields } => {
+                (type_name, String::new(), fields)
+            }
+            DecodedCanonicalConstValue::Variant {
+                type_name,
+                case_name,
+                fields,
+            } => (type_name, case_name, fields),
+            // These values have separate observation vocabularies; an encoded
+            // array or float is not a record constructor or an integer atom.
+            DecodedCanonicalConstValue::Array { .. } | DecodedCanonicalConstValue::Float { .. } => {
+                return None;
+            }
+        };
+        let mut fields = fields
+            .into_iter()
+            .map(|(name, value)| Some((name, decoded(value)?)))
+            .collect::<Option<Vec<_>>>()?;
+        fields.sort_by(|(left, _), (right, _)| left.cmp(right));
+        Some(StructuralTerm::Constructor { data, case, fields })
+    }
+
+    decoded(value.decode_encoding()?)
+}
+
 /// Exclusion test only: a retained membership occurrence must never be read as
 /// a value equation. Proving the tag fact still requires the exact subject,
 /// carrier and case checks in `has_exact_case_membership_meaning`.

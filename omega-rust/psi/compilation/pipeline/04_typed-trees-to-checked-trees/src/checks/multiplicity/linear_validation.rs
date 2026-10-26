@@ -9,6 +9,7 @@
 
 mod affine_cleanup;
 mod applied_events;
+mod case_selection_diagnostics;
 mod claim_frontier;
 mod claim_provenance;
 pub(crate) mod loan_completions;
@@ -29,7 +30,7 @@ pub(crate) use claim_provenance::{completed_statement_values, written_linear_tar
 pub(crate) use permission_production::{
     ObservedCustody, complete_statement_permissions, established_provenance,
     evaluate_statement_permissions, event_statement_index, permission_source,
-    record_conditional_carrier_transfer, select_static_case_alternative,
+    record_conditional_carrier_transfer,
 };
 
 use crate::checks::multiplicity::owned_selection;
@@ -41,17 +42,30 @@ use language_semantics::{
     PermissionEventSource,
 };
 
+/// A live linear obligation cannot be completed by observing its scalar value.
+/// Use the same refusal at an anonymous normal-death cut and a named scope exit.
+fn unconsumed_linear_value_diagnostic(
+    program: &dyn ::validation::CheckingInput,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    place: &super::linear_obligations::LinearPlace,
+) -> Diagnostic {
+    let mut diagnostic = place.unconsumed_scope_exit();
+    diagnostic.message.push_str(&format!(
+        " in machine `{}` state `{}`",
+        program.symbols.name(machine),
+        program.symbols.name(state),
+    ));
+    diagnostic
+}
+
 pub(crate) fn validate_linear_permission_events(
     program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
-    super::claim_outcomes::validate_call_claim_joins(
-        program,
-        &facts.borrow,
-        &facts.flow.ownership,
-        &mut diagnostics,
-    );
+    let join_failures =
+        super::claim_outcomes::validate_call_claim_joins(program, facts, &mut diagnostics);
     for (_, state_flow) in facts.flow.control.states.iter() {
         let Some(state) = program.state_by_symbol(state_flow.state_symbol) else {
             continue;
@@ -105,6 +119,7 @@ pub(crate) fn validate_linear_permission_events(
             state,
             &events,
             &facts.flow.ownership,
+            &join_failures,
             &mut diagnostics,
         );
 
@@ -119,14 +134,18 @@ pub(crate) fn validate_linear_permission_events(
             ),
             |step, custody| {
                 let (places, selections) = custody;
-                super::permission_schedule::select_cases(program, state, step, places);
+                if let Some(selected) = super::permission_schedule::SelectedCases::at_step(
+                    program, facts, machine, state, step,
+                ) {
+                    selected.apply_claims(places);
+                }
                 match step {
                     super::permission_schedule::PermissionStep::Evaluate {
                         statement,
                         evaluation,
                     } => {
-                        // Replay the same ordered expression events before binding
-                        // selected arrivals; predicates are not skipped for matches.
+                        // Replay the ordered occurrence ledger before applying the
+                        // completed capture's all-path availability.
                         if let Err(diagnostic) = selections.replay_statement(
                             program,
                             state,
@@ -149,12 +168,20 @@ pub(crate) fn validate_linear_permission_events(
                             places,
                             &mut diagnostics,
                         );
-                        if let Some((_, receipt)) = facts
-                            .flow
-                            .ownership
-                            .owned_selection_at(state.symbol, statement as u32)
+                        if let Some((_, receipt)) =
+                            facts.flow.ownership.owned_selection_at_evaluation(
+                                state.symbol,
+                                statement as u32,
+                                evaluation,
+                            )
                         {
                             selections.consume(program, &facts.flow.ownership, receipt);
+                            owned_selection::apply_availability(
+                                program,
+                                &facts.flow.ownership,
+                                receipt,
+                                places,
+                            );
                         }
                     }
                     super::permission_schedule::PermissionStep::Exit {
@@ -162,6 +189,7 @@ pub(crate) fn validate_linear_permission_events(
                         crash: false,
                     } => {
                         if let Err(diagnostic) = selections.check_events(
+                            program,
                             events.iter().copied().filter(|event| {
                                 event.source == PermissionEventSource::StateExit
                                     && event.evaluation
@@ -194,7 +222,7 @@ pub(crate) fn validate_linear_permission_events(
                             places,
                             &mut diagnostics,
                         );
-                        outcomes.push(places.clone())
+                        outcomes.push((coordinate, places.clone()))
                     }
                     _ => {}
                 }
@@ -202,25 +230,60 @@ pub(crate) fn validate_linear_permission_events(
         );
         let mut mixed_places = Vec::new();
         let has_ordinary_exit = !outcomes.is_empty();
-        if let Some(first) = outcomes.first() {
+        if let Some((_, first)) = outcomes.first() {
             for place_index in 0..places.len() {
                 let live = first[place_index].live;
                 if places[place_index].multiplicity == Multiplicity::Linear
                     && outcomes
                         .iter()
                         .skip(1)
-                        .any(|outcome| outcome[place_index].live != live)
+                        .any(|(_, outcome)| outcome[place_index].live != live)
                 {
+                    // Two actual exits witness the disagreement; unrelated
+                    // exits need not multiply every place's diagnostic text.
+                    let exits = outcomes
+                        .first()
+                        .into_iter()
+                        .chain(
+                            outcomes
+                                .iter()
+                                .skip(1)
+                                .filter(|(_, outcome)| outcome[place_index].live != live)
+                                .take(1),
+                        )
+                        .map(|(coordinate, outcome)| {
+                            let place = &outcome[place_index];
+                            let selection = case_selection_diagnostics::exit_detail(
+                                program,
+                                facts,
+                                state,
+                                *coordinate,
+                                place,
+                            );
+                            format!(
+                                "statement {} {:?}: live={}, case_excluded={}, established={}{}",
+                                coordinate.statement_index,
+                                coordinate.kind,
+                                place.live,
+                                place.case_excluded,
+                                place.ever_established,
+                                selection,
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                        .join("; ");
                     diagnostics.push(Diagnostic::error(format!(
-                            "linear value `{}` has inconsistent treatment across transition arms; every path must consume/transfer it or every path must preserve the same live obligation",
-                            places[place_index].name
+                            "linear value `{}` has inconsistent treatment across transition arms; every path must consume/transfer it or every path must preserve the same live obligation (machine `{}` state `{}`; {exits})",
+                            places[place_index].name,
+                            program.symbols.name(machine.symbol),
+                            program.symbols.name(state.symbol),
                         )));
                     mixed_places.push((places[place_index].root, places[place_index].path.clone()));
                 } else {
                     places[place_index].live = live;
                     places[place_index].ever_established = outcomes
                         .iter()
-                        .any(|outcome| outcome[place_index].ever_established);
+                        .any(|(_, outcome)| outcome[place_index].ever_established);
                 }
             }
         }
@@ -233,7 +296,12 @@ pub(crate) fn validate_linear_permission_events(
                         .iter()
                         .any(|(symbol, path)| *symbol == place.root && *path == place.path)
             }) {
-                diagnostics.push(place.unconsumed_scope_exit());
+                diagnostics.push(unconsumed_linear_value_diagnostic(
+                    program,
+                    machine.symbol,
+                    state.symbol,
+                    place,
+                ));
             }
         }
     }
@@ -250,6 +318,7 @@ fn append_unresolved_state_result_mapping_diagnostics(
     state: &typed_trees::state::State,
     events: &[&FlowPermissionEventFact],
     ownership: &checked_trees::FlowOwnershipFacts,
+    join_failures: &[super::claim_outcomes::CallClaimJoinFailure],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut unresolved_statements = Vec::new();
@@ -326,9 +395,60 @@ fn append_unresolved_state_result_mapping_diagnostics(
         if mapped_from_call || mapped_by_checked_outcome || mapped_by_join {
             continue;
         }
+        // Temporary bounded diagnostic; remove before landing.
+        if let Ok(filter) = std::env::var("OMEGA_TRACE_CLAIM_FRONTIER")
+            && validation::find_state(program, state.symbol).is_some_and(|(machine, _)| {
+                filter == "*" || filter == program.symbols.name(machine.symbol)
+            })
+        {
+            static EMITTED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+            if EMITTED.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 24 {
+                let maps = ownership
+                    .claim_outcome_maps
+                    .iter()
+                    .filter(|(_, map)| map.state_symbol == target_state.symbol)
+                    .map(|(_, map)| {
+                        (
+                            map,
+                            ownership.claim_outcome_entries.span_or_empty(map.entries),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                let joins = ownership
+                    .claim_join_receipts
+                    .iter()
+                    .filter(|(_, receipt)| {
+                        receipt.state_symbol == state.symbol
+                            && receipt.statement_index == statement_index
+                            && receipt.expression == result_expression
+                    })
+                    .map(|(_, receipt)| receipt)
+                    .collect::<Vec<_>>();
+                let events = ownership
+                    .permissions
+                    .iter()
+                    .filter(|(_, candidate)| {
+                        candidate.state_symbol == state.symbol
+                            && permission_event_statement_index(candidate.source)
+                                == Some(statement_index)
+                    })
+                    .map(|(_, candidate)| {
+                        (
+                            candidate,
+                            ownership.segments.span_or_empty(candidate.segments),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                eprintln!(
+                    "CLAIM_RECEIVER state={} stmt={statement_index} target={} expression={result_expression:?} result_path={result_path:?} event={event:?} receiving_path={receiving_path:?} maps={maps:?} joins={joins:?} events={events:?}",
+                    program.symbols.name(state.symbol),
+                    program.symbols.name(target_state.symbol)
+                );
+            }
+        }
         if !unresolved_statements
             .iter()
-            .any(|(index, _)| *index == statement_index)
+            .any(|(index, _, _)| *index == statement_index)
         {
             let root = match event.root {
                 facts::PlaceRoot::Symbol(symbol) => program.symbols.name(symbol).to_owned(),
@@ -347,7 +467,10 @@ fn append_unresolved_state_result_mapping_diagnostics(
                     other => format!("{other:?}"),
                 })
                 .collect::<String>();
-            unresolved_statements.push((statement_index, format!("{root}{path}")));
+            let detail = join_failures.iter().find_map(|failure| {
+                failure.detail_for(program, event, result_expression, &ownership.segments)
+            });
+            unresolved_statements.push((statement_index, format!("{root}{path}"), detail));
         }
     }
 
@@ -357,9 +480,10 @@ fn append_unresolved_state_result_mapping_diagnostics(
     let machine_name = validation::find_state(program, state.symbol)
         .map(|(machine, _)| machine.name.as_str())
         .unwrap_or("<unknown machine>");
-    for (statement_index, path) in unresolved_statements {
+    for (statement_index, path, detail) in unresolved_statements {
+        let detail = detail.map_or_else(String::new, |detail| format!("; {detail}"));
         diagnostics.push(Diagnostic::error(format!(
-            "linear state-call result {path} in {machine_name}::{} at statement {statement_index} has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping",
+            "linear state-call result {path} in {machine_name}::{} at statement {statement_index} has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping{detail}",
             program.symbols.name(state.symbol)
         )));
     }

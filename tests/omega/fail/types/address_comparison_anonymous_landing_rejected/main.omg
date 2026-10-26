@@ -1,0 +1,9 @@
+machine negative(value: addr) -> bool requires value == -1; { true }
+machine fractional(value: addr) -> bool requires value == (1 / 2); { true }
+machine wide(value: addr) -> bool requires value == 18446744073709551616; { true }
+machine model_exclusive(value: addr) -> bool
+requires addr::Bound == 16
+requires value == 16; { true }
+machine model_outside(value: addr) -> bool
+requires addr::Bound == 16
+requires value == 4096; { true }

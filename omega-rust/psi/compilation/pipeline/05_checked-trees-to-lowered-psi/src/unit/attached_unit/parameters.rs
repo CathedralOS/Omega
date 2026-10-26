@@ -135,7 +135,8 @@ pub(crate) fn lower_unit_scalar_parameter_declarations(
                 .ok_or(LoweringError::Unsupported(
                     "Unit scalar formal has no authored parameter",
                 ))?;
-            let declared = qualifications.parameter_value_type(checked, state, parameter.source_position)?;
+            let declared =
+                qualifications.parameter_value_type(checked, state, parameter.source_position)?;
             if declared.scalar_type != carrier
                 || checked.primitive_type_reference(authored.type_reference)
                     != Some(parameter.primitive_type)
@@ -410,7 +411,7 @@ pub(crate) fn call_index_selectors(
 ) -> Result<Vec<ValueId>, LoweringError> {
     let count = arguments
         .iter()
-        .flat_map(|argument| argument.call_selector_segments())
+        .flat_map(|argument| argument.call_selector_positions())
         .count();
     let evaluated = evaluated.unwrap_or_default();
     if evaluated.len() != count || evaluated.iter().any(|value|
@@ -473,6 +474,7 @@ pub(crate) fn lower_structural_arguments(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
     arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
+    completed: Option<&[Option<super::operation_frame::CompletedStructuralArgument>]>,
     structural_types: &[StructuralTypeDeclaration],
     parameters: &[StructuralParameterDeclaration],
     trivial_affine_locals: &[StructuralPlaceDeclaration],
@@ -490,197 +492,270 @@ pub(crate) fn lower_structural_arguments(
     mut calls: Option<&mut CallEmissionContext<'_>>,
     mut emission: Option<(&mut u64, &mut OperationBuffer)>,
 ) -> Result<Vec<StructuralArgument>, LoweringError> {
-    let mut next_byte_argument = 0usize;
-    arguments
-        .iter()
-        .map(|argument| {
-            if argument.access != checked_trees::CheckedStructuralAccess::Owned
-                && argument.structural_storage_root().is_some()
-                && let Some(bindings) = scalar_bindings
+    if completed.is_some_and(|values| values.len() != arguments.len()) {
+        return unsupported("completed structural operand roster has the wrong arity");
+    }
+    let mut next_byte_argument = 0;
+    let mut lowered = Vec::with_capacity(arguments.len());
+    for (ordinal, argument) in arguments.iter().enumerate() {
+        if let Some(Some(captured)) = completed.and_then(|values| values.get(ordinal)) {
+            if captured.progress.is_some()
+                || captured.source != *argument
+                || captured.argument.access != terminal_access(argument.access)
             {
-                let bindings = bindings.clone().with_structural_locals(structural_locals)
-                    .with_structural_observations(structural_types);
-                let prepared = bindings.prepared_borrowed_argument(
-                    identities, checked, argument, &[], structural_types,
-                )?;
-                let path = crate::expression_preparation::bindings::structural_paths::emit_captured_argument_path(
-                    &prepared.path, prepared.source.known_place()?, caller_scalar_values, &mut *selector_values,
-                    calls.as_deref_mut(), emission.as_mut().map(|(next, operations)| (&mut **next, &mut **operations)),
-                )?;
-                return Ok(structural_argument(prepared.source.known_place()?, path, prepared.access));
+                return unsupported(
+                    "completed structural operand changes its checked source or access",
+                );
             }
-            let mut lower_path = |identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-                                  argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
-                                  root,
-                                  place,
-                                  prefix: &[terminal_psi::StructuralPathSegment]| {
-                let suffix =
-                    crate::expression_preparation::bindings::structural_paths::prepare_call_argument_path(
-                        identities,
-                        checked,
-                        argument,
-                        root,
-                        structural_types,
-                    )?;
-                let path = prefix.iter().cloned().map(crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::Static).chain(suffix).collect::<Vec<_>>();
-                crate::expression_preparation::bindings::structural_paths::emit_captured_argument_path(
-                    &path,
-                    place,
-                    caller_scalar_values,
-                    &mut *selector_values,
-                    calls.as_deref_mut(),
-                    emission
-                        .as_mut()
-                        .map(|(next, operations)| (&mut **next, &mut **operations)),
-                )
-            };
-            if let Some(root) = argument.structural_storage_root() {
-                let mut bindings = structural_locals.iter().filter(|binding| binding.root == root);
-                let binding = bindings.next().ok_or(LoweringError::Unsupported(
-                    "structural argument has no established storage",
+            for _ in argument.call_selector_positions() {
+                selector_values.next().ok_or(LoweringError::Unsupported(
+                    "completed address lost its selector receipt",
                 ))?;
-                let access = terminal_access(argument.access);
-                if bindings.next().is_some()
-                    || !structural_access_can_supply(binding.argument.access, access)
-                {
-                    return unsupported("structural argument changes its established storage custody");
-                }
-                // A published local may own a projected subtree without a
-                // separate place. Continue from its retained path and type.
-                let path = lower_path(identities, argument, binding.structural_type, binding.argument.place, &binding.argument.path)?;
-                return Ok(structural_argument(
-                    binding.argument.place,
-                    path,
-                    access,
-                ));
             }
-            if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } = argument.source {
-                let local = super::primitive_locals::find(primitive_locals, symbol)?;
-                if !argument.path.is_empty() { return unsupported("primitive local borrow has a projection"); }
-                // Not `terminal_access`: a primitive local lends no owned custody.
-                let access = match argument.access {
-                    checked_trees::CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
-                    checked_trees::CheckedStructuralAccess::MutableBorrow => StructuralAccess::MutableBorrow,
-                    checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => StructuralAccess::WriteOnlyBorrow,
-                    checked_trees::CheckedStructuralAccess::Owned => return unsupported("primitive local cannot transfer owned custody"),
-                };
-                return Ok(structural_argument(
-                    local.declaration.id,
-                    Vec::new(),
-                    access,
-                ));
-            }
-            // Literals and view ranges of either family were staged into
-            // places of their own, in argument order.
-            if argument.byte_sequence_literal().is_some()
-                || matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. } | checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice { .. })
-            {
-                let place = *byte_argument_places
-                    .get(next_byte_argument)
-                    .ok_or(LoweringError::Unsupported(
-                        "byte-sequence argument place is absent",
-                    ))?;
-                next_byte_argument += 1;
-                return Ok(structural_argument(
-                    place,
-                    Vec::new(),
-                    terminal_access(argument.access),
-                ));
-            }
-            if let Some(declaration_ordinal) = argument.source_local_declaration_ordinal() {
-                let source = trivial_affine_locals
-                    .get(usize::try_from(declaration_ordinal).map_err(|_| {
-                        LoweringError::Unsupported("Unit local argument ordinal exceeds usize")
-                    })?)
-                    .ok_or(LoweringError::Unsupported(
-                        "Unit local argument has an invalid declaration ordinal",
-                    ))?;
-                return Ok(structural_argument(
-                    source.id,
-                    Vec::new(),
-                    StructuralAccess::Owned,
-                ));
-            }
-            if let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal() {
-                // A projected owned alias declares no place: it names an
-                // owned subtree of a live root, so the argument is that
-                // root's place walked to the leaf, and the use's own
-                // projection continues from there. This is the operation
-                // lane Terminal Psi admits for a partial move.
-                if let Some(projected_alias) = projected_alias(completed_results, binding_ordinal) {
-                    let path = lower_path(identities, argument, projected_alias.structural_type, projected_alias.place, projected_alias.path)?;
-                    return Ok(structural_argument(
-                        projected_alias.place,
-                        path,
-                        terminal_access(argument.access),
-                    ));
-                }
-                let source = structural_result_source(structural_results, binding_ordinal, argument)?;
-                let structural_type = match source.kind {
-                    StructuralPlaceKind::OperationResult { structural_type, .. }
-                    | StructuralPlaceKind::ByteSequenceLiteral { structural_type, .. } => structural_type,
-                    StructuralPlaceKind::BlockParameter { .. } => {
-                        // A completed arrival retains its typed binding, just
-                        // like an operation result. Borrowed descriptor uses
-                        // still walk through Referent, preserving the selected
-                        // backing and codec instead of erasing their projection.
-                        let mut bindings = completed_results.iter()
-                            .filter(|(ordinal, _)| *ordinal == binding_ordinal);
-                        let (_, binding) = bindings.next().ok_or(LoweringError::Unsupported(
-                            "structural block arrival has no typed binding",
-                        ))?;
-                        if bindings.next().is_some()
-                            || binding.place() != source.id
-                            || !binding.path().is_empty()
-                        {
-                            return unsupported("structural block arrival disagrees with its typed binding");
-                        }
-                        binding.structural_type()
-                    }
-                    _ => return unsupported("structural result argument has no declared type"),
-                };
-                return Ok(structural_argument(
-                    source.id,
-                    lower_path(identities, argument, structural_type, source.id, &[])?,
-                    terminal_access(argument.access),
-                ));
-            }
-            if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. } =
-                argument.source
-            {
-                return scalar_bindings
-                    .ok_or(LoweringError::Unsupported(
-                        "borrowed scalar formal has no scalar namespace",
-                    ))?
-                    .scalar_parameter_borrow(identities, checked, argument, structural_types);
-            }
-            let source_parameter_index =
-                argument
-                    .source_parameter_index()
-                    .ok_or(LoweringError::Unsupported(
-                        "Unit structural argument is neither a parameter nor a lowered literal",
-                    ))?;
-            let parameter = parameters
-                .get(usize::try_from(source_parameter_index).map_err(|_| {
-                    LoweringError::Unsupported("Unit structural argument index exceeds usize")
-                })?)
-                .ok_or(LoweringError::Unsupported(
-                    "Unit structural argument has an invalid caller parameter index",
-                ))?;
-            Ok(structural_argument(
-                parameter.place,
-                lower_path(identities, argument, parameter.structural_type, parameter.place, &[])?,
+            lowered.push(captured.argument.clone());
+            continue;
+        }
+        let prepared = prepare_structural_argument(
+            identities,
+            checked,
+            argument,
+            structural_types,
+            parameters,
+            trivial_affine_locals,
+            structural_results,
+            completed_results,
+            byte_argument_places,
+            &mut next_byte_argument,
+            primitive_locals,
+            structural_locals,
+            scalar_bindings,
+        )?;
+        let source = prepared.source.known_place()?;
+        let path =
+            crate::expression_preparation::bindings::structural_paths::emit_captured_argument_path(
+                &prepared.path,
+                source,
+                caller_scalar_values,
+                &mut *selector_values,
+                calls.as_deref_mut(),
+                emission
+                    .as_mut()
+                    .map(|(next, operations)| (&mut **next, &mut **operations)),
+            )?;
+        lowered.push(structural_argument(source, path, prepared.access));
+    }
+    if next_byte_argument != byte_argument_places.len() {
+        return unsupported("byte-sequence place count disagrees with arguments");
+    }
+    Ok(lowered)
+}
+
+/// Bind a structural actual's source and typed path without evaluating selectors
+/// or reading descriptor contents. Both call schedules complete this same place
+/// through the shared authored frontier plan.
+pub(crate) fn prepare_structural_argument(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &checked_trees::CheckedTrees,
+    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+    structural_types: &[StructuralTypeDeclaration],
+    parameters: &[StructuralParameterDeclaration],
+    trivial_affine_locals: &[StructuralPlaceDeclaration],
+    structural_results: &[(Option<StructuralPlaceDeclaration>, bool)],
+    completed_results: &[(
+        u32,
+        crate::emission::operation_emission::buffer::StructuralBinding,
+    )],
+    byte_argument_places: &[PlaceId],
+    next_byte_argument: &mut usize,
+    primitive_locals: &[super::primitive_locals::PrimitiveLocal],
+    structural_locals: &[StructuralLocalBinding],
+    scalar_bindings: Option<&crate::expression_preparation::bindings::ScalarBindings>,
+) -> Result<crate::emission::operation_emission::calls::PreparedStructuralArgument, LoweringError> {
+    use crate::emission::operation_emission::calls::PreparedStructuralArgument;
+    use crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment;
+    if argument.access != checked_trees::CheckedStructuralAccess::Owned
+        && argument.structural_storage_root().is_some()
+        && let Some(bindings) = scalar_bindings
+    {
+        return bindings
+            .clone()
+            .with_structural_locals(structural_locals)
+            .with_structural_observations(structural_types)
+            .prepared_borrowed_argument(identities, checked, argument, &[], structural_types);
+    }
+    let mut prepare = |place: PlaceId,
+                       root: StructuralTypeId,
+                       prefix: &[terminal_psi::StructuralPathSegment],
+                       root_type: Option<StructuralTypeId>|
+     -> Result<PreparedStructuralArgument, LoweringError> {
+        let suffix =
+            crate::expression_preparation::bindings::structural_paths::prepare_call_argument_path(
+                identities,
+                checked,
+                argument,
+                root,
+                structural_types,
+            )?;
+        let path = prefix
+            .iter()
+            .cloned()
+            .map(PreparedStructuralPathSegment::Static)
+            .chain(suffix)
+            .collect();
+        Ok(PreparedStructuralArgument {
+            source: place.into(),
+            root_type,
+            access: terminal_access(argument.access),
+            path,
+            selector_positions: Vec::new(),
+        })
+    };
+    if let Some(root) = argument.structural_storage_root() {
+        let mut bindings = structural_locals
+            .iter()
+            .filter(|binding| binding.root == root);
+        let binding = bindings.next().ok_or(LoweringError::Unsupported(
+            "structural argument has no established storage",
+        ))?;
+        let access = terminal_access(argument.access);
+        if bindings.next().is_some()
+            || !structural_access_can_supply(binding.argument.access, access)
+        {
+            return unsupported("structural argument changes its established storage custody");
+        }
+        let root_type = scalar_bindings
+            .and_then(|bindings| bindings.structural_place_type(binding.argument.place))
+            .or_else(|| {
+                binding
+                    .argument
+                    .path
+                    .is_empty()
+                    .then_some(binding.structural_type)
+            });
+        return prepare(
+            binding.argument.place,
+            binding.structural_type,
+            &binding.argument.path,
+            root_type,
+        );
+    }
+    if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } =
+        argument.source
+    {
+        let local = super::primitive_locals::find(primitive_locals, symbol)?;
+        if !argument.path.is_empty() {
+            return unsupported("primitive local borrow has a projection");
+        }
+        if argument.access == checked_trees::CheckedStructuralAccess::Owned {
+            return unsupported("primitive local cannot transfer owned custody");
+        }
+        return PreparedStructuralArgument::from_static(
+            structural_argument(
+                local.declaration.id,
+                Vec::new(),
                 terminal_access(argument.access),
-            ))
-        })
-        .collect::<Result<Vec<_>, _>>()
-        .and_then(|lowered| {
-            if next_byte_argument == byte_argument_places.len() {
-                Ok(lowered)
-            } else {
-                unsupported("byte-sequence place count disagrees with arguments")
+            ),
+            None,
+        );
+    }
+    if argument.byte_sequence_literal().is_some()
+        || matches!(
+            argument.source,
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }
+                | checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice { .. }
+        )
+    {
+        let place =
+            *byte_argument_places
+                .get(*next_byte_argument)
+                .ok_or(LoweringError::Unsupported(
+                    "byte-sequence argument place is absent",
+                ))?;
+        *next_byte_argument += 1;
+        return PreparedStructuralArgument::from_static(
+            structural_argument(place, Vec::new(), terminal_access(argument.access)),
+            None,
+        );
+    }
+    if let Some(ordinal) = argument.source_local_declaration_ordinal() {
+        let source = trivial_affine_locals
+            .get(usize::try_from(ordinal).map_err(|_| {
+                LoweringError::Unsupported("Unit local argument ordinal exceeds usize")
+            })?)
+            .ok_or(LoweringError::Unsupported(
+                "Unit local argument has an invalid declaration ordinal",
+            ))?;
+        return PreparedStructuralArgument::from_static(
+            structural_argument(source.id, Vec::new(), StructuralAccess::Owned),
+            None,
+        );
+    }
+    if let Some(ordinal) = argument.source_structural_result_binding_ordinal() {
+        if let Some(alias) = projected_alias(completed_results, ordinal) {
+            return prepare(
+                alias.place,
+                alias.structural_type,
+                alias.path,
+                scalar_bindings.and_then(|bindings| bindings.structural_place_type(alias.place)),
+            );
+        }
+        let source = structural_result_source(structural_results, ordinal, argument)?;
+        let structural_type = match source.kind {
+            StructuralPlaceKind::OperationResult {
+                structural_type, ..
             }
-        })
+            | StructuralPlaceKind::ByteSequenceLiteral {
+                structural_type, ..
+            } => structural_type,
+            StructuralPlaceKind::BlockParameter { .. } => {
+                let mut bindings = completed_results
+                    .iter()
+                    .filter(|(candidate, _)| *candidate == ordinal);
+                let (_, binding) = bindings.next().ok_or(LoweringError::Unsupported(
+                    "structural block arrival has no typed binding",
+                ))?;
+                if bindings.next().is_some()
+                    || binding.place() != source.id
+                    || !binding.path().is_empty()
+                {
+                    return unsupported(
+                        "structural block arrival disagrees with its typed binding",
+                    );
+                }
+                binding.structural_type()
+            }
+            _ => return unsupported("structural result argument has no declared type"),
+        };
+        return prepare(source.id, structural_type, &[], Some(structural_type));
+    }
+    if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. } =
+        argument.source
+    {
+        let source = scalar_bindings
+            .ok_or(LoweringError::Unsupported(
+                "borrowed scalar formal has no scalar namespace",
+            ))?
+            .scalar_parameter_borrow(identities, checked, argument, structural_types)?;
+        return PreparedStructuralArgument::from_static(source, None);
+    }
+    let index = argument
+        .source_parameter_index()
+        .ok_or(LoweringError::Unsupported(
+            "Unit structural argument is neither a parameter nor a lowered literal",
+        ))?;
+    let parameter = parameters
+        .get(usize::try_from(index).map_err(|_| {
+            LoweringError::Unsupported("Unit structural argument index exceeds usize")
+        })?)
+        .ok_or(LoweringError::Unsupported(
+            "Unit structural argument has an invalid caller parameter index",
+        ))?;
+    prepare(
+        parameter.place,
+        parameter.structural_type,
+        &[],
+        Some(parameter.structural_type),
+    )
 }
 
 /// One completed binding that is a projected owned alias: the place that

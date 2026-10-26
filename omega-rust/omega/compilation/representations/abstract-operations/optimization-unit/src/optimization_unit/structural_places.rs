@@ -364,6 +364,16 @@ impl<'a> Position<'a> {
         segment: &CanonicalStructuralPathSegment,
     ) -> Option<Position<'a>> {
         match (self, segment) {
+            (Self::Type(current), CanonicalStructuralPathSegment::Referent) => {
+                match shape(unit, current)? {
+                    StructuralTypeShape::Reference { referent, access }
+                        if *access != terminal_psi::StructuralAccess::WriteOnlyBorrow =>
+                    {
+                        Some(Self::Type(*referent))
+                    }
+                    _ => None,
+                }
+            }
             (Self::Type(current), CanonicalStructuralPathSegment::Field(identity)) => {
                 let fields = match shape(unit, current)? {
                     terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
@@ -1098,6 +1108,7 @@ impl<'a> Position<'a> {
         step: PathStep<'_>,
     ) -> Option<Position<'a>> {
         match (self, step) {
+            (Self::Type(_), PathStep::Canonical(CanonicalStructuralPathSegment::Referent)) => None,
             (Self::Type(current), PathStep::Ordinary(segment)) => match segment {
                 StructuralPathSegment::AllElements => None,
                 StructuralPathSegment::Field(identity) => {

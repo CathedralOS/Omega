@@ -32,6 +32,10 @@ pub enum FlowConstraintKind {
     BorrowLoan {
         loan: Handle<BorrowLoanFact>,
     },
+    /// An existing invocation permission, not a local borrow activation.
+    BorrowIncomingReference {
+        identity: Handle<crate::IncomingReferenceIdentity>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -40,23 +44,25 @@ pub struct FlowConstraintRef {
 }
 
 #[macro_export]
-macro_rules! borrow_set_quint_pattern {
+macro_rules! borrow_resource_pattern {
     ($($fields:tt)*) => {
         $crate::FlowConstraintKind::BorrowAccess { $($fields)* }
             | $crate::FlowConstraintKind::BorrowCall { $($fields)* }
             | $crate::FlowConstraintKind::BorrowLoan { $($fields)* }
+            | $crate::FlowConstraintKind::BorrowIncomingReference { $($fields)* }
             | $crate::FlowConstraintKind::BorrowState { $($fields)* }
             | $crate::FlowConstraintKind::BorrowWritableRoot { $($fields)* }
     };
 }
 
 #[macro_export]
-macro_rules! borrow_context_quint_pattern {
+macro_rules! nonloan_constraint_pattern {
     ($($fields:tt)*) => {
         $crate::FlowConstraintKind::BorrowAccess { $($fields)* }
             | $crate::FlowConstraintKind::BorrowCall { $($fields)* }
             | $crate::FlowConstraintKind::BorrowState { $($fields)* }
             | $crate::FlowConstraintKind::BorrowWritableRoot { $($fields)* }
             | $crate::FlowConstraintKind::SemanticContext { $($fields)* }
+            | $crate::FlowConstraintKind::BorrowIncomingReference { $($fields)* }
     };
 }

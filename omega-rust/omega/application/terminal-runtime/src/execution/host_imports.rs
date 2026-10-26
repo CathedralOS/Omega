@@ -21,6 +21,7 @@ macro_rules! import_signature_via_clone {
     };
 }
 
+mod absolute_value;
 mod affine_transform;
 mod allocation;
 mod borrowed_storage;
@@ -30,6 +31,7 @@ mod descriptor_io;
 mod descriptor_mode;
 mod integer_absolute;
 mod integer_division;
+mod integer_parsing;
 mod native_provider;
 mod native_word;
 mod network_address;
@@ -55,7 +57,7 @@ enum OutputKind {
 
 /// Shared admission premise for every exact foreign call binding before any
 /// trusted host adapter is offered for it: an identified provider-plan report,
-/// a valid entry mechanism, no callback materializations, no declaration
+/// a valid entry mechanism, no callback materializations, no host-supplied
 /// residue obligations, normal completion, and an evaluated boundary-entry
 /// plan that validates the native signature the adapter will actually run.
 /// Each family below keeps its own declaration/ABI shape rules; this one rule
@@ -86,9 +88,16 @@ pub(super) fn admit_exact_foreign_call(
             "foreign call binding retains callback materializations",
         ));
     }
-    if !declaration.requires.is_empty()
-        || !declaration.normal_qualifications.is_empty()
-        || !declaration.scalar_requires.is_empty()
+    // Structural requirements are caller-carried qualifications. The ordinary
+    // boundary argument binder checks them before invoking any host effect;
+    // admitting an adapter neither supplies nor re-establishes that evidence.
+    // Keep unsupported proof/output residue on the refusal path below.
+    // The shared interpreter boundary owner evaluates every scalar Requires
+    // against the captured invocation before calling any trusted host adapter.
+    // This adapter supplies no evidence and cannot bypass that gate.
+    // Normal-return memberships are output guarantees, not caller ingress.
+    // An unmodeled host adapter cannot establish them.
+    if !declaration.normal_qualifications.is_empty()
         || !declaration.scalar_ensures.is_empty()
         || !declaration.content_guarantees.is_empty()
         || !declaration.program_local_root_introductions.is_empty()
@@ -360,6 +369,15 @@ pub(super) fn bind<'host>(
                         "foreign host binding does not match its admitted requirement row",
                     ));
                 }
+                if let Some(adapter) = absolute_value::AbsoluteValueImport::admit(
+                    program,
+                    declaration,
+                    binding,
+                    provisions.and_then(|provisions| provisions.host_calling_application(*slot)),
+                )? {
+                    instance.bind_import(*slot, adapter)?;
+                    continue;
+                }
                 if let Some(adapter) = allocation::AllocationImport::admit(
                     program,
                     declaration,
@@ -413,6 +431,15 @@ pub(super) fn bind<'host>(
                     declaration,
                     binding,
                     provisions.and_then(|provisions| provisions.host_calling_application(*slot)),
+                )? {
+                    instance.bind_import(*slot, adapter)?;
+                    continue;
+                }
+                if let Some(adapter) = integer_parsing::IntegerParsingImport::admit(
+                    program,
+                    declaration,
+                    binding,
+                    provisions.map_or(&[], TerminalRuntimeHostProvisions::borrowed_storage_layouts),
                 )? {
                     instance.bind_import(*slot, adapter)?;
                     continue;

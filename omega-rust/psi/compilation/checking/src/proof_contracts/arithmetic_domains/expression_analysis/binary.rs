@@ -758,22 +758,46 @@ impl Operation<'_, '_> {
             _ => Interval::UNBOUNDED,
         };
         if self.operator() == BinaryOperator::Subtract
-            && walk.builtin_binary(self.expression)
-            && let Some(floor) = machine.and_then(|machine| {
-                ordered_values::subtract_floor(
-                    program,
-                    machine,
-                    state,
-                    walk.environment,
-                    left,
-                    right,
-                )
-            })
+            && let Some(machine) = machine
+            && guard_narrowing::has_builtin_bound_arithmetic(
+                program,
+                machine,
+                state,
+                self.expression,
+            )
         {
-            return interval.intersect(Interval {
-                low: Some(floor),
-                high: None,
+            let captured = state.and_then(|state| {
+                walk.environment
+                    .numeric_observations
+                    .integer_operations
+                    .iter()
+                    .find(|observation| {
+                        observation.state == state.symbol
+                            && observation.expression == self.expression
+                    })
             });
+            // A raw place denotes current storage. Only the shared operation
+            // owner's complete frame can equate it with both operand epochs;
+            // immutable snapshots remain denotations across arbitrary writes.
+            let denotational = ordered_values::subtract_floor(
+                program,
+                machine,
+                state,
+                walk.environment,
+                left,
+                right,
+                captured.is_some_and(|observation| observation.preserves_storage),
+            );
+            let floor = denotational
+                .into_iter()
+                .chain(captured.and_then(|observation| observation.minimum_difference))
+                .max();
+            if let Some(floor) = floor {
+                return interval.intersect(Interval {
+                    low: Some(floor),
+                    high: None,
+                });
+            }
         }
         interval
     }

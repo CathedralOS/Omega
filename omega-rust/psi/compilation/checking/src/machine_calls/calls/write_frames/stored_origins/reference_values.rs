@@ -41,8 +41,7 @@ pub(in crate::machine_calls::calls::write_frames) fn captured_reference_projecti
     projected: &FramePlaceOrigin,
     stored: &[StoredLocalOrigins],
 ) -> Vec<Option<SlotSource>> {
-    if captured.source.root != projected.source.root
-        || captured.source.is_static() != projected.source.is_static()
+    if !captured.source.same_namespace(&projected.source)
         || !projected
             .source
             .segments
@@ -63,16 +62,32 @@ fn spatial_origins(sources: Vec<Option<SlotSource>>) -> Vec<Option<FramePlaceOri
     sources
         .into_iter()
         .map(|source| {
-            source.and_then(|source| (!source.lifetime_access.is_some()).then_some(source.origin))
+            source.and_then(|source| {
+                (source.lifetime_access.is_none()
+                    && source.origin.source.output_identity().is_none())
+                .then_some(source.origin)
+            })
         })
         .collect()
 }
 
-fn spatial_source(origin: FramePlaceOrigin) -> Option<SlotSource> {
-    Some(SlotSource {
-        carrier: origin.source.clone(),
-        origin,
-        lifetime_access: None,
+/// A loaded slot records the captured backing-prefix depth independently of
+/// the final projection. Following another pointer must skip that already
+/// observed descriptor and retain the actual slot which supplied the new one.
+struct ReferenceStep {
+    source: SlotSource,
+    backing_depth: Option<usize>,
+}
+
+fn spatial_source(origin: FramePlaceOrigin) -> Option<ReferenceStep> {
+    Some(ReferenceStep {
+        source: SlotSource {
+            carrier_backing: None,
+            carrier: origin.source.clone(),
+            origin,
+            lifetime_access: None,
+        },
+        backing_depth: None,
     })
 }
 
@@ -81,13 +96,158 @@ fn resolve_sources(
     origin: &Option<FramePlaceOrigin>,
     aliases: &[(String, FramePlaceOrigin)],
     stored: &[StoredLocalOrigins],
-    mut crossed: Option<usize>,
+    crossed: Option<usize>,
 ) -> Vec<Option<SlotSource>> {
+    resolve_steps(program, origin, aliases, stored, crossed)
+        .into_iter()
+        .map(|step| {
+            step.map(|mut step| {
+                // Spatial callers historically retain only the resulting backing.
+                // The completed-value query below consumes the full step instead,
+                // including the descriptor row which authenticated a pointer load.
+                if step.backing_depth.is_some() && step.source.lifetime_access.is_none() {
+                    step.source.carrier = step.source.origin.source.clone();
+                    step.source.carrier_backing = None;
+                }
+                step.source
+            })
+        })
+        .collect()
+}
+
+/// Complete a callee-relative projection of an already observed descriptor.
+/// The descriptor value is fixed; each further slot load uses this invocation's
+/// entry inventory. Returned carrier coordinates come from the selected stored
+/// row, never by appending a suffix to an earlier descriptor's carrier.
+pub(in crate::machine_calls::calls::write_frames) fn completed_reference_projection_sources(
+    program: &dyn crate::CheckingInput,
+    captured: &SlotSource,
+    projected: &FramePlaceOrigin,
+    stored: &[StoredLocalOrigins],
+) -> Option<Vec<SlotSource>> {
+    if !captured.origin.source.same_namespace(&projected.source)
+        || !projected
+            .source
+            .segments
+            .starts_with(&captured.origin.source.segments)
+    {
+        return None;
+    }
+    let mut pending = vec![(
+        SlotSource {
+            origin: projected.clone(),
+            carrier_backing: captured.carrier_backing.clone().or_else(|| {
+                captured
+                    .lifetime_access
+                    .is_none()
+                    .then(|| captured.origin.clone())
+            }),
+            ..captured.clone()
+        },
+        captured.origin.source.segments.len(),
+        Vec::new(),
+    )];
+    let mut completed = Vec::new();
+    while let Some((source, crossed, mut ancestors)) = pending.pop() {
+        if source.origin.source.segments.len() == crossed || source.lifetime_access.is_some() {
+            if !completed.contains(&source) {
+                completed.push(source);
+            }
+            continue;
+        }
+        let identity = (source.origin.clone(), crossed);
+        if ancestors.contains(&identity) {
+            return None;
+        }
+        ancestors.push(identity);
+        for step in resolve_steps(
+            program,
+            &Some(source.origin.clone()),
+            &[],
+            stored,
+            Some(crossed),
+        ) {
+            let mut step = step?;
+            if let Some(depth) = step.backing_depth {
+                step.source.lifetime_access =
+                    step.source.lifetime_access.or(source.lifetime_access);
+                pending.push((step.source, depth, ancestors.clone()));
+            } else {
+                if step.source.lifetime_access.is_none() {
+                    step.source.carrier = source.carrier.clone();
+                    step.source.carrier_backing = source.carrier_backing.clone();
+                }
+                if !completed.contains(&step.source) {
+                    completed.push(step.source);
+                }
+            }
+        }
+    }
+    (!completed.is_empty()).then_some(completed)
+}
+
+/// The supplied leaf fixes one opaque pointer. Owned projections beneath
+/// that pointer keep the same namespace; another descriptor load needs its
+/// independently captured contents and cannot be inferred from a suffix.
+fn opaque_output_projection_known(
+    program: &dyn crate::CheckingInput,
+    source: &super::super::place_paths::FrameSourcePlace,
+) -> bool {
+    let Some(identity) = source.output_identity() else {
+        return false;
+    };
+    if !source.recasts.is_empty() || source.representation.is_some() || !source.builtin_coordinates
+    {
+        return false;
+    }
+    let Some(parameter) = crate::invocation_output_parameter(program, identity) else {
+        return false;
+    };
+    let Some(outer) = crate::reference_shell(program, parameter.type_reference) else {
+        return false;
+    };
+    for depth in 0..=source.segments.len() {
+        let Some(reference) = crate::owned_projection_type_reference(
+            program,
+            outer.referee,
+            &source.segments[..depth],
+        ) else {
+            return false;
+        };
+        if let Some(shell) = crate::reference_shell(program, reference) {
+            if depth == source.segments.len() {
+                return true;
+            }
+            return crate::owned_projection_type_reference(
+                program,
+                shell.referee,
+                &source.segments[depth..],
+            )
+            .is_some_and(|reference| crate::reference_shell(program, reference).is_none());
+        }
+    }
+    false
+}
+
+fn resolve_steps(
+    program: &dyn crate::CheckingInput,
+    origin: &Option<FramePlaceOrigin>,
+    aliases: &[(String, FramePlaceOrigin)],
+    stored: &[StoredLocalOrigins],
+    mut crossed: Option<usize>,
+) -> Vec<Option<ReferenceStep>> {
     let Some(origin) = origin else {
         return vec![None];
     };
     if origin.source.is_static() {
         return vec![spatial_source(origin.clone())];
+    }
+    if origin.source.output_identity().is_some() {
+        return vec![
+            opaque_output_projection_known(program, &origin.source)
+                .then(|| spatial_source(origin.clone()))
+                .flatten(),
+        ];
     }
     if !origin.source.root.is_valid() {
         // Existing path-only evidence can still conservatively invalidate
@@ -140,12 +300,17 @@ fn resolve_sources(
         // Captured lifetime debts survive projection as a whole. Appending
         // output selectors would invent geometry inside an unrelated input.
         for dependency in &leaf.lifetime_dependencies {
-            if !sources.contains(&Some(dependency.clone())) {
-                sources.push(Some(dependency.clone()));
+            if !sources.iter().any(|step: &Option<ReferenceStep>| {
+                step.as_ref().is_some_and(|step| step.source == *dependency)
+            }) {
+                sources.push(Some(ReferenceStep {
+                    source: dependency.clone(),
+                    backing_depth: None,
+                }));
             }
         }
         let Some(mut captured) = leaf.origin.clone() else {
-            if leaf.lifetime_dependencies.is_empty() && !sources.contains(&None) {
+            if leaf.lifetime_dependencies.is_empty() && !sources.iter().any(Option::is_none) {
                 sources.push(None);
             }
             continue;
@@ -179,9 +344,34 @@ fn resolve_sources(
             recast.segments.drain(..leaf.local_segments.len());
         }
         source.source = captured.source.append_source(&relative);
-        let source = spatial_source(source);
-        if !sources.contains(&source) {
-            sources.push(source);
+        let removed = origin.source.segments.len() - leaf.local_segments.len();
+        let mut carrier = origin.source.clone();
+        carrier.segments.truncate(leaf.local_segments.len());
+        if let Some((_, selectors)) = &mut carrier.representation {
+            let Some(length) = selectors.len().checked_sub(removed) else {
+                return vec![None];
+            };
+            selectors.truncate(length);
+        }
+        carrier.recasts.retain(|recast| {
+            recast.root != carrier.root || recast.segments.len() <= carrier.segments.len()
+        });
+        let backing_depth = captured.source.segments.len();
+        let step = ReferenceStep {
+            source: SlotSource {
+                carrier_backing: Some(captured),
+                origin: source,
+                carrier,
+                lifetime_access: None,
+            },
+            backing_depth: Some(backing_depth),
+        };
+        if !sources.iter().any(|prior| {
+            prior.as_ref().is_some_and(|prior| {
+                prior.source == step.source && prior.backing_depth == step.backing_depth
+            })
+        }) {
+            sources.push(Some(step));
         }
     }
     // No reference boundary was crossed. Preserve the private source so

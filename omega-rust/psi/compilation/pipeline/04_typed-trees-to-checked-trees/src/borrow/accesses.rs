@@ -25,14 +25,19 @@ use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::{BorrowAccessKind, BorrowArgumentAccessFact};
 use symbols::SymbolHandle;
 mod collection;
+mod completed_dispatch;
 mod place;
 mod read;
 mod records;
 mod replay;
-pub(crate) use replay::rejoin_call_accesses;
+pub(crate) use completed_dispatch::retain_completed_dispatch_extractions;
+pub(crate) use replay::rejoin_expression_call_accesses;
 
 use collection::BorrowAccessCollection;
-pub(crate) use place::{BorrowAccessPlace, borrow_access_place};
+pub(crate) use place::{
+    BorrowAccessGeometry, BorrowAccessPlace, borrow_access_geometry, borrow_access_place,
+    is_borrowed_parameter_root, is_image_storage_root,
+};
 use read::collect_read_accesses;
 
 pub(crate) fn collect_call_argument_accesses(
@@ -55,6 +60,7 @@ pub(crate) fn collect_call_argument_accesses(
         machine_symbol,
         target_symbol,
         false,
+        None,
     )
 }
 
@@ -81,7 +87,90 @@ pub(crate) fn collect_transition_target_argument_accesses(
         machine_symbol,
         target_symbol,
         true,
+        None,
     )
+}
+
+fn collect_completed_transition_target_argument_accesses(
+    program: &dyn ::validation::CheckingInput,
+    access_segments: &mut arena::Arena<facts::PlaceSegment>,
+    argument_accesses: &mut arena::Arena<BorrowArgumentAccessFact>,
+    arguments: &[ExpressionHandle],
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    machine_symbol: SymbolHandle,
+    target_symbol: SymbolHandle,
+    extraction: validation::DispatchExtraction,
+) -> arena::HandleSpan<BorrowArgumentAccessFact> {
+    collect_argument_access_span(
+        program,
+        access_segments,
+        argument_accesses,
+        arguments,
+        state_symbol,
+        statement_index,
+        machine_symbol,
+        target_symbol,
+        true,
+        Some(extraction),
+    )
+}
+
+/// The ordinary typed access schedule distinguishes value observations from
+/// source-place loans. This query reuses that schedule when a selected arm
+/// must complete its payload copies before the first target operand.
+pub(crate) fn dispatch_target_value_reads(
+    program: &dyn ::validation::CheckingInput,
+    arguments: &[ExpressionHandle],
+    state: SymbolHandle,
+    statement: usize,
+    machine: SymbolHandle,
+    target: SymbolHandle,
+    extraction: validation::DispatchExtraction,
+) -> Vec<ExpressionHandle> {
+    let mut segments = arena::Arena::new();
+    let mut rows = arena::Arena::new();
+    let accesses = collect_completed_transition_target_argument_accesses(
+        program,
+        &mut segments,
+        &mut rows,
+        arguments,
+        state,
+        statement,
+        machine,
+        target,
+        extraction,
+    );
+    rows.span_or_empty(accesses)
+        .iter()
+        .filter(|access| {
+            if access.kind != BorrowAccessKind::Read
+                || matches!(
+                    program.expression_table.expression(access.expression),
+                    ExpressionNode::Borrow(_)
+                )
+            {
+                return false;
+            }
+            // Ordinary copied reads name their own expression as the completed
+            // read. A nested call instead names that invocation when it releases
+            // its argument loans; that endpoint is not a copied argument value.
+            let completed_value_read =
+                access.end_before_access.is_some() && access.released_at == access.expression;
+            // Forwarding a shared reference retains a loan through invocation, but
+            // its stored descriptor is a value. Copy permission is checked by the
+            // copy producer; this grants no read of its referee and no extra loan.
+            let descriptor_read = validation::expression_type_reference_in_state(
+                program,
+                state,
+                statement,
+                access.expression,
+            )
+            .is_some_and(|reference| validation::reference_shell(program, reference).is_some());
+            completed_value_read || descriptor_read
+        })
+        .map(|access| access.expression)
+        .collect()
 }
 
 fn collect_argument_access_span(
@@ -94,6 +183,7 @@ fn collect_argument_access_span(
     machine_symbol: SymbolHandle,
     target_symbol: SymbolHandle,
     after_dispatch: bool,
+    completed_extraction: Option<validation::DispatchExtraction>,
 ) -> arena::HandleSpan<BorrowArgumentAccessFact> {
     let mut accesses = arena::HandleSpan::empty();
 
@@ -109,6 +199,9 @@ fn collect_argument_access_span(
         );
         if after_dispatch {
             collection = collection.after_dispatch_extraction();
+        }
+        if let Some(extraction) = completed_extraction {
+            collection = collection.with_completed_dispatch_extraction(extraction);
         }
 
         collect_target_argument_accesses(
@@ -264,17 +357,23 @@ fn collect_argument_accesses(
     }
 }
 
+/// A completed value read can copy descriptor bytes without reading their
+/// referee. This is independent of whether the value owns inline storage.
+pub(crate) fn is_copyable_value_type(
+    program: &dyn validation::CheckingInput,
+    reference: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    validation::reference_result_custody::is_copyable_stored_value(program, reference)
+}
+
 /// A detached owned copy releases its source home, independently of its
 /// contained loan frontier. The staged-value checker retains those leaves.
+/// A reference descriptor value is copyable but does not own its referee.
 pub(crate) fn is_owned_copy_type(
     program: &dyn validation::CheckingInput,
     reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
-    validation::has_contents(
-        program,
-        reference,
-        &[],
-        validation::ContentsRequirement::StoredValue,
-    ) && validation::reference_shell(program, reference).is_none()
+    is_copyable_value_type(program, reference)
+        && validation::reference_shell(program, reference).is_none()
         && program.type_multiplicity(reference) == language_semantics::Multiplicity::Unrestricted
 }

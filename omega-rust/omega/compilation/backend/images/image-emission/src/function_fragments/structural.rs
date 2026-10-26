@@ -74,6 +74,7 @@ fn scalar_type(function: &SelectedFunction, value: ValueId) -> Result<ScalarType
 }
 
 pub(super) fn published_call(
+    abstracted: &abstract_operations::AbstractFunction,
     selected: &SelectedFunction,
     contract: &selected_instructions::SelectedCallContract,
 ) -> bool {
@@ -145,18 +146,32 @@ pub(super) fn published_call(
                 // record can name. An owned record join's payload home and a
                 // shared address join's loaded referent pointer both belong to
                 // the mandatory selected graph replay.
-                TargetStructuralArgumentSource::BlockParameter { .. } => {
-                    !selected.structural.as_ref().is_some_and(|signature| {
-                        signature.structural_types.iter().any(|declaration| {
+                TargetStructuralArgumentSource::BlockParameter { block, place } => {
+                    let Some(signature) = &selected.structural else { return true; };
+                    let mut parameters = abstracted.block_entries.iter()
+                        .filter(|entry| entry.block == *block)
+                        .flat_map(|entry| &entry.structural_parameters)
+                        .filter(|parameter| parameter.place == *place);
+                    let Some(parameter) = parameters.next() else { return true; };
+                    // A borrowed stored descriptor lends its slot through an
+                    // address join. That block home stores a pointer, not the
+                    // descriptor bytes; the legacy Stack mirror cannot name it.
+                    // Use the same declared role that edge/block selection uses,
+                    // independently of the eventual slot size or target ABI.
+                    parameters.next().is_some()
+                        || parameter.place != target.place
+                        || parameter.structural_type != target.root_structural_type
+                        || abstract_operations::control_flow::address_joins::is_address_join_in(
+                            parameter, signature.structural_types.as_slice(),
+                        )
+                        || !signature.structural_types.iter().any(|declaration| {
                             declaration.id == target.root_structural_type
-                                && matches!(
-                                    declaration.shape,
+                                && matches!(declaration.shape,
                                     terminal_psi::StructuralTypeShape::ByteSequence(
                                         terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
                                     ) | terminal_psi::StructuralTypeShape::ElementView { .. }
                                 )
                         })
-                    })
                 }
                 _ => false,
             }
@@ -167,6 +182,22 @@ pub(super) fn published_call(
                 .arguments
                 .iter()
                 .any(|argument| matches!(argument, LegalizedScalarArgument::Structural { .. })))
+}
+
+/// A call the legacy mirror cannot represent still requires its complete
+/// selected source, edge transport, storage and final physical replay. Derive
+/// that requirement from the same classifier used to publish/compare records;
+/// absence of a legacy row cannot turn missing source custody into a proof.
+pub(super) fn requires_call_graph_replay(
+    source: &StagedOptimizedRelocationFreeObjectContainer,
+    machine: MachineId,
+) -> Result<bool, Error> {
+    let (abstracted, _) = source::function(source, machine)?;
+    let selected = selected(source, machine)?;
+    Ok(selected
+        .calls
+        .iter()
+        .any(|contract| !published_call(abstracted, selected, contract)))
 }
 
 pub(super) fn inline_owned_placement(
@@ -352,6 +383,7 @@ pub(super) fn populate(
     rows: &[SemanticCodeAttribution],
 ) -> Result<(), Error> {
     let selected = selected(source, function.machine)?;
+    let (abstracted, _) = source::function(source, function.machine)?;
     let fragment = fragment(source, function.machine)?;
     if let Some(contract) = &selected.structural {
         let (parameters, homes) = if function.mixed_structural_scalar_abi.is_some() {
@@ -396,7 +428,7 @@ pub(super) fn populate(
     for contract in selected
         .calls
         .iter()
-        .filter(|contract| published_call(selected, contract))
+        .filter(|contract| published_call(abstracted, selected, contract))
     {
         let call = &contract.call;
         let span = rows

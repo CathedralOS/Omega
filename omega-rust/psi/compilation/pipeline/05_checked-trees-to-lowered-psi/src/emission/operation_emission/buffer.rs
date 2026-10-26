@@ -1,11 +1,11 @@
 //! Invocation-owned operation identities and exact source-occurrence companions.
 //!
-//! Length observations belong to a control-flow scope, not to the append-only
+//! Storage observations belong to a control-flow scope, not to the append-only
 //! operation roster. Successors can be staged before their guard is emitted;
 //! restoring the whole observation scope prevents a guard or sibling from
 //! borrowing a value defined only in one of those successors.
 
-use crate::lowering_error::LoweringError;
+use crate::lowering_error::{LoweringError, unsupported};
 use crate::terminal_identities::operation_id;
 use lowered_psi::{
     LoweredSourceCallOccurrence, LoweredSourceCallSite, LoweredSourceFrontierBindings,
@@ -175,11 +175,25 @@ pub(crate) fn structural_result_declaration(
     })
 }
 
-/// Length values available on one emission path. Carrier kinds retain their
+/// A completed discriminator Boolean, independently of current payload custody.
+/// Its typed coordinate and actual producer bind the observation epoch. A
+/// consumer must check storage changes before reusing the scalar snapshot.
+#[derive(Clone)]
+pub(crate) struct CapturedStructuralCaseObservation {
+    pub(crate) source: PlaceId,
+    pub(crate) path: Vec<terminal_psi::StructuralPathSegment>,
+    pub(crate) structural_type: semantic_vocabulary::StructuralTypeId,
+    pub(crate) case: semantic_vocabulary::StructuralCaseId,
+    pub(crate) value: ValueDeclaration,
+    pub(crate) producer: OperationId,
+}
+
+/// Captured storage observations available on one emission path. Carrier kinds retain their
 /// distinct lookup and mutation rules, but branch entry and exit carry this
 /// state as a whole: every reused value must dominate its consumer.
 #[derive(Clone, Default)]
-pub(crate) struct CollectionLengthObservations {
+pub(crate) struct StorageObservations {
+    pub(crate) cases: Vec<CapturedStructuralCaseObservation>,
     pub(crate) bytes: Vec<(PlaceId, ValueId)>,
     pub(crate) elements: Vec<(terminal_psi::StructuralArgument, ValueId)>,
     pub(crate) field_bytes: Vec<(
@@ -190,8 +204,9 @@ pub(crate) struct CollectionLengthObservations {
     )>,
 }
 
-impl CollectionLengthObservations {
+impl StorageObservations {
     pub(crate) fn clear(&mut self) {
+        self.cases.clear();
         self.bytes.clear();
         self.elements.clear();
         self.field_bytes.clear();
@@ -217,6 +232,20 @@ pub(crate) struct SourceQuotientAdaptation {
 pub(crate) struct ComputedValueBinding {
     pub(crate) argument: terminal_psi::StructuralArgument,
     pub(crate) structural_type: semantic_vocabulary::StructuralTypeId,
+    /// Original observation namespace, captured before producing the value can
+    /// retire or replace its source. Failure matters only to an observation.
+    pub(crate) observation: Result<ComputedValueObservation, LoweringError>,
+}
+
+/// Geometry only: the exact computed-value key and completed argument retain
+/// physical birth/custody. A prefix may revisit the same type through Referent.
+#[derive(Clone, Debug)]
+pub(crate) struct ComputedValueObservation {
+    pub(crate) root_type: semantic_vocabulary::StructuralTypeId,
+    pub(crate) path: Vec<
+        crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment,
+    >,
+    pub(crate) access: terminal_psi::StructuralAccess,
 }
 
 /// A physical home's checked birth, independent of its later source aliases.
@@ -235,11 +264,14 @@ pub(crate) struct OperationBuffer {
         checked_trees::CheckedStructuralValueHandle,
         ComputedValueBinding,
     )>,
-    pub(crate) claim_introductions: Vec<crate::emission::claim_bindings::ClaimIntroduction>,
     pub(crate) claim_edge_bindings: Vec<crate::emission::claim_bindings::ClaimEdgeBinding>,
+    /// Completed private arrivals, including claim-free joins, share the same
+    /// custody namespace as operation results and authored bindings.
+    pub(crate) arrival_claims: Vec<(PlaceId, Vec<terminal_psi::StructuralResultClaimBinding>)>,
     /// Checked destination names for custody arriving at private value joins.
     /// These bind incoming obligations; they never establish new claims.
     pub(crate) block_entry_claims: Vec<terminal_psi::EntryClaim>,
+    pub(crate) claim_introductions: Vec<crate::emission::claim_bindings::ClaimIntroduction>,
     pub(crate) selected_cleanup_groups:
         Vec<crate::emission::selected_continuations::SelectedCleanupGroup>,
     pub(crate) external_completion: Option<PendingExternalCompletion>,
@@ -272,7 +304,7 @@ pub(crate) struct OperationBuffer {
     pub(crate) source_checked_obligations: Vec<ObligationId>,
     pub(crate) next_identity: u64,
     pub(crate) operations: Vec<Operation>,
-    pub(crate) length_observations: CollectionLengthObservations,
+    pub(crate) storage_observations: StorageObservations,
     pub(crate) source_calls: Vec<LoweredSourceCallOccurrence>,
     pub(crate) quotient_adaptations: Vec<SourceQuotientAdaptation>,
     pub(crate) quotient_calls: Vec<SourceQuotientCall>,
@@ -286,6 +318,79 @@ pub(crate) struct OperationBuffer {
 }
 
 impl OperationBuffer {
+    /// Immutable producer/arrival declarations describe a home's initial
+    /// transport names. Only an actual fresh completion may use this catalog
+    /// to publish a frame association; current reads use CurrentClaimNames.
+    pub(crate) fn declared_source_claims(
+        &self,
+        argument: &terminal_psi::StructuralArgument,
+    ) -> Result<Option<Vec<terminal_psi::StructuralResultClaimBinding>>, LoweringError> {
+        let mut selected: Option<(usize, Vec<terminal_psi::StructuralResultClaimBinding>)> = None;
+        for (_, binding) in &self.structural_values {
+            if binding.place() != argument.place {
+                continue;
+            }
+            let Some(suffix) = argument.path.strip_prefix(binding.path()) else {
+                continue;
+            };
+            let claims = binding
+                .claims()
+                .iter()
+                .filter_map(|claim| {
+                    claim.path.strip_prefix(suffix).map(|path| {
+                        terminal_psi::StructuralResultClaimBinding {
+                            claim: claim.claim,
+                            path: path.to_vec(),
+                        }
+                    })
+                })
+                .collect::<Vec<_>>();
+            let depth = binding.path().len();
+            if let Some((previous_depth, previous)) = &selected {
+                if *previous_depth > depth {
+                    continue;
+                }
+                if *previous_depth == depth && previous != &claims {
+                    return unsupported("completed source has conflicting custody bindings");
+                }
+            }
+            selected = Some((depth, claims));
+        }
+        if let Some((_, claims)) = selected {
+            return Ok(Some(claims));
+        }
+        let candidates = self
+            .operations
+            .iter()
+            .filter_map(|operation| operation.result.structural())
+            .filter(|result| result.place == argument.place)
+            .map(|result| result.claims.as_slice())
+            .chain(self.arrival_claims.iter().filter_map(|(place, claims)| {
+                (*place == argument.place).then_some(claims.as_slice())
+            }));
+        let mut claims: Option<&[terminal_psi::StructuralResultClaimBinding]> = None;
+        for candidate in candidates {
+            if claims.is_some_and(|previous| previous != candidate) {
+                return unsupported("completed place has conflicting custody declarations");
+            }
+            claims = Some(candidate);
+        }
+        Ok(claims.map(|claims| {
+            claims
+                .iter()
+                .filter_map(|claim| {
+                    claim
+                        .path
+                        .strip_prefix(argument.path.as_slice())
+                        .map(|path| terminal_psi::StructuralResultClaimBinding {
+                            claim: claim.claim,
+                            path: path.to_vec(),
+                        })
+                })
+                .collect()
+        }))
+    }
+
     /// Calls introduce the returned caller-local names except exact input
     /// claims their checked transfer roster forwards through this invocation.
     pub(crate) fn push(&mut self, operation: Operation) {
@@ -504,6 +609,8 @@ impl OperationBuffer {
     ) -> Self {
         Self {
             source_returns: Vec::new(),
+            arrival_claims: Vec::new(),
+            block_entry_claims: Vec::new(),
             external_completion: None,
             dynamic_dispatch,
             structural_values: Vec::new(),
@@ -517,7 +624,7 @@ impl OperationBuffer {
                 .checked_add(1)
                 .expect("operation identity base admits one-based identities"),
             operations: Vec::new(),
-            length_observations: CollectionLengthObservations::default(),
+            storage_observations: StorageObservations::default(),
             source_calls: Vec::new(),
             quotient_adaptations: Vec::new(),
             quotient_calls: Vec::new(),
@@ -527,7 +634,6 @@ impl OperationBuffer {
             source_checked_obligations: Vec::new(),
             claim_introductions: Vec::new(),
             claim_edge_bindings: Vec::new(),
-            block_entry_claims: Vec::new(),
             selected_cleanup_groups: Vec::new(),
         }
     }
@@ -567,11 +673,11 @@ impl OperationBuffer {
         place: PlaceId,
         path: &[terminal_psi::StructuralPathSegment],
     ) {
-        self.length_observations.elements.retain(|(source, _)| {
+        self.storage_observations.elements.retain(|(source, _)| {
             source.place != place
                 || !terminal_semantics::structural_paths_may_overlap(&source.path, path)
         });
-        self.length_observations
+        self.storage_observations
             .field_bytes
             .retain(|(root, carrier, _, _)| {
                 *root != place || !terminal_semantics::structural_paths_may_overlap(carrier, path)
@@ -623,6 +729,10 @@ impl OperationBuffer {
         )
     }
 
+    // Module callers publish the checked selected state obtained from their
+    // SourceCallCoordinate; boundary/dynamic callers retain their selected
+    // declaration identity. Authored/public spelling stays in FlowCallFact and
+    // never depends on whether a route emitted Unit, scalar or structural data.
     fn record_source_call_site(
         &mut self,
         coordinate: SourceCallCoordinate,

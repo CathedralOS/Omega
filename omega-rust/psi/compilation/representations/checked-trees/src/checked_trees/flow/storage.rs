@@ -27,6 +27,13 @@ pub enum FlowStorageOperation {
         value: Handle<FlowOperandFact>,
         projection: HandleSpan<facts::PlaceSegment>,
     },
+    /// A complete call relation preserved this exact descriptor binding.
+    /// Rejoin its actual entry cut, including unavailable/unchanged incoming;
+    /// no value, pointer, pointee contents or access is manufactured.
+    PreserveBinding {
+        destination: FlowOperandReferent,
+        source: Handle<FlowStorageSnapshot>,
+    },
     Join {
         predecessors: HandleSpan<Handle<FlowStorageSnapshot>>,
     },

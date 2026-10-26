@@ -89,7 +89,7 @@ pub(crate) fn pending_const_applications_need_operator_selection(
     let prepared = crate::PreparedBuildMachineProgram::prepare_in(typed, domain)?;
     let execution = prepared.typed();
     let facts = validation::derive_pre_flow_operator_selections(execution);
-    let admission = crate::BuildTimeAdmissionPlan::infer(execution, selection_authority.clone());
+    let admission = domain.admission(execution, selection_authority.clone());
     let boundary_use = |selected_operator_symbol: SymbolHandle| {
         execution
             .operators()
@@ -1093,10 +1093,9 @@ fn visit_argument(
                         {
                             matches!(
                                 typed.symbols.get(path.symbol).kind,
-                                SymbolKind::Local
-                                    | SymbolKind::Parameter
-                                    | SymbolKind::Field
-                            ) || typed.data_type_parameter_by_symbol(path.symbol)
+                                SymbolKind::Local | SymbolKind::Parameter | SymbolKind::Field
+                            ) || typed
+                                .data_type_parameter_by_symbol(path.symbol)
                                 .is_some_and(|parameter| {
                                     matches!(parameter.kind, TypeParameterKind::Value { .. })
                                 })

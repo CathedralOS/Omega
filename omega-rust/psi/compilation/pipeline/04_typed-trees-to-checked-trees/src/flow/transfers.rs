@@ -40,6 +40,7 @@ mod declared_domains;
 mod owned_qualifications;
 pub(super) use owned_qualifications::append_owned_qualification_transfer;
 mod projected;
+pub(super) use projected::append_completed_copy_predicates;
 mod replacement;
 mod scalar_values;
 mod write_target;
@@ -412,7 +413,7 @@ pub(super) fn propagate_statement_transfers(
 /// Publish one statement's transferred facts as new active contexts, one per
 /// exact place and observation kind. A tag survives a payload write even
 /// when the full value at that same place no longer has its old contents.
-fn publish_statement_contexts(
+pub(super) fn publish_statement_contexts(
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
     machine_symbol: SymbolHandle,
@@ -443,7 +444,7 @@ fn publish_statement_contexts(
     for reference in semantic.refs.span_or_empty(refs) {
         let fact = semantic.facts.get(reference.fact);
         let place = fact.place;
-        let observes_tag = matches!(fact.payload, FactPayload::AssignedCase { .. });
+        let observes_tag = matches!(fact.payload, FactPayload::CaseValue { .. });
         let domain = fact
             .payload
             .domain_membership()

@@ -1,1 +1,1 @@
-without a complete destination/backing relation
+statement 5 mutates `right.value` while local borrow `held` is still active (borrowed at statement 4; its last use is at statement 6 and it is released at state exit)

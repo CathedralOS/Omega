@@ -86,6 +86,7 @@ pub(crate) fn commit_cleanup_action(
     machines: &crate::program::ProgramDeclarations<'_, TerminalMachine>,
     current_machine: &TerminalMachine,
     structural_values: &mut RuntimeRows<PlaceId, TerminalStructuralValue>,
+    scalar_arrays: &mut crate::scalar_array::ScalarArrayBindings,
     reference_referents: &mut RuntimeRows<
         StructuralRuntimePlace,
         crate::reference::ReferenceReferent,
@@ -138,7 +139,13 @@ pub(crate) fn commit_cleanup_action(
             });
         }
         TerminalAffineCleanupAction::RetireHome(place) => {
-            retire_cleanup_home(structural_values, frontier, live_claims, *place)?;
+            retire_cleanup_home(
+                structural_values,
+                scalar_arrays,
+                frontier,
+                live_claims,
+                *place,
+            )?;
         }
         TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
             validate_nominal_cleanup_action(
@@ -157,7 +164,37 @@ pub(crate) fn commit_cleanup_action(
             // hook borrows the intact carrier before the ordered child actions
             // dispose those descriptors, never their external referents.
             if has_live_loan(reference_referents.as_map(), &value) {
-                return Err(TerminalInterpretError::AffineFrontierMismatch);
+                return Err(TerminalInterpretError::NominalCleanupHasLiveLoans {
+                    cleanup: cleanup.clone(),
+                    backing_identity: value.opaque_identity,
+                    backing_path: value.path.clone(),
+                    loan_carriers: reference_referents
+                        .iter()
+                        .filter(|(_, referent)| {
+                            referent.view.opaque_identity == value.opaque_identity
+                                && terminal_semantics::structural_paths_may_overlap(
+                                    &referent.view.path,
+                                    &value.path,
+                                )
+                        })
+                        .map(|(carrier, _)| (carrier.opaque_identity, carrier.path.clone()))
+                        .collect(),
+                    loan_carrier_homes: structural_values
+                        .iter()
+                        .filter(|(_, home)| {
+                            reference_referents.iter().any(|(carrier, referent)| {
+                                carrier.opaque_identity == home.opaque_identity
+                                    && carrier.path.starts_with(&home.path)
+                                    && referent.view.opaque_identity == value.opaque_identity
+                                    && terminal_semantics::structural_paths_may_overlap(
+                                        &referent.view.path,
+                                        &value.path,
+                                    )
+                            })
+                        })
+                        .map(|(place, home)| (*place, home.clone()))
+                        .collect(),
+                });
             }
             begin_nominal_cleanup(
                 structural_types,
@@ -335,6 +372,7 @@ pub(crate) fn validate_nominal_cleanup_action(
 /// the surrounding carrier remains until its last sibling obligation ends.
 pub(crate) fn complete_nominal_cleanup(
     values: &mut RuntimeRows<PlaceId, TerminalStructuralValue>,
+    scalar_arrays: &mut impl crate::scalar_array::PackedHomeRetirement,
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
     claims: &BTreeMap<ClaimId, LiveClaim>,
     cleanup: &NominalAffineCleanup,
@@ -363,7 +401,7 @@ pub(crate) fn complete_nominal_cleanup(
     // discard does. Projected hooks only consume their selected region: the
     // checked dying-owner partition supplies a separate RetireHome when needed.
     if cleanup.path.is_empty() {
-        retire_cleanup_home(values, frontier, claims, cleanup.place)?;
+        retire_cleanup_home(values, scalar_arrays, frontier, claims, cleanup.place)?;
     }
     Ok(())
 }
@@ -374,6 +412,7 @@ pub(crate) fn complete_nominal_cleanup(
 /// backing retained by captured outgoing values survives the frame binding.
 pub(crate) fn retire_cleanup_home(
     values: &mut RuntimeRows<PlaceId, TerminalStructuralValue>,
+    scalar_arrays: &mut impl crate::scalar_array::PackedHomeRetirement,
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
     claims: &BTreeMap<ClaimId, LiveClaim>,
     place: PlaceId,
@@ -381,10 +420,21 @@ pub(crate) fn retire_cleanup_home(
     if place_is_claimed(claims, place) {
         return Err(TerminalInterpretError::AffineFrontierMismatch);
     }
-    if values.remove(&place).is_none() {
-        return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
-            place,
-        ));
+    match (
+        values.contains_key(&place),
+        scalar_arrays.contains_packed_home(&place),
+    ) {
+        (true, false) => {
+            values.remove(&place);
+        }
+        (false, true) => scalar_arrays.retire_packed_home(&place),
+        (false, false) => {
+            return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
+                place,
+            ));
+        }
+        // One binding cannot simultaneously own opaque and packed storage.
+        (true, true) => return Err(malformed()),
     }
     frontier.retain(|entry| entry.place != place);
     Ok(())

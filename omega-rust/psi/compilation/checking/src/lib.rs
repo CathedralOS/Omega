@@ -14,8 +14,9 @@
 pub use declarations::traits::conformance_applications;
 pub mod execution_projection;
 pub use declarations::operators::{
+    OperatorApplicationScope, ScopedOperatorApplication, ScopedOperatorResolution,
     build_operator_facts, derive_checked_operator_crash_contracts,
-    derive_pre_flow_operator_selections,
+    derive_pre_flow_operator_selections, scoped_operator_application,
 };
 pub use declarations::traits::refinement_fit;
 pub use declarations::traits::{ProviderRegionCorrespondence, provider_region_correspondence};
@@ -24,17 +25,24 @@ pub use machine_calls::machine_parameters::validate_callable_parameter_refinemen
 pub use machine_calls::{compiler_operations, contract_identities};
 pub use proof_contracts::qualification_evidence::boundary_qualification_authorization;
 pub use proof_contracts::qualification_evidence::{
-    BoundaryQualificationObligation, boundary_provider_qualification_obligations,
+    BoundaryQualificationObligation, CallQualificationContract, CallQualificationSource,
+    boundary_provider_qualification_obligations, call_qualification_source,
 };
-pub use proof_contracts::{contract_structure, expression_owners, mathematical_applications};
+pub use proof_contracts::{
+    contract_argument_root, contract_structure, expression_owners, mathematical_applications,
+};
 pub use value_custody::partial_affine_residuals::{
     CaseSelectedCleanupRegion, CleanupCaseCondition, CleanupCaseReachability, reconstruct,
     reconstruct_case_selected_regions,
 };
-pub use value_custody::places::binding_observations::stable_slice_descriptor_place;
+pub use value_custody::places::binding_observations::{
+    place_has_immutable_denotation, stable_slice_descriptor_place,
+};
 pub use value_custody::places::collection_operations;
 pub use value_custody::places::declared_reference_access;
-pub use value_custody::places::{declaration_type_reference, declared_case_projection_field};
+pub use value_custody::places::{
+    applied_data_member_field, declaration_type_reference, declared_case_projection_field,
+};
 pub use value_custody::static_inline_storage::{
     runtime_inline_array_extent, validate_prepared_inline_storage,
 };
@@ -64,7 +72,7 @@ pub use machine_calls::static_machine_call_contracts::{
     static_machine_template_reach_contract_bytes,
 };
 pub use machine_calls::structural_call_custody::{
-    DeclarationPredicateRow, StateScalarContractRow, StructuralQualificationContract,
+    DeclarationPredicateRow, StateContractRow, StructuralQualificationContract,
     StructuralResultContract, borrowed_slice_view_result, declaration_facts_carried,
     finite_arrival_parameter, machine_declaration_predicates,
     reconstruct_structural_parameter_return_claims, restates_structural_parameter_qualification,
@@ -72,7 +80,7 @@ pub use machine_calls::structural_call_custody::{
     structural_call_custody, structural_call_result_claims, structural_claim_path,
     structural_owned_path, structural_qualification_contract, structural_result_contract,
     structural_result_projected_qualifications, structural_result_qualification_contract,
-    structural_result_qualifications, structural_state_contract_scalar_predicates,
+    structural_result_qualifications, structural_state_contract_predicates,
     structural_storage_path, view_result_carrier_qualifications,
     zeroed_byte_projected_qualifications,
 };
@@ -93,16 +101,21 @@ pub use proof_contracts::collection_predicates::{
     exact_predicate_intervals, length_member, premises_prove_expression,
 };
 pub use proof_contracts::contract_entailment::{
-    CapturedScalarObservation, captured_call_argument_index_matches, captured_call_index_value,
-    captured_call_subject_identity, captured_collection_length, captured_integer_value,
-    captured_scalar_observations, closed_collection_length, closed_collection_length_at_place,
-    closed_collection_length_under_matches, completed_value_is_bounded_by_static,
-    completed_value_preserves_entry_projection, completed_value_proves_bound_domain_predicate,
-    completed_value_proves_content_conservation, completed_value_proves_domain_predicate,
-    completed_value_refutes_domain, owned_contract_subject, unique_literal_field,
+    CapturedIntegerOperation, CapturedNumericObservations, CapturedScalarObservation,
+    ConditionalContentGuarantee, ContentBackingAddressGoal, ContentConservationDependencies,
+    ContentConservationImplication, NumericObservationDemand, captured_call_argument_index_matches,
+    captured_call_index_value, captured_call_subject_identity, captured_collection_length,
+    captured_integer_value, captured_numeric_observations, closed_collection_length,
+    closed_collection_length_at_place, closed_collection_length_under_matches,
+    completed_value_content_conservation_dependencies,
+    completed_value_has_content_conservation_candidate, completed_value_is_bounded_by_static,
+    completed_value_preserves_entry_projection, completed_value_proves_backing_addresses,
+    completed_value_proves_bound_domain_predicate, completed_value_proves_content_conservation,
+    completed_value_proves_domain_predicate, completed_value_refutes_domain,
+    owned_contract_subject, unique_literal_field,
 };
 pub use proof_contracts::contract_results::{
-    ReservedResultPlace, reserved_result_owner, reserved_result_place,
+    ReservedResultPlace, callable_contract_scopes, reserved_result_owner, reserved_result_place,
 };
 pub use proof_contracts::domains::{
     integer_domain_membership, scalar_domain_predicate, scalar_domain_value_predicate,
@@ -117,6 +130,7 @@ pub use proof_contracts::signature_ensures::{
     collect_parameter_bound_comparisons, ensures_contract_expressions,
 };
 use typed_trees::types::TypeReferenceHandle;
+pub use value_custody::byte_observations::{ByteObservationCarrier, comparable_byte_carrier_type};
 pub use value_custody::claim_frontier::{
     ClaimFrontierClaim, linear_claim_frontier, owned_receiver_claims,
     type_carries_linear_obligation,
@@ -142,7 +156,7 @@ pub use value_custody::scalar_case_constructor::{
     scalar_case_constructor, scalar_case_value_source, structural_case_constructor,
 };
 pub use value_custody::scalar_representation_range::scalar_representation_range;
-pub use value_custody::source_liveness::statement_uses_symbol;
+pub use value_custody::source_liveness::{statement_uses_symbol, transition_target_uses_symbol};
 pub use value_custody::storage_contents::{
     ContentsRequirement, data_has_contents, has_contents, has_owned_or_shared_view_fields,
 };
@@ -151,8 +165,8 @@ pub use value_custody::struct_literals::{
     selected_construction_field_type, validate_value_construction,
 };
 pub use value_custody::structural_identity::{
-    stored_structural_type_identity, stores_reference_shape, structural_identity_type,
-    structural_type_identity,
+    logical_structural_type_identity, stored_structural_type_identity, stores_reference_shape,
+    structural_identity_type, structural_storage_type, structural_type_identity,
 };
 pub use value_custody::transition_operand_moves::transition_operand_moves;
 pub use value_custody::type_shapes::{
@@ -182,8 +196,9 @@ pub use value_custody::places::{
     mutable_byte_slice_parameter_element, place_has_builtin_coordinates,
     range_operator_establishes_endpoint_extent, saved_dispatch_call, saved_dispatch_subject,
     structural_atomic_field, structural_scalar_field, structural_scalar_field_at_coordinate,
-    structural_scalar_field_in_parameters, structural_source, subslice_expression,
-    value_element_has_builtin_coordinate, value_has_builtin_coordinates,
+    structural_scalar_field_in_parameters, structural_scalar_field_of_evaluated_receiver,
+    structural_source, subslice_expression, value_element_has_builtin_coordinate,
+    value_has_builtin_coordinates,
 };
 
 pub use proof_contracts::bound_expression_meaning::{
@@ -224,9 +239,10 @@ pub use crate::machine_calls::call_cycles::{
 pub use crate::machine_calls::calls::{
     AssignmentStorageOrigins, AssignmentWriteTarget, CallFrameResolver, CallWriteOrigins,
     LocalWriteOrigin, LocalWriteSource, RecastSource, ReferenceResultLeafOrigin,
-    ReferenceResultTransport, ReferenceViewFormation, ScalarStorageCoordinate,
-    StoredReferenceEffect, ValidatedSelfCallDescent, assignment_stored_value_type,
-    frame_coordinate_path, frame_length_coordinate_path, frame_paths_overlap, operand_call_plans,
+    ReferenceResultTransport, ReferenceSlotContract, ReferenceViewFormation,
+    ScalarStorageCoordinate, StoredReferenceCallContext, StoredReferenceEffect,
+    ValidatedSelfCallDescent, assignment_stored_value_type, frame_coordinate_path,
+    frame_length_coordinate_path, frame_paths_overlap, operand_call_plans,
     state_reference_parameter_binding_is_stable, storage_origin_types_match,
 };
 pub use crate::machine_calls::denotational_calls::{
@@ -240,7 +256,8 @@ pub use crate::value_custody::cleanup::{
     nominal_cleanup_machine_for_type, nominal_cleanup_owner, validate_reserved_cleanup_selections,
 };
 pub use crate::value_custody::content_conservation::{
-    ContentConservationSourcePlan, content_conservation_plans,
+    ContentBoundaryBodyRequirement, ContentConservationSourcePlan,
+    boundary_body_content_requirements, content_conservation_plans,
 };
 pub use crate::value_custody::content_projections::build_content_projection_plans;
 
@@ -351,6 +368,7 @@ pub use value_custody::literals::land_anonymous_integer_expression;
 pub use value_custody::literals::land_float_literal_destinations;
 pub use value_custody::literals::land_integer_value;
 pub use value_custody::literals::select_anonymous_numeric_match_arm;
+pub use value_custody::literals::validate_anonymous_numeric_formation;
 pub use value_custody::literals::{
     ScalarArrayElements, closed_array_store_type, closed_constant_array_elements,
     closed_literal_array_elements, closed_record_scalar_projection, closed_scalar_place_projection,
@@ -401,13 +419,11 @@ pub use proof_contracts::arithmetic_domains::occurrence_integer_expression_fits_
 pub use proof_contracts::arithmetic_domains::occurrence_integer_expressions_bounds;
 pub use proof_contracts::arithmetic_domains::state_parameter_integer_interval;
 pub use proof_contracts::arithmetic_domains::validate_ordered_requirement_call_totality;
+pub use proof_contracts::arithmetic_domains::{OccurrenceIntegerBounds, occurrence_integer_bounds};
 pub use proof_contracts::arithmetic_domains::{
     StoredIntegerReach, standing_integer_bounds, stored_integer_bounds,
     stored_integer_source_projection, stored_integer_source_projections,
     stored_integer_source_reach,
-};
-pub use proof_contracts::contract_entailment::{
-    CollectionBoundsObservations, StatementPredicateObservations,
 };
 pub use proof_contracts::contract_entailment::integer_embedding_sources_equal;
 pub use proof_contracts::contract_entailment::is_arm_pattern_marker;
@@ -427,6 +443,9 @@ pub use proof_contracts::contract_entailment::{
     ranking_range_premise_symbols, ranking_range_required_coordinates,
     ranking_range_state_premise_coordinates, ranking_slice_length_observation,
     select_rank_arrival_correspondence,
+};
+pub use proof_contracts::contract_entailment::{
+    CollectionBoundsObservations, StatementPredicateObservations,
 };
 pub use proof_contracts::contract_entailment::{
     ComputationBodyShape, DeclaredScalarView, MeasureBodyShape, ProjectionStep,
@@ -521,25 +540,28 @@ pub use machine_calls::calls::{
     CallSite, CompletingTransfer, call_is_unconditional, call_receiver_parts,
     call_site_argument_expressions, call_site_evidence_arguments, call_target_parameters,
     call_target_return_type, call_target_state, call_target_symbol, call_target_type_parameters,
-    collect_call_sites_in_statement, completing_call_transfer, completing_transition_invocation, completing_transition_transfer,
-    find_call_site, find_call_site_in_state, find_machine, find_machine_by_entry_state,
-    find_machine_head, find_state, find_state_for_exit, find_state_in_machine,
-    find_state_on_machine, machine_parameter_signature_symbol, machine_state_by_symbols,
-    machine_state_count, normal_completion_possible, receiver_can_dispatch_to_machine,
-    resolve_name_path_member_symbol, resolve_state_call_target,
-    statement_call_can_dispatch_to_machine, statement_call_receiver_members,
-    statement_call_receiver_path, terminal_callable_target, trait_machine_signature_symbol,
-    transition_call_target,
+    collect_call_sites_in_statement, completing_call_transfer, completing_transition_invocation,
+    completing_transition_transfer, find_call_site, find_call_site_in_state, find_machine,
+    find_machine_by_entry_state, find_machine_head, find_state, find_state_for_exit,
+    find_state_in_machine, find_state_on_machine, invocation_output_parameter,
+    machine_parameter_signature_symbol, machine_state_by_symbols, machine_state_count,
+    normal_completion_possible, receiver_can_dispatch_to_machine, resolve_name_path_member_symbol,
+    resolve_state_call_target, statement_call_can_dispatch_to_machine,
+    statement_call_receiver_members, statement_call_receiver_path, terminal_callable_target,
+    trait_machine_signature_symbol, transition_call_target,
 };
 pub use value_custody::places::{
-    CanonicalPlace, RuntimeFieldSubject, canonical_place_from_expression,
-    canonical_place_from_expression_in_state, canonical_place_source_type_application,
-    canonical_place_type_reference, collection_element_type_reference,
-    contextual_canonical_place_from_expression, data_member_symbol_by_name, declared_data_type,
-    effective_member_symbol, expression_place_type_reference, expression_root_symbol,
-    expression_type_reference_in_state, expression_type_symbol, first_valid_name_path_symbol,
-    index_place_segment, loan_carrier_has_owned_storage, machine_symbol_from_type_reference_handle,
-    nearest_scoped_local, observed_storage_type_references, place_root_may_be_symbol,
+    CanonicalPlace, RuntimeFieldSubject, StorageObservationTypePath,
+    StorageObservationTypePathError, canonical_owned_place_type_reference,
+    canonical_place_from_expression, canonical_place_from_expression_in_state,
+    canonical_place_source_type_application, canonical_place_type_reference,
+    collection_element_type_reference, contextual_canonical_place_from_expression,
+    data_member_symbol_by_name, declared_data_type, effective_member_symbol,
+    expression_place_type_reference, expression_root_symbol, expression_type_reference_in_state,
+    expression_type_symbol, first_valid_name_path_symbol, index_place_segment,
+    loan_carrier_has_owned_storage, machine_symbol_from_type_reference_handle,
+    nearest_scoped_local, observed_storage_type_references, owned_projection_type_reference,
+    parameter_source_type_application, place_root_may_be_symbol,
     project_type_reference_from_segments, projected_statement_receiver_place,
     projected_statement_receiver_type_reference, push_field_place_segments, receiver_projections,
     resolve_member_symbol_from_type_symbol, runtime_field_subject, state_scoped_name_symbol,

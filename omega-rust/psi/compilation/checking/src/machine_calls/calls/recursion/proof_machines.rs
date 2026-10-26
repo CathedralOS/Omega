@@ -8,6 +8,9 @@
 //! judge's premise checks.
 
 use super::is_current_entry_call;
+use crate::value_custody::places::binding_observations::{
+    binding_is_unchanged_value, immutable_value_origin,
+};
 use diagnostics::Diagnostic;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -136,6 +139,8 @@ fn expression_names_measure(
 pub(crate) fn proof_call_has_structural_descent(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
+    state: &typed_trees::state::State,
+    before: usize,
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
     let Some(entry) = program.machine_states(machine).first() else {
@@ -168,13 +173,15 @@ pub(crate) fn proof_call_has_structural_descent(
         return false;
     }
     arguments.get(position).is_some_and(|argument| {
-        strict_subterm_of_measure(program, *argument, measure.symbol)
-            || matches!(program.expression_table.expression(*argument), ExpressionNode::Name(path)
-                if path.symbol.is_valid()
-                    && program.machine_states(machine)[1..].iter().any(|state| {
-                        program.state_parameter_by_symbol(state, path.symbol).is_some()
-                    })
-                    && substate_parameter_descends(program, machine, *argument, measure.symbol))
+        strict_subterm_of_measure(program, state, before, *argument, measure.symbol)
+            || substate_parameter_descends(
+                program,
+                machine,
+                state,
+                before,
+                *argument,
+                measure.symbol,
+            )
     })
 }
 
@@ -282,10 +289,12 @@ pub(crate) fn validate_proof_machine_recursion(
         let arguments = crate::call_site_argument_expressions(program, &site);
         let argument = arguments.get(measure_position).copied();
         let descends = argument.is_some_and(|argument| {
-            strict_subterm_of_measure(program, argument, measure_symbol)
+            strict_subterm_of_measure(program, state, statement_index, argument, measure_symbol)
                 || substate_parameter_descends(
                     program,
                     machine,
+                    state,
+                    statement_index,
                     argument,
                     measure_symbol,
                 )
@@ -377,9 +386,14 @@ pub(crate) fn validate_proof_machine_recursion(
 fn substate_parameter_descends(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
+    source: &typed_trees::state::State,
+    before: usize,
     argument: ExpressionHandle,
     measure_symbol: symbols::SymbolHandle,
 ) -> bool {
+    let Some((_, argument)) = immutable_value_origin(program, source, before, argument) else {
+        return false;
+    };
     let Some(path) = program.expression_table.name_path_node(argument) else {
         return false;
     };
@@ -426,7 +440,10 @@ fn substate_parameter_descends(
             let mut binding_sites = 0usize;
             let mut all_descend = true;
             for source in states {
-                for statement in program.statement_table.statements(source.statement_nodes) {
+                for (statement_index, statement) in program
+                    .statement_table
+                    .indexed_statements(source.statement_nodes)
+                {
                     let Some(transition) = statement.as_transition() else {
                         continue;
                     };
@@ -446,13 +463,22 @@ fn substate_parameter_descends(
                             all_descend = false;
                             continue;
                         };
-                        let forwarded = match program.expression_table.expression(*bound) {
-                            ExpressionNode::Name(path) if path.symbol.is_valid() => {
-                                descending.contains(&path.symbol)
-                            }
-                            _ => false,
-                        };
-                        if !forwarded && !strict_subterm_of_measure(program, *bound, measure_symbol)
+                        let forwarded =
+                            immutable_value_origin(program, source, statement_index, *bound)
+                                .and_then(|(_, origin)| {
+                                    program.expression_table.name_path_node(origin)
+                                })
+                                .is_some_and(|path| {
+                                    path.symbol.is_valid() && descending.contains(&path.symbol)
+                                });
+                        if !forwarded
+                            && !strict_subterm_of_measure(
+                                program,
+                                source,
+                                statement_index,
+                                *bound,
+                                measure_symbol,
+                            )
                         {
                             all_descend = false;
                         }
@@ -478,23 +504,72 @@ fn substate_parameter_descends(
     })
 }
 
+/// Earlier immutable values retain identity, but never manufacture descent.
+/// At least one actual constructor-member hop remains mandatory. Unknown or
+/// reference-backed projections and changed storage cannot stand for the
+/// ranking entry value when a captured alias rejoins it.
 fn strict_subterm_of_measure(
     program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
+    state: &typed_trees::state::State,
+    mut before: usize,
+    mut expression: ExpressionHandle,
     measure_symbol: symbols::SymbolHandle,
 ) -> bool {
-    let Some(member) = program.expression_table.member_node(expression) else {
-        return false;
-    };
-    let mut root = member.receiver;
+    let mut receivers = Vec::new();
+    let mut seen = Vec::new();
+    let mut followed_alias = false;
     loop {
-        match program.expression_table.expression(root) {
-            ExpressionNode::Member(inner) => root = inner.receiver,
-            ExpressionNode::Name(path) => {
-                return path.symbol.is_valid()
-                    && measure_symbol.is_valid()
-                    && path.symbol == measure_symbol;
+        if !program.expression_table.expression_is_valid(expression) || seen.contains(&expression) {
+            return false;
+        }
+        seen.push(expression);
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Member(member) => {
+                receivers.push(member.receiver);
+                expression = member.receiver;
             }
+            ExpressionNode::Name(path) if path.symbol.is_valid() => {
+                if path.symbol == measure_symbol {
+                    if receivers.is_empty() {
+                        return false;
+                    }
+                    if !followed_alias {
+                        return true;
+                    }
+                    let Some(parameter) = program.state_parameter_by_symbol(state, measure_symbol)
+                    else {
+                        return false;
+                    };
+                    if parameter.is_mutable
+                        || crate::reference_shell(program, parameter.type_reference).is_some()
+                        || !binding_is_unchanged_value(program, state, measure_symbol)
+                    {
+                        return false;
+                    }
+                    let Some(machine) = program.machine_holding_state(state.symbol) else {
+                        return false;
+                    };
+                    return receivers.iter().all(|receiver| {
+                        crate::expression_result_type_reference(program, machine, state, *receiver)
+                            .is_some_and(|reference| {
+                                crate::reference_shell(program, reference).is_none()
+                            })
+                    });
+                }
+                let Some((position, origin)) =
+                    immutable_value_origin(program, state, before, expression)
+                else {
+                    return false;
+                };
+                if origin == expression {
+                    return false;
+                }
+                followed_alias = true;
+                before = position;
+                expression = origin;
+            }
+            // A call's guarantee or a freshly constructed wrapper is not a
+            // strict syntactic subterm and cannot establish its own IH.
             _ => return false,
         }
     }

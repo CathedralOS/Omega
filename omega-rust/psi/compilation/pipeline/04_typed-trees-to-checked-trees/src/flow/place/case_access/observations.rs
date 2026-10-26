@@ -38,7 +38,7 @@ pub(super) fn collect(
             | FactPayload::ContractBooleanExpression { expression, .. } => {
                 observer.predicate(expression, true, 0)
             }
-            FactPayload::AssignedCase { variant } => {
+            FactPayload::CaseValue { variant, value } => {
                 if !variant.is_valid()
                     || program.symbols.get(variant).kind != symbols::SymbolKind::Variant
                 {
@@ -56,16 +56,72 @@ pub(super) fn collect(
                 observer.rows.push(CaseObservation {
                     place,
                     variant,
-                    selected: true,
+                    selected: value,
                 });
             }
             _ => {}
         }
     }
+    // Normalize every retained observation in this same immutable consumer
+    // scope once. Captured expression roots stay exact saved occurrences.
+    for row in &mut observer.rows {
+        normalize_place(
+            program,
+            semantic,
+            contexts,
+            state.symbol,
+            statement_index,
+            &mut row.place,
+        );
+    }
     observer
         .rows
         .sort_by(|left, right| left.place.compare_identity(&right.place));
     observer.rows
+}
+
+/// Give observations and queries the same coordinate representation. The
+/// shared equality already compares Index with FixedIndex only when this same
+/// expression-table constant query succeeds. Normalize those constants too,
+/// so an unresolved Index can match only another unresolved Index.
+pub(super) fn normalize_place(
+    program: &dyn validation::CheckingInput,
+    semantic: &FactPlan,
+    contexts: &[FactContextHandle],
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    place: &mut CanonicalPlace,
+) {
+    super::super::narrow_pinned_index_segments(
+        program,
+        semantic,
+        state_symbol,
+        statement_index,
+        contexts,
+        &mut place.segments,
+    );
+    for segment in &mut place.segments {
+        let facts::PlaceSegment::Index { expression } = *segment else {
+            continue;
+        };
+        if !program.expression_table.expression_is_valid(expression) {
+            continue;
+        }
+        if let Some(index) = program
+            .expression_table
+            .constant_integer_value(expression)
+            .and_then(|value| usize::try_from(value).ok())
+        {
+            *segment = facts::PlaceSegment::FixedIndex { index };
+        }
+    }
+}
+
+pub(super) fn has_index(place: &CanonicalPlace) -> bool {
+    place
+        .segments
+        .iter()
+        .any(|segment| matches!(segment, facts::PlaceSegment::Index { .. }))
 }
 
 struct Observer<'program> {

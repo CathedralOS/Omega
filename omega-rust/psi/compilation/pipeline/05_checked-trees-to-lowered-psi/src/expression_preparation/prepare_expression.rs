@@ -156,6 +156,7 @@ impl<'a> PreparedExpressionContext<'a> {
                 parameter_position,
                 path,
                 primitive_type,
+                ..
             } => {
                 let scalar_type = terminal_scalar_type(*primitive_type)?;
                 // Carrier type does not choose the storage path. Case payloads,
@@ -252,6 +253,7 @@ impl<'a> PreparedExpressionContext<'a> {
                 index,
                 element_path,
                 primitive_type,
+                ..
             } => {
                 let bound_decided = selector_bound_is_decided(index, self.proven_indexes);
                 if let checked_trees::CheckedStorageRoot::ViewLocal { symbol } = *root
@@ -489,6 +491,7 @@ impl<'a> PreparedExpressionContext<'a> {
             CheckedBooleanExpression::StructuralParameterField {
                 parameter_position,
                 path,
+                ..
             } => {
                 if !self.structural_fields.is_empty()
                     && matches!(
@@ -536,7 +539,8 @@ impl<'a> PreparedExpressionContext<'a> {
                         checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
                             Ok(identity.spelling())
                         }
-                        checked_trees::CheckedStructuralPredicatePathSegment::Case(_)
+                        checked_trees::CheckedStructuralPredicatePathSegment::Referent
+                        | checked_trees::CheckedStructuralPredicatePathSegment::Case(_)
                         | checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_)
                         | checked_trees::CheckedStructuralPredicatePathSegment::RuntimeIndex(_) => {
                             unsupported("case-payload predicates are contract-only")

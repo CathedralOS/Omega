@@ -256,6 +256,19 @@ pub(crate) fn is_exact_embed_call(
             == Some(BuiltinFunction::IntegerEmbed)
 }
 
+/// The intrinsic's result is independent of its operand's runtime carrier.
+/// Typing retains the exact Int reference even without an authored Int name;
+/// consumers share this query instead of treating the call as an unknown
+/// declared operand. Source eligibility remains the embedding validator's job.
+pub(crate) fn embedding_result_type_reference(
+    program: &dyn crate::CheckingInput,
+    call: &TableCallExpression,
+) -> Option<TypeReferenceHandle> {
+    (is_exact_embed_call(program, call) && has_embedding_shape(call))
+        .then(|| proof_int_type_reference(program))
+        .flatten()
+}
+
 pub(crate) fn integer_embedding(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
@@ -455,8 +468,8 @@ pub(crate) fn expression_type_reference(
         }
         ExpressionNode::Cast(cast) if !cast.form.is_recast() => Some(cast.target_type),
         ExpressionNode::Call(call) => {
-            if is_exact_embed_call(program, call) && has_embedding_shape(call) {
-                return proof_int_type_reference(program);
+            if let Some(reference) = embedding_result_type_reference(program, call) {
+                return Some(reference);
             }
             if !call.target_symbol.is_valid() {
                 return None;
