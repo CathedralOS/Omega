@@ -114,7 +114,9 @@ pub(in crate::proof_contracts::contract_entailment) fn term_is_unobserved_descri
             value,
             ..
         } => {
-            program.primitive_type_reference(*observed_type).is_none()
+            (program.primitive_type_reference(*observed_type).is_none()
+                && super::shared_inline_observation_type(program, term).is_none()
+                && super::owned_observation_type(program, term).is_none())
                 || term_is_unobserved_descriptor(program, value)
         }
         StructuralTerm::Application {

@@ -56,13 +56,20 @@ fn descriptor_path(
                 depth + 1,
             )?;
             let root = value.semantic_value();
-            let observed = captured_owned_carrier(program, root, depth + 1)?;
             shared_inline_crossings(program, selected)?;
             let mut carrier = selected;
             while let Some(shell) = crate::reference_shell(program, carrier) {
                 carrier = shell.referee;
             }
-            crate::declared_carriers_match(program, carrier, observed).then_some(())?;
+            if matches!(root, StructuralTerm::Constructor { .. }) {
+                (carrier.is_valid()
+                    && crate::reference_shell(program, carrier).is_none()
+                    && program.primitive_type_reference(carrier).is_none())
+                .then_some(())?;
+            } else {
+                let observed = captured_owned_carrier(program, root, depth + 1)?;
+                crate::declared_carriers_match(program, carrier, observed).then_some(())?;
+            }
             root.clone()
         }
         ExpressionNode::Member(member) if member.case_variant.is_none() => {

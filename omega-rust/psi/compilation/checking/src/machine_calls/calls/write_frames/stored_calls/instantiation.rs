@@ -371,6 +371,15 @@ pub(super) fn aggregate_argument_sources(
             )
         },
     )?;
+    let actual_carrier = argument_origin(
+        program,
+        machine,
+        parameter,
+        actual,
+        context,
+        symbols,
+        inference,
+    );
     let mut sources = Vec::new();
     for carrier in carriers {
         if (!carrier.source.root.is_valid() && !carrier.source.is_static())
@@ -391,13 +400,19 @@ pub(super) fn aggregate_argument_sources(
             {
                 return None;
             }
+            let carrier_source = if candidate.lifetime_access.is_some() {
+                candidate.carrier
+            } else if let Some(actual) = actual_carrier.as_ref()
+                && actual.source.root.is_valid()
+                && actual.source.builtin_coordinates
+            {
+                actual.source.append_relative(program, &supplied.carrier)
+            } else {
+                carrier.source.clone()
+            };
             let source = SlotSource {
                 origin,
-                carrier: if candidate.lifetime_access.is_some() {
-                    candidate.carrier
-                } else {
-                    carrier.source.clone()
-                },
+                carrier: carrier_source,
                 lifetime_access: candidate.lifetime_access.or(supplied.lifetime_access),
             };
             if !sources.contains(&source) {

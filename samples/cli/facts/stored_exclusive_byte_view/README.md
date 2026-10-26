@@ -178,6 +178,13 @@ still owe the receiving length requirement. A captured result's authenticated
 owned projections select their declaration-bound carrier; crossing a stored
 reference cannot manufacture another owned result root.
 
+The [opaque result's fixed array element](call_result/nested_reference/projected_array/main.omg)
+retains the same length equation after indexing an owned container's array of
+wrappers. Its [empty-view twin](call_result/nested_reference/projected_array/invalid/main.omg)
+rejects the receiving length requirement. Fixed index projection segments on
+call-argument reference origins preserve coarse collections across formal selection,
+and completed value equations accept constructors carrying observed shared references.
+
 Current candidate validation and parent acceptance remain open until the
 corresponding execution and refusal records establish them. Retained macOS
 observations above remain attached to their historical producer. Windows
