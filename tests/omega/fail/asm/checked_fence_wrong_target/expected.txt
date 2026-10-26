@@ -1,0 +1,1 @@
+assembly body mixes incompatible catalog targets

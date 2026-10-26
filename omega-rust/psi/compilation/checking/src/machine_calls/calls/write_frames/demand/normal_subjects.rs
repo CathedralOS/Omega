@@ -116,10 +116,9 @@ impl<'program> CallFrameResolver<'program> {
                 for source in origins {
                     if !source.root.is_valid()
                         || (source.collection_coarse
-                            && !source
-                                .segments
-                                .iter()
-                                .any(|segment| matches!(segment, facts::PlaceSegment::FixedIndex { .. })))
+                            && !source.segments.iter().any(|segment| {
+                                matches!(segment, facts::PlaceSegment::FixedIndex { .. })
+                            }))
                     {
                         return None;
                     }

@@ -9,6 +9,8 @@ use terminal_runtime::{
 
 #[path = "component_claim_resume.rs"]
 mod component_claim_resume;
+#[path = "terminal_fences.rs"]
+mod terminal_fences;
 
 pub(super) const TARGET_ORACLE: &str = "expected_terminal_targets.txt";
 
@@ -181,6 +183,8 @@ pub(super) fn target_installations(
         let result = terminal_runtime::execute(TerminalRuntimeRequest {
             native_provider: Some(std::process::Command::new(executable)),
             x86_flags,
+            memory_ordering:
+                terminal_interpreter::TerminalMemoryOrderingEnvironment::private_sequential(&target),
             artifact,
             target: Some(&target),
             provisions,
@@ -256,6 +260,9 @@ pub(super) fn target_installations(
             "differs"
         }
     ));
+    let fences = terminal_fences::observe(artifact, fixture_dir, fuel_allowance);
+    observation.facts.extend(fences.facts);
+    observation.diagnostics.extend(fences.diagnostics);
     observation
 }
 
@@ -309,6 +316,8 @@ pub(super) fn interpret(
     let result = match terminal_runtime::execute(TerminalRuntimeRequest {
         native_provider: Some(std::process::Command::new(executable)),
         x86_flags,
+        memory_ordering: target
+            .and_then(terminal_interpreter::TerminalMemoryOrderingEnvironment::private_sequential),
         provider_proposal: None,
         artifact,
         target,

@@ -1042,6 +1042,8 @@ impl Builder<'_, '_> {
             source_span: self.program.expression_table.source_span(expression),
             type_reference,
             qualification_decisions: Default::default(),
+            content_transformation: Default::default(),
+            content_inputs: Default::default(),
             kind,
         }))
     }

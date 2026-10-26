@@ -305,6 +305,7 @@ pub(crate) fn build_check_facts(
             &validation_facts.exact_integer_casts,
         );
     });
+    crate::execution::content_consumption::attach(program, &mut prepared)?;
     let index_compatibility = phase_profile::scope("05.d.3.c.2.index_compatibility", || {
         index_compatibility::build_index_compatibility_facts(
             program,

@@ -154,6 +154,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
     let denied = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
         native_provider: None,
         x86_flags: None,
+        memory_ordering: None,
         provider_proposal: None,
         artifact: artifact.psi_artifact(),
         target: None,
@@ -176,6 +177,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
     let observation = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
         native_provider: None,
         x86_flags: None,
+        memory_ordering: None,
         provider_proposal: None,
         artifact: artifact.psi_artifact(),
         target: None,

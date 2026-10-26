@@ -197,11 +197,12 @@ helper that passes does not close an item.
     shared Terminal/native execution paths.
   - Established fact rows (`checked_asm_countdown`, `checked_asm_flag_snapshot`,
     `checked_asm_zero_branch`, `checked_asm_view_move`, `checked_asm_flag_restore`,
-    `checked_asm_rank_decrease`, `checked_asm_add_carry`, `checked_asm_arm_load`)
+    `checked_asm_rank_decrease`, `checked_asm_add_carry`, `checked_asm_arm_load`,
+    `checked_asm_fence_contracts`)
     and `pass/asm/scratch_snapshot_survives_input_write_exit` remain regression
     controls.
   - Remaining control, catalog, settlement, and interpretation obligations:
-    - Other flag-producing instructions, AArch64 countdown/register-view parity,
+    - Other flag-producing instructions, remaining AArch64 register views,
       and checked hardware-effect retirement of exact linear obligations: a
       checked machine satisfying a consuming boundary-trait member may retire a
       linear argument only when instruction semantics and label contracts prove
@@ -213,9 +214,13 @@ helper that passes does not close an item.
       `AsmPortOut`; `pass/inline_asm/asm_runtime_port_msr_final_validation` and
       `asm_aarch64_system_registers_compile` reject with missing checked
       transitive machine plans. Complete checked plans, lowering, Terminal
-      encoding, target realization and final-span evidence across x86 fences,
+      encoding, target realization and final-span evidence across
       interrupt control, flags, MSR/control registers, pipeline/cache directives,
       and AArch64 system registers.
+    - `checked_asm_fence_contracts` covers LFENCE/SFENCE/MFENCE and full-system
+      DMB LD/ST/SY through exact target/clobber checks, canonical events, an
+      explicitly supplied private sequential interpreter model and native
+      encoding. Shared/device synchronization and hardware ordering remain open.
     - Privileged port effect settlement (**PRIVILEGED-PORT-EFFECT-SETTLEMENTS**):
       connect `TargetUnitOperation::PortWrite` and port read (`in`) through
       Omega stage 02/03 lowering, register homes, `function_fragments` port
@@ -314,12 +319,6 @@ helper that passes does not close an item.
       execution (zero selections retain structural eligibility; repeated
       identical selections invoke once; distinct inherited/conjoined selections
       reject).
-    - Red place on main: `samples/cli/facts/domain_selected_cleanup/erased_predicates`
-      (explicit predicate erasure) refuses native compilation since its landing
-      (#165, `f8645229c43`); the probe at the landing commit fails too, so the
-      place never ran green. Terminal Psi lowering reports `InvalidUnitMachinePlan`
-      — "resident membership home has no exact source projection"
-      (`pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/structural_values/emission/current_memberships.rs`).
   Acceptance: a nine-place fact row for `dropped by` with observable cleanup side
   effects passes `omega run --both` (with reject twins for conflicting machine
   applications, erasure bypass, missing inherited obligations, unauthorized

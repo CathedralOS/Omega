@@ -96,6 +96,7 @@ fn exercise(
     let supplies = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
             x86_flags: None,
+            memory_ordering: None,
             entry: None,
             installation: Some(&installed),
             host_imports: &[],

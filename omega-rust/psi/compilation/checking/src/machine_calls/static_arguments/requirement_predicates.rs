@@ -221,9 +221,8 @@ pub(super) fn validate_where_facts(
     caller_state: Option<&State>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    use crate::proof_contracts::contract_entailment::{
-        StrictArithmeticImplicationJudgment, static_application_where_judgment,
-    };
+    use crate::StrictArithmeticImplicationJudgment;
+    use crate::proof_contracts::contract_entailment::static_applications::static_application_where_judgment;
     let judgment = static_application_where_judgment(
         program,
         source,

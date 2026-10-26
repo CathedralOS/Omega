@@ -41,6 +41,7 @@ pub(super) fn decode_instruction(
         12 => MachineMemoryEffect::ZeroBytesV1,
         4 => MachineMemoryEffect::WritePointerV1,
         15 => MachineMemoryEffect::AtomicFenceV1,
+        16 => MachineMemoryEffect::CatalogFenceV1,
         8 => MachineMemoryEffect::AtomicPointerV1,
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
@@ -581,6 +582,7 @@ fn decode_alternative_for_version(
         254 => MachineAlternativeFamily::ControlRegisterRead,
         255 => MachineAlternativeFamily::ControlRegisterWrite,
         256 => MachineAlternativeFamily::InterruptControl,
+        257 => MachineAlternativeFamily::MemoryFence,
 
         238 => MachineAlternativeFamily::AtomicFence,
         235 => MachineAlternativeFamily::ZeroBytes,
@@ -768,6 +770,7 @@ fn decode_encoded_effects(
         },
 
         18 => MachineEncodedMemoryEffect::AtomicFenceV1,
+        19 => MachineEncodedMemoryEffect::CatalogFenceV1,
         11 => MachineEncodedMemoryEffect::AtomicPointerV1 {
             pointer_operand: cursor.u16()?,
             form: crate::AtomicForm::from_ordinal(cursor.byte()?)

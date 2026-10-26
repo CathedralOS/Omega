@@ -1,0 +1,1 @@
+asm where `clobbers` must exactly match the realized instruction contract: not clobbered `x0`

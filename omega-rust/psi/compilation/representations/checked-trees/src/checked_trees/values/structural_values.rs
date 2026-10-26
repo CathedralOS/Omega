@@ -16,6 +16,7 @@ pub struct CheckedStructuralValuePlans {
     pub nodes: Arena<CheckedStructuralValue>,
     pub dispatch_arms: Arena<CheckedStructuralDispatchArm>,
     pub record_fields: Arena<CheckedStructuralRecordField>,
+    pub content_inputs: Arena<crate::CheckedUnitStructuralArgumentPlan>,
     call_schedules: Arena<StructuralCallSchedule>,
     calls: Arena<crate::CheckedStructuralValueCall>,
     roots_by_state: KeyedRows<SymbolHandle, CheckedStructuralValueRoot>,
@@ -57,6 +58,13 @@ pub struct CheckedStructuralValue {
     /// linked source judgments, not this annotation, prove membership.
     pub type_reference: TypeReferenceHandle,
     pub qualification_decisions: HandleSpan<crate::CheckedValueQualification>,
+    /// Exact completion that derives content authority on this fresh payload.
+    /// Copies and later aliases never replay this transaction.
+    pub content_transformation: Handle<crate::facts::ContentBodyTransformation>,
+    /// Complete owned parent operands of that transaction, in the same source
+    /// namespace as ordinary construction operands. Custody and lowering read
+    /// this roster independently of the payload's producing expression kind.
+    pub content_inputs: HandleSpan<crate::CheckedUnitStructuralArgumentPlan>,
     pub kind: CheckedStructuralValueKind,
 }
 

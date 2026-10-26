@@ -93,18 +93,19 @@ pub(crate) fn validate_proposition_entailment(
                 })
                 .collect::<Vec<_>>();
             for goal in required {
-                let structurally_entailed = structural_proposition_goals.iter().any(
-                    |(label, application)| {
-                        label == &goal
-                            && crate::proof_contracts::contract_entailment::transparent_proposition_application_entailed(
-                                program,
-                                machine,
-                                state,
-                                application,
-                                None,
-                            )
-                    },
-                );
+                let structurally_entailed =
+                    structural_proposition_goals
+                        .iter()
+                        .any(|(label, application)| {
+                            label == &goal
+                                && crate::transparent_proposition_application_entailed(
+                                    program,
+                                    machine,
+                                    state,
+                                    application,
+                                    None,
+                                )
+                        });
                 // Instruction observations require the captured CFG event and
                 // operand frontiers. The ordinary checked-flow exit obligation
                 // remains mandatory; this logical-source pass cannot discharge
@@ -302,7 +303,7 @@ fn intake_call_propositions(
         })
         .find(|(application, label)| {
             !known.contains(label)
-                && !crate::proof_contracts::contract_entailment::transparent_call_requirement_entailed(
+                && !crate::transparent_call_requirement_entailed(
                     program,
                     caller,
                     caller_state,

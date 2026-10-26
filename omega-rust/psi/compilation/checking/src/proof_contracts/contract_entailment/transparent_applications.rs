@@ -248,7 +248,7 @@ pub fn transparent_proposition_application_entailed(
             Vec::new(),
         ),
         Some(edge) => {
-            let Some(endpoint) = super::inherited_requirement_proposition_application(
+            let Some(endpoint) = crate::inherited_requirement_proposition_application(
                 program,
                 edge.trait_definition,
                 edge.requirement,
@@ -258,7 +258,7 @@ pub fn transparent_proposition_application_entailed(
             ) else {
                 return false;
             };
-            let Some(satisfier_parameters) = super::inherited_satisfier_parameters(
+            let Some(satisfier_parameters) = crate::inherited_satisfier_parameters(
                 program,
                 edge.trait_definition,
                 edge.requirement,

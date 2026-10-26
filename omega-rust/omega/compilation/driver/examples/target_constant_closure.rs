@@ -170,6 +170,7 @@ fn main() {
     let observation = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
         native_provider: None,
         x86_flags: None,
+        memory_ordering: None,
         provider_proposal: None,
         artifact: artifact.psi_artifact(),
         target: None,

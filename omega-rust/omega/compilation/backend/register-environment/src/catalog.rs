@@ -70,6 +70,7 @@ pub(super) fn selected_environment_keys(
         model_specific_write: keys.model_specific_write,
         processor_halt: keys.processor_halt,
         interrupt_control: keys.interrupt_control,
+        memory_fence: keys.memory_fence,
         atomic_fence: keys.atomic_fence,
         placed_read: keys.placed_read,
         placed_write: keys.placed_write,

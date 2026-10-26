@@ -29,7 +29,10 @@ impl IdentityMap {
                 *derivations = content_derivations;
                 for derived in derivations.iter_mut() {
                     derived.map_places(&mut |place| self.place(place));
-                    derived.lineage_anchor = self.claim(derived.lineage_anchor);
+                    for root in &mut derived.lineage_roots {
+                        *root = self.claim(*root);
+                    }
+                    derived.lineage_roots.sort();
                     for step in &mut derived.ancestry {
                         step.producer_operation = self.operation(step.producer_operation);
                         for claim in step.inputs.iter_mut().chain(&mut step.outputs) {

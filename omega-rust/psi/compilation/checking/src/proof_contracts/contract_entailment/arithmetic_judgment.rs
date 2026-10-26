@@ -1,7 +1,8 @@
 use super::{
     BTreeMap, BigInt, BinaryOperator, ExpressionHandle, ExpressionNode, Machine, RESULT_BINDER,
-    SymbolHandle, proof_integer_expression, proof_nat_cast,
+    SymbolHandle, proof_nat_cast,
 };
+use crate::proof_integer_expression;
 mod difference_matrix;
 mod integer_operations;
 mod intervals;

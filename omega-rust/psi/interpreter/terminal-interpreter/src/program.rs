@@ -403,6 +403,7 @@ impl<'artifact> TerminalProgram<'artifact> {
             .map(TerminalRuntimeSupplies::from)
             .unwrap_or_else(|| TerminalRuntimeSupplies {
                 x86_flags: None,
+                memory_ordering: None,
                 terminal_psi: self.program.identity,
                 entry: None,
                 supplies: BTreeMap::new(),
@@ -421,6 +422,16 @@ impl<'artifact> TerminalProgram<'artifact> {
                 "x86 flags environment requires an admitted x86 target",
             ));
         }
+        if request.memory_ordering.is_some_and(|model| {
+            request
+                .target_machines
+                .is_none_or(|selected| !model.accepts_target(selected.target()))
+        }) {
+            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                "memory-ordering environment requires its admitted matching target",
+            ));
+        }
+        installation.memory_ordering = request.memory_ordering;
         installation.x86_flags = request.x86_flags;
         installation.target_machines = request.target_machines.cloned();
         installation.entry = request.entry;
@@ -762,6 +773,7 @@ mod private_entry_target_tests {
             let installation = program
                 .admit_runtime_supplies(crate::effects::TerminalRuntimeSupplyRequest {
                     x86_flags: None,
+                    memory_ordering: None,
                     entry: Some(artifact.semantic_module().entry),
                     installation: None,
                     host_imports: &[],

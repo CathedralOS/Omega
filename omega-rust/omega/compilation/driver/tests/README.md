@@ -87,6 +87,18 @@ installation, and records `terminal-targets:match` only when every row agrees.
 Malformed oracles and checked/built rows with missing or mismatched observations
 cannot be blessed by `--record`.
 
+An optional `expected_terminal_fences.txt` requires that target-installation
+route and gives each target's ordered, nonempty sequence of `lfence`, `sfence`,
+`mfence`, `dmb_ld`, `dmb_st` and `dmb_sy` events. The corpus roundtrips the same
+source-produced artifact, requires missing and wrong-architecture memory-model
+supplies to refuse before entry effects, and executes under the explicitly
+selected private sequential model. A second instance pauses inside the sequence
+and funds exactly one refused site at a time; unfunded and completed retries must
+repeat neither events nor fuel charges. Exact completed event order, total fuel
+and unchanged artifact identity are execution oracles, independent of the
+program's scalar exit. They establish private-model interpretation, not live
+shared/device ordering or foreign native execution.
+
 `pass/targets/portable_family_entry_installations_exit` pins portable family-root
 installation: Windows traps while the other authored targets return Unit. This
 is not acceptance of the complete Build companion or a grant of backing authority

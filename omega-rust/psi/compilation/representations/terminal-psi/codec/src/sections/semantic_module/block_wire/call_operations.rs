@@ -575,6 +575,9 @@ pub(super) fn decode_register_access(
         ));
     }
     let event = match operation {
+        terminal_psi::RegisterOperation::MemoryFence(kind) => {
+            terminal_psi::RegisterAccessEvent::MemoryFence { kind }
+        }
         terminal_psi::RegisterOperation::ProcessorHalt => {
             terminal_psi::RegisterAccessEvent::ProcessorHalt
         }

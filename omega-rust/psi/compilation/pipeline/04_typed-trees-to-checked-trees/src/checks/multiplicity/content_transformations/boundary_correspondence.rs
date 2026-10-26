@@ -92,7 +92,14 @@ pub(super) fn prepare(
     for handle in equation.available_inputs.handles() {
         let available = content.body_available_inputs.get(handle);
         let binding = content.body_claim_bindings.get(available.binding);
-        let entry = content.body_claim_bindings.get(available.entry_binding);
+        let [entry] = content
+            .body_claim_bindings
+            .span_or_empty(available.entry_bindings)
+        else {
+            return Err(
+                "boundary custody needs exact original-to-current backing correspondence; a joint ancestry roster alone does not establish it",
+            );
+        };
         let current = CanonicalPlace {
             root: available.root,
             segments: ownership

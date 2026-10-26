@@ -11,6 +11,7 @@ use image::{
 };
 
 use super::ObjectArtifact;
+use super::hosted_unit_entry::{EntryShim, EntrySurface};
 
 mod implementation_tables;
 mod native_code_layouts;
@@ -20,7 +21,7 @@ pub(super) fn validate_terminal_image(
     object: &object_file::ObjectPlan,
     relocations: &object_file::RelocationPlan,
     text_bytes: &[u8],
-    entry_shim: Option<super::hosted_unit_entry::EntryShim>,
+    entry_shim: Option<EntryShim>,
     output: &EmittedImageOutput,
 ) -> Result<CompilerTextValidationEvidence, Diagnostic> {
     let expected_imports = object
@@ -49,7 +50,7 @@ pub(super) fn validate_terminal_dynamic_elf_image(
     object: &object_file::ObjectPlan,
     relocations: &object_file::RelocationPlan,
     text_bytes: &[u8],
-    entry_shim: Option<super::hosted_unit_entry::EntryShim>,
+    entry_shim: Option<EntryShim>,
     output: &EmittedImageOutput,
 ) -> Result<CompilerTextValidationEvidence, Diagnostic> {
     let expected_imports = artifact
@@ -75,7 +76,7 @@ fn validate_terminal_image_with_import_count(
     object: &object_file::ObjectPlan,
     relocations: &object_file::RelocationPlan,
     text_bytes: &[u8],
-    entry_shim: Option<super::hosted_unit_entry::EntryShim>,
+    entry_shim: Option<EntryShim>,
     output: &EmittedImageOutput,
     expected_imports: usize,
 ) -> Result<CompilerTextValidationEvidence, Diagnostic> {
@@ -280,8 +281,9 @@ fn validate_terminal_image_with_import_count(
         }
     }
     if let Some(shim) = entry_shim {
-        match shim {
-            super::hosted_unit_entry::EntryShim::Physical { symbol, offset } => {
+        match shim.surface {
+            EntrySurface::Physical => {
+                let (symbol, offset) = shim.symbol_offset();
                 super::physical_entry::validate_image(
                     artifact,
                     object,
@@ -292,10 +294,10 @@ fn validate_terminal_image_with_import_count(
                     output,
                 )?;
             }
-            shim @ (super::hosted_unit_entry::EntryShim::DarwinReceiver { .. }
-            | super::hosted_unit_entry::EntryShim::LinuxReceiver { .. }
-            | super::hosted_unit_entry::EntryShim::LinuxArm64Receiver { .. }
-            | super::hosted_unit_entry::EntryShim::WindowsReceiver { .. }) => {
+            EntrySurface::DarwinReceiver
+            | EntrySurface::LinuxReceiver
+            | EntrySurface::LinuxArm64Receiver
+            | EntrySurface::WindowsReceiver => {
                 super::hosted_receiver::validate_image(
                     artifact,
                     object,
@@ -305,15 +307,13 @@ fn validate_terminal_image_with_import_count(
                     output,
                 )?;
             }
-            unit @ (super::hosted_unit_entry::EntryShim::DarwinUnit { .. }
-            | super::hosted_unit_entry::EntryShim::DarwinX86_64Unit { .. }
-            | super::hosted_unit_entry::EntryShim::WindowsUnit { .. }
-            | super::hosted_unit_entry::EntryShim::LinuxUnit { .. }
-            | super::hosted_unit_entry::EntryShim::LinuxArm64Unit { .. }) => {
-                super::hosted_unit_entry::validate_unit_shim(
-                    unit, artifact, object, text_bytes, output,
-                )?
-            }
+            EntrySurface::DarwinUnit
+            | EntrySurface::DarwinX86_64Unit
+            | EntrySurface::WindowsUnit
+            | EntrySurface::LinuxUnit
+            | EntrySurface::LinuxArm64Unit => super::hosted_unit_entry::validate_unit_shim(
+                shim, artifact, object, text_bytes, output,
+            )?,
         }
     }
     let evidence =

@@ -118,8 +118,14 @@ impl Emission<'_, '_, '_> {
                             let parameter = self.body_parameter_at_completion(equation, *symbol)?;
                             for (available, target) in inputs {
                                 let available = content.body_available_inputs.get(*available);
-                                let entry =
-                                    content.body_claim_bindings.get(available.entry_binding);
+                                let [entry] = content
+                                    .body_claim_bindings
+                                    .span_or_empty(available.entry_bindings)
+                                else {
+                                    return unsupported(
+                                        "boundary body input needs an exact original projection correspondence, not only joint ancestry",
+                                    );
+                                };
                                 if entry.parameter_symbol == parameter
                                     && target.projection == projection
                                     && source_path(

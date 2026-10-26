@@ -85,6 +85,7 @@ pub(super) fn validate_declaration(
                 | MachineSemanticKind::ModelSpecificWrite
                 | MachineSemanticKind::ProcessorHalt
                 | MachineSemanticKind::InterruptControl
+                | MachineSemanticKind::MemoryFence
                 | MachineSemanticKind::AtomicFence
                 | MachineSemanticKind::AtomicAccess(_)
                 | MachineSemanticKind::PlacedScalarAccess(_)
@@ -158,6 +159,19 @@ pub(super) fn validate_declaration(
             semantic,
         ));
     }
+    if semantic == MachineSemanticKind::MemoryFence
+        && (!constraint.operands.is_empty()
+            || !constraint.implicit_uses.is_empty()
+            || !constraint.implicit_defs.is_empty()
+            || !constraint.clobbers.is_empty()
+            || declaration.alternatives.iter().any(|alternative| {
+                alternative.encoded != crate::MachineEncodedEffects::catalog_fence_v1()
+            }))
+    {
+        return Err(MachineEffectCatalogValidationError::BarrierMismatch(
+            semantic,
+        ));
+    }
     let table_call = semantic == MachineSemanticKind::NormalizedForeignCall
         && !declaration.alternatives.is_empty()
         && declaration.alternatives.iter().all(|alternative| {
@@ -170,6 +184,7 @@ pub(super) fn validate_declaration(
     let expected_memory = match semantic {
         _ if table_call => crate::MachineMemoryEffect::ReadPointerV1,
         _ if temporary_stack => crate::MachineMemoryEffect::TemporaryStackStorageV1,
+        MachineSemanticKind::MemoryFence => crate::MachineMemoryEffect::CatalogFenceV1,
         MachineSemanticKind::AtomicFence => crate::MachineMemoryEffect::AtomicFenceV1,
         MachineSemanticKind::AtomicAccess(_) => crate::MachineMemoryEffect::AtomicPointerV1,
         MachineSemanticKind::PlacedScalarAccess(form) => {
@@ -813,6 +828,7 @@ fn validate_encoded_effects(
                     | MachineSemanticKind::ModelSpecificWrite
                     | MachineSemanticKind::ProcessorHalt
                     | MachineSemanticKind::InterruptControl
+                    | MachineSemanticKind::MemoryFence
                     | MachineSemanticKind::AtomicFence
                     | MachineSemanticKind::AtomicAccess(_)
                     | MachineSemanticKind::PlacedScalarAccess(_)
@@ -1262,6 +1278,14 @@ fn validate_encoded_effects(
             && declaration.memory == crate::MachineMemoryEffect::NoneV1
             && declaration.trap == crate::MachineTrapBehavior::TrappingIntegerV1
             && encoded.control == MachineEncodedControlEffect::FallThroughOrTrapV1 => {}
+        (
+            MachineEncodedMemoryEffect::CatalogFenceV1,
+            MachineEncodedStackEffect::UnchangedV1,
+            MachineEncodedTrapBehavior::NeverV1,
+        ) if declaration.semantic == MachineSemanticKind::MemoryFence
+            && declaration.memory == crate::MachineMemoryEffect::CatalogFenceV1
+            && encoded == &crate::MachineEncodedEffects::catalog_fence_v1()
+            && constraint.operands.is_empty() => {}
         (
             MachineEncodedMemoryEffect::AtomicFenceV1,
             MachineEncodedStackEffect::UnchangedV1,
