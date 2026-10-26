@@ -819,7 +819,7 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
   and Psi compile-time admission.
   - Connect admitted Build operations, remaining live-storage accounting,
     remaining host operations (including an admitted loan-carrier interface for
-    explicit host loan returns), and `suspend Build::await_provider<R>(builder, alias)`
+    explicit host loan returns), and `suspend Build::await_provider<R, Backing>(builder)`
     park/resume to the production Build scheduler, replacing checked-tree Build
     evaluation and static syntax projection in
     `omega-rust/omega/packages/build-declarations`.
@@ -902,10 +902,12 @@ narrows realization only.
   - Complete accepted-lock round-trip qualification, provider readiness/resumption,
     and demanded
     Product-description queries while replacing static Build projection.
-    Provider readiness needs the exact dependency-implementation nomination rule
-    in [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md#q1-which-authored-selection-does-build-provider-readiness-consume);
-    suspension mechanics and the remaining orchestration work are not blocked by
-    a missing IR design.
+    Implement [explicit Build provider backing](wiki/spec/build/provider_selection.md#build-provider-readiness):
+    resolve the qualified backing from the requested Build dependency, check exact
+    satisfaction/admission, and install that static slot without ordinary import
+    leakage, default selection, satisfier search, or effect replay. Cover multiple
+    exported backings and rejection of missing/private/wrong-requirement/unadmitted
+    selections; retain namespace and exact-owner identity through park/resume.
   - **BUILD-EVALUATES-ONCE / ONE-DRIVER-PER-STAGE:** evaluate `build.omg` once
     per compilation with no realized target observed, run Psi `00–07` once in
     `compiler.rs` to produce one canonical Terminal Psi artifact, and run Omega

@@ -71,7 +71,7 @@ machine build(builder: &mut Build) {
 
     configure_local_products(builder);
 
-    suspend Build::await_provider<TableGenerator>(builder, "generator");
+    suspend Build::await_provider<TableGenerator, generator::TableGeneratorBacking>(builder);
     generate_tables(builder);
 }
 ```
@@ -79,8 +79,11 @@ machine build(builder: &mut Build) {
 This illustrates the specified dependency surface, not a claim of current
 compiler support or a complete runnable build. `configure_local_products` may
 run while package work proceeds. `TableGenerator` is a requirement already
-known when this Build is checked. Provider readiness returns immediately when
-its admitted implementation is installed or suspends and resumes this same
+known when this Build is checked. `generator::TableGeneratorBacking` explicitly
+names the implementation to prepare; it is not inferred from available satisfiers
+or a dependency default. This designated reference supports namespace qualification
+without making unresolved package code generally importable. Provider readiness
+returns immediately when its admitted implementation is installed or suspends and resumes this same
 continuation when it becomes available. Generator helpers call exact
 `TableGenerator::operation(arguments)` requirements statically. Product source
 cannot use this build-only provider slot.

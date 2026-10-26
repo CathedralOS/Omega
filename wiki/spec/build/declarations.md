@@ -25,11 +25,15 @@ semantics.
 may start package resolution, review, compilation, and admission without
 suspending the activation. Product dependencies grant no callable authority to
 Build code. Code from a build dependency enters through
-`suspend Build::await_provider<R>(builder, alias)`, where the pre-known exact
+`suspend Build::await_provider<R, Backing>(builder)`, where the pre-known exact
 requirement application `R` defines its callable surface and effect, reach, and
-resource bounds. The operation returns immediately when that Build-scoped static
-provider slot is installed, or preserves the same Terminal continuation while
-package coordination recursively activates dependency Builds and Psi admits the
+resource bounds. `Backing` explicitly names the implementation through its
+build-dependency-qualified path; there is no separate alias value argument.
+The [explicit Build provider selection](provider_selection.md#build-provider-readiness)
+contract governs deferred resolution without granting ordinary imports.
+The operation returns immediately when that exact admitted backing is installed
+in the Build-scoped static provider slot, or preserves the same Terminal
+continuation while package coordination recursively activates dependency Builds and Psi admits the
 selected implementation. The interpreter installs the slot and resumes without
 replaying any Build effect. Subsequent code calls `R::operation(arguments)`;
 awaiting readiness does not create or return a routing value.
@@ -78,7 +82,7 @@ ordinary Build source when persisting dependency changes to a loose project.
 `depend`/`depend_as` authorize product imports; `build_depend`/`build_depend_as`
 request a host-profile implementation eligible for exact provider-slot
 installation in the build entry and its local helpers; only successful
-`Build::await_provider<R>` makes that Build-scoped slot callable. A newly
+`Build::await_provider<R, Backing>` makes that Build-scoped slot callable. A newly
 requested package's static paths are unavailable when that entry is first
 checked; `R` and the readiness site must be meaningful before the package
 resolves. The host library uses its own ordinary
@@ -179,8 +183,8 @@ nor execution authority.
 Local and package-owned helpers may borrow the root Build value for dependency
 requests, provider selection, root binding, staging, and other evaluated work.
 Build-dependency helpers call an exact static requirement only after
-`Build::await_provider<R>` has installed its admitted implementation for that
-activation. Authority follows ordinary operation arguments and the checked call
+`Build::await_provider<R, Backing>` has installed its admitted implementation
+for that activation. Authority follows ordinary operation arguments and the checked call
 graph, not provider-slot selection. Transitive reach,
 invocation, blocking/suspension, termination, observations, and authority
 demands compose into the root's published ceiling.

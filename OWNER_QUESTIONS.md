@@ -71,42 +71,4 @@ Proposed solutions below are recommendations, not owner rulings. The owner
 removes an entry once it is answered; unfinished implementation stays on its
 owning task.
 
-### Q1. Which authored selection does Build provider readiness consume?
-
-For `suspend Build::await_provider<R>(builder, alias)`, what identifies the
-dependency's exact implementation of `R`? If the dependency exports two checked
-implementations of the same exact requirement, does its Build output choose one,
-does the caller nominate one, or must the dependency expose a unique eligible
-realization?
-
-The customer is the separately compiled topology/deployment helper in
-[package topology](wiki/spec/packages/topology.md#authoring-surface): the root
-must call its admitted implementation without importing newly requested package
-paths or replaying earlier Build effects.
-
-Contracts checked:
-
-- [Build declarations](wiki/spec/build/declarations.md) and
-  [execution](wiki/spec/build/execution.md#admission-before-execution) specify
-  the exact requirement, static slot, admission and same-continuation resumption,
-  but refer to the selected implementation without naming the selection rule.
-- [Provider selection](wiki/spec/build/provider_selection.md#declaration-and-choice)
-  names target defaults and explicit `Build::select_provider<Slot, Provider>`;
-  readiness supplies `R` and a dependency alias, not `Provider`.
-- [Component publication](wiki/spec/build/component_publication.md) requires one
-  admitted realization per demanded slot; it does not choose the dependency export.
-- [Named implementations](wiki/spec/language/conformances.md) distinguish explicit
-  conformance evidence from provider realization. Neither unique-visible evidence
-  inference nor ordinary runtime provider selection supplies a Build-host rule.
-
-Recommendation: consume an explicitly published dependency selection for the
-exact `R` and Build execution profile, rejecting missing, ambiguous, private or
-unadmitted supply. This needs an owner ruling on where that selection is authored;
-it is not permission to reinterpret existing product-only rows as Build grants.
-
-Suspension mechanics, artifact representation and exact nominal identity are
-implementation work, not questions here. `R` must retain the same admitted owner
-on both sides; matching spellings/signatures cannot substitute. At inspected
-revision `30831caca530`, no `await_provider` implementation or authored source
-use exists under `omega-rust/`, `source/`, `samples/` or `tests/`. A read-only
-independent contract audit confirmed this narrow selection gap before escalation.
+None.
