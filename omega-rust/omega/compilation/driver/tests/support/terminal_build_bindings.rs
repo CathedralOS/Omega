@@ -193,7 +193,16 @@ fn exercise(
                 .handle_effect_result(&fabricated)
                 .unwrap_err();
             assert!(rejection.reason.contains("no source-issued"));
-            let requests = host.into_executed().unwrap();
+            let executed = host.into_executed().unwrap();
+            let requests: Vec<_> = executed
+                .iter()
+                .map(|request| match request {
+                    language_semantics::declaration_selection::ExecutedBuildProductRequest::RootBinding(binding) => binding,
+                    language_semantics::declaration_selection::ExecutedBuildProductRequest::DeclarationSelection(_) => {
+                        panic!("root-binding fixture recorded an unexpected declaration selection")
+                    }
+                })
+                .collect();
             assert_eq!(
                 requests
                     .iter()
