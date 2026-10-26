@@ -190,8 +190,10 @@ has source SHA-256
 The optimized producer from fixed source
 `37f85b4aa3810cfb579257afb37cc8b99508c84f` refuses it before execution with
 `a nested machine application without a completely admitted callable tuple`.
-That is a new remaining formation gap after the constant-custody repair in
-PR 253; no runtime acceptance for this production is claimed yet.
+That is the formation gap after the constant-custody repair in PR 253.
+The first repair candidate, `f2dcd8f0c3adc0ed943d2987aa49af7097cf1f87`,
+executes the unchanged root with native exit 0 and Terminal exit 0. The full
+transport row and its new corpus pins still require qualification.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
@@ -208,9 +210,30 @@ PR 253; no runtime acceptance for this production is claimed yet.
 Each twin changes only the premise's own result to false. The nine transports
 and root are pinned under
 `tests/omega/{pass,fail}/facts/abstract_signature_call_applied_callback_*`.
-Their current results, complete tuple admission, independent review and
-publication remain to be established. The broader task's formation, law,
-declaration migration and other-host acceptance remain open.
+The same selected-tuple mechanism also has positive compositions for an unused
+[type argument](constant_initializer/applied_callback/type_argument/main.omg),
+an unused [copy bound](constant_initializer/applied_callback/type_bound/main.omg),
+[opposite results from two applications of one provider](constant_initializer/applied_callback/opposite_instances/main.omg),
+[a repeated recipe](constant_initializer/applied_callback/repeated_recipe/main.omg)
+and [forwarding through another binder](constant_initializer/applied_callback/forwarded_applied/main.omg).
+Each has a premise-false twin. Additional controls pin an unused type-bound
+violation, an out-of-range const argument, a stronger callback premise, a wider
+crash contract, and an incorrect result selected by a different application.
+Those controls must reach their own obligations; a missing tuple is insufficient.
+
+The repair prepares the ordinary occurrence-owned provider view for retained
+constant recipes. It preserves the authored arguments for replay and consumes
+the selected roster only in executable occurrences. Full tuple formation and
+callable refinement remain separate checking obligations. The complete row,
+independent review and publication remain to be established.
+
+Further valid-positive refusals are retained against both fixed baseline 37
+and this repair: a provider tuple containing a Machine argument refuses
+`an unclosed machine or runtime operand`, a cross-module const alias loses its
+exact declaration selection, and a generic abstract-premise call confuses its
+actual and required `T`. They remain the same parent's next formation work.
+This Type/Const application step does not claim those repairs. The broader
+task's law, declaration migration and other-host acceptance remain open.
 
 ## Execution
 
