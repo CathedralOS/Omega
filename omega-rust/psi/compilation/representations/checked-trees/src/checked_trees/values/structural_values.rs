@@ -807,6 +807,8 @@ mod index_tests {
             source_span: Default::default(),
             type_reference: Default::default(),
             qualification_decisions: Default::default(),
+            content_transformation: Default::default(),
+            content_inputs: Default::default(),
             kind: super::CheckedStructuralValueKind::Scalar {
                 value: Default::default(),
             },
