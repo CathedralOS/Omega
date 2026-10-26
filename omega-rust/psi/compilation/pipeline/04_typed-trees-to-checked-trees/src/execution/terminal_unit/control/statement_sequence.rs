@@ -275,7 +275,7 @@ pub(in crate::execution::terminal_unit) fn build(
     // borrowed carriers alike, including values consumed by this prefix.
     let owner_candidates =
         reference_retirement::OwnerCandidates::new(program, facts, machine.symbol, state.symbol)?;
-    let mut operations = Vec::new();
+    let mut operations = Vec::<CheckedUnitEffectOperationPlan>::new();
     let mut place_loans = Vec::new();
     // Erased borrow carriers have no storage binding: the sequence advances
     // past their declarations while each use's planner joins the captured
@@ -331,6 +331,12 @@ pub(in crate::execution::terminal_unit) fn build(
         .iter()
         .copied()
     {
+        if operations
+            .last()
+            .is_some_and(|operation| !operation.has_normal_continuation())
+        {
+            break;
+        }
         let statement = &statements[index];
         if let StatementNode::Expression(expression) = statement
             && program
@@ -659,6 +665,12 @@ pub(in crate::execution::terminal_unit) fn build(
                 result_stores: call_result_stores,
             },
         )?;
+        if operations
+            .last()
+            .is_some_and(|operation| !operation.has_normal_continuation())
+        {
+            break;
+        }
     }
     drop(_loop_guard);
     trace.statement(None);

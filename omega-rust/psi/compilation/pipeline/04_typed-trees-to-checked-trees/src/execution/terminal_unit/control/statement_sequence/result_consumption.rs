@@ -1486,7 +1486,7 @@ pub(in crate::execution::terminal_unit) fn consume_value_call_sources(
         for operand in call
             .operands()
             .iter()
-            .chain(std::iter::once(call.operation()))
+            .chain(call.operation())
             .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
         {
             let Some(result) = operand.structural_result_binding() else {
@@ -1532,7 +1532,7 @@ pub(in crate::execution::terminal_unit) fn consume_value_call_sources(
         for operation in call
             .operands()
             .iter()
-            .chain(std::iter::once(call.operation()))
+            .chain(call.operation())
             .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
         {
             if let CheckedUnitEffectOperationPlan::EstablishLocal(
@@ -1709,8 +1709,11 @@ pub(in crate::execution::terminal_unit) fn prepare_value_operands(
     root: checked_trees::CheckedStructuralValueHandle,
     trace: &LocalConstructionTrace,
     windows: &mut super::super::super::borrowed_windows::OpenWindows,
-) -> Option<Vec<checked_trees::CheckedStructuralValueCall>> {
-    let calls = super::super::structural_operands::value_calls(
+) -> Option<(
+    Vec<checked_trees::CheckedStructuralValueCall>,
+    checked_trees::CheckedValueCompletion,
+)> {
+    let (calls, completion) = super::super::structural_operands::value_calls(
         program,
         facts,
         scalar_callees,
@@ -1727,6 +1730,12 @@ pub(in crate::execution::terminal_unit) fn prepare_value_operands(
         trace,
         windows,
     )?;
+    if completion == checked_trees::CheckedValueCompletion::NoNormal {
+        // Only invocations actually reached consume their arguments. The
+        // enclosing construction never completes and transfers no whole root.
+        consume_value_call_sources(facts, results, operations, &calls)?;
+        return Some((calls, completion));
+    }
     if facts
         .flow
         .ownership
@@ -1738,7 +1747,7 @@ pub(in crate::execution::terminal_unit) fn prepare_value_operands(
         consume_value_places(facts, root, results, operations)?;
     }
     consume_value_call_sources(facts, results, operations, &calls)?;
-    Some(calls)
+    Some((calls, completion))
 }
 
 pub(in crate::execution::terminal_unit) fn consume_value_places(

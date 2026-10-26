@@ -6,11 +6,12 @@ use crate::checked_trees::flow::terminal::{
     CheckedBoundaryMachinePlan, CheckedCallScalarArgument, CheckedComposedUnitControlMachinePlan,
     CheckedProviderAttachmentRequirementPlan, CheckedScalarStateTerminator,
     CheckedStructuralScalarParameterPlan, CheckedTrivialAffineStructuralLocalPlan,
-    CheckedUnitCallCoordinate, CheckedUnitCallPlan, CheckedUnitEntryClaimPlan,
-    CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralDomainPlan,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralResultBindingPlan, CheckedUnitStructuralTypePlan,
+    CheckedUnitCallCoordinate, CheckedUnitCallPlan, CheckedUnitCallResult,
+    CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
+    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
+    CheckedUnitStructuralDomainPlan, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralPathSegment, CheckedUnitStructuralResultBindingPlan,
+    CheckedUnitStructuralTypePlan,
 };
 use crate::checked_trees::values::CheckedErasedProofParameterPlan;
 use diagnostics::{CoverageForm, Diagnostic};
@@ -318,6 +319,15 @@ pub enum CheckedUnitEffectOperationPlan {
     /// What used to be a family of per-shape variants is one operation; the
     /// payload's representation selects the lowering.
     EstablishLocal(CheckedUnitLocalBindingPlan),
+    /// Evaluate an exact structural DAG whose required operand cannot return.
+    /// It owns the executed prefix and call catalog, but no receiving home,
+    /// whole-value transfer, normal arrival or result cleanup transaction.
+    EvaluateStructuralValue {
+        statement_index: u32,
+        value: crate::CheckedStructuralValueHandle,
+        calls: Vec<CheckedStructuralValueCall>,
+        operand_source: Option<crate::CheckedArrayConstructionSource>,
+    },
     /// Bind the statement's immutable view local to an exclusive range of an
     /// established view. `source` is the same `ByteSequenceSubslice` or
     /// `ElementViewSubslice` argument plan a call argument carries, with its
@@ -606,24 +616,27 @@ impl CheckedOperandSequence {
 pub struct CheckedStructuralValueCall {
     pub value: crate::CheckedStructuralValueHandle,
     operands: CheckedOperandSequence,
-    operation: CheckedUnitEffectOperationPlan,
-    /// Normal-return descriptor release and checked backing-owner disposition.
-    completions: CheckedOperandSequence,
+    outcome: CheckedValueInvocationOutcome,
 }
 
-// Only the arena's absent slot uses this value. Published rows still enter
-// through `with_operands`, which requires a structural invocation result.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum CheckedValueInvocationOutcome {
+    Absent,
+    Prepared {
+        operation: CheckedUnitEffectOperationPlan,
+        completions: CheckedOperandSequence,
+    },
+    /// A child invocation ended evaluation before the enclosing call entered.
+    /// The exact last invocation lives in operands; no parent call is invented.
+    Stopped,
+}
+
 impl Default for CheckedStructuralValueCall {
     fn default() -> Self {
         Self {
             value: crate::CheckedStructuralValueHandle::invalid(),
             operands: CheckedOperandSequence::default(),
-            completions: CheckedOperandSequence::default(),
-            operation: CheckedUnitEffectOperationPlan::Complete {
-                statement_index: 0,
-                trivial_affine_local_discard_ordinals: Vec::new(),
-                trivial_affine_discards: Vec::new(),
-            },
+            outcome: CheckedValueInvocationOutcome::Absent,
         }
     }
 }
@@ -633,12 +646,7 @@ impl CheckedStructuralValueCall {
         value: crate::CheckedStructuralValueHandle,
         operation: CheckedUnitEffectOperationPlan,
     ) -> Option<Self> {
-        Self::with_operands(
-            value,
-            CheckedOperandSequence::default(),
-            operation,
-            CheckedOperandSequence::default(),
-        )
+        Self::with_operands(value, Default::default(), operation, Default::default())
     }
 
     pub fn with_operands(
@@ -647,51 +655,122 @@ impl CheckedStructuralValueCall {
         operation: CheckedUnitEffectOperationPlan,
         completions: CheckedOperandSequence,
     ) -> Option<Self> {
-        // The call's admitted result owns its value, independently of where
-        // executable supply comes from or which expression consumes it. The
-        // operation retains that route and its exact completion custody.
-        operation
-            .call()
-            .is_some_and(|call| call.structural_result().is_some())
-            .then_some(Self {
-                value,
-                operands,
+        if operands
+            .iter()
+            .any(|operation| !operation.has_normal_continuation())
+        {
+            return None;
+        }
+        let call = operation.call()?;
+        let admitted = call.structural_result().is_some()
+            || (*call.result() == CheckedUnitCallResult::NoNormal
+                && completions.iter().next().is_none());
+        admitted.then_some(Self {
+            value,
+            operands,
+            outcome: CheckedValueInvocationOutcome::Prepared {
                 operation,
                 completions,
-            })
+            },
+        })
+    }
+
+    pub fn stopped(
+        value: crate::CheckedStructuralValueHandle,
+        operands: CheckedOperandSequence,
+    ) -> Option<Self> {
+        if operands.iter().last()?.has_normal_continuation() {
+            return None;
+        }
+        Some(Self {
+            value,
+            operands,
+            outcome: CheckedValueInvocationOutcome::Stopped,
+        })
+    }
+
+    pub fn has_normal_continuation(&self) -> bool {
+        match &self.outcome {
+            CheckedValueInvocationOutcome::Prepared { operation, .. } => {
+                operation.has_normal_continuation()
+            }
+            CheckedValueInvocationOutcome::Stopped => false,
+            CheckedValueInvocationOutcome::Absent => true,
+        }
     }
 
     pub fn operands(&self) -> &CheckedOperandSequence {
         &self.operands
     }
-
     pub fn operands_mut(&mut self) -> &mut CheckedOperandSequence {
         &mut self.operands
     }
-
-    pub fn operation(&self) -> &CheckedUnitEffectOperationPlan {
-        &self.operation
+    pub fn operation(&self) -> Option<&CheckedUnitEffectOperationPlan> {
+        match &self.outcome {
+            CheckedValueInvocationOutcome::Prepared { operation, .. } => Some(operation),
+            CheckedValueInvocationOutcome::Stopped | CheckedValueInvocationOutcome::Absent => None,
+        }
     }
-
-    pub fn completions(&self) -> &CheckedOperandSequence {
-        &self.completions
+    pub fn operation_mut(&mut self) -> Option<&mut CheckedUnitEffectOperationPlan> {
+        match &mut self.outcome {
+            CheckedValueInvocationOutcome::Prepared { operation, .. } => Some(operation),
+            CheckedValueInvocationOutcome::Stopped | CheckedValueInvocationOutcome::Absent => None,
+        }
     }
-
-    pub fn completions_mut(&mut self) -> &mut CheckedOperandSequence {
-        &mut self.completions
+    pub fn completions(&self) -> Option<&CheckedOperandSequence> {
+        match &self.outcome {
+            CheckedValueInvocationOutcome::Prepared { completions, .. } => Some(completions),
+            CheckedValueInvocationOutcome::Stopped | CheckedValueInvocationOutcome::Absent => None,
+        }
     }
-
-    /// The value's result binding. `with_operands` admits only a call that
-    /// produces one, so every published row answers.
-    pub fn structural_result(&self) -> &CheckedUnitStructuralResultBindingPlan {
-        self.operation
-            .call()
-            .and_then(CheckedUnitCallPlan::structural_result)
-            .expect("a published structural value call produces a structural result")
+    pub fn completions_mut(&mut self) -> Option<&mut CheckedOperandSequence> {
+        match &mut self.outcome {
+            CheckedValueInvocationOutcome::Prepared { completions, .. } => Some(completions),
+            CheckedValueInvocationOutcome::Stopped | CheckedValueInvocationOutcome::Absent => None,
+        }
+    }
+    pub fn operation_dependencies(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = &CheckedUnitEffectOperationPlan> {
+        self.operands.iter().chain(self.operation()).chain(
+            self.completions()
+                .into_iter()
+                .flat_map(CheckedOperandSequence::iter),
+        )
+    }
+    pub fn structural_result(&self) -> Option<&CheckedUnitStructuralResultBindingPlan> {
+        self.operation()?.call()?.structural_result()
     }
 }
 
 impl CheckedUnitEffectOperationPlan {
+    /// Whether this operation permits the next sequential operation to execute.
+    /// The value DAG and its invocation catalog, independently of whether
+    /// evaluation publishes a receiving binding or leaves its caller suspended.
+    pub fn structural_value_evaluation(
+        &self,
+    ) -> Option<(
+        crate::CheckedStructuralValueHandle,
+        &[CheckedStructuralValueCall],
+    )> {
+        match self {
+            Self::EstablishLocal(CheckedUnitLocalBindingPlan::StructuralValue {
+                value,
+                calls,
+                ..
+            })
+            | Self::EvaluateStructuralValue { value, calls, .. } => Some((*value, calls)),
+            _ => None,
+        }
+    }
+
+    pub fn has_normal_continuation(&self) -> bool {
+        match self {
+            Self::EvaluateStructuralValue { .. } => false,
+            Self::Call(call) => call.has_normal_continuation(),
+            _ => true,
+        }
+    }
     /// The exact source of an established reference carrier. Direct completion
     /// and structural value construction name the same semantic establishment;
     /// its expression position does not choose another custody interface.
@@ -807,6 +886,9 @@ impl CheckedUnitEffectOperationPlan {
             | Self::EstablishViewSubslice { result, .. }
             | Self::MoveStructuralField { result, .. } => Some(result.statement_index),
             Self::EstablishLocal(binding) => binding.source_statement_index(),
+            Self::EvaluateStructuralValue {
+                statement_index, ..
+            } => Some(*statement_index),
             Self::Call(call) => Some(
                 call.structural_result()
                     .map_or(call.coordinate.statement_index, |result| {
@@ -917,9 +999,12 @@ impl CheckedUnitEffectOperationPlan {
         {
             return self.discardable_structural_result_mut();
         }
-        let Self::EstablishLocal(CheckedUnitLocalBindingPlan::StructuralValue { calls, .. }) = self
-        else {
-            return None;
+        let calls = match self {
+            Self::EstablishLocal(CheckedUnitLocalBindingPlan::StructuralValue {
+                calls, ..
+            })
+            | Self::EvaluateStructuralValue { calls, .. } => calls,
+            _ => return None,
         };
         for call in calls {
             for operand in call
@@ -936,10 +1021,9 @@ impl CheckedUnitEffectOperationPlan {
                     return Some(result);
                 }
             }
-            if let Some(result) = call
-                .operation
-                .discardable_structural_result_by_ordinal_mut(binding_ordinal)
-            {
+            if let Some(result) = call.operation_mut().and_then(|operation| {
+                operation.discardable_structural_result_by_ordinal_mut(binding_ordinal)
+            }) {
                 return Some(result);
             }
         }
@@ -957,12 +1041,11 @@ impl CheckedUnitEffectOperationPlan {
             if let Self::EstablishLocal(CheckedUnitLocalBindingPlan::StructuralValue {
                 calls,
                 ..
-            }) = operation
+            })
+            | Self::EvaluateStructuralValue { calls, .. } = operation
             {
                 for call in calls.iter().rev() {
-                    pending.extend(call.completions().iter().rev());
-                    pending.push(call.operation());
-                    pending.extend(call.operands().iter().rev());
+                    pending.extend(call.operation_dependencies().rev());
                 }
             }
             Some(operation)

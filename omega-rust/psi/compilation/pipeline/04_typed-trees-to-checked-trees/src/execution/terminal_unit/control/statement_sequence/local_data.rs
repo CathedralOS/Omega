@@ -513,7 +513,7 @@ fn plan_inner(
             return None;
         }
         local_phase("statement sequence: local data: structural value: operand custody");
-        let calls = super::prepare_value_operands(
+        let (calls, completion) = super::prepare_value_operands(
             program,
             facts,
             scalar_callees,
@@ -531,6 +531,15 @@ fn plan_inner(
             trace,
             windows,
         )?;
+        if completion == checked_trees::CheckedValueCompletion::NoNormal {
+            operations.push(CheckedUnitEffectOperationPlan::EvaluateStructuralValue {
+                statement_index,
+                value: root.root,
+                calls,
+                operand_source: None,
+            });
+            return Some(LocalPlan::Planned);
+        }
         local_phase("statement sequence: local data: structural value: type shape");
         // A stored loan retains its reference shell, unlike argument
         // presentation of its referent. Slice views are different carriers:

@@ -101,6 +101,36 @@ impl StateGraphEmission<'_, '_> {
         operations.storage_observations.field_bytes.clear();
         operations.storage_observations.cases.clear();
         let completion = match return_arm {
+            checked_trees::CheckedConditionalReturnArm::EvaluateNoNormal {
+                operations: selected,
+                ..
+            } => {
+                let planned = selected.iter().cloned().collect::<Vec<_>>();
+                super::super::super::emission::emit_call_operations(
+                    identities,
+                    checked,
+                    owner,
+                    state,
+                    &planned,
+                    self.catalogs,
+                    state_parameters,
+                    &mut arm_evaluation,
+                    &mut arm_values,
+                    &self.state_erased[position],
+                    next_value,
+                    next_block,
+                    next_edge,
+                    operations,
+                    &mut sequence,
+                )?;
+                PreparedArmCompletion::Edge(
+                    operations.take_invocation_completion(next_edge)?.ok_or(
+                        LoweringError::Unsupported(
+                            "stopped return operand lost its exact invocation",
+                        ),
+                    )?,
+                )
+            }
             checked_trees::CheckedConditionalReturnArm::Crash { statement_ordinal } => {
                 PreparedArmCompletion::Edge(self.crash_completion(
                     identities,
@@ -133,9 +163,13 @@ impl StateGraphEmission<'_, '_> {
                     operations,
                     &mut sequence,
                 )?;
-                PreparedArmCompletion::Structural(super::super::guarded::return_binding(
-                    operation, operations,
-                )?)
+                if let Some(terminator) = operations.take_invocation_completion(next_edge)? {
+                    PreparedArmCompletion::Edge(terminator)
+                } else {
+                    PreparedArmCompletion::Structural(super::super::guarded::return_binding(
+                        operation, operations,
+                    )?)
+                }
             }
             // The selected arm evaluates its operands and invokes its call
             // once. Ordinary completion then forwards the exact result the
@@ -169,7 +203,7 @@ impl StateGraphEmission<'_, '_> {
                     &mut sequence,
                 )?;
 
-                if let Some(terminator) = operations.take_external_completion(next_edge)? {
+                if let Some(terminator) = operations.take_invocation_completion(next_edge)? {
                     PreparedArmCompletion::Edge(terminator)
                 } else {
                     let result = operation
@@ -179,6 +213,11 @@ impl StateGraphEmission<'_, '_> {
                         ))?
                         .result();
                     match result {
+                        checked_trees::CheckedUnitCallResult::NoNormal => {
+                            return unsupported(
+                                "nonreturning call arm lost its pending invocation",
+                            );
+                        }
                         checked_trees::CheckedUnitCallResult::Structural { .. } => {
                             PreparedArmCompletion::Structural(
                                 super::super::guarded::return_binding(operation, operations)?,

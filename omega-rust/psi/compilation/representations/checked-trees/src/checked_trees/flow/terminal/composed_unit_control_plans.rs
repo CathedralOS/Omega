@@ -216,6 +216,14 @@ pub struct CheckedComposedUnitControlStatePlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedComposedUnitControlTerminatorPlan {
+    /// The operation at this exact coordinate transfers control into a module
+    /// invocation without normal completion; its caller activation stays live.
+    InvokeNoNormal {
+        coordinate: super::CheckedUnitCallCoordinate,
+    },
+    /// The retained value-evaluation prefix ends every path before a result.
+    /// Its effect owns the exact invocation(s), including selected branches.
+    EvaluateNoNormal,
     ReturnUnit,
     /// Complete a scalar-result machine with the same completion an ordinary
     /// single-state body retains; see `CheckedScalarReturnPlan`.
@@ -310,6 +318,86 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
 }
 
 impl CheckedComposedUnitControlTerminatorPlan {
+    /// Whether this control has a potential normal ownership continuation.
+    /// Internal graph successors remain live; no-normal invocations retain
+    /// their suspended caller rather than discharging its owners or loans.
+    pub fn has_normal_continuation(
+        &self,
+        operations: &[CheckedUnitEffectOperationPlan],
+        guarded_exits: &crate::CheckedGuardedExitPlans,
+    ) -> Option<bool> {
+        if operations
+            .iter()
+            .any(|operation| !operation.has_normal_continuation())
+        {
+            return Some(false);
+        }
+        Some(match self {
+            Self::InvokeNoNormal { .. } | Self::EvaluateNoNormal | Self::Crash { .. } => false,
+            Self::Guarded {
+                arms,
+                fallback,
+                return_values,
+            } => {
+                let normal = |destination: &CheckedScalarBranchDestination| match destination {
+                    CheckedScalarBranchDestination::Crash { .. }
+                    | CheckedScalarBranchDestination::InvokeNoNormal { .. } => false,
+                    CheckedScalarBranchDestination::Return {
+                        statement_ordinal, ..
+                    } => return_values
+                        .iter()
+                        .find(|operation| {
+                            operation.source_statement_index() == Some(*statement_ordinal)
+                        })
+                        .is_none_or(CheckedUnitEffectOperationPlan::has_normal_continuation),
+                    CheckedScalarBranchDestination::Jump(_) => true,
+                };
+                guarded_exits
+                    .exits
+                    .span(*arms)?
+                    .iter()
+                    .any(|arm| normal(&arm.destination))
+                    || fallback.as_ref().is_some_and(normal)
+            }
+            Self::ConditionalCompletion {
+                when_true,
+                when_false,
+                ..
+            } => when_true.has_normal_continuation() || when_false.has_normal_continuation(),
+            Self::GuardedJumps { arms, fallback } => {
+                arms.iter().any(|arm| match arm {
+                    CheckedGuardedJumpArmPlan::Return(plan) => {
+                        plan.return_arm.has_normal_continuation()
+                    }
+                    CheckedGuardedJumpArmPlan::Jump(plan) => {
+                        plan.successor.has_normal_continuation()
+                    }
+                }) || match fallback {
+                    CheckedGuardedJumpFallbackPlan::Return(arm) => arm.has_normal_continuation(),
+                    CheckedGuardedJumpFallbackPlan::Successor(successor) => {
+                        successor.has_normal_continuation()
+                    }
+                }
+            }
+            Self::ClosedSum { cases, .. } => cases.iter().any(|case| match &case.outcome {
+                CheckedClosedSumCaseOutcomePlan::Return(arm) => arm.has_normal_continuation(),
+                CheckedClosedSumCaseOutcomePlan::Successor(successor) => {
+                    successor.has_normal_continuation()
+                }
+            }),
+            Self::Jump { successor } => successor.has_normal_continuation(),
+            Self::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => when_true.has_normal_continuation() || when_false.has_normal_continuation(),
+            Self::ConditionalReturn {
+                jump, return_arm, ..
+            } => jump.has_normal_continuation() || return_arm.has_normal_continuation(),
+            _ => true,
+        })
+    }
+
     /// Whether every selected path abandons custody without a successor or
     /// normal completion. The checked guard roster supplies coverage; a
     /// missing or stale roster cannot authorize abandonment. Result accounting
@@ -362,7 +450,9 @@ impl CheckedComposedUnitControlTerminatorPlan {
                     )
                 })
             }
-            Self::ReturnUnit
+            Self::InvokeNoNormal { .. }
+            | Self::EvaluateNoNormal
+            | Self::ReturnUnit
             | Self::ReturnScalar { .. }
             | Self::ReturnStructural { .. }
             | Self::Jump { .. }
@@ -396,7 +486,9 @@ impl CheckedComposedUnitControlTerminatorPlan {
     /// Return, crash, and value exits contribute no edges.
     pub fn successors(&self) -> Vec<&CheckedStructuralControlSuccessorPlan> {
         match self {
-            Self::ReturnUnit
+            Self::InvokeNoNormal { .. }
+            | Self::EvaluateNoNormal
+            | Self::ReturnUnit
             | Self::ReturnScalar { .. }
             | Self::Guarded { .. }
             | Self::Crash { .. }
@@ -542,6 +634,12 @@ impl CheckedComposedUnitControlStatePlan {
 /// The completion arm of a `ConditionalReturn`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedConditionalReturnArm {
+    /// A required operand stops before this arm's enclosing invocation enters.
+    /// The exact evaluated prefix owns its calls; no parent call is published.
+    EvaluateNoNormal {
+        statement_ordinal: u32,
+        operations: crate::CheckedOperandSequence,
+    },
     /// Selected abnormal completion. The exact authored crash site owns its
     /// cause and frontier; it supplies neither a result nor normal cleanup.
     Crash { statement_ordinal: u32 },
@@ -576,6 +674,13 @@ pub enum CheckedConditionalReturnArm {
 }
 
 impl CheckedConditionalReturnArm {
+    pub fn has_normal_continuation(&self) -> bool {
+        !matches!(self, Self::Crash { .. } | Self::EvaluateNoNormal { .. })
+            && self
+                .operation_dependencies()
+                .all(CheckedUnitEffectOperationPlan::has_normal_continuation)
+    }
+
     /// This selected arm has no normal custody successor. A boundary call
     /// carries its admitted completion even though its source result is Unit;
     /// reach alone and ordinary returning Unit calls do not authorize this.
@@ -588,7 +693,10 @@ impl CheckedConditionalReturnArm {
     pub fn operation(&self) -> Option<&CheckedUnitEffectOperationPlan> {
         match self {
             Self::Structural(operation) | Self::Call { operation, .. } => Some(operation),
-            Self::Crash { .. } | Self::Unit { .. } | Self::Scalar { .. } => None,
+            Self::Crash { .. }
+            | Self::Unit { .. }
+            | Self::Scalar { .. }
+            | Self::EvaluateNoNormal { .. } => None,
         }
     }
 
@@ -597,6 +705,7 @@ impl CheckedConditionalReturnArm {
     pub fn operation_dependencies(&self) -> impl Iterator<Item = &CheckedUnitEffectOperationPlan> {
         let operands = match self {
             Self::Call { operands, .. } => Some(operands),
+            Self::EvaluateNoNormal { operations, .. } => Some(operations),
             _ => None,
         };
         operands
@@ -619,6 +728,9 @@ impl CheckedConditionalReturnArm {
         match self {
             Self::Crash { statement_ordinal }
             | Self::Unit { statement_ordinal }
+            | Self::EvaluateNoNormal {
+                statement_ordinal, ..
+            }
             | Self::Scalar {
                 statement_ordinal, ..
             } => Some(*statement_ordinal),
@@ -634,7 +746,7 @@ impl CheckedConditionalReturnArm {
             // coordinate, whether it completes as the arm's invocation
             // (`Call`) or establishes the arm's returned value (`Structural`).
             Self::Structural(operation) | Self::Call { operation, .. } => {
-                operation.call().map(|call| call.coordinate.statement_index)
+                operation.source_statement_index()
             }
         }
     }

@@ -40,6 +40,13 @@ pub(in crate::execution::terminal_unit) fn state_cleanups(
     shapes: &mut ShapeCollector<'_>,
     state_plan: &CheckedComposedUnitControlStatePlan,
 ) -> Result<arena::HandleSpan<checked_trees::CheckedNormalExitCleanupPlan>, &'static str> {
+    if state_plan
+        .terminator
+        .has_normal_continuation(&state_plan.operations, &facts.flow.guarded_exits)
+        == Some(false)
+    {
+        return Ok(Default::default());
+    }
     let (machine, state) = program
         .machines()
         .iter()
@@ -71,6 +78,13 @@ pub(in crate::execution::terminal_unit) fn sequence_cleanups(
     shapes: &mut ShapeCollector<'_>,
     plan: &checked_trees::CheckedUnitEffectMachinePlan,
 ) -> Option<arena::HandleSpan<checked_trees::CheckedNormalExitCleanupPlan>> {
+    if plan
+        .operations
+        .iter()
+        .any(|operation| !operation.has_normal_continuation())
+    {
+        return Some(Default::default());
+    }
     let machine = program.machine_by_symbol(plan.machine)?;
     let state = program.state_in_machine(machine, plan.state)?;
     let rows = cleanup_rows(

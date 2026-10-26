@@ -46,6 +46,23 @@ pub(super) fn build(
     terminator_index: usize,
     trace: &control::LocalConstructionTrace,
 ) -> Option<CheckedComposedUnitControlTerminatorPlan> {
+    if operations.iter().any(|operation| {
+        matches!(
+            operation,
+            CheckedUnitEffectOperationPlan::EvaluateStructuralValue { .. }
+        )
+    }) {
+        return Some(CheckedComposedUnitControlTerminatorPlan::EvaluateNoNormal);
+    }
+    if let Some(call) = operations
+        .iter()
+        .filter_map(CheckedUnitEffectOperationPlan::call)
+        .find(|call| *call.result() == checked_trees::CheckedUnitCallResult::NoNormal)
+    {
+        return Some(CheckedComposedUnitControlTerminatorPlan::InvokeNoNormal {
+            coordinate: call.coordinate,
+        });
+    }
     let result = result.clone();
     // The state's own owner answers its machine-scoped facts; the dispatch
     // machine's identity only names the composed plan itself.
@@ -118,6 +135,11 @@ pub(super) fn build(
                 expression,
                 trace,
             )?;
+            if !operation.has_normal_continuation() {
+                operations.extend(operand_calls);
+                operations.push(operation);
+                return Some(CheckedComposedUnitControlTerminatorPlan::EvaluateNoNormal);
+            }
             let result = checked_trees::CheckedUnitStructuralReturnPlan::from_binding(
                 operation.structural_result_binding()?.clone(),
                 completion,
@@ -782,6 +804,10 @@ fn internal_destination(
             }
         }
         checked_trees::CheckedScalarBranchDestination::Return {
+            statement_ordinal,
+            is_continuation: false,
+        }
+        | checked_trees::CheckedScalarBranchDestination::InvokeNoNormal {
             statement_ordinal,
             is_continuation: false,
         } if *statement_ordinal == ordinal => Some(symbols::SymbolHandle::default()),

@@ -396,7 +396,7 @@ pub(super) fn return_value_operation(
     }
     trace.phase("state graph: structural return value: operand calls");
     let mut operand_calls = Vec::new();
-    let calls = control::structural_operands::value_calls(
+    let (calls, completion) = control::structural_operands::value_calls(
         program,
         facts,
         scalar_callees,
@@ -413,6 +413,17 @@ pub(super) fn return_value_operation(
         trace,
         &mut crate::execution::terminal_unit::borrowed_windows::OpenWindows::default(),
     )?;
+    if completion == checked_trees::CheckedValueCompletion::NoNormal {
+        return Some((
+            CheckedUnitEffectOperationPlan::EvaluateStructuralValue {
+                statement_index: statement_ordinal,
+                value: root.root,
+                calls,
+                operand_source: None,
+            },
+            operand_calls,
+        ));
+    }
     // The expression produces a value, including a permission descriptor when
     // returning a reference. Argument presentation peels its shell and names
     // the referent; it cannot classify the returned carrier.

@@ -84,6 +84,25 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         mut structural_results,
         call_count,
     } = completion;
+    if operations
+        .last()
+        .is_some_and(|operation| !operation.has_normal_continuation())
+    {
+        // The planned prefix ends at the exact nonreturning invocation. Source
+        // admission still checks the dead suffix, but it supplies no execution,
+        // receiving value, exit weakening or normal loan transaction here.
+        return Some(StatementSequence {
+            scalar_result: None,
+            scalar_control: None,
+            structural_result: None,
+            operations,
+            windows,
+            place_loans,
+            structural_local_symbols,
+            structural_results,
+            next_scalar_binding: scalar_count,
+        });
+    }
     let statements = typed_trees::statement::reachable_state_statements(
         program.statement_table.statements(state.statement_nodes),
     );
@@ -180,7 +199,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         ) {
             Some(result)
         } else {
-            let calls = super::prepare_value_operands(
+            let (calls, completion) = super::prepare_value_operands(
                 program,
                 facts,
                 scalar_callees,
@@ -198,6 +217,25 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                 trace,
                 &mut windows,
             )?;
+            if completion == checked_trees::CheckedValueCompletion::NoNormal {
+                operations.push(CheckedUnitEffectOperationPlan::EvaluateStructuralValue {
+                    statement_index: root.statement_ordinal,
+                    value: root.root,
+                    calls,
+                    operand_source: None,
+                });
+                return Some(StatementSequence {
+                    scalar_result: None,
+                    scalar_control: None,
+                    structural_result: None,
+                    operations,
+                    windows,
+                    place_loans,
+                    structural_local_symbols,
+                    structural_results,
+                    next_scalar_binding: scalar_count,
+                });
+            }
             // Completion owns the same stored result carrier as an ordinary
             // returning call, including reference shells and views. Argument
             // presentation (`add_type`) may name its referent and cannot

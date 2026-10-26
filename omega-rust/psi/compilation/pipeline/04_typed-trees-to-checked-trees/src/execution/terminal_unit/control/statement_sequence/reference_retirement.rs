@@ -635,7 +635,8 @@ impl Retirement<'_> {
                     calls
                         .iter()
                         .find(|call| call.value == value)
-                        .and_then(|call| call.operation().call())
+                        .and_then(|call| call.operation())
+                        .and_then(CheckedUnitEffectOperationPlan::call)
                         .is_some_and(|call| {
                             call.structural_arguments.iter().any(|source| {
                                 source.access.borrow_access_kind().is_some()

@@ -414,7 +414,7 @@ fn diagnose_runtime_evidence_case_failure(module: &terminal_psi::TerminalModule,
         let Some(machine) = graph.iter().find(|machine| machine.id == caller.id) else {
             eprintln!(
                 "[runtime-evidence-case] caller={:?} consumer={:?} graph=absent reason={reason}",
-                caller.id, runtime.operation
+                caller.id, runtime.site
             );
             continue;
         };
@@ -447,7 +447,7 @@ fn diagnose_runtime_evidence_case_failure(module: &terminal_psi::TerminalModule,
                         caller.id,
                         operation.id,
                         block.id,
-                        runtime.operation,
+                        runtime.site,
                         row.output,
                         result.place,
                         result.structural_type,

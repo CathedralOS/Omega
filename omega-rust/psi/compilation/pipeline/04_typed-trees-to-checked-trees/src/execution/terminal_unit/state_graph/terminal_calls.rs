@@ -108,6 +108,11 @@ pub(super) fn completion(
     if calls.next().is_some() {
         return None;
     }
+    if *call.result() == checked_trees::CheckedUnitCallResult::NoNormal {
+        return Some(CheckedComposedUnitControlTerminatorPlan::InvokeNoNormal {
+            coordinate: call.coordinate,
+        });
+    }
     match (result, call.result()) {
         (
             checked_trees::CheckedControlResultPlan::Unit,
@@ -184,29 +189,35 @@ pub(super) fn arm_call(
     // ordinary call builder checks the callee's carrier/access/multiplicity;
     // completed-call guarantees, not syntactic qualified-type equality,
     // justify the stronger receiving facts and exact returned claims.
-    let (scalar_result, mut structural_result) = match result {
-        checked_trees::CheckedControlResultPlan::Unit => (None, None),
-        checked_trees::CheckedControlResultPlan::Scalar { primitive_type } => (
-            Some(checked_trees::CheckedUnitScalarResultBindingPlan {
-                statement_index: statement_ordinal,
-                binding_ordinal: u32::try_from(next_scalar_binding).ok()?,
-                primitive_type: *primitive_type,
-            }),
-            None,
-        ),
-        checked_trees::CheckedControlResultPlan::Structural(expected) => {
-            let binding = checked_structural_result_type(
-                program,
-                shapes,
-                state.return_type,
-                &machine_binders(program, machine),
-            )?;
-            if binding.type_identity != expected.type_identity
-                || binding.multiplicity != expected.multiplicity
-            {
-                return None;
+    let no_normal = validation::call_target_state(program, target)
+        .is_some_and(|state| validation::normal_completion_possible(program, state) == Some(false));
+    let (scalar_result, mut structural_result) = if no_normal {
+        (None, None)
+    } else {
+        match result {
+            checked_trees::CheckedControlResultPlan::Unit => (None, None),
+            checked_trees::CheckedControlResultPlan::Scalar { primitive_type } => (
+                Some(checked_trees::CheckedUnitScalarResultBindingPlan {
+                    statement_index: statement_ordinal,
+                    binding_ordinal: u32::try_from(next_scalar_binding).ok()?,
+                    primitive_type: *primitive_type,
+                }),
+                None,
+            ),
+            checked_trees::CheckedControlResultPlan::Structural(expected) => {
+                let binding = checked_structural_result_type(
+                    program,
+                    shapes,
+                    state.return_type,
+                    &machine_binders(program, machine),
+                )?;
+                if binding.type_identity != expected.type_identity
+                    || binding.multiplicity != expected.multiplicity
+                {
+                    return None;
+                }
+                (None, Some(binding))
             }
-            (None, Some(binding))
         }
     };
     trace.phase("state graph: terminator: terminal call arm: occurrence");
@@ -259,7 +270,7 @@ pub(super) fn arm_call(
     let mut preparation = preamble.to_vec();
     let predecessor_count = preparation.len();
     let mut structural_count = super::returns::next_result_ordinal(preamble)?;
-    control::structural_operands::plan_call_operands(
+    let completion = control::structural_operands::plan_call_operands(
         program,
         facts,
         scalar_callees,
@@ -276,6 +287,16 @@ pub(super) fn arm_call(
         trace,
         &mut crate::execution::terminal_unit::borrowed_windows::OpenWindows::default(),
     )?;
+    if completion == checked_trees::CheckedValueCompletion::NoNormal {
+        return Some(
+            checked_trees::CheckedConditionalReturnArm::EvaluateNoNormal {
+                statement_ordinal,
+                operations: checked_trees::CheckedOperandSequence::new(
+                    preparation.split_off(predecessor_count),
+                ),
+            },
+        );
+    }
     if let Some(binding) = &mut structural_result {
         binding.statement_index = statement_ordinal;
         binding.binding_ordinal = u32::try_from(structural_count).ok()?;
@@ -316,6 +337,15 @@ pub(super) fn arm_call(
     let planned = operation.call()?;
     if planned.coordinate.statement_index != statement_ordinal {
         return None;
+    }
+    if *planned.result() == checked_trees::CheckedUnitCallResult::NoNormal {
+        control::statement_sequence::consume_results(&mut preparation, &operation)?;
+        preparation.drain(..predecessor_count);
+        return Some(checked_trees::CheckedConditionalReturnArm::Call {
+            operands: checked_trees::CheckedOperandSequence::new(preparation),
+            operation,
+            completions: checked_trees::CheckedOperandSequence::new(Vec::new()),
+        });
     }
     let operation = match (scalar_result, structural_result) {
         (Some(result), None) => bind_scalar_call_result(facts, operation, result, true)?,

@@ -90,7 +90,9 @@ impl OperationFrame<'_, '_> {
             ) => self.activation_storage(identities, operation, call, *action, *bound, &inputs),
             (
                 CheckedUnitCallRoute::Module { .. },
-                CheckedUnitCallResult::Unit | CheckedUnitCallResult::Structural { .. },
+                CheckedUnitCallResult::Unit
+                | CheckedUnitCallResult::Structural { .. }
+                | CheckedUnitCallResult::NoNormal,
             ) => {
                 self.unit_call(identities, operation, call, &inputs)?;
                 Ok(())
@@ -98,6 +100,9 @@ impl OperationFrame<'_, '_> {
             (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Scalar(result)) => {
                 let value = self.scalar_call(identities, operation, call, result, &inputs)?;
                 self.bind_scalar_result(identities, call.coordinate, value)
+            }
+            (CheckedUnitCallRoute::Boundary, CheckedUnitCallResult::NoNormal) => {
+                unsupported("boundary calls cannot carry a module no-normal result")
             }
             (CheckedUnitCallRoute::Boundary, CheckedUnitCallResult::Unit) => {
                 self.boundary_call(identities, call, &inputs)?;
@@ -706,6 +711,21 @@ impl OperationFrame<'_, '_> {
         )?;
         drop(earlier);
         let callee = lookup_machine_id(self.calls.machine_ids, *target_machine)?;
+        if *call.result() == CheckedUnitCallResult::NoNormal {
+            if self.operations.invocation_completion.is_some() {
+                return unsupported(
+                    "one execution prefix cannot invoke after its terminal transfer",
+                );
+            }
+            let (coordinate, frontier) = self.source_call_record(*coordinate)?;
+            self.operations.invocation_completion = Some(
+                crate::emission::operation_emission::buffer::PendingInvocationCompletion {
+                    coordinate, frontier, source_site: call.source_site().flatten(),
+                    target: call.target.machine,
+                    outcome: crate::emission::operation_emission::buffer::PendingInvocationOutcome::ModuleNoNormal { callee, inputs: prepared },
+                });
+            return Ok(());
+        }
         if let CheckedUnitCallResult::Structural {
             binding: result,
             discard_result_on_return,

@@ -38,10 +38,11 @@ struct PreparedRoot {
 impl PreparedRoot {
     fn operation_dependencies(&self) -> impl Iterator<Item = &CheckedUnitEffectOperationPlan> {
         self.calls.iter().flat_map(|call| {
-            call.operands()
-                .iter()
-                .chain(std::iter::once(call.operation()))
-                .chain(call.completions().iter())
+            call.operands().iter().chain(call.operation()).chain(
+                call.completions()
+                    .into_iter()
+                    .flat_map(checked_trees::CheckedOperandSequence::iter),
+            )
         })
     }
 }
@@ -135,7 +136,7 @@ impl PreparedCalls {
             {
                 continue;
             }
-            if let Some((preceding_bindings, calls)) = prepare_root(
+            if let Some((preceding_bindings, calls, _)) = prepare_root(
                 program,
                 facts,
                 shapes,
@@ -170,12 +171,19 @@ pub(super) fn dependencies(
     calls.iter().chain(calls.iter().flat_map(|call| {
         call.operands()
             .iter()
-            .chain(call.completions().iter())
+            .chain(
+                call.completions()
+                    .into_iter()
+                    .flat_map(checked_trees::CheckedOperandSequence::iter),
+            )
             .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
             .filter_map(|operation| match operation {
                 CheckedUnitEffectOperationPlan::EstablishLocal(
                     checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { calls, .. },
-                ) => Some(calls.as_slice()),
+                )
+                | CheckedUnitEffectOperationPlan::EvaluateStructuralValue { calls, .. } => {
+                    Some(calls.as_slice())
+                }
                 _ => None,
             })
             .flatten()
@@ -221,7 +229,7 @@ pub(super) fn consume_caller_results<'a>(
             for operation in producer
                 .operands()
                 .iter()
-                .chain(std::iter::once(producer.operation()))
+                .chain(producer.operation())
                 .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
             {
                 let Some(call) = operation.call() else {
@@ -378,7 +386,7 @@ pub(super) fn prepare_state(
         {
             continue;
         }
-        if let Some((preceding_bindings, calls)) = prepare_root(
+        if let Some((preceding_bindings, calls, _)) = prepare_root(
             program,
             facts,
             shapes,
@@ -404,7 +412,7 @@ pub(super) fn prepare_state(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn prepare_root(
+pub(super) fn prepare_root(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
@@ -418,7 +426,11 @@ fn prepare_root(
     entry_claims: &[checked_trees::CheckedUnitEntryClaimPlan],
     operations: &[CheckedUnitEffectOperationPlan],
     root: &CheckedStructuralValueRoot,
-) -> Option<(u32, Vec<checked_trees::CheckedStructuralValueCall>)> {
+) -> Option<(
+    u32,
+    Vec<checked_trees::CheckedStructuralValueCall>,
+    checked_trees::CheckedValueCompletion,
+)> {
     let order = program
         .statement_table
         .admitted_execution_order(state.statement_nodes);
@@ -484,7 +496,7 @@ fn prepare_root(
         preceding.push(operation.clone());
     }
     let preceding_bindings = u32::try_from(count).ok()?;
-    let calls = structural_operands::value_calls(
+    let (calls, completion) = structural_operands::value_calls(
         program,
         facts,
         ScalarCalleeClosure,
@@ -501,5 +513,5 @@ fn prepare_root(
         &LocalConstructionTrace::default(),
         &mut crate::execution::terminal_unit::borrowed_windows::OpenWindows::default(),
     )?;
-    Some((preceding_bindings, calls))
+    Some((preceding_bindings, calls, completion))
 }

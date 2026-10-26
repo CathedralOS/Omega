@@ -16,6 +16,76 @@ use crate::unit::{
 };
 
 impl OperationFrame<'_, '_> {
+    pub(super) fn evaluate_structural_value(
+        self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        operation: &CheckedUnitEffectOperationPlan,
+    ) -> Result<(), LoweringError> {
+        let CheckedUnitEffectOperationPlan::EvaluateStructuralValue {
+            statement_index,
+            value,
+            calls: operand_calls,
+            ..
+        } = operation
+        else {
+            return unsupported("evaluation-only structural value is absent");
+        };
+        let (mut environment, emission) = self.split();
+        let checked = environment.checked;
+        let node = checked.facts.values.structural_values.nodes.get(*value);
+        let structural_type = lookup_type_id(
+            environment.type_ids,
+            &validation::stored_structural_type_identity(
+                &checked.typed,
+                node.type_reference,
+                &[],
+                &[],
+            ),
+        )?;
+        let super::OperationEmission {
+            evaluation,
+            values,
+            next_value,
+            next_block,
+            next_edge,
+            calls,
+            operations,
+            ..
+        } = emission;
+        let outcome = structural_values::emit(
+            identities,
+            structural_values::ValueProduction {
+                value: *value,
+                owner: facts::PlaceRoot::Expression(node.expression),
+                destination: structural_values::ValueDestination::Evaluation,
+                statement: *statement_index,
+                structural_type,
+                multiplicity: crate::reference_custody::result_multiplicity(
+                    checked,
+                    node.type_reference,
+                ),
+                binding_type_reference: Default::default(),
+                access: terminal_psi::StructuralAccess::Owned,
+                selection: Default::default(),
+                calls: operand_calls,
+            },
+            &mut environment,
+            calls,
+            evaluation,
+            values,
+            next_value,
+            next_block,
+            next_edge,
+            operations,
+        )?;
+        match outcome {
+            structural_values::ValueOutcome::NoNormal => Ok(()),
+            structural_values::ValueOutcome::Normal(_) => {
+                unsupported("checked evaluation-only value returned a result")
+            }
+        }
+    }
+
     pub(super) fn establish_structural_value(
         self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -68,7 +138,7 @@ impl OperationFrame<'_, '_> {
         } else {
             facts::PlaceRoot::Expression(occurrence.expression)
         };
-        let completed = structural_values::emit(
+        let structural_values::ValueOutcome::Normal(completed) = structural_values::emit(
             identities,
             structural_values::ValueProduction {
                 value: *value,
@@ -102,7 +172,10 @@ impl OperationFrame<'_, '_> {
             next_block,
             next_edge,
             operations,
-        )?;
+        )?
+        else {
+            return Ok(());
+        };
         evaluation.establish_structural_binding(
             result,
             completed.binding,
@@ -238,7 +311,6 @@ impl OperationEnvironment<'_> {
                 .find(|(root, _)| *root == binding.root)
                 .and_then(|(_, ordinal)| *ordinal);
         }
-        let completed = produced?;
         for (declaration, _) in results.into_iter().skip(inherited_results) {
             if let Some(declaration) = declaration {
                 if !self
@@ -250,6 +322,9 @@ impl OperationEnvironment<'_> {
                 }
             }
         }
+        let structural_values::ValueOutcome::Normal(completed) = produced? else {
+            return Ok(());
+        };
         if let Some(declaration) = completed.declaration {
             self.private_places.push(declaration);
         }

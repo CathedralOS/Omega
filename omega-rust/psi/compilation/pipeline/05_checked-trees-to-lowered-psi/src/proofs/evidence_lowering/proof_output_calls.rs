@@ -569,6 +569,34 @@ fn lower_proof_output_runtime_call(
     if lowered_targets.next().is_some() {
         return unsupported("runtime proof-output selected target has ambiguous emitted machines");
     }
+    let caller = semantic_module
+        .machine(terminal_machine)
+        .ok_or(LoweringError::Unsupported(
+            "runtime proof-output caller is absent from terminal Psi",
+        ))?;
+    let emitted = caller
+        .module_invocations()
+        .find(|emitted| emitted.site == occurrence.terminal_site)
+        .ok_or(LoweringError::Unsupported(
+            "runtime proof-output call has no exact emitted invocation",
+        ))?;
+    if emitted.inputs.callee != *expected_callee {
+        return unsupported(
+            "runtime proof-output emitted callee differs from its selected realization",
+        );
+    }
+    if matches!(
+        occurrence.terminal_site,
+        semantic_vocabulary::InvocationSite::InvokeNoNormal(_)
+    ) {
+        return Ok((
+            Some(ProofOutputRuntimeResult::NoNormal),
+            Some(ProofOutputRuntimeCall {
+                site: occurrence.terminal_site,
+                callee: emitted.inputs.callee,
+            }),
+        ));
+    }
     let expected = if target.state.return_type.is_valid() {
         Some(
             checked
@@ -616,7 +644,7 @@ fn lower_proof_output_runtime_call(
     Ok((
         Some(result),
         Some(ProofOutputRuntimeCall {
-            operation: operation.id,
+            site: semantic_vocabulary::InvocationSite::Operation(operation.id),
             callee: parts.callee,
         }),
     ))

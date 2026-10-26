@@ -467,7 +467,7 @@ pub(super) fn emit(
     while let Some(step) = schedule.next() {
         let finishes_argument_group = matches!(schedule.peek(), Some(argument_schedule::Step::End));
         emission.lower_step(identities, step, finishes_argument_group)?;
-        if emission.operations.external_completion.is_some() {
+        if emission.operations.invocation_completion.is_some() {
             break;
         }
     }
@@ -518,7 +518,7 @@ pub(super) fn emit(
     let mut external_result = None;
     let mut parameter_cleanup = Vec::new();
     let (scalar_return, structural_return) = if let Some(terminator) =
-        operations.take_external_completion(&mut next_edge)?
+        operations.take_invocation_completion(&mut next_edge)?
     {
         external_result = Some(if let Some(result) = &plan.structural_result {
             TerminalMachineResult::Structural(lower_structural_result_declaration(
@@ -1826,7 +1826,8 @@ impl MachineEmission<'_> {
                 .transpose()?,
         };
         let kind = match operation {
-            CheckedUnitEffectOperationPlan::RegisterAccess { .. }
+            CheckedUnitEffectOperationPlan::EvaluateStructuralValue { .. }
+            | CheckedUnitEffectOperationPlan::RegisterAccess { .. }
             | CheckedUnitEffectOperationPlan::Store(_)
             | CheckedUnitEffectOperationPlan::AtomicFence { .. }
             | CheckedUnitEffectOperationPlan::AtomicAccess(_)

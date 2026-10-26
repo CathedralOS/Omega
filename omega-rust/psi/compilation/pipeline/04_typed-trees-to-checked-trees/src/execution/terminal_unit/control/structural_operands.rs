@@ -289,13 +289,46 @@ pub(in crate::execution::terminal_unit) fn value_calls(
     root: checked_trees::CheckedStructuralValueHandle,
     trace: &LocalConstructionTrace,
     windows: &mut super::super::borrowed_windows::OpenWindows,
-) -> Option<Vec<checked_trees::CheckedStructuralValueCall>> {
+) -> Option<(
+    Vec<checked_trees::CheckedStructuralValueCall>,
+    checked_trees::CheckedValueCompletion,
+)> {
     let plans = &facts.values.structural_values;
     let mut scoped_results = results.to_vec();
-    let mut pending = vec![root];
+    enum Pending {
+        Value(checked_trees::CheckedStructuralValueHandle),
+        Sequence {
+            children: Vec<checked_trees::CheckedStructuralValueHandle>,
+            next: usize,
+        },
+    }
+    let mut pending = vec![Pending::Value(root)];
     let mut visited = Vec::new();
     let mut output = Vec::new();
-    while let Some(value) = pending.pop() {
+    let mut subject_completions = Vec::new();
+    while let Some(step) = pending.pop() {
+        let value = match step {
+            Pending::Value(value) => value,
+            Pending::Sequence { children, next } => {
+                if next > 0
+                    && plans.completion_with(children[next - 1], &output, &|value| {
+                        subject_completions
+                            .iter()
+                            .find_map(|(root, completion)| (*root == value).then_some(*completion))
+                    })? == checked_trees::CheckedValueCompletion::NoNormal
+                {
+                    continue;
+                }
+                if let Some(child) = children.get(next).copied() {
+                    pending.push(Pending::Sequence {
+                        children,
+                        next: next + 1,
+                    });
+                    pending.push(Pending::Value(child));
+                }
+                continue;
+            }
+        };
         if !plans.nodes.is_valid(value) || visited.contains(&value) {
             return None;
         }
@@ -303,7 +336,10 @@ pub(in crate::execution::terminal_unit) fn value_calls(
         match &plans.nodes.get(value).kind {
             checked_trees::CheckedStructuralValueKind::NativeCodeLayout { .. } => {}
             checked_trees::CheckedStructuralValueKind::QuotientCall { arguments, .. } => {
-                pending.extend(arguments.iter().rev().copied());
+                pending.push(Pending::Sequence {
+                    children: arguments.clone(),
+                    next: 0,
+                });
             }
             checked_trees::CheckedStructuralValueKind::Call { source_call } => {
                 if !facts.flow.control.calls.is_valid(*source_call) {
@@ -315,7 +351,7 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                 }
                 let mut preparation = preamble.to_vec();
                 let predecessor_count = preparation.len();
-                plan_call_operands(
+                let completion = plan_call_operands(
                     program,
                     facts,
                     scalar_callees,
@@ -332,6 +368,15 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                     trace,
                     windows,
                 )?;
+                if completion == checked_trees::CheckedValueCompletion::NoNormal {
+                    output.push(checked_trees::CheckedStructuralValueCall::stopped(
+                        value,
+                        checked_trees::CheckedOperandSequence::new(
+                            preparation.split_off(predecessor_count),
+                        ),
+                    )?);
+                    continue;
+                }
                 let reference = validation::call_target_return_type(program, call.target_symbol)?;
                 let mut result = checked_structural_result_type(
                     program,
@@ -355,18 +400,25 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                     &preparation,
                     trace,
                 )?;
-                let mut operation = bind_structural_call_result(
-                    program,
-                    facts,
-                    machine.symbol,
-                    state.symbol,
-                    operation,
-                    result.clone(),
-                )?;
+                let mut operation = if operation.has_normal_continuation() {
+                    bind_structural_call_result(
+                        program,
+                        facts,
+                        machine.symbol,
+                        state.symbol,
+                        operation,
+                        result.clone(),
+                    )?
+                } else {
+                    operation
+                };
                 // Every completed structural call produces a value operand.
-                let (_, discard_result_on_return) =
-                    operation.call_mut()?.structural_result_mut()?;
-                *discard_result_on_return = false;
+                if let Some((_, discard_result_on_return)) =
+                    operation.call_mut()?.structural_result_mut()
+                {
+                    *discard_result_on_return = false;
+                }
+                let has_result = operation.structural_result_binding().is_some();
                 let mut preparation = preparation.split_off(predecessor_count);
                 super::statement_sequence::consume_retained_results(&mut preparation, &operation)?;
                 let completions = checked_trees::CheckedOperandSequence::new(
@@ -388,18 +440,21 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                     operation,
                     completions,
                 )?);
-                scoped_results.push((
-                    result,
-                    facts::PlaceRoot::Expression(call.authored_expression),
-                ));
-                // Each call has its own anonymous producer ordinal. The value
-                // binding owns a separate result even for a whole call, so its
-                // receiving membership can differ without relabeling the ABI.
-                *count = count.checked_add(1)?;
+                if has_result {
+                    scoped_results.push((
+                        result,
+                        facts::PlaceRoot::Expression(call.authored_expression),
+                    ));
+                    // Each call has its own anonymous producer ordinal. The value
+                    // binding owns a separate result even for a whole call, so its
+                    // receiving membership can differ without relabeling the ABI.
+                    *count = count.checked_add(1)?;
+                }
             }
             checked_trees::CheckedStructuralValueKind::Record { fields, .. }
             | checked_trees::CheckedStructuralValueKind::StructuralCase { fields, .. } => {
-                for field in plans.record_fields.span(*fields)?.iter().rev() {
+                let mut children = Vec::new();
+                for field in plans.record_fields.span(*fields)? {
                     if let checked_trees::CheckedStructuralRecordFieldValue::Structural(value) =
                         field.value
                     {
@@ -415,18 +470,44 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                             }
                             parameter_qualifications(program, shapes, field.type_reference, &binders)?;
                         }
-                        pending.push(value);
+                        children.push(value);
                     }
                 }
+                pending.push(Pending::Sequence { children, next: 0 });
             }
-            checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => {
+            checked_trees::CheckedStructuralValueKind::Dispatch { subject, arms } => {
+                let subject = subject.structural_value();
+                if subject.is_valid() {
+                    let node = plans.nodes.get(subject);
+                    let subject_root = plans.root_for_expression(
+                        state.symbol,
+                        node.statement_index,
+                        node.expression,
+                    )?;
+                    if subject_root.root != subject || subject_root.machine != machine.symbol {
+                        return None;
+                    }
+                    let (_, _, completion) = super::super::structural_value_calls::prepare_root(
+                        program,
+                        facts,
+                        shapes,
+                        machine,
+                        state,
+                        parameters,
+                        trivial_locals,
+                        entry_claims,
+                        preamble,
+                        subject_root,
+                    )?;
+                    subject_completions.push((subject, completion));
+                }
                 pending.extend(
                     plans
                         .dispatch_arms
                         .span(*arms)?
                         .iter()
                         .rev()
-                        .map(|arm| arm.value),
+                        .map(|arm| Pending::Value(arm.value)),
                 );
                 // The subject has its own checked root and private operand
                 // namespace. Its producer is emitted before the arm scope;
@@ -441,14 +522,17 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                     &machine_binders(program, machine),
                     &[],
                 )?;
-                pending.push(*source);
+                pending.push(Pending::Value(*source));
             }
             checked_trees::CheckedStructuralValueKind::Projection { source, .. }
             | checked_trees::CheckedStructuralValueKind::QuotientAdaptation { source, .. } => {
-                pending.push(*source);
+                pending.push(Pending::Value(*source));
             }
             checked_trees::CheckedStructuralValueKind::FixedArray { elements } => {
-                pending.extend(elements.iter().rev().copied());
+                pending.push(Pending::Sequence {
+                    children: elements.clone(),
+                    next: 0,
+                });
             }
             // A borrowed leaf read projects a type no signature owns; its
             // identity must exist in the unit's structural catalog for the
@@ -472,7 +556,7 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                     &machine_binders(program, machine),
                 )?;
                 if source_value.is_valid() {
-                    pending.push(*source_value);
+                    pending.push(Pending::Value(*source_value));
                 }
             }
             checked_trees::CheckedStructuralValueKind::BorrowedSliceView { .. }
@@ -486,7 +570,12 @@ pub(in crate::execution::terminal_unit) fn value_calls(
             | checked_trees::CheckedStructuralValueKind::Place(_) => {}
         }
     }
-    Some(output)
+    let completion = plans.completion_with(root, &output, &|value| {
+        subject_completions
+            .iter()
+            .find_map(|(root, completion)| (*root == value).then_some(*completion))
+    })?;
+    Some((output, completion))
 }
 
 /// Publish the evaluated value through its ordinary binding owner. The value
@@ -494,7 +583,7 @@ pub(in crate::execution::terminal_unit) fn value_calls(
 /// custody into the receiving declaration. A fresh call result may still need
 /// a distinct arrival when that declaration forgets a predicate membership.
 pub(in crate::execution::terminal_unit) fn establish_value(
-    _facts: &CheckFacts,
+    facts: &CheckFacts,
     result: CheckedUnitStructuralResultBindingPlan,
     value: checked_trees::CheckedStructuralValueHandle,
     calls: Vec<checked_trees::CheckedStructuralValueCall>,
@@ -502,6 +591,16 @@ pub(in crate::execution::terminal_unit) fn establish_value(
     discard_result_on_return: bool,
     _operations: &mut Vec<CheckedUnitEffectOperationPlan>,
 ) -> Option<CheckedUnitEffectOperationPlan> {
+    if facts.values.structural_values.completion(value, &calls)?
+        == checked_trees::CheckedValueCompletion::NoNormal
+    {
+        return Some(CheckedUnitEffectOperationPlan::EvaluateStructuralValue {
+            statement_index: result.statement_index,
+            value,
+            calls,
+            operand_source,
+        });
+    }
     Some(CheckedUnitEffectOperationPlan::EstablishLocal(
         checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
             result,
@@ -783,7 +882,7 @@ pub(in crate::execution::terminal_unit) fn plan_call_operands(
     call: &checked_trees::FlowCallFact,
     trace: &LocalConstructionTrace,
     windows: &mut super::super::borrowed_windows::OpenWindows,
-) -> Option<()> {
+) -> Option<checked_trees::CheckedValueCompletion> {
     let statement_index = u32::try_from(call.statement_index).ok()?;
     let binders = machine_binders(program, machine);
     for operand in operations_for_call(program, facts, machine, state, call)? {
@@ -851,6 +950,16 @@ pub(in crate::execution::terminal_unit) fn plan_call_operands(
                     trace,
                     windows,
                 )?;
+                let (calls, completion) = calls;
+                if completion == checked_trees::CheckedValueCompletion::NoNormal {
+                    operations.push(CheckedUnitEffectOperationPlan::EvaluateStructuralValue {
+                        statement_index,
+                        value: root.root,
+                        calls,
+                        operand_source: Some(source),
+                    });
+                    return Some(completion);
+                }
                 let multiplicity = validation::reference_result_custody::result_multiplicity(
                     program,
                     root.type_reference,
@@ -909,14 +1018,18 @@ pub(in crate::execution::terminal_unit) fn plan_call_operands(
             operations,
             trace,
         )?;
-        let operation = bind_structural_call_result(
-            program,
-            facts,
-            machine.symbol,
-            state.symbol,
-            operation,
-            result.clone(),
-        )?;
+        let operation = if operation.has_normal_continuation() {
+            bind_structural_call_result(
+                program,
+                facts,
+                machine.symbol,
+                state.symbol,
+                operation,
+                result.clone(),
+            )?
+        } else {
+            operation
+        };
         super::statement_sequence::consume_results(&mut *operations, &operation)?;
         // An ordinary operand call has the same normal-return transaction as
         // a call retained inside a constructed value. Its descriptor inputs
@@ -932,7 +1045,11 @@ pub(in crate::execution::terminal_unit) fn plan_call_operands(
             &operation,
             trace,
         )?;
+        let normal = operation.has_normal_continuation();
         operations.push(operation);
+        if !normal {
+            return Some(checked_trees::CheckedValueCompletion::NoNormal);
+        }
         operations.extend(completions);
         structural_results.push((
             result,
@@ -940,5 +1057,5 @@ pub(in crate::execution::terminal_unit) fn plan_call_operands(
         ));
         *structural_count = structural_count.checked_add(1)?;
     }
-    Some(())
+    Some(checked_trees::CheckedValueCompletion::Normal)
 }

@@ -87,6 +87,9 @@ impl OperationFrame<'_, '_> {
         let shape = slot_plan.result.clone();
         let id = self.operations.allocate();
         let (result, mut declaration) = match call.result() {
+            CheckedUnitCallResult::NoNormal => {
+                return unsupported("dynamic invocation has no exact checked no-normal callee");
+            }
             CheckedUnitCallResult::Unit => (OperationResult::Unit, None),
             CheckedUnitCallResult::Scalar(result) => (
                 OperationResult::Scalar(ValueDeclaration {
