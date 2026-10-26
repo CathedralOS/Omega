@@ -196,9 +196,10 @@ executes the unchanged root with native exit 0 and Terminal exit 0. The full
 new production is now pinned at optimized producer
 `3c2ec6aaf4ddff261c9d25f85b2a664a440a3da0`: its root, nine transports and six
 compositions observe native exit 0 and Terminal exit 0 on Intel macOS, and its
-22 invalid controls reach their intended obligations. Full-fact public acceptance,
-affected-consumer checks and exact independent review remain in the current
-qualification ledger; these observations do not close the parent capability.
+22 invalid controls reach their intended obligations. The current qualification
+ledger retains full-fact public acceptance and affected-consumer checks; exact
+independent review and publication are separately bound to the author candidate.
+These observations do not close the parent capability.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
@@ -244,8 +245,15 @@ lifetime control do not establish general projected reference-lifetime support.
 The repair prepares the ordinary occurrence-owned provider view for retained
 constant recipes. It preserves the authored arguments for replay and consumes
 the selected roster only in executable occurrences. Full tuple formation and
-callable refinement remain separate checking obligations. The complete row,
-independent review and publication remain to be established.
+callable refinement remain separate checking obligations. Current host public
+acceptance records 41 positive executions and 48 intended refusals, while the
+explicit both-engine capture records 41 native/Terminal exit-0 pairs and retains
+287 products plus all 41 approved locks. The 89-fixture source corpus preserves
+raw exit 1 for ten inherited timing flags; the 41-fixture both-engine corpus
+preserves raw exit 1 for three inherited timing flags. Every such flag is an
+existing I1 row, strictly faster now, with unchanged execution and oracle fields;
+new fixtures permit no movement. The ledger retains those raw failures rather
+than weakening their goldens.
 
 Further valid-positive refusals are retained against fixed baseline 37
 and the historical first candidate `f2dcd8f`: a provider tuple containing a Machine argument refuses
