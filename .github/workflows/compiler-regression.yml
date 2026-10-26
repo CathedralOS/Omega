@@ -90,8 +90,10 @@ jobs:
       - name: Execute retained original foreign backing with rejection controls
         if: inputs.foreign_records
         run: python tools/ci/compiler_retained_foreign.py
+      # These cohorts are independent. Retain an earlier failed observation
+      # while still measuring the scalar/opaque rows on this matching host.
       - name: Execute foreign scalar-record results with rejection controls
-        if: inputs.foreign_records
+        if: inputs.foreign_records && !cancelled()
         run: python tools/ci/compiler_foreign_records.py
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
