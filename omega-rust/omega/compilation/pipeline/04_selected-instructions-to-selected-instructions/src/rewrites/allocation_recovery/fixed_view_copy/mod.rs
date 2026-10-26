@@ -86,48 +86,22 @@ pub struct FixedViewCopyValidationReceipt {
 }
 
 impl FixedViewCopyValidationReceipt {
-    pub const fn identity(self) -> FixedViewCopyIdentity {
-        self.identity
-    }
-    pub const fn source_selected(self) -> SelectedInstructionPlanIdentity {
-        self.source_selected
-    }
-    pub const fn source_ranges(self) -> LiveRangeIdentity {
-        self.source_ranges
-    }
-    pub const fn source_legality(self) -> AllocationLegalityIdentity {
-        self.source_legality
-    }
-    pub const fn register_environment(self) -> TargetRegisterEnvironmentIdentity {
-        self.register_environment
-    }
-    pub const fn allocator_availability(self) -> AllocatorAvailabilityIdentity {
-        self.allocator_availability
-    }
-    pub const fn source_evidence(self) -> FixedViewCopySourceEvidence {
-        self.source_evidence
-    }
-    pub const fn transformed_selected(self) -> SelectedInstructionPlanIdentity {
-        self.transformed_selected
-    }
-    pub const fn optimization_unit(self) -> optimization_core::OptimizationUnitIdentity {
-        self.optimization_unit
-    }
-    pub const fn fuel_schedule(self) -> semantic_vocabulary::FuelScheduleIdentity {
-        self.fuel_schedule
-    }
-    pub const fn policy(self) -> FixedViewCopyPolicy {
-        self.policy
-    }
-    pub const fn usage(self) -> OptimizationWorkUsage {
-        self.usage
-    }
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-    pub const fn copy_count(self) -> usize {
-        self.copy_count
-    }
+    receipt_accessor_rows!(FixedViewCopyValidationReceipt {
+        identity: FixedViewCopyIdentity,
+        source_evidence: FixedViewCopySourceEvidence,
+        policy: FixedViewCopyPolicy,
+        usage: OptimizationWorkUsage,
+        function_count: usize,
+        copy_count: usize,
+        source_selected: SelectedInstructionPlanIdentity,
+        source_ranges: LiveRangeIdentity,
+        source_legality: AllocationLegalityIdentity,
+        transformed_selected: SelectedInstructionPlanIdentity,
+        register_environment: TargetRegisterEnvironmentIdentity,
+        allocator_availability: AllocatorAvailabilityIdentity,
+        optimization_unit: optimization_core::OptimizationUnitIdentity,
+        fuel_schedule: semantic_vocabulary::FuelScheduleIdentity,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -140,9 +114,9 @@ impl ValidatedFixedViewCopies {
     pub const fn plan(&self) -> &FixedViewCopyPlan {
         &self.plan
     }
-    pub const fn receipt(&self) -> FixedViewCopyValidationReceipt {
-        self.receipt
-    }
+    receipt_accessor_rows!(ref ValidatedFixedViewCopies {
+        receipt: FixedViewCopyValidationReceipt,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1,10 +1,10 @@
-use crate::OptimizationUnitValidationError;
 use crate::current_ownership::cleanup::validate_return_cleanup_actions;
 use crate::current_ownership::mutations::{insert_owned_result, reject_live_linear_claim};
 use crate::current_ownership::structural::projected_root_is_fully_consumed;
 use crate::current_ownership::{
     CurrentOwnership, LiveClaim, consume_edge_sources, establish_edge_parameters,
 };
+use crate::{OperationSite, OptimizationUnitValidationError};
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::{
     OptimizationBlock, OwnershipFrontierFact, OwnershipFrontierSite, OwnershipFrontierSnapshot,
@@ -43,11 +43,11 @@ fn validate_byte_observations(
     frontier: &CurrentOwnership,
 ) -> Result<(), OptimizationUnitValidationError> {
     let observe = |source| {
-        let invalid = || OptimizationUnitValidationError::CurrentOwnedPlaceNotLive {
-            machine: function.machine,
-            block,
-            node,
-            place: source,
+        let invalid = || {
+            OptimizationUnitValidationError::CurrentOwnedPlaceNotLive(
+                OperationSite::new(function.machine, block, node),
+                source,
+            )
         };
         let signature = crate::unit_validation::operation_contracts::structural_source_contract(
             function, source,
@@ -131,12 +131,10 @@ fn validate_atomic_access(
             && frontier.owned_places.get(&location.root) != Some(&signature.multiplicity))
             || frontier.partial_custody_paths.contains_key(&location.root))
     {
-        return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive {
-            machine: function.machine,
-            block,
-            node,
-            place: location.root,
-        });
+        return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive(
+            OperationSite::new(function.machine, block, node),
+            location.root,
+        ));
     }
     Ok(())
 }
@@ -320,12 +318,10 @@ pub(super) fn validate_current_ownership_cfg(
                     })
                 });
                 if !available {
-                    return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive {
-                        machine: function.machine,
-                        block: block_id,
-                        node: node_index,
-                        place: root.place(),
-                    });
+                    return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive(
+                        OperationSite::new(function.machine, block_id, node_index),
+                        root.place(),
+                    ));
                 }
             }
 
@@ -389,12 +385,12 @@ pub(super) fn validate_current_ownership_cfg(
                         .partial_custody_paths
                         .contains_key(&destination.place()))
             {
-                return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive {
-                    machine: function.machine,
-                    block: block_id,
-                    node: node_index,
-                    place: destination.place(),
-                });
+                return Err(
+                    OptimizationUnitValidationError::CurrentOwnedPlaceNotLive(
+                        OperationSite::new(function.machine, block_id, node_index),
+                        destination.place(),
+                    ),
+                );
             }
 
             if let O::StructuralCase { source, .. }
@@ -448,12 +444,10 @@ pub(super) fn validate_current_ownership_cfg(
                         ))
                         || partially_unavailable)
                 {
-                    return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive {
-                        machine: function.machine,
-                        block: block_id,
-                        node: node_index,
-                        place: *source,
-                    });
+                    return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive(
+                        OperationSite::new(function.machine, block_id, node_index),
+                        *source,
+                    ));
                 }
             }
 
@@ -527,11 +521,9 @@ pub(super) fn validate_current_ownership_cfg(
                     })
                     .collect::<Option<Vec<_>>>()
                     .ok_or(
-                        OptimizationUnitValidationError::StructuralCallContractMismatch {
-                            machine: function.machine,
-                            block: block_id,
-                            node: node_index,
-                        },
+                        OptimizationUnitValidationError::StructuralCallContractMismatch(
+                            OperationSite::new(function.machine, block_id, node_index),
+                        ),
                     )?,
                 // The repair's consumed operand carries its own declared
                 // signature; there is no callee parameter row to read.
@@ -545,11 +537,9 @@ pub(super) fn validate_current_ownership_cfg(
                         )
                         .map(|source| source.multiplicity)
                         .ok_or(
-                            OptimizationUnitValidationError::StructuralCallContractMismatch {
-                                machine: function.machine,
-                                block: block_id,
-                                node: node_index,
-                            },
+                            OptimizationUnitValidationError::StructuralCallContractMismatch(
+                                OperationSite::new(function.machine, block_id, node_index),
+                            ),
                         )?,
                     ]
                 }
@@ -581,11 +571,9 @@ pub(super) fn validate_current_ownership_cfg(
                             .collect::<Vec<_>>()
                     })
                     .ok_or(
-                        OptimizationUnitValidationError::StructuralCallContractMismatch {
-                            machine: function.machine,
-                            block: block_id,
-                            node: node_index,
-                        },
+                        OptimizationUnitValidationError::StructuralCallContractMismatch(
+                            OperationSite::new(function.machine, block_id, node_index),
+                        ),
                     )?,
                 O::BoundaryCall { boundary, .. } => boundary_machines[boundary]
                     .structural_parameters
@@ -639,12 +627,10 @@ pub(super) fn validate_current_ownership_cfg(
             for place in &consumed_places {
                 if frontier.partial_custody_paths.contains_key(place) {
                     return Err(
-                        OptimizationUnitValidationError::CurrentWholePlacePartiallyMoved {
-                            machine: function.machine,
-                            block: block_id,
-                            node: node_index,
-                            place: *place,
-                        },
+                        OptimizationUnitValidationError::CurrentWholePlacePartiallyMoved(
+                            OperationSite::new(function.machine, block_id, node_index),
+                            *place,
+                        ),
                     );
                 }
             }
@@ -963,12 +949,10 @@ pub(super) fn validate_current_ownership_cfg(
             };
             for claim in transferred {
                 if frontier.claims.remove(&claim).is_none() {
-                    return Err(OptimizationUnitValidationError::CurrentClaimNotLive {
-                        machine: function.machine,
-                        block: block_id,
-                        node: node_index,
+                    return Err(OptimizationUnitValidationError::CurrentClaimNotLive(
+                        OperationSite::new(function.machine, block_id, node_index),
                         claim,
-                    });
+                    ));
                 }
             }
             for (argument, _) in structural_arguments
@@ -989,23 +973,21 @@ pub(super) fn validate_current_ownership_cfg(
                 if !frontier.owned_places.contains_key(&argument.place)
                     && !is_borrowed_member_move(function, argument)
                 {
-                    return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive {
-                        machine: function.machine,
-                        block: block_id,
-                        node: node_index,
-                        place: argument.place,
-                    });
+                    return Err(
+                        OptimizationUnitValidationError::CurrentOwnedPlaceNotLive(
+                            OperationSite::new(function.machine, block_id, node_index),
+                            argument.place,
+                        ),
+                    );
                 }
                 if argument.path.is_empty()
                     && frontier.partial_custody_paths.contains_key(&argument.place)
                 {
                     return Err(
-                        OptimizationUnitValidationError::CurrentWholePlacePartiallyMoved {
-                            machine: function.machine,
-                            block: block_id,
-                            node: node_index,
-                            place: argument.place,
-                        },
+                        OptimizationUnitValidationError::CurrentWholePlacePartiallyMoved(
+                            OperationSite::new(function.machine, block_id, node_index),
+                            argument.place,
+                        ),
                     );
                 }
                 if !argument.path.is_empty()
@@ -1020,23 +1002,19 @@ pub(super) fn validate_current_ownership_cfg(
                         })
                 {
                     return Err(
-                        OptimizationUnitValidationError::CurrentProjectedMoveOverlap {
-                            machine: function.machine,
-                            block: block_id,
-                            node: node_index,
-                            place: argument.place,
-                        },
+                        OptimizationUnitValidationError::CurrentProjectedMoveOverlap(
+                            OperationSite::new(function.machine, block_id, node_index),
+                            argument.place,
+                        ),
                     );
                 }
             }
             for place in consumed_places {
                 if frontier.owned_places.remove(&place).is_none() {
-                    return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive {
-                        machine: function.machine,
-                        block: block_id,
-                        node: node_index,
+                    return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive(
+                        OperationSite::new(function.machine, block_id, node_index),
                         place,
-                    });
+                    ));
                 }
             }
 
@@ -1050,12 +1028,10 @@ pub(super) fn validate_current_ownership_cfg(
                     if is_borrowed_member_move(function, argument) {
                         continue;
                     }
-                    return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive {
-                        machine: function.machine,
-                        block: block_id,
-                        node: node_index,
-                        place: argument.place,
-                    });
+                    return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive(
+                        OperationSite::new(function.machine, block_id, node_index),
+                        argument.place,
+                    ));
                 }
                 let moved = frontier
                     .partial_custody_paths
@@ -1066,12 +1042,10 @@ pub(super) fn validate_current_ownership_cfg(
                 }) || !moved.insert(argument.path.clone())
                 {
                     return Err(
-                        OptimizationUnitValidationError::CurrentProjectedMoveOverlap {
-                            machine: function.machine,
-                            block: block_id,
-                            node: node_index,
-                            place: argument.place,
-                        },
+                        OptimizationUnitValidationError::CurrentProjectedMoveOverlap(
+                            OperationSite::new(function.machine, block_id, node_index),
+                            argument.place,
+                        ),
                     );
                 }
                 if projected_root_is_fully_consumed(
@@ -1094,12 +1068,10 @@ pub(super) fn validate_current_ownership_cfg(
                 // Keep its root available for nonoverlapping scalar siblings,
                 // including when no structural disposal obligations remain.
                 if frontier.owned_places.get(source) != Some(&StructuralMultiplicity::Affine) {
-                    return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive {
-                        machine: function.machine,
-                        block: block_id,
-                        node: node_index,
-                        place: *source,
-                    });
+                    return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive(
+                        OperationSite::new(function.machine, block_id, node_index),
+                        *source,
+                    ));
                 }
                 let consumed = frontier.partial_custody_paths.entry(*source).or_default();
                 if consumed
@@ -1108,12 +1080,10 @@ pub(super) fn validate_current_ownership_cfg(
                     || !consumed.insert(path.clone())
                 {
                     return Err(
-                        OptimizationUnitValidationError::CurrentProjectedMoveOverlap {
-                            machine: function.machine,
-                            block: block_id,
-                            node: node_index,
-                            place: *source,
-                        },
+                        OptimizationUnitValidationError::CurrentProjectedMoveOverlap(
+                            OperationSite::new(function.machine, block_id, node_index),
+                            *source,
+                        ),
                     );
                 }
                 if projected_root_is_fully_consumed(function, structural_types, &frontier, *source)
@@ -1227,12 +1197,10 @@ pub(super) fn validate_current_ownership_cfg(
                         }
                     };
                     if frontier.claims.insert(binding.claim, claim).is_some() {
-                        return Err(OptimizationUnitValidationError::CurrentClaimAlreadyLive {
-                            machine: function.machine,
-                            block: block_id,
-                            node: node_index,
-                            claim: binding.claim,
-                        });
+                        return Err(OptimizationUnitValidationError::CurrentClaimAlreadyLive(
+                            OperationSite::new(function.machine, block_id, node_index),
+                            binding.claim,
+                        ));
                     }
                 }
             }
@@ -1306,12 +1274,10 @@ pub(super) fn validate_current_ownership_cfg(
                         result.multiplicity == StructuralMultiplicity::Unrestricted
                     });
                     if !unrestricted_result && frontier.owned_places.remove(source).is_none() {
-                        return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive {
-                            machine: function.machine,
-                            block: block_id,
-                            node: node_index,
-                            place: *source,
-                        });
+                        return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive(
+                            OperationSite::new(function.machine, block_id, node_index),
+                            *source,
+                        ));
                     }
                     let expected = frontier
                         .claims

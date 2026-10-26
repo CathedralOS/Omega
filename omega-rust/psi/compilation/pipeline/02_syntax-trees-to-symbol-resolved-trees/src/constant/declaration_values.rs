@@ -302,8 +302,8 @@ pub(crate) fn retain_const_initializer(
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
 ) -> Result<ExpressionHandle, Diagnostic> {
-    let pending = lowerer.const_resolution_mode
-        == crate::resolution::lowerer::ConstResolutionMode::InitializerSelection;
+    let pending =
+        lowerer.const_resolution_mode != crate::resolution::lowerer::ConstResolutionMode::Complete;
     if !pending && !has_scalar_initializer(syntax, definition) {
         if crate::preparation::module_normalization::module_literal_constant(syntax, definition) {
             // Unused private arrays still owe declaration shape and landing.

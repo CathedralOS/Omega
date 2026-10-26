@@ -22,6 +22,7 @@ pub(super) fn recover(
     storage: &SourceResolver,
     acquisition: GitExactRevisionAcquisition,
 ) -> Result<PackageSourceCustody, &'static str> {
+    let _stage = crate::review::timings::stage("old_source_recovery");
     let current = candidate
         .custody(expected.key())
         .expect("candidate package selected by key");

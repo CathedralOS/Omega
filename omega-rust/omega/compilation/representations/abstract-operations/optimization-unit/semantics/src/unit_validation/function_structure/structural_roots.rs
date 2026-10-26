@@ -1,7 +1,7 @@
 //! Structural-root uniqueness, availability, observation, and return contracts.
 use super::super::catalog_mismatch;
-use crate::OptimizationUnitValidationError;
 use crate::unit_validation::structural_catalog::structural_root_key;
+use crate::{OperationSite, OptimizationUnitValidationError};
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::PsiOptimizationFunction;
@@ -436,11 +436,9 @@ pub(crate) fn validate_structural_root_operations(
                         ) == Some(value.scalar_type);
                     if !valid {
                         return Err(
-                            OptimizationUnitValidationError::InvalidWriteOnlyPrimitiveStore {
-                                machine: function.machine,
-                                block: block.id,
-                                node: node_index,
-                            },
+                            OptimizationUnitValidationError::InvalidWriteOnlyPrimitiveStore(
+                                OperationSite::new(function.machine, block.id, node_index),
+                            ),
                         );
                     }
                 }
@@ -510,11 +508,9 @@ pub(crate) fn validate_structural_root_operations(
                         });
                     if !valid {
                         return Err(
-                            OptimizationUnitValidationError::InvalidStructuralScalarFieldStore {
-                                machine: function.machine,
-                                block: block.id,
-                                node: node_index,
-                            },
+                            OptimizationUnitValidationError::InvalidStructuralScalarFieldStore(
+                                OperationSite::new(function.machine, block.id, node_index),
+                            ),
                         );
                     }
                 }
@@ -561,11 +557,9 @@ pub(crate) fn validate_structural_root_operations(
                         });
                     if !valid {
                         return Err(
-                            OptimizationUnitValidationError::InvalidStructuralScalarFieldRead {
-                                machine: function.machine,
-                                block: block.id,
-                                node: node_index,
-                            },
+                            OptimizationUnitValidationError::InvalidStructuralScalarFieldRead(
+                                OperationSite::new(function.machine, block.id, node_index),
+                            ),
                         );
                     }
                 }
@@ -1224,11 +1218,9 @@ pub(crate) fn validate_structural_root_operations(
                 O::ReturnStructural { source, .. } => {
                     let Some(signature) = function.result.structural() else {
                         return Err(
-                            OptimizationUnitValidationError::StructuralReturnSourceContractMismatch {
-                                machine: function.machine,
-                                block: block.id,
-                                node: node_index,
-                            },
+                            OptimizationUnitValidationError::StructuralReturnSourceContractMismatch(
+                                OperationSite::new(function.machine, block.id, node_index),
+                            ),
                         );
                     };
                     let source_contract =
@@ -1361,11 +1353,9 @@ pub(crate) fn validate_structural_root_operations(
                         )
                     {
                         return Err(
-                            OptimizationUnitValidationError::StructuralReturnSourceContractMismatch {
-                                machine: function.machine,
-                                block: block.id,
-                                node: node_index,
-                            },
+                            OptimizationUnitValidationError::StructuralReturnSourceContractMismatch(
+                                OperationSite::new(function.machine, block.id, node_index),
+                            ),
                         );
                     }
                 }

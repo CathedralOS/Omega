@@ -5,7 +5,7 @@ mod candidate;
 mod compare;
 mod decision;
 mod restricted_build_grants;
-mod timings;
+pub(crate) mod timings;
 
 pub(crate) use candidate::verify_transitive_source_custody;
 

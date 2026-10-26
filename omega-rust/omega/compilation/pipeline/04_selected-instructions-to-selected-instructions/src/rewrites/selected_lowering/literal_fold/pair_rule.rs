@@ -1210,42 +1210,24 @@ pub(crate) struct SelectedInstructionPairRule {
 }
 
 impl SelectedInstructionPairRule {
-    pub const fn producer(self) -> MachineSemanticKind {
-        self.producer
-    }
-
-    pub const fn consumer(self) -> MachineSemanticKind {
-        self.consumer
-    }
-
-    pub const fn rewritten(self) -> MachineSemanticKind {
-        self.rewritten
-    }
-
-    /// The consumer operand grammar: where the literal victim sits and what
-    /// shape the rewritten constraint row therefore carries.
-    pub const fn operand_shape(self) -> PairOperandShape {
-        self.operand_shape
-    }
-
-    /// The rewritten instruction's declared output channel: a scalar `Def`
-    /// operand or implicit physical-unit definitions.
-    pub const fn result(self) -> PairResultDisposition {
-        self.result
-    }
-
-    /// The pair's declared unit-effect surface: which implicit unit uses,
-    /// clobbers, and operand bindings the rewrite may carry.
-    pub const fn unit_effects(self) -> PairUnitEffects {
-        self.unit_effects
-    }
-
-    /// The pair's declared machine-effect surface: which memory, trap, stack,
-    /// and control-flow traffic the producer, consumer, and rewritten forms
-    /// may carry in the bound effect catalog.
-    pub const fn machine_effects(self) -> PairMachineEffects {
-        self.machine_effects
-    }
+    receipt_accessor_rows!(SelectedInstructionPairRule {
+        producer: MachineSemanticKind,
+        consumer: MachineSemanticKind,
+        rewritten: MachineSemanticKind,
+        /// The consumer operand grammar: where the literal victim sits and what
+        /// shape the rewritten constraint row therefore carries.
+        operand_shape: PairOperandShape,
+        /// The rewritten instruction's declared output channel: a scalar `Def`
+        /// operand or implicit physical-unit definitions.
+        result: PairResultDisposition,
+        /// The pair's declared unit-effect surface: which implicit unit uses,
+        /// clobbers, and operand bindings the rewrite may carry.
+        unit_effects: PairUnitEffects,
+        /// The pair's declared machine-effect surface: which memory, trap, stack,
+        /// and control-flow traffic the producer, consumer, and rewritten forms
+        /// may carry in the bound effect catalog.
+        machine_effects: PairMachineEffects,
+    });
 
     /// The consumer operand index the literal victim must occupy — the
     /// position axis alone decides it.

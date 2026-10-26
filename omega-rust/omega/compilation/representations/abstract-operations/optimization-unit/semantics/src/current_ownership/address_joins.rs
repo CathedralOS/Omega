@@ -32,10 +32,10 @@ mod descriptor_loans;
 pub(crate) use descriptor_loans::validate_compatibility;
 pub(crate) mod range_relations;
 
-use crate::OptimizationUnitValidationError;
 use crate::current_ownership::CurrentOwnership;
 use crate::unit_validation::operation_contracts::structural_source_contract;
 use crate::unit_validation::references::ReferenceOrigin;
+use crate::{OperationSite, OptimizationUnitValidationError};
 use abstract_operations::AbstractOperation as O;
 use borrowed_regions::{BorrowedRegions, Projection, Region};
 use descriptor_loans::DescriptorLoans;
@@ -555,12 +555,10 @@ fn pinned_root_disturbed(
     node: u32,
     place: PlaceId,
 ) -> OptimizationUnitValidationError {
-    OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed {
-        machine: function.machine,
-        block,
-        node,
+    OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed(
+        OperationSite::new(function.machine, block, node),
         place,
-    }
+    )
 }
 
 /// Possible roots detect interference; exact ancestry grants current-child

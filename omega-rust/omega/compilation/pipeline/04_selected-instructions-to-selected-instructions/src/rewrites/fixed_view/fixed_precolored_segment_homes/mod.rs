@@ -128,9 +128,9 @@ impl StagedOptimizedFixedPrecoloredSegmentHomes {
     pub const fn segment_homes(&self) -> &ValidatedFixedPrecoloredSegmentHomes {
         &self.homes
     }
-    pub const fn custody(&self) -> StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt {
-        self.custody
-    }
+    receipt_accessor_rows!(ref StagedOptimizedFixedPrecoloredSegmentHomes {
+        custody: StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt,
+    });
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -142,18 +142,12 @@ pub struct StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt {
 }
 
 impl StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt {
-    pub const fn upstream(self) -> StagedOptimizedAllocationLegalityCustodyReceipt {
-        self.upstream
-    }
-    pub const fn fixed(self) -> FixedPrecoloredIntervalValidationReceipt {
-        self.fixed
-    }
-    pub const fn requirements(self) -> FixedPrecoloredSplitRequirementValidationReceipt {
-        self.requirements
-    }
-    pub const fn homes(self) -> FixedPrecoloredSegmentHomeValidationReceipt {
-        self.homes
-    }
+    receipt_accessor_rows!(StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt {
+        upstream: StagedOptimizedAllocationLegalityCustodyReceipt,
+        fixed: FixedPrecoloredIntervalValidationReceipt,
+        requirements: FixedPrecoloredSplitRequirementValidationReceipt,
+        homes: FixedPrecoloredSegmentHomeValidationReceipt,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
