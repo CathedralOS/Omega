@@ -1350,7 +1350,9 @@ impl<'program> StructuralJudge<'program> {
                     if let Some((_, referent)) =
                         inputs.iter().find(|(input, _)| *input == borrow.target)
                     {
-                        value = referent.clone();
+                        value = crate::expression_result_type_reference(program, scope.0, scope.1, expression)
+                            .and_then(|declared| super::super::structural_terms::shared_inline_observation(program, declared, referent.clone()))
+                            .unwrap_or_else(|| referent.clone());
                     }
                 }
                 if scalar_field_read {

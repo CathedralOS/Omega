@@ -128,3 +128,58 @@ The parent capability remains open for additional inner-loan capture and escape
 through opaque incoming referents. Observing a retained descriptor does not grant
 those operations. This row does not close arbitrary partial-owner/cyclic
 composition or the whole compiler release matrix.
+
+## Shared incoming record continuation
+
+The same fact is also carried by an owned wrapper whose field is a shared
+reference to the record containing the exclusive descriptor array. This is
+another production of this row: the bound, byte, operation and fact sentence
+stay the same. Each `<place>/nested_reference/main.omg` has its own empty-view
+twin and matching `stored_exclusive_byte_view_nested_reference_through_<place>`
+pass/fail fixtures.
+
+| Place | Positive | Reject twin |
+| --- | --- | --- |
+| Local | [program](local/nested_reference/main.omg) | [empty view](local/nested_reference/invalid/main.omg) |
+| Field | [program](field/nested_reference/main.omg) | [empty view](field/nested_reference/invalid/main.omg) |
+| Parameter | [program](parameter/nested_reference/main.omg) | [empty view](parameter/nested_reference/invalid/main.omg) |
+| Call result | [program](call_result/nested_reference/main.omg) | [empty view](call_result/nested_reference/invalid/main.omg) |
+| Match join | [program](match_join/nested_reference/main.omg) | [empty view](match_join/nested_reference/invalid/main.omg) |
+| Const name | [program](const_name/nested_reference/main.omg) | [empty view](const_name/nested_reference/invalid/main.omg) |
+| Nested machine | [program](other_state/nested_reference/main.omg) | [empty view](other_state/nested_reference/invalid/main.omg) |
+| Another machine | [program](other_machine/nested_reference/main.omg) | [empty view](other_machine/nested_reference/invalid/main.omg) |
+| Another target body | [program](target_body/nested_reference/main.omg) | [empty view](target_body/nested_reference/invalid/main.omg) |
+
+The [direct incoming record](controls/opaque_incoming_record/main.omg) separates
+ordinary incoming inline storage from the additional shared-reference crossing
+in the [nested control](controls/opaque_incoming_record/nested/main.omg).
+On optimized Windows producer `7df8b4d92070d83d357849fb2eb77e05c61f36a4`,
+the direct control exits zero in both engines. All nine nested positives wrongly
+refuse the receiving `len == 1` requirement; their empty-view twins refuse the
+same requirement correctly. These are frozen baseline observations, not
+candidate acceptance. The call-result place publishes the selected descriptor's
+length through its authored result equation; [removing that guarantee](controls/opaque_incoming_record/nested/without_extent_guarantee/main.omg)
+must still refuse the receiving requirement.
+
+A checked shared borrow records the exact referent's inline cells. Contained
+references remain permission carriers and require independent observations
+before another crossing. Selected result contracts publish descriptor metadata
+without publishing backing bytes. Terminal Psi retains each explicit reference
+crossing in the scalar observation path; its `Extent` projection selects only
+the readable descriptor's live `u64` length. This extends the scalar-read wire
+vocabulary, independently of the earlier canonical `ViewExtent` encoding.
+Native reference arguments continue to address their original backing storage.
+
+The [opaque result's owned field](call_result/nested_reference/projected_record/main.omg)
+retains the same length equation after projecting its wrapper. Its
+[empty-view twin](call_result/nested_reference/projected_record/invalid/main.omg)
+and [missing-guarantee control](call_result/nested_reference/projected_record/without_extent_guarantee/main.omg)
+still owe the receiving length requirement. A captured result's authenticated
+owned projections select their declaration-bound carrier; crossing a stored
+reference cannot manufacture another owned result root.
+
+Current candidate validation and parent acceptance remain open until the
+corresponding execution and refusal records establish them. Retained macOS
+observations above remain attached to their historical producer. Windows
+observations do not establish other hosts' native execution or authorize the
+unrelated pending production-package decisions.
