@@ -45,6 +45,15 @@ pub(crate) fn collect_value_roots(
     roots: &mut Vec<typed_trees::type_identity::TypeIdentityId>,
 ) -> Result<(), LoweringError> {
     let node = checked.facts.values.structural_values.nodes.get(value);
+    // Evaluation validates the retained carrier before producing children.
+    // Its declaration is needed independently of a receiving result binding:
+    // a stopped constructor or selected branch never publishes such a value.
+    roots.push(validation::stored_structural_type_identity(
+        &checked.typed,
+        node.type_reference,
+        &[],
+        &[],
+    ));
     match &node.kind {
         checked_trees::CheckedStructuralValueKind::Reference {
             source,

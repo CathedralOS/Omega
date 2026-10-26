@@ -294,6 +294,7 @@ pub(in crate::execution::terminal_unit) fn value_calls(
     checked_trees::CheckedValueCompletion,
 )> {
     let plans = &facts.values.structural_values;
+    let binders = machine_binders(program, machine);
     let mut scoped_results = results.to_vec();
     enum Pending {
         Value(checked_trees::CheckedStructuralValueHandle),
@@ -333,6 +334,10 @@ pub(in crate::execution::terminal_unit) fn value_calls(
             return None;
         }
         visited.push(value);
+        // The retained DAG owns its carrier declarations even when evaluation
+        // stops before any receiving binding. Registering a shape establishes
+        // no value, storage, membership or claim.
+        shapes.add_stored_type(plans.nodes.get(value).type_reference, &binders, &[])?;
         match &plans.nodes.get(value).kind {
             checked_trees::CheckedStructuralValueKind::NativeCodeLayout { .. } => {}
             checked_trees::CheckedStructuralValueKind::QuotientCall { arguments, .. } => {
