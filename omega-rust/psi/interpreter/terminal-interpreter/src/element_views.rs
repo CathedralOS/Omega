@@ -1487,12 +1487,7 @@ impl TerminalExecution<'_> {
             _ => return Err(malformed()),
         }
         let mut identity_cursor = self.local_structural_identities.cursor();
-        let mut destination = TerminalStructuralValue::minted(
-            self.local_structural_identities
-                .allocate_staged(&mut identity_cursor)?,
-            result.structural_type,
-            Vec::new(),
-        );
+        let mut destination = self.mint_staged(&mut identity_cursor, result.structural_type)?;
         destination.projected_qualifications = result.projected_qualifications.clone();
         let window = view
             .subslice(start, end, access)
