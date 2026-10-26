@@ -69,8 +69,7 @@ applied theory. The overflow control rejects the exact out-of-carrier value
 Affected-library Clippy passes with warnings. Enclosing generic/lifetime telescopes,
 general erased-interface transport, product-producer parity, source retirement,
 and the whole item's required applications/corpus/host results remain open.
-No TASKS acceptance has been subtracted. Reviewed source is published in draft
-PR [165](https://github.com/CathedralOS/Omega/pull/165); nothing has landed.
+No TASKS acceptance has been subtracted. The full migration item remains open.
 
 Immutable producers, source manifests, exact commands and raw logs live in this
 worktree's ignored `build/slot3-evidence/`. Durable private source checkpoints
