@@ -104,12 +104,17 @@ creates handoff loss, duplicate ramp-up, and competing partial fixes.
   ownership, keeping the valid program requirement while correcting the
   assignment. The repair itself is the advance skill's work.
 
-Each retained item states the capability requirement and its executable
-end-to-end sample witnesses (`samples/cli/facts/<fact>/` or named customer
-programs plus invalid controls), how the requirement travels through the
-pipeline, the owning code/specification, real dependencies, and a current
-reproduction or decisive symbol/test link when it saves rediscovery, in natural
-prose or bullets.
+Each retained item states the capability requirement, its owning
+code/specification, real dependencies, a discrete list of one-per-line
+remaining sub-bullets (one unfinished witness or missing mechanism gap per
+bullet, with its current reproduction or decisive symbol/test link when it saves
+rediscovery), and the final `Acceptance:` gate. `tests/omega/`
+(`corpus_results.txt`) and `samples/cli/facts/` own regression retention of
+already-passing witnesses; `TASKS.md` owns only the unbuilt or failing gap.
+Structure remaining work as discrete bullets so an agent finishing one witness
+deletes that line outright instead of rewriting prose paragraphs or moving the
+witness into a `"preserving / retaining / keeping / now reserves / now passes"`
+regression list.
 
 When merging items, fold them under the canonical parent outcome ID and update
 cross-references (including `TASKS*.md`, sample READMEs, and active claim notes
