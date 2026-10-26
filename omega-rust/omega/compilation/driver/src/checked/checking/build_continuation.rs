@@ -316,6 +316,8 @@ fn complete_build_source(
         generated_source_custody = product.generated_source_custody;
         Arc::make_mut(&mut computed_build_config).selected_build_machine_symbol = selected;
     }
+    validation::compiler_operations::validate_build_product_operands(source.typed())
+        .map_err(|diagnostic| vec![diagnostic])?;
     let sources = BuildSourceCustody {
         source_file_count,
         build_execution_profile,

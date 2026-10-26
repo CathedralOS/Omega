@@ -71,21 +71,7 @@ pub fn describe_build_static_operand(
             AuthoredDeclarationSelectionIntrinsic::WireCompatibilityFact(fact),
         ));
     }
-    let role = match (operation, argument_index) {
-        (BuildOperation::ProviderSelection, 0)
-        | (
-            BuildOperation::ServiceExclusion
-            | BuildOperation::ServiceAudit
-            | BuildOperation::BoundaryAcceptance,
-            0,
-        ) => ProductOperandKind::BoundarySubject,
-        (BuildOperation::ProviderSelection, 1) => ProductOperandKind::Provider,
-        (BuildOperation::AssumedBindingContract, 0 | 1) => ProductOperandKind::Requirement,
-        (BuildOperation::WireCompatibilityRequest, 0..=3)
-        | (BuildOperation::RepresentationSelection, 0) => ProductOperandKind::Data,
-        (BuildOperation::RepresentationSelection, 1) => ProductOperandKind::Representation,
-        _ => return Err("Build static operand has no declaration role at this position".into()),
-    };
+    let role = build_operand_kind(operation, argument_index)?;
     if !typed_trees::product_operand::is_declaration_operand(argument) {
         return Err(format!(
             "Build {role:?} operand must describe one declaration path"
@@ -94,6 +80,106 @@ pub fn describe_build_static_operand(
     Ok(AuthoredSelectionResolutionTarget::Intrinsic(
         operation.intrinsic(),
     ))
+}
+
+/// Resolve the inert description in the completed Product frontier. This is
+/// declaration authority; the earlier operation marker cannot replace it.
+pub fn resolve_build_static_operand(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    argument_index: usize,
+    occurrence: source::SourceSpan,
+) -> Result<AuthoredSelectionResolutionTarget, String> {
+    let description = describe_build_static_operand(program, expression, argument_index)?;
+    if matches!(
+        description,
+        AuthoredSelectionResolutionTarget::Intrinsic(
+            AuthoredDeclarationSelectionIntrinsic::WireCompatibilityFact(_)
+        )
+    ) {
+        return Ok(description);
+    }
+    let call = program
+        .expression_table
+        .call_node(expression)
+        .ok_or("Build static operand has no retained call")?;
+    let operation = BuildOperation::from_call_target(call.target.as_str())
+        .ok_or("Build static operand has no retained operation")?;
+    let kind = build_operand_kind(operation, argument_index)?;
+    let selected = typed_trees::product_operand::resolve_product_operand(
+        program.typed_program(), &call.machine_arguments[argument_index], occurrence, kind,
+    ).ok_or("Build declaration operand does not resolve to one visible product declaration of the required kind")?;
+    if matches!(
+        operation,
+        BuildOperation::ServiceExclusion | BuildOperation::ServiceAudit
+    ) && !program
+        .product_declarations()
+        .traits()
+        .iter()
+        .any(|definition| definition.symbol == selected && definition.is_boundary)
+    {
+        return Err("Build service operand must name a boundary trait".into());
+    }
+    Ok(AuthoredSelectionResolutionTarget::Declaration(selected))
+}
+
+fn build_operand_kind(
+    operation: BuildOperation,
+    argument_index: usize,
+) -> Result<ProductOperandKind, String> {
+    let role = match (operation, argument_index) {
+        (BuildOperation::ProviderSelection, 0)
+        | (BuildOperation::ServiceExclusion | BuildOperation::ServiceAudit, 0) => {
+            ProductOperandKind::BoundarySubject
+        }
+        (BuildOperation::BoundaryAcceptance, 0) => ProductOperandKind::TrustSubject,
+        (BuildOperation::ProviderSelection, 1) => ProductOperandKind::Provider,
+        (BuildOperation::AssumedBindingContract, 0 | 1) => ProductOperandKind::Requirement,
+        (BuildOperation::WireCompatibilityRequest, 0..=3)
+        | (BuildOperation::RepresentationSelection, 0) => ProductOperandKind::Data,
+        (BuildOperation::RepresentationSelection, 1) => ProductOperandKind::Representation,
+        _ => return Err("Build static operand has no declaration role at this position".into()),
+    };
+    Ok(role)
+}
+
+/// Complete every authored Product description after source assembly. All
+/// operation classes share this join, including requests with no later planner.
+/// Exact static-argument occurrences supply lexical/package visibility custody.
+pub fn validate_build_product_operands(
+    program: &dyn crate::CheckingInput,
+) -> Result<(), diagnostics::Diagnostic> {
+    for (expression, _) in program.expression_table.iter_expressions() {
+        if !is_build_declaration_selection(program, expression) {
+            continue;
+        }
+        let call = program.expression_table.call_node(expression).unwrap();
+        for argument_index in 0..call.machine_arguments.len() {
+            let occurrences = program
+                .expression_table
+                .authored_selection_occurrences(expression)
+                .filter_map(|occurrence| program.authored_declaration_selections().get(occurrence))
+                .filter(|selection| {
+                    selection.top_level_static_argument_position() == Some(argument_index)
+                })
+                .collect::<Vec<_>>();
+            let [selection] = occurrences.as_slice() else {
+                return Err(diagnostics::Diagnostic::error(
+                    "Build Product operand has no unique authored static-argument occurrence",
+                ));
+            };
+            resolve_build_static_operand(
+                program,
+                expression,
+                argument_index,
+                selection.source_span(),
+            )
+            .map_err(|message| {
+                diagnostics::Diagnostic::error(message).with_source_span(selection.source_span())
+            })?;
+        }
+    }
+    Ok(())
 }
 
 pub fn is_provider_selection_call(
