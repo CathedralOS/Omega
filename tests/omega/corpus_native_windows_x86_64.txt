@@ -770,8 +770,7 @@ pass/calls/runtime_authored_numeric_names_exit built 3067ms exit:0 @5f668826adf3
 pass/calls/runtime_boolean_result_across_console_exit built 7798ms exit:70 stdout:match @5f668826adf3+wt
 pass/calls/runtime_borrowed_binding_field_state_loan_exit built 8193ms exit:70 stdout:match @5f668826adf3+wt
 pass/calls/runtime_borrowed_float_formal_exchange_exit built 12538ms exit:70 @5f668826adf3+wt
-pass/calls/runtime_borrowed_parameter_ensures_issuer_exit rejected 4353ms @5f668826adf3+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "owned membership transport cannot establish routed authority", gap: None })
+pass/calls/runtime_borrowed_parameter_ensures_issuer_exit built 4353ms exit:0 @daf1a576211
 pass/calls/runtime_boundary_computed_selector_order_exit rejected 12844ms @91bbf3e29aa9
 pass/calls/runtime_boundary_loop_projected_subslice_exit built 18080ms exit:70 @5f668826adf3+wt
 pass/calls/runtime_boundary_projected_mutable_subslice_exit built 17884ms exit:70 @5f668826adf3+wt
