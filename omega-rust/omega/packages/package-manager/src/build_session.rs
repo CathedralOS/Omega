@@ -177,6 +177,33 @@ impl PackageBuildSession {
         resolution: &package_source::ImmutableSourceResolution,
         purpose: crate::declarations::DependencyPurpose,
     ) -> Result<PathBuf, CompileResolvedPackageReviewsError> {
+        let base = package_build_root(&self.root, key, resolution, purpose);
+        self.create_build_directory(base)
+    }
+
+    /// Admit acquired source work before its Build declares a package name.
+    /// These sponsors belong to the whole invocation, including subsequent
+    /// review and Product occurrences. This grants no restricted operation.
+    pub fn source_build_request(
+        &mut self,
+        capture: &package_compilation::CapturedLocalSource,
+        entry: &Path,
+        profile: target::TargetProfile,
+    ) -> Result<compiler::CheckedCompileRequest, CompileResolvedPackageReviewsError> {
+        let directory = self.create_build_directory(self.root.join("source"))?;
+        Ok(compiler::CheckedCompileRequest {
+            source_capture: Some(capture.clone()),
+            build_dir: Some(directory),
+            filesystem_sponsor: Some(self.filesystem_sponsor.clone()),
+            evaluation_sponsor: Some(self.evaluation_sponsor.clone()),
+            ..compiler::CheckedCompileRequest::new(entry, Some(profile.target_name()))
+        })
+    }
+
+    fn create_build_directory(
+        &mut self,
+        base: PathBuf,
+    ) -> Result<PathBuf, CompileResolvedPackageReviewsError> {
         self.require_open()?;
         let sequence = self.next_occurrence;
         self.next_occurrence = sequence.checked_add(1).ok_or_else(|| {
@@ -185,8 +212,7 @@ impl PackageBuildSession {
                 error: io::Error::other("package build occurrence sequence exhausted"),
             }
         })?;
-        let directory = package_build_root(&self.root, key, resolution, purpose)
-            .with_extension(sequence.to_string());
+        let directory = base.with_extension(sequence.to_string());
         let sponsor_error = |error| CompileResolvedPackageReviewsError::BuildStagingSponsor {
             path: directory.clone(),
             error,
@@ -226,7 +252,9 @@ impl PackageBuildSession {
         &self.filesystem_sponsor
     }
 
-    pub(crate) fn evaluation_sponsor(&self) -> &BuildEvaluationSponsor {
+    /// Observe or spend the invocation's existing allowance. Cloning this
+    /// sponsor shares its counters; it never creates a fresh budget.
+    pub fn evaluation_sponsor(&self) -> &BuildEvaluationSponsor {
         &self.evaluation_sponsor
     }
 

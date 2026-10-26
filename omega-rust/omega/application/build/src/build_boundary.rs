@@ -184,13 +184,13 @@ fn ordinary_package_operations_admit_instead_of_execute() {
     }
     let execution = include_str!("project_compilation.rs");
     let admit = execution
-        .find("admit_project_compilation(request)")
+        .find("admit_project_compilation(request, &mut session)")
         .unwrap();
     let compile = execution
-        .find("crate::compile_packages(&mut compiler, admitted.requests)")
+        .find("crate::compile_packages(session.compiler(), admitted.requests)")
         .unwrap();
     let reconcile = execution
-        .find("admitted.completion.complete(products)")
+        .find("admitted.completion.complete(products, session)")
         .unwrap();
     assert!(admit < compile && compile < reconcile);
 }

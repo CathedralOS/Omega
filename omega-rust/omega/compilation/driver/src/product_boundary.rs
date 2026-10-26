@@ -128,9 +128,9 @@ fn build_submits_admitted_package_batches_together() {
         assert!(source.contains("crate::project_compilation::compile("));
     }
     let application = include_str!("../../../application/build/src/project_compilation.rs");
-    assert!(application.contains("admit_project_compilation(request)"));
-    assert!(application.contains("crate::compile_packages(&mut compiler, admitted.requests)"));
-    assert!(application.contains("admitted.completion.complete(products)"));
+    assert!(application.contains("admit_project_compilation(request, &mut session)"));
+    assert!(application.contains("crate::compile_packages(session.compiler(), admitted.requests)"));
+    assert!(application.contains("admitted.completion.complete(products, session)"));
     let admission =
         include_str!("../../../packages/package-manager/src/operations/accepted_compilation.rs");
     for forbidden in [

@@ -46,16 +46,47 @@ fn failure(package: &PackageKey, message: impl Into<String>) -> Error {
     }
 }
 
+fn invalid_production_root(
+    product: &CompilationProduct,
+    role: crate::declarations::BuildDeclarationKind,
+) -> bool {
+    matches!(product, CompilationProduct::Native(_))
+        && role != crate::declarations::BuildDeclarationKind::Application
+}
+
 /// Ordinary project inputs to admit, without invoking a compiler. The caller
 /// schedules the returned requests together and returns their ordered outcomes.
 pub struct ProjectCompilationAdmissionRequest<'request> {
     pub prepared: super::PreparedLocalProject,
-    pub build_directory: &'request Path,
     pub target_profiles: &'request [target::TargetProfile],
     pub snapshot: Option<&'request build_evaluation::BuildSnapshotRequest>,
     pub verify: bool,
     pub timings: bool,
     pub product: CompilationProduct,
+}
+
+impl ProjectCompilationAdmissionRequest<'_> {
+    /// Attribute an invocation preparation failure to every selected target.
+    /// No compilation or package publication has occurred at this boundary.
+    pub fn refuse(self, reason: String) -> Vec<ProjectCompilationOutcome> {
+        let (_, closure, targets) = self.prepared.into_target_review_parts();
+        let invalid_role = invalid_production_root(&self.product, closure.root_role());
+        targets
+            .into_iter()
+            .filter(|target| self.target_profiles.contains(&target.profile))
+            .map(|target| ProjectCompilationOutcome {
+                target: target.profile,
+                result: Err(ProjectCompilationError::Review(if invalid_role {
+                    Error::InvalidProductionRootRole {
+                        package: closure.graph().root().clone(),
+                        role: closure.root_role(),
+                    }
+                } else {
+                    failure(closure.graph().root(), reason.clone())
+                })),
+            })
+            .collect()
+    }
 }
 
 #[derive(Debug)]
@@ -80,9 +111,9 @@ pub struct ProjectCompilationOutcome {
     pub result: Result<CompilationOutput, ProjectCompilationError>,
 }
 
-/// Requests and their package-owned reconciliation. Keep completion alive while
-/// compiling: it owns the invocation's staging and aggregate resource sponsors.
-/// Neither constructing this value nor completing it invokes a compiler.
+/// Requests and their package-owned reconciliation. The application retains
+/// its package session while compiling, then transfers it into completion for
+/// disposal. Neither admission nor reconciliation invokes a compiler.
 pub struct AdmittedProjectCompilation {
     pub requests: Vec<PackageCompilationRequest>,
     pub completion: ProjectCompilationCompletion,
@@ -101,17 +132,18 @@ struct CompilationReceipt {
 pub struct ProjectCompilationCompletion {
     root: PackageKey,
     targets: Vec<TargetCompletion>,
-    session: Option<PackageBuildSession>,
     // Keep acquisition custody alive through execution and disposal, just as
     // the prepared project did before scheduling moved to the application.
     _source_closure: Option<crate::resolution::graph::ResolvedPackageSourceClosure>,
 }
 
 /// Enforce source/lock identity, occurrence consent and native root role before
-/// any Build execution. One staging owner covers all targets; a target refusal
-/// is retained alongside its siblings rather than aborting the batch.
+/// the admitted occurrences execute. The caller's staging owner and sponsors
+/// cover all targets and earlier source discovery; a target refusal is retained
+/// alongside its siblings rather than aborting the batch.
 pub fn admit_project_compilation(
     request: ProjectCompilationAdmissionRequest<'_>,
+    session: &mut PackageBuildSession,
 ) -> AdmittedProjectCompilation {
     let (entry, closure, prepared_targets) = request.prepared.into_target_review_parts();
     let root = closure.graph().root().clone();
@@ -119,27 +151,7 @@ pub fn admit_project_compilation(
         .into_iter()
         .filter(|target| request.target_profiles.contains(&target.profile))
         .collect();
-    let refuse = |message: String| AdmittedProjectCompilation {
-        requests: Vec::new(),
-        completion: ProjectCompilationCompletion {
-            root: root.clone(),
-            targets: targets
-                .iter()
-                .map(|target| TargetCompletion {
-                    target: target.profile,
-                    receipt: Err(ProjectCompilationError::Review(failure(
-                        &root,
-                        message.clone(),
-                    ))),
-                })
-                .collect(),
-            session: None,
-            _source_closure: None,
-        },
-    };
-    if matches!(request.product, CompilationProduct::Native(_))
-        && closure.root_role() != crate::declarations::BuildDeclarationKind::Application
-    {
+    if invalid_production_root(&request.product, closure.root_role()) {
         return AdmittedProjectCompilation {
             requests: Vec::new(),
             completion: ProjectCompilationCompletion {
@@ -156,15 +168,10 @@ pub fn admit_project_compilation(
                         )),
                     })
                     .collect(),
-                session: None,
                 _source_closure: None,
             },
         };
     }
-    let mut session = match PackageBuildSession::create(request.build_directory) {
-        Ok(session) => session,
-        Err(error) => return refuse(error.to_string()),
-    };
     let mut requests = Vec::new();
     let mut completions = Vec::new();
     // Inspection never exercises retained restricted-action grants, even when
@@ -183,7 +190,7 @@ pub fn admit_project_compilation(
                     timings: request.timings,
                     product: request.product.clone(),
                 };
-                match prepare_accepted_project(inputs, &mut session) {
+                match prepare_accepted_project(inputs, session) {
                     Ok((plan, packages, identity)) => {
                         requests.push(plan);
                         Ok(CompilationReceipt { packages, identity })
@@ -202,7 +209,6 @@ pub fn admit_project_compilation(
         completion: ProjectCompilationCompletion {
             root,
             targets: completions,
-            session: Some(session),
             _source_closure: Some(closure),
         },
     }
@@ -213,8 +219,9 @@ impl ProjectCompilationCompletion {
     /// once after execution. This is not an admission claim for a native image.
     /// Disposal failure is reported rather than silently dropping a failed close.
     pub fn complete(
-        mut self,
+        self,
         outputs: Vec<Result<CompilationOutput, compiler::PackageCompileFailure>>,
+        mut session: PackageBuildSession,
     ) -> Vec<ProjectCompilationOutcome> {
         let expected = self
             .targets
@@ -239,17 +246,15 @@ impl ProjectCompilationCompletion {
                 result,
             });
         }
-        if let Some(session) = &mut self.session {
-            if let Err(error) = session.close() {
-                for outcome in &mut outcomes {
-                    let message = match &outcome.result {
-                        Ok(_) => error.to_string(),
-                        Err(prior) => format!("{error}; prior compilation failure: {prior}"),
-                    };
-                    outcome.result = Err(ProjectCompilationError::Review(failure(
-                        &self.root, message,
-                    )));
-                }
+        if let Err(error) = session.close() {
+            for outcome in &mut outcomes {
+                let message = match &outcome.result {
+                    Ok(_) => error.to_string(),
+                    Err(prior) => format!("{error}; prior compilation failure: {prior}"),
+                };
+                outcome.result = Err(ProjectCompilationError::Review(failure(
+                    &self.root, message,
+                )));
             }
         }
         outcomes

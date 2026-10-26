@@ -39,6 +39,7 @@ fn main() {
     application_source_resolution("executed_dependency_source_join_exit", false);
     application_source_resolution("executed_dependency_source_join_exit", true);
     application_source_resolution("executed_dependency_shared_source_exit", false);
+    project_session_lifecycle();
     interleaved_build_invocations();
     foreign_build_return_refuses();
     ignored_build_request_still_requires_join();
@@ -532,12 +533,20 @@ fn application_source_resolution(project: &str, private_call: bool) {
     )
     .unwrap()
     .unwrap();
-    let mut compiler = CompilationSession::default();
+    let mut session =
+        package_manager::PackageBuildSession::create(&temporary.path().join("session"))
+            .expect("one project resource owner");
+    let sponsor = session.evaluation_sponsor().clone();
     let before = counters::build_execution_count();
-    let resolved = omega_build::resolve_project_sources(&mut compiler, preparation, profile)
+    let resolved = omega_build::resolve_project_sources(&mut session, preparation, profile)
         .unwrap_or_else(|error| panic!("application source resolution: {error:?}"));
     assert_eq!(resolved.builds.len(), 2);
     assert_eq!(counters::build_execution_count(), before + 2);
+    let discovery_fuel = sponsor.consumed_fuel_units();
+    assert!(
+        discovery_fuel > 0,
+        "discovery must charge the project sponsor"
+    );
     // Normal application discovery owns both captured namespaces and returned
     // activations. No later compiler/review consumer may need live source.
     for package in [project, "executed_dependency_source_library"] {
@@ -548,15 +557,15 @@ fn application_source_resolution(project: &str, private_call: bool) {
     let mut builds = resolved.builds;
     let child = builds.pop().unwrap();
     let inputs = child.package_inputs().clone();
-    let child = child.complete(&mut compiler, inputs).unwrap();
+    let child = child.complete(session.compiler(), inputs).unwrap();
     let root = builds.pop().unwrap();
     let inputs = root
         .package_inputs()
         .clone()
         .with_complete_dependency_generated_sources(vec![child.generated_source_bundle().clone()])
         .unwrap();
-    let root = root.complete(&mut compiler, inputs).unwrap();
-    let result = execute_joined_product(&mut compiler, root, &temporary.path().join("output"));
+    let root = root.complete(session.compiler(), inputs).unwrap();
+    let result = execute_joined_product(session.compiler(), root, &temporary.path().join("output"));
     if private_call {
         let diagnostics = result
             .expect_err("application join must preserve privacy")
@@ -577,6 +586,11 @@ fn application_source_resolution(project: &str, private_call: bool) {
     }
     assert_eq!(counters::build_execution_count(), before + 2);
     assert_eq!(
+        sponsor.consumed_fuel_units(),
+        discovery_fuel,
+        "Product cannot replay Build"
+    );
+    assert_eq!(
         resolved.prepared.entry_path(),
         temporary
             .path()
@@ -585,6 +599,39 @@ fn application_source_resolution(project: &str, private_call: bool) {
             .join(project)
             .join("main.omg")
     );
+    let admitted = package_manager::operations::admit_project_compilation(
+        package_manager::operations::ProjectCompilationAdmissionRequest {
+            prepared: resolved.prepared,
+            target_profiles: &[profile],
+            snapshot: None,
+            verify: true,
+            timings: false,
+            product: compiler::CompilationProduct::Check,
+        },
+        &mut session,
+    );
+    assert_eq!(
+        admitted.requests.len(),
+        1,
+        "admit the executed source graph after live deletion"
+    );
+    for request in &admitted.requests {
+        for occurrence in &request.occurrences {
+            let account = occurrence
+                .evaluation_sponsor
+                .as_ref()
+                .unwrap()
+                .begin_invocation(sponsor.measurement(), 1)
+                .unwrap();
+            assert!(
+                sponsor.owns_usage(&account.snapshot().unwrap()),
+                "later admission must retain the discovery sponsor"
+            );
+        }
+    }
+    assert_eq!(counters::build_execution_count(), before + 2);
+    drop(admitted);
+    session.close().expect("dispose shared staging");
 }
 
 fn executed_dependency_source_join(project: &str, private_call: bool) {
@@ -806,6 +853,11 @@ fn execute_joined_product(
         .expect("joined Product batch");
     let (_, outcome) = outcomes.pop().expect("one Product outcome");
     let report = outcome.and_then(compiler::CompilationOutput::into_report)?;
+    execute_report(report, output);
+    Ok(())
+}
+
+fn execute_report(report: compiler::CompileReport, output: &std::path::Path) {
     let artifact = report
         .retained_native_artifact()
         .expect("native product")
@@ -848,7 +900,99 @@ fn execute_joined_product(
     .output()
     .expect("execute joined native Product");
     assert_eq!(observed.status.code(), Some(0), "{observed:?}");
-    Ok(())
+}
+
+fn project_session_lifecycle() {
+    let temporary =
+        platform_custody::temporary_directory::TemporaryDirectory::create("project-session", false)
+            .unwrap();
+    let fixture = fixture_package_inputs::repo_root()
+        .join("tests/omega/pass/build/project_session_shared_budget_exit");
+    let project = temporary.path().join("project");
+    std::fs::create_dir(&project).unwrap();
+    for name in ["main.omg", "build.omg"] {
+        std::fs::copy(fixture.join(name), project.join(name)).unwrap();
+    }
+    let profile = target::TargetProfile::host_if_supported().unwrap();
+    let root = project.join("main.omg");
+    let before = counters::build_execution_count();
+    let mut outcomes = omega_build::build(omega_build::BuildRequest {
+        root_path: root.clone(),
+        build_directory: Some(temporary.path().join("ordinary")),
+        targets: omega_build::BuildTargets::Single(profile),
+        product: omega_build::ProjectProduct::Native {
+            destination: omega_build::NativeDestination::Retained,
+            private_entry_ram: Vec::new(),
+        },
+        timings: false,
+        offline: true,
+        verify: false,
+        require_package_project: true,
+        optimization_rollback: Default::default(),
+        build_snapshot: None,
+    })
+    .unwrap();
+    let output = outcomes
+        .pop()
+        .unwrap()
+        .result
+        .unwrap()
+        .output
+        .into_report()
+        .unwrap();
+    execute_report(output, &temporary.path().join("native"));
+    assert_eq!(counters::build_execution_count(), before + 1);
+
+    let preparation = || {
+        package_manager::operations::begin_local_project_preparation(&root, &[profile], true)
+            .unwrap()
+            .unwrap()
+    };
+    let mut session =
+        package_manager::PackageBuildSession::create(&temporary.path().join("limited")).unwrap();
+    let sponsor = session.evaluation_sponsor().clone();
+    // Model earlier work spending the invocation's entire result allowance.
+    // Source discovery must use this same sponsor and refuse its own result.
+    let maximum = sponsor.limits().maximum_result_storage_cells();
+    sponsor
+        .begin_invocation(sponsor.measurement(), 1)
+        .unwrap()
+        .charge_result_custody(maximum, 0)
+        .unwrap();
+    let before = counters::build_execution_count();
+    let error = omega_build::resolve_project_sources(&mut session, preparation(), profile)
+        .err()
+        .expect("source work cannot replenish a spent allowance");
+    match error {
+        omega_build::ProjectSourceResolutionError::Compilation(failure) => {
+            let diagnostics = failure.into_diagnostics();
+            assert!(
+                diagnostics.iter().any(|diagnostic| diagnostic
+                    .message
+                    .contains("evaluation ResultCustody allowance exhausted")),
+                "{diagnostics:?}"
+            );
+        }
+        error => panic!("expected shared result budget refusal: {error:?}"),
+    }
+    assert_eq!(sponsor.consumed_result_storage_cells(), maximum);
+    assert_eq!(counters::build_execution_count(), before + 1);
+    session.close().unwrap();
+    let before = counters::build_execution_count();
+    let error = omega_build::resolve_project_sources(&mut session, preparation(), profile)
+        .err()
+        .expect("closed session cannot admit another source Build");
+    assert!(
+        matches!(
+            error,
+            omega_build::ProjectSourceResolutionError::Resources(_)
+        ),
+        "{error:?}"
+    );
+    assert_eq!(counters::build_execution_count(), before);
+    println!(
+        "ordinary_project_native_and_terminal_exit0_shared_discovery_budget_and_closed_session_refusals"
+    );
 }
 
 fn unbound_join_inputs(
