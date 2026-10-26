@@ -400,11 +400,6 @@ fn resolve(
     if !reference.is_valid() {
         return None;
     }
-    if requirement == ContentsRequirement::BorrowedStorage
-        && typed_trees::service::service_requirement_declaration(program, reference).is_some()
-    {
-        return Some(ContentType::Provider);
-    }
     match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Named { symbol, .. } => {
             if let Some(argument) = crate::substitutions::actual_for(arguments, *symbol) {

@@ -324,23 +324,6 @@ fn validate_state_signature_types<'program>(
         validate_state_signature_contracts(program, signature, owner, diagnostics);
 
         for parameter in signature.parameters {
-            if matches!(owner, StateSignatureOwner::Machine(_))
-                && typed_trees::service::service_requirement_declaration(
-                    program,
-                    parameter.type_reference,
-                )
-                .is_some()
-                && (parameter.is_const
-                    || parameter.is_mutable
-                    || !type_parameter_scope.type_parameters.is_empty()
-                    || !signature.lifetime_parameters.is_empty())
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "{owner} state `{}` parameter `{}` uses the routed `Binding<R>` carrier outside the first immutable, nongeneric, lifetime-free owned-parameter rung",
-                    signature.name, parameter.name,
-                )));
-            }
-
             validate_type_reference_handle(
                 program,
                 parameter.type_reference,

@@ -260,17 +260,8 @@ fn boundary_receiver_type_symbol(
     mut reference: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
     for _ in 0..program.type_reference_table.type_reference_count() {
-        // Validate the constraint chain before the service classifier walks it.
-        let unconstrained = live_unconstrained_type(program, reference)?;
-        // A provisioned service calls its exact boundary requirement, not the
-        // opaque carrier's data owner. Classify before peeling qualifications:
-        // an invalid Service shell must not acquire a complete write frame.
-        if let Some(carrier) =
-            typed_trees::service::inspect_service_carrier_contract(program, reference).ok()?
-        {
-            return Some(carrier.requirement);
-        }
-        reference = unconstrained;
+        // Normalize the live qualification chain before reading its owner.
+        reference = live_unconstrained_type(program, reference)?;
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Reference { referee, .. } => reference = *referee,
             TypeReferenceNode::Generic { base_symbol, .. } => return Some(*base_symbol),
@@ -478,22 +469,9 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
     if !exact_signature {
         return None;
     }
-    // Selection above still requires the exact receiver occurrence and target.
-    // A compiler-known Binding lends routing authority, not its carrier as
-    // provider-object storage. Neither a provider write nor an exclusive result
-    // may fabricate an origin inside that authority carrier. Explicit argument
-    // origins remain governed by the selected signature's ordinary rules.
-    let binding_receiver = if has_runtime_receiver {
-        let carrier =
-            typed_trees::service::inspect_service_parameter_contract(program, receiver_reference)
-                .ok()?;
-        carrier.is_some()
-    } else {
-        false
-    };
     Some(BoundaryWriteSignature {
         signature,
-        has_runtime_receiver: has_runtime_receiver && !binding_receiver,
+        has_runtime_receiver,
         bindings,
     })
 }
