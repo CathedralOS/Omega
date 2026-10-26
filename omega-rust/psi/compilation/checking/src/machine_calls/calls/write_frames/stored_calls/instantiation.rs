@@ -361,14 +361,13 @@ pub(super) fn aggregate_argument_sources(
                 frames::caller_aliases::CallerWriteSite::Expression(expression),
             )?;
             stored_origins::reference_leaves_before_statement_for_query(
-                program,
-                state,
-                before,
-                expression,
-                reference,
-                Some(&context.stored),
-                None,
-                true,
+                program, state, before, expression, reference,
+                // This query supplies descriptor homes. Resolving the current
+                // contents here would replace the actual carrier with its
+                // pointee and lose the permission transferred by the call.
+                // The canonical_reference_sources join below resolves that
+                // symbolic home against this operand's captured prefix once.
+                None, None, true,
             )
         },
     )?;

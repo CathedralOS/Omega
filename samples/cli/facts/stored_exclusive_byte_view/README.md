@@ -85,6 +85,11 @@ observation. After ordinary project preparation, run each positive with
   [replacement claims](controls/match_parameter_replacement/main.omg), and
   [skipped-source residual cleanup](controls/match_skipped_replacement/main.omg).
   The last control observes cleanup through both old and replacement backings.
+  Its conditional call transports the incoming descriptor's own supplier into
+  the replaced field; resolving that descriptor home to its backing before
+  transfer would incorrectly create a competing loan on the skipped route. Its
+  [reuse control](controls/match_skipped_replacement/invalid/main.omg) rejects
+  reading the incoming value after that possible transfer.
   [Projected claims](controls/match_projected_claims/main.omg) swap two linear
   children while an untouched sibling's cleanup runs exactly once. A
   [duplicate move](controls/match_duplicated_projected_claim/main.omg) rejects,
