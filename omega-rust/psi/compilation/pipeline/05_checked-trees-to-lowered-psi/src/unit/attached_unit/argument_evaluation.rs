@@ -191,9 +191,10 @@ pub(crate) struct StructuralSourceFrontier {
     cases: Vec<crate::expression_preparation::bindings::structural_cases::StructuralCaseBinding>,
 }
 
-/// Source candidates retain their physical homes until their checked normal
-/// death. Actual private continuations decide which occurrence remains; this
-/// inventory never reconstructs a donor from a compressed residual slot.
+/// One checked value production captures its complete residual-source roster
+/// before any private continuation changes the source namespace. Nested joins
+/// publish result custody, not another copy of this source correspondence.
+/// Retirement remains separate, admitted work at the checked death edge.
 #[derive(Clone)]
 pub(crate) struct SelectionCleanup {
     pub(crate) selection: arena::Handle<checked_trees::FlowOwnedSelectionReceipt>,
@@ -218,6 +219,28 @@ pub(crate) struct StructuralValueOwner {
 }
 
 impl Evaluation {
+    /// Capture physical correspondence once for the owning production. A
+    /// private scalar frame may return that same inventory, but may neither
+    /// replace a source home nor publish its branch-local retirement as a fact
+    /// about the enclosing frame.
+    pub(crate) fn capture_selection_sources(
+        &mut self,
+        selection: arena::Handle<checked_trees::FlowOwnedSelectionReceipt>,
+        sources: Vec<CapturedSelectionSource>,
+    ) -> Result<(), LoweringError> {
+        if !selection.is_valid() {
+            if !sources.is_empty() {
+                return unsupported("selected source storage has no checked receipt");
+            }
+            return Ok(());
+        }
+        self.retain_selection_sources(&[SelectionCleanup {
+            selection,
+            sources,
+            retired_reference_paths: Vec::new(),
+        }])
+    }
+
     /// An alias is published from an actual completed value, never a reserved
     /// home. Both roots name precisely the same custody and physical place.
     pub(crate) fn bind_completed_value_alias(

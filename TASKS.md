@@ -1589,8 +1589,7 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   checked value continuations, Terminal production, and
   `omega-rust/omega/packages/review-evidence/src/capture/contracts/expressions/projection/`.
   - Carry affine custody through branch-local calls/receivers, effectful
-    subjects, projected fields inside record-construction arms, heterogeneous
-    residual custody, and claim-bearing body plans.
+    subjects, heterogeneous residual custody, and claim-bearing body plans.
   - Extend borrowed joins in
     `omega-rust/omega/compilation/representations/abstract-operations/src/abstract_operations/control_flow/address_joins.rs`
     and `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/current_ownership/address_joins.rs`
@@ -1601,8 +1600,8 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     `omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/control.rs`
     and instantiate composite/constrained result shells and scoped
     captured-subject identities for indexed predicates/theorems.
-  Acceptance: corpus and fact witnesses for owned call-product arms,
-  interleaved/projected sources, linear child carriers, borrowed joins, and
+  Acceptance: corpus and fact witnesses for interleaved/projected sources,
+  linear child carriers, borrowed joins, and
   [float Match customers](wiki/drafts/reference/float_realization.md#operation-and-control-custody)
   execute via `omega run --both` (keeping
   `tests/omega/pass/expressions/{match_anonymous_result_landing,numeric_operand_destinations}`
