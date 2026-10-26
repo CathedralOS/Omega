@@ -26,7 +26,8 @@ use crate::execution::terminal_unit::calls::{
 };
 use crate::execution::terminal_unit::providers::checked_composed_provider_attachment_requirements;
 use crate::execution::terminal_unit::types::{
-    ShapeCollector, machine_binders, retain_parameter_arrival_domains, state_flow,
+    ShapeCollector, fold_parameter_entry_domains, machine_binders,
+    retain_parameter_arrival_domains, state_flow,
 };
 use crate::execution::terminal_unit::{composed_control, control};
 
@@ -410,7 +411,7 @@ pub(super) fn build_traced(
                 return None;
             }
             attachment = attachment.or(identity);
-            fold_parameter_entry_domains(program, shapes, owner, state, &mut structural)?;
+            fold_parameter_entry_domains(program, shapes, state.symbol, &[], &mut structural)?;
             (structural, scalar)
         } else {
             free_structural_scalar_entry_signature_traced(program, shapes, state, &[], trace)?

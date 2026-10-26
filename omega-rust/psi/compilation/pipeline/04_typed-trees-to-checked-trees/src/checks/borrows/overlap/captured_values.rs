@@ -8,6 +8,7 @@
 //! today's premises as evidence about an earlier extraction. The same spatial
 //! comparison serves source windows, arm joins and executable window repair.
 
+use checked_trees::FlowOperandFact;
 use facts::{PlaceRoot, PlaceSegment};
 use symbols::SymbolHandle;
 

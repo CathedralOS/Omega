@@ -138,13 +138,28 @@ fn current_bound_boolean_is_proven(
     contexts: &[facts::FactContextHandle],
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
-    let Some(required) = crate::facts::boolean_predicates::bind_current_guard(
+    let Some(expression) = crate::facts::boolean_predicates::lower_current_guard(
         program,
         &facts.operators,
         state.symbol,
         statement_index,
         expression,
+    ) else {
+        return false;
+    };
+    let Some(required) = crate::facts::boolean_predicates::bind_current_expression(
+        program,
+        state.symbol,
+        expression,
         true,
+        |operand| {
+            crate::facts::boolean_predicates::declared_observation(
+                program,
+                state.symbol,
+                statement_index,
+                operand,
+            )
+        },
     ) else {
         return false;
     };

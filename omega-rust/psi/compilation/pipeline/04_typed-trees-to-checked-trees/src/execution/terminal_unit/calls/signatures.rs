@@ -314,16 +314,9 @@ pub(crate) fn free_structural_scalar_entry_signature_traced(
 )> {
     let (mut structural, scalar) =
         free_structural_scalar_signature_traced(program, shapes, state, binders, trace)?;
-    let (owner, _) = validation::find_state(program, state.symbol)?;
     // The published invocation and its composed body share the authored
     // entry contract. Arrival-derived facts remain local to the body graph.
-    super::super::types::fold_parameter_entry_domains(
-        program,
-        shapes,
-        owner,
-        state,
-        &mut structural,
-    )?;
+    fold_parameter_entry_domains(program, shapes, state.symbol, binders, &mut structural)?;
     Some((structural, scalar))
 }
 

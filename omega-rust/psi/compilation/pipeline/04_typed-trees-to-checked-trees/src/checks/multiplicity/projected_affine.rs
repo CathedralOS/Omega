@@ -105,15 +105,9 @@ pub(super) fn append_transfer(
             && let Some(machine) = program.machine_by_symbol(machine)
             && let Some(state) = program.state_by_symbol(state)
         {
-            let spelling =
-                super::borrowed_windows::place_spelling(program, machine, state, event.root, path);
-            let consumed_spelling = super::borrowed_windows::place_spelling(
-                program,
-                machine,
-                state,
-                consumed.root,
-                &consumed.segments,
-            );
+            let spelling = super::borrowed_windows::place_spelling(program, event.root, path);
+            let consumed_spelling =
+                super::borrowed_windows::place_spelling(program, consumed.root, &consumed.segments);
             return Err(diagnostics::Diagnostic::error(
                 super::consumed_owners::consumed_use_message(
                     machine.name.as_str(),
