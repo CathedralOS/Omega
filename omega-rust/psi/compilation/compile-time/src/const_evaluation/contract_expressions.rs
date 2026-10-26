@@ -83,9 +83,16 @@ pub(super) fn roots(
                 })
             })
             .collect::<Vec<_>>();
-        if invocations.iter().any(|call| {
-            admission.closure_needs_operator_selection(program, call.machine, &selections)
-        }) {
+        // Selecting an exact checked body may make the dependency graph look
+        // independent. Its retained work root still owes evaluation: body
+        // selection settles a dependency, never cancels the value job.
+        if program
+            .constant_recipe_for_contract_expression(expression)
+            .is_valid()
+            || invocations.iter().any(|call| {
+                admission.closure_needs_operator_selection(program, call.machine, &selections)
+            })
+        {
             roots.push(ContractRoot {
                 expression,
                 invocations,
