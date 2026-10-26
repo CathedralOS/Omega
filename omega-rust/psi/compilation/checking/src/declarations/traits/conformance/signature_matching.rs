@@ -696,6 +696,20 @@ pub(crate) fn type_references_match_for_trait_bindings(
         return actual.is_valid() == required.is_valid();
     }
 
+    // Ordinary formal values can index dependent recipes just as local
+    // generic binders do. Their positional correspondence was established by
+    // the signature owner above; read that exact symbol binding before the
+    // separate generic-type inference path. No spelling or carrier equality
+    // may identify two independently declared value subjects.
+    if let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(required)
+        && symbol.is_valid()
+        && let Some(binding) = bindings
+            .iter()
+            .find(|binding| binding.parameter_symbol == *symbol)
+    {
+        return binding_matches_actual(program, binding, actual, bindings);
+    }
     if let Some(parameter) = required_trait_type_parameter(program, required, trait_type_parameters)
     {
         if let Some(binding) = bindings.iter().find(|binding| {
