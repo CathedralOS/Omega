@@ -1287,12 +1287,7 @@ impl Implication<'_> {
         let owner = self.program.machines().get(machine)?;
         let target = self.program.machine_states(owner).get(state)?;
         let parameters = self.program.state_parameters(target);
-        if parameters.len() != arguments.len()
-            || parameters.iter().any(|parameter| {
-                parameter.is_mutable
-                    || value_shape(self.program, parameter.type_reference).is_none()
-            })
-        {
+        if !admitted_activation_parameters(self.program, parameters, arguments.len()) {
             return None;
         }
         let mut recurrent = false;
@@ -1489,7 +1484,7 @@ impl Implication<'_> {
         let owner = self.program.machines().get(machine)?;
         let target = self.program.machine_states(owner).get(state)?;
         let parameters = self.program.state_parameters(target);
-        if parameters.len() != arguments.len() {
+        if !admitted_activation_parameters(self.program, parameters, arguments.len()) {
             return None;
         }
         let dependent = self.depends_on_enclosing_activation(&arguments);
@@ -1731,6 +1726,20 @@ impl Implication<'_> {
         }
         Some(true)
     }
+}
+
+/// One admission policy for caller-derived and directly generalized frames.
+/// readable_shape adapts an already admitted read; it must not silently admit
+/// mutable-reference proof formals when a relation query constructs its frame.
+fn admitted_activation_parameters(
+    program: &dyn crate::CheckingInput,
+    parameters: &[typed_trees::signature::StateParameter],
+    argument_count: usize,
+) -> bool {
+    parameters.len() == argument_count
+        && parameters.iter().all(|parameter| {
+            !parameter.is_mutable && value_shape(program, parameter.type_reference).is_some()
+        })
 }
 
 fn number(value: i128) -> Integer {

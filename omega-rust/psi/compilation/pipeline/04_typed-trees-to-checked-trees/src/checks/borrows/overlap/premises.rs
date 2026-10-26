@@ -334,6 +334,13 @@ pub struct StatedOrderingPremise {
 }
 
 impl StatedOrderingPremise {
+    /// Candidate endpoints grant nothing: the query owner must independently
+    /// prove their equality in its current transported namespace before use.
+    pub(super) fn equality_candidates(&self) -> Option<[NormalizedBound; 2]> {
+        matches!(self.relation, BorrowCompatibilityPremiseRelation::Equal)
+            .then(|| [self.left.clone(), self.right.clone()])
+    }
+
     /// The caller has established equality of the detached values at their
     /// actual evaluation epochs, not equality of current storage coordinates.
     pub(super) fn captured_equality(left: NormalizedBound, right: NormalizedBound) -> Self {
