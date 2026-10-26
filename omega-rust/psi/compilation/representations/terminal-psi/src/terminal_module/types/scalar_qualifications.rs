@@ -106,40 +106,9 @@ pub enum ScalarReturnSite {
     Completion { argument_ordinal: u32 },
 }
 
-/// One authorized issuer route a scalar domain declaration retains.
-/// Identities use the canonical requirement/machine overload vocabulary the
-/// artifact's boundary, provider, conformance, dispatch, and proof rows
-/// already carry; a route that resolves to no retained issuer row rejects.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ScalarDomainEstablishmentRoute {
-    /// Issuer is the exact checked trait requirement this identity names.
-    CheckedRequirement {
-        requirement_identity: TerminalIdentityIndex,
-    },
-    /// Issuer is the exact Unit boundary requirement this identity names.
-    BoundaryRequirement {
-        requirement_identity: TerminalIdentityIndex,
-    },
-    /// Issuer is the exact machine this canonical callable identity names.
-    ExactMachine {
-        machine_identity: TerminalIdentityIndex,
-    },
-}
-
-impl ScalarDomainEstablishmentRoute {
-    /// The issuer identity handle this route names.
-    pub fn identity(&self) -> TerminalIdentityIndex {
-        match self {
-            Self::CheckedRequirement {
-                requirement_identity,
-            }
-            | Self::BoundaryRequirement {
-                requirement_identity,
-            } => *requirement_identity,
-            Self::ExactMachine { machine_identity } => *machine_identity,
-        }
-    }
-}
+/// Scalar and structural presentations retain one owner-bound issuer protocol.
+/// Carrier presentation cannot weaken the identity of an authorized declaration.
+pub use super::qualifications::StructuralEstablishmentRoute as ScalarDomainEstablishmentRoute;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScalarQualificationSet {

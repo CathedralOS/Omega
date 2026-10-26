@@ -157,44 +157,16 @@ pub(super) fn same_routes(
     structural: &StructuralDomainDeclaration,
     scalar: &terminal_psi::ScalarDomainDeclaration,
 ) -> bool {
-    use terminal_psi::{
-        ScalarDomainEstablishmentRoute as Scalar, StructuralEstablishmentRoute as Structural,
-    };
-    let corresponds = |route: &Structural, candidate: &Scalar| match (route, candidate) {
-        (
-            Structural::Requirement { requirement },
-            Scalar::CheckedRequirement {
-                requirement_identity,
-            },
-        ) => requirement == requirement_identity,
-        (
-            Structural::BoundaryRequirement { requirement },
-            Scalar::BoundaryRequirement {
-                requirement_identity,
-            },
-        ) => requirement == requirement_identity,
-        (Structural::ExactMachine { machine }, Scalar::ExactMachine { machine_identity }) => {
-            machine == machine_identity
-        }
-        _ => false,
-    };
-    // This boundary checks the bijection itself, including uniqueness, rather
-    // than relying on the caller having admitted either route roster first.
-    structural.establishment_routes.len() == scalar.establishment_routes.len()
-        && structural.establishment_routes.iter().all(|route| {
-            scalar
-                .establishment_routes
-                .iter()
-                .filter(|candidate| corresponds(route, candidate))
-                .count()
-                == 1
-        })
-        && scalar.establishment_routes.iter().all(|route| {
-            structural
-                .establishment_routes
-                .iter()
-                .filter(|candidate| corresponds(candidate, route))
-                .count()
-                == 1
-        })
+    // Both presentations retain the same complete owner-bound route protocol.
+    // Require canonical unique rosters before equality: duplicated matches do
+    // not form a bijection even if both malformed lists repeat the same row.
+    structural
+        .establishment_routes
+        .windows(2)
+        .all(|pair| pair[0] < pair[1])
+        && scalar
+            .establishment_routes
+            .windows(2)
+            .all(|pair| pair[0] < pair[1])
+        && structural.establishment_routes == scalar.establishment_routes
 }

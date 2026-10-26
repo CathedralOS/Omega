@@ -12,6 +12,7 @@
 //! native ABI policy. Authored layout closure retains a separate exact overlay.
 //! Each consumer establishes its own invocation from these facts.
 
+mod component_memberships;
 mod component_provider;
 mod entry_values;
 mod private_entry_ram;
