@@ -362,8 +362,8 @@ defines the complete product bar.
     normal-return oracles for `calls/runtime_guarded_reference_return_crash` and
     `pass/calls/runtime_guarded_reference_return_before_crash_exit` on Linux
     ARM64, macOS ARM64, and Windows x86-64.
-  - Complete remaining runtime/case aggregate construction, replacement, and
-    inner-loan capture or escape through opaque incoming referents.
+  - Complete remaining runtime/case aggregate construction and replacement
+    through opaque incoming referents.
   - Complete remaining case/generic/reference saved-observation and
     single-evaluation pattern destructuring compositions.
   Acceptance: a composed caller tolerates renamed/reordered states and inserted

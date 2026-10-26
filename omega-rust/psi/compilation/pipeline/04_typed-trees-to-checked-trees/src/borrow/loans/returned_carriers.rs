@@ -277,17 +277,76 @@ pub(crate) fn returned_body_source_mismatch(
         };
         if !fields.iter().any(|field| {
             field.parameter_index == parameter_index
-                && field.source == source
                 && ((field.lifetime_only
                     && returned.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency)
                     || field.kind == returned.kind)
                 && structural_owner_path(program, &field.owner_path).as_ref() == Some(&owner_path)
-                && source_path_covers(program, &field.source_path, source_path)
+                && ((field.source == source
+                    && source_path_covers(program, &field.source_path, source_path))
+                    || incoming_reborrow_matches_input_lifetime(
+                        program,
+                        facts,
+                        borrowing,
+                        field,
+                        returned,
+                        source_path,
+                    ))
         }) {
             return Some(parameter_index);
         }
     }
     None
+}
+
+/// A borrow of a carrier bounds reborrows of its stored permissions, without
+/// making their referents part of the carrier's inline storage. The exact
+/// entry permission and typed leaf establish this lifetime correspondence;
+/// the returned capture keeps its incoming namespace, suffix and lineage.
+/// In particular, this neither turns Stored into Referent nor invents an
+/// immediate parent from a matching path. Formation still owns that judgment.
+fn incoming_reborrow_matches_input_lifetime(
+    program: &dyn validation::CheckingInput,
+    facts: &checked_trees::CheckFacts,
+    state: &checked_trees::StateBorrowFact,
+    field: &ViewReturnFieldSource,
+    returned: &checked_trees::BorrowReturnedLoanFact,
+    source_path: &[BorrowOwnerSegment],
+) -> bool {
+    if field.lifetime_only
+        || field.source != ViewReturnInputSource::Referent
+        || !field.source_path.is_empty()
+        || !facts
+            .borrow
+            .state_owns_incoming_reference(state, returned.incoming_reference)
+    {
+        return false;
+    }
+    let incoming = facts
+        .borrow
+        .incoming_references
+        .get(returned.incoming_reference);
+    let Some(input) = validation::reference_shell(program, field.source_type) else {
+        return false;
+    };
+    if incoming.carrier_type != input.referee {
+        return false;
+    }
+    let Some(leaves) =
+        validation::reference_result_custody::declared_carrier_references(program, input.referee)
+    else {
+        return false;
+    };
+    leaves.iter().any(|leaf| {
+        let Some(segments) = validation::reference_result_custody::origin_place_segments(
+            program,
+            input.referee,
+            leaf.path.iter().cloned(),
+        ) else {
+            return false;
+        };
+        let owner_path = super::owner_paths::owner_path_from_place_segments(program, &segments);
+        source_path_covers(program, &owner_path, source_path)
+    })
 }
 
 /// Refine declaration-level lifetime candidates with the checked body's
