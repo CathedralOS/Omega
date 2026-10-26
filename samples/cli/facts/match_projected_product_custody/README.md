@@ -25,6 +25,13 @@ projected sources through branch-local record construction. The
 [two-source composition](controls/two_sources/main.omg) keeps distinct named
 source homes and their complements. They share this row's requirement and
 operation and each has its own duplicate-use twin and fixture pins.
+The [bypass composition](controls/bypass_with_sibling/main.omg) skips the entire
+selected production on a short-circuit path; a nonselected `Watch` parameter
+must still execute its canonical `dropped by` cleanup once per call. The
+[earlier partial move](controls/earlier_partial_with_sibling/main.omg) consumes a
+disjoint child before the selection and also retains that unrelated parameter's
+cleanup. Their twins reuse an already consumed source field. Counter totals 4
+and 2 detect omitted or repeated hooks on the original backing.
 
 Construction and completed calls establish the affine `Payload` and `Pair`
 values. Source declarations are affine despite containing only copyable scalar
@@ -48,9 +55,12 @@ The original optimized e3 producer refused the root with `selected cleanup
 repeats its captured source home`; immutable receipt
 `e33c601612e44d8cb2a829145571b16e` retains exit 200 and no invalidations. Initial
 repair producer `421824b4308` runs that unchanged root with native exit 0 and
-Terminal exit 0, and its double-use twin rejects. Full row qualification and
-independent review are still in progress; these sources do not yet claim row
-acceptance.
+Terminal exit 0, and its double-use twin rejects. Producer `753eedef5b84` additionally repairs selected parameter completion.
+The root, nine places and original two compositions have a complete fresh
+native/Terminal execution record, and all twelve twins reject. The two reviewer
+premise compositions also execute with their exact counters and their field-use
+twins reject. Current canonical fixture, focused regression and independent
+review work remain in progress; this is not parent capability closure.
 
 Remaining parent acceptance includes linear child carriers, other heterogeneous
 residual and effectful-subject constructions, borrowed/address/descriptor/view
