@@ -137,7 +137,7 @@ pub(crate) fn lower_sequence_extent_term(
         path,
         structural_types,
     )?;
-    let carrier = observation_field_type(&selected)?;
+    let carrier = selected.field_type()?;
     let carrier = match carrier {
         terminal_psi::StructuralFieldType::Structural(identity) => {
             let declaration = terminal_psi::find_structural_type(structural_types, identity)

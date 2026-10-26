@@ -78,6 +78,8 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic
                                 domain.name.as_str(),
                                 parameter,
                                 *argument,
+                                &parameters,
+                                &arguments,
                             )?;
                         }
                         TypeReferenceNode::ConstExpression(expression)
