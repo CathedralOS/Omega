@@ -104,12 +104,18 @@ impl FunctionHomeReuse {
             .zip(range_functions)
             .enumerate()
         {
+            if let Some(Some(prior)) = self.functions.get(index)
+                && Arc::ptr_eq(&prior.legality, legality)
+                && Arc::ptr_eq(&prior.ranges, ranges)
+            {
+                continue;
+            }
             if legality.machine != ranges.machine {
                 return Err(RegisterHomeError::FunctionMismatch { function: index });
             }
             if let Some(Some(prior)) = self.functions.get(index)
-                && (Arc::ptr_eq(&prior.legality, legality) || prior.legality == *legality)
-                && (Arc::ptr_eq(&prior.ranges, ranges) || prior.ranges == *ranges)
+                && prior.legality == *legality
+                && prior.ranges == *ranges
             {
                 continue;
             }

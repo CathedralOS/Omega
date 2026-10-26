@@ -68,7 +68,7 @@ pub(crate) fn compute_function(
         .map(AllocationDomain::materialize_candidates)
         .collect::<Vec<_>>();
     let mut degrees = (0..domains.len())
-        .map(|domain_index| conflicts.get_constrained_neighbors(domain_index).count())
+        .map(|domain_index| conflicts.degree(domain_index))
         .collect::<Vec<_>>();
     let mut unassigned = SelectionTree::new(
         (0..domains.len())
@@ -207,14 +207,11 @@ fn preferred_view(
         partner_outlooks(domain_index, viable, active, homes, affinities, conflicts)
     };
     let mut stolen_by_pool = vec![0usize; pool.len()];
-    for (neighbor, pair) in conflicts.get_constrained_neighbors_with_pair(domain_index) {
+    for (neighbor, pair) in conflicts.get_affinity_neighbors_with_pair(domain_index) {
         if !active[neighbor] {
             continue;
         }
         let neighbor_affinities = affinities.get_domain_affinities(neighbor);
-        if neighbor_affinities.is_empty() {
-            continue;
-        }
         let rev_pair = pair.reversed();
         for affinity in neighbor_affinities {
             if let Some(view) = homes.get(affinity.partner.0 as usize).copied().flatten()
@@ -609,8 +606,13 @@ fn compute_function_bitmask(
         })
         .collect::<Vec<_>>();
     let mut degrees = (0..domains.len())
-        .map(|domain_index| conflicts.get_constrained_neighbors(domain_index).count())
+        .map(|domain_index| conflicts.degree(domain_index))
         .collect::<Vec<_>>();
+    let mut assigned_partner_mask = if affinities.is_empty() {
+        Vec::new()
+    } else {
+        vec![0u64; domains.len()]
+    };
     let can_use_u64_keys = domains.len() <= u16::MAX as usize
         && domains.windows(2).all(|w| w[0].leader() < w[1].leader())
         && domains.iter().all(|d| d.first_point.0 < (1 << 24))
@@ -640,6 +642,7 @@ fn compute_function_bitmask(
                 &viable_masks,
                 &active,
                 &homes,
+                &assigned_partner_mask,
                 affinities,
                 conflicts,
             );
@@ -670,6 +673,14 @@ fn compute_function_bitmask(
             homes[domains[domain_index].leader_member.virtual_register.0 as usize] = Some(view);
             for &member in &domains[domain_index].extra_members {
                 homes[member.virtual_register.0 as usize] = Some(view);
+            }
+            if !assigned_partner_mask.is_empty() {
+                let bit = 1u64 << view.0;
+                for affinity in affinities.get_domain_affinities(domain_index) {
+                    if let Some(partner_domain) = affinity.partner_domain {
+                        assigned_partner_mask[partner_domain] |= bit;
+                    }
+                }
             }
             for (remaining, pair) in conflicts.get_constrained_neighbors_with_pair(domain_index) {
                 if !active[remaining] {
@@ -715,6 +726,7 @@ fn compute_function_bitmask(
                 &viable_masks,
                 &active,
                 &homes,
+                &assigned_partner_mask,
                 affinities,
                 conflicts,
             );
@@ -745,6 +757,14 @@ fn compute_function_bitmask(
             homes[domains[domain_index].leader_member.virtual_register.0 as usize] = Some(view);
             for &member in &domains[domain_index].extra_members {
                 homes[member.virtual_register.0 as usize] = Some(view);
+            }
+            if !assigned_partner_mask.is_empty() {
+                let bit = 1u64 << view.0;
+                for affinity in affinities.get_domain_affinities(domain_index) {
+                    if let Some(partner_domain) = affinity.partner_domain {
+                        assigned_partner_mask[partner_domain] |= bit;
+                    }
+                }
             }
             for (remaining, pair) in conflicts.get_constrained_neighbors_with_pair(domain_index) {
                 if !active[remaining] {
@@ -788,6 +808,7 @@ fn preferred_view_mask(
     viable_masks: &[u64],
     active: &[bool],
     homes: &[Option<RegisterViewId>],
+    assigned_partner_mask: &[u64],
     affinities: &PreparedAffinities,
     conflicts: &PreparedConflicts,
 ) -> Option<RegisterViewId> {
@@ -862,16 +883,16 @@ fn preferred_view_mask(
     let mut stolen_by_view = [0usize; 64];
     let mut any_stolen = false;
     if conflicts.has_affinity_neighbor(domain_index) {
-        for (neighbor, pair) in conflicts.get_constrained_neighbors_with_pair(domain_index) {
+        for (neighbor, pair) in conflicts.get_affinity_neighbors_with_pair(domain_index) {
             if !active[neighbor] {
                 continue;
             }
-            let neighbor_affinities = affinities.get_domain_affinities(neighbor);
-            if neighbor_affinities.is_empty() {
+            let n_mask = viable_masks[neighbor];
+            if (assigned_partner_mask[neighbor] & pool_mask & n_mask) == 0 {
                 continue;
             }
+            let neighbor_affinities = affinities.get_domain_affinities(neighbor);
             let rev_pair = pair.reversed();
-            let n_mask = viable_masks[neighbor];
             for affinity in neighbor_affinities {
                 if let Some(view) = homes.get(affinity.partner.0 as usize).copied().flatten() {
                     let bit = 1u64 << view.0;

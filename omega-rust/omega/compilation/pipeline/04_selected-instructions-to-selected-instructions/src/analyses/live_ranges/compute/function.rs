@@ -35,10 +35,13 @@ pub(crate) fn compute_function(
         .max()
         .unwrap_or(0);
     let mut register_index = vec![u32::MAX; max_reg_id + 1];
+    let mut has_duplicate_register_ids = false;
     for (idx, register) in selected.virtual_registers.iter().enumerate() {
         let slot = &mut register_index[register.id.0 as usize];
         if *slot == u32::MAX {
             *slot = idx as u32;
+        } else {
+            has_duplicate_register_ids = true;
         }
     }
     let mut fragment_rows =
@@ -135,7 +138,11 @@ pub(crate) fn compute_function(
             Vec::new()
         };
         let edge_connectors = if has_edges {
-            edge_rows[canonical_idx].clone()
+            if !has_duplicate_register_ids {
+                std::mem::take(&mut edge_rows[canonical_idx])
+            } else {
+                edge_rows[canonical_idx].clone()
+            }
         } else {
             Vec::new()
         };

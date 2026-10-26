@@ -165,6 +165,9 @@ pub(crate) fn nominal_cleanup_subject(
         semantic_vocabulary::StructuralTypeId,
     )],
 ) -> Result<Option<semantic_vocabulary::StructuralTypeId>, LoweringError> {
+    if validation::nominal_cleanup_owner(&checked.typed, source).is_none() {
+        return Ok(None);
+    }
     let rendered = type_ids
         .iter()
         .map(|(identity, id)| {

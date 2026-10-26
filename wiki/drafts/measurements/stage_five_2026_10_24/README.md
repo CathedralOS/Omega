@@ -235,3 +235,35 @@ Measured on Cathedral's `source/distribution/libraries/omega-ui/examples/gallery
 | `05.d.7.3b.check_flow_call_contracts` | `3,551.0 ms` | `1,297.6 ms` | `-63.5%` (`2.74x`) |
 | `05.d.7.3b.1.cap.2d_recognize` | `3,004.0 ms` (`48x`) | `725.0 ms` (`24x`) | `-75.9%` (`4.14x`) |
 | `05.d.7.3b.1.cap.2e_visit` | `3,040.0 ms` (`55x`) | `750.5 ms` (`31x`) | `-75.3%` (`4.05x`) |
+
+## Iteration 14 (2026-10-26): `BlockLookup` virtual-transfer & constraint memoization, bitwise edge liveness propagation, `O(1)` register-validity bitsets, and `PreparedConflicts` affinity CSR + `assigned_partner_mask`
+
+Base `438b25f06ba4` on Windows x86_64.
+
+### Retained changes
+
+1. **`nominal_cleanup_subject` owner pre-check (`05_checked-trees-to-lowered-psi/src/machine_lowering.rs`):**
+   - Checked `validation::nominal_cleanup_owner(&checked.typed, source).is_none()` at the top of `nominal_cleanup_subject` before rendering `type_ids` into `Vec<(String, StructuralTypeId)>`, skipping `~1,000,000` string allocations across `~2,000` non-cleanup machines on `examples/gallery`.
+2. **`BlockLookup` virtual transfer & constraint-operand memoization (`selected-instructions/src/selected_instructions/blocks.rs`, `04_selected-instructions-to-selected-instructions/src/analyses/liveness/compute.rs`, `flow.rs`):**
+   - Added `upward_virtual_uses_bits: Vec<u64>`, `virtual_kills_bits: Vec<u64>`, and `has_constraint_operands: bool` to `BlockLookup` on `BlockEntry`, with `block_virtual_transfer` and `block_has_constraint_operands` accessors on `SelectedBlocks`.
+   - Filtered `reject_unsupported_constraints` by `block_has_constraint_operands(block_index)` so constraint-free blocks are skipped in $O(1)$, and copied memoized `block_virtual_transfer(block_index)` bitsets in `FunctionFlow::compute_domains` without rescanning unchanged block instructions across spill-recovery reanalyses.
+3. **Bitwise edge liveness propagation & `O(1)` `valid_register_bits` (`04_selected-instructions-to-selected-instructions/src/analyses/liveness/compute/flow.rs`, `compute.rs`, `live_ranges/compute/function.rs`, `fragments.rs`):**
+   - Replaced sorted `registers: Vec<VirtualRegisterId>` binary searches with `valid_register_bits: Vec<u64>` (`seen_bits & !duplicate_bits`) and precomputed `param_bits: Vec<u64>` on `EdgeFlow`, propagating `virtual_entry_bits` across edges in 64-bit word operations inside the fixed-point worklist loop and materializing `virtual_entry`/`virtual_exit` once after convergence.
+   - Fast-pathed `materialize_block` successor `virtual_live` when `edge.substitutions.is_empty()`, used `std::mem::take(&mut edge_rows[canonical_idx])` in `live_ranges/compute/function.rs` when `!has_duplicate_register_ids`, and replaced `BTreeMap<SelectedBlockId, Vec<...>>` in `fragments::interference` with a dense `Vec<Vec<...>>` indexed by `fragment.block.0 as usize`.
+4. **Pointer-equality precheck in `FunctionHomeReuse::probe_all`, `PreparedConflicts` affinity CSR, and `assigned_partner_mask` (`05_selected-instructions-to-register-homes/src/assignment/home_assignment/compute/mod.rs`, `prepared_conflicts.rs`, `placement.rs`):**
+   - Checked `Arc::ptr_eq(&prior.legality, legality) && Arc::ptr_eq(&prior.ranges, ranges)` before `legality.machine != ranges.machine` in `FunctionHomeReuse::probe_all` to avoid dereferencing unchanged function `Arc`s.
+   - Filtered self-edges (`left == right`) and fast-pathed strictly sorted rows (`row.windows(2).all(|w| w[0].0 < w[1].0)`) in `PreparedConflicts::new`, exposed $O(1)$ `conflicts.degree(domain)`, built `affinity_offsets`/`affinity_entries` CSR for affinity-bearing constrained neighbors, and maintained `assigned_partner_mask: Vec<u64>` in `compute_function_bitmask` so `preferred_view_mask` skips neighbors with `(assigned_partner_mask[neighbor] & pool_mask & viable_masks[neighbor]) == 0`.
+
+### Measured results
+
+- **`samples/cli/facts/thirtytwo_arg_stack_calling_plan/other_machine/main.omg`:**
+  - Unprofiled `total elapsed`: **`2,383.3 ms`** (down from `2,906.5 ms` in Iter 12 — **`-18.0%`**; `Stage 05`: `820.7 ms`, `terminal-production`: `35.9 ms`).
+  - Profiled (`OMEGA_PHASE_PROFILE=1`): `06.1.d.05.i_batch_reanalyze` (`103x`) falls from `379.5 ms` to **`300.8 ms`** (`-20.7%`), and `06.1.d.05.j_probe_all` (`103x`) falls from `530.4 ms` to **`457.9 ms`** (`-13.7%`). Native `.exe` exits `0`.
+- **Cathedral `source/distribution/libraries/omega-ui/examples/gallery/main.omg`:**
+  - Unmodified `--check --verify`: **`21,884.1 ms` (`21.9s`)** (down from `55,000 ms` at `685d805e366` — **`2.51x` faster**).
+  - End-to-end native `.exe` build (`OMEGA_PHASE_PROFILE=1`): `06.1.d.05_stage_register_allocation` falls from `10,205.2 ms` to **`8,945.2 ms`** (`-1,260.1 ms` / **`-12.3%`**):
+    - `06.1.d.05.i_batch_reanalyze` (`1,984x`): **`3,625.5 ms` -> `2,890.8 ms`** (**`-734.7 ms` / `-20.3%`**)
+    - `06.1.d.05.h_bounded_spill` (`8,373x`): **`1,755.1 ms` -> `1,565.0 ms`** (**`-190.1 ms` / `-10.8%`**)
+    - `06.1.d.05.j_probe_all` (`1,984x`): **`3,035.2 ms` -> `2,933.3 ms`** (`-101.9 ms`)
+    - `06.1.d.04b_optimize_selected_instructions`: **`386.0 ms` -> `336.3 ms`** (`-12.9%`)
+
