@@ -103,7 +103,7 @@ has no pending or shared/device accesses and grants no synchronization evidence.
 The interpreter records each completed catalog event in order through helpers
 and fuel pauses. Native encoders independently decode the exact x86 fence or
 full-system A64 DMB form; full atomic ordering cannot substitute for a partial
-catalog fence. The `checked_asm_fence_contracts` fact row and
-`checked_asm_fences` integration test exercise source transport, target selection,
-missing supply, event traces and pause progress. This profile makes no hardware
+catalog fence. The `checked_asm_fence_contracts` fact row and its
+`expected_terminal_fences.txt` corpus oracles exercise source transport, target
+selection, missing supply, event traces and pause progress. This profile makes no hardware
 timing or multi-core/device correctness claim.
