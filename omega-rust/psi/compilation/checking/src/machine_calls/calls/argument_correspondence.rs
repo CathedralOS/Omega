@@ -604,18 +604,33 @@ fn requirement_binding_correspondence(
         return Err("a realized requirement header has no authored machine declaration");
     }
     let application = program.expression_table.static_machine_application(handle);
-    let (declaring_trait, declared) = program
-        .trait_machine_signature(application.binding_declaration)
-        .ok_or("the open application has no exact authored requirement header")?;
-    let (selected_trait, public) = requirement_contract_signature(program, caller, site)
-        .ok_or("the open application lost its exact public invocation view")?;
+    let (declared, public, declaration) = if let Some(signature) =
+        program.machine_by_symbol(caller).and_then(|machine| {
+            program.machine_parameter_signature_in(machine, application.binding_declaration)
+        }) {
+        if application.registration_operation != application.binding_declaration
+            || site.target_symbol(program) != application.binding_declaration
+        {
+            return Err("the callable parameter application lost its exact lexical target");
+        }
+        (signature, signature, application.binding_declaration)
+    } else {
+        let (declaring_trait, declared) = program
+            .trait_machine_signature(application.binding_declaration)
+            .ok_or("the open application has no exact authored requirement header")?;
+        let (selected_trait, public) = requirement_contract_signature(program, caller, site)
+            .ok_or("the open application lost its exact public invocation view")?;
+        if declaring_trait.symbol != selected_trait.symbol {
+            return Err("the open application changed its declaring trait");
+        }
+        (declared, public, declared.symbol)
+    };
     let header = program.state_signature_type_parameters(declared);
     let logical = program.state_signature_type_parameters(public);
     let retained = program
         .expression_table
         .static_machine_application_bindings(handle);
-    if declaring_trait.symbol != selected_trait.symbol
-        || declared.symbol != public.symbol
+    if declared.symbol != public.symbol
         || header.len() != logical.len()
         || retained.len() != header.len()
         || retained.iter().any(|binding| {
@@ -668,7 +683,7 @@ fn requirement_binding_correspondence(
         parameters.push((parameter.symbol, selected));
     }
     Ok(CallBindingCorrespondence {
-        declaration: declared.symbol,
+        declaration,
         public_owner: public.symbol,
         parameters,
         runtime_parameters,

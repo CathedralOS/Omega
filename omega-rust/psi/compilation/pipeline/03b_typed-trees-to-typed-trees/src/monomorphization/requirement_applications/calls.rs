@@ -587,9 +587,22 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
         {
             template = requirement;
         }
-        let Some((_, signature)) = program.trait_machine_signature(template) else {
+        let lexical_signature = program
+            .machine_by_symbol(owner)
+            .and_then(|machine| program.machine_parameter_signature_in(machine, target));
+        let signature = lexical_signature.or_else(|| {
+            program
+                .trait_machine_signature(template)
+                .map(|(_, signature)| signature)
+        });
+        let Some(signature) = signature else {
             continue;
         };
+        // A lexical callable parameter owns its invocation header, independently
+        // of whether any actual is itself a machine or an executable is chosen.
+        if lexical_signature.is_some() {
+            template = target;
+        }
         let parameters = program.state_signature_type_parameters(signature).to_vec();
         if parameters.is_empty() {
             continue;

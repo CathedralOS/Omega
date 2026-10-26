@@ -264,14 +264,24 @@ impl AppliedProofBindings {
                     arguments,
                     &correspondence.runtime_parameters,
                     &[],
+                    declaration.symbol,
                 )?;
                 bindings.transport_parameters(&correspondence.parameters)?;
                 return Some(bindings);
             }
-            if matches!(owner, SelectedCallContract::Signature(_))
-                && program
+            if let SelectedCallContract::Signature(signature) = owner
+                && (program
                     .trait_machine_signature(application.binding_declaration)
                     .is_some()
+                    || program
+                        .machine_by_symbol(caller)
+                        .and_then(|machine| {
+                            program.machine_parameter_signature_in(
+                                machine,
+                                application.binding_declaration,
+                            )
+                        })
+                        .is_some_and(|declared| std::ptr::eq(declared, *signature)))
             {
                 let correspondence = crate::machine_calls::calls::call_binding_correspondence(
                     program, caller, &site,
@@ -294,10 +304,9 @@ impl AppliedProofBindings {
                         rows.next().is_none().then_some(*logical)
                     })
                     .collect::<Option<Vec<_>>>()?;
-                // The public view has already applied the outer trait and
-                // freshened unsupplied member binders. Decode the authored
-                // tuple under those exact receiving carriers, using only the
-                // common authenticated source-to-public identity map.
+                // Applied requirements and lexical callable parameters both
+                // retain their exact receiving telescope. Decode the authored
+                // tuple only through its authenticated source-to-public map.
                 return Self::for_application(
                     program,
                     owner,
@@ -305,10 +314,15 @@ impl AppliedProofBindings {
                     arguments,
                     &runtime_parameters,
                     &correspondence.parameters,
+                    correspondence.declaration,
                 );
             }
         }
-        Self::for_application(program, owner, handle, arguments, &[], &[])
+        let declaration = match owner {
+            SelectedCallContract::Concrete(machine, _) => machine.symbol,
+            _ => owner_symbol(owner),
+        };
+        Self::for_application(program, owner, handle, arguments, &[], &[], declaration)
     }
 
     fn transport_parameters(&mut self, parameters: &[(SymbolHandle, SymbolHandle)]) -> Option<()> {
@@ -361,6 +375,7 @@ impl AppliedProofBindings {
         machine_arguments: &[typed_trees::expression::StaticMachineArgument],
         runtime_parameters: &[SymbolHandle],
         binding_parameters: &[(SymbolHandle, SymbolHandle)],
+        declaration: SymbolHandle,
     ) -> Option<Self> {
         let parameters = match owner {
             SelectedCallContract::Operator(operator) => program.operator_type_parameters(operator),
@@ -401,10 +416,6 @@ impl AppliedProofBindings {
             return None;
         }
         let application = program.expression_table.static_machine_application(handle);
-        let declaration = match owner {
-            SelectedCallContract::Concrete(machine, _) => machine.symbol,
-            _ => owner_symbol(owner),
-        };
         if application.binding_declaration != declaration {
             return None;
         }
