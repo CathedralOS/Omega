@@ -63,34 +63,7 @@ impl Emission<'_, '_, '_> {
         ) {
             return Ok(path);
         }
-        let root_type = self
-            .evaluation
-            .structural_root_parameters()
-            .find(|parameter| parameter.place == argument.place)
-            .map(|parameter| parameter.structural_type)
-            .or_else(|| {
-                self.operations
-                    .iter()
-                    .chain(
-                        self.evaluation
-                            .blocks
-                            .iter()
-                            .flat_map(|block| block.operations.iter()),
-                    )
-                    .filter_map(|operation| operation.result.structural())
-                    .find(|result| result.place == argument.place)
-                    .map(|result| result.structural_type)
-            })
-            .or_else(|| {
-                self.evaluation
-                    .view_locals
-                    .iter()
-                    .find(|local| local.place == argument.place)
-                    .map(|local| local.structural_type)
-            })
-            .ok_or(LoweringError::Unsupported(
-                "indexed copy has no established root type",
-            ))?;
+        let root_type = self.projection_root_type(argument.place)?;
         let declaration = terminal_psi::find_structural_type(&self.structural_types[..], root_type)
             .ok_or(LoweringError::Unsupported(
                 "indexed copy root type is absent from the catalog",

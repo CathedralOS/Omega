@@ -35,13 +35,7 @@ pub(crate) fn call_reference_sources(
     state_symbol: SymbolHandle,
     call: &checked_trees::expression::TableCallExpression,
 ) -> Option<Vec<(ViewReturnFieldSource, Vec<facts::PlaceSegment>)>> {
-    let fields = call_reference_lifetime_sources(program, state_symbol, call)?;
-    let sources = completed_sources(
-        program,
-        call.target_symbol,
-        fields,
-        program.expression_table.expression_handles(call.arguments),
-    );
+    let sources = completed_call_reference_sources(program, state_symbol, call)?;
     if sources
         .iter()
         .any(|source| matches!(source, CompletedReturnSource::UnresolvedDescriptor { .. }))
@@ -54,6 +48,22 @@ pub(crate) fn call_reference_sources(
             .filter_map(CompletedReturnSource::descriptor_candidate)
             .collect(),
     )
+}
+
+/// Complete returned descriptor alternatives, keeping immutable image storage
+/// distinct from input suppliers, lifetime debts and unavailable spatial rows.
+pub(crate) fn completed_call_reference_sources(
+    program: &dyn validation::CheckingInput,
+    state_symbol: SymbolHandle,
+    call: &checked_trees::expression::TableCallExpression,
+) -> Option<Vec<CompletedReturnSource>> {
+    let fields = call_reference_lifetime_sources(program, state_symbol, call)?;
+    Some(completed_sources(
+        program,
+        call.target_symbol,
+        fields,
+        program.expression_table.expression_handles(call.arguments),
+    ))
 }
 
 /// The complete declared lifetime relation, without optional body geometry.
@@ -80,7 +90,13 @@ pub(crate) fn call_reference_lifetime_sources(
 /// conservative lifetime/interference frontier. Actual address selection or a
 /// further reference load still needs its own exact captured geometry; the
 /// frontier alone cannot identify that address or grant a stored descriptor.
-pub(super) enum CompletedReturnSource {
+pub(crate) enum CompletedReturnSource {
+    /// Positive body-derived image formation, never inferred from an empty
+    /// input roster. It supplies no caller storage address or loan ancestry.
+    ImmutableImage {
+        owner_path: Vec<BorrowOwnerSegment>,
+        kind: checked_trees::BorrowAccessKind,
+    },
     DescriptorCandidate {
         field: ViewReturnFieldSource,
         projection: Vec<facts::PlaceSegment>,
@@ -101,7 +117,9 @@ impl CompletedReturnSource {
     fn descriptor_candidate(self) -> Option<(ViewReturnFieldSource, Vec<facts::PlaceSegment>)> {
         match self {
             Self::DescriptorCandidate { field, projection } => Some((field, projection)),
-            Self::LifetimeDependency { .. } | Self::UnresolvedDescriptor { .. } => None,
+            Self::ImmutableImage { .. }
+            | Self::LifetimeDependency { .. }
+            | Self::UnresolvedDescriptor { .. } => None,
         }
     }
 
@@ -117,6 +135,9 @@ impl CompletedReturnSource {
         ) -> Vec<StatementBorrowLoan>,
     ) -> Vec<StatementBorrowLoan> {
         match self {
+            // Image storage owes no borrowed input loan. Independent declared
+            // lifetime dependencies remain separate rows in this same roster.
+            Self::ImmutableImage { .. } => Vec::new(),
             Self::UnresolvedDescriptor {
                 mut owner_path,
                 kind,
@@ -308,12 +329,6 @@ fn completed_field_sources(
     let mut output = Vec::with_capacity(sources.len());
     let mut covered = vec![false; fields.len()];
     for source in sources {
-        // Presentation coordinates require their checked formation/codec at
-        // executable publication. A pre-flow lifetime relation cannot use
-        // them as physical projections; retain its declared region instead.
-        if !source.source.recasts.is_empty() || source.source.representation.is_some() {
-            return None;
-        }
         let owner_path = structural_owner_path(
             program,
             &super::owner_paths::owner_path_from_place_segments(program, &source.result_path),
@@ -324,6 +339,21 @@ fn completed_field_sources(
             &source.result_path,
         )?;
         let kind = reference_borrow_access_kind(program, result_leaf)?;
+        if source.source.is_image_storage {
+            output.push(CompletedReturnSource::ImmutableImage {
+                owner_path: super::owner_paths::owner_path_from_place_segments(
+                    program,
+                    &source.result_path,
+                ),
+                kind,
+            });
+            continue;
+        }
+        // An image observation above establishes no physical projection.
+        // Other presentation coordinates still need their checked geometry.
+        if !source.source.recasts.is_empty() || source.source.representation.is_some() {
+            return None;
+        }
         if source.source.invocation_output.is_some() {
             output.push(CompletedReturnSource::UnresolvedDescriptor {
                 owner_path: super::owner_paths::owner_path_from_place_segments(
