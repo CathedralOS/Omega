@@ -166,19 +166,20 @@ pub(super) fn unit_key(
     call: &LegalizedScalarCall,
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Option<RegisterConstraintKey> {
-    invocation_key(call, false, environment)
+    invocation_key(call, None, environment)
 }
 
 pub(super) fn no_normal_key(
     call: &LegalizedScalarCall,
+    declared_result: &abstract_operations::AbstractFunctionResult,
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Option<RegisterConstraintKey> {
-    invocation_key(call, true, environment)
+    invocation_key(call, Some(declared_result), environment)
 }
 
 fn invocation_key(
     call: &LegalizedScalarCall,
-    no_normal: bool,
+    declared_no_normal_result: Option<&abstract_operations::AbstractFunctionResult>,
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Option<RegisterConstraintKey> {
     let order = register_argument_order(call);
@@ -213,15 +214,23 @@ fn invocation_key(
         }
     }
     let keys = environment.selected_keys();
-    let empty_result = call.structural_result.is_some()
+    let structural_result =
+        declared_no_normal_result.map_or(call.structural_result.is_some(), |result| {
+            matches!(
+                result,
+                abstract_operations::AbstractFunctionResult::Structural(_)
+            )
+        });
+    let empty_result = structural_result
         && call
             .result_placement
             .as_ref()
             .is_some_and(empty_aggregate_placement)
         && call.result_placement == call.call_plan.result;
-    let candidate_keys = if no_normal {
-        keys.invoke_no_normal.iter().collect::<Vec<_>>()
-    } else if call.structural_result.is_some() && !empty_result {
+    // The declared result chooses the same physical ABI family whether or
+    // not this invocation receives a value. A scalar and a one-word aggregate
+    // may have identical fixed views but distinct canonical catalog keys.
+    let candidate_keys = if structural_result && !empty_result {
         keys.call_aggregate.iter().collect::<Vec<_>>()
     } else if call.result_placement.is_some() && !empty_result {
         keys.call_scalar.iter().collect::<Vec<_>>()
@@ -246,7 +255,9 @@ fn invocation_key(
             })
         });
     let result = *matches.next()?;
-    matches.next().is_none().then_some(result)
+    (matches.next().is_none()
+        && (declared_no_normal_result.is_none() || keys.invoke_no_normal.contains(&result)))
+    .then_some(result)
 }
 
 /// Physical classification only; source/result admission still owns structural identity.
@@ -317,7 +328,24 @@ pub(super) fn validate(
         }
     }
     if no_normal {
-        let expected = no_normal_key(call, environment).ok_or_else(invalid)?;
+        let target_operations::CallSiteOwner::InvokeNoNormal(edge) = owner else {
+            return Err(invalid());
+        };
+        let declared_result = input_site::no_normal_result(
+            source,
+            semantic_vocabulary::InvocationSite::InvokeNoNormal(edge),
+            call,
+        )
+        .ok_or_else(|| {
+            SelectedInstructionError::custody_because(
+                "no-normal call has no exact retained edge and declared result",
+            )
+        })?;
+        let expected = no_normal_key(call, declared_result, environment).ok_or_else(|| {
+            SelectedInstructionError::custody_because(
+                "no-normal declared ABI has no unique canonical constraint in its result family",
+            )
+        })?;
         if expected != key
             || row.key != key
             || environment.constraint(key) != Some(row)

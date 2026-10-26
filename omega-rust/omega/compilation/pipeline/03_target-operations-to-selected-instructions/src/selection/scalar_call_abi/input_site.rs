@@ -68,3 +68,32 @@ pub(in crate::selection) fn producer_before_use(
     }
     Some(produced)
 }
+
+/// Rejoin the signature of the exact nonreceiving invocation. The receiving
+/// result is absent; its declared result remains part of the source ABI.
+pub(in crate::selection) fn no_normal_result<'source>(
+    source: &'source LegalizedScalarFunction,
+    site: InvocationSite,
+    call: &legalized_operations::LegalizedScalarCall,
+) -> Option<&'source abstract_operations::AbstractFunctionResult> {
+    let InvocationSite::InvokeNoNormal(edge) = site else {
+        return None;
+    };
+    let (block, position) = use_cut(source, site)?;
+    let block = source
+        .blocks
+        .iter()
+        .find(|candidate| candidate.id == block)?;
+    if position != block.instructions.len() {
+        return None;
+    }
+    match &block.terminator {
+        LegalizedScalarTerminator::InvokeNoNormal {
+            psi_edge,
+            call: retained,
+            declared_result,
+            ..
+        } if *psi_edge == edge && retained == call => Some(declared_result),
+        _ => None,
+    }
+}

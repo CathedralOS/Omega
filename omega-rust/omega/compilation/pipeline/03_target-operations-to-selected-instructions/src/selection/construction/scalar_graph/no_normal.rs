@@ -69,8 +69,12 @@ pub(super) fn build(
         .map_err(|_| SelectedInstructionError::custody())?;
     call.validate_source(ownership)
         .map_err(|_| SelectedInstructionError::custody())?;
-    let key = crate::selection::scalar_call_abi::no_normal_key(call, environment)
-        .ok_or_else(SelectedInstructionError::custody)?;
+    let key = crate::selection::scalar_call_abi::no_normal_key(call, declared_result, environment)
+        .ok_or_else(|| {
+            SelectedInstructionError::custody_because(
+                "no-normal declared ABI has no unique canonical constraint in its result family",
+            )
+        })?;
     let row = super::row(builder.catalog, key)?;
     crate::selection::scalar_call_abi::validate(
         function,
