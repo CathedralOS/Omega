@@ -431,14 +431,7 @@ fn validate_call(
         }
     }
     let owner = call.lexical_owner(program);
-    let caller = program
-        .machine_by_symbol(owner)
-        .map(crate::StaticTypeArgumentOwner::Machine)
-        .or_else(|| {
-            program
-                .data_definition_by_symbol(owner)
-                .map(crate::StaticTypeArgumentOwner::Data)
-        });
+    let caller = crate::StaticTypeArgumentOwner::from_lexical_owner(program, owner);
     validate_types(
         program,
         caller,
