@@ -6797,6 +6797,75 @@ fail/facts/disjoint_windows_through_target_body_overlap rejected 1576ms expected
 	statement 4 reads `a[0]` while local borrow `b` is still active (borrowed at statement 1)
 fail/facts/domain_geometry_conserved_result_wrong_partition rejected 2490ms expected @a92f16431042
 	cannot prove ensures contract for exit from split at statement 3: Bounded.content(old(&whole)) == separate(Bounded.content(&result.left), Bounded.content(&result.right))
+fail/facts/domain_selected_cleanup_blocking_hook_rejected rejected 418ms expected @b659723798b4
+	cleanup machine `finish` must be non-suspending and nonblocking
+fail/facts/domain_selected_cleanup_conflicting_index_instances_rejected rejected 577ms expected @b659723798b4
+	conflicting dropped by machine applications on one owned subject
+fail/facts/domain_selected_cleanup_conflicting_selections_rejected rejected 605ms expected @b659723798b4
+	conflicting dropped by machine applications on one owned subject
+fail/facts/domain_selected_cleanup_crashing_hook_rejected rejected 491ms expected @b659723798b4
+	cleanup machine `release_keeper` may not declare a crash outcome
+fail/facts/domain_selected_cleanup_direct_hook_rejected rejected 562ms expected @b659723798b4
+	reserved cleanup machine `release_keeper` is compiler-selected and cannot be selected by source; consume the value with `omega::core::drop(value)` or call an ordinary owner-published protocol operation
+fail/facts/domain_selected_cleanup_distinct_const_applications_rejected rejected 506ms expected @b659723798b4
+	conflicting dropped by machine applications on one owned subject
+fail/facts/domain_selected_cleanup_erased_predicates_rejected rejected 7317ms expected @b659723798b4
+	cannot prove requires contract for call consume from main: (keeper as Keeper).code == 7 (needs fact `keeper.code == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove initializer of `keeper` in main is in domain `Keeper::Held`; an annotation cannot establish routed qualification
+	construction value is not proven in domain `Keeper::Held` in main state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
+fail/facts/domain_selected_cleanup_erasure_bypass_rejected rejected 578ms expected @b659723798b4
+	owned delivery in explicit qualification cast cannot erase or replace its retained dropped by cleanup application
+	owned delivery in argument `keeper` for state `entry` cannot erase or replace its retained dropped by cleanup application
+fail/facts/domain_selected_cleanup_exiting_hook_rejected rejected 5988ms expected @b659723798b4
+	cleanup machine `finish` must return normally; its selected call closure permits external process exit
+fail/facts/domain_selected_cleanup_fallible_hook_rejected rejected 918ms expected @b659723798b4
+	cleanup machine `finish` must return Unit; fallible cleanup is an explicit consuming machine
+fail/facts/domain_selected_cleanup_indexed_const_overflow rejected 1271ms expected @b659723798b4
+	integer node `u64(18446744073709551616)` does not fit exact carrier `u64`
+fail/facts/domain_selected_cleanup_indexed_inherited_computed_rejected rejected 5606ms expected @b659723798b4
+	cannot prove requires contract for call consume from main: Keeper in Keeper::Label in state `entry`
+	construction value is not proven in domain `Keeper::Label` in main state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
+fail/facts/domain_selected_cleanup_indexed_inherited_rejected rejected 5854ms expected @b659723798b4
+	cannot prove requires contract for call consume from main: Keeper in Keeper::Label in state `entry`
+	construction value is not proven in domain `Keeper::Label` in main state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
+fail/facts/domain_selected_cleanup_lifetime_application_rejected rejected 7292ms expected @b659723798b4
+	cannot prove requires contract for call consume from main: keeper.code == 7 (needs fact `keeper.code == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/domain_selected_cleanup_match_erasure_bypass_rejected rejected 1159ms expected @b659723798b4
+	owned delivery in explicit qualification cast cannot erase or replace its retained dropped by cleanup application
+	owned delivery in explicit qualification cast cannot erase or replace its retained dropped by cleanup application
+fail/facts/domain_selected_cleanup_nested_after_declaration_rejected rejected 3ms expected @b659723798b4
+	tests/omega/fail/facts/domain_selected_cleanup_nested_after_declaration_rejected/main.omg:1:38: executable statements cannot follow nested machine declarations
+fail/facts/domain_selected_cleanup_nested_capture_rejected rejected 449ms expected @b659723798b4
+	machine `helper` state `entry` uses `value`, which is not a declared local, parameter, field, or type in this state (check the spelling)
+fail/facts/domain_selected_cleanup_nested_external_access_rejected rejected 953ms expected @b659723798b4
+	qualified call `helper` has no resolved callable declaration
+fail/facts/domain_selected_cleanup_suspending_hook_rejected rejected 408ms expected @b659723798b4
+	cleanup machine `finish` must be non-suspending and nonblocking
+fail/facts/domain_selected_cleanup_through_call_result_rejected rejected 2723ms expected @b659723798b4
+	machine `main` state `entry` value call to `deliver` violates required fact `keeper.code == 7`: the instantiated fact is structurally false (`6 == 7`)
+fail/facts/domain_selected_cleanup_through_const_name_rejected rejected 6876ms expected @b659723798b4
+	cannot prove requires contract for call consume from main: constructor:80:package:0101010101010101010101010101010101010101010101010101010101010101::Keeper6:record16:common:name:code1:618:common:name:output10:mut output.code == 7 (needs fact `keeper.code == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/domain_selected_cleanup_through_field_rejected rejected 5264ms expected @b659723798b4
+	cannot prove requires contract for call consume from main: constructor:82:package:0101010101010101010101010101010101010101010101010101010101010101::Envelope6:record18:common:name:keeper159:constructor:80:package:0101010101010101010101010101010101010101010101010101010101010101::Keeper6:record16:common:name:code1:618:common:name:output10:mut output.keeper.code == 7 (needs fact `envelope.keeper.code == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/domain_selected_cleanup_through_local_rejected rejected 6121ms expected @b659723798b4
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 2: Keeper does not establish release_keeper clause `keeper.code == 7`
+fail/facts/domain_selected_cleanup_through_match_join_rejected rejected 1969ms expected @b659723798b4
+	machine `main` state `entry` value call to `select` violates required fact `keeper.code == 7`: the instantiated fact is structurally false (`6 == 7`)
+fail/facts/domain_selected_cleanup_through_other_machine_rejected rejected 5734ms expected @b659723798b4
+	cannot prove requires contract for call forward from main: constructor:80:package:0101010101010101010101010101010101010101010101010101010101010101::Keeper6:record16:common:name:code1:618:common:name:output10:mut output.code == 7 (needs fact `keeper.code == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/domain_selected_cleanup_through_other_state_rejected rejected 5268ms expected @b659723798b4
+	cannot prove requires contract for call forward from main: constructor:80:package:0101010101010101010101010101010101010101010101010101010101010101::Keeper6:record16:common:name:code1:618:common:name:output10:mut output.code == 7 (needs fact `keeper.code == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/domain_selected_cleanup_through_parameter_rejected rejected 5419ms expected @b659723798b4
+	cannot prove requires contract for call consume from main: constructor:80:package:0101010101010101010101010101010101010101010101010101010101010101::Keeper6:record16:common:name:code1:618:common:name:output10:mut output.code == 7 (needs fact `keeper.code == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/domain_selected_cleanup_through_target_body_rejected rejected 4402ms expected @b659723798b4
+	cannot prove requires contract for call consume from main: constructor:80:package:0101010101010101010101010101010101010101010101010101010101010101::Keeper6:record16:common:name:code1:618:common:name:output10:mut output.code == 7 (needs fact `keeper.code == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call consume from main: constructor:80:package:0101010101010101010101010101010101010101010101010101010101010101::Keeper6:record16:common:name:code1:618:common:name:output10:mut output.code == 7 (needs fact `keeper.code == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call consume from main: constructor:80:package:0101010101010101010101010101010101010101010101010101010101010101::Keeper6:record16:common:name:code1:618:common:name:output10:mut output.code == 7 (needs fact `keeper.code == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call consume from main: constructor:80:package:0101010101010101010101010101010101010101010101010101010101010101::Keeper6:record16:common:name:code1:618:common:name:output10:mut output.code == 7 (needs fact `keeper.code == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/domain_selected_cleanup_unauthorized_selection_rejected rejected 481ms expected @b659723798b4
+	domain `u64::Foreign` cannot select dropped by cleanup: only the carrier's owning package may authorize the selection
+fail/facts/domain_selected_cleanup_wrong_carrier_rejected rejected 529ms expected @b659723798b4
+	cleanup application `finish` receiver does not match its selected owned subject
 fail/facts/dyn_dispatch_payload_alias_through_call_result_public_bound_weakened rejected 719ms expected @e06334c63dc4+wt
 	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/dyn_dispatch_payload_alias_through_const_name_public_bound_weakened rejected 692ms expected @e06334c63dc4+wt
@@ -24209,6 +24278,19 @@ pass/facts/disjoint_windows_through_parameter_exit checked 2496ms check-target:m
 pass/facts/disjoint_windows_through_target_body_exit checked 2492ms check-target:macos_arm64 @a92f16431042
 pass/facts/domain_geometry_conserved_result_exit checked 3155ms check-target:macos_arm64 @a92f16431042
 pass/facts/domain_geometry_projected_conserved_result_exit checked 2950ms check-target:macos_arm64 @a92f16431042
+pass/facts/domain_selected_cleanup_erased_predicates_exit checked 7765ms check-target:macos_arm64 @b659723798b4
+pass/facts/domain_selected_cleanup_indexed_inherited_computed_exit checked 7498ms check-target:macos_arm64 @b659723798b4
+pass/facts/domain_selected_cleanup_indexed_inherited_exit checked 7867ms check-target:macos_arm64 @b659723798b4
+pass/facts/domain_selected_cleanup_lifetime_application_exit checked 8239ms check-target:macos_arm64 @b659723798b4
+pass/facts/domain_selected_cleanup_through_call_result_exit checked 7818ms check-target:macos_arm64 @b659723798b4
+pass/facts/domain_selected_cleanup_through_const_name_exit checked 7933ms check-target:macos_arm64 @b659723798b4
+pass/facts/domain_selected_cleanup_through_field_exit checked 7838ms check-target:macos_arm64 @b659723798b4
+pass/facts/domain_selected_cleanup_through_local_exit checked 8210ms check-target:macos_arm64 @b659723798b4
+pass/facts/domain_selected_cleanup_through_match_join_exit checked 8786ms check-target:macos_arm64 @b659723798b4
+pass/facts/domain_selected_cleanup_through_other_machine_exit checked 8739ms check-target:macos_arm64 @b659723798b4
+pass/facts/domain_selected_cleanup_through_other_state_exit checked 8766ms check-target:macos_arm64 @b659723798b4
+pass/facts/domain_selected_cleanup_through_parameter_exit checked 8313ms check-target:macos_arm64 @b659723798b4
+pass/facts/domain_selected_cleanup_through_target_body_exit checked 8503ms check-target:macos_arm64 @b659723798b4
 pass/facts/double_indexed_rmw_through_call_result_exit checked 3074ms check-target:macos_arm64 @a92f16431042
 pass/facts/double_indexed_rmw_through_const_name_exit checked 2624ms check-target:macos_arm64 @a92f16431042
 pass/facts/double_indexed_rmw_through_field_exit checked 2416ms check-target:macos_arm64 @a92f16431042

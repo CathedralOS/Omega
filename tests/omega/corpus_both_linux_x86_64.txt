@@ -2806,6 +2806,7 @@ pass/facts/domain_geometry_through_target_body_exit built 2394ms exit:0 interpre
 pass/facts/domain_selected_cleanup_erased_predicates_exit built 2415ms exit:0 interpreter-exit:0 interpreter:agrees @290b093a0ecc+wt
 pass/facts/domain_selected_cleanup_indexed_inherited_computed_exit built 2546ms exit:0 interpreter-exit:0 interpreter:agrees @290b093a0ecc+wt
 pass/facts/domain_selected_cleanup_indexed_inherited_exit built 3732ms exit:0 interpreter-exit:0 interpreter:agrees @290b093a0ecc+wt
+pass/facts/domain_selected_cleanup_lifetime_application_exit built 3810ms exit:0 interpreter-exit:0 interpreter:agrees @b659723798b4
 pass/facts/domain_selected_cleanup_through_call_result_exit built 4147ms exit:0 interpreter-exit:0 interpreter:agrees @290b093a0ecc+wt
 pass/facts/domain_selected_cleanup_through_const_name_exit built 2034ms exit:0 interpreter-exit:0 interpreter:agrees @290b093a0ecc+wt
 pass/facts/domain_selected_cleanup_through_field_exit built 1963ms exit:0 interpreter-exit:0 interpreter:agrees @290b093a0ecc+wt
