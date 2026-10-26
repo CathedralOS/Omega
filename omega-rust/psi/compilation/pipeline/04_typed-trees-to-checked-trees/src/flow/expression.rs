@@ -277,18 +277,23 @@ pub(super) fn append_statement_calls<'plans>(
                     contexts,
                     constraints,
                 );
-                let returned_value = execution.context.control.operands.append(evaluated.capture);
-                super::exits::append_outgoing_state_fact(
-                    execution.context,
-                    machine.symbol,
-                    state.symbol,
-                    statement_index,
-                    TransitionTargetHandle::invalid(),
-                    *constraints,
-                    *constraints,
-                    returned_value,
-                    HandleSpan::empty(),
-                );
+                if validation::expression_normal_completion_possible(program, *expression)
+                    != Some(false)
+                {
+                    let returned_value =
+                        execution.context.control.operands.append(evaluated.capture);
+                    super::exits::append_outgoing_state_fact(
+                        execution.context,
+                        machine.symbol,
+                        state.symbol,
+                        statement_index,
+                        TransitionTargetHandle::invalid(),
+                        *constraints,
+                        *constraints,
+                        returned_value,
+                        HandleSpan::empty(),
+                    );
+                }
             } else {
                 execution.expression(*expression, contexts, constraints);
             }

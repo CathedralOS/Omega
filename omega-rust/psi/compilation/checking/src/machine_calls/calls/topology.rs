@@ -4,13 +4,15 @@ use symbols::SymbolHandle;
 
 /// Conservative normal-completion reachability over admitted state control.
 /// Explicit crash edges and closed nonreturning cycles supply no return.
-/// Unknown bodies and ordinary value evaluation remain potentially normal;
+/// Unknown bodies and unclassified value evaluation remain potentially normal;
 /// missing custody/origin evidence is never evidence of nonreturning control.
 pub fn normal_completion_possible(
     program: &dyn crate::CheckingInput,
     initial: &typed_trees::state::State,
 ) -> Option<bool> {
-    use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
+    use typed_trees::statement::{
+        StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
+    };
     let mut pending = vec![initial.symbol];
     let mut visited = Vec::new();
     while let Some(symbol) = pending.pop() {
@@ -27,16 +29,33 @@ pub fn normal_completion_possible(
         let statements = typed_trees::statement::reachable_state_statements(
             program.statement_table.statements(state.statement_nodes),
         );
-        let mut has_transition = false;
+        let mut all_paths_depart = false;
         for (position, statement) in statements.iter().enumerate() {
             match statement {
-                StatementNode::Expression(_) if position + 1 == statements.len() => {
-                    return Some(true);
+                StatementNode::Expression(expression) if position + 1 == statements.len() => {
+                    if let Some(destination) = expression_completion_target(program, *expression) {
+                        pending.push(destination.symbol);
+                        all_paths_depart = true;
+                    } else {
+                        return Some(true);
+                    }
+                }
+                StatementNode::Call(call) if position + 1 == statements.len() => {
+                    if let Some(destination) = call_target_state(program, call.target_symbol) {
+                        pending.push(destination.symbol);
+                        all_paths_depart = true;
+                    } else {
+                        return Some(true);
+                    }
                 }
                 StatementNode::Transition(transition) => {
-                    has_transition = true;
+                    all_paths_depart |= transition.guard == TransitionGuardNode::Always
+                        || transition.continuation.is_valid();
                     if matches!(transition.exit, TransitionExit::Crash(_)) {
                         continue;
+                    }
+                    if transition.targets().next().is_none() {
+                        return Some(true);
                     }
                     for target in transition.targets() {
                         match program.statement_table.transition_target(target) {
@@ -47,7 +66,16 @@ pub fn normal_completion_possible(
                                 };
                                 pending.push(destination.symbol);
                             }
-                            TransitionTargetNode::Value(_) | TransitionTargetNode::Terminal => {
+                            TransitionTargetNode::Value(expression) => {
+                                if let Some(destination) =
+                                    expression_completion_target(program, *expression)
+                                {
+                                    pending.push(destination.symbol);
+                                } else {
+                                    return Some(true);
+                                }
+                            }
+                            TransitionTargetNode::Terminal => {
                                 return Some(true);
                             }
                         }
@@ -56,12 +84,39 @@ pub fn normal_completion_possible(
                 _ => {}
             }
         }
-        // A body without a control edge can complete implicitly as Unit.
-        if !has_transition {
+        // A conditional tail without an exhaustive continuation can fall
+        // through to implicit Unit completion. A crash ceiling or one crashing
+        // arm never establishes that every path departs.
+        if !all_paths_depart {
             return Some(true);
         }
     }
     Some(false)
+}
+
+/// A completed expression can supply a normal value unless its exact checked
+/// call target proves otherwise. A crash ceiling, missing body or unresolved
+/// dispatch supplies no evidence of nonreturn. This query changes publication
+/// of normal results, never admission or evaluation of the invocation itself.
+pub fn expression_normal_completion_possible(
+    program: &dyn crate::CheckingInput,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<bool> {
+    expression_completion_target(program, expression).map_or(Some(true), |target| {
+        normal_completion_possible(program, target)
+    })
+}
+
+fn expression_completion_target(
+    program: &dyn crate::CheckingInput,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<&typed_trees::state::State> {
+    let typed_trees::expression::ExpressionNode::Call(call) =
+        program.expression_table.expression(expression)
+    else {
+        return None;
+    };
+    call_target_state(program, call.target_symbol)
 }
 
 pub fn find_state_in_machine(
