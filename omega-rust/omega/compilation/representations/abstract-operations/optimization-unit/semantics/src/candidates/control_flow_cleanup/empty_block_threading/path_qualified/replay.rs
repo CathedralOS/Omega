@@ -1,5 +1,6 @@
 //! Independent path-qualified empty-block replay mechanics.
 use crate::candidates::accept_region_rewrite;
+use crate::candidates::control_flow_cleanup::patched_jump_bindings;
 use crate::candidates::rewrite_accounting::substitutions::rewrite_successor_operation;
 use crate::candidates::rewrite_accounting::threading::{
     reconstruct_linear_thread_bindings, reconstruct_linear_thread_ownership_is_identity,
@@ -44,22 +45,7 @@ pub(super) fn validate(
     let [empty_node] = empty_block.nodes.as_slice() else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     };
-    let O::Jump {
-        structural_bindings: _,
-        psi_edge: outgoing_edge,
-        target,
-        bindings: outgoing_bindings,
-        cleanup_actions: outgoing_cleanup_actions,
-    } = &empty_node.operation
-    else {
-        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
-    };
-    if !outgoing_cleanup_actions.is_empty()
-        || *outgoing_edge != patch.outgoing_edge
-        || *target != patch.target
-    {
-        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
-    }
+    let outgoing_bindings = patched_jump_bindings(empty_node, patch.outgoing_edge, patch.target)?;
     if empty_block.parameters.iter().any(|parameter| {
         function.blocks.iter().any(|block| {
             block.nodes.iter().any(|node| {

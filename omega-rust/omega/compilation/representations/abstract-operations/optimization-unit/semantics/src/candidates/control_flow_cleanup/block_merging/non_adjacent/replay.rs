@@ -1,4 +1,5 @@
 //! Independent non-adjacent block-merge replay mechanics.
+use crate::candidates::control_flow_cleanup::patched_jump_bindings;
 use crate::candidates::global_value_numbering::{
     independent_reachable_dominators, independently_replacement_dominates_uses,
 };
@@ -55,22 +56,7 @@ pub(super) fn validate(
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
     let predecessor_node = &predecessor.nodes[predecessor_index];
-    let O::Jump {
-        structural_bindings: _,
-        psi_edge,
-        target: jump_target,
-        bindings,
-        cleanup_actions,
-    } = &predecessor_node.operation
-    else {
-        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
-    };
-    if !cleanup_actions.is_empty()
-        || *psi_edge != patch.incoming_edge
-        || *jump_target != patch.target
-    {
-        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
-    }
+    let bindings = patched_jump_bindings(predecessor_node, patch.incoming_edge, patch.target)?;
     let incoming = function
         .block_edges()
         .filter(|edge| edge.target == patch.target)

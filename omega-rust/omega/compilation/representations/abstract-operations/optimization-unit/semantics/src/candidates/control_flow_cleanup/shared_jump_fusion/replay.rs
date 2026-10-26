@@ -1,5 +1,6 @@
 //! Independent shared terminal-jump fusion replay mechanics.
 use crate::candidates::accept_region_rewrite;
+use crate::candidates::control_flow_cleanup::patched_jump_bindings;
 use crate::candidates::rewrite_accounting::adjacent_merge::reconstruct_adjacent_merge_ownership_is_identity;
 use crate::candidates::rewrite_accounting::rewrite_scalar_substitutions;
 use crate::candidates::rewrite_accounting::terminal_fusion::reconstruct_shared_terminal_fusion_accounting;
@@ -7,7 +8,6 @@ use crate::unit_validation::derived_metadata::{
     expected_definitions, expected_edges, expected_ownership, expected_uses,
 };
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
-use abstract_operations::AbstractOperation as O;
 use optimization_unit::{
     PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, PsiRewriteCandidate,
     PsiRewritePatch, ScalarSubstitution,
@@ -46,22 +46,7 @@ pub(super) fn validate(
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
     let predecessor_node = crate::candidates::candidate_node(predecessor, patch.predecessor.node)?;
-    let O::Jump {
-        structural_bindings: _,
-        psi_edge,
-        target: jump_target,
-        bindings,
-        cleanup_actions,
-    } = &predecessor_node.operation
-    else {
-        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
-    };
-    if !cleanup_actions.is_empty()
-        || *psi_edge != patch.incoming_edge
-        || *jump_target != patch.target
-    {
-        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
-    }
+    let bindings = patched_jump_bindings(predecessor_node, patch.incoming_edge, patch.target)?;
     let target = function
         .block(patch.target)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
