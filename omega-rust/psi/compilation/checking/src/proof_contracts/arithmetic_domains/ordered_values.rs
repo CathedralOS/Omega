@@ -1270,7 +1270,9 @@ pub(super) fn refine_place_interval(
                 } else {
                     &subject != candidate
                         && comparison
-                            .get_or_insert_with(|| ValueComparison::new(&environment.ordered_values))
+                            .get_or_insert_with(|| {
+                                ValueComparison::new(&environment.ordered_values)
+                            })
                             .same_value(&subject, candidate)
                 };
                 if matched {
@@ -1411,11 +1413,8 @@ fn ordered_gaps<'relations>(
     relations: &'relations [Relation],
     value: &'relations Operand,
 ) -> impl Iterator<Item = (&'relations Operand, i64)> {
-    let mut equalities = congruence::EqualityQuery::new(relations, value, value);
-    ordered_gaps_by(relations, value, |left, right| {
-        equalities.same_value(left, right)
-    })
-    .into_iter()
+    let mut comparison = congruence::ValueComparison::new(relations);
+    ordered_gaps_with_comparison(relations, value, &mut comparison).into_iter()
 }
 
 /// Reuse a caller's congruence query while keeping the same bounded gap walk.
