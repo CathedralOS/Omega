@@ -1419,6 +1419,7 @@ pub(super) fn lower_unit_structural_domains(
                     cause: Box::new(cause),
                 })?;
             Ok(StructuralDomainDeclaration {
+                complete_predicate_theory: plan.complete_predicate_theory,
                 predicate,
                 byte_predicate: plan.byte_predicate,
                 establishment_routes,

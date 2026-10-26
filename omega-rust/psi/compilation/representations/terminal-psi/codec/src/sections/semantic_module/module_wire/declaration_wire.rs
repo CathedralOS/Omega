@@ -82,6 +82,7 @@ pub(super) fn encode_structural_domain(
 ) -> Result<(), CodecError> {
     writer.id(declaration.id);
     writer.id(declaration.semantic_domain);
+    writer.boolean(declaration.complete_predicate_theory);
     writer.u32(declaration.identity.0);
     writer.id(declaration.carrier);
     writer.boolean(declaration.predicate.is_some());
@@ -137,6 +138,7 @@ pub(super) fn decode_structural_domain(
     Ok(StructuralDomainDeclaration {
         id: reader.id("StructuralDomainId")?,
         semantic_domain: reader.id("DomainSemanticId")?,
+        complete_predicate_theory: reader.boolean()?,
         identity: TerminalIdentityIndex(reader.u32()?),
         carrier: reader.id("StructuralTypeId")?,
         predicate: if reader.boolean()? {

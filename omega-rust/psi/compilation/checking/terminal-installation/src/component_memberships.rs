@@ -87,7 +87,9 @@ fn same_domain(
             .find(|row| row.id == id)
             .map(|row| row.identity)
     };
-    if !same_name(source.identity, target.identity)
+    if !source.complete_predicate_theory
+        || !target.complete_predicate_theory
+        || !same_name(source.identity, target.identity)
         || !carrier(left, source.carrier)
             .zip(carrier(right, target.carrier))
             .is_some_and(|(a, b)| same_name(a, b))

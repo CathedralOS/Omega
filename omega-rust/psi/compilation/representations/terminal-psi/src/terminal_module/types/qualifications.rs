@@ -7,6 +7,10 @@ use semantic_vocabulary::{
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StructuralDomainDeclaration {
+    /// Source-owned completeness of the retained predicate/issuer theory.
+    /// False keeps independent policies (roles, cleanup, aliases/refinements)
+    /// from being mistaken for an interchangeable cross-artifact membership.
+    pub complete_predicate_theory: bool,
     /// Complete closed predicate definition with its own declared formal subject.
     /// None is opaque; a retained Truth is an explicitly empty predicate theory.
     pub predicate: Option<StructuralDomainPredicate>,
