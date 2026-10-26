@@ -204,13 +204,13 @@ fn apply_runtime_result_operands(
     arguments: &[ExpressionHandle],
     return_type: TypeReferenceHandle,
 ) -> Result<TypeReferenceHandle, Vec<diagnostics::Diagnostic>> {
-    let Some((_, state)) = validation::find_state(program, target) else {
+    let Some(parameters) = typed_trees::static_applications::result_operand_parameters(
+        program,
+        target,
+        arguments.len(),
+    ) else {
         return Ok(return_type);
     };
-    let parameters = program.state_parameters(state);
-    if parameters.len() != arguments.len() {
-        return Ok(return_type);
-    }
     let symbols = parameters
         .iter()
         .map(|parameter| parameter.symbol)

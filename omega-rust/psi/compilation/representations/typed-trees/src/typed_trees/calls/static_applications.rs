@@ -127,3 +127,17 @@ pub fn project_type_operand(
     }
     reference
 }
+
+/// The exact ordinary telescope used to apply one completed result recipe.
+/// Only an executable state with its full explicit operand roster substitutes
+/// ordinary formals; signature and unknown targets retain their own vocabulary.
+/// This is type correspondence, not admission, observation or permission.
+pub fn result_operand_parameters(
+    program: &crate::TypedTrees,
+    target: SymbolHandle,
+    argument_count: usize,
+) -> Option<&[crate::signature::StateParameter]> {
+    let state = program.state_by_symbol(target)?;
+    let parameters = program.state_parameters(state);
+    (parameters.len() == argument_count).then_some(parameters)
+}

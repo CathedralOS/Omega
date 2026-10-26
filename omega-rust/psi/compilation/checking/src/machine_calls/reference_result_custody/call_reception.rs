@@ -58,25 +58,7 @@ pub fn record_call_reception(
         return Err("reference reception has no matching call occurrence");
     };
     let paths = super::captured_returns::call_result_paths(program, facts, occurrence)
-        .ok_or_else(|| {
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-                let control = &facts.flow.control;
-                let stored = control.statements.span_or_empty(flow.statements).iter()
-                    .find(|row| row.statement_index == statement_index as usize)
-                    .filter(|row| control.operands.is_valid(row.stored_value))
-                    .map(|row| (row.stored_value, control.operands.get(row.stored_value)));
-                let leaves = stored.map(|(_, value)| control.captured_reference_leaves
-                    .span_or_empty(value.reference_leaves).iter().take(4).map(|leaf| (
-                        leaf.type_reference, leaf.referents.count(), leaf.retention,
-                        control.operand_child_paths.span_or_empty(leaf.path).len(),
-                        control.operand_child_paths.span_or_empty(leaf.path).iter().take(16).copied().collect::<Vec<_>>()
-                    )).collect::<Vec<_>>());
-                eprintln!("CHECKSITE returned-origin-reception-refusal machine={:?} state={:?} statement={} call={:?} target={:?} return_type={:?} stored={:?} leaves={:?}",
-                    machine, state.symbol, statement_index, expression, occurrence.target_symbol, return_type,
-                    stored.map(|(handle, value)| (handle, value.state_symbol, value.statement_index, value.expression, value.type_reference, value.storage_snapshot, value.reference_leaves.count())), leaves);
-            }
-            "reference result has no complete captured origin paths"
-        })?;
+        .ok_or("reference result has no complete captured origin paths")?;
     let returned: Vec<_> = record_carrier_sources(
         program,
         return_type,

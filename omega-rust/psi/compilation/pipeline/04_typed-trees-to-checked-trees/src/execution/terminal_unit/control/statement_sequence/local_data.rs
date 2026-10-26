@@ -91,16 +91,6 @@ pub(super) fn plan(
     let entry = trace.mark();
     let planned = plan_inner(planner, index, statement_index, local);
     if planned.is_none() {
-        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-            eprintln!(
-                "CHECKSITE executable-local-plan-refusal statement={} local={:?} type={:?} initializer={:?} phase={:?}",
-                statement_index,
-                local.symbol,
-                local.type_reference,
-                local.initial_value,
-                trace.mark()
-            );
-        }
         trace.restore(&entry);
     }
     planned

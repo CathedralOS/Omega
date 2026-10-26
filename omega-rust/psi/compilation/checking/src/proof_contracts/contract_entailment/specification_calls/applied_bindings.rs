@@ -930,10 +930,10 @@ impl AppliedProofBindings {
         })
     }
 
-    /// Authenticate the completed result against its public declaration under
-    /// the complete simultaneous application. Boundary calls retain a generic
-    /// declaration even when their completed result has a closed carrier; no
-    /// executable target or newly manufactured type handle supplies that join.
+    /// Authenticate a completed result under the same simultaneous static and
+    /// ordinary application that produced its occurrence type. The declaration
+    /// recipe remains in its formal telescope: downstream proof substitutes
+    /// the already completed argument values, never current caller storage.
     pub fn runtime_result_type(
         &self,
         program: &dyn crate::CheckingInput,
@@ -941,54 +941,121 @@ impl AppliedProofBindings {
         call: &TableCallExpression,
         observed: TypeReferenceHandle,
     ) -> Option<TypeReferenceHandle> {
+        use typed_trees::type_identity::{
+            AppliedTypeIdentityScope, IndexIdentityArgument, applied_declared_carrier_identity,
+            try_normalized_index_identity,
+        };
         let declared = super::owner_return_type(owner);
-        if self.types.is_empty() && self.constants.is_empty() {
-            return (crate::declared_carriers_match(program, observed, declared)
-                && program.arithmetic_domain_for_type_reference(observed)
-                    == program.arithmetic_domain_for_type_reference(declared))
-            .then_some(declared);
-        }
-        let substitutions = program
-            .expression_table
-            .static_machine_application_bindings(call.authored_machine_application)
+        let static_bindings = if call.authored_machine_application.is_valid() {
+            program
+                .expression_table
+                .static_machine_application_bindings(call.authored_machine_application)
+        } else if self.types.is_empty()
+            && self.constants.is_empty()
+            && self.runtime_parameters.is_empty()
+            && self.machines.is_empty()
+            && self.implementations.is_empty()
+        {
+            // Ordinary monomorphic calls need no retained static header. A
+            // missing required application never becomes an empty substitution.
+            &[]
+        } else {
+            return None;
+        };
+        let mut application = static_bindings
             .iter()
             .filter_map(|binding| match binding.value {
-                typed_trees::static_applications::StaticMachineBindingValue::Type(reference)
-                | typed_trees::static_applications::StaticMachineBindingValue::Const(reference) => {
-                    Some((binding.parameter, reference))
-                }
+                StaticMachineBindingValue::Type(reference) => Some((
+                    binding.parameter,
+                    IndexIdentityArgument::TypeArgument(reference),
+                )),
+                StaticMachineBindingValue::Const(reference) => Some((
+                    binding.parameter,
+                    IndexIdentityArgument::TypeReference(reference),
+                )),
                 _ => None,
             })
             .collect::<Vec<_>>();
-        if !crate::value_custody::places::declared_carriers_match_under_application(
+        let static_count = application.len();
+        let arguments = program.expression_table.expression_handles(call.arguments);
+        let parameters = typed_trees::static_applications::result_operand_parameters(
             program,
-            observed,
-            declared,
-            &substitutions,
-        ) || program.arithmetic_domain_for_type_reference(observed)
-            != program.arithmetic_domain_for_type_reference(self.project_type(program, declared))
+            call.target_symbol,
+            arguments.len(),
+        );
+        for (parameter, argument) in parameters.into_iter().flatten().zip(arguments) {
+            if !parameter.symbol.is_valid()
+                || application
+                    .iter()
+                    .any(|(symbol, _)| *symbol == parameter.symbol)
+            {
+                return None;
+            }
+            application.push((
+                parameter.symbol,
+                IndexIdentityArgument::Expression(*argument),
+            ));
+        }
+        // Actual expressions identify the supplying vocabulary only. The
+        // identity owner substitutes them simultaneously without executing or
+        // resolving their current values. Recursive calls cannot reapply the
+        // receiving map to leaves of an already selected actual.
+        let scope = AppliedTypeIdentityScope {
+            declaration: super::owner_symbol(owner),
+            arguments: &application,
+            lifetimes: &[],
+        };
+        if applied_declared_carrier_identity(program, observed, &[])?
+            != applied_declared_carrier_identity(program, declared, &[scope])?
+            || program.arithmetic_domain_for_type_reference(observed)
+                != program
+                    .arithmetic_domain_for_type_reference(self.project_type(program, declared))
         {
             return None;
         }
-        let applied = program.type_identity_with_simultaneous_substitutions(
-            typed_trees::type_identity::TypeIdentityRequest {
-                substitutions: &substitutions,
-                ..typed_trees::type_identity::TypeIdentityRequest::ordinary(declared)
-            },
-        );
-        if !applied.is_valid() {
-            return None;
-        }
+        // The published type is the declaration's complete qualified recipe
+        // after static substitution, before replacing ordinary formals. Its
+        // index equations are interpreted under captured normal-call bindings.
+        // A receiving annotation may match its carrier but donate no domain.
+        let static_scope = AppliedTypeIdentityScope {
+            declaration: super::owner_symbol(owner),
+            arguments: &application[..static_count],
+            lifetimes: &[],
+        };
+        let identity = try_normalized_index_identity(
+            program,
+            IndexIdentityArgument::TypeArgument(declared),
+            &[],
+            &[static_scope],
+        )?;
+        // Full qualified identities must also be complete. An unavailable
+        // index marker is diagnostic payload, never a matching public recipe.
         let public = self.project_type(program, declared);
-        if program.normalized_type_identity(public) == applied {
+        if try_normalized_index_identity(
+            program,
+            IndexIdentityArgument::TypeArgument(public),
+            &[],
+            &[],
+        )
+        .as_ref()
+            == Some(&identity)
+        {
             return Some(public);
         }
-        // A nested application needs an existing closed handle. Ordinary call
-        // results derive from the actual invocation, but a retargeted private
-        // realization may return stronger qualifications than its public edge.
-        // Authenticate the complete public type before that handle can supply
-        // declared domains; carrier equality alone grants no such facts.
-        (program.normalized_type_identity(observed) == applied).then_some(observed)
+        program
+            .type_reference_table
+            .references()
+            .find_map(|(reference, _)| {
+                (try_normalized_index_identity(
+                    program,
+                    IndexIdentityArgument::TypeArgument(reference),
+                    &[],
+                    &[],
+                )
+                .as_ref()
+                    == Some(&identity))
+                .then_some(reference)
+            })
     }
 
     /// A direct formal type is read under this simultaneous application.

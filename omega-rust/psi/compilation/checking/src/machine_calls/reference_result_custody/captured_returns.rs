@@ -103,34 +103,6 @@ struct FrameOrigin {
     extent: ReferenceOriginExtent,
 }
 
-fn trace_return_origin_refusal(
-    stage: &'static str,
-    state: &typed_trees::state::State,
-    loan: &checked_trees::BorrowReturnedLoanFact,
-    leaf: &CheckedReferenceResultSourcePlan,
-    segments: &[facts::PlaceSegment],
-) {
-    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-        eprintln!(
-            "CHECKSITE returned-origin-loan-refusal stage={} state={:?} statement={} target={:?} formation={:?} root={:?} incoming={:?} lifetime_only={} access={:?} expected_identity={:?} leaf_path_count={} loan_segment_count={} supplied_segments={} prefix={:?}",
-            stage,
-            state.symbol,
-            loan.statement_index,
-            loan.transition_target,
-            loan.formation_expression,
-            loan.root,
-            loan.incoming_reference,
-            loan.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency,
-            loan.kind,
-            leaf.source.type_identity,
-            leaf.path.len(),
-            loan.segments.count(),
-            segments.len(),
-            &segments[..segments.len().min(16)]
-        );
-    }
-}
-
 impl Captures<'_> {
     fn target_sources(
         &self,
@@ -261,8 +233,11 @@ impl Captures<'_> {
                 for leaf in &leaves {
                     let owner_path = loan_owner_path(self.program, state.return_type, &leaf.path)?;
                     let mut captured = false;
+                    // Declared keepalive debts remain in borrow custody, but
+                    // only descriptor rows participate in spatial coverage.
                     for loan in loans.iter().filter(|loan| {
-                        loan.statement_index == statement_index
+                        loan.lineage != checked_trees::BorrowLoanLineage::LifetimeDependency
+                            && loan.statement_index == statement_index
                             && loan.transition_target == transition_target
                     }) {
                         if self.facts.borrow.owner_segments.span(loan.owner_path)? != owner_path {
@@ -272,18 +247,8 @@ impl Captures<'_> {
                             return None;
                         }
                         captured = true;
-                        for origin in self
-                            .return_origins(state, loan, leaf, Some(expression), loans)
-                            .or_else(|| {
-                                trace_return_origin_refusal(
-                                    "normal-leaf-origin",
-                                    state,
-                                    loan,
-                                    leaf,
-                                    &[],
-                                );
-                                None
-                            })?
+                        for origin in
+                            self.return_origins(state, loan, leaf, Some(expression), loans)?
                         {
                             let source = CheckedReturnedReferencePlan {
                                 path: leaf.path.clone(),
@@ -369,7 +334,6 @@ impl Captures<'_> {
     ) -> Option<Vec<CheckedReferenceOriginSourcePlan>> {
         if loan.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency {
             // Lifetime custody does not authenticate a projected input address.
-            trace_return_origin_refusal("lifetime-only", state, loan, leaf, &[]);
             return None;
         }
         let values = &self.facts.values.structural_values;
@@ -440,7 +404,8 @@ impl Captures<'_> {
             // root must have its own lifetime row for the same result leaf;
             // selecting just the convenient alternative would lose custody.
             if !loans.iter().any(|candidate| {
-                candidate.statement_index == loan.statement_index
+                candidate.lineage != checked_trees::BorrowLoanLineage::LifetimeDependency
+                    && candidate.statement_index == loan.statement_index
                     && candidate.transition_target == loan.transition_target
                     && candidate.formation_expression == operand.expression
                     && candidate.root == referent.root
@@ -537,7 +502,11 @@ impl Captures<'_> {
         loans: &[checked_trees::BorrowReturnedLoanFact],
         captured: Option<&[crate::ReferenceResultLeafOrigin]>,
     ) -> Option<Vec<CheckedReferenceOriginSourcePlan>> {
-        let refuse = |stage| trace_return_origin_refusal(stage, state, loan, leaf, segments);
+        // The named-return route enters this shared projector directly.
+        // A lifetime dependency cannot provide its address or cover a peer.
+        if loan.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency {
+            return None;
+        }
         if loan.incoming_reference.is_valid()
             && self
                 .facts
@@ -591,20 +560,13 @@ impl Captures<'_> {
             .iter()
             .filter(|parameter| is_mutable_structural_parameter(self.program, parameter))
             .enumerate()
-            .find(|(_, parameter)| loan.root == facts::PlaceRoot::Symbol(parameter.symbol))
-            .or_else(|| {
-                refuse("parameter-root");
-                None
-            })?;
+            .find(|(_, parameter)| loan.root == facts::PlaceRoot::Symbol(parameter.symbol))?;
         let mut path = Vec::new();
         let mut entry_reference_hops = 0;
         let mut incoming_segments = Vec::new();
         let mut selected = parameter.type_reference;
         if loan.incoming_reference.is_valid() {
-            let selected_incoming = self.incoming_leaf(state, loan).or_else(|| {
-                refuse("incoming-leaf");
-                None
-            })?;
+            let selected_incoming = self.incoming_leaf(state, loan)?;
             let carrier = selected_incoming.carrier;
             let incoming_leaf = selected_incoming.reference;
             if !reference_access_can_supply(incoming_leaf.access, leaf.source.access) {
@@ -618,18 +580,9 @@ impl Captures<'_> {
             }
             let incoming_path = selected_incoming.segments;
             selected =
-                crate::project_type_reference_from_segments(self.program, carrier, &incoming_path)
-                    .or_else(|| {
-                        refuse("incoming-carrier-projection");
-                        None
-                    })?;
+                crate::project_type_reference_from_segments(self.program, carrier, &incoming_path)?;
             if incoming_leaf.crosses_reference {
-                selected = stored_loan_parts(self.program, selected)
-                    .or_else(|| {
-                        refuse("incoming-reference-crossing");
-                        None
-                    })?
-                    .0;
+                selected = stored_loan_parts(self.program, selected)?.0;
             }
             path.extend(incoming_leaf.path);
             if incoming_leaf.crosses_reference {
@@ -642,10 +595,7 @@ impl Captures<'_> {
             // Incoming borrow authority is independent of its descriptor ABI:
             // slices supply element storage even though they are not stored
             // pointer-shaped references.
-            let shell = crate::reference_shell(self.program, selected).or_else(|| {
-                refuse("parameter-shell");
-                None
-            })?;
+            let shell = crate::reference_shell(self.program, selected)?;
             if !reference_access_can_supply(shell.access.into(), leaf.source.access) {
                 return None;
             }
@@ -657,20 +607,10 @@ impl Captures<'_> {
         // Compose those frozen windows before turning the address into typed
         // structural projections; a window offset is not an array dimension.
         let mut segments = segments.to_vec();
-        facts::compose_captured_view_segments(&mut segments).or_else(|| {
-            refuse("captured-window-compose");
-            None
-        })?;
+        facts::compose_captured_view_segments(&mut segments)?;
         let parameter_index = u32::try_from(parameter_index).ok()?;
-        let frame = crate::CallFrameResolver::new(self.program).or_else(|| {
-            refuse("frame-owner");
-            None
-        })?;
-        let result_path = loan_place_segments(self.program, state.return_type, &leaf.path)
-            .or_else(|| {
-                refuse("result-leaf-path");
-                None
-            })?;
+        let frame = crate::CallFrameResolver::new(self.program)?;
+        let result_path = loan_place_segments(self.program, state.return_type, &leaf.path)?;
         let inferred;
         let origins = if let Some(captured) = captured {
             Some(captured)
@@ -678,7 +618,6 @@ impl Captures<'_> {
             inferred = frame.reference_result_leaf_origins(state.symbol);
             inferred.as_deref()
         };
-        let observed_frame_count = origins.as_ref().map(|origins| origins.len());
         let has_presentation = origins.as_ref().is_some_and(|origins| {
             origins.iter().any(|origin| {
                 origin.result_path == result_path
@@ -752,49 +691,6 @@ impl Captures<'_> {
                             && self.origin_matches_returned_loan(state, candidate, &origin.source)
                     })
                 {
-                    refuse("frame-candidate-custody");
-                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-                        eprintln!(
-                            "CHECKSITE returned-origin-frame-candidate state={:?} selected={:?} incoming_count={} incoming_prefix={:?} source_root={:?} result_path_count={} source_path_count={} source_prefix={:?} recasts={} representation={} loans={:?}",
-                            state.symbol,
-                            selected,
-                            incoming_segments.len(),
-                            &incoming_segments[..incoming_segments.len().min(16)],
-                            origin.source.root,
-                            origin.result_path.len(),
-                            origin.source.segments.len(),
-                            &origin.source.segments[..origin.source.segments.len().min(16)],
-                            origin.source.recasts.len(),
-                            origin.source.representation.is_some(),
-                            loans
-                                .iter()
-                                .take(8)
-                                .map(|candidate| (
-                                    candidate.root,
-                                    candidate.statement_index,
-                                    candidate.formation_expression,
-                                    candidate.incoming_reference,
-                                    &candidate.kind,
-                                    self.facts
-                                        .borrow
-                                        .owner_segments
-                                        .span_or_empty(candidate.owner_path)
-                                        .iter()
-                                        .take(16)
-                                        .copied()
-                                        .collect::<Vec<_>>(),
-                                    self.facts
-                                        .borrow
-                                        .access_segments
-                                        .span_or_empty(candidate.segments)
-                                        .iter()
-                                        .take(16)
-                                        .copied()
-                                        .collect::<Vec<_>>()
-                                ))
-                                .collect::<Vec<_>>()
-                        );
-                    }
                     return None;
                 }
             }
@@ -810,13 +706,7 @@ impl Captures<'_> {
                 let mut output = Vec::new();
                 for origin in matching {
                     let captured =
-                        self.frame_origin_path(selected, &incoming_segments, &origin.source).or_else(|| {
-                            refuse("frame-projection");
-                            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-                                eprintln!("CHECKSITE returned-origin-frame-projection state={:?} selected={:?} incoming_count={} incoming_prefix={:?} source_root={:?} source_count={} source_prefix={:?}", state.symbol, selected, incoming_segments.len(), &incoming_segments[..incoming_segments.len().min(16)], origin.source.root, origin.source.segments.len(), &origin.source.segments[..origin.source.segments.len().min(16)]);
-                            }
-                            None
-                        })?;
+                        self.frame_origin_path(selected, &incoming_segments, &origin.source)?;
                     let source_identity = self.program.normalized_type_identity(captured.backing);
                     let extent = self.result_origin_extent(
                         captured.presentation,
@@ -824,13 +714,7 @@ impl Captures<'_> {
                         &result_path,
                         leaf.source.type_identity,
                         captured.extent,
-                    ).or_else(|| {
-                        refuse("frame-result-extent");
-                        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-                            eprintln!("CHECKSITE returned-origin-result-extent state={:?} backing={:?} presentation={:?} result={:?} expected={:?} extent={:?}", state.symbol, captured.backing, captured.presentation, state.return_type, leaf.source.type_identity, captured.extent);
-                        }
-                        None
-                    })?;
+                    )?;
                     let mut complete = path.clone();
                     complete.extend(captured.path);
                     let source = CheckedReferenceOriginSourcePlan {
@@ -851,13 +735,6 @@ impl Captures<'_> {
             }
         }
         if captured.is_some() {
-            refuse("captured-frame-no-match");
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-                eprintln!(
-                    "CHECKSITE returned-origin-frame-status state={:?} source=captured count={:?}",
-                    state.symbol, observed_frame_count
-                );
-            }
             return None;
         }
         // Loan formation can capture an input region without a public typed
@@ -867,13 +744,7 @@ impl Captures<'_> {
         // The original loan/root/access joins above remain mandatory, and
         // completion must check the actual returned footprint's containment.
         let (suffix, mut endpoint, extent) =
-            super::reference_origin_path(self.program, selected, &segments).or_else(|| {
-                refuse("fallback-path");
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-                    eprintln!("CHECKSITE returned-origin-frame-status state={:?} source=ordinary count={:?} presentation={} selected={:?} incoming_count={} incoming_prefix={:?}", state.symbol, observed_frame_count, has_presentation, selected, incoming_segments.len(), &incoming_segments[..incoming_segments.len().min(16)]);
-                }
-                None
-            })?;
+            super::reference_origin_path(self.program, selected, &segments)?;
         // A captured window still needs a compatible slice presentation when
         // no body relation is available. A wider opaque lifetime region, in
         // contrast, has no window conversion to establish here.
@@ -881,13 +752,6 @@ impl Captures<'_> {
             && self.program.normalized_type_identity(endpoint) != leaf.source.type_identity
             && !self.collection_region_presents_result(endpoint, state.return_type, &result_path)
         {
-            refuse("fallback-collection-presentation");
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-                eprintln!(
-                    "CHECKSITE returned-origin-frame-status state={:?} source=ordinary count={:?} presentation={} endpoint={:?}",
-                    state.symbol, observed_frame_count, has_presentation, endpoint
-                );
-            }
             return None;
         }
         path.extend(suffix);

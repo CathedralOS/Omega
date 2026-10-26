@@ -26,12 +26,7 @@ impl Captures<'_> {
     ) -> Option<Vec<CheckedReturnedReferencePlan>> {
         let target = crate::call_target_state(self.program, call.target_symbol)?;
         let frames = crate::CallFrameResolver::new(self.program)?;
-        let transports = frames.reference_result_transports(target.symbol).or_else(|| {
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-                eprintln!("CHECKSITE returned-origin-named-refusal stage=full-transports state={:?} statement={} target={:?} call={:?}", state.symbol, call.statement_index, target.symbol, call.authored_expression);
-            }
-            None
-        })?;
+        let transports = frames.reference_result_transports(target.symbol)?;
         let mut relative = Vec::new();
         for transport in transports {
             match transport {
@@ -97,19 +92,13 @@ impl Captures<'_> {
             {
                 return None;
             }
-            let operand_handle = call.argument_operands().handles().nth(position)?;
             for source in self.captured_input_sources(
                 state,
                 parameter.type_reference,
-                operand_handle,
+                call.argument_operands().handles().nth(position)?,
                 &candidate.source,
                 active,
-            ).or_else(|| {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-                    eprintln!("CHECKSITE returned-origin-named-refusal stage=captured-input state={:?} statement={} target={:?} call={:?} parameter={:?} parameter_type={:?} operand={:?} expression={:?} type={:?} snapshot={:?} references={} source_root={:?} source_path_count={} source_prefix={:?}", state.symbol, call.statement_index, target.symbol, call.authored_expression, parameter.symbol, parameter.type_reference, operand_handle, operand.expression, operand.type_reference, operand.storage_snapshot, operand.reference_leaves.count(), candidate.source.root, candidate.source.segments.len(), &candidate.source.segments[..candidate.source.segments.len().min(16)]);
-                }
-                None
-            })? {
+            )? {
                 let origin = crate::ReferenceResultLeafOrigin {
                     result_path: result_path.clone(),
                     source,
@@ -125,7 +114,8 @@ impl Captures<'_> {
         let site_loans: Vec<_> = loans
             .iter()
             .filter(|loan| {
-                loan.statement_index == call.statement_index
+                loan.lineage != checked_trees::BorrowLoanLineage::LifetimeDependency
+                    && loan.statement_index == call.statement_index
                     && loan.transition_target == transition_target
             })
             .cloned()
@@ -134,6 +124,7 @@ impl Captures<'_> {
         for leaf in leaves {
             let result_path = loan_place_segments(self.program, state.return_type, &leaf.path)?;
             let owner_path = loan_owner_path(self.program, state.return_type, &leaf.path)?;
+            let mut captured = false;
             for origin in origins
                 .iter()
                 .filter(|origin| origin.result_path == result_path)
@@ -169,6 +160,13 @@ impl Captures<'_> {
                 if !covered {
                     return None;
                 }
+                captured = true;
+            }
+            // Neither a lifetime debt nor a missing body source proves that a
+            // descriptor is absent. The complete occurrence relation must
+            // establish that no activation-relative capture is owed here.
+            if !captured && self.call_paths(call, active)?.contains(&leaf.path) {
+                return None;
             }
         }
         Some(output)
