@@ -258,6 +258,7 @@ pub(super) fn merge_arrivals(
     function: &PsiOptimizationFunction,
     target: BlockId,
     types: &[StructuralTypeDeclaration],
+    guarded_ingress: &BTreeSet<(PlaceId, Vec<StructuralPathSegment>)>,
     left: &mut BTreeMap<(PlaceId, Vec<StructuralPathSegment>), Leaf>,
     right: &BTreeMap<(PlaceId, Vec<StructuralPathSegment>), Leaf>,
 ) -> Result<Option<()>, LegalizationError> {
@@ -275,6 +276,11 @@ pub(super) fn merge_arrivals(
                     .structural_parameters
                     .iter()
                     .find(|parameter| parameter.place == key.0)
+            })
+            .or_else(|| {
+                guarded_ingress.contains(key)
+                    .then(|| function.structural_parameter(key.0))
+                    .flatten()
             })
             .filter(|parameter| parameter.access == StructuralAccess::Owned)
             .ok_or_else(|| {
