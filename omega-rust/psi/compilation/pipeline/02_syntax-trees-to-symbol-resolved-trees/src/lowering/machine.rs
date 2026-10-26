@@ -82,6 +82,34 @@ pub(crate) fn lower_machine_into(
     syntax_trees: &SyntaxTrees,
     machine: &syntax::item::Machine,
 ) -> Result<(), Diagnostic> {
+    lower_lexical_machine_into(lowerer, syntax_trees, machine, None)
+}
+
+fn lower_lexical_machine_into(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    machine: &syntax::item::Machine,
+    lexical_parent: Option<usize>,
+) -> Result<(), Diagnostic> {
+    let ordinal = lowerer.symbol_resolved_trees.machines.len();
+    if lexical_parent.is_some()
+        && (machine.is_public
+            || machine.attached_data.is_some()
+            || machine.boundary
+            || machine.spelling.is_some())
+    {
+        return Err(Diagnostic::error(
+            "a nested machine is a private independent lexical declaration",
+        ));
+    }
+    if !machine.nested_machines.is_empty()
+        && (!machine.type_parameters.is_empty() || !machine.lifetime_parameters.is_empty())
+    {
+        return Err(Diagnostic::error(
+            "nested machines retaining an enclosing static telescope are not yet supported",
+        ));
+    }
+
     // OPERATOR-MACHINE-SUPPLY: `machine.spelling` (the optional fixed token
     // after `machine`) is copied onto the symbol-resolved declaration below
     // and flows through the typed machine record, where the typed lowering
@@ -272,6 +300,7 @@ pub(crate) fn lower_machine_into(
         ));
     }
     lowerer.symbol_resolved_trees.machines.push(Machine {
+        lexical_parent,
         symbol: SymbolHandle::invalid(),
         name: machine_name,
         generic_data_origin: symbol_resolved_trees::machine::GenericDataMachineOrigin {
@@ -340,6 +369,9 @@ pub(crate) fn lower_machine_into(
         },
     });
     lowerer.current_compiler_selection_partition = None;
+    for nested in &machine.nested_machines {
+        lower_lexical_machine_into(lowerer, syntax_trees, nested, Some(ordinal))?;
+    }
     Ok(())
 }
 

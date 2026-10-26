@@ -1,0 +1,16 @@
+// Expected exit: 0.
+machine finished() {}
+machine failed() crashes Trap { crash Trap; }
+machine left(value: u32) -> u32 requires value == 37 ensures result == 37 {
+    transition { _ -> received(36) }
+    machine received(value: u32) -> u32 requires value == 37 ensures result == 37 { value }
+}
+machine right(value: u32) -> u32 requires value == 38 ensures result == 38 {
+    transition { _ -> received(value) }
+    machine received(value: u32) -> u32 requires value == 38 ensures result == 38 { value }
+}
+machine main() crashes Trap {
+    let first: u32 = left(37);
+    let second: u32 = right(38);
+    transition first == 37 && second == 38 { true -> finished() false -> failed() }
+}
