@@ -1,0 +1,104 @@
+// Expected exit: 0
+// Replacing the exact captured window descriptor releases its displaced backing while retaining replacement and disjoint sibling loans.
+// Expected exit: 0
+// Replace the first scan window when the element is proved equal to zero.
+// The caller writes the displaced backing and keeps the neighbor. The element
+// arrives as a local, a field, a parameter, and a call result.
+data Cell [copy] { value: u32; tag: u64; }
+data Window<'input> { values: &'input mut [Cell]; }
+data Choice { slot: i32; }
+
+machine first_slot() -> i32 ensures result == 0 { 0 }
+machine last_slot() -> i32 ensures result == 1 { 1 }
+
+machine replace<'carrier, 'input>(windows: &'carrier mut [Window<'input>], slot: i32, replacement: &'input mut [Cell])
+requires windows.len == 2 && slot == 0 {
+    windows[last_slot()].values = replacement;
+}
+
+machine replaced(values: &[Cell]) -> bool {
+    transition values.len == 2 {
+        true -> inspect(values)
+        false -> false
+    }
+    state inspect(values: &[Cell]) -> bool requires values.len == 2 {
+        values[0].value == 42 && values[0].tag == 7 && values[1].value == 19 && values[1].tag == 29
+    }
+}
+
+machine unchanged(values: &[Cell]) -> bool {
+    transition values.len == 1 {
+        true -> inspect(values)
+        false -> false
+    }
+    state inspect(values: &[Cell]) -> bool requires values.len == 1 {
+        values[0].value == 31 && values[0].tag == 41
+    }
+}
+
+machine check(windows: &mut [Window], original: &mut [Cell; 1]) -> bool
+requires windows.len == 2
+{
+    original[0].value = 9;
+    let valid: bool = replaced(windows[0].values);
+    let adjacent: bool = unchanged(windows[1].values);
+    valid && adjacent && original[0].value == 9 && original[0].tag == 17
+}
+
+windows_x86_64 machine exercise() crashes Trap {
+    let mut original: [Cell; 1] = [Cell { value: 7, tag: 17 }];
+    let mut neighbor: [Cell; 1] = [Cell { value: 31, tag: 41 }];
+    let mut replacement: [Cell; 2] = [Cell { value: 42, tag: 7 }, Cell { value: 19, tag: 29 }];
+    let mut windows: [Window; 2] = [Window { values: &mut original[..] }, Window { values: &mut neighbor[..] }];
+    windows[last_slot()].values = &mut replacement[..];
+    transition check(&mut windows[..], &mut original) {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+linux_x86_64 machine exercise() crashes Trap {
+    let mut original: [Cell; 1] = [Cell { value: 7, tag: 17 }];
+    let mut neighbor: [Cell; 1] = [Cell { value: 31, tag: 41 }];
+    let mut replacement: [Cell; 2] = [Cell { value: 42, tag: 7 }, Cell { value: 19, tag: 29 }];
+    let mut windows: [Window; 2] = [Window { values: &mut original[..] }, Window { values: &mut neighbor[..] }];
+    windows[last_slot()].values = &mut replacement[..];
+    transition check(&mut windows[..], &mut original) {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+linux_arm64 machine exercise() crashes Trap {
+    let mut original: [Cell; 1] = [Cell { value: 7, tag: 17 }];
+    let mut neighbor: [Cell; 1] = [Cell { value: 31, tag: 41 }];
+    let mut replacement: [Cell; 2] = [Cell { value: 42, tag: 7 }, Cell { value: 19, tag: 29 }];
+    let mut windows: [Window; 2] = [Window { values: &mut original[..] }, Window { values: &mut neighbor[..] }];
+    windows[last_slot()].values = &mut replacement[..];
+    transition check(&mut windows[..], &mut original) {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+macos_arm64 machine exercise() crashes Trap {
+    let mut original: [Cell; 1] = [Cell { value: 7, tag: 17 }];
+    let mut neighbor: [Cell; 1] = [Cell { value: 31, tag: 41 }];
+    let mut replacement: [Cell; 2] = [Cell { value: 42, tag: 7 }, Cell { value: 19, tag: 29 }];
+    let mut windows: [Window; 2] = [Window { values: &mut original[..] }, Window { values: &mut neighbor[..] }];
+    windows[last_slot()].values = &mut replacement[..];
+    transition check(&mut windows[..], &mut original) {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+machine main() crashes Trap { exercise(); }
