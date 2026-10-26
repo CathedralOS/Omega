@@ -44,8 +44,8 @@ mod entry_origins;
 // Contract induction consumes the same all-path origin solution as flow
 // rebasing. These are scratch queries, not additional retained proof authority.
 pub(crate) use entry_origins::{
-    MachineParameterOrigins, entry_storage_origins, machine_parameter_origins,
-    machine_storage_origins, state_origins as state_parameter_origins,
+    MachineParameterOrigins, activation_parameter_origins, entry_storage_origins,
+    machine_parameter_origins, machine_storage_origins, state_origins as state_parameter_origins,
 };
 mod exits;
 mod guard_predicates;

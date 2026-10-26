@@ -31,6 +31,7 @@ pub(in crate::checks) mod arithmetic;
 pub(in crate::checks) mod callable;
 use callable::Callable;
 mod availability;
+mod induction;
 mod static_operands;
 pub(crate) use availability::GuaranteeUse;
 pub(in crate::checks) use availability::{AvailableGuarantee, available};
