@@ -49,6 +49,7 @@ impl StructuralDomainDeclaration {
         self.establishment_routes.iter().any(|route| {
             matches!(route, StructuralEstablishmentRoute::BoundaryRequirement {
                 requirement: authorized,
+                ..
             } if *authorized == requirement)
         })
     }
@@ -70,18 +71,30 @@ impl StructuralDomainDeclaration {
 /// qualification. The retained identity is the replay authority: naming a
 /// machine is neither trait sealing nor an implicit grant to other machines
 /// in its package.
+/// Every route retains its exact nominal declaration owner independently from
+/// the overload's callable text: shared parameter/result owners do not identify
+/// the issuer. Private invocation owners remain bound to their retained code.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralEstablishmentRoute {
     /// An exact invocation through this requirement under a valid selected
     /// conformance; `requirement` is the requirement's canonical identity.
-    Requirement { requirement: TerminalIdentityIndex },
+    Requirement {
+        declaration: crate::NominalDeclarationIdentity,
+        requirement: TerminalIdentityIndex,
+    },
     /// That exact machine's invocation — not another conformer of a
     /// requirement it happens to satisfy. `machine` is the machine's
     /// canonical callable identity.
-    ExactMachine { machine: TerminalIdentityIndex },
+    ExactMachine {
+        declaration: crate::NominalDeclarationIdentity,
+        machine: TerminalIdentityIndex,
+    },
     /// An installed external-root invocation admitted under this boundary
     /// requirement; `requirement` is its canonical boundary identity.
-    BoundaryRequirement { requirement: TerminalIdentityIndex },
+    BoundaryRequirement {
+        declaration: crate::NominalDeclarationIdentity,
+        requirement: TerminalIdentityIndex,
+    },
 }
 
 /// Establishment evidence binding one domain membership on an operation

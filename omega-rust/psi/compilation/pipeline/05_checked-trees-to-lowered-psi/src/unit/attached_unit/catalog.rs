@@ -1526,6 +1526,16 @@ fn lower_establishment_route(
             trait_definition,
             requirement,
         } => terminal_psi::StructuralEstablishmentRoute::Requirement {
+            declaration: terminal_psi::NominalDeclarationIdentity::new(
+                crate::machine_lowering::declarations::semantic_identity(
+                    identities,
+                    checked,
+                    requirement,
+                )
+                .map_err(|_| {
+                    LoweringError::Unsupported("domain issuer has no exact declaration owner")
+                })?,
+            ),
             requirement: identities.intern(&establishment_requirement_identity(
                 checked,
                 trait_definition,
@@ -1536,6 +1546,16 @@ fn lower_establishment_route(
             boundary_trait,
             requirement,
         } => terminal_psi::StructuralEstablishmentRoute::BoundaryRequirement {
+            declaration: terminal_psi::NominalDeclarationIdentity::new(
+                crate::machine_lowering::declarations::semantic_identity(
+                    identities,
+                    checked,
+                    requirement,
+                )
+                .map_err(|_| {
+                    LoweringError::Unsupported("domain issuer has no exact declaration owner")
+                })?,
+            ),
             requirement: identities.intern(&establishment_requirement_identity(
                 checked,
                 boundary_trait,
@@ -1543,6 +1563,14 @@ fn lower_establishment_route(
             )?),
         },
         language_semantics::DomainEstablishmentRoute::ExactMachine { machine } => {
+            let owner = terminal_psi::NominalDeclarationIdentity::new(
+                crate::machine_lowering::declarations::semantic_identity(
+                    identities, checked, machine,
+                )
+                .map_err(|_| {
+                    LoweringError::Unsupported("domain issuer has no exact declaration owner")
+                })?,
+            );
             let declaration = checked
                 .typed
                 .machine(machine)
@@ -1556,6 +1584,7 @@ fn lower_establishment_route(
                     "domain establishment route machine has no normalized identity",
                 ))?;
             terminal_psi::StructuralEstablishmentRoute::ExactMachine {
+                declaration: owner,
                 machine: identities.intern(&machine),
             }
         }
@@ -1718,6 +1747,7 @@ pub(super) fn call_result_qualification_establishments(
         if let Some(index) = catalog.iter().position(|route| {
             matches!(route, terminal_psi::StructuralEstablishmentRoute::BoundaryRequirement {
                 requirement: candidate,
+                ..
             } if *candidate == requirement)
         }) {
             establishments.push(terminal_psi::ResultQualificationEstablishment {

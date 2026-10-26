@@ -123,24 +123,39 @@ fn same_domain(
             .establishment_routes
             .iter()
             .map(|route| {
-                let (kind, identity) = match route {
-                    StructuralEstablishmentRoute::Requirement { requirement } => (0, *requirement),
-                    StructuralEstablishmentRoute::ExactMachine { machine } => (1, *machine),
-                    StructuralEstablishmentRoute::BoundaryRequirement { requirement } => {
-                        (2, *requirement)
-                    }
+                let (kind, declaration, identity) = match route {
+                    StructuralEstablishmentRoute::Requirement {
+                        declaration,
+                        requirement,
+                    } => (0, declaration, *requirement),
+                    StructuralEstablishmentRoute::ExactMachine {
+                        declaration,
+                        machine,
+                    } => (1, declaration, *machine),
+                    StructuralEstablishmentRoute::BoundaryRequirement {
+                        declaration,
+                        requirement,
+                    } => (2, declaration, *requirement),
                 };
                 // Invocation-local issuer coordinates cannot establish a portable
                 // cross-artifact relation by spelling. The regular declaration join
                 // retains that restriction for domain and carrier identities too.
-                if module.identities.is_invocation_local(identity) {
+                if module.identities.is_invocation_local(identity)
+                    || module
+                        .identities
+                        .is_invocation_local(declaration.identity())
+                {
                     return None;
                 }
+                let owner = module
+                    .identities
+                    .text(declaration.identity())
+                    .filter(|name| !name.is_empty())?;
                 module
                     .identities
                     .text(identity)
                     .filter(|name| !name.is_empty())
-                    .map(|name| (kind, name.to_owned()))
+                    .map(|name| (kind, owner.to_owned(), name.to_owned()))
             })
             .collect::<Option<Vec<_>>>()?;
         rows.sort();

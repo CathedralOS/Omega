@@ -10,8 +10,9 @@ use super::super::wire::{Reader, Writer};
 use crate::sections::semantic_module::wire::{decode_counted, decode_ids};
 use semantic_vocabulary::ContentProjectionIdentity;
 use terminal_psi::{
-    InstallationReachDependency, ServiceDeclaration, StructuralContentProjection,
-    StructuralDomainDeclaration, StructuralEstablishmentRoute, TerminalIdentityIndex,
+    InstallationReachDependency, NominalDeclarationIdentity, ServiceDeclaration,
+    StructuralContentProjection, StructuralDomainDeclaration, StructuralEstablishmentRoute,
+    TerminalIdentityIndex,
 };
 
 fn encode_establishment_routes(
@@ -21,16 +22,28 @@ fn encode_establishment_routes(
     writer.len("domain establishment routes", routes.len())?;
     for route in routes {
         match route {
-            StructuralEstablishmentRoute::Requirement { requirement } => {
-                writer.u8(1);
+            StructuralEstablishmentRoute::Requirement {
+                declaration,
+                requirement,
+            } => {
+                writer.u8(4);
+                writer.u32(declaration.identity().0);
                 writer.u32(requirement.0);
             }
-            StructuralEstablishmentRoute::ExactMachine { machine } => {
-                writer.u8(2);
+            StructuralEstablishmentRoute::ExactMachine {
+                declaration,
+                machine,
+            } => {
+                writer.u8(5);
+                writer.u32(declaration.identity().0);
                 writer.u32(machine.0);
             }
-            StructuralEstablishmentRoute::BoundaryRequirement { requirement } => {
-                writer.u8(3);
+            StructuralEstablishmentRoute::BoundaryRequirement {
+                declaration,
+                requirement,
+            } => {
+                writer.u8(6);
+                writer.u32(declaration.identity().0);
                 writer.u32(requirement.0);
             }
         }
@@ -43,13 +56,19 @@ fn decode_establishment_routes(
 ) -> Result<Vec<StructuralEstablishmentRoute>, CodecError> {
     decode_counted(reader, |reader| {
         Ok(match reader.u8()? {
-            1 => StructuralEstablishmentRoute::Requirement {
+            // Tags 1–3 lacked issuer ownership and cannot answer a current
+            // cross-artifact route join. Retire them rather than infer an owner
+            // from a callable's parameter or result types.
+            4 => StructuralEstablishmentRoute::Requirement {
+                declaration: NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?)),
                 requirement: TerminalIdentityIndex(reader.u32()?),
             },
-            2 => StructuralEstablishmentRoute::ExactMachine {
+            5 => StructuralEstablishmentRoute::ExactMachine {
+                declaration: NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?)),
                 machine: TerminalIdentityIndex(reader.u32()?),
             },
-            3 => StructuralEstablishmentRoute::BoundaryRequirement {
+            6 => StructuralEstablishmentRoute::BoundaryRequirement {
+                declaration: NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?)),
                 requirement: TerminalIdentityIndex(reader.u32()?),
             },
             tag => return Err(CodecError::InvalidTag("StructuralEstablishmentRoute", tag)),
