@@ -902,6 +902,10 @@ narrows realization only.
   - Complete accepted-lock round-trip qualification, provider readiness/resumption,
     and demanded
     Product-description queries while replacing static Build projection.
+    Provider readiness needs the exact dependency-implementation nomination rule
+    in [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md#q1-which-authored-selection-does-build-provider-readiness-consume);
+    suspension mechanics and the remaining orchestration work are not blocked by
+    a missing IR design.
   - **BUILD-EVALUATES-ONCE / ONE-DRIVER-PER-STAGE:** evaluate `build.omg` once
     per compilation with no realized target observed, run Psi `00–07` once in
     `compiler.rs` to produce one canonical Terminal Psi artifact, and run Omega
