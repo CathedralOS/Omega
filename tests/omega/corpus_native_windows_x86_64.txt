@@ -232,8 +232,7 @@ pass/borrows/borrowed_array_loop checked 2285ms @5f668826adf3+wt
 pass/borrows/borrowed_case_leaf_copy_exit built 8733ms exit:70 @5f668826adf3+wt
 pass/borrows/borrowed_record_stack_parameter_writeback_exit built 9442ms exit:70 @5f668826adf3+wt
 pass/borrows/borrowed_sum_dispatch checked 2779ms @5f668826adf3+wt
-pass/borrows/borrowed_window_parameter_provenance_exit rejected 2871ms regressed-from:built+exit:0 @5f668826adf3+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "replace_via_borrowed_carrier_block_parameter", reason: "Unit graph state loan chain lender lends from two homes", gap: None })
+pass/borrows/borrowed_window_parameter_provenance_exit built 2871ms exit:0 @beacd47121d
 pass/borrows/boundary_scalar_slice_write_exit built 3049ms exit:0 @5f668826adf3+wt
 pass/borrows/branch_selected_record_composed_receiver_exit built 8015ms exit:70 @5f668826adf3+wt
 pass/borrows/branch_selected_record_receiver_exit built 8436ms exit:70 @5f668826adf3+wt
