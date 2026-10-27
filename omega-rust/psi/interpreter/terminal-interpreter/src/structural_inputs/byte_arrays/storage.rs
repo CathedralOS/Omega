@@ -46,10 +46,15 @@ impl TerminalExecution<'_> {
         use crate::byte_sequences::read::TerminalByteRead;
         match storage.home {
             ArrayStorageHome::Runtime => {
-                let bytes = self
-                    .structural_byte_storage
-                    .get(&storage.referent)
-                    .ok_or_else(malformed)?;
+                let Some(bytes) = self.structural_byte_storage.get(&storage.referent) else {
+                    if start == 0
+                        && end == 0
+                        && self.initialized_empty_byte_array(&storage.referent)?
+                    {
+                        return Ok(TerminalByteRead::contiguous(&[]));
+                    }
+                    return Err(malformed());
+                };
                 let window = bytes.bytes().get(start..end).ok_or_else(malformed)?;
                 Ok(TerminalByteRead::contiguous(window))
             }
@@ -117,11 +122,15 @@ impl TerminalExecution<'_> {
         storage: &ArrayStorage,
     ) -> Result<usize, TerminalInterpretError> {
         match storage.home {
-            ArrayStorageHome::Runtime => self
-                .structural_byte_storage
-                .get(&storage.referent)
-                .map(ByteSequenceView::len)
-                .ok_or(malformed()),
+            ArrayStorageHome::Runtime => {
+                if let Some(bytes) = self.structural_byte_storage.get(&storage.referent) {
+                    Ok(bytes.len())
+                } else if self.initialized_empty_byte_array(&storage.referent)? {
+                    Ok(0)
+                } else {
+                    Err(malformed())
+                }
+            }
             ArrayStorageHome::Frame { .. } => self
                 .frame_byte_array_window(storage)
                 .map(|(start, end)| end - start),
@@ -206,6 +215,17 @@ impl TerminalExecution<'_> {
         end: usize,
     ) -> Result<ByteSequenceView, TerminalInterpretError> {
         if let ArrayStorageHome::Runtime = storage.home {
+            if !self.structural_byte_storage.contains_key(&storage.referent)
+                && start == 0
+                && end == 0
+                && self.initialized_empty_byte_array(&storage.referent)?
+            {
+                return Ok(ByteSequenceView::new(ByteSequenceStorage::from_values(
+                    0,
+                    std::iter::empty(),
+                    self.account.as_ref(),
+                )?));
+            }
             return self
                 .structural_byte_storage
                 .get(&storage.referent)
@@ -229,6 +249,17 @@ impl TerminalExecution<'_> {
             values,
             self.account.as_ref(),
         )?))
+    }
+
+    pub(crate) fn initialized_empty_byte_array(
+        &self,
+        home: &StructuralRuntimePlace,
+    ) -> Result<bool, TerminalInterpretError> {
+        self.empty_array_storage.initialized_byte_array(
+            &self.program.structural_types(),
+            &self.structural_byte_storage,
+            home,
+        )
     }
 }
 

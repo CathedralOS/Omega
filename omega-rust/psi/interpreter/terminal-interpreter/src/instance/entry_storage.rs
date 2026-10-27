@@ -91,6 +91,11 @@ impl TerminalInstance<'_, '_> {
                 Ok(TerminalEntryStorageValue::Bytes(bytes))
             }
             StorageLeafKind::ByteArray { destination, .. } => {
+                if execution.initialized_empty_byte_array(destination)? {
+                    return Ok(TerminalEntryStorageValue::Bytes(
+                        crate::TerminalByteRead::contiguous(&[]),
+                    ));
+                }
                 let bytes = execution
                     .structural_byte_storage
                     .get(destination)

@@ -13,6 +13,7 @@ use terminal_psi::StructuralTypeShape;
 use terminal_psi::TerminalMachine;
 
 mod bindings;
+pub(crate) mod empty_storage;
 mod loans;
 mod storage;
 #[cfg(test)]

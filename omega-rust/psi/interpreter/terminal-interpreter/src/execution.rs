@@ -152,6 +152,7 @@ pub struct TerminalExecution<'artifact> {
     /// byte arrays and stored shared descriptors reuse the backing representation;
     /// each observing operation separately authenticates its declared carrier.
     pub(crate) structural_byte_storage: RuntimeRows<StructuralRuntimePlace, ByteSequenceView>,
+    pub(crate) empty_array_storage: crate::scalar_array::empty_storage::EmptyArrayStorage,
     /// Entry-provided discriminators remain attached to the original referent
     /// across projected and forwarded calls, independent of machine-local IDs.
     pub(crate) structural_cases: RuntimeRows<StructuralRuntimePlace, StructuralCaseContents>,
@@ -602,6 +603,9 @@ impl<'artifact> TerminalExecution<'artifact> {
             entry_storage_open: true,
             structural_byte_sequence_fields: RuntimeRows::new(account.as_ref()),
             structural_byte_storage: RuntimeRows::new(account.as_ref()),
+            empty_array_storage: crate::scalar_array::empty_storage::EmptyArrayStorage::new(
+                account.as_ref(),
+            ),
             structural_cases: RuntimeRows::new(account.as_ref()),
             structural_host_atoms: RuntimeRows::new(account.as_ref()),
             next_host_atom_collection_size: 1024,
