@@ -1,7 +1,7 @@
 //! Execute an admitted package batch; package management never calls back here.
 //!
 //! Admission retains source/consent identity. The application retains the
-//! package session through scheduling, then returns it for disposal. Accepted
+//! package session through scheduling and package-owned closure. Accepted
 //! targets run together, sharing source work and invocation-wide budgets.
 
 use crate::BuildSession;
@@ -62,5 +62,7 @@ pub(crate) fn compile_returned(
         admitted.requests,
         &mut completed,
     );
-    admitted.completion.complete(products, session.packages)
+    admitted
+        .completion
+        .complete(products, &mut session.packages)
 }

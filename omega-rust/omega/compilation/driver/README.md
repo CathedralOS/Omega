@@ -144,8 +144,7 @@ measurement, including discovery, requires two Builds, four checks, two source
 completions and two Terminal productions, with shared storage only for the
 equal-source pair. Product preparation executes no additional Builds. Missing
 retained custody and a late-added required output both reject without work.
-This control uses package-owned source resolution and Product admission rather
-than the static fixture dependency parser; its built-in entry bindings require
+This control uses package-owned source resolution and Product admission; its built-in entry bindings require
 no fixture-supplied acceptance. These workflow measurements
 advance `BUILD-EVALUATES-ONCE`; they do not close its remaining target-row work.
 The application request enters one compiler-stack worker; preparing Builds and
@@ -420,7 +419,9 @@ Physical, dependency-generated and activation-generated parsing all belong to
 [package source preparation](../../packages/compilation-inputs/src/source_assembly.rs).
 The coordinator forwards its complete syntax products into resolution and
 typing. Loading, lexing, parsing and syntax construction are not compiler-private
-continuation work; parser dependencies are needed only by corpus fixtures.
+continuation work. Corpus discovery executes Build through the application owner
+and observes its retained entry bindings; it has no separate parser dependencies
+or static dependency/target projection.
 
 Psi owns [source checking](../../../../wiki/spec/language/state_contracts.md).
 Its checking stage also owns exact boundary-call and source-authority validation;

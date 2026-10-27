@@ -114,8 +114,21 @@ pub fn fresh_staging_build_dir(repository_root: &Path, authored_root: &Path) -> 
     let staging = temporary_session_root()
         .join("fixture-build")
         .join(relative_fixture_path(repository_root, authored_root));
-    let _ = fs::remove_dir_all(&staging);
-    staging
+    fs::create_dir_all(&staging).expect("fixture staging parent");
+    // Separate Product legs can retain overlapping source lifetimes. Starting
+    // one must never dispose another leg's still-live package session.
+    for sequence in 0_u64.. {
+        let directory = staging.join(sequence.to_string());
+        match fs::create_dir(&directory) {
+            Ok(()) => return directory,
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => panic!(
+                "cannot reserve fixture staging {}: {error}",
+                directory.display()
+            ),
+        }
+    }
+    unreachable!("fixture staging sequence exhausted")
 }
 
 /// Stage `authored_root` as a sealed snapshot at the same path relative to

@@ -1,4 +1,4 @@
-use generator::main;
+use build_support;
 machine build(builder: &mut Build) {
     Build::package(builder, "nested_kernel");
     Build::build_depend_as(builder, "generator", Source::Path { location: "../generator" });

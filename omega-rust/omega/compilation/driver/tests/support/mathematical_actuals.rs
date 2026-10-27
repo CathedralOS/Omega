@@ -17,12 +17,9 @@ use terminal_codec::{
 };
 
 pub(super) fn produce(
-    request: compiler::CheckedCompileRequest,
+    checked: &compiler::CheckedCompilation,
     machine: &str,
 ) -> Result<CanonicalTerminalArtifact, String> {
-    let checked = omega_build::check_source(&mut compiler::CompilationSession::default(), request)
-        .result
-        .map_err(|errors| format!("mathematical actual source checking: {errors:?}"))?;
     let program = &checked.execution().program;
     let facts = &program.facts.proof;
     let signature = facts

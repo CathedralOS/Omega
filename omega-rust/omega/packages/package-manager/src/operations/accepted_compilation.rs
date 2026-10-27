@@ -111,8 +111,8 @@ pub struct ProjectCompilationOutcome {
 }
 
 /// Requests and their package-owned reconciliation. The application retains
-/// its package session while compiling, then transfers it into completion for
-/// disposal. Neither admission nor reconciliation invokes a compiler.
+/// its package session while compiling, then lends it to completion for
+/// closure. Neither admission nor reconciliation invokes a compiler.
 pub struct AdmittedProjectCompilation {
     pub requests: Vec<PackageCompilationRequest>,
     pub completion: ProjectCompilationCompletion,
@@ -239,13 +239,27 @@ fn admit_project(
 }
 
 impl ProjectCompilationCompletion {
+    /// Admission refusals remain attributed to their requested target even
+    /// when a caller inspects the admitted plans before executing products.
+    pub fn failures(
+        &self,
+    ) -> impl Iterator<Item = (target::TargetProfile, &ProjectCompilationError)> {
+        self.targets.iter().filter_map(|target| {
+            target
+                .receipt
+                .as_ref()
+                .err()
+                .map(|error| (target.target, error))
+        })
+    }
+
     /// Reconcile occurrence diagnostics and recheck the external compiler library
     /// once after execution. This is not an admission claim for a native image.
     /// Disposal failure is reported rather than silently dropping a failed close.
     pub fn complete(
         self,
         outputs: Vec<Result<CompilationOutput, compiler::PackageCompileFailure>>,
-        mut session: PackageBuildSession,
+        session: &mut PackageBuildSession,
     ) -> Vec<ProjectCompilationOutcome> {
         let expected = self
             .targets

@@ -1,13 +1,22 @@
-# Acquired generator and completed output-set reuse
+# Acquired dependency and completed output-set reuse
 
 This is the Linux completed-export admission witness for
 **BUILD-SNAPSHOT-OUTPUTS**. The root acquires a generator by `Source::Path` in
 both Build and Product contexts. Its Build reads `template.txt` from captured
-source and passes only six bytes to the helper. The helper produces the
+source and passes only six bytes to the package-local `build_support` helper. The helper produces the
 companion payload and a later-stratum source declaration. Both files must seal
 and complete before their shared output-set manifest is published. Authored
 product source calls the ordinary product helper, not a declaration generated
 by its own Build.
+
+The previous direct `use generator::main` in Build relied on the corpus's
+retired static dependency projection. Under
+[Build declarations](../../../../../wiki/spec/build/declarations.md), requesting
+a dependency does not grant ordinary Build imports. The generation and
+completed-export obligations here are unchanged; dependency acquisition still
+joins both purposes. Explicit cross-package execution is pinned separately by
+`explicit_provider_readiness_exit` and its private-backing refusal control.
+This fixture does not establish a shared custom generator interface.
 
 `omega run --both main.omg` exits 0 in native and Terminal execution. The
 publication oracle requires exactly `companion.txt` and `generated.omg` under

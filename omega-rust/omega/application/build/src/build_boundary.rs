@@ -237,7 +237,7 @@ fn ordinary_package_operations_admit_instead_of_execute() {
         .find("crate::package_compilation::compile_packages(")
         .unwrap();
     let reconcile = execution
-        .find("admitted.completion.complete(products, session.packages)")
+        .find(".complete(products, &mut session.packages)")
         .unwrap();
     assert!(admit < compile && compile < reconcile);
     let preparation =

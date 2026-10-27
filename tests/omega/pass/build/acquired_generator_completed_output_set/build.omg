@@ -1,4 +1,4 @@
-use generator::main;
+use build_support;
 
 machine build(builder: &mut Build) {
     Build::application(builder, "acquired_generator_completed_output_set");
@@ -21,7 +21,7 @@ machine build(builder: &mut Build) {
         _ -> failed(builder, companion, source)
     }
     state generate(builder: &mut Build, companion: RequiredOutput, source: RequiredOutput, template: &[u8; 6]) {
-        // The acquired helper receives only these six captured bytes, not the
+        // The local helper receives only these six captured bytes, not the
         // source capability or the caller's host paths.
         let bytes: [u8; 6] = generate_companion(template);
         let companion_path: BuildPath = BuildOutput::resolve(&builder.output, "companion.txt");
