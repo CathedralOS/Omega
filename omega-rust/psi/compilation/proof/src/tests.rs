@@ -26,6 +26,7 @@ fn collects_domain_surface() {
         index_arguments: HandleSpan::empty(),
         is_public: false,
         alias: None,
+        cleanup_selection: None,
         authored_routes: Vec::new(),
         classification: None,
         predicate_body: language_semantics::DomainPredicateBody::Bodyless,

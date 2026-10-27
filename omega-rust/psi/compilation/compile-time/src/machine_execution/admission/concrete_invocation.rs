@@ -61,6 +61,7 @@ pub(super) fn zero_argument_invocation_discharges(
     };
 
     let call = TableCallExpression {
+        authored_call_binding: None,
         authored_machine_application: Default::default(),
         requirement_application: Default::default(),
         exact_coercion_target: typed_trees::types::TypeReferenceHandle::invalid(),
@@ -397,10 +398,7 @@ pub(super) fn require_complete_invocation_conditions(
             .integer_range_obligations
             .iter()
             .any(|obligation| obligation.is_pending());
-    if !has_pending_boundary_scalars
-        && !has_pending_recipes
-        && !has_pending_predicates_or_ranges
-    {
+    if !has_pending_boundary_scalars && !has_pending_recipes && !has_pending_predicates_or_ranges {
         return Ok(());
     }
 

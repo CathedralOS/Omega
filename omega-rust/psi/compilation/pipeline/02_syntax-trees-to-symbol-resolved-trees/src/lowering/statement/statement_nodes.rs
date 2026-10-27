@@ -567,6 +567,7 @@ fn retain_build_declaration_call_expression(lowerer: &mut Lowerer, call: Call) -
     };
     let source_span = call.target.source_span();
     let expression = expression_table.insert(ExpressionNode::Call(TableCallExpression {
+        authored_call_binding: None,
         receiver,
         target_symbol: call.target_symbol,
         target: call.target,

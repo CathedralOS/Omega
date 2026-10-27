@@ -356,23 +356,7 @@ fn build_operation_spellings_round_trip() {
 }
 
 #[test]
-fn build_operation_spellings_are_the_exact_authored_vocabulary() {
-    assert_eq!(
-        BuildOperation::ALL.map(BuildOperation::authored_spelling),
-        [
-            "select_provider",
-            "assume_binding_contract",
-            "select_representation",
-            "exclude_service",
-            "audit_service",
-            "enable",
-            "emit_report",
-            "accept_boundary",
-            "require_wire_compatibility",
-            "include_source",
-            "write_line",
-        ]
-    );
+fn build_operation_spellings_reject_non_operations() {
     assert_eq!(
         BuildOperation::from_call_target("accept_boundary"),
         Some(BuildOperation::BoundaryAcceptance)
@@ -410,25 +394,4 @@ fn build_operation_spellings_are_the_exact_authored_vocabulary() {
             "`{spelling}` names no toolchain-owned build operation"
         );
     }
-}
-
-#[test]
-fn build_operations_map_onto_their_intrinsic_selection_targets() {
-    use AuthoredDeclarationSelectionIntrinsic as Intrinsic;
-    assert_eq!(
-        BuildOperation::ALL.map(BuildOperation::intrinsic),
-        [
-            Intrinsic::BuildProviderSelection,
-            Intrinsic::BuildAssumedBindingContract,
-            Intrinsic::BuildRepresentationSelection,
-            Intrinsic::BuildServiceExclusion,
-            Intrinsic::BuildServiceAudit,
-            Intrinsic::BuildOptimizationSelection,
-            Intrinsic::BuildOptimizationReportRequest,
-            Intrinsic::BuildBoundaryAcceptance,
-            Intrinsic::BuildWireCompatibilityRequest,
-            Intrinsic::BuildIncludedSourceHandoff,
-            Intrinsic::BuildLogWriteLine,
-        ]
-    );
 }

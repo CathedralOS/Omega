@@ -238,6 +238,7 @@ pub(super) fn static_callable_matches(
 pub(super) fn logical_requirement_matches(
     program: &TypedTrees,
     owner: SymbolHandle,
+    lexical_owner: SymbolHandle,
     site: &CallSite<'_>,
     authored: SymbolHandle,
 ) -> Result<bool, String> {
@@ -258,7 +259,7 @@ pub(super) fn logical_requirement_matches(
         return Ok(false);
     };
     let Some((selected_trait, selected_signature)) =
-        validation::requirement_contract_signature(program, owner, site)
+        validation::requirement_contract_signature(program, lexical_owner, site)
     else {
         return Ok(false);
     };
