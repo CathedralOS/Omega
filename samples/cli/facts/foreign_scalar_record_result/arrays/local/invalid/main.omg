@@ -1,0 +1,67 @@
+// Fact: a copyable C quotient/remainder record preserves both signed fields and independent earlier-call contents through transport and copying into the consuming operation.
+// Expected diagnostic: holds no value
+use omega::language::core::external_binding;
+public data Word [copy] { value: i64; guard: [u8; 4]; }
+public data Division { parts: [Word; 2]; }
+public boundary trait IntegerDivision {
+ machine divide(numerator: i64, denominator: i64) -> Division reaches;
+ machine verify(first: Division, copied: Division) -> bool reaches;
+}
+public macos_arm64 machine macos_arm64_division_binding() -> ForeignBinding<31, 15, 0> {
+ ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "libomega_arraydiv_fixture.dylib", symbol: "_arraydiv_lldiv" } }
+}
+public linux_x86_64 machine linux_x86_64_division_binding() -> ForeignBinding<28, 14, 12> {
+ ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_arraydiv_fixture.so", symbol: "arraydiv_lldiv", version: "ARRAYDIV_1.0" } }
+}
+public linux_arm64 machine linux_arm64_division_binding() -> ForeignBinding<28, 14, 12> {
+ ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_arraydiv_fixture.so", symbol: "arraydiv_lldiv", version: "ARRAYDIV_1.0" } }
+}
+public windows_x86_64 machine windows_x86_64_division_binding() -> ForeignBinding<26, 14, 0> {
+ ForeignBinding::DllImport { import: DllImport::PeByName { library: "omega_arraydiv_fixture.dll", export: "arraydiv_lldiv" } }
+}
+public macos_arm64 boundary machine divide(numerator: i64, denominator: i64) -> Division satisfies IntegerDivision::divide via macos_arm64_division_binding();
+public linux_x86_64 boundary machine divide(numerator: i64, denominator: i64) -> Division satisfies IntegerDivision::divide via linux_x86_64_division_binding();
+public linux_arm64 boundary machine divide(numerator: i64, denominator: i64) -> Division satisfies IntegerDivision::divide via linux_arm64_division_binding();
+public windows_x86_64 boundary machine divide(numerator: i64, denominator: i64) -> Division satisfies IntegerDivision::divide via windows_x86_64_division_binding();
+public macos_arm64 machine macos_arm64_verify_binding() -> ForeignBinding<31, 16, 0> {
+ ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "libomega_arraydiv_fixture.dylib", symbol: "_arraydiv_verify" } }
+}
+public linux_x86_64 machine linux_x86_64_verify_binding() -> ForeignBinding<28, 15, 12> {
+ ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_arraydiv_fixture.so", symbol: "arraydiv_verify", version: "ARRAYDIV_1.0" } }
+}
+public linux_arm64 machine linux_arm64_verify_binding() -> ForeignBinding<28, 15, 12> {
+ ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_arraydiv_fixture.so", symbol: "arraydiv_verify", version: "ARRAYDIV_1.0" } }
+}
+public windows_x86_64 machine windows_x86_64_verify_binding() -> ForeignBinding<26, 15, 0> {
+ ForeignBinding::DllImport { import: DllImport::PeByName { library: "omega_arraydiv_fixture.dll", export: "arraydiv_verify" } }
+}
+public macos_arm64 boundary machine verify(first: Division, copied: Division) -> bool satisfies IntegerDivision::verify via macos_arm64_verify_binding();
+public linux_x86_64 boundary machine verify(first: Division, copied: Division) -> bool satisfies IntegerDivision::verify via linux_x86_64_verify_binding();
+public linux_arm64 boundary machine verify(first: Division, copied: Division) -> bool satisfies IntegerDivision::verify via linux_arm64_verify_binding();
+public windows_x86_64 boundary machine verify(first: Division, copied: Division) -> bool satisfies IntegerDivision::verify via windows_x86_64_verify_binding();
+
+machine consume(first: Division, copied: Division) -> bool reaches IntegerDivision {
+ let second: Division = divide(70000000000, 9);
+ first.parts[0].value == -23333333333 && first.parts[1].value == -1
+ && copied.parts[0].value == -23333333333 && copied.parts[1].value == -1
+ && second.parts[0].value == 7777777777 && second.parts[1].value == 7
+ && first.parts[0].guard[0] == 17 && first.parts[0].guard[1] == 34 && first.parts[0].guard[2] == 51 && first.parts[0].guard[3] == 68
+ && first.parts[1].guard[0] == 85 && first.parts[1].guard[1] == 102 && first.parts[1].guard[2] == 119 && first.parts[1].guard[3] == 136
+ && copied.parts[0].guard[0] == 17 && copied.parts[0].guard[1] == 34 && copied.parts[0].guard[2] == 51 && copied.parts[0].guard[3] == 68
+ && copied.parts[1].guard[0] == 85 && copied.parts[1].guard[1] == 102 && copied.parts[1].guard[2] == 119 && copied.parts[1].guard[3] == 136
+ && second.parts[0].guard[0] == 18 && second.parts[0].guard[1] == 35 && second.parts[0].guard[2] == 52 && second.parts[0].guard[3] == 69
+ && second.parts[1].guard[0] == 86 && second.parts[1].guard[1] == 103 && second.parts[1].guard[2] == 120 && second.parts[1].guard[3] == 137
+ && verify(first, copied)
+}
+machine receive(value: Division) -> bool reaches IntegerDivision { consume(value, value) }
+machine observe() -> bool reaches IntegerDivision {
+ let first: Division = divide(-70000000000, 3);
+ let local: Division = first;
+ receive(local)
+}
+
+machine main() reaches IntegerDivision crashes Trap {
+ transition observe() { true -> done() _ -> failed() }
+ machine done() {}
+ machine failed() crashes Trap { crash Trap; }
+}

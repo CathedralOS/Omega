@@ -1318,7 +1318,8 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     and
     [foreign_indirect_float_record_result](samples/cli/facts/foreign_indirect_float_record_result/README.md),
     including matching-host qualification of
-    [recursive owned record input/results](samples/cli/facts/foreign_scalar_record_result/nested/README.md),
+    [recursive owned record input/results](samples/cli/facts/foreign_scalar_record_result/nested/README.md)
+    and [owned array descendants](samples/cli/facts/foreign_scalar_record_result/arrays/README.md),
     across Windows, macOS, and both Linux targets in Omega stages 02–03 and
     backend call-frame emission.
   - **OPAQUE-BY-VALUE-BOUNDARY-ABI:** connect
@@ -1328,11 +1329,12 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     rejection.
   - **FOREIGN-RETAINED-ARGUMENT-BACKING:** complete installed-provider custody
     and native marshaling for protocol-owned backing, permitted snapshots, and
-    remaining resident/view codecs (arrays, tagged/dynamic carriers,
-    independently qualified descendants, and nested owned/result publication
-    beyond [foreign_nested_record_backing](samples/cli/facts/foreign_nested_record_backing/README.md))
+    remaining resident/view codecs (borrowed arrays, tagged/dynamic carriers,
+    independently qualified descendants and tagged/qualified owned results)
     through stage 05 `retention/retained_borrow_custody.rs` and the selected
     provider.
+  - Bound native codec preparation and ordinary storage materialization for
+    nested zero-sized arrays without expanding every empty outer element.
   Acceptance: `samples/cli/facts/opaque_closed_carrier_exchange`,
   `samples/cli/facts/foreign_retained_shared_borrow`,
   `samples/cli/facts/foreign_retained_mutable_borrow`,
