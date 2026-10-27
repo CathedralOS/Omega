@@ -68,6 +68,21 @@ pub enum CoverageForm {
 }
 
 impl CoverageForm {
+    /// Recover an exact coverage resource name without treating another
+    /// provision as a coverage refusal or allocating permanent string storage.
+    pub fn from_resource(resource: &str) -> Option<Self> {
+        match resource {
+            "coverage_machine_headers" => Some(Self::MachineHeader),
+            "coverage_entry_signatures" => Some(Self::EntrySignature),
+            "coverage_state_signatures" => Some(Self::StateSignature),
+            "coverage_statement_forms" => Some(Self::StatementForm),
+            "coverage_call_forms" => Some(Self::CallForm),
+            "coverage_expression_forms" => Some(Self::ExpressionForm),
+            "coverage_transition_forms" => Some(Self::TransitionForm),
+            _ => None,
+        }
+    }
+
     /// The resource name the outcome table publishes.
     pub const fn resource(self) -> &'static str {
         match self {

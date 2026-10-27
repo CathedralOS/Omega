@@ -182,6 +182,7 @@ impl AcquiredWorkspaceBuild {
                         super::workspace_path::source_relative_path(path),
                     ),
                     selection: PackageSourceSelectionEvidence::Root,
+                    cache_directories: self.root.cache_directories.clone(),
                 },
             ));
         }
@@ -216,8 +217,8 @@ impl BuildSourceAcquisitions<'_> {
                 .select(request, selected)
                 .map(AcquiredSourceSelection::Source);
         }
-        let root = AcquiredBuildSource::capture_git(&source, request.clone())?;
-        self.retain_source(root.clone())?;
+        let root =
+            self.retain_source(AcquiredBuildSource::capture_git(&source, request.clone())?)?;
         Ok(AcquiredSourceSelection::Workspace(AcquiredWorkspaceBuild {
             source,
             request,
@@ -233,9 +234,9 @@ impl BuildSourceAcquisitions<'_> {
         workspace: AcquiredWorkspaceBuild,
         root: SourceBuildDeclaration,
     ) -> Result<AcquiredWorkspaceMembers, String> {
-        let members = workspace.members(root)?;
-        for source in members.sources() {
-            self.retain_source(source.clone())?;
+        let mut members = workspace.members(root)?;
+        for (_, source) in &mut members.members {
+            *source = self.retain_source(source.clone())?;
         }
         Ok(members)
     }

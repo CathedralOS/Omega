@@ -1454,7 +1454,7 @@ pub fn decode_component_description(
 /// Decode the description and retain its independently replayed canonical
 /// artifact for verification. This proves canonical encoding only; subject,
 /// proof admission, and inventory checks remain the verifier's responsibility.
-pub(crate) fn decode_component_description_with_artifact(
+pub fn decode_component_description_with_artifact(
     bytes: &[u8],
 ) -> Result<
     (

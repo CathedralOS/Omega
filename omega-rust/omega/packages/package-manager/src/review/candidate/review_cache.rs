@@ -46,7 +46,7 @@
 mod key;
 mod record_codec;
 
-pub(crate) use key::compiled_review_key;
+pub(crate) use key::{compiled_review_key, compiled_review_key_with_identity};
 
 use key::{lineage_digest, resolution_digest};
 use package_compilation::{

@@ -52,6 +52,36 @@ pub struct PackageCompilationTargetInputs {
     semantic_role_discovery: bool,
     independent_component_descriptions:
         BTreeMap<PackageKeyIdentity, IndependentComponentDescription>,
+    native_product_retention: Option<CompilerProductRetention>,
+}
+
+/// Optional compiler-private storage coordinates selected after ordinary
+/// package admission. The key binds compiler, source closure and snapshot;
+/// carrying it grants no checking, provider or execution authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompilerProductRetention {
+    directory: PathBuf,
+    input_key: [u8; 32],
+    compiler_identity: [u8; 32],
+}
+
+impl CompilerProductRetention {
+    pub fn new(directory: PathBuf, input_key: [u8; 32], compiler_identity: [u8; 32]) -> Self {
+        Self {
+            directory,
+            input_key,
+            compiler_identity,
+        }
+    }
+    pub fn directory(&self) -> &Path {
+        &self.directory
+    }
+    pub const fn input_key(&self) -> &[u8; 32] {
+        &self.input_key
+    }
+    pub const fn compiler_identity(&self) -> &[u8; 32] {
+        &self.compiler_identity
+    }
 }
 
 impl Default for PackageCompilationTargetInputs {
@@ -62,6 +92,7 @@ impl Default for PackageCompilationTargetInputs {
             accepted_semantic_bindings: BTreeMap::new(),
             semantic_role_discovery: false,
             independent_component_descriptions: BTreeMap::new(),
+            native_product_retention: None,
         }
     }
 }
@@ -111,6 +142,15 @@ struct PackageCompilationSourceRecord {
 }
 
 impl PackageCompilationInputs {
+    pub fn with_native_product_retention(mut self, retention: CompilerProductRetention) -> Self {
+        self.target.native_product_retention = Some(retention);
+        self
+    }
+
+    pub fn native_product_retention(&self) -> Option<&CompilerProductRetention> {
+        self.target.native_product_retention.as_ref()
+    }
+
     pub(crate) fn require_same_shared_product_sources(&self, other: &Self) -> Result<(), String> {
         for (identity, record) in &self.source.packages {
             if let Some(previous) = other.source.packages.get(identity) {
@@ -324,12 +364,14 @@ impl PackageCompilationInputs {
             accepted_semantic_bindings,
             semantic_role_discovery,
             independent_component_descriptions,
+            native_product_retention,
         } = target;
         let mut inputs = Self {
             source,
             target: PackageCompilationTargetInputs {
                 purpose,
                 semantic_role_discovery,
+                native_product_retention,
                 ..PackageCompilationTargetInputs::default()
             },
         };

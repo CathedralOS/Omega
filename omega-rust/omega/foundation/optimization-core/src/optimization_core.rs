@@ -674,6 +674,7 @@ impl OptimizationSelections {
     pub fn project_post_terminal(&self) -> PostTerminalOptimizationSelectionProjection {
         PostTerminalOptimizationSelectionProjection {
             complete_selection: self.identity(),
+            complete_selections: self.clone(),
             selected: PostTerminalOptimizationSelections {
                 selected: Self {
                     selected: self

@@ -17,6 +17,9 @@ use diagnostics::Diagnostic;
 /// canonical artifact. Callback placements identify exact portable applications;
 /// their bodies and formal ordering come from the artifact itself.
 pub struct TerminalNativeProposalRequest<'input> {
+    /// Complete namespace of evaluated via-binding receipt producer identities.
+    /// The original numeric coordinates cannot be recovered from a digest.
+    pub evaluated_binding_identities: &'input terminal_psi::TerminalIdentityTable,
     pub direct_boundary_leaves: Vec<&'input backend_plan::DirectBoundaryLeaf>,
     pub provider_declarations: &'input [backend_plan::TerminalTargetProviderPlan],
     pub target_profile: Option<target::TargetProfile>,

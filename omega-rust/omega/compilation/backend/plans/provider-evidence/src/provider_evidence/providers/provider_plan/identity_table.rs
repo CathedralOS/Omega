@@ -19,6 +19,16 @@
 pub struct ProviderIdentityId(u32);
 
 impl ProviderIdentityId {
+    /// Table-local storage coordinate only; membership is checked against its
+    /// owning table when admitting the complete plan.
+    pub const fn from_index(index: u32) -> Self {
+        Self(index)
+    }
+
+    pub const fn index(self) -> u32 {
+        self.0
+    }
+
     /// Whether this handle names an interned identity. The zero handle does not.
     pub fn is_valid(self) -> bool {
         self.0 != 0

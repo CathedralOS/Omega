@@ -413,6 +413,7 @@ dependencies = [
  "build-time-evaluation",
  "calling-conventions",
  "checked-trees",
+ "component-description",
  "diagnostics",
  "effects",
  "image-emission",
@@ -2400,6 +2401,7 @@ name = "terminal-psi-to-abstract-operations"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
+ "arena",
  "backend-plan",
  "boundary-applications",
  "calling-conventions",
@@ -2408,6 +2410,7 @@ dependencies = [
  "effects",
  "function-identity",
  "installation-evidence",
+ "language-semantics",
  "layout-plans",
  "numerics",
  "optimization-core",

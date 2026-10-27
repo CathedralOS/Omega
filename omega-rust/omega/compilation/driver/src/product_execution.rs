@@ -120,7 +120,10 @@ pub(crate) enum ProductRequest {
     },
     /// Review and dependency demands already own installed checked custody.
     /// They publish a component without selecting or installing it again.
-    Component(CheckedCompilation),
+    Component {
+        checked: CheckedCompilation,
+        retain_native_inputs: bool,
+    },
 }
 
 pub(crate) enum CompilationWork {
@@ -151,8 +154,11 @@ impl ProductRequest {
                 product,
                 permissions,
             } => (realization, root, product, permissions),
-            Self::Component(checked) => {
-                let component = ComponentPublication::prepare(checked)?;
+            Self::Component {
+                checked,
+                retain_native_inputs,
+            } => {
+                let component = ComponentPublication::prepare(checked, retain_native_inputs)?;
                 return Ok(CompilationWork::Terminal(TerminalCompilation::Component(
                     component,
                 )));
