@@ -2070,19 +2070,24 @@ impl<'program> StructuralJudge<'program> {
                     // result. Its original checked selection and formation stay
                     // on the source transition; a fired guard supplies neither
                     // operational eligibility nor the target's preconditions.
-                    let callee = self.entry_machines.machine(program, path.symbol)?;
+                    let (target, result_type) =
+                        crate::machine_calls::calls::terminal_callable_target(
+                            program,
+                            machine,
+                            path.symbol,
+                        )?;
+                    let callee = self.entry_machines.machine(program, target)?;
                     if !program.machine_type_parameters(callee).is_empty() {
                         return None;
                     }
                     specification_application_candidate(
                         program,
                         machine.symbol,
-                        path.symbol,
+                        target,
                         &[],
                         self.frame_resolver(),
                     )
                     .ok()?;
-                    let entry = program.machine_states(callee).first()?;
                     let arguments = program
                         .statement_table
                         .expression_handles(*arguments)
@@ -2101,8 +2106,8 @@ impl<'program> StructuralJudge<'program> {
                         })
                         .collect::<Option<Vec<_>>>()?;
                     Some(StructuralTerm::Application {
-                        result_type: entry.return_type,
-                        target: entry.symbol,
+                        result_type,
+                        target,
                         selections: Vec::new(),
                         machine: callee.name.as_str().to_owned(),
                         arguments,
