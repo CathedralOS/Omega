@@ -2,6 +2,7 @@
 
 use crate::task_plans::start_selections::TaskStartSelection;
 use diagnostics::Diagnostic;
+use effects::provider_plan::{ServiceMethod, ServiceSchema};
 use task_plans::{SelectedTaskRuntimeProviderFact, TaskRuntimeId, TaskStartOperation};
 
 fn exact_task_machine_plan<P>(
@@ -74,6 +75,17 @@ pub(crate) fn selected_task_runtime_provider(
     let requirement_owner_package = typed
         .symbols
         .symbol_package_identity(requirement_owner.symbol);
+    let requirement_owner_path = typed.trait_declaration_path(requirement_owner);
+    // One predicate decides whether a provider-plan method binds the authored
+    // requirement: its declaration path, its package-owned identity and the
+    // callable identity the activation's closed application resolved. Both the
+    // plan nomination and the operation extraction below ask this owner.
+    let binds_authored_requirement = |schema: &ServiceSchema, method: &ServiceMethod| {
+        method.requirement_owner == requirement_owner_path
+            && method.requirement_owner_package_identity == requirement_owner_package
+            && typed.callable_identity_by_text(schema.identity_text(method.requirement_identity))
+                == authored_requirement_identity
+    };
     let matches = selected_provider_plans
         .plans()
         .iter()
@@ -83,13 +95,11 @@ pub(crate) fn selected_task_runtime_provider(
                 &plan.schema,
                 requirement_owner,
             ) && plan.schema.trait_package_identity == requirement_owner_package
-                && plan.schema.methods.iter().any(|method| {
-                    method.requirement_owner == typed.trait_declaration_path(requirement_owner)
-                        && method.requirement_owner_package_identity == requirement_owner_package
-                        && typed.callable_identity_by_text(
-                            plan.schema.identity_text(method.requirement_identity),
-                        ) == authored_requirement_identity
-                })
+                && plan
+                    .schema
+                    .methods
+                    .iter()
+                    .any(|method| binds_authored_requirement(&plan.schema, method))
         })
         .collect::<Vec<_>>();
     let [plan] = matches.as_slice() else {
@@ -108,13 +118,7 @@ pub(crate) fn selected_task_runtime_provider(
         .schema
         .methods
         .iter()
-        .filter(|method| {
-            method.requirement_owner == typed.trait_declaration_path(requirement_owner)
-                && method.requirement_owner_package_identity == requirement_owner_package
-                && typed.callable_identity_by_text(
-                    plan.schema.identity_text(method.requirement_identity),
-                ) == authored_requirement_identity
-        })
+        .filter(|method| binds_authored_requirement(&plan.schema, method))
         .collect::<Vec<_>>();
     let [method] = requirements.as_slice() else {
         return Err(vec![Diagnostic::error(match requirements.len() {
@@ -128,16 +132,6 @@ pub(crate) fn selected_task_runtime_provider(
             ),
         })]);
     };
-    if typed.callable_identity_by_text(plan.schema.identity_text(method.requirement_identity))
-        != authored_requirement_identity
-    {
-        return Err(vec![Diagnostic::error(format!(
-            "selected TaskRuntime provider plan `{}` binds `{requirement_name}` as `{}`, but the activation call requires `{}`",
-            plan.name,
-            plan.schema.identity_text(method.requirement_identity),
-            typed.callable_identity_text(authored_requirement_identity)
-        ))]);
-    }
     let covering_rows = plan
         .rows
         .iter()
