@@ -15,7 +15,6 @@
 
 mod adapters;
 mod callable_authority;
-pub use adapters::NativeProviderPlanDeclaration;
 pub(crate) use adapters::retain_selected_provider_adapters;
 pub use callable_authority::AdmittedNativeCallableAuthority;
 mod callback_arguments;

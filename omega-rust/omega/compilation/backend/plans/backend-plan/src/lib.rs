@@ -10,7 +10,9 @@
 mod callback_artifacts;
 mod callback_placements;
 mod direct_boundary_leaves;
+mod native_provider_sources;
 pub use direct_boundary_leaves::{DirectBoundaryExecution, DirectBoundaryLeaf};
+pub use native_provider_sources::{NativeProviderSources, SelectedFamilyRealizationSource};
 mod target_providers;
 pub use callback_artifacts::{
     NativeCallbackThunkSettlement, TerminalCallbackOccurrenceProposal,

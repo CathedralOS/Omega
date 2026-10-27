@@ -8,6 +8,10 @@ use std::sync::Arc;
 
 pub struct CheckedProviderProgram {
     pub program: Arc<CheckedProgram>,
+    /// Source identities close with the bound program, before Terminal
+    /// publication. Only a native handoff demands this result; retaining a
+    /// failure here does not add a native-only obligation to checking stops.
+    pub native_provider_sources: Result<Arc<backend_plan::NativeProviderSources>, Vec<Diagnostic>>,
     pub selected_provider_plan_facts: effects::SelectedProviderPlanFacts,
     pub selected_provider_grants: Vec<trust_model::ResolvedAuthoredSelectedProviderGrant>,
     pub callback_placements:
@@ -17,6 +21,7 @@ pub struct CheckedProviderProgram {
 
 /// Realization choices joined to a completed source judgment.
 pub struct ProviderBindingRequest<'a> {
+    pub exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
     pub package_inputs: Option<&'a package_compilation::PackageCompilationInputs>,
     pub boundary_calling_plan_realizations:
         &'a [provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
@@ -60,6 +65,15 @@ pub fn bind_checked_providers(
             settlement.boundary_calling_plan_realizations,
         )?;
     Ok(CheckedProviderProgram {
+        native_provider_sources: provider_planning::prepare_native_provider_sources(
+            provider_planning::ProviderPlanningContext::new(
+                &program.typed,
+                source::DependencyScope::Product,
+            ),
+            settlement.exact_toolchain_sources,
+            settlement.selected_provider_provenance,
+        )
+        .map(Arc::new),
         program,
         selected_provider_plan_facts,
         selected_provider_grants,

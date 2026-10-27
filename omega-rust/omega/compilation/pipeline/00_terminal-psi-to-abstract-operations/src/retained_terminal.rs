@@ -10,12 +10,9 @@ pub use component_inputs::{
 mod native_providers;
 mod proposal;
 
-pub use proposal::{
-    SelectedFamilyRealizationSource, TerminalNativeProposalRequest,
-    project_terminal_native_realization_proposal,
-};
+pub use proposal::{TerminalNativeProposalRequest, project_terminal_native_realization_proposal};
 
-pub use backend_plan::TerminalTargetProviderProposal;
+pub use backend_plan::{SelectedFamilyRealizationSource, TerminalTargetProviderProposal};
 pub use backend_plan::{TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact};
 pub use native_providers::{
     PreparedNativeExecution, PreparedRetainedNativeProviders, RetainedNativeProviderInputs,
