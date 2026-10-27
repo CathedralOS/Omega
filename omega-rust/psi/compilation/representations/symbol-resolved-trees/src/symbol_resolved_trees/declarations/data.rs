@@ -14,6 +14,11 @@ pub struct DataDefinition {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DataDefinitionStorage {
+    /// Declaration-owned logical value whose default domain is being formed.
+    /// This is a proof binder, never an implicit runtime argument or an
+    /// already-established instance of the declared data type.
+    pub predicate_subject_symbol: SymbolHandle,
+    pub predicate_subject_type: TypeReference,
     pub supply_mode: language_semantics::DataSupplyMode,
     pub lifetime_parameters: Vec<DiagnosticName>,
     pub type_parameters: HandleSpan<TypeParameter>,

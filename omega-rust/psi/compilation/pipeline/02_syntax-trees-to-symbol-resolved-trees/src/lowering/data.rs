@@ -253,6 +253,8 @@ fn lower_data_definition_with_argument_origins(
         name: crate::lowering::name::lower_name(syntax_trees, &data_definition.name),
         is_public: data_definition.is_public,
         storage: DataDefinitionStorage {
+            predicate_subject_symbol: SymbolHandle::invalid(),
+            predicate_subject_type: symbol_resolved_trees::types::TypeReference::Unit,
             supply_mode: data_definition.supply_mode,
             lifetime_parameters: data_definition
                 .lifetime_parameters

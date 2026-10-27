@@ -83,5 +83,43 @@ pub(super) fn assign_data_symbols(program: &mut SymbolResolvedTrees, symbols: &S
                     }
                 }
             }
+            data_definition.predicate_subject_symbol = if data_definition.where_facts.is_empty() {
+                symbols::SymbolHandle::invalid()
+            } else {
+                next_child_of_kind(&mut data_children, symbols, SymbolKind::Parameter)
+            };
+            data_definition.predicate_subject_type = if !data_definition.predicate_subject_symbol.is_valid() {
+                symbol_resolved_trees::types::TypeReference::Unit
+            } else if let Some(origin) = &data_definition.generic_instance {
+                origin.clone()
+            } else if local_type_parameters.is_empty() {
+                symbol_resolved_trees::types::TypeReference::Named {
+                    symbol: data_symbol,
+                    name: symbol_resolved_trees::name::DiagnosticName::generated(data_definition.name.as_str()),
+                    supplied_operand_owner: Default::default(),
+                }
+            } else {
+                let arguments = local_type_parameters.iter().map(|parameter| {
+                    symbol_resolved_trees::types::TypeReference::Named {
+                        symbol: parameter.symbol,
+                        name: symbol_resolved_trees::name::DiagnosticName::generated(parameter.name.as_str()),
+                        supplied_operand_owner: Default::default(),
+                    }
+                }).collect::<Vec<_>>();
+                let span = match &data_definition.predicate_subject_type {
+                    symbol_resolved_trees::types::TypeReference::Generic(previous)
+                        if child_type_references.span_or_empty(previous.arguments) == arguments.as_slice() => previous.arguments,
+                    _ => child_type_references.insert_many(arguments),
+                };
+                symbol_resolved_trees::types::TypeReference::Generic(symbol_resolved_trees::types::GenericTypeReference {
+                    storage: symbol_resolved_trees::types::GenericTypeReferenceStorage {
+                        base_symbol: data_symbol,
+                        base_name: symbol_resolved_trees::name::DiagnosticName::generated(data_definition.name.as_str()),
+                        lifetime_arguments: data_definition.lifetime_parameters.clone(),
+                        arguments: span,
+                        ..Default::default()
+                    },
+                })
+            };
         });
 }

@@ -8,6 +8,10 @@ pub struct DataDefinition {
     pub symbol: SymbolHandle,
     pub name: Identifier,
     pub is_public: bool,
+    /// Proof-only subject of this declaration's unestablished default domain.
+    /// Its carrier supplies geometry and member types, not predicate truth.
+    pub predicate_subject_symbol: SymbolHandle,
+    pub predicate_subject_type: TypeReferenceHandle,
     pub supply_mode: language_semantics::DataSupplyMode,
     pub lifetime_parameters: Vec<Identifier>,
     pub type_parameters: HandleSpan<TypeParameter>,
@@ -37,6 +41,8 @@ impl Default for DataDefinition {
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
             is_public: false,
+            predicate_subject_symbol: SymbolHandle::invalid(),
+            predicate_subject_type: TypeReferenceHandle::invalid(),
             supply_mode: language_semantics::DataSupplyMode::CheckedShape,
             lifetime_parameters: Vec::new(),
             type_parameters: HandleSpan::empty(),

@@ -152,6 +152,9 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
                     symbol_resolved_trees::data::DataMember::Variant(_) => None,
                 }),
         );
+        if definition.predicate_subject_symbol.is_valid() {
+            local_symbols.push(("self".to_owned(), definition.predicate_subject_symbol));
+        }
         // A case's own `where` facts resolve in the definition scope PLUS the
         // case's payload fields; payload names shadow same-named common
         // entries (the scope lookup refuses ambiguous duplicates, so shadowed

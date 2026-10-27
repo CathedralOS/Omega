@@ -50,6 +50,13 @@ pub fn declaration_type_reference(
         let domain = typed_trees::domain::domain_by_symbol(program, parent)?;
         return (domain.subject_symbol == symbol).then_some(domain.target_type);
     }
+    if owner.kind == SymbolKind::Data
+        && let Some(definition) = program.data_definition_by_symbol(parent)
+        && definition.predicate_subject_symbol == symbol
+        && definition.predicate_subject_type.is_valid()
+    {
+        return Some(definition.predicate_subject_type);
+    }
     if declaration.kind == SymbolKind::Const {
         return program.const_declarations().iter().find_map(|declaration| {
             (declaration.symbol == symbol).then_some(declaration.declared_type)

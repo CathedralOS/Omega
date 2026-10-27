@@ -864,6 +864,10 @@ fn hinted_named_value_type_reference(
         // another declaration or case.
         symbols::SymbolKind::Data => {
             let definition = program.data_definition_by_symbol(parent)?;
+            if matches_symbol(definition.predicate_subject_symbol) {
+                return definition.predicate_subject_type.is_valid()
+                    .then_some(definition.predicate_subject_type);
+            }
             program
                 .data_members(definition)
                 .iter()
