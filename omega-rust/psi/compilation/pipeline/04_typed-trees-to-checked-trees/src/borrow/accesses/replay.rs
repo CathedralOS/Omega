@@ -1,22 +1,23 @@
 //! Rejoin an expression invocation's ordered access roster to its source.
 //!
-//! Named transition targets complete their extraction lifetimes from flow's
-//! observed operand graph. Expression invocations keep ordinary argument-order
+//! Whole transition invocations complete extraction lifetimes from flow's
+//! observed operand graph; nested invocations keep ordinary argument-order
 //! ends. Access rows are observations, not formal positions;
 //! callers select operands through the exact authored call site returned here.
 
 use validation::{CallSite, call_site_argument_expressions, find_call_site};
 
-use checked_trees::{BorrowFacts, FlowCallFact};
+use checked_trees::FlowCallFact;
 use symbols::SymbolHandle;
 
 pub(crate) fn rejoin_expression_call_accesses<'program>(
     program: &'program dyn ::validation::CheckingInput,
-    borrow: &BorrowFacts,
+    facts: crate::flow::CapturedSubjectFacts<'_>,
     machine: SymbolHandle,
     state: SymbolHandle,
     source: &FlowCallFact,
 ) -> Option<CallSite<'program>> {
+    let borrow = facts.borrow;
     let mut states = borrow
         .states
         .iter()
@@ -45,7 +46,7 @@ pub(crate) fn rejoin_expression_call_accesses<'program>(
         source.statement_index,
         source.call_ordinal,
     )?;
-    let collector = match &site {
+    match &site {
         CallSite::Expression { expression, call } => {
             if *expression != source.authored_expression
                 || validation::call_target_entry_symbol(
@@ -55,14 +56,23 @@ pub(crate) fn rejoin_expression_call_accesses<'program>(
             {
                 return None;
             }
-            super::collect_call_argument_accesses
         }
         _ => return None,
     };
     let arguments = call_site_argument_expressions(program, &site);
     let mut expected_segments = arena::Arena::new();
     let mut expected_accesses = arena::Arena::new();
-    let expected = collector(
+    let (owner, state_row) = validation::machine_state_by_symbols(program, machine, state)?;
+    let extraction = super::completed_dispatch::completed_invocation(
+        program,
+        facts,
+        owner,
+        state_row,
+        source.statement_index,
+        source.call_ordinal,
+    )
+    .map(|(_, extraction)| extraction);
+    let expected = super::collect_argument_access_span(
         program,
         &mut expected_segments,
         &mut expected_accesses,
@@ -71,6 +81,8 @@ pub(crate) fn rejoin_expression_call_accesses<'program>(
         source.statement_index,
         machine,
         source.target_symbol,
+        extraction.is_some(),
+        extraction,
     );
     let expected = expected_accesses.span(expected)?;
     let actual = borrow.argument_accesses.span(call.accesses)?;
