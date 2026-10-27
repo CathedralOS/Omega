@@ -1512,15 +1512,12 @@ fn intake_state_induction(
     else {
         return;
     };
-    let Some(call) = program.expression_table.call_node(value) else {
-        return;
-    };
     if !crate::machine_calls::calls::proof_call_has_structural_descent(
         program,
         machine,
         state,
         call_position,
-        call,
+        value,
     ) {
         return;
     }

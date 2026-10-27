@@ -50,6 +50,7 @@ pub(super) fn prove(
     let mut observer = ArrivalRequirement {
         requirement,
         entry: entry.symbol,
+        root: root.symbol,
         observed: Vec::new(),
     };
     let mut diagnostics = Vec::new();
@@ -89,6 +90,7 @@ pub(super) fn prove(
 struct ArrivalRequirement<'query, 'program> {
     requirement: &'query mut CallRequirement<'program>,
     entry: SymbolHandle,
+    root: SymbolHandle,
     observed: Vec<Arrival>,
 }
 
@@ -106,7 +108,21 @@ impl StructuralPrefixVisitor for ArrivalRequirement<'_, '_> {
         self.requirement.unresolved(machine);
     }
     fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {
-        self.requirement.observe(observation);
+        let (program, machine, state, mut judge, environment) = observation;
+        if !judge.has_runtime_body_values()
+            && let Some(root) = program.machine_by_symbol(self.root)
+        {
+            super::intake_state_induction(
+                program,
+                root,
+                state,
+                self.requirement.statement_index,
+                environment,
+                &mut judge,
+            );
+        }
+        self.requirement
+            .observe((program, machine, state, judge, environment));
     }
     fn entered_body(
         &mut self,
