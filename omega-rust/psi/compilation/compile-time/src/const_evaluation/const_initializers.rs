@@ -765,7 +765,6 @@ pub(crate) fn pending_initializers_need_execution_selection(
     typed: &typed_trees::TypedTrees,
     authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
     domain: &crate::build_time_evaluation::EvaluationDomain,
-    execution_is_pending: bool,
 ) -> Result<Vec<typed_trees::constant::ConstDeclaration>, Vec<Diagnostic>> {
     let declarations = typed
         .const_declarations()
@@ -780,10 +779,9 @@ pub(crate) fn pending_initializers_need_execution_selection(
                 .is_some()
         })
         .collect::<Vec<_>>();
-    if declarations.is_empty() {
-        return Ok(Vec::new());
-    }
-    for declaration in &declarations {
+    let mut needs_selection = Vec::new();
+    let mut dependencies = Vec::new();
+    for (ordinal, declaration) in declarations.iter().enumerate() {
         let table = &typed.expression_table;
         if !table.expression_is_valid(declaration.materialized_initializer)
             || table.source_span(declaration.materialized_initializer)
@@ -794,37 +792,74 @@ pub(crate) fn pending_initializers_need_execution_selection(
                 "pending scalar declaration lost its exact source initializer",
             ));
         }
-    }
-    if execution_is_pending {
-        return Ok(declarations.into_iter().cloned().collect());
-    }
-    let mut probes = typed.clone();
-    let mut work = domain.clone();
-    let mut owners = Vec::new();
-    for declaration in &declarations {
+        let mut probes = typed.clone();
         let owner = invocations::append_probe(
             &mut probes,
             declaration.symbol,
-            "@pending-constant".into(),
+            format!("@pending-constant-{ordinal}"),
             declaration.materialized_initializer,
             declaration.declared_type,
         );
+        let mut work = domain.clone();
         work.include(owner);
-        owners.push(owner);
+        let work = work.demanded_roots(&probes, &[owner]);
+        let references = work.references(&probes);
+        let selected_dependencies = references
+            .authored_selection_occurrences
+            .iter()
+            .filter_map(|occurrence| probes.authored_declaration_selections().get(*occurrence))
+            .filter_map(|selection| {
+                selection
+                    .target()
+                    .as_resolved()
+                    .map(|selected| selected.selected_symbol())
+            })
+            .filter_map(|symbol| {
+                declarations
+                    .iter()
+                    .position(|candidate| candidate.symbol == symbol)
+            })
+            .collect::<Vec<_>>();
+        let observes_layout = references.expressions.iter().any(|expression| {
+            probes
+                .expression_table
+                .call_node(*expression)
+                .is_some_and(|call| call.layout_query.is_some())
+        });
+        let prepared = crate::PreparedBuildMachineProgram::prepare_in(&probes, &work)?;
+        let execution = prepared.typed();
+        let facts = validation::derive_pre_flow_operator_selections(execution);
+        let admission = work.admission(execution, authority.clone());
+        needs_selection.push(
+            observes_layout
+                || admission.closure_needs_execution_preparation(execution, owner, &facts),
+        );
+        dependencies.push(selected_dependencies);
     }
-    let work = work.demanded_roots(&probes, &owners);
-    let prepared = crate::PreparedBuildMachineProgram::prepare_in(&probes, &work)?;
-    let execution = prepared.typed();
-    let facts = validation::derive_pre_flow_operator_selections(execution);
-    let admission = work.admission(execution, authority);
-    let needs_selection = owners
+    // Only genuine selected-execution demands and their exact source-selected
+    // dependency successors move to the target closure. Unrelated pending work
+    // cannot borrow a sibling declaration's reason to defer.
+    loop {
+        let mut changed = false;
+        for (ordinal, selected) in dependencies.iter().enumerate() {
+            if !needs_selection[ordinal]
+                && selected
+                    .iter()
+                    .any(|dependency| needs_selection[*dependency])
+            {
+                needs_selection[ordinal] = true;
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    Ok(declarations
         .into_iter()
-        .any(|owner| admission.closure_needs_execution_preparation(execution, owner, &facts));
-    Ok(if needs_selection {
-        declarations.into_iter().cloned().collect()
-    } else {
-        Vec::new()
-    })
+        .enumerate()
+        .filter_map(|(ordinal, declaration)| needs_selection[ordinal].then(|| declaration.clone()))
+        .collect())
 }
 
 fn retain_pending_observations(

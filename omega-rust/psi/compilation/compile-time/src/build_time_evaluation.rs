@@ -396,6 +396,7 @@ pub struct PreCheckEvaluation {
 /// may now complete the initializer values before their retained calls settle.
 #[must_use = "finish the evaluated initializer declarations after query closure"]
 pub struct EvaluatedPreCheck {
+    pending_initializers: Vec<typed_trees::constant::ConstDeclaration>,
     domain: EvaluationDomain,
     selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     selected_operators: Vec<SelectedBuildTimeBinaryOperator>,
@@ -409,6 +410,7 @@ impl EvaluatedPreCheck {
     ) -> Result<(), Vec<diagnostics::Diagnostic>> {
         const_initializers::settle_target_observations(
             typed,
+            &self.pending_initializers,
             self.selection_authority.clone(),
             &self.domain,
             SelectedBuildTimeOperators {
@@ -598,7 +600,6 @@ impl PreCheckEvaluation {
                 typed,
                 self.selection_authority.clone(),
                 &self.domain,
-                needs_selected_execution,
             )?;
         if needs_selected_execution || !self.pending_initializers.is_empty() {
             range_endpoints::defer_pending_endpoint_calls_in(typed, &self.domain)?;
@@ -739,6 +740,7 @@ impl PreCheckEvaluation {
         // continuation consumes them; initializer settlement waits for queries.
         validation::resolve_selected_dynamic_call_targets(typed, self.domain.work())?;
         Ok(EvaluatedPreCheck {
+            pending_initializers: self.pending_initializers,
             domain: self.domain,
             selection_authority: self.selection_authority,
             selected_operators: self.selected_operators,

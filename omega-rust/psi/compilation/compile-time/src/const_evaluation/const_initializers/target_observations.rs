@@ -15,6 +15,7 @@ use typed_trees::TypedTrees;
 
 pub(crate) fn settle(
     typed: &mut TypedTrees,
+    pending: &[typed_trees::constant::ConstDeclaration],
     authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
     domain: &EvaluationDomain,
     selected: crate::SelectedBuildTimeOperators<'_>,
@@ -23,7 +24,11 @@ pub(crate) fn settle(
         .const_declarations()
         .iter()
         .filter(|declaration| {
-            domain.contains(declaration.symbol) && declaration.evaluated_value.is_none()
+            domain.contains(declaration.symbol)
+                && declaration.evaluated_value.is_none()
+                && pending
+                    .iter()
+                    .any(|expected| expected.symbol == declaration.symbol)
         })
         .filter_map(|declaration| {
             scalar_probe_destination(typed, declaration.declared_type)
