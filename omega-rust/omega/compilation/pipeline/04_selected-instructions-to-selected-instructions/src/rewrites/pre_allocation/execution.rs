@@ -440,6 +440,54 @@ macro_rules! retryable_candidate_error {
     };
 }
 
+/// One pre-allocation candidate attempt: read the site's context under the
+/// binding names the family's own expressions use, charge its published
+/// measured-step audit, attempt the family's removal at the same site, and
+/// publish the attempt — applied with the removal's own second charge, or clean
+/// with the audit's charge alone when an ordinary legality refusal declines the
+/// site. A family supplies its own audit cost, removal call, transformation and
+/// refusal; the protocol around them is one owner.
+macro_rules! pre_allocation_candidate {
+    (
+        $(#[$meta:meta])*
+        $name:ident,
+        $current:ident, $function_index:ident, $function:ident, $instruction:ident,
+        $context:ident,
+        $(setup: $setup:stmt;)*
+        audit: $audit:expr,
+        reach: $reach:expr,
+        transformation: $transformation:ident,
+        refusal: $refusal:ident,
+        custody: $custody:ident $(,)?
+    ) => {
+        $(#[$meta])*
+        pub(crate) fn $name(
+            current: SelectedProgramRef<'_>,
+            site: CandidateSite,
+            context: &PreAllocationAdmissionContext<'_>,
+        ) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
+            let ($function_index, $function, $instruction) = candidate_context(&current, site)?;
+            let $current = &current;
+            let $context = context;
+            $( $setup )*
+            let audit_cost = $audit;
+            let charged = charge(0, audit_cost)?;
+            match $reach {
+                Ok(removal) => Ok(CandidateAttempt::applied(
+                    ValidatedPreAllocationTransformation::$transformation(removal),
+                    0,
+                    1,
+                    charge(charged, audit_cost)?,
+                )),
+                Err(retryable_candidate_error!($refusal, error)) => {
+                    Err(OptimizedPreAllocationCustodyError::$custody(error))
+                }
+                Err(_) => Ok(CandidateAttempt::clean(1, 1, charged)),
+            }
+        }
+    };
+}
+
 /// Whether the instruction kind is one of the same-block copy removals'
 /// source surface: `CopyI64`. Admission decides removability; this is only
 /// the source-bound candidate surface, scanned in plan order.
@@ -651,9 +699,8 @@ fn measure(plan: &SelectedInstructionPlan, virtual_registers: usize) -> usize {
     total
 }
 
-/// Admit the current copy. Ordinary legality refusals decline the site; budget,
-/// identity and validator failures abort the run. Published measured-step costs
-/// charge the admission audit and, on commit, its independent validation.
+/// The site's function index, its function under the current plan, and the
+/// instruction the site names.
 fn candidate_context<'a>(
     current: &'a SelectedProgramRef<'a>,
     site: CandidateSite,
@@ -667,116 +714,82 @@ fn candidate_context<'a>(
     Ok((function_index, function, instruction))
 }
 
-pub(crate) fn copy_removal_candidate(
-    current: SelectedProgramRef<'_>,
-    site: CandidateSite,
-    context: &PreAllocationAdmissionContext<'_>,
-) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
-    let (function_index, function, instruction) = candidate_context(&current, site)?;
-    let audit_cost = copy_removal_measured_steps(current.selected_plan(), function)
-        .map_err(OptimizedPreAllocationCustodyError::CopyRemoval)?;
-    let charged = charge(0, audit_cost)?;
-    match remove_selected_copy(
-        &current,
+pre_allocation_candidate!(
+    #[doc = "Admit the current copy. Ordinary legality refusals decline the site;"]
+    #[doc = "budget, identity and validator failures abort the run. Published"]
+    #[doc = "measured-step costs charge the admission audit and, on commit, its"]
+    #[doc = "independent validation."]
+    copy_removal_candidate,
+    current, function_index, function, instruction, context,
+    audit: copy_removal_measured_steps(current.selected_plan(), function)
+        .map_err(OptimizedPreAllocationCustodyError::CopyRemoval)?,
+    reach: remove_selected_copy(
+        current,
         function_index,
         instruction.id,
         context.environment,
         context.budget,
-    ) {
-        Ok(removal) => Ok(CandidateAttempt::applied(
-            ValidatedPreAllocationTransformation::CopyRemoval(removal),
-            0,
-            1,
-            charge(charged, audit_cost)?,
-        )),
-        Err(retryable_candidate_error!(CopyRemovalError, error)) => {
-            Err(OptimizedPreAllocationCustodyError::CopyRemoval(error))
-        }
-        Err(_) => Ok(CandidateAttempt::clean(1, 1, charged)),
-    }
-}
+    ),
+    transformation: CopyRemoval,
+    refusal: CopyRemovalError,
+    custody: CopyRemoval,
+);
 
-/// Admit the current extension under its own measured-step contract.
-pub(crate) fn extension_removal_candidate(
-    current: SelectedProgramRef<'_>,
-    site: CandidateSite,
-    context: &PreAllocationAdmissionContext<'_>,
-) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
-    let (function_index, function, instruction) = candidate_context(&current, site)?;
-    let audit_cost = redundant_extension_measured_steps(current.selected_plan(), function)
-        .map_err(OptimizedPreAllocationCustodyError::RedundantExtension)?;
-    let charged = charge(0, audit_cost)?;
-    match remove_selected_redundant_extension(
-        &current,
+pre_allocation_candidate!(
+    #[doc = "Admit the current extension under its own measured-step contract."]
+    extension_removal_candidate,
+    current, function_index, function, instruction, context,
+    audit: redundant_extension_measured_steps(current.selected_plan(), function)
+        .map_err(OptimizedPreAllocationCustodyError::RedundantExtension)?,
+    reach: remove_selected_redundant_extension(
+        current,
         function_index,
         instruction.id,
         context.environment,
         context.budget,
-    ) {
-        Ok(removal) => Ok(CandidateAttempt::applied(
-            ValidatedPreAllocationTransformation::RedundantExtension(removal),
-            0,
-            1,
-            charge(charged, audit_cost)?,
-        )),
-        Err(retryable_candidate_error!(RedundantExtensionError, error)) => Err(
-            OptimizedPreAllocationCustodyError::RedundantExtension(error),
-        ),
-        Err(_) => Ok(CandidateAttempt::clean(1, 1, charged)),
-    }
-}
+    ),
+    transformation: RedundantExtension,
+    refusal: RedundantExtensionError,
+    custody: RedundantExtension,
+);
 
-/// Admit the current displacement-carrying consumer.
-pub(crate) fn address_fold_candidate(
-    current: SelectedProgramRef<'_>,
-    site: CandidateSite,
-    context: &PreAllocationAdmissionContext<'_>,
-) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
-    let (function_index, function, instruction) = candidate_context(&current, site)?;
-    let audit_cost = address_fold_measured_steps(current.selected_plan(), function)
-        .map_err(OptimizedPreAllocationCustodyError::AddressFold)?;
-    let charged = charge(0, audit_cost)?;
-    match fold_selected_address(
-        &current,
+pre_allocation_candidate!(
+    #[doc = "Admit the current displacement-carrying consumer."]
+    address_fold_candidate,
+    current, function_index, function, instruction, context,
+    audit: address_fold_measured_steps(current.selected_plan(), function)
+        .map_err(OptimizedPreAllocationCustodyError::AddressFold)?,
+    reach: fold_selected_address(
+        current,
         function_index,
         instruction.id,
         context.environment,
         context.budget,
-    ) {
-        Ok(removal) => Ok(CandidateAttempt::applied(
-            ValidatedPreAllocationTransformation::AddressFold(removal),
-            0,
-            1,
-            charge(charged, audit_cost)?,
-        )),
-        Err(retryable_candidate_error!(AddressFoldError, error)) => {
-            Err(OptimizedPreAllocationCustodyError::AddressFold(error))
-        }
-        Err(_) => Ok(CandidateAttempt::clean(1, 1, charged)),
-    }
-}
+    ),
+    transformation: AddressFold,
+    refusal: AddressFoldError,
+    custody: AddressFold,
+);
 
-/// Admit the current flag reader. The target flag universe bounds the reached
-/// compare's definitions in the pre-admission work charge.
-pub(crate) fn constant_boolean_candidate(
-    current: SelectedProgramRef<'_>,
-    site: CandidateSite,
-    context: &PreAllocationAdmissionContext<'_>,
-) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
-    let (function_index, function, instruction) = candidate_context(&current, site)?;
-    let (flag_universe, materialize_surface) = constant_boolean_surface_sizes(context.environment)
-        .map_err(OptimizedPreAllocationCustodyError::ConstantBoolean)?;
+pre_allocation_candidate!(
+    #[doc = "Admit the current flag reader. The target flag universe bounds the"]
+    #[doc = "reached compare's definitions in the pre-admission work charge."]
+    constant_boolean_candidate,
+    current, function_index, function, instruction, context,
+    setup: let (flag_universe, materialize_surface) =
+        constant_boolean_surface_sizes(context.environment)
+            .map_err(OptimizedPreAllocationCustodyError::ConstantBoolean)?;
+    setup: let (successors, _) = adjacency(function);
     // The condition-materialization pair descriptors admit the fold through
     // the environment's own validated catalog — a pure function of the target
     // and the constraint catalog, so the custody replay re-running this pass
     // binds the same declarations.
-    let effect_catalog = validated_machine_effect_catalog(
+    setup: let effect_catalog = validated_machine_effect_catalog(
         context.environment.target(),
         context.environment.constraints(),
     )
     .map_err(OptimizedPreAllocationCustodyError::MachineEffects)?;
-    let (successors, _) = adjacency(function);
-    let audit_cost = constant_boolean_measured_steps(
+    audit: constant_boolean_measured_steps(
         current.selected_plan(),
         function,
         &successors,
@@ -785,49 +798,37 @@ pub(crate) fn constant_boolean_candidate(
         materialize_surface,
         flag_universe,
     )
-    .map_err(OptimizedPreAllocationCustodyError::ConstantBoolean)?;
-    let charged = charge(0, audit_cost)?;
-    match fold_selected_constant_boolean(
-        &current,
+    .map_err(OptimizedPreAllocationCustodyError::ConstantBoolean)?,
+    reach: fold_selected_constant_boolean(
+        current,
         function_index,
         instruction.id,
         context.environment,
         &effect_catalog,
         context.budget,
-    ) {
-        Ok(fold) => Ok(CandidateAttempt::applied(
-            ValidatedPreAllocationTransformation::ConstantBoolean(fold),
-            0,
-            1,
-            charge(charged, audit_cost)?,
-        )),
-        Err(retryable_candidate_error!(ConstantBooleanError, error)) => {
-            Err(OptimizedPreAllocationCustodyError::ConstantBoolean(error))
-        }
-        Err(_) => Ok(CandidateAttempt::clean(1, 1, charged)),
-    }
-}
+    ),
+    transformation: ConstantBoolean,
+    refusal: ConstantBooleanError,
+    custody: ConstantBoolean,
+);
 
-/// Admit the current branch terminator with the target flag-universe bound.
-pub(crate) fn constant_branch_candidate(
-    current: SelectedProgramRef<'_>,
-    site: CandidateSite,
-    context: &PreAllocationAdmissionContext<'_>,
-) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
-    let (function_index, function, instruction) = candidate_context(&current, site)?;
-    let (flag_universe, jump_surface) = constant_branch_surface_sizes(context.environment)
+pre_allocation_candidate!(
+    #[doc = "Admit the current branch terminator with the target flag-universe bound."]
+    constant_branch_candidate,
+    current, function_index, function, instruction, context,
+    setup: let (flag_universe, jump_surface) = constant_branch_surface_sizes(context.environment)
         .map_err(OptimizedPreAllocationCustodyError::ConstantBranch)?;
+    setup: let (successors, _) = adjacency(function);
     // The decided-branch pair descriptors admit the control-flow relationship
     // through the environment's own validated catalog — a pure function of
     // the target and the constraint catalog, so the custody replay re-running
     // this pass binds the same declarations.
-    let effect_catalog = validated_machine_effect_catalog(
+    setup: let effect_catalog = validated_machine_effect_catalog(
         context.environment.target(),
         context.environment.constraints(),
     )
     .map_err(OptimizedPreAllocationCustodyError::MachineEffects)?;
-    let (successors, _) = adjacency(function);
-    let audit_cost = constant_branch_measured_steps(
+    audit: constant_branch_measured_steps(
         current.selected_plan(),
         function,
         &successors,
@@ -836,134 +837,89 @@ pub(crate) fn constant_branch_candidate(
         jump_surface,
         flag_universe,
     )
-    .map_err(OptimizedPreAllocationCustodyError::ConstantBranch)?;
-    let charged = charge(0, audit_cost)?;
-    match fold_selected_constant_branch(
-        &current,
+    .map_err(OptimizedPreAllocationCustodyError::ConstantBranch)?,
+    reach: fold_selected_constant_branch(
+        current,
         function_index,
         instruction.id,
         context.environment,
         &effect_catalog,
         context.budget,
-    ) {
-        Ok(fold) => Ok(CandidateAttempt::applied(
-            ValidatedPreAllocationTransformation::ConstantBranch(fold),
-            0,
-            1,
-            charge(charged, audit_cost)?,
-        )),
-        Err(retryable_candidate_error!(ConstantBranchError, error)) => {
-            Err(OptimizedPreAllocationCustodyError::ConstantBranch(error))
-        }
-        Err(_) => Ok(CandidateAttempt::clean(1, 1, charged)),
-    }
-}
+    ),
+    transformation: ConstantBranch,
+    refusal: ConstantBranchError,
+    custody: ConstantBranch,
+);
 
-/// Admit the current dead-compare proposal, charging its published flag units.
-pub(crate) fn dead_compare_candidate(
-    current: SelectedProgramRef<'_>,
-    site: CandidateSite,
-    context: &PreAllocationAdmissionContext<'_>,
-) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
-    let (function_index, function, instruction) = candidate_context(&current, site)?;
-    let audit_cost = dead_compare_measured_steps(
+pre_allocation_candidate!(
+    #[doc = "Admit the current dead-compare proposal, charging its published flag units."]
+    dead_compare_candidate,
+    current, function_index, function, instruction, context,
+    audit: dead_compare_measured_steps(
         current.selected_plan(),
         function,
         published_flag_units(instruction),
     )
-    .map_err(OptimizedPreAllocationCustodyError::DeadCompare)?;
-    let charged = charge(0, audit_cost)?;
-    match remove_dead_compare(
-        &current,
+    .map_err(OptimizedPreAllocationCustodyError::DeadCompare)?,
+    reach: remove_dead_compare(
+        current,
         function_index,
         instruction.id,
         context.environment,
         context.budget,
-    ) {
-        Ok(removal) => Ok(CandidateAttempt::applied(
-            ValidatedPreAllocationTransformation::DeadCompare(removal),
-            0,
-            1,
-            charge(charged, audit_cost)?,
-        )),
-        Err(retryable_candidate_error!(DeadCompareError, error)) => {
-            Err(OptimizedPreAllocationCustodyError::DeadCompare(error))
-        }
-        Err(_) => Ok(CandidateAttempt::clean(1, 1, charged)),
-    }
-}
+    ),
+    transformation: DeadCompare,
+    refusal: DeadCompareError,
+    custody: DeadCompare,
+);
 
-/// Admit the current redundant-compare proposal.
-pub(crate) fn redundant_compare_candidate(
-    current: SelectedProgramRef<'_>,
-    site: CandidateSite,
-    context: &PreAllocationAdmissionContext<'_>,
-) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
-    let (function_index, function, instruction) = candidate_context(&current, site)?;
-    let (successors, _) = adjacency(function);
-    let audit_cost = redundant_compare_measured_steps(
+pre_allocation_candidate!(
+    #[doc = "Admit the current redundant-compare proposal."]
+    redundant_compare_candidate,
+    current, function_index, function, instruction, context,
+    setup: let (successors, _) = adjacency(function);
+    audit: redundant_compare_measured_steps(
         current.selected_plan(),
         function,
         &successors,
         published_flag_units(instruction),
     )
-    .map_err(OptimizedPreAllocationCustodyError::RedundantCompare)?;
-    let charged = charge(0, audit_cost)?;
-    match remove_redundant_compare(
-        &current,
+    .map_err(OptimizedPreAllocationCustodyError::RedundantCompare)?,
+    reach: remove_redundant_compare(
+        current,
         function_index,
         instruction.id,
         context.environment,
         context.budget,
-    ) {
-        Ok(removal) => Ok(CandidateAttempt::applied(
-            ValidatedPreAllocationTransformation::RedundantCompare(removal),
-            0,
-            1,
-            charge(charged, audit_cost)?,
-        )),
-        Err(retryable_candidate_error!(RedundantCompareError, error)) => {
-            Err(OptimizedPreAllocationCustodyError::RedundantCompare(error))
-        }
-        Err(_) => Ok(CandidateAttempt::clean(1, 1, charged)),
-    }
-}
+    ),
+    transformation: RedundantCompare,
+    refusal: RedundantCompareError,
+    custody: RedundantCompare,
+);
 
-/// Admit the current equivalent-compare proposal.
-pub(crate) fn equivalent_compare_candidate(
-    current: SelectedProgramRef<'_>,
-    site: CandidateSite,
-    context: &PreAllocationAdmissionContext<'_>,
-) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
-    let (function_index, function, instruction) = candidate_context(&current, site)?;
-    let (successors, _) = adjacency(function);
-    let audit_cost = equivalent_compare_measured_steps(
+pre_allocation_candidate!(
+    #[doc = "Admit the current equivalent-compare proposal."]
+    equivalent_compare_candidate,
+    current, function_index, function, instruction, context,
+    setup: let (successors, _) = adjacency(function);
+    audit: equivalent_compare_measured_steps(
         current.selected_plan(),
         function,
         &successors,
         published_flag_units(instruction),
     )
-    .map_err(OptimizedPreAllocationCustodyError::EquivalentCompare)?;
-    let charged = charge(0, audit_cost)?;
-    match remove_equivalent_compare(
-        &current,
+    .map_err(OptimizedPreAllocationCustodyError::EquivalentCompare)?,
+    reach: remove_equivalent_compare(
+        current,
         function_index,
         instruction.id,
         context.environment,
         context.budget,
-    ) {
-        Ok(removal) => Ok(CandidateAttempt::applied(
-            ValidatedPreAllocationTransformation::EquivalentCompare(removal),
-            0,
-            1,
-            charge(charged, audit_cost)?,
-        )),
-        Err(retryable_candidate_error!(EquivalentCompareError, error)) => {
-            Err(OptimizedPreAllocationCustodyError::EquivalentCompare(error))
-        }
-        Err(_) => Ok(CandidateAttempt::clean(1, 1, charged)),
-    }
-}
+    ),
+    transformation: EquivalentCompare,
+    refusal: EquivalentCompareError,
+    custody: EquivalentCompare,
+);
 
 /// One measured-step charge against the per-pass budget: every
 /// accumulation shares the same overflow refusal.

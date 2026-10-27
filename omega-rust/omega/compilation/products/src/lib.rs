@@ -37,6 +37,7 @@ mod package_build;
 mod prepared_build;
 mod prepared_source;
 pub mod publication;
+mod retained_native_program;
 
 pub use checked_compilation::{
     CheckedCompilation, CheckedCompilationInputs, CheckedProductReport, ProductReportPlan,
@@ -75,6 +76,7 @@ pub use prepared_source::{
     DeferredProductCompilation, PreparedCheckedSource, PreparedSourceFrontier,
     TypedCompilationFrontier,
 };
+pub use retained_native_program::{RetainedNativeProgram, RetainedNativeProgramIdentity};
 pub use terminal_psi_to_abstract_operations::{
     RetainedTerminalArtifact, TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact,
     TerminalCompilerBuiltinProposal, TerminalIeeeFloatComparisonOccurrenceProposal,

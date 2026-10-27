@@ -35,7 +35,7 @@ use crate::physical::{
 use crate::publication::publication_digest;
 pub(super) use boundary_applications::boundary_application_coverage_identity;
 use boundary_applications::validate_boundary_application_coverage;
-pub use dynamic_elf::DynamicElfNativeArtifact;
+pub use dynamic_elf::{DynamicElfNativeArtifact, DynamicElfNativeArtifactIdentity};
 pub use emission::RequestedNativeArtifact;
 use identity::{
     NativeArtifactIdentityFields, compiler_identity_evidence, derive_native_artifact_identity,
