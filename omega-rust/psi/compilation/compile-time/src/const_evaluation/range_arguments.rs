@@ -23,6 +23,7 @@ pub(crate) fn evaluate(
     bindings: &[SourceScopedTopLevelBinding],
     authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
+    let _profile = phase_profile::guard("pre_resolution.range_arguments");
     let mut pending = syntax.type_references.generic_nodes();
     for (_, expression) in syntax.expressions.iter_expressions() {
         if let ExpressionNode::Call(call) = expression {

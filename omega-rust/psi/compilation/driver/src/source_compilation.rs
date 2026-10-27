@@ -73,17 +73,20 @@ impl SourceCompilationRequest {
         self,
         observer: &mut impl PsiCompilationObserver,
     ) -> Result<SourceContinuation, Vec<Diagnostic>> {
-        let evaluated = build_time_evaluation::evaluate_pre_resolution(
-            build_time_evaluation::BuildTimeEvaluationRequest {
-                syntax_trees: self.syntax,
-                source_context: Some(build_time_evaluation::BuildTimeSourceContext {
-                    sources: Arc::clone(&self.sources),
-                    source_scoped_top_level_bindings: &self.top_level_bindings,
-                    selection_authority: self.selection_authority,
-                    retained_base: None,
-                }),
-            },
-        )?;
+        let _profile = phase_profile::guard("psi.source.prepare");
+        let evaluated = phase_profile::scope("psi.source.prepare.pre_resolution", || {
+            build_time_evaluation::evaluate_pre_resolution(
+                build_time_evaluation::BuildTimeEvaluationRequest {
+                    syntax_trees: self.syntax,
+                    source_context: Some(build_time_evaluation::BuildTimeSourceContext {
+                        sources: Arc::clone(&self.sources),
+                        source_scoped_top_level_bindings: &self.top_level_bindings,
+                        selection_authority: self.selection_authority,
+                        retained_base: None,
+                    }),
+                },
+            )
+        })?;
         let (syntax, pre_check) = evaluated.into_syntax_and_pre_check();
         let mut pending_bodies = observer.record_result(PsiCompilationStage::Resolution, || {
             syntax_trees_to_symbol_resolved_trees::resolve_deferred(
@@ -218,6 +221,7 @@ impl SourceContinuation {
         self,
         observer: &mut impl PsiCompilationObserver,
     ) -> Result<CompletedSource, Vec<Diagnostic>> {
+        let _profile = phase_profile::guard("psi.source.complete_authored");
         if let Some(source) = self.completions.find(&self.input)? {
             return Ok(source);
         }
@@ -275,6 +279,7 @@ impl CompletedSource {
     }
 
     pub fn finish(self) -> PreparedSource {
+        let _profile = phase_profile::guard("psi.source.finish");
         PreparedSource {
             accounting: self.accounting,
             typed: self.typing.into_typed(),
@@ -290,6 +295,7 @@ impl CompletedSource {
         extension: SourceExtensionRequest,
         observer: &mut impl PsiCompilationObserver,
     ) -> Result<PreparedSource, Vec<Diagnostic>> {
+        let _profile = phase_profile::guard("psi.source.extend");
         let wire_schema_frontier = self.typing.typed().wire_schemas().len();
         let resolved_base = self.typing.resolved_base_for_extension()?;
         let (syntax, pre_checks) =

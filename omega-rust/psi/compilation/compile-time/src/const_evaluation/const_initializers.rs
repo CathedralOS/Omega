@@ -102,6 +102,7 @@ pub(crate) fn evaluate(
     bindings: &[SourceScopedTopLevelBinding],
     authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
+    let _profile = phase_profile::guard("pre_resolution.constant_initializers");
     use syntax_trees_to_symbol_resolved_trees::pre_resolution::requires_const_initializer_evaluation;
     syntax = super::const_qualifications::prove_ready(syntax, sources.clone(), bindings)?;
     if !syntax.root_items().any(|item| {

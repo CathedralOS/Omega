@@ -37,6 +37,7 @@ pub(crate) fn evaluate(
     bindings: &[SourceScopedTopLevelBinding],
     authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
+    let _profile = phase_profile::guard("pre_resolution.constant_expressions");
     let data_arguments =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(
             &syntax,
@@ -53,6 +54,18 @@ pub(crate) fn evaluate(
             sources.clone(),
             bindings.to_vec(),
         )?;
+    phase_profile::count(
+        "pre_resolution.constant_expressions.data",
+        data_arguments.len() as u64,
+    );
+    phase_profile::count(
+        "pre_resolution.constant_expressions.extents",
+        extent_arguments.len() as u64,
+    );
+    phase_profile::count(
+        "pre_resolution.constant_expressions.machines",
+        machine_arguments.len() as u64,
+    );
     let mut lexical_arguments = Vec::new();
     let mut aggregate_arguments = Vec::new();
     // Declaration initializers have already materialized named data indices.
@@ -155,6 +168,10 @@ pub(crate) fn evaluate(
             Some((*argument, *expression, *destination, *public))
         })
         .collect::<Vec<_>>();
+    phase_profile::count(
+        "pre_resolution.constant_expressions.pending",
+        pending.len() as u64,
+    );
     if pending.is_empty() {
         return Ok(syntax);
     }
