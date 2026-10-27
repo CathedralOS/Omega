@@ -1,1 +1,2 @@
-data constant `Element` violates its default-domain predicate
+data `Element` literal violates the default domain
+`where` fact evaluates FALSE
