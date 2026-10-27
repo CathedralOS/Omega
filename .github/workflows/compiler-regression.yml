@@ -20,7 +20,7 @@ on:
         type: boolean
         default: false
       foreign_record_cohorts:
-        description: Comma-separated scalar-opaque,nested,arrays (or all); applies to foreign_records
+        description: Comma-separated scalar-opaque,nested,arrays,zero-leaf (or all); applies to foreign_records
         type: string
         default: scalar-opaque
       foreign_record_fixtures:
