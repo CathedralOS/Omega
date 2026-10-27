@@ -36,7 +36,7 @@ use super::super::scheme_dsl::{self, apps, id, pi, pis, scheme_at, v};
 use super::denotation::math_less_or_equal_sides;
 use super::integer_operations::IntegerOperation;
 use super::{
-    BoundedDenotationError, Denotation, IntegerLaw, Term, TermHandle, affine_equality_for,
+    BoundedDenotationError, Denotation, IntegerLaw, Term, TermHandle,
     affine_witness_root_expression, unbounded_integer,
 };
 
@@ -433,20 +433,10 @@ impl Denotation {
         if divide_type != scalar_type || divisor.as_ref() != right.as_ref() {
             return Ok(None);
         }
-        let endpoint_literal = ScalarTerm::integer(*scalar_type, endpoint_value)
-            .expect("carrier endpoint is representable");
-        let endpoint_equality = if endpoint.integer_value() == Some((*scalar_type, endpoint_value))
-        {
-            None
-        } else {
-            let Some((literal, proof, proposition)) = affine_equality_for(definitions, endpoint)
-            else {
-                return Ok(None);
-            };
-            if literal.integer_value() != Some((*scalar_type, endpoint_value)) {
-                return Ok(None);
-            }
-            Some((literal, proof, proposition))
+        let Some((endpoint_equality, endpoint_literal)) =
+            super::affine_carrier_endpoint_equality(*scalar_type, lower, endpoint, definitions)
+        else {
+            return Ok(None);
         };
         let left_term = self.fixed_scalar_term(left)?;
         let right_term = self.fixed_scalar_term(right)?;
@@ -522,8 +512,8 @@ impl Denotation {
         else {
             return Ok(None);
         };
-        let endpoint_side = if let Some((literal, equality, proposition)) = endpoint_equality {
-            let literal_term = self.fixed_scalar_term(literal)?;
+        let endpoint_side = if let Some((equality, proposition)) = endpoint_equality {
+            let literal_term = self.fixed_scalar_term(&endpoint_literal)?;
             let denoted = self.denote(proposition)?;
             let Some((_, from, to)) = self.identity_parts(denoted) else {
                 return Ok(None);
@@ -600,8 +590,8 @@ impl Denotation {
         };
         // A landed endpoint value substitutes to its literal on the
         // conclusion's bound endpoint; a literal endpoint already agrees.
-        if let Some((literal, equality, proposition)) = endpoint_equality {
-            let literal_term = self.fixed_scalar_term(literal)?;
+        if let Some((equality, proposition)) = endpoint_equality {
+            let literal_term = self.fixed_scalar_term(&endpoint_literal)?;
             let denoted = self.denote(proposition)?;
             let Some((_, from, to)) = self.identity_parts(denoted) else {
                 return Ok(None);
