@@ -258,6 +258,38 @@ pub(crate) fn candidate_block(
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)
 }
 
+/// Record every provenance-bearing node of `nodes` — one block's `(index,
+/// node)` pairs — as a rewrite realizing its own custody at its own site.
+/// A node carrying no provenance has nothing to realize and is skipped, and
+/// the caller chooses the iterator, including whatever region filter its
+/// accounting needs. Every accounting that leaves a block's nodes where they
+/// already are spells this ledger through here instead of walking the block
+/// again.
+pub(crate) fn realize_node_provenance<'node>(
+    machine: semantic_vocabulary::MachineId,
+    block: semantic_vocabulary::BlockId,
+    nodes: impl Iterator<Item = (usize, &'node optimization_unit::OptimizationNode)>,
+    realized: &mut Vec<ProvenanceRewrite>,
+) -> Option<()> {
+    for (node_index, node) in nodes {
+        if node.provenance.is_empty() {
+            continue;
+        }
+        let site = optimization_unit::PsiRealizationSite::Node(optimization_unit::NodeLocation {
+            machine,
+            block,
+            node: u32::try_from(node_index).ok()?,
+        });
+        realized.push(provenance_realized_at(
+            site,
+            site,
+            &node.provenance,
+            &node.fuel,
+        ));
+    }
+    Some(())
+}
+
 /// The canonical provenance order every accepted roster leaves in: input
 /// realization site, then the disposition's canonical tag and site. The
 /// order is part of the candidate contract, so every family sorts through

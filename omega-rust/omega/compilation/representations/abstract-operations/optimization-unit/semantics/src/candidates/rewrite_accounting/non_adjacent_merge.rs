@@ -1,4 +1,4 @@
-use crate::candidates::{canonicalize_provenance, provenance_realized_at};
+use crate::candidates::{canonicalize_provenance, provenance_realized_at, realize_node_provenance};
 use optimization_unit::{
     NodeLocation, NonAdjacentBlockMergeRewrite, PsiOptimizationFunction, PsiRealizationSite,
     ScalarSubstitution,
@@ -127,24 +127,14 @@ pub(crate) fn reconstruct_non_adjacent_merge_accounting(
                 affected.insert(block.id);
             }
         }
-        for (node_index, node) in block.nodes.iter().enumerate() {
-            if node.provenance.is_empty()
-                || (!effect_shifted.contains(&block.id) && !changed_uses.contains(&node_index))
-            {
-                continue;
-            }
-            let site = PsiRealizationSite::Node(NodeLocation {
-                machine: function.machine,
-                block: block.id,
-                node: u32::try_from(node_index).ok()?,
-            });
-            realized.push(provenance_realized_at(
-                site,
-                site,
-                &node.provenance,
-                &node.fuel,
-            ));
-        }
+        realize_node_provenance(
+            function.machine,
+            block.id,
+            block.nodes.iter().enumerate().filter(|(node_index, _)| {
+                effect_shifted.contains(&block.id) || changed_uses.contains(node_index)
+            }),
+            &mut realized,
+        )?;
     }
     canonicalize_provenance(&mut realized);
     Some((affected.into_iter().collect(), realized))

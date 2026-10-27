@@ -1,4 +1,4 @@
-use crate::candidates::{canonicalize_provenance, provenance_realized_at};
+use crate::candidates::{canonicalize_provenance, provenance_realized_at, realize_node_provenance};
 use optimization_unit::{
     AdjacentBlockMergeRewrite, NodeLocation, OwnershipFrontierSite, OwnershipFrontierWitness,
     OwnershipFrontierWitnessRow, PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite,
@@ -173,31 +173,4 @@ pub(crate) fn reconstruct_adjacent_merge_accounting(
     }
     canonicalize_provenance(&mut realized);
     Some((affected.into_iter().collect(), realized))
-}
-
-/// Record every provenance-carrying node in `nodes` as a provenance rewrite
-/// realized at its own site inside `block`.
-fn realize_node_provenance<'node>(
-    machine: semantic_vocabulary::MachineId,
-    block: BlockId,
-    nodes: impl Iterator<Item = (usize, &'node optimization_unit::OptimizationNode)>,
-    realized: &mut Vec<optimization_unit::ProvenanceRewrite>,
-) -> Option<()> {
-    for (node_index, node) in nodes {
-        if node.provenance.is_empty() {
-            continue;
-        }
-        let site = PsiRealizationSite::Node(NodeLocation {
-            machine,
-            block,
-            node: u32::try_from(node_index).ok()?,
-        });
-        realized.push(provenance_realized_at(
-            site,
-            site,
-            &node.provenance,
-            &node.fuel,
-        ));
-    }
-    Some(())
 }

@@ -1,14 +1,13 @@
 //! Redundant-parameter witness reconstruction and rewrite acceptance.
-use crate::candidates::{canonicalize_provenance, provenance_realized_at};
+use crate::candidates::{canonicalize_provenance, provenance_realized_at, realize_node_provenance};
 use crate::unit_validation::derived_metadata::{
     expected_definitions, expected_edges, expected_ownership, expected_uses,
 };
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{
-    BlockParameterIncomingBinding, NodeLocation, PsiOptimizationUnit, PsiRealizationSite,
-    PsiRewriteCandidate, PsiRewritePatch, ValueDefinitionSite,
-    reconstruct_psi_closed_region_observation,
+    BlockParameterIncomingBinding, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
+    PsiRewritePatch, ValueDefinitionSite, reconstruct_psi_closed_region_observation,
 };
 use std::collections::BTreeSet;
 
@@ -67,11 +66,6 @@ pub(super) fn validate_redundant_block_parameter_candidate(
     let mut affected_blocks = BTreeSet::from([patch.block]);
     for source in &function.blocks {
         for (node_index, node) in source.nodes.iter().enumerate() {
-            let location = NodeLocation {
-                machine: patch.machine,
-                block: source.id,
-                node: u32::try_from(node_index).expect("unit node index fits u32"),
-            };
             let changes_use = node
                 .uses
                 .iter()
@@ -101,15 +95,13 @@ pub(super) fn validate_redundant_block_parameter_candidate(
             }
             if changes_use {
                 affected_blocks.insert(source.id);
-                if !node.provenance.is_empty() {
-                    let site = PsiRealizationSite::Node(location);
-                    expected_provenance.push(provenance_realized_at(
-                        site,
-                        site,
-                        &node.provenance,
-                        &node.fuel,
-                    ));
-                }
+                realize_node_provenance(
+                    patch.machine,
+                    source.id,
+                    std::iter::once((node_index, node)),
+                    &mut expected_provenance,
+                )
+                .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
             }
             if node
                 .successors
