@@ -36,11 +36,12 @@ their exact-arithmetic obligation. Foreign-host execution is not claimed by
 this observation. The qualification record retains the producer, accepted
 replay inputs, raw streams and canonical Terminal products.
 
-The [constant control](controls/logical_subject_constants/main.omg) covers
-scalar, generic, indexed and record subjects independently of same-spelled outer
-constants; its [twin](controls/logical_subject_constants/invalid/main.omg)
-changes only the scalar initializer from 3 to 9. Retired-binder and machine-scope
-controls live under `tests/omega/fail/domains/`.
+The [constant formation control](../../../../tests/omega/pass/domains/logical_subject_constants/main.omg)
+covers scalar, generic, indexed and record subjects independently of outer
+constants. Its [false-initializer control](../../../../tests/omega/fail/domains/logical_subject_false_constant/main.omg)
+changes only the scalar initializer from 3 to 9. These are checking fixtures;
+the executable row above owns runtime evidence. Retired-binder and machine-scope
+controls also live under `tests/omega/fail/domains/`.
 
 The parent remains open for case-dependent defaults, typed extraction, guarded
 payload formation and matching, mutation restoration and removal of case-local

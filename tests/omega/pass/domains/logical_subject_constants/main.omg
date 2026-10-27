@@ -1,5 +1,4 @@
 // Logical self qualifies exact scalar, generic, indexed and record constants.
-// Expected exit: 0
 const value: u64 = 99;
 const bytes: u64 = 99;
 const packet: u64 = 99;
@@ -12,12 +11,4 @@ const SCALAR: u64 in Small = 3;
 const GENERIC: u64 in Below<5> = 3;
 const ARRAY: [u64; 2] in SmallAt<1> = [99, 3];
 const RECORD: Packet in SmallCount = Packet { prefix: 11, count: 3, suffix: 13 };
-machine main() crashes Trap {
-    transition SCALAR == 3 && GENERIC == 3 && ARRAY[0] == 99 && ARRAY[1] == 3
-        && RECORD.prefix == 11 && RECORD.count == 3 && RECORD.suffix == 13 {
-        true -> done()
-        false -> wrong()
-    }
-    machine done() {}
-    machine wrong() crashes Trap { crash Trap; }
-}
+machine check() {}
