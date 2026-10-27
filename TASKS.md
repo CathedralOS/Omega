@@ -86,25 +86,23 @@ Workflow is in [AGENTS.md](AGENTS.md), live assignments in the
 [claims registry](tools/claims.md), semantic decisions in
 [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md).
 
-## Connected scientific library
-
-- **W100-CONNECTED.** (new-scope) Complete the connected rank-two scientific
-  library in `source/library/numerics/` and its W100 API consumers in
-  `samples/cli/scientific/w100/` end to end through `omega run --both`.
-  - Connect descriptor-backed moments to the shared layout, canonical float
-    slice access, and numeric policy, and qualify both complete consumers and
-    their invalid controls.
-  - Complete the retained rank-two kernels in `source/library/numerics/` against
-    frozen mathematical oracles (candidate preservation in `IMPORTS.json` does
-    not count as acceptance).
-  Acceptance: `source/library/numerics/` and `samples/cli/scientific/w100/`
-  compile and execute via `omega run --both` against their frozen mathematical
-  oracles with invalid controls rejecting.
-
 ## Updating the boards
 
 Update by subtraction, not accumulation. This applies to all three task boards.
 
+- **Human priority section (`## Priority (human-set only)`):** Only a human adds,
+  reorders, or moves items into or out of [Priority (human-set only)](#priority-human-set-only).
+  Automatic work selection (`advance`, swarms) must take unassigned items from
+  that section **first**, in top-down order, before any other section on the
+  board. Agents and `task-board-cleanup` may only delete completed sub-bullets
+  or completed items whose full `Acceptance:` passes; never demote, reorder, or
+  move items out of that section.
+- **Language-design and surface-syntax migrations first:** Ratified language and
+  syntax migrations that affect wide swaths of authored `.omg` files (such as
+  replacing `state` with nested `machine` across 100% of `.omg` files or
+  retiring `T [lo..hi]` range suffixes across ~25% of `.omg` files) take priority
+  above ordinary feature or library additions so agents do not keep authoring new
+  `.omg` files in deprecated syntax and compounding migration debt.
 - **Ownership boundary:** `tests/omega/` (`corpus_results.txt`) and
   `samples/cli/facts/` own regression protection of landed witnesses; `TASKS.md`
   owns **only the unbuilt or failing gap**. Never list already-passing fact rows
@@ -136,10 +134,258 @@ Compilation does not require an accepted package lock, and unfinished native
 realization does not block source-package installation; package acceptance,
 build authority and native output are separate obligations.
 
+## Priority (human-set only)
+
+Only humans set or reorder the items in this section. Agents selecting new
+automatic work must take the first unassigned actionable item here (in top-down
+order) before any lower section on the board, carrying both its `samples/cli/facts`
+witnesses and its repository-wide `.omg` source/sample/fixture migrations and
+retired-syntax deletions to completion.
+
+- **NESTED-MACHINE-UNIFICATION.** Implement the owner-ratified
+  [single machine declaration model](wiki/spec/language/machines.md#nested-machines-and-identity)
+  and [invocation contracts](wiki/spec/language/state_contracts.md), replacing
+  source `state` with arbitrarily nested named machines.
+  - Resolve recursive lexical scopes and forward references, enforce enclosing-scope-only
+    visibility for nested helpers, permit value/Unit completion before trailing
+    declarations, elaborate static declaration context to flat machine identities
+    with explicit arguments, and reject runtime capture, enclosing-local use,
+    hidden context parameters, and executable code after trailing declarations.
+  - Complete cyclic private arrivals and the remaining normal-return
+    obligations, with the complete callee
+    contract (exact actuals/snapshots, live facts and write invalidation,
+    result/Unit postconditions, effects/markers, loans, invariant/hole
+    restoration, cleanup, linear custody, and private helper coordinates for
+    ranged/structural joint SCC measures without ambient parent entry facts).
+  - Update Terminal production, codecs/checking, both interpreters, native
+    lowering, and WCSU together so runtime cycles remain constant-stack with all
+    live backing accounted for.
+  - Migrate affected bundled/product Omega source, samples, and fixtures and
+    delete the retired `state` parser/declaration/dispatch paths.
+    The Omega-written parser/resolver and linked application repositories still
+    need the corresponding declaration-model migration.
+  Acceptance: source-to-Terminal/native execution agreement (`omega run --both`)
+  for three-level nesting, ordinary helper call with continuation,
+  sibling/ancestor terminal cycles, generic enclosing declaration context and
+  explicit borrowed/local data, across the applicable nine-place row
+  (`other_state/` becomes the nested-machine place) and fact-sensitive reject
+  twins. Reject inaccessible descendants, accidental capture, stale parent
+  facts, mismatched results, missing exact call markers, unclosed restoration,
+  invalid loan escape, lost linear custody, unjustified recursion and retired
+  `state` syntax. Demonstrate bounded physical stack on a long cycle, including
+  live borrowed backing and completion cleanup, and finish the full affected
+  sample/corpus migration and both compiler implementations before closure.
+
+- **CANONICALIZE-SCALAR-RANGE-CONTRACTS.** Complete the settled
+  [proposition-based scalar range contract](wiki/spec/language/domains.md#declaration-and-membership)
+  and [generic inference rule](wiki/spec/language/generics.md) end to end and
+  remove integer and float `T [lo..hi]` / `T [lo..=hi]` suffixes after their
+  customers migrate.
+  - Carry field/case propositions through construction
+    (`checking/src/proof_contracts/contract_entailment/construction_predicates.rs`),
+    nonliteral and indexed writes, reads, calls, state joins,
+    [mutable recasts](omega-rust/psi/compilation/checking/recasts.md), and
+    returns, preserving the audited inventories in
+    [range_suffix_migration.md](wiki/drafts/designs/range_suffix_migration.md)
+    and running `pass/float/named_integer_conversion_source_proofs_exit` (exit 78)
+    on Linux/Windows without rebuilding `proven_predicates_grant_domain`
+    (`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/calls.rs`).
+  - Migrate the 16 recursive filesystem parameter suffixes with
+    **FILESYSTEM-PLATFORM-SERVICES**, and qualify remaining collection/slice
+    view and capture compositions (`samples/cli/probes/slice_view_whole/main.omg`,
+    `pass/dependent/runtime_symbolic_slice_{cell_theorem,predicate_store}_exit`,
+    and `samples/cli/facts/ieee_guard_i32_from_f64`).
+  Acceptance: spec/guide/compiler docs, bundled libraries, samples, `source/psi`,
+  the corpus, `bootstrap/5_omega/parser.epsilon` and
+  `tests/bootstrap/omega-parser` are migrated and each customer's native/Terminal
+  oracle runs via `omega run --both`; then delete suffix parsing
+  (`omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/type_syntax/parse_type.rs`),
+  `TypeConstraintNode::Range`, range-shell inference, suffix-recommending
+  diagnostics, and the migration recipe, turning
+  `fail/proofs/mathematical_constrained_scalar_formal:2` into a parse-refusal pin.
+
+- **DOMAIN-DEFAULT-PREDICATE-UNIFICATION.** Implement the owner-ratified
+  [predicate subject](wiki/spec/language/domains.md#declaration-and-membership)
+  and [case-dependent default domains](wiki/spec/language/data_and_literals.md#case-constraints).
+  - Constrain `self` to data `where` and domain `requires`, remove explicit
+    domain subject binders and case-level `where` (and their parallel internal
+    predicate paths), and migrate library, samples, and fixtures in the same
+    change.
+  - Carry one general predicate representation through formation, construction,
+    calls, matching, coverage, writes, and erasure so case membership plus the
+    established domain recovers type equality and guarded payload bounds while
+    preserving recursive/indexed data encoding obligations, exact subject
+    identity, first-case zero gating, and mutation restoration.
+  Acceptance: execute a generic typed extractor over Integer/Boolean and a
+  guarded Range payload consumer through native and Terminal Psi (`omega run --both`),
+  exercising the same predicate as a default domain and a named generic domain
+  through all nine fact places. Reject mismatched case/type construction,
+  unguarded inactive payload access, reversed bounds, stale facts after writes,
+  invalid zero establishment and the retired syntax.
+
+- **STATIC-MACHINE-MIGRATION.** (also covers
+  **NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION**,
+  **TRAIT-IMPLEMENTATION-SOURCE-MIGRATION**, and **STATELESS-PROVIDERS**)
+  Complete the owner-authorized migration to
+  [static machine declarations](wiki/spec/language/machines.md#static-declarations-and-explicit-state),
+  [named implementations](wiki/spec/language/conformances.md#data-and-code-are-independent),
+  stateless providers (**STATELESS-PROVIDERS**), and
+  [domain-selected automatic cleanup](wiki/spec/language/domains.md#domain-selected-automatic-cleanup)
+  (`dropped by` on named domains and data default domains) end to end across
+  `omega-rust/`, `source/psi/`, `source/omega/`, `source/library/`, `samples/`,
+  and `tests/omega/`.
+  - Complete const-expression closure and package projection outside the
+    reference producer's qualified scalar inline member path, calling-policy or
+    member kinds beyond the closed inline calling-policy path, and `source/psi/`
+    product-producer parity for evidence binders across data, conformance,
+    domain, proposition, and machine telescopes.
+  - Qualify matching-host execution for
+    `samples/cli/facts/{positional_implementation_binder,open_const_implementation,open_record_const_implementation,named_conformance_dispatch,generic_calling_policy}`
+    across remaining hosted targets.
+  - Retire authored `Trait::member = Existing::machine;` reference rows in both
+    producers, bundled policies/providers, boundary roots
+    (`interrupt_table_canary`, `secondary_processor_canary`), application ports,
+    and fixtures in favor of inline member declarations calling shared helpers.
+  - **STATELESS-PROVIDERS:** take `ForeignBinding::VtableField` vtable addresses
+    from its foreign binding plan rather than provider data, and ensure no
+    installation or interpretation route supplies an unauthored provider value
+    or receiver.
+  - Move remaining Build facet receiver calls (such as test groups) to
+    namespace-qualified calls with explicit arguments (`Build::bind`,
+    `Build::select_provider`, `Build::exclude_service`,
+    `Build::select_representation`, `Build::accept_boundary`,
+    `Build::require_wire_compatibility`, `Build::assume_binding_contract`).
+  - Delete the remaining retired `Binding<R>` compiler paths and data shapes in
+    `declarations/trait_definition/applications/source_fields.rs`,
+    `declarations/invocations.rs`, `shape_collector.rs`,
+    `omega-rust/psi/compilation/checking/src/machine_calls/boundary_calls.rs`,
+    `omega-rust/psi/compilation/checking/src/value_custody/type_references.rs`,
+    and selected-dispatch `service_custody` with
+    `program_entry_service_requirements`.
+  - Add fail controls for ambiguous provider supply and unpark
+    `inherited_applied_binding_ambiguous_ancestors`,
+    `occurrence_region_binding_conflicting_inputs`, and
+    `private_binding_authority_contract`.
+  - Retire remaining attachment helpers in checking/lowering and complete
+    checked per-value loan carry evidence for suspension production without
+    restoring hidden argument insertion.
+  - Retire `machine Data::operation` and reserved `T::drop` spellings across
+    compiler/toolchain helper namespaces, operator/proof declarations, and
+    fixtures.
+  - Complete `dropped by` on named domains and data default domains across
+    domain normalization, call transport, erasure, Terminal cleanup, and native
+    execution.
+  Acceptance: a nine-place fact row for `dropped by` with observable cleanup side
+  effects passes `omega run --both` (with reject twins for conflicting machine
+  applications, erasure bypass, missing inherited obligations, unauthorized
+  selection, direct hook calls, and hooks that fail/block/suspend/crash/exit);
+  `samples/cli/basics/generic_counters` (exit 16), clock samples, and
+  `samples/gui/{window_app,window_demo,windowed_calculator,image_viewer}` compile
+  and run on their supported hosts with their authored results;
+  `python tools/corpus_gate.py --filter traits/,layouts/,progress/,proofs/named_witness_static_trait_plural_compile`
+  and `tests/omega/pass/providers/runtime_boundary_primitive_array_argument_exit`
+  (exit 70 in both engines) pass; no active Omega source or compiler path retains
+  `self`/`Self`, data-subject satisfaction, implicit receiver arguments,
+  data-owned machine declarations, conformance reference-row assignments, or
+  source-visible `Binding<R>`.
+
+- **BUILD-OWNED-TARGET-SELECTION.** Retire target-prefixed machine declarations
+  and implicit same-path target-body families in favor of ordinary named
+  implementations selected by explicit target-keyed Build provider rows under
+  [multi-target compilation](wiki/spec/build/configuration.md#multi-target-compilation)
+  and [provider selection](wiki/spec/build/provider_selection.md#build-owned-target-selection).
+  Owners: Psi stages `01–07`, `source/psi/`, Build evaluation, Terminal Psi
+  representations and codecs, and Omega provider settlement and execution.
+  - Reject target/OS-prefixed machine declarations, including bodyless and
+    boundary forms; remove source target modifiers, sibling grouping,
+    synthesized portable family heads, alternate-body contract joins, and
+    target-family codec, dispatch, and installation paths rather than retaining
+    a compatibility mode or replacing the prefix with another source selector.
+    Migrate layout-policy applications that currently name family callables to
+    ordinary implementation identities and Build rows, retaining target-dependent
+    geometry and changing format identity instead of reinterpreting legacy bytes.
+  - Migrate the bundled library, product compiler, samples, and corpus fixtures
+    together to ordinary named implementations and explicit requirements with
+    target-keyed Build rows. Carry `samples/cli/audio/audio_playback` and its
+    sine, square, and melody consumers through unchanged playback oracles;
+    shared binding-value producers and helpers remain ordinary machines.
+  - Transport exact requirement and implementation identities, lifetimes,
+    captured operands, const/evidence telescopes, callbacks, entry backing,
+    ownership, reach, and public contracts through one checked Terminal artifact
+    and Build companion to both engines without target-specific source rewriting.
+  - Pin missing/duplicate provider rows, incompatible selected ABI/import/ISA
+    supply, invalid unselected implementations, and retired-prefix rejection;
+    applicability is checked on the selected closure, not by accepting untyped
+    source or exposing a selected body's private guarantees to callers.
+  Acceptance: one portable call selects distinct ordinary implementations for
+  two targets from the same Terminal artifact and Build companion, with authored
+  results observed by `omega run --both` on matching hosts. Migrated target,
+  callback, filesystem, entry, and audio controls retain their original oracles;
+  invalid controls reject for the relevant obligation, and no source, parser,
+  IR, codec, or runtime path still implements target-prefixed body families.
+
+- **BUILD-OWNED-NATIVE-BINDINGS.** Implement the ratified package-local
+  `Build::bind<Requirement>(builder, target, locator)` form under
+  [foreign bindings](wiki/spec/build/foreign_bindings.md#build-owned-native-binding),
+  retiring source `via` clauses and one-to-one bodyless native realization
+  declarations without weakening contracts, admission, or authority.
+  - Resolve exact designated product requirements after discovery/checking and
+    retain target-keyed native intent on the original Build activation; preserve
+    package ownership, private raw-slot closure, explicit defaults/override
+    precedence, complete schema coverage, and separation from Build-host service
+    readiness without ordinary imports of unresolved product source.
+  - Infer `ForeignBinding`/locator const lengths from ordinary fixed-byte values
+    and constructor constraints, with unused coordinates zero. Inline PE, ELF,
+    Mach-O, and syscall bindings need no manually counted generic arguments,
+    per-symbol value helper, or forwarding declaration; incorrect explicit
+    counts and ambiguous inference reject rather than using erased byte blobs.
+  - Derive exact native-provider and calling-plan identities from requirement,
+    target, immutable supplier package, normalized locator, pinned calling
+    policy, and authored evaluation provenance. Transport lifetime/static
+    applications, original loans, operational ceilings, callbacks, contracts,
+    trust, replacement, and authority through Build, Terminal/provider rows,
+    package review, both execution engines, and native emission without source
+    spelling or a synthetic forwarding machine as the identity anchor.
+    Change affected review/codec schema identities instead of reinterpreting
+    declaration-bound legacy records as Build-owned native rows.
+  - Migrate library, product source, fixtures, and the audio playback consumers
+    to the new form with original exit/output/playback oracles. Remove `via`
+    parsing and legacy declaration-to-binding recovery, including intrinsic and
+    typed table/field sites, without adding unsupported variants to
+    `ForeignBinding` or requiring application roots to duplicate private imports.
+  Acceptance: direct Build bindings for Windows PlaySoundW, Linux ALSA, and
+  macOS AudioQueue lower and run through `omega run --both` on matching hosts,
+  with locator lengths inferred and exact review/audit identities retained.
+  Controls reject retired syntax, wrong counts/ABI, unresolved/private product
+  references, conflicting rows, unadmitted foreign contracts, wrong Build
+  activation and product-to-Build-host leakage. Missing backing fails only its
+  affected realization; no `via` compatibility path or mandatory per-symbol
+  forwarding declaration remains.
+
+- **TOP-LEVEL-BOUNDARY-REQUIREMENTS.** Retire standalone `boundary requirement
+  Owner::name(...);` declarations and automatic containing-trait reach across
+  `source/library/`, `samples/`, `tests/omega/`, `omega-rust/`, and
+  `source/{psi,omega}/` under the
+  [machine-supply rule](wiki/spec/language/machines.md#supply) and
+  [explicit boundary reach](wiki/spec/language/effects.md#implementation-boundaries-and-capability-identities).
+  - Migrate the remaining 84 std raw platform, 2 interrupt, and 126 float rows
+    plus 78 test files to boundary traits with explicit reach clauses, lift stage
+    04's template-dependent result borrow-elision fence for `core/task.omg`'s
+    generic `request_cancel` and `finish`, and preserve source-selected trait
+    tokens (`samples/cli/probes/operator_requires_effects`).
+  - Delete the standalone declaration kind from parsing, AST/IR representations,
+    checking, Terminal codec, provider planning, and both compilers, keeping one
+    parser fail fixture for the retired spelling.
+  Acceptance: no accepted source or IR contains standalone `boundary requirement`
+  declarations; migrated customers execute through `omega run --both` under
+  boundary-trait selection; and unselected, ambiguous, or reach-exceeding
+  providers reject.
+
 ## High-priority composition repairs
 
-The items in [Immediate product closure](#immediate-product-closure) are
-ready implementation work. Reproduce the named program's current failure
+The items in [Priority (human-set only)](#priority-human-set-only) and
+[Immediate product closure](#immediate-product-closure) are ready
+implementation work. Reproduce the named program's current failure
 first, with `omega run --both <main.omg>` on a matching host plus its
 registered corpus fixtures, and record separately where it stops: source
 checking, Terminal Psi production, interpreted execution, native exit/output.
@@ -223,72 +469,6 @@ helper that passes does not close an item.
   coordinates, missing effects/order/clobbers, live linear exits, and
   forged/replayed/double-completion controls reject (existing `fail/inline_asm/*`
   stay rejected).
-
-- **STATIC-MACHINE-MIGRATION.** (also covers
-  **NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION**,
-  **TRAIT-IMPLEMENTATION-SOURCE-MIGRATION**, and **STATELESS-PROVIDERS**)
-  Complete the owner-authorized migration to
-  [static machine declarations](wiki/spec/language/machines.md#static-declarations-and-explicit-state),
-  [named implementations](wiki/spec/language/conformances.md#data-and-code-are-independent),
-  stateless providers (**STATELESS-PROVIDERS**), and
-  [domain-selected automatic cleanup](wiki/spec/language/domains.md#domain-selected-automatic-cleanup)
-  (`dropped by` on named domains and data default domains) end to end across
-  `omega-rust/`, `source/psi/`, `source/omega/`, `source/library/`, `samples/`,
-  and `tests/omega/`.
-  - Complete const-expression closure and package projection outside the
-    reference producer's qualified scalar inline member path, calling-policy or
-    member kinds beyond the closed inline calling-policy path, and `source/psi/`
-    product-producer parity for evidence binders across data, conformance,
-    domain, proposition, and machine telescopes.
-  - Qualify matching-host execution for
-    `samples/cli/facts/{positional_implementation_binder,open_const_implementation,open_record_const_implementation,named_conformance_dispatch,generic_calling_policy}`
-    across remaining hosted targets.
-  - Retire authored `Trait::member = Existing::machine;` reference rows in both
-    producers, bundled policies/providers, boundary roots
-    (`interrupt_table_canary`, `secondary_processor_canary`), application ports,
-    and fixtures in favor of inline member declarations calling shared helpers.
-  - **STATELESS-PROVIDERS:** take `ForeignBinding::VtableField` vtable addresses
-    from its foreign binding plan rather than provider data, and ensure no
-    installation or interpretation route supplies an unauthored provider value
-    or receiver.
-  - Move remaining Build facet receiver calls (such as test groups) to
-    namespace-qualified calls with explicit arguments (`Build::bind`,
-    `Build::select_provider`, `Build::exclude_service`,
-    `Build::select_representation`, `Build::accept_boundary`,
-    `Build::require_wire_compatibility`, `Build::assume_binding_contract`).
-  - Delete the remaining retired `Binding<R>` compiler paths and data shapes in
-    `declarations/trait_definition/applications/source_fields.rs`,
-    `declarations/invocations.rs`, `shape_collector.rs`,
-    `omega-rust/psi/compilation/checking/src/machine_calls/boundary_calls.rs`,
-    `omega-rust/psi/compilation/checking/src/value_custody/type_references.rs`,
-    and selected-dispatch `service_custody` with
-    `program_entry_service_requirements`.
-  - Add fail controls for ambiguous provider supply and unpark
-    `inherited_applied_binding_ambiguous_ancestors`,
-    `occurrence_region_binding_conflicting_inputs`, and
-    `private_binding_authority_contract`.
-  - Retire remaining attachment helpers in checking/lowering and complete
-    checked per-value loan carry evidence for suspension production without
-    restoring hidden argument insertion.
-  - Retire `machine Data::operation` and reserved `T::drop` spellings across
-    compiler/toolchain helper namespaces, operator/proof declarations, and
-    fixtures.
-  - Complete `dropped by` on named domains and data default domains across
-    domain normalization, call transport, erasure, Terminal cleanup, and native
-    execution.
-  Acceptance: a nine-place fact row for `dropped by` with observable cleanup side
-  effects passes `omega run --both` (with reject twins for conflicting machine
-  applications, erasure bypass, missing inherited obligations, unauthorized
-  selection, direct hook calls, and hooks that fail/block/suspend/crash/exit);
-  `samples/cli/basics/generic_counters` (exit 16), clock samples, and
-  `samples/gui/{window_app,window_demo,windowed_calculator,image_viewer}` compile
-  and run on their supported hosts with their authored results;
-  `python tools/corpus_gate.py --filter traits/,layouts/,progress/,proofs/named_witness_static_trait_plural_compile`
-  and `tests/omega/pass/providers/runtime_boundary_primitive_array_argument_exit`
-  (exit 70 in both engines) pass; no active Omega source or compiler path retains
-  `self`/`Self`, data-subject satisfaction, implicit receiver arguments,
-  data-owned machine declarations, conformance reference-row assignments, or
-  source-visible `Binding<R>`.
 
 - **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** (also covers
   **DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION**)
@@ -568,87 +748,6 @@ defines the complete product bar.
   protected-carrier writes, overflowing intermediates, nondecreasing cycles,
   corrupt arrivals, and missing/stale/substituted progress provenance reject.
 
-- **NESTED-MACHINE-UNIFICATION.** Implement the owner-ratified
-  [single machine declaration model](wiki/spec/language/machines.md#nested-machines-and-identity)
-  and [invocation contracts](wiki/spec/language/state_contracts.md), replacing
-  source `state` with arbitrarily nested named machines.
-  - Resolve recursive lexical scopes and forward references, enforce enclosing-scope-only
-    visibility for nested helpers, permit value/Unit completion before trailing
-    declarations, elaborate static declaration context to flat machine identities
-    with explicit arguments, and reject runtime capture, enclosing-local use,
-    hidden context parameters, and executable code after trailing declarations.
-  - Complete cyclic private arrivals and the remaining normal-return
-    obligations, with the complete callee
-    contract (exact actuals/snapshots, live facts and write invalidation,
-    result/Unit postconditions, effects/markers, loans, invariant/hole
-    restoration, cleanup, linear custody, and private helper coordinates for
-    ranged/structural joint SCC measures without ambient parent entry facts).
-  - Update Terminal production, codecs/checking, both interpreters, native
-    lowering, and WCSU together so runtime cycles remain constant-stack with all
-    live backing accounted for.
-  - Migrate affected bundled/product Omega source, samples, and fixtures and
-    delete the retired `state` parser/declaration/dispatch paths.
-    The Omega-written parser/resolver and linked application repositories still
-    need the corresponding declaration-model migration.
-  Acceptance: source-to-Terminal/native execution agreement (`omega run --both`)
-  for three-level nesting, ordinary helper call with continuation,
-  sibling/ancestor terminal cycles, generic enclosing declaration context and
-  explicit borrowed/local data, across the applicable nine-place row
-  (`other_state/` becomes the nested-machine place) and fact-sensitive reject
-  twins. Reject inaccessible descendants, accidental capture, stale parent
-  facts, mismatched results, missing exact call markers, unclosed restoration,
-  invalid loan escape, lost linear custody, unjustified recursion and retired
-  `state` syntax. Demonstrate bounded physical stack on a long cycle, including
-  live borrowed backing and completion cleanup, and finish the full affected
-  sample/corpus migration and both compiler implementations before closure.
-
-- **DOMAIN-DEFAULT-PREDICATE-UNIFICATION.** Implement the owner-ratified
-  [predicate subject](wiki/spec/language/domains.md#declaration-and-membership)
-  and [case-dependent default domains](wiki/spec/language/data_and_literals.md#case-constraints).
-  - Constrain `self` to data `where` and domain `requires`, remove explicit
-    domain subject binders and case-level `where` (and their parallel internal
-    predicate paths), and migrate library, samples, and fixtures in the same
-    change.
-  - Carry one general predicate representation through formation, construction,
-    calls, matching, coverage, writes, and erasure so case membership plus the
-    established domain recovers type equality and guarded payload bounds while
-    preserving recursive/indexed data encoding obligations, exact subject
-    identity, first-case zero gating, and mutation restoration.
-  Acceptance: execute a generic typed extractor over Integer/Boolean and a
-  guarded Range payload consumer through native and Terminal Psi (`omega run --both`),
-  exercising the same predicate as a default domain and a named generic domain
-  through all nine fact places. Reject mismatched case/type construction,
-  unguarded inactive payload access, reversed bounds, stale facts after writes,
-  invalid zero establishment and the retired syntax.
-
-- **CANONICALIZE-SCALAR-RANGE-CONTRACTS.** Complete the settled
-  [proposition-based scalar range contract](wiki/spec/language/domains.md#declaration-and-membership)
-  and [generic inference rule](wiki/spec/language/generics.md) end to end and
-  remove integer and float `T [lo..hi]` / `T [lo..=hi]` suffixes after their
-  customers migrate.
-  - Carry field/case propositions through construction
-    (`checking/src/proof_contracts/contract_entailment/construction_predicates.rs`),
-    nonliteral and indexed writes, reads, calls, state joins,
-    [mutable recasts](omega-rust/psi/compilation/checking/recasts.md), and
-    returns, preserving the audited inventories in
-    [range_suffix_migration.md](wiki/drafts/designs/range_suffix_migration.md)
-    and running `pass/float/named_integer_conversion_source_proofs_exit` (exit 78)
-    on Linux/Windows without rebuilding `proven_predicates_grant_domain`
-    (`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/calls.rs`).
-  - Migrate the 16 recursive filesystem parameter suffixes with
-    **FILESYSTEM-PLATFORM-SERVICES**, and qualify remaining collection/slice
-    view and capture compositions (`samples/cli/probes/slice_view_whole/main.omg`,
-    `pass/dependent/runtime_symbolic_slice_{cell_theorem,predicate_store}_exit`,
-    and `samples/cli/facts/ieee_guard_i32_from_f64`).
-  Acceptance: spec/guide/compiler docs, bundled libraries, samples, `source/psi`,
-  the corpus, `bootstrap/5_omega/parser.epsilon` and
-  `tests/bootstrap/omega-parser` are migrated and each customer's native/Terminal
-  oracle runs via `omega run --both`; then delete suffix parsing
-  (`omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/type_syntax/parse_type.rs`),
-  `TypeConstraintNode::Range`, range-shell inference, suffix-recommending
-  diagnostics, and the migration recipe, turning
-  `fail/proofs/mathematical_constrained_scalar_formal:2` into a parse-refusal pin.
-
 - **DOMAIN-ACCESS-AUTHORITY.** (also covers **DOMAIN-ISSUER-ROUTES**)
   Implement the settled
   [domain read/write policy](wiki/spec/language/domains.md#domain-owned-read-and-write-authority)
@@ -755,6 +854,21 @@ defines the complete product bar.
   `tests/omega/fail/arithmetic/implicit_{store_conversion,store_widening,store_call_result_conversion,call_operand_conversion,call_result_policy_change,integer_policy_erasure}_rejected`
   and `fail/slices/signed_slice_index_upper_only` each report their intended
   refusal.
+
+## Connected scientific library
+
+- **W100-CONNECTED.** (new-scope) Complete the connected rank-two scientific
+  library in `source/library/numerics/` and its W100 API consumers in
+  `samples/cli/scientific/w100/` end to end through `omega run --both`.
+  - Connect descriptor-backed moments to the shared layout, canonical float
+    slice access, and numeric policy, and qualify both complete consumers and
+    their invalid controls.
+  - Complete the retained rank-two kernels in `source/library/numerics/` against
+    frozen mathematical oracles (candidate preservation in `IMPORTS.json` does
+    not count as acceptance).
+  Acceptance: `source/library/numerics/` and `samples/cli/scientific/w100/`
+  compile and execute via `omega run --both` against their frozen mathematical
+  oracles with invalid controls rejecting.
 
 ## Universal interpreter cutover
 
@@ -924,79 +1038,6 @@ narrows realization only.
   `artifact_only_unsealed_output_refused`, and
   `captured_source_generated_constant` stay green); workspace architecture and
   stack-size guards pass.
-
-- **BUILD-OWNED-TARGET-SELECTION.** Retire target-prefixed machine declarations
-  and implicit same-path target-body families in favor of ordinary named
-  implementations selected by explicit target-keyed Build provider rows under
-  [multi-target compilation](wiki/spec/build/configuration.md#multi-target-compilation)
-  and [provider selection](wiki/spec/build/provider_selection.md#build-owned-target-selection).
-  Owners: Psi stages `01–07`, `source/psi/`, Build evaluation, Terminal Psi
-  representations and codecs, and Omega provider settlement and execution.
-  - Reject target/OS-prefixed machine declarations, including bodyless and
-    boundary forms; remove source target modifiers, sibling grouping,
-    synthesized portable family heads, alternate-body contract joins, and
-    target-family codec, dispatch, and installation paths rather than retaining
-    a compatibility mode or replacing the prefix with another source selector.
-    Migrate layout-policy applications that currently name family callables to
-    ordinary implementation identities and Build rows, retaining target-dependent
-    geometry and changing format identity instead of reinterpreting legacy bytes.
-  - Migrate the bundled library, product compiler, samples, and corpus fixtures
-    together to ordinary named implementations and explicit requirements with
-    target-keyed Build rows. Carry `samples/cli/audio/audio_playback` and its
-    sine, square, and melody consumers through unchanged playback oracles;
-    shared binding-value producers and helpers remain ordinary machines.
-  - Transport exact requirement and implementation identities, lifetimes,
-    captured operands, const/evidence telescopes, callbacks, entry backing,
-    ownership, reach, and public contracts through one checked Terminal artifact
-    and Build companion to both engines without target-specific source rewriting.
-  - Pin missing/duplicate provider rows, incompatible selected ABI/import/ISA
-    supply, invalid unselected implementations, and retired-prefix rejection;
-    applicability is checked on the selected closure, not by accepting untyped
-    source or exposing a selected body's private guarantees to callers.
-  Acceptance: one portable call selects distinct ordinary implementations for
-  two targets from the same Terminal artifact and Build companion, with authored
-  results observed by `omega run --both` on matching hosts. Migrated target,
-  callback, filesystem, entry, and audio controls retain their original oracles;
-  invalid controls reject for the relevant obligation, and no source, parser,
-  IR, codec, or runtime path still implements target-prefixed body families.
-
-- **BUILD-OWNED-NATIVE-BINDINGS.** Implement the ratified package-local
-  `Build::bind<Requirement>(builder, target, locator)` form under
-  [foreign bindings](wiki/spec/build/foreign_bindings.md#build-owned-native-binding),
-  retiring source `via` clauses and one-to-one bodyless native realization
-  declarations without weakening contracts, admission, or authority.
-  - Resolve exact designated product requirements after discovery/checking and
-    retain target-keyed native intent on the original Build activation; preserve
-    package ownership, private raw-slot closure, explicit defaults/override
-    precedence, complete schema coverage, and separation from Build-host service
-    readiness without ordinary imports of unresolved product source.
-  - Infer `ForeignBinding`/locator const lengths from ordinary fixed-byte values
-    and constructor constraints, with unused coordinates zero. Inline PE, ELF,
-    Mach-O, and syscall bindings need no manually counted generic arguments,
-    per-symbol value helper, or forwarding declaration; incorrect explicit
-    counts and ambiguous inference reject rather than using erased byte blobs.
-  - Derive exact native-provider and calling-plan identities from requirement,
-    target, immutable supplier package, normalized locator, pinned calling
-    policy, and authored evaluation provenance. Transport lifetime/static
-    applications, original loans, operational ceilings, callbacks, contracts,
-    trust, replacement, and authority through Build, Terminal/provider rows,
-    package review, both execution engines, and native emission without source
-    spelling or a synthetic forwarding machine as the identity anchor.
-    Change affected review/codec schema identities instead of reinterpreting
-    declaration-bound legacy records as Build-owned native rows.
-  - Migrate library, product source, fixtures, and the audio playback consumers
-    to the new form with original exit/output/playback oracles. Remove `via`
-    parsing and legacy declaration-to-binding recovery, including intrinsic and
-    typed table/field sites, without adding unsupported variants to
-    `ForeignBinding` or requiring application roots to duplicate private imports.
-  Acceptance: direct Build bindings for Windows PlaySoundW, Linux ALSA, and
-  macOS AudioQueue lower and run through `omega run --both` on matching hosts,
-  with locator lengths inferred and exact review/audit identities retained.
-  Controls reject retired syntax, wrong counts/ABI, unresolved/private product
-  references, conflicting rows, unadmitted foreign contracts, wrong Build
-  activation and product-to-Build-host leakage. Missing backing fails only its
-  affected realization; no `via` compatibility path or mandatory per-symbol
-  forwarding declaration remains.
 
 - **PROVIDER-SELECTION-AFTER-TERMINAL.** (new-scope; also covers
   **OPERATOR-BOUNDARY-CALLS** and **TARGET-SEMANTIC-APPLICATIONS**)
@@ -1836,25 +1877,6 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   start/park/resume/finish, FIFO linear-payload queueing, and isolated
   hung-worker recovery via `omega run --both`, while foreign/stale tickets,
   dropped custody, early reclaim, and unbacked suspension borrows reject.
-
-- **TOP-LEVEL-BOUNDARY-REQUIREMENTS.** Retire standalone `boundary requirement
-  Owner::name(...);` declarations and automatic containing-trait reach across
-  `source/library/`, `samples/`, `tests/omega/`, `omega-rust/`, and
-  `source/{psi,omega}/` under the
-  [machine-supply rule](wiki/spec/language/machines.md#supply) and
-  [explicit boundary reach](wiki/spec/language/effects.md#implementation-boundaries-and-capability-identities).
-  - Migrate the remaining 84 std raw platform, 2 interrupt, and 126 float rows
-    plus 78 test files to boundary traits with explicit reach clauses, lift stage
-    04's template-dependent result borrow-elision fence for `core/task.omg`'s
-    generic `request_cancel` and `finish`, and preserve source-selected trait
-    tokens (`samples/cli/probes/operator_requires_effects`).
-  - Delete the standalone declaration kind from parsing, AST/IR representations,
-    checking, Terminal codec, provider planning, and both compilers, keeping one
-    parser fail fixture for the retired spelling.
-  Acceptance: no accepted source or IR contains standalone `boundary requirement`
-  declarations; migrated customers execute through `omega run --both` under
-  boundary-trait selection; and unselected, ambiguous, or reach-exceeding
-  providers reject.
 
 - **COMPONENT-SUBSTRATE.** (Also covers **`WIRE-RUNTIME-AND-INSTALLATION`**.)
   Execute two-package `Independent` composition, stable-slot replacement, and

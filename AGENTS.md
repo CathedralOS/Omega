@@ -207,9 +207,27 @@ capability.
    For new automatic work without a current assignment, repair an unclaimed
    active `main` regression (where the newest completed `Post-merge smoke` run
    on `main` failed and no live claim already covers it) before choosing an
-   actionable `TASKS.md` outcome
-   by its stated priority and release dependencies, then discharge it inside
-   `samples/cli/facts`. Read its full acceptance
+   actionable `TASKS.md` outcome in this priority order:
+   - First, take the first unassigned actionable item in `TASKS.md`'s
+     `## Priority (human-set only)` section (in top-down order; only humans add,
+     reorder, or move items into or out of that section).
+   - Within and immediately after that section, prioritize ratified
+     language-design and surface-syntax migrations that affect wide swaths of
+     authored `.omg` files (such as `NESTED-MACHINE-UNIFICATION` replacing
+     `state` with nested `machine` across 100% of `.omg` files,
+     `CANONICALIZE-SCALAR-RANGE-CONTRACTS` removing `T [lo..hi]` suffixes across
+     ~25% of `.omg` files, `DOMAIN-DEFAULT-PREDICATE-UNIFICATION`,
+     `STATIC-MACHINE-MIGRATION`, `BUILD-OWNED-TARGET-SELECTION`,
+     `BUILD-OWNED-NATIVE-BINDINGS`, and
+     `TOP-LEVEL-BOUNDARY-REQUIREMENTS`), ordered by `.omg` blast radius so new
+     witnesses and samples are not continually authored in deprecated syntax.
+   - Then take remaining `TASKS.md` outcomes in top-down board order and release
+     dependencies.
+   Discharge compiler capability gaps inside `samples/cli/facts`; for a ratified
+   language-design or surface-syntax migration outcome, carry both its nine-place
+   `samples/cli/facts` witnesses and its repository-wide `.omg`
+   source/library/sample/fixture migration and retired-syntax deletion bullets
+   to completion. Read its full acceptance
    and verify its remaining gap with an optimized exact-source producer
    for the recorded fixed base. Reuse a warm `build/gate-cli` or retained
    producer with verified inputs; build only when those inputs changed or no
