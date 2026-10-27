@@ -51,6 +51,12 @@ The [executed workspace journey](../../../../tests/omega/packages/executed-works
 covers helpers of unselected catalog members, accepted-lock pin retention and
 offline execution separately from Product dependencies.
 
-Applied/inherited multi-slot readiness and other-host execution remain unverified. Local
-observations and exact producer identities belong in the qualification record,
-not a claim that those remaining requirements are complete.
+The compiler's `terminal_effect_readiness` integration test separately exercises
+already-known applied/inherited multi-slot requirements: two type applications
+retain distinct provider slots, repeated readiness resumes without replacement,
+and a different exact application refuses before resumption. It supplies an
+admitted static API scope; it does not make newly discovered dependency imports
+available to the initial Build check. These ordinary-discovery samples remain
+the non-generic customer coverage. Other-host execution remains unverified;
+local observations and exact producer identities belong in the qualification
+record.

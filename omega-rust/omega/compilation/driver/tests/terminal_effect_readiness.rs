@@ -14,6 +14,196 @@ use terminal_interpreter::{
     TerminalImportSignature, TerminalProgram, TerminalScalarValue,
 };
 
+#[test]
+fn build_readiness_installs_applied_inherited_slots() {
+    use package_compilation::{
+        BuildDeclarationKind, PackageCompilationInputs, PackageDependencyBinding,
+        PackageSourceBinding,
+    };
+    use semantic_vocabulary::PackageKeyIdentity;
+    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "omega-applied-readiness",
+        false,
+    )
+    .unwrap();
+    let root = temporary.path().join("root");
+    let backing = temporary.path().join("backing");
+    std::fs::create_dir(&root).unwrap();
+    std::fs::create_dir(&backing).unwrap();
+    std::fs::write(root.join("main.omg"), "machine main() {}\n").unwrap();
+    std::fs::write(backing.join("main.omg"), "use api;\nmachine main() {}\n").unwrap();
+    std::fs::write(
+        root.join("build.omg"),
+        r#"
+use backing::api;
+machine build(builder: &mut Build) suspends; {
+    Build::application(builder, "applied_readiness");
+    Build::build_depend_as(builder, "backing", Source::Path { location: "../backing" });
+    let mut count: u64 = 0;
+    count = count + 1;
+    suspend Build::await_provider<Operations<u32>, backing::Selected>(builder);
+    let echoed: u32 = Parent<u32>::echo(11);
+    let marker: u64 = Operations<u32>::marker();
+    count = count + 1;
+    suspend Build::await_provider<Operations<u32>, backing::Selected>(builder);
+    let repeated: u32 = Parent<u32>::echo(29);
+    suspend Build::await_provider<Operations<u64>, backing::Wide>(builder);
+    let wide: u64 = Parent<u64>::echo(4294967313);
+    let wide_marker: u64 = Operations<u64>::marker();
+    let retained: u64 = Operations<u32>::marker();
+    transition echoed == 11 && marker == 73 && repeated == 29 && count == 2
+        && wide == 4294967313 && wide_marker == 83 && retained == 73 {
+        true -> finish(builder)
+        _ -> wrong(builder)
+    }
+    machine finish(builder: &mut Build) {
+        BuildLog::write_line(&mut builder.log, "applied inherited provider resumed");
+    }
+    machine wrong(builder: &mut Build) {
+        Build::application(builder, "wrong_provider_or_replayed_build");
+    }
+}
+"#,
+    )
+    .unwrap();
+    std::fs::write(
+        backing.join("api.omg"),
+        r#"
+public boundary trait Parent<Value> {
+    machine echo(value: Value) -> Value reaches;
+}
+public boundary trait Operations<Value>: Parent<Value> {
+    machine marker() -> u64 reaches;
+}
+public Selected satisfies Operations<u32> {
+    machine echo(value: u32) -> u32 { value }
+    machine marker() -> u64 { 73 }
+}
+public Wide satisfies Operations<u64> {
+    machine echo(value: u64) -> u64 { value }
+    machine marker() -> u64 { 83 }
+}
+"#,
+    )
+    .unwrap();
+    let owner = PackageKeyIdentity::from_digest([101; 32]).unwrap();
+    let supplier = PackageKeyIdentity::from_digest([102; 32]).unwrap();
+    let capture = |identity, name, directory: &std::path::Path| {
+        let source = package_source::local::operations::capture_local_source_input(
+            directory,
+            package_source::LocalSourceLimits::default(),
+        )
+        .unwrap();
+        PackageSourceBinding::new(identity, name, source.canonical_live_root().to_path_buf())
+            .with_captured_source(source.tree().clone())
+            .unwrap()
+    };
+    // This API-level test supplies an already-known requirement scope. It does
+    // not claim dynamic dependency discovery makes a new static import valid.
+    let supplier_inputs = PackageCompilationInputs::new(
+        supplier,
+        BuildDeclarationKind::Package,
+        vec![capture(supplier, "backing", &backing)],
+        vec![],
+    )
+    .unwrap();
+    let mut request = compiler::CheckedCompileRequest::new(&backing.join("main.omg"), None);
+    request.package_inputs = Some(supplier_inputs);
+    let checked = omega_build::check_source(&mut compiler::CompilationSession::default(), request)
+        .result
+        .unwrap_or_else(|error| panic!("supplier: {:?}", error.into_diagnostics()));
+    let produce = |path| {
+        psi_compiler::BuildProviderProductionRequest {
+            checked: &checked.execution().program,
+            exact_toolchain_sources: checked.sources().exact_toolchain_sources(),
+            package: supplier,
+            declaration_path: path,
+        }
+        .produce()
+        .unwrap_or_else(|errors| panic!("provider {path}: {errors:?}"))
+    };
+    let selected = produce("Selected");
+    let wide = produce("Wide");
+    for expected_failure in [None, Some("different exact requirement application")] {
+        if expected_failure.is_some() {
+            let build = std::fs::read_to_string(root.join("build.omg")).unwrap();
+            std::fs::write(
+                root.join("build.omg"),
+                build.replace("backing::Selected", "backing::Wide"),
+            )
+            .unwrap();
+        }
+        let root_inputs = PackageCompilationInputs::new(
+            owner,
+            BuildDeclarationKind::Application,
+            vec![
+                capture(owner, "applied_readiness", &root),
+                capture(supplier, "backing", &backing),
+            ],
+            vec![PackageDependencyBinding::for_purpose(
+                owner,
+                "backing",
+                supplier,
+                build_declarations::DependencyPurpose::Build,
+            )],
+        )
+        .unwrap();
+        let mut request = compiler::CheckedCompileRequest::new(&root.join("main.omg"), None);
+        request.package_inputs = Some(root_inputs);
+        let mut invocation = compiler::CompilationSession::default()
+            .begin_package_build(request)
+            .unwrap_or_else(|error| panic!("receiver: {:?}", error.into_diagnostics()));
+        let mut host = invocation.execution().unwrap().host().unwrap();
+        let mut activation = host.start().unwrap();
+        let mut pauses = 0;
+        loop {
+            let step = activation.advance(1024).unwrap();
+            if step.returned {
+                break;
+            }
+            if let Some(request) = step.awaiting_provider {
+                pauses += 1;
+                let provider = match request.backing.path.as_str() {
+                    "backing::Selected" => &selected,
+                    "backing::Wide" => &wide,
+                    path => panic!("unexpected backing {path}"),
+                };
+                assert_eq!(
+                    request.requirement.boundaries.len(),
+                    2,
+                    "both inherited and direct slots"
+                );
+                let result = activation.install_provider(
+                    build_evaluation::BuildDependencySelection {
+                        purpose: build_declarations::DependencyPurpose::Build,
+                        request_ordinal: 0,
+                        package: supplier,
+                    },
+                    provider,
+                );
+                if let Some(expected) = expected_failure {
+                    let reason = result.unwrap_err();
+                    assert!(reason.contains(expected), "{reason}");
+                    assert!(
+                        activation.advance(1024).is_err(),
+                        "refusal must not resume a partially installed provider"
+                    );
+                    break;
+                }
+                result.unwrap();
+            }
+        }
+        assert_eq!(
+            pauses,
+            if expected_failure.is_some() { 1 } else { 2 },
+            "repeat readiness must reuse the installed exact backing"
+        );
+        if expected_failure.is_none() {
+            activation.complete().unwrap();
+        }
+    }
+}
+
 struct ControlledImport {
     signature: TerminalImportSignature,
     park: bool,
