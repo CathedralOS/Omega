@@ -20,7 +20,7 @@ pub fn liveness_identity_from_digests(
     for digest in digests {
         bytes.extend_from_slice(digest);
     }
-    LivenessIdentity(crate::digest_encoder::content_identity(&bytes).into())
+    LivenessIdentity::from_canonical_bytes(&bytes)
 }
 
 /// One function's share of `liveness_identity`.
