@@ -1,29 +1,8 @@
-//! Ordered branch locations, byte measure, and distinct producer/replay charging.
+//! Byte measure and work charging.
 
 use machine_code::ResolvedSelectedFunctionLayout;
 
 use super::super::error::{OptimizedX86BranchRelaxationError, X86BranchRelaxationWorkAxis};
-
-pub(super) fn ordered_branch_locations(
-    functions: &[ResolvedSelectedFunctionLayout],
-) -> Vec<(usize, usize, usize)> {
-    let mut locations = Vec::new();
-    for (function_index, function) in functions.iter().enumerate() {
-        for (block_index, block) in function.blocks.iter().enumerate() {
-            for (instruction_index, row) in block.instructions.iter().enumerate() {
-                if row
-                    .branch
-                    .as_deref()
-                    .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
-                    .is_some()
-                {
-                    locations.push((function_index, block_index, instruction_index));
-                }
-            }
-        }
-    }
-    locations
-}
 
 pub(super) fn total_bytes(
     functions: &[ResolvedSelectedFunctionLayout],
@@ -46,21 +25,6 @@ pub(super) fn charge(
     if *usage > limit {
         return Err(OptimizedX86BranchRelaxationError::BudgetExceeded(axis));
     }
-    Ok(())
-}
-
-pub(super) fn replay_charge(
-    usage: &mut u64,
-    limit: u64,
-    axis: X86BranchRelaxationWorkAxis,
-) -> Result<(), OptimizedX86BranchRelaxationError> {
-    let next = usage
-        .checked_add(1)
-        .ok_or(OptimizedX86BranchRelaxationError::BudgetExceeded(axis))?;
-    if next > limit {
-        return Err(OptimizedX86BranchRelaxationError::BudgetExceeded(axis));
-    }
-    *usage = next;
     Ok(())
 }
 

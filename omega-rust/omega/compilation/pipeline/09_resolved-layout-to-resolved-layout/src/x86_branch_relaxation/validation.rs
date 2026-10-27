@@ -3,10 +3,7 @@ use target::{Architecture, NativeTarget};
 
 use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
 
-use super::{
-    StagedOptimizedX86BranchRelaxation, X86BranchRelaxationAction, X86BranchRelaxationAttempt,
-    error::OptimizedX86BranchRelaxationError,
-};
+use super::error::OptimizedX86BranchRelaxationError;
 
 pub(super) fn validate_roots(
     source: &StagedOptimizedResolvedSelectedFormLayout,
@@ -23,38 +20,6 @@ pub(super) fn ensure_x86_target(
         || physical.model().architecture != Architecture::X86_64
     {
         return Err(OptimizedX86BranchRelaxationError::UnsupportedTarget(target));
-    }
-    Ok(())
-}
-
-pub(super) fn compare_replayed_evidence(
-    artifact: &StagedOptimizedX86BranchRelaxation,
-    replayed: &StagedOptimizedX86BranchRelaxation,
-) -> Result<(), OptimizedX86BranchRelaxationError> {
-    compare_replayed_action_evidence(
-        &artifact.attempts,
-        &artifact.actions,
-        &replayed.attempts,
-        &replayed.actions,
-    )?;
-    if artifact.functions() != replayed.functions()
-        || artifact.output != replayed.output
-        || artifact.output_revision != replayed.output_revision
-        || artifact.identity != replayed.identity
-    {
-        return Err(OptimizedX86BranchRelaxationError::ArtifactMismatch);
-    }
-    Ok(())
-}
-
-pub(super) fn compare_replayed_action_evidence(
-    attempts: &[X86BranchRelaxationAttempt],
-    actions: &[X86BranchRelaxationAction],
-    replayed_attempts: &[X86BranchRelaxationAttempt],
-    replayed_actions: &[X86BranchRelaxationAction],
-) -> Result<(), OptimizedX86BranchRelaxationError> {
-    if attempts != replayed_attempts || actions != replayed_actions {
-        return Err(OptimizedX86BranchRelaxationError::ArtifactMismatch);
     }
     Ok(())
 }
