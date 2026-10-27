@@ -298,7 +298,7 @@ impl<'a> UnitBody<'a> {
                             .and_then(|parameter| {
                                 checked
                                     .state_parameters(declaration)
-                                    .get(parameter.position as usize)
+                                    .get(parameter.source_position as usize)
                             })
                             .map(|parameter| facts::PlaceRoot::Symbol(parameter.symbol)),
                         _ => None,
