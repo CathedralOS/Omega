@@ -3,7 +3,7 @@
 use super::rejected;
 use crate::capture::PackageReviewInput;
 use crate::capture::semantics::declarations::{
-    nominal_identity, trait_requirement_identity_from_symbols,
+    nominal_identity, progress_profile, trait_requirement_identity_from_symbols,
 };
 use crate::capture::semantics::facts::exactly_one;
 use crate::record::{
@@ -60,14 +60,8 @@ pub(crate) fn termination(
         ) => {
             let mut profiles = Vec::new();
             for premise in premises {
-                let profile = exactly_one(
-                    compilation
-                        .domain_definitions()
-                        .iter()
-                        .filter(|domain| domain.semantic_id == premise.profile),
-                    "public policy termination",
-                    "progress profile",
-                )?;
+                let profile =
+                    progress_profile(compilation, premise.profile, "public policy termination")?;
                 let identity = nominal_identity(compilation, profile.symbol)?;
                 if !profiles.iter().any(|(prior, _)| *prior == identity) {
                     profiles.push((identity, profile));

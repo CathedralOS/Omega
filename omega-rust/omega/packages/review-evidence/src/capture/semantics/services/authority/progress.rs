@@ -2,7 +2,9 @@
 use super::Diagnostic;
 use crate::capture::PackageReviewInput;
 use crate::capture::nominal_identity;
-use crate::capture::semantics::declarations::trait_requirement_identity_from_symbols;
+use crate::capture::semantics::declarations::{
+    premise_projections, progress_profile, trait_requirement_identity_from_symbols,
+};
 use crate::capture::semantics::services::rejected;
 use crate::record::{PackagePolicyServiceProgressPremise, PackagePolicyServiceProgressRoute};
 use effects::provider_plan::{ServiceProgressEstablishmentRouteKind, ServiceProgressSubject};
@@ -17,22 +19,7 @@ pub(super) fn project(
     };
     let mut projected = Vec::new();
     for premise in premises {
-        let profiles = compilation
-            .domain_definitions()
-            .iter()
-            .filter(|domain| domain.semantic_id == premise.profile)
-            .collect::<Vec<_>>();
-        let [profile] = profiles.as_slice() else {
-            return Err(rejected(
-                "progress premise has no unique exact profile declaration",
-            ));
-        };
-        if profile.classification != Some(language_semantics::DomainClassification::ProgressProfile)
-        {
-            return Err(rejected(
-                "progress premise names another domain classification",
-            ));
-        }
+        let profile = progress_profile(compilation, premise.profile, "progress premise")?;
         let subjects = parameters
             .iter()
             .filter(|parameter| parameter.symbol == premise.subject.root)
@@ -84,12 +71,7 @@ pub(super) fn project(
         projected.push(PackagePolicyServiceProgressPremise {
             profile: nominal_identity(compilation, profile.symbol)?,
             subject,
-            subject_projections: premise
-                .subject
-                .projections
-                .iter()
-                .map(|symbol| nominal_identity(compilation, *symbol))
-                .collect::<Result<Vec<_>, _>>()?,
+            subject_projections: premise_projections(compilation, premise)?,
             establishment_routes,
         });
     }

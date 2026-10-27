@@ -1,12 +1,14 @@
 use super::rejected;
 use crate::capture::PackageReviewInput;
 use crate::capture::semantics::{
-    declarations::{nominal_identity, trait_requirement_identity_from_symbols},
+    declarations::{
+        nominal_identity, premise_projections, premise_subject, progress_profile,
+        trait_requirement_identity_from_symbols,
+    },
     facts::exactly_one,
 };
 use crate::record::{
     PackagePolicyProgressPremise, PackagePolicyServiceProgressRoute, PackagePolicyTermination,
-    PackageReviewProgressSubject,
 };
 use checked_trees::RealizedMachineContractEnvelope;
 use diagnostics::Diagnostic;
@@ -82,49 +84,10 @@ fn project_guarantee(
         return Ok(PackagePolicyTermination::NoGuarantee);
     };
     let parameters = compilation.state_parameters(entry);
+    let subject = format!("reviewed callable `{}`", machine.name.as_str());
     let mut projected = Vec::new();
     for premise in premises {
-        let profile = exactly_one(
-            compilation
-                .domain_definitions()
-                .iter()
-                .filter(|domain| domain.semantic_id == premise.profile),
-            machine.name.as_str(),
-            "progress profile",
-        )?;
-        if profile.classification != Some(language_semantics::DomainClassification::ProgressProfile)
-        {
-            return Err(rejected(
-                "termination premise does not name an exact progress profile",
-            ));
-        }
-        let root = premise.subject.root;
-        let subject = if let Some(position) =
-            typed_trees::signature::state_parameter_position(parameters, root)
-        {
-            PackageReviewProgressSubject::Parameter(
-                u32::try_from(position)
-                    .map_err(|_| rejected("termination position exceeds portable width"))?,
-            )
-        } else if compilation
-            .data_definitions()
-            .iter()
-            .any(|data| data.symbol == root && data.is_public)
-            || compilation
-                .domain_definitions()
-                .iter()
-                .any(|domain| domain.symbol == root && domain.is_public)
-            || compilation
-                .machines()
-                .iter()
-                .any(|machine| machine.symbol == root && machine.is_public)
-        {
-            PackageReviewProgressSubject::Declaration(nominal_identity(compilation, root)?)
-        } else {
-            return Err(rejected(
-                "termination premise root is neither an entry parameter nor a public declaration",
-            ));
-        };
+        let profile = progress_profile(compilation, premise.profile, &subject)?;
         // Progress profiles project only requirement routes; exact-machine
         // routes are ineligible for admitted boundary progress profiles.
         let mut establishment_routes = profile.establishment_routes.iter().filter(|route| !matches!(route, language_semantics::DomainEstablishmentRoute::ExactMachine { .. })).map(|route| {
@@ -142,13 +105,8 @@ fn project_guarantee(
         establishment_routes.dedup();
         projected.push(PackagePolicyProgressPremise {
             profile: nominal_identity(compilation, profile.symbol)?,
-            subject,
-            projections: premise
-                .subject
-                .projections
-                .iter()
-                .map(|symbol| nominal_identity(compilation, *symbol))
-                .collect::<Result<Vec<_>, _>>()?,
+            subject: premise_subject(compilation, parameters, premise.subject.root, &subject)?,
+            projections: premise_projections(compilation, premise)?,
             establishment_routes,
         });
     }
