@@ -53,10 +53,10 @@ pub(crate) fn prove_ready(
     for (item, mut definition) in candidates {
         // The initializer owner distinguishes completed case names from pending
         // const references and computations. Syntactic `Name` is not readiness.
-        if selection.pending_leaves(&syntax, &definition)?.is_empty()
+        if (definition.pending_qualification.is_some()
+            || selection.initializer_requires_destination_proof(&syntax, &definition))
+            && selection.pending_leaves(&syntax, &definition)?.is_empty()
             && destination_inputs_ready(&selection, &syntax, &definition)?
-            && (definition.pending_qualification.is_some()
-                || selection.initializer_requires_destination_proof(&syntax, &definition))
         {
             let expected = syntax_trees::item::ConstDestinationObligation {
                 declaration: definition.name.source_span(),
