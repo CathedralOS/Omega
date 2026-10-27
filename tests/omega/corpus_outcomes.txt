@@ -2643,12 +2643,12 @@ fail/constants/const_shadows_case rejected 52ms expected @a92f16431042
 fail/constants/mathematical_constant_domain_false rejected 52ms expected @a92f16431042
 	cannot prove default-domain field requirement for return from @const-qualification-DIGIT-0, state @const-qualification-DIGIT-0, at statement 0: Digit requires Digit::Decimal
 	construction value is not proven in domain `Digit::Decimal` in @const-qualification-DIGIT-0 state `@const-qualification-DIGIT-0` at statement 0; a construction value must establish the domain's predicates and any required provenance
-fail/constants/predicate_constant_field_shadows_outer_constant rejected 21ms expected @a92f16431042
-	constant `INVALID` is invalid: data constant `Bounded` violates its default-domain predicate
+fail/constants/predicate_constant_field_shadows_outer_constant rejected 31ms expected @2693b883558f
+	data `Bounded` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/constants/predicate_constant_generic_static_index_fence rejected 23ms unexpected @a92f16431042
 	constant `VALID` is invalid: const fact integer operation requires retained declared carriers
-fail/constants/predicate_constant_nested_projection_shadow rejected 25ms expected @a92f16431042
-	constant `INVALID` is invalid: data constant `Packet` violates its default-domain predicate
+fail/constants/predicate_constant_nested_projection_shadow rejected 25ms expected @2693b883558f
+	data `Packet` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/constants/predicate_constant_static_index_fence checked 1541ms @a92f16431042
 fail/constants/target_layout_derived_crashing_helper_reject rejected 2719ms expected @a92f16431042
 	constant initializer: constant invocation of `forbidden` retains unhandled [Trap] routes at its concrete arguments
@@ -2670,14 +2670,14 @@ fail/constants/target_layout_derived_unused_wrong_carrier_reject rejected 3533ms
 	constant initializer: constant expression differs from its destination carrier
 fail/constants/unused_case_predicate_constant rejected 25ms expected @a92f16431042
 	constant `INVALID` is invalid: data constant `Choice` violates its case predicate
-fail/constants/unused_default_domain_constant rejected 18ms expected @a92f16431042
-	constant `INVALID` is invalid: data constant `Bounded` violates its default-domain predicate
+fail/constants/unused_default_domain_constant rejected 24ms expected @2693b883558f
+	data `Bounded` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/constants/unused_empty_case_predicate_constant rejected 19ms expected @a92f16431042
 	constant `INVALID` is invalid: data constant `Choice` violates its case predicate
-fail/constants/unused_generic_default_domain_constant rejected 19ms unexpected @a92f16431042
-	constant `INVALID` is invalid: const fact integer operation requires retained declared carriers
-fail/constants/unused_nested_default_domain_constant rejected 19ms expected @a92f16431042
-	constant `INVALID` is invalid: data constant `Bounded` violates its default-domain predicate
+fail/constants/unused_generic_default_domain_constant rejected 25ms expected @2693b883558f
+	data `Counter<7>` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/constants/unused_nested_default_domain_constant rejected 24ms expected @2693b883558f
+	data `Bounded` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/constants/unused_routed_constant_requires_issuer rejected 48ms expected @a92f16431042
 	cannot prove scalar result domain for return from @const-qualification-FORGED-0 at statement 0: u64::Issued
 fail/constants/unused_scalar_constant_range rejected 30ms expected @a92f16431042
@@ -6605,8 +6605,8 @@ fail/facts/computed_constant_array_extent_index rejected 2331ms expected @a92f16
 	cannot prove index `1` is within length 1
 fail/facts/computed_constant_array_extent_mismatch rejected 81ms expected @a92f16431042
 	constant initializer: fixed-array const value requires 1 elements but has 2
-fail/facts/computed_constant_array_extent_qualification rejected 44ms expected @a92f16431042
-	constant initializer: data constant `Cell` violates its default-domain predicate
+fail/facts/computed_constant_array_extent_qualification rejected 365ms expected @2693b883558f
+	data `Cell` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/facts/computed_constant_array_extent_through_call_result_rejected rejected 2195ms expected @a92f16431042
 	cannot prove index `1` is within length 1
 fail/facts/computed_constant_array_extent_through_const_name_rejected rejected 3672ms expected @a92f16431042
@@ -7080,16 +7080,48 @@ fail/facts/crash_entry_signed_zero_through_parameter_rejected rejected 6776ms ex
 	call from `read_zero` to `maybe_nonzero` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_signed_zero_through_target_body_rejected rejected 7002ms expected @a92f16431042
 	call from `read_zero` to `forward` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/data_where_standing_const_coupled_false rejected 464ms expected @06b136c1a61f
-	constant `NAMED` is invalid: data constant `Counter` violates its default-domain predicate
-fail/facts/data_where_standing_const_missing_field_shadow rejected 444ms expected @06b136c1a61f
-	constant `NAMED` is invalid: missing const field `ceiling`
-fail/facts/data_where_standing_const_missing_member_shadow rejected 443ms expected @06b136c1a61f
-	constant `NAMED` is invalid: data constant `Counter` requires declaration-site default-domain proof checking
-fail/facts/data_where_standing_const_nested_false rejected 459ms expected @06b136c1a61f
-	constant `NAMED` is invalid: data constant `Counter` violates its default-domain predicate
-fail/facts/data_where_standing_const_scalar_false rejected 507ms expected @06b136c1a61f
-	constant `NAMED` is invalid: data constant `Counter` violates its default-domain predicate
+fail/facts/data_where_standing_const_coupled_false rejected 435ms expected @2693b883558f
+	data `Counter` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/data_where_standing_const_missing_field_shadow rejected 318ms expected @2693b883558f
+	data `Counter` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/data_where_standing_const_missing_member_shadow rejected 299ms expected @2693b883558f
+	cannot form specification operator `==` in data `Counter` default-domain predicate: no exact selected meaning
+	data `Counter` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/data_where_standing_const_nested_false rejected 527ms expected @2693b883558f
+	data `Counter` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/data_where_standing_const_scalar_false rejected 328ms expected @2693b883558f
+	data `Counter` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/data_where_standing_predicate_helper_alias_invalid_rejected rejected 1062ms expected @2693b883558f
+	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_predicate_helper_literal_invalid_rejected rejected 331ms expected @2693b883558f
+	data `Counter` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/data_where_standing_predicate_helper_qualified_formal_rejected rejected 722ms expected @2693b883558f
+	data `Counter` default-domain predicate constant expression call argument `value` does not form parameter `value` of `bounded`: actual i32, required i32[in Nonnegative]
+	machine `produce` cannot lend restricted field `value` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/facts/data_where_standing_predicate_helper_stronger_rejected rejected 762ms expected @2693b883558f
+	machine `produce` cannot lend restricted field `value` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_predicate_helper_through_call_result_rejected rejected 762ms expected @2693b883558f
+	exact arithmetic in machine `compute` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_predicate_helper_through_const_name_rejected rejected 862ms expected @2693b883558f
+	exact arithmetic in machine `compute` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_predicate_helper_through_field_rejected rejected 862ms expected @2693b883558f
+	exact arithmetic in machine `compute` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_predicate_helper_through_local_rejected rejected 728ms expected @2693b883558f
+	exact arithmetic in machine `compute` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_predicate_helper_through_match_join_rejected rejected 730ms expected @2693b883558f
+	exact arithmetic in machine `compute` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_predicate_helper_through_other_machine_rejected rejected 718ms expected @2693b883558f
+	exact arithmetic in machine `add` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_predicate_helper_through_other_state_rejected rejected 716ms expected @2693b883558f
+	exact arithmetic in machine `next` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_predicate_helper_through_parameter_rejected rejected 741ms expected @2693b883558f
+	exact arithmetic in machine `compute` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_predicate_helper_through_target_body_rejected rejected 741ms expected @2693b883558f
+	exact arithmetic in machine `compute` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `compute` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `compute` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `compute` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/data_where_standing_root_rejected rejected 978ms expected @06b136c1a61f
 	exact arithmetic in machine `run` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/data_where_standing_through_call_result_rejected rejected 1050ms expected @06b136c1a61f
@@ -18197,10 +18229,10 @@ fail/generics/const_generic_runtime_argument rejected 264ms expected @0366054665
 	const parameter `Count` of `prefix_count` requires a normalized closed value
 fail/generics/const_index_active_case_false rejected 29ms expected @a92f16431042
 	constant `POINT` is invalid: data constant `Choice` violates its case predicate
-fail/generics/const_index_default_domain_false rejected 29ms expected @a92f16431042
-	constant `NAMED` is invalid: data constant `Counter` violates its default-domain predicate
-fail/generics/const_index_gated_domain_false rejected 20ms expected @a92f16431042
-	constant `NAMED` is invalid: data constant `Counter` violates its default-domain predicate
+fail/generics/const_index_default_domain_false rejected 362ms expected @2693b883558f
+	data `Counter` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/generics/const_index_gated_domain_false rejected 362ms expected @2693b883558f
+	data `Counter` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/generics/contextual_static_machine_ambiguous_carried_result rejected 1947ms expected @a92f16431042
 	machine `apply$specialized$72bf55503679d95a$0` returns a view but takes 2 candidate ref inputs (`context carried source [Field(Handle { arena_index: 380, generation: 1 })]`, `item carried source []`); cannot infer which input the returned view borrows — annotate the return type with the lifetime of the input it borrows, e.g. `-> &'a T` matching an input `&'a T`
 	machine `relay` returns a view borrowing the local `__hoist_16`, which does not outlive the call; return a view of storage that outlives the invocation instead
@@ -19237,8 +19269,8 @@ fail/modules/generic_scoped_constant_wrong_constructor rejected 31ms expected @a
 	public const `Holder::VALUE` has no canonical declaration identity: const constructor `Other` selects a different nominal carrier than `Holder<u32>`
 fail/modules/imported_file_cannot_use_callers_imports rejected 507ms expected @a92f16431042
 	data `B` field `value` references unknown data type `A`
-fail/modules/literal_constant_array_range_rejected rejected 31ms expected @a92f16431042
-	constant `BAD` is invalid: data constant `Element` violates its default-domain predicate
+fail/modules/literal_constant_array_range_rejected rejected 27ms expected @2693b883558f
+	data `Element` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/modules/nested_constant_projection_missing_field rejected 55ms expected @a92f16431042
 	constant initializer: constant member read cannot select closed record field `missing` in its exact carrier
 fail/modules/nested_constant_projection_wrong_carrier rejected 24ms expected @a92f16431042
@@ -19259,8 +19291,8 @@ fail/modules/same_name_service_callback_wrong_owner rejected 1590ms expected @a9
 	machine argument `selected` for `apply` does not refine `Selected`: service reach `Sink` exceeds its authored ceiling
 fail/modules/selected_constant_array_alias_policy_mismatch rejected 62ms expected @a92f16431042
 	constant initializer: constant initializer result does not match its declared carrier
-fail/modules/selected_constant_array_alias_range_rejected rejected 71ms expected @a92f16431042
-	constant initializer: data constant `ArrayHolder` violates its default-domain predicate
+fail/modules/selected_constant_array_alias_range_rejected rejected 51ms expected @2693b883558f
+	data `ArrayHolder` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/modules/selected_constant_computed_extent_roster rejected 54ms expected @a92f16431042
 	constant initializer: fixed-array const value requires 2 elements but has 1
 fail/modules/selected_constant_nominal_alias_mismatch rejected 63ms expected @a92f16431042
@@ -21664,14 +21696,14 @@ fail/text/qualified_owner_reference_corruption rejected 2729ms expected @a92f164
 fail/text/stored_field_reference_domain_loss rejected 1670ms expected @a92f16431042
 	cannot prove default-domain field requirement for return from bad at statement 2: container.bytes requires [u8; N]::Ascii
 	cannot prove default-domain field requirement for return from bad at statement 2: container.bytes requires [u8; N]::Utf8
-fail/time/duration_constant_unnormalized rejected 3998ms expected @a92f16431042
-	constant `INVALID` is invalid: data constant `Duration` violates its default-domain predicate
-fail/time/instant_constant_unnormalized rejected 4024ms expected @a92f16431042
-	constant `INVALID` is invalid: data constant `Instant` violates its default-domain predicate
+fail/time/duration_constant_unnormalized rejected 6499ms expected @2693b883558f
+	data `Duration` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/time/instant_constant_unnormalized rejected 6480ms expected @2693b883558f
+	data `Instant` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/time/instant_mutation_leaves_invalid_return rejected 7736ms expected @a92f16431042
 	machine `corrupt` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/time/system_time_constant_unnormalized rejected 4133ms expected @a92f16431042
-	constant `INVALID` is invalid: data constant `SystemTime` violates its default-domain predicate
+fail/time/system_time_constant_unnormalized rejected 3961ms expected @2693b883558f
+	data `SystemTime` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/traits/applied_conformance_exact_edge_result_region rejected 2691ms expected @a92f16431042
 	machine `borrow` state `entry` does not satisfy trait `Borrowing` machine `borrow`: conformance borrow contract: unimplemented: callable returned-source relation is ambiguous or incomplete
 fail/traits/applied_conformance_input_region_partition rejected 1400ms expected @a92f16431042
@@ -25044,6 +25076,17 @@ pass/facts/crash_entry_signed_zero_through_parameter_exit checked 8173ms check-t
 pass/facts/crash_entry_signed_zero_through_target_body_exit checked 7322ms check-target:macos_arm64 @a92f16431042
 pass/facts/data_where_standing_const_coupled_const checked 2363ms check-target:macos_arm64 @06b136c1a61f
 pass/facts/data_where_standing_const_nested_const checked 2363ms check-target:macos_arm64 @06b136c1a61f
+pass/facts/data_where_standing_predicate_helper_alias_exit checked 8781ms check-target:macos_arm64 @2693b883558f
+pass/facts/data_where_standing_predicate_helper_literal_exit checked 1940ms check-target:macos_arm64 @2693b883558f
+pass/facts/data_where_standing_predicate_helper_through_call_result_exit checked 1688ms check-target:macos_arm64 @2693b883558f
+pass/facts/data_where_standing_predicate_helper_through_const_name_exit checked 8481ms check-target:macos_arm64 @2693b883558f
+pass/facts/data_where_standing_predicate_helper_through_field_exit checked 1816ms check-target:macos_arm64 @2693b883558f
+pass/facts/data_where_standing_predicate_helper_through_local_exit checked 1647ms check-target:macos_arm64 @2693b883558f
+pass/facts/data_where_standing_predicate_helper_through_match_join_exit checked 1783ms check-target:macos_arm64 @2693b883558f
+pass/facts/data_where_standing_predicate_helper_through_other_machine_exit checked 1649ms check-target:macos_arm64 @2693b883558f
+pass/facts/data_where_standing_predicate_helper_through_other_state_exit checked 1606ms check-target:macos_arm64 @2693b883558f
+pass/facts/data_where_standing_predicate_helper_through_parameter_exit checked 1602ms check-target:macos_arm64 @2693b883558f
+pass/facts/data_where_standing_predicate_helper_through_target_body_exit checked 1761ms check-target:macos_arm64 @2693b883558f
 pass/facts/data_where_standing_root_exit checked 2704ms check-target:macos_arm64 @06b136c1a61f
 pass/facts/data_where_standing_through_call_result_exit checked 2687ms check-target:macos_arm64 @06b136c1a61f
 pass/facts/data_where_standing_through_const_name_exit checked 9769ms check-target:macos_arm64 @06b136c1a61f

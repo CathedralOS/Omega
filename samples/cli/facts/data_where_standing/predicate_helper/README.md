@@ -41,7 +41,13 @@ until an ordinary full-type constructor/return judgment completes. The receipt
 cannot be stamped while that exact checked probe owes a target proof condition.
 Index use independently proves every predicate from decoded own fields through
 the existing admitted predicate judgment; canonical bytes supply values, not
-membership or authority. False and unknown results refuse publication.
+membership or authority. False and unknown results refuse publication. The
+helper/index judgment currently covers complete positional calls over bare
+integer formals.
+
+Destination probes wait for their exact named type inputs to complete.
+Declaration-owned ranking terms retain their typed source ownership during
+deferred body preparation; the termination witness and proof remain body work.
 
 The fixed discovery base is `0e81d85357829393c3382cea3d3382237a807dc0`.
 The ordinary helper spelling refused restricted-field handback on that base,
