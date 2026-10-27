@@ -85,7 +85,14 @@ pub(crate) fn retain(
             definition,
             lowerer.constant_selection.as_ref(),
         )
-        .map(|value| value.value.encoding.into())
+        .and_then(|payload| {
+            if payload.pending_destination != definition.pending_qualification {
+                return Err(
+                    "private initializer lost its exact pending destination obligation".to_owned(),
+                );
+            }
+            Ok(payload.value.encoding.into())
+        })
     }
     .map_err(|_| error(reference, "materialized value is not canonical"))?;
     if value != receipt.result_value {

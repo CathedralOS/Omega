@@ -29,11 +29,7 @@ pub struct ConstInitializerPayload {
     pub pending_destination: Option<ConstDestinationObligation>,
 }
 
-pub struct ConstDestinationObligation {
-    pub declaration: source::SourceSpan,
-    pub destination: syntax_trees::types::TypeReferenceHandle,
-    pub initializer: syntax_trees::expression::ExpressionHandle,
-}
+pub use syntax_trees::item::ConstDestinationObligation;
 
 impl ConstInitializerSelection {
     pub fn initializer_expression_dependencies(

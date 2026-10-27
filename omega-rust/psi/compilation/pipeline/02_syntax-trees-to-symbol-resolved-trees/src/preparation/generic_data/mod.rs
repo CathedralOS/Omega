@@ -378,12 +378,34 @@ pub(crate) fn canonicalize_pending_initializer_payload(
     )?;
     Ok(crate::resolution::ConstInitializerPayload {
         value,
-        pending_destination: const_destination_requires_proof(syntax, definition, selection)
-            .then_some(crate::resolution::ConstDestinationObligation {
+        pending_destination: if let Some(obligation) = &definition.pending_qualification {
+            if obligation.declaration != definition.name.source_span()
+                || obligation.initializer != definition.value
+            {
+                return Err(
+                    "private constant payload drifted from its pending destination".to_owned(),
+                );
+            }
+            // A private input may expose only the carrier while its original
+            // full destination remains owed. Preserve that debt verbatim.
+            Some(obligation.clone())
+        } else if !definition
+            .qualification
+            .as_ref()
+            .is_some_and(|qualification| {
+                qualification.destination == definition.type_reference
+                    && qualification.initializer == definition.value
+            })
+            && const_destination_requires_proof(syntax, definition, selection)
+        {
+            Some(crate::resolution::ConstDestinationObligation {
                 declaration: definition.name.source_span(),
                 destination: definition.type_reference,
                 initializer: definition.value,
-            }),
+            })
+        } else {
+            None
+        },
     })
 }
 
@@ -407,6 +429,9 @@ pub(crate) fn canonicalize_selected_declared_const_definition(
     definition: &ConstDefinition,
     selection: Option<&declaration_selection::ConstantSelection>,
 ) -> Result<CanonicalConstValue, String> {
+    if definition.pending_qualification.is_some() {
+        return Err("constant destination qualification remains pending".to_owned());
+    }
     let mut payload = definition.clone();
     if let TypeReferenceNode::Constrained {
         base_type,

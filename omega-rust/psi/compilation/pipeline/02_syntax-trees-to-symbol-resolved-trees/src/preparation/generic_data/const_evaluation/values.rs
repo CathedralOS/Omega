@@ -817,6 +817,9 @@ pub(in crate::preparation::generic_data) fn canonicalize_selected_declaration_va
     definition: &ConstDefinition,
     selection: Option<&ConstantSelection>,
 ) -> Result<CanonicalConstValue, String> {
+    if definition.pending_qualification.is_some() {
+        return Err("constant destination qualification remains pending".to_owned());
+    }
     canonicalize_selected_declaration_value_with_admission(
         syntax,
         definition,

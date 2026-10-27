@@ -50,12 +50,41 @@ pub(crate) fn prove_ready(
             },
         )?;
     let mut pending = Vec::new();
-    for (item, definition) in candidates {
+    for (item, mut definition) in candidates {
         // The initializer owner distinguishes completed case names from pending
         // const references and computations. Syntactic `Name` is not readiness.
         if selection.pending_leaves(&syntax, &definition)?.is_empty()
-            && selection.initializer_requires_destination_proof(&syntax, &definition)
+            && (definition.pending_qualification.is_some()
+                || selection.initializer_requires_destination_proof(&syntax, &definition))
         {
+            let expected = syntax_trees::item::ConstDestinationObligation {
+                declaration: definition.name.source_span(),
+                destination: definition.type_reference,
+                initializer: definition.value,
+            };
+            if definition
+                .pending_qualification
+                .as_ref()
+                .is_some_and(|actual| *actual != expected)
+            {
+                return Err(vec![
+                    Diagnostic::error(
+                        "constant destination obligation drifted from its declaration",
+                    )
+                    .with_source_span(definition.name.source_span()),
+                ]);
+            }
+            definition.pending_qualification = Some(expected);
+            syntax
+                .items
+                .replace_item(item, Item::Const(definition.clone()));
+            let Item::Const(mut private) = probe.root_item(item).clone() else {
+                return Err(vec![Diagnostic::error(
+                    "constant destination probe lost its declaration",
+                )]);
+            };
+            private.pending_qualification = definition.pending_qualification.clone();
+            probe.items.replace_item(item, Item::Const(private));
             pending.push((item, definition));
         }
     }
@@ -121,6 +150,7 @@ pub(crate) fn prove_ready(
     )?;
 
     for (item, mut definition) in pending {
+        definition.pending_qualification = None;
         definition.qualification = Some(ConstQualification {
             destination: definition.type_reference,
             initializer: definition.value,
@@ -138,9 +168,17 @@ pub(crate) fn defer_unproved(syntax: &mut SyntaxTrees) {
         let Item::Const(mut definition) = syntax.root_item(item).clone() else {
             continue;
         };
-        if definition.qualification.is_some() {
+        if definition
+            .qualification
+            .as_ref()
+            .is_some_and(|qualification| {
+                qualification.destination == definition.type_reference
+                    && qualification.initializer == definition.value
+            })
+        {
             continue;
         }
+        definition.qualification = None;
         while let TypeReferenceNode::Constrained { base_type, .. } = syntax
             .type_references
             .type_reference(definition.type_reference)
