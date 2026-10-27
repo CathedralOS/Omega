@@ -1536,3 +1536,22 @@ fn bare_bodyless_machine_signature_parses_and_bodyless_satisfies_without_via_rej
         "a machine without a body is the ACCEPTED boundary form",
     );
 }
+
+#[test]
+fn contextual_clause_names_retain_their_first_contract_proposition() {
+    let parsed = super::parse_source_verbose(
+        r#"machine check(blocks: i64, suspends: bool)
+            requires blocks >= 0;
+            requires suspends;
+            blocks;
+            ensures blocks >= 0;
+            {}"#,
+        "tokenize contextual contract subjects",
+        "contextual subjects must not become empty contracts or effect clauses",
+    );
+    let machine = super::root_machine(&parsed, "machine");
+    let contracts = parsed.items.capability_contracts(machine.contracts);
+    assert_eq!(contracts.len(), 3);
+    assert!(contracts.iter().all(|contract| contract.facts.count() == 1));
+    assert!(machine.blocks);
+}

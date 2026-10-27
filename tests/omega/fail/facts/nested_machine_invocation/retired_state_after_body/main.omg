@@ -1,4 +1,4 @@
 machine main() {
-    transition old_helper()
+    old_helper()
     state old_helper() {}
 }
