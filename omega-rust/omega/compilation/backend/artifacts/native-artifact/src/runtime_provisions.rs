@@ -56,7 +56,7 @@ impl TerminalRuntimeHostProvisions {
         boundaries: &[terminal_psi::BoundaryMachineDeclaration],
         selected: &effects::SelectedProviderPlanFacts,
         identities: &terminal_psi::TerminalIdentityTable,
-        calling_applications: &[calling_conventions::BoundaryCallingApplication],
+        external_bindings: &[calling_conventions::ExternalBindingRow],
     ) -> Result<Self, &'static str> {
         let mut host_requirements = Vec::new();
         for provision in &host {
@@ -85,20 +85,41 @@ impl TerminalRuntimeHostProvisions {
             let requirement = binding
                 .requirement_identity(selected.identities())
                 .ok_or("runtime foreign calling application lost its selected requirement")?;
-            // The same producer has already settled these applications. Retain
-            // its exact shape and strong selected commitment, not a reconstructed
-            // shape inferred from a placement's byte extent or report coordinate.
-            let mut applications = calling_applications.iter().filter(|application| {
+            // Admission has already joined these exact receiving rows to their
+            // foreign settlements. Direct leaves project the receiving identity,
+            // while the application retains its original requirement-owned
+            // nominal parameters and commitment. Looking up the application's
+            // original owner in the receiving selection would lose that relation.
+            let mut rows = external_bindings.iter().filter(|row| {
                 selected.selected_row_matches_requirement(
-                    &application.requirement_identity,
+                    &row.requirement_identity,
                     requirement,
                     binding.provider_plan_report_identity(),
-                ) && Some(application.target) == binding.native_target()
-                    && application.plan.plan() == &binding.boundary_entry_plan
+                )
             });
-            let calling_application = applications.next().cloned();
-            if applications.next().is_some() {
+            let row = rows.next();
+            if rows.next().is_some() {
                 return Err("runtime foreign calling application is ambiguous");
+            }
+            let calling_application = row
+                .and_then(|row| row.calling_application.as_ref())
+                .map(|application| {
+                    if Some(application.target) != binding.native_target()
+                        || application.plan.plan() != &binding.boundary_entry_plan
+                        || application.commitment == [0; 32]
+                        || application.recomputed_commitment() != application.commitment
+                    {
+                        return Err(
+                            "runtime foreign calling application differs from its admitted row",
+                        );
+                    }
+                    Ok(application.clone())
+                })
+                .transpose()?;
+            if calling_application.is_none() && binding.import().is_some() {
+                return Err(
+                    "runtime foreign import lost its complete admitted calling application",
+                );
             }
             let native_adapter = binding.import().map(|(locator, _)| {
                 let application = calling_application.as_ref().ok_or_else(|| {
@@ -490,7 +511,7 @@ impl TerminalRuntimeProvisions {
         identities: &terminal_psi::TerminalIdentityTable,
         plan_identities: &terminal_psi::TerminalIdentityTable,
         target_slot: target::ProgramEntrySlotDeclaration,
-        calling_applications: &[calling_conventions::BoundaryCallingApplication],
+        external_bindings: &[calling_conventions::ExternalBindingRow],
     ) -> Result<Self, &'static str> {
         let host_provisions = TerminalRuntimeHostProvisions::capture_native_admission(
             installation,
@@ -498,7 +519,7 @@ impl TerminalRuntimeProvisions {
             boundaries,
             selected,
             identities,
-            calling_applications,
+            external_bindings,
         )?;
         let mut fused_service_boundary_slots = Vec::with_capacity(fused_services.len());
         for establishment in fused_services {

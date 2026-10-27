@@ -66,6 +66,36 @@ descriptor arguments, stack-slot overflow, or the parent's complete host matrix.
 The separate `aggregate_struct_return_abi` Quartet is Omega-produced and cannot
 substitute for an actual C return.
 
+## Direct foreign production
+
+The same fact also needs the concrete foreign-call production, independently of
+the selected `IntegerDivision::divide` route. The [direct root](direct/main.omg)
+and its nine places call `divide` directly for both original input pairs. They
+retain the whole-record double use, the earlier result across the second call,
+and all six signed-field comparisons. The exact `lldiv` bindings and public
+two-`i64` carrier remain unchanged; each external leaf uses `boundary machine`.
+Nested helpers use ordinary `machine` declarations and explicit arguments.
+
+The direct places are [local](direct/local/main.omg),
+[field](direct/field/main.omg), [parameter](direct/parameter/main.omg),
+[call result](direct/call_result/main.omg),
+[match join](direct/match_join/main.omg),
+[const name](direct/const_name/main.omg),
+[nested machine](direct/other_state/main.omg),
+[other machine](direct/other_machine/main.omg), and
+[target body](direct/target_body/main.omg). Every place has an `invalid/main.omg`
+that removes only `Division`'s `[copy]` property and retains the expected
+`holds no value` rejection. Exact copies are pinned under
+`tests/omega/{pass,fail}/facts/foreign_scalar_record_result_direct_through_*`.
+Every positive declares all four hosted entries and `Expected exit: 0`.
+
+This is another production of the existing NORMALIZED-ABI-LOWERING requirement,
+not another fact or a larger-count ABI row. The applicable requirement layers
+below apply to it as well. The direct row is drafted but has no execution credit
+yet: each positive still needs matching-host native/Terminal agreement and
+canonical artifact validation, and each twin must reject for its copy obligation.
+The historical selected-call observations above do not establish this route.
+
 Applicable requirement layers:
 
 - Establishment/identity: exact foreign admission and complete field validation

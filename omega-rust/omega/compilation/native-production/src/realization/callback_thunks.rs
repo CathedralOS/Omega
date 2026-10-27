@@ -91,7 +91,6 @@ fn lower_callback_thunk(
         request.optimization_budget(),
         settlement.artifact,
         terminal_psi::TargetMachineCallable::Machine(settlement.entry),
-        request.calling_applications,
     )?
     .projection;
     let emitted = projection.entry_call_plan()?;
