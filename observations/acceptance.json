@@ -1,0 +1,17 @@
+{
+  "parent": "NESTED-MACHINE-UNIFICATION",
+  "producer": "14a211b80ef82c2d89dfcabbd4b5fdc9d44bb7b6",
+  "runner": "14a211b80ef82c2d89dfcabbd4b5fdc9d44bb7b6",
+  "host": "macOS ARM64",
+  "source_fixtures": 260,
+  "native_terminal_outcomes": 114,
+  "zero_agreements": 113,
+  "authored_traps": 1,
+  "positive_places": 9,
+  "reject_twins": 9,
+  "extra_positive_controls": 2,
+  "extra_reject_controls": 3,
+  "conflict_integration": "Actual PR428 conflicts resolved against incoming main1762e3ac388930e835f0dbc662635f88685b58ea. Original preintegration observations/qualification remain on separate immutable records.",
+  "remaining": "See actual parser-admission.log. Full library admission, Omega-written frontend/downstream migration and other-host native execution remain open.",
+  "qualification": "Authenticates actual integrated-source observations and immutable inputs. No original run is relabelled."
+}

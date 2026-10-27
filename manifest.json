@@ -1,0 +1,98 @@
+{
+  "submitted_head": "14a211b80ef82c2d89dfcabbd4b5fdc9d44bb7b6",
+  "starting_source": "7c682db5a9feefc1322ac98fa6ddf18642d3766e",
+  "fixed_base": "baf1b6ea0633681bcc2cf34d563d748a47fadb36",
+  "integrated_main": "1762e3ac388930e835f0dbc662635f88685b58ea",
+  "historical_evidence": "Original preintegration observations and qualification are retained independently at9dd9b328bed284e9efb738f04d497d9175c4f6a3, work/nested-effectful-completion-evidence. These are fresh integrated-source observations with their own producer/profile/record identities.",
+  "applicability": "14a integrated producer and fresh 260 source/114 native-Terminal records. Nine positive places and two controls run0, nine twins and three controls reject, corrupt oracle traps both. Remaining std two exact-arithmetic obligations and full product/downstream acceptance open. Other-host native unverified.",
+  "files": [
+    {
+      "path": "qualification/state.json.gz",
+      "sha256": "a3c3ad6a3e1b04abfe921d5f17446a8214f3ea463250471dd9d54999d0f3c75c"
+    },
+    {
+      "path": "qualification/config.json.gz",
+      "sha256": "70fd816fdb0f0fb5c2b62953c227325ff1087644da8a6ce235e4bb7ef8e3c0b8"
+    },
+    {
+      "path": "qualification/receipt-0.json.gz",
+      "sha256": "e7a840111c2147c6511c7fa5ebb3f5b63821be9c57b20b72a5587d0e7c72911f"
+    },
+    {
+      "path": "qualification/run-0-stdout.txt",
+      "sha256": "42ceb3d8f770dd55043d72c06702cba263692eae4dfaec318ae2bb6974c7f54e"
+    },
+    {
+      "path": "qualification/run-0-stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "observations/validate.py",
+      "sha256": "f91d26052a354fa7d8d4b5d16995fc29dde470bcdc330e5712cd5cfc7e06a6e6"
+    },
+    {
+      "path": "observations/acceptance.json",
+      "sha256": "faddb0ec1687504c43fe59ea96e0f7f0eaeebdfb44263cf91cdbeb55a28d1a21"
+    },
+    {
+      "path": "observations/producer.json",
+      "sha256": "c5d280eef23bb7df0434bbbca7a9e07fb24f23ec699667d3b6ba897966833919"
+    },
+    {
+      "path": "observations/runner-producer.json",
+      "sha256": "1e7a63f299dac3dc49cf6030141bdc0aeaf97050c426a226b41032c51a69cde9"
+    },
+    {
+      "path": "observations/build.jsonl",
+      "sha256": "6320898af02907f80dbd5a047aefffc6fefefcbe332aa6109a720db10e34f61f"
+    },
+    {
+      "path": "observations/build.log",
+      "sha256": "4c4db3f056b51e341784c435bf8a8d76aaea0de6982491f5ffdd02ecf09e3809"
+    },
+    {
+      "path": "observations/runner-build.jsonl",
+      "sha256": "9979f480532add3052da61204cdd5fdb558dc9a01468775fc3c3ef0af8fa4601"
+    },
+    {
+      "path": "observations/runner-build.log",
+      "sha256": "ead60739acc96824e292e75ee03b99f2015f9331d44960ce0215f81974e2dde0"
+    },
+    {
+      "path": "observations/row-integrated.json",
+      "sha256": "660f093771d19e81f9e41b411c51b19eb06f9146c6c3dea7143d882cca253578"
+    },
+    {
+      "path": "observations/controls-integrated.json",
+      "sha256": "5ddd7be33a7ead1b5f507714484f61ce8d630dfc33db46d809569b0636595269"
+    },
+    {
+      "path": "observations/counterfactual.json",
+      "sha256": "a1983bf8e266b16d3aaa551c3520c4ccaf8df661a52307926ca795fdd0b97a54"
+    },
+    {
+      "path": "observations/corpus-source.json",
+      "sha256": "58136a695f9c8c52c879aec672609d29436717aa8ad2f82d7814517eec1836e4"
+    },
+    {
+      "path": "observations/corpus-both.json",
+      "sha256": "7848abb57020aed4febd70ef91ca74605a612385874bde689896273dedd4692c"
+    },
+    {
+      "path": "observations/parser-admission.log",
+      "sha256": "9b862911f343ccdc13e451dd5541a327dd0ccfd76ea919e09791c00ddfe97e1a"
+    },
+    {
+      "path": "observations/format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "observations/continuation-context.json",
+      "sha256": "d1cf47dd5ced4fd429e4c347b2b63939587d3503580359bdc5e02db5901f14c4"
+    },
+    {
+      "path": "source/14a211b80ef82c2d89dfcabbd4b5fdc9d44bb7b6.bundle",
+      "sha256": "cde5278cb6d1f28720ea8036017a107aabc86f93c36a61d8b0c917e07e50a645"
+    }
+  ]
+}

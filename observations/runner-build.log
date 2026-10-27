@@ -1,0 +1,10 @@
+   Compiling package-compilation v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/omega/packages/compilation-inputs)
+   Compiling provider-planning v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/omega/compilation/realization/provider-planning)
+   Compiling selected-dispatch v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/omega/compilation/realization/selected-dispatch)
+   Compiling compilation-products v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/omega/compilation/products)
+   Compiling package-evidence v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/omega/packages/review-evidence)
+   Compiling build-evaluation v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/omega/compilation/build-evaluation)
+   Compiling compiler v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/omega/compilation/driver)
+   Compiling package-manager v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/omega/packages/package-manager)
+   Compiling omega-build v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/omega/application/build)
+    Finished `test` profile [optimized] target(s) in 22.75s

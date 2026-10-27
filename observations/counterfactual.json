@@ -1,0 +1,12 @@
+{
+  "command": [
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/effectful-integration/producer/omega",
+    "run",
+    "--both",
+    "build/effectful-completion/counterfactual/main.omg"
+  ],
+  "sha256": "3b69c57298e939e34ca82d2be88ed4b6f48c6eaae319f8758b50af84630d6935",
+  "exit": 255,
+  "stdout": "",
+  "stderr": "native signal 5\ninterp crash: Trap (host presentation agrees)\n"
+}
