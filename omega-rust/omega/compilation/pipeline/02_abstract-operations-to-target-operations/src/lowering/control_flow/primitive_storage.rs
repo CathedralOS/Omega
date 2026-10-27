@@ -1,7 +1,8 @@
 //! Activation-local primitive backing and fresh storage observations.
-use super::{KnownUnitInteger, LiveDefinitions, RowSite};
+use super::{LiveDefinitions, RowSite};
 use crate::LoweringError;
 use crate::lowering::function_signature::PreparedFunctionSignature;
+use crate::lowering::unit::known_integers::insert_scalar_home;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use calling_conventions::ValueShape;
 use semantic_vocabulary::{IntegerSign, IntegerType, OperationId, ScalarType, StructuralTypeId};
@@ -197,15 +198,7 @@ pub(super) fn retain_result(
         scalar_type: result.scalar_type,
         shape: shape(result)?,
     };
-    if matches!(result.scalar_type, ScalarType::Integer(_)) {
-        crate::lowering::unit::known_integers::insert_known_unit_integer(
-            &mut live.integers,
-            result.value,
-            KnownUnitInteger::Home(home),
-        )?;
-    } else if live.scalar_homes.insert(result.value, home).is_some() {
-        return Err(LoweringError::DuplicateValue(result.value));
-    }
+    insert_scalar_home(&mut live.integers, &mut live.scalar_homes, home.clone())?;
     Ok(home)
 }
 

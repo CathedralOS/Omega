@@ -226,3 +226,33 @@ pub(in crate::lowering) fn home(
         layout: result_home_layout(&declaration, types)?,
     })
 }
+
+/// Resolve an operation result's home and publish it as the live storage at
+/// its own place. `None` reports that this place already held a home, keeping
+/// each caller's own disposition (refuse the duplicate, or replace it) rather
+/// than one collision policy per construction site.
+pub(super) fn publish_home(
+    live: &mut super::LiveDefinitions,
+    operation_id: OperationId,
+    result: &terminal_psi::StructuralOperationResult,
+    types: &StructuralTypeLookup<'_>,
+) -> Result<Option<TargetStructuralHomeRequirement>, LoweringError> {
+    let result_home = home(operation_id, result, types)?;
+    Ok(live
+        .structural_homes
+        .insert(result.place, result_home.clone())
+        .is_none()
+        .then_some(result_home))
+}
+
+/// Publish a result home that no other live structural value may already own.
+pub(super) fn established_home(
+    live: &mut super::LiveDefinitions,
+    operation_id: OperationId,
+    result: &terminal_psi::StructuralOperationResult,
+    types: &StructuralTypeLookup<'_>,
+    machine: semantic_vocabulary::MachineId,
+) -> Result<TargetStructuralHomeRequirement, LoweringError> {
+    publish_home(live, operation_id, result, types)?
+        .ok_or_else(|| LoweringError::unsupported_control_flow(machine))
+}
