@@ -77,8 +77,11 @@ pub(crate) fn complete(
     blocks: &mut [Block],
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<(), LoweringError> {
+    let _g0 = phase_profile::guard("05.01.g1.3e.1_owned_extractions");
     let extractions =
         projected_transfers::owned_extractions(entry_parameters, local_places, blocks, types)?;
+    drop(_g0);
+    let _g1 = phase_profile::guard("05.01.g1.3e.2_complete_carriers");
     complete_carriers(
         parameters,
         entry_parameters,
@@ -89,6 +92,8 @@ pub(crate) fn complete(
         types,
         &extractions,
     )?;
+    drop(_g1);
+    let _g2 = phase_profile::guard("05.01.g1.3e.3_projected_transfers");
     projected_transfers::complete(
         entry_parameters,
         local_places,
@@ -97,6 +102,8 @@ pub(crate) fn complete(
         types,
         &extractions,
     )?;
+    drop(_g2);
+    let _g3 = phase_profile::guard("05.01.g1.3e.4_retire_borrowed");
     retire_borrowed_descriptor_arrivals(entry_parameters, entry, blocks, types)
 }
 
@@ -142,42 +149,103 @@ fn retire_borrowed_descriptor_arrivals(
             }
         }
     }
-    let pending = arrivals
-        .into_iter()
-        .filter(|(place, _)| !descriptor_death_is_scheduled(blocks, *place))
-        .collect::<Vec<_>>();
-    for (place, births) in pending {
-        let mut reachable = births;
-        let mut cursor = 0;
-        while cursor < reachable.len() {
-            let current = reachable[cursor];
-            cursor += 1;
-            let Some(block) = blocks.iter().find(|block| block.id == current) else {
-                continue;
-            };
-            for target in block.terminator.successor_targets() {
-                if !reachable.contains(&target) {
-                    reachable.push(target);
+    if !arrivals.is_empty() {
+        let mut scheduled_deaths: std::collections::HashSet<PlaceId> =
+            std::collections::HashSet::new();
+        for block in blocks.iter() {
+            for (_, actions) in block.terminator.cleanup_rosters() {
+                for action in actions {
+                    scheduled_deaths.insert(action.place());
                 }
             }
-        }
-        for block in blocks.iter_mut() {
-            if !reachable.contains(&block.id) {
-                continue;
+            for operation in &block.operations {
+                for argument in structural_operands(&operation.kind) {
+                    if argument.path.is_empty() && argument.access == StructuralAccess::Owned {
+                        scheduled_deaths.insert(argument.place);
+                    }
+                }
+                if let terminal_psi::OperationKind::ReleaseReference { source, path } =
+                    &operation.kind
+                    && path.is_empty()
+                {
+                    scheduled_deaths.insert(*source);
+                }
             }
-            if matches!(
-                block.terminator,
-                Terminator::ReturnStructural { source, .. } if source == place
-            ) {
-                continue;
-            }
-            let Some(actions) = return_cleanup(&mut block.terminator) else {
-                continue;
+            let record_owned = |argument: &terminal_psi::StructuralArgument,
+                                set: &mut std::collections::HashSet<PlaceId>| {
+                if argument.path.is_empty() && argument.access == StructuralAccess::Owned {
+                    set.insert(argument.place);
+                }
             };
-            if actions.iter().any(|action| action.place() == place) {
-                continue;
+            match &block.terminator {
+                Terminator::Jump {
+                    structural_arguments,
+                    ..
+                }
+                | Terminator::ExternalCompletion {
+                    structural_arguments,
+                    ..
+                } => {
+                    for arg in structural_arguments {
+                        record_owned(arg, &mut scheduled_deaths);
+                    }
+                }
+                Terminator::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } => {
+                    for arg in when_true
+                        .structural_arguments
+                        .iter()
+                        .chain(&when_false.structural_arguments)
+                    {
+                        record_owned(arg, &mut scheduled_deaths);
+                    }
+                }
+                _ => {}
             }
-            actions.push(TerminalAffineCleanupAction::DiscardRoot(place));
+        }
+        let pending = arrivals
+            .into_iter()
+            .filter(|(place, _)| !scheduled_deaths.contains(place))
+            .collect::<Vec<_>>();
+        for (place, births) in pending {
+            let mut reachable_set: std::collections::HashSet<BlockId> =
+                births.iter().copied().collect();
+            let mut reachable = births;
+            let mut cursor = 0;
+            while cursor < reachable.len() {
+                let current = reachable[cursor];
+                cursor += 1;
+                let Some(block_index) = blocks.binary_search_by_key(&current, |block| block.id).ok()
+                else {
+                    continue;
+                };
+                for target in blocks[block_index].terminator.successor_targets() {
+                    if reachable_set.insert(target) {
+                        reachable.push(target);
+                    }
+                }
+            }
+            for block in blocks.iter_mut() {
+                if !reachable_set.contains(&block.id) {
+                    continue;
+                }
+                if matches!(
+                    block.terminator,
+                    Terminator::ReturnStructural { source, .. } if source == place
+                ) {
+                    continue;
+                }
+                let Some(actions) = return_cleanup(&mut block.terminator) else {
+                    continue;
+                };
+                if actions.iter().any(|action| action.place() == place) {
+                    continue;
+                }
+                actions.push(TerminalAffineCleanupAction::DiscardRoot(place));
+            }
         }
     }
     Ok(())
@@ -190,57 +258,6 @@ fn borrowed_descriptor_arrival(
     parameter.multiplicity == StructuralMultiplicity::Affine
         && parameter.access != StructuralAccess::Owned
         && terminal_semantics::view_descriptor_parameter(parameter, types.iter())
-}
-
-/// A named death, owned whole transfer, or reference release already ends
-/// this carrier. A second discard on a later return would miss the frontier.
-fn descriptor_death_is_scheduled(blocks: &[Block], place: PlaceId) -> bool {
-    blocks.iter().any(|block| {
-        block
-            .terminator
-            .cleanup_rosters()
-            .any(|(_, actions)| actions.iter().any(|action| action.place() == place))
-            || block.operations.iter().any(|operation| {
-                structural_operands(&operation.kind).any(|argument| {
-                    argument.place == place
-                        && argument.path.is_empty()
-                        && argument.access == StructuralAccess::Owned
-                }) || matches!(
-                    &operation.kind,
-                    terminal_psi::OperationKind::ReleaseReference { source, path }
-                        if *source == place && path.is_empty()
-                )
-            })
-            || terminator_owns_place(&block.terminator, place)
-    })
-}
-
-fn terminator_owns_place(terminator: &Terminator, place: PlaceId) -> bool {
-    let owned = |argument: &terminal_psi::StructuralArgument| {
-        argument.place == place
-            && argument.path.is_empty()
-            && argument.access == StructuralAccess::Owned
-    };
-    match terminator {
-        Terminator::Jump {
-            structural_arguments,
-            ..
-        }
-        | Terminator::ExternalCompletion {
-            structural_arguments,
-            ..
-        } => structural_arguments.iter().any(owned),
-        Terminator::Conditional {
-            when_true,
-            when_false,
-            ..
-        } => when_true
-            .structural_arguments
-            .iter()
-            .chain(when_false.structural_arguments.iter())
-            .any(owned),
-        _ => false,
-    }
 }
 
 fn return_cleanup(terminator: &mut Terminator) -> Option<&mut Vec<TerminalAffineCleanupAction>> {
@@ -307,6 +324,10 @@ fn complete_carriers(
     )],
 ) -> Result<(), LoweringError> {
     let copyable_descriptor_types = copyable_descriptor_type_ids(types);
+    let copyable_descriptor_set: std::collections::HashSet<semantic_vocabulary::StructuralTypeId> =
+        copyable_descriptor_types.iter().copied().collect();
+    let no_code_type_set: std::collections::HashSet<semantic_vocabulary::StructuralTypeId> =
+        no_code_types.iter().copied().collect();
     let entry_owners = parameters
         .iter()
         .rev()
@@ -314,7 +335,7 @@ fn complete_carriers(
             (parameter.access == StructuralAccess::Owned
                 && (parameter.multiplicity == StructuralMultiplicity::Affine
                     || (parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                        && copyable_descriptor_types.contains(&parameter.structural_type))))
+                        && copyable_descriptor_set.contains(&parameter.structural_type))))
             .then_some(parameter.place)
         })
         .collect::<Vec<_>>();
@@ -324,56 +345,74 @@ fn complete_carriers(
         .iter()
         .flat_map(|block| scheduled_discards(&block.terminator))
         .collect::<Vec<_>>();
+    let scheduled_set: std::collections::HashSet<PlaceId> = scheduled.iter().copied().collect();
     // A partial transfer retains root storage and its independently selected
     // residual disposal. The whole-home solver must not replace that schedule.
     let copied_roots = copied_operand_roots(entry_parameters, blocks);
-    let partial_transfers = partitioned_roots(blocks, extractions, &copied_roots)
-        .into_iter()
-        .collect::<Vec<_>>();
+    let partial_transfers_set = partitioned_roots(blocks, extractions, &copied_roots);
+    let partial_transfers = partial_transfers_set.iter().copied().collect::<Vec<_>>();
+    let mut unique_type_by_id: std::collections::HashMap<
+        semantic_vocabulary::StructuralTypeId,
+        Option<&terminal_psi::StructuralTypeDeclaration>,
+    > = std::collections::HashMap::with_capacity(types.len());
+    for declaration in types {
+        match unique_type_by_id.entry(declaration.id) {
+            std::collections::hash_map::Entry::Vacant(vacant) => {
+                vacant.insert(Some(declaration));
+            }
+            std::collections::hash_map::Entry::Occupied(mut occupied) => {
+                *occupied.get_mut() = None;
+            }
+        }
+    }
+    let trivial_affine_locals: std::collections::HashSet<PlaceId> = local_places
+        .iter()
+        .filter_map(|local| match local.kind {
+            StructuralPlaceKind::TrivialAffineLocal {
+                structural_type, ..
+            } if no_code_type_set.contains(&structural_type) => Some(local.id),
+            _ => None,
+        })
+        .collect();
     let mut births = blocks
         .iter()
         .flat_map(|block| &block.operations)
         .filter_map(|operation| {
             let place = established_place(operation)?;
-            if partial_transfers.contains(&place) {
+            if partial_transfers_set.contains(&place) {
                 return None;
             }
             let Some(result) = operation.result.structural() else {
                 // In-place establishment owns a declared local home, not an
                 // operation result. Rejoin its exact checked type capability.
-                return local_places.iter().find_map(|local| {
-                    (local.id == place
-                        && matches!(local.kind,
-                            StructuralPlaceKind::TrivialAffineLocal { structural_type, .. }
-                                if no_code_types.contains(&structural_type)))
-                    .then_some((place, operation.id))
-                });
+                return trivial_affine_locals
+                    .contains(&place)
+                    .then_some((place, operation.id));
             };
             // Membership metadata neither settles this carrier's disposal
             // debt nor authorizes disposal. Keep it on the result; the exact
             // checked type or anchored loan-carrier authority below decides
             // whether this pass may settle its claim-free carrier custody.
             let copyable_home = result.multiplicity == StructuralMultiplicity::Unrestricted
-                && copyable_descriptor_types.contains(&result.structural_type);
+                && copyable_descriptor_set.contains(&result.structural_type);
             if (result.multiplicity != StructuralMultiplicity::Affine && !copyable_home)
                 || !result.claims.is_empty()
             {
                 return None;
             }
-            let mut declarations = types
-                .iter()
-                .filter(|declaration| declaration.id == result.structural_type);
-            let declaration = declarations.next()?;
-            let unscheduled_carrier = !scheduled.contains(&result.place)
+            let declaration = unique_type_by_id
+                .get(&result.structural_type)
+                .copied()
+                .flatten()?;
+            let unscheduled_carrier = !scheduled_set.contains(&result.place)
                 && (matches!(
                     declaration.shape,
                     terminal_psi::StructuralTypeShape::ElementView { .. }
                         | terminal_psi::StructuralTypeShape::Reference { .. }
                 ) || declaration.shape.is_borrowed_byte_view());
-            if declarations.next().is_some()
-                || !(no_code_types.contains(&result.structural_type)
-                    || unscheduled_carrier
-                    || copyable_home)
+            if !(no_code_type_set.contains(&result.structural_type)
+                || unscheduled_carrier
+                || copyable_home)
             {
                 return None;
             }
@@ -392,11 +431,11 @@ fn complete_carriers(
             .filter(|parameter| {
                 parameter.access == StructuralAccess::Owned
                     && (parameter.multiplicity == StructuralMultiplicity::Affine
-                        && no_code_types.contains(&parameter.structural_type)
+                        && no_code_type_set.contains(&parameter.structural_type)
                         || parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                            && copyable_descriptor_types.contains(&parameter.structural_type))
+                            && copyable_descriptor_set.contains(&parameter.structural_type))
                     && !entry_owners.contains(&parameter.place)
-                    && !partial_transfers.contains(&parameter.place)
+                    && !partial_transfers_set.contains(&parameter.place)
             })
             .map(|parameter| parameter.place),
     );
@@ -414,35 +453,44 @@ fn complete_carriers(
     // that receipt. This is not permission to schedule another death: these
     // homes remain outside the disposal capability roster.
     let disposal_capability = managed.clone();
-    let mut tracked_disposals = scheduled
-        .iter()
-        .copied()
-        .filter(|place| {
-            !managed.contains(place)
-                && !partial_transfers.contains(place)
-                && carrier_arrivals::owned_affine_type(
-                    entry_parameters,
-                    local_places,
-                    blocks,
-                    *place,
-                )
-                .is_some()
-                && blocks
-                    .iter()
-                    .flat_map(|block| scheduled_actions(&block.terminator))
-                    .filter(|action| action.place() == *place)
-                    .all(|action| matches!(action, TerminalAffineCleanupAction::DiscardRoot(_)))
-        })
-        .collect::<Vec<_>>();
+    let disposal_capability_set: std::collections::HashSet<PlaceId> =
+        disposal_capability.iter().copied().collect();
+    let mut tracked_disposals = if scheduled.is_empty() {
+        Vec::new()
+    } else {
+        let owned_affine_types =
+            carrier_arrivals::build_owned_affine_types(entry_parameters, local_places, blocks);
+        let mut non_discard_root_places: std::collections::HashSet<PlaceId> =
+            std::collections::HashSet::new();
+        for block in blocks.iter() {
+            for action in scheduled_actions(&block.terminator) {
+                if !matches!(action, TerminalAffineCleanupAction::DiscardRoot(_)) {
+                    non_discard_root_places.insert(action.place());
+                }
+            }
+        }
+        scheduled
+            .iter()
+            .copied()
+            .filter(|place| {
+                !disposal_capability_set.contains(place)
+                    && !partial_transfers_set.contains(place)
+                    && owned_affine_types.get(place).copied().flatten().is_some()
+                    && !non_discard_root_places.contains(place)
+            })
+            .collect::<Vec<_>>()
+    };
     tracked_disposals.sort_unstable();
     tracked_disposals.dedup();
+    let tracked_disposals_set: std::collections::HashSet<PlaceId> =
+        tracked_disposals.iter().copied().collect();
     let initial_owners = entry_owners
         .iter()
         .copied()
         .chain(
             entry_parameters
                 .iter()
-                .filter(|parameter| tracked_disposals.contains(&parameter.place))
+                .filter(|parameter| tracked_disposals_set.contains(&parameter.place))
                 .map(|parameter| parameter.place),
         )
         .collect::<Vec<_>>();
@@ -452,7 +500,7 @@ fn complete_carriers(
             .flat_map(|block| &block.operations)
             .filter_map(|operation| {
                 let place = established_place(operation)?;
-                tracked_disposals
+                tracked_disposals_set
                     .contains(&place)
                     .then_some((place, operation.id))
             }),
@@ -461,12 +509,12 @@ fn complete_carriers(
     if managed.is_empty() {
         return Ok(());
     }
-    if managed
-        .iter()
-        .enumerate()
-        .any(|(position, place)| managed[..position].contains(place))
-    {
-        return unsupported("scalar graph affine parameters have duplicate places");
+    let mut managed_set: std::collections::HashSet<PlaceId> =
+        std::collections::HashSet::with_capacity(managed.len());
+    for &place in &managed {
+        if !managed_set.insert(place) {
+            return unsupported("scalar graph affine parameters have duplicate places");
+        }
     }
     let entry_position = block_position(blocks, entry)?;
     let reentered =
@@ -500,7 +548,7 @@ fn complete_carriers(
                 }) && !(reentered && *target == entry))
                     || cleanup_actions
                         .iter()
-                        .any(|action| competing_cleanup(action, &entry_owners, &managed))
+                        .any(|action| competing_cleanup(action, &entry_owners, &managed_set))
                 {
                     return unsupported(
                         "scalar graph whole parameter cleanup cannot replace existing edge custody",
@@ -525,7 +573,7 @@ fn complete_carriers(
                     }) || edge
                         .cleanup_actions
                         .iter()
-                        .any(|action| competing_cleanup(action, &entry_owners, &managed))
+                        .any(|action| competing_cleanup(action, &entry_owners, &managed_set))
                         || (reentered && edge.target == entry)
                 }) {
                     return unsupported(
@@ -538,7 +586,7 @@ fn complete_carriers(
                 if cases.iter().any(|edge| {
                     edge.cleanup_actions
                         .iter()
-                        .any(|action| competing_cleanup(action, &entry_owners, &managed))
+                        .any(|action| competing_cleanup(action, &entry_owners, &managed_set))
                         || (reentered && edge.target == entry)
                 }) {
                     return unsupported(
@@ -552,7 +600,7 @@ fn complete_carriers(
                 cleanup_actions, ..
             } if cleanup_actions
                 .iter()
-                .all(|action| !competing_cleanup(action, &entry_owners, &managed)) =>
+                .all(|action| !competing_cleanup(action, &entry_owners, &managed_set)) =>
             {
                 Vec::new()
             }
@@ -599,11 +647,15 @@ fn complete_carriers(
     // other paths dispose their surviving roots on their own selected edge.
     // A later read cannot revive a discarded owner; frontier verification
     // checks every operation against the reconciled entry.
-    let producers = blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .filter_map(|operation| established_place(operation).map(|place| (place, operation.id)))
-        .collect::<Vec<_>>();
+    let mut producers: std::collections::HashMap<
+        semantic_vocabulary::PlaceId,
+        semantic_vocabulary::OperationId,
+    > = std::collections::HashMap::new();
+    for operation in blocks.iter().flat_map(|block| &block.operations) {
+        if let Some(place) = established_place(operation) {
+            producers.entry(place).or_insert(operation.id);
+        }
+    }
     let dominators =
         crate::emission::control_flow::block_dominators(Some(entry_position), &successors);
     let mut parameter_blocks = blocks
@@ -612,7 +664,9 @@ fn complete_carriers(
         .filter(|(_, block)| !block.structural_parameters.is_empty())
         .collect::<Vec<_>>();
     parameter_blocks.sort_by_key(|(position, _)| dominators[*position].len());
-    let parameter_order = parameters
+    let mut parameter_order: std::collections::HashMap<semantic_vocabulary::PlaceId, usize> =
+        std::collections::HashMap::new();
+    for (index, place) in parameters
         .iter()
         .map(|parameter| parameter.place)
         .chain(
@@ -621,23 +675,26 @@ fn complete_carriers(
                 .flat_map(|(_, block)| &block.structural_parameters)
                 .map(|parameter| parameter.place),
         )
-        .collect::<Vec<_>>();
+        .enumerate()
+    {
+        parameter_order.insert(place, index);
+    }
     let complete_disposals = |actions: &mut Vec<TerminalAffineCleanupAction>,
                               additions: Vec<semantic_vocabulary::PlaceId>,
                               live: &[semantic_vocabulary::PlaceId]| {
         actions.retain(|action| {
             !matches!(action,
                 TerminalAffineCleanupAction::DiscardRoot(place)
-                    if tracked_disposals.contains(place) && !live.contains(place)
+                    if tracked_disposals_set.contains(place) && !live.contains(place)
             )
         });
         replace_managed_discards(
             actions,
             additions
                 .into_iter()
-                .filter(|place| disposal_capability.contains(place))
+                .filter(|place| disposal_capability_set.contains(place))
                 .collect(),
-            &disposal_capability,
+            &disposal_capability_set,
             &producers,
             &parameter_order,
             &copied_roots,
@@ -734,12 +791,12 @@ fn complete_carriers(
 fn replace_managed_discards(
     existing: &mut Vec<TerminalAffineCleanupAction>,
     additions: Vec<semantic_vocabulary::PlaceId>,
-    managed: &[semantic_vocabulary::PlaceId],
-    producers: &[(
+    managed: &std::collections::HashSet<semantic_vocabulary::PlaceId>,
+    producers: &std::collections::HashMap<
         semantic_vocabulary::PlaceId,
         semantic_vocabulary::OperationId,
-    )],
-    parameter_order: &[semantic_vocabulary::PlaceId],
+    >,
+    parameter_order: &std::collections::HashMap<semantic_vocabulary::PlaceId, usize>,
     copied_roots: &std::collections::BTreeSet<semantic_vocabulary::PlaceId>,
 ) {
     // A region disposal retains its home, and explicit retirement already
@@ -782,7 +839,7 @@ fn replace_managed_discards(
 fn competing_cleanup(
     action: &TerminalAffineCleanupAction,
     affine: &[semantic_vocabulary::PlaceId],
-    managed: &[semantic_vocabulary::PlaceId],
+    managed: &std::collections::HashSet<semantic_vocabulary::PlaceId>,
 ) -> bool {
     match action {
         TerminalAffineCleanupAction::DiscardRoot(place) => affine.contains(place),
@@ -807,6 +864,13 @@ fn established_place(operation: &terminal_psi::Operation) -> Option<semantic_voc
 }
 
 fn block_position(blocks: &[Block], target: BlockId) -> Result<usize, LoweringError> {
+    if let Ok(index) = blocks.binary_search_by_key(&target, |block| block.id) {
+        let duplicate_before = index > 0 && blocks[index - 1].id == target;
+        let duplicate_after = index + 1 < blocks.len() && blocks[index + 1].id == target;
+        if !duplicate_before && !duplicate_after {
+            return Ok(index);
+        }
+    }
     let mut positions = blocks
         .iter()
         .enumerate()
@@ -825,11 +889,11 @@ fn block_position(blocks: &[Block], target: BlockId) -> Result<usize, LoweringEr
 fn merge_discards(
     existing: &mut Vec<TerminalAffineCleanupAction>,
     additions: Vec<semantic_vocabulary::PlaceId>,
-    producers: &[(
+    producers: &std::collections::HashMap<
         semantic_vocabulary::PlaceId,
         semantic_vocabulary::OperationId,
-    )],
-    parameter_order: &[semantic_vocabulary::PlaceId],
+    >,
+    parameter_order: &std::collections::HashMap<semantic_vocabulary::PlaceId, usize>,
     copied_roots: &std::collections::BTreeSet<semantic_vocabulary::PlaceId>,
 ) {
     for place in additions {
@@ -851,31 +915,25 @@ fn merge_discards(
 fn disposal_position(
     existing: impl Iterator<Item = semantic_vocabulary::PlaceId>,
     place: semantic_vocabulary::PlaceId,
-    producers: &[(
+    producers: &std::collections::HashMap<
         semantic_vocabulary::PlaceId,
         semantic_vocabulary::OperationId,
-    )],
-    parameter_order: &[semantic_vocabulary::PlaceId],
+    >,
+    parameter_order: &std::collections::HashMap<semantic_vocabulary::PlaceId, usize>,
 ) -> usize {
-    let producer = |place| {
-        producers
-            .iter()
-            .find_map(|(candidate, operation)| (*candidate == place).then_some(*operation))
-    };
-    let birth = producer(place);
-    let parameter_position = parameter_order
-        .iter()
-        .rposition(|candidate| *candidate == place);
+    let birth = producers.get(&place).copied();
+    let parameter_position = parameter_order.get(&place).copied();
     let mut length = 0;
     for (position, current) in existing.enumerate() {
         if birth.is_some_and(|birth| {
-            producer(current).is_none_or(|current_birth| current_birth < birth)
+            producers
+                .get(&current)
+                .is_none_or(|&current_birth| current_birth < birth)
         }) || (birth.is_none()
             && parameter_position.is_some_and(|parameter_position| {
                 parameter_order
-                    .iter()
-                    .rposition(|candidate| *candidate == current)
-                    .is_some_and(|current_position| current_position < parameter_position)
+                    .get(&current)
+                    .is_some_and(|&current_position| current_position < parameter_position)
             }))
         {
             return position;

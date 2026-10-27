@@ -514,6 +514,95 @@ impl StructuralJudge<'_> {
         )]])
     }
 
+    pub(in crate::proof_contracts::contract_entailment) fn prove_observed_integer_ordering_minimum(
+        &self,
+        left_reference: typed_trees::types::TypeReferenceHandle,
+        left: &StructuralTerm,
+        right_reference: typed_trees::types::TypeReferenceHandle,
+        right: &StructuralTerm,
+    ) -> Option<i64> {
+        let comparison = |operator| StructuralTerm::MathematicalBinary {
+            operator,
+            left: Box::new(StructuralTerm::IntegerEmbedding {
+                reference: left_reference,
+                value: Box::new(left.clone()),
+            }),
+            right: Box::new(StructuralTerm::IntegerEmbedding {
+                reference: right_reference,
+                value: Box::new(right.clone()),
+            }),
+        };
+        let greater = comparison(BinaryOperator::Greater);
+        let resolved_greater = self.resolve_at(greater.clone(), 1);
+        let greater_eq_judgment = self.judge_equation(
+            resolved_greater.clone(),
+            super::value_predicates::boolean_term(true),
+            1,
+        );
+        if matches!(greater_eq_judgment, StructuralJudgment::Proven) {
+            return Some(1);
+        }
+        let greater_or_equal = comparison(BinaryOperator::GreaterOrEqual);
+        let resolved_ge = self.resolve_at(greater_or_equal, 1);
+        let ge_eq_judgment = self.judge_equation(
+            resolved_ge.clone(),
+            super::value_predicates::boolean_term(true),
+            1,
+        );
+        let Some((observations, (_, left_poly, right_poly))) =
+            self.integer_predicate_observations(&greater)
+        else {
+            if matches!(greater_eq_judgment, StructuralJudgment::Unknown)
+                && self.proves_observed_integer_boolean(&resolved_greater, 1) == Some(true)
+            {
+                return Some(1);
+            }
+            if matches!(ge_eq_judgment, StructuralJudgment::Proven)
+                || (matches!(ge_eq_judgment, StructuralJudgment::Unknown)
+                    && self.proves_observed_integer_boolean(&resolved_ge, 1) == Some(true))
+            {
+                return Some(0);
+            }
+            return None;
+        };
+        let queries = observations.engine.lower_bound_queries();
+        if IntegerObservations::comparison_holds(
+            &queries,
+            BinaryOperator::Greater,
+            &left_poly,
+            &right_poly,
+        ) || (matches!(greater_eq_judgment, StructuralJudgment::Unknown)
+            && !IntegerObservations::comparison_holds(
+                &queries,
+                BinaryOperator::LessOrEqual,
+                &left_poly,
+                &right_poly,
+            )
+            && self.proves_observed_integer_boolean(&resolved_greater, 1) == Some(true))
+        {
+            Some(1)
+        } else if matches!(ge_eq_judgment, StructuralJudgment::Proven)
+            || IntegerObservations::comparison_holds(
+                &queries,
+                BinaryOperator::GreaterOrEqual,
+                &left_poly,
+                &right_poly,
+            )
+            || (matches!(ge_eq_judgment, StructuralJudgment::Unknown)
+                && !IntegerObservations::comparison_holds(
+                    &queries,
+                    BinaryOperator::Less,
+                    &left_poly,
+                    &right_poly,
+                )
+                && self.proves_observed_integer_boolean(&resolved_ge, 1) == Some(true))
+        {
+            Some(0)
+        } else {
+            None
+        }
+    }
+
     /// Prepare independently formed premises once, then fork their exact
     /// captured-value namespace for each goal. Goal operations and opaque
     /// registrations remain private to that fork; no requested truth enters

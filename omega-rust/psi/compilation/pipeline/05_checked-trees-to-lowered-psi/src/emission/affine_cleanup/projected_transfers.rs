@@ -34,6 +34,15 @@ pub(crate) fn owned_extractions(
     blocks: &[Block],
     types: &[StructuralTypeDeclaration],
 ) -> Result<Vec<(OperationId, StructuralArgument)>, LoweringError> {
+    let has_extraction = blocks.iter().any(|block| {
+        block
+            .operations
+            .iter()
+            .any(|op| matches!(op.kind, OperationKind::MoveStructuralField { .. }))
+    });
+    if !has_extraction {
+        return Ok(Vec::new());
+    }
     let roots = parameters
         .iter()
         .chain(blocks.iter().flat_map(|block| &block.structural_parameters))

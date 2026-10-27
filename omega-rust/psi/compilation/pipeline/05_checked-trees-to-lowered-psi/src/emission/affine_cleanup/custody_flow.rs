@@ -8,7 +8,7 @@
 
 use super::{LoweringError, projected_transfers, unsupported};
 use semantic_vocabulary::{OperationId, PlaceId};
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::{BTreeSet, HashMap, VecDeque};
 use terminal_psi::{Block, OperationKind, Terminator};
 
 pub(super) struct Frontiers {
@@ -25,7 +25,7 @@ struct EdgeEffects {
 
 fn edge_effects(
     block: &Block,
-    managed: &[PlaceId],
+    managed_index: &HashMap<PlaceId, usize>,
     copied_roots: &BTreeSet<PlaceId>,
 ) -> Result<Vec<EdgeEffects>, LoweringError> {
     let edges: Vec<(
@@ -64,8 +64,7 @@ fn edge_effects(
                 if !projected_transfers::transfers_custody(argument, copied_roots) {
                     continue;
                 }
-                let Some(position) = managed.iter().position(|place| *place == argument.place)
-                else {
+                let Some(&position) = managed_index.get(&argument.place) else {
                     continue;
                 };
                 if !argument.path.is_empty() {
@@ -83,7 +82,7 @@ fn edge_effects(
                     | terminal_psi::TerminalAffineCleanupAction::RetireHome(place) => {
                         // Region disposal does not end a home. A checked
                         // retirement does, after its ordered regional actions.
-                        managed.iter().position(|candidate| candidate == place)
+                        managed_index.get(place).copied()
                     }
                     _ => None,
                 })
@@ -106,12 +105,12 @@ enum Transfer {
 fn transfers(
     block: &Block,
     entry_owners: &[PlaceId],
-    managed: &[PlaceId],
-    births: &[(PlaceId, OperationId)],
+    managed_index: &HashMap<PlaceId, usize>,
+    births_by_op: &HashMap<OperationId, Vec<PlaceId>>,
     copied_roots: &BTreeSet<PlaceId>,
 ) -> Result<Vec<Transfer>, LoweringError> {
     let mut transfers = Vec::new();
-    let position = |place| managed.iter().position(|candidate| *candidate == place);
+    let position = |place: PlaceId| managed_index.get(&place).copied();
     for parameter in &block.structural_parameters {
         if !entry_owners.contains(&parameter.place)
             && let Some(position) = position(parameter.place)
@@ -150,11 +149,15 @@ fn transfers(
         // The owning planner retains births for both returned carriers and
         // in-place local establishment. Do not rediscover only one producer
         // family from the operation's result shape here.
-        for (place, _) in births.iter().filter(|(_, birth)| *birth == operation.id) {
-            let Some(position) = position(*place) else {
-                return unsupported("scalar graph carrier birth is absent from its managed roster");
-            };
-            transfers.push(Transfer::Birth { position });
+        if let Some(places) = births_by_op.get(&operation.id) {
+            for place in places {
+                let Some(position) = position(*place) else {
+                    return unsupported(
+                        "scalar graph carrier birth is absent from its managed roster",
+                    );
+                };
+                transfers.push(Transfer::Birth { position });
+            }
         }
     }
     // Case dispatch observes the subject; only its selected edge's explicit
@@ -194,13 +197,31 @@ pub(super) fn solve(
     if reachable.iter().any(|reached| !reached) {
         return unsupported("owned scalar graph has unreachable custody");
     }
+    let managed_index: HashMap<PlaceId, usize> = managed
+        .iter()
+        .enumerate()
+        .map(|(index, &place)| (place, index))
+        .collect();
+    let mut births_by_op: HashMap<OperationId, Vec<PlaceId>> =
+        HashMap::with_capacity(births.len());
+    for &(place, op) in births {
+        births_by_op.entry(op).or_default().push(place);
+    }
     let transfers = blocks
         .iter()
-        .map(|block| transfers(block, entry_owners, managed, births, copied_roots))
+        .map(|block| {
+            transfers(
+                block,
+                entry_owners,
+                &managed_index,
+                &births_by_op,
+                copied_roots,
+            )
+        })
         .collect::<Result<Vec<_>, _>>()?;
     let edges = blocks
         .iter()
-        .map(|block| edge_effects(block, managed, copied_roots))
+        .map(|block| edge_effects(block, &managed_index, copied_roots))
         .collect::<Result<Vec<_>, _>>()?;
     if edges
         .iter()

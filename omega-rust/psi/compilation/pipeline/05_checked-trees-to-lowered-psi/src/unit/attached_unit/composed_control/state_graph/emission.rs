@@ -763,6 +763,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     }
     drop(_emit_states_guard);
     let _finish_guard = phase_profile::guard("05.01.g1.3_finish");
+    let _req_guard = phase_profile::guard("05.01.g1.3a_requires");
     let live_states = std::mem::take(&mut emission.admitted.live);
     let StateGraphEmission {
         parameters,
@@ -955,7 +956,16 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             arrivals,
         });
     }
+    drop(_req_guard);
+    let _places_guard = phase_profile::guard("05.01.g1.3b_places");
     blocks.sort_by_key(|block| block.id);
+    let existing_result_and_temp_places: std::collections::HashSet<semantic_vocabulary::PlaceId> =
+        catalogs
+            .result_places
+            .iter()
+            .chain(&catalogs.temporary_places)
+            .map(|existing| existing.id)
+            .collect();
     structural_places.extend(
         blocks
             .iter()
@@ -964,13 +974,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
                     crate::scalar_lowering::computations::cases::declarations(&block.operations),
                 )
             })
-            .filter(|place| {
-                !catalogs
-                    .result_places
-                    .iter()
-                    .chain(&catalogs.temporary_places)
-                    .any(|existing| existing.id == place.id)
-            }),
+            .filter(|place| !existing_result_and_temp_places.contains(&place.id)),
     );
     structural_places.append(&mut catalogs.temporary_places);
     structural_places.extend(catalogs.result_places.drain(result_places_start..));
@@ -980,10 +984,6 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     )?;
     crate::emission::operation_emission::place_declarations::retain_operation_results(
         blocks.iter().flat_map(|block| &block.operations),
-        &mut structural_places,
-    )?;
-    crate::emission::operation_emission::place_declarations::retain_block_parameters(
-        blocks.iter(),
         &mut structural_places,
     )?;
     structural_places.sort_by_key(|place| place.id);
@@ -1077,6 +1077,8 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             outcome_specific_ensures: Vec::new(),
         },
     };
+    drop(_places_guard);
+    let _loans_guard = phase_profile::guard("05.01.g1.3c_loans");
     captured_loans.finish(&mut machine, &state_ids)?;
     let retained_entry_homes =
         loaned_local_homes::finish(&mut machine, &loaned_local_homes, &retained_loan_parents)?;
@@ -1090,6 +1092,8 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         &retained_loan_parents,
         &mut catalogs.scalar_calls.next_call_obligation,
     )?;
+    drop(_loans_guard);
+    let _cont_guard = phase_profile::guard("05.01.g1.3d_continuations");
     let continuation_value_uses = machine
         .blocks
         .iter()
@@ -1161,6 +1165,8 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             }
         }
     }
+    drop(_cont_guard);
+    let _affine_guard = phase_profile::guard("05.01.g1.3e_affine_cleanup");
     // Authored entry/local cleanup already belongs to the composed emitter.
     // Complete checked no-code carrier frontiers after private loans and their
     // continuations have reached their final emitted graph. Plain owned type
@@ -1175,6 +1181,8 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         &mut machine.blocks,
         &catalogs.structural_types,
     )?;
+    drop(_affine_guard);
+    let _rank_guard = phase_profile::guard("05.01.g1.3f_crash_and_ranking");
     // Crash ceilings live in the invocation signature, independent of the
     // state's block-local value roster. Predicate parameters retain authored
     // structural positions and scalar formals retain their dense coordinates.
@@ -1199,6 +1207,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         )?
     };
     ranking::retain(&mut machine, &block_ranks, &rank_edges)?;
+    drop(_rank_guard);
     Ok((
         machine,
         occurrences,
