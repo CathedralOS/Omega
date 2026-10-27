@@ -90,9 +90,9 @@ pub(in crate::symbols) fn assign_transition_target_symbols(
             &path[..path.len() - 1],
             None,
         );
-        if receiver_head.is_valid() {
-            named.head_symbol = receiver_head;
-        }
+        // A certified address may resolve only as a complete declaration
+        // prefix. Its selected callee is not the qualifier's lexical head.
+        named.head_symbol = receiver_head;
         named.receiver_symbol = receiver;
         if let Some(leaf) = target_name.as_ref() {
             // Qualified terminal invocations use the ordinary scoped callable

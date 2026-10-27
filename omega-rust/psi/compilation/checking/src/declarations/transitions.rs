@@ -1,8 +1,8 @@
-use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::machine_calls::calls::validate_call_arguments;
 use crate::proof_contracts::arithmetic_domains::ValueEnvironment;
 use crate::value_custody::locals::WritableRoots;
 use diagnostics::Diagnostic;
+use symbols::JoinedPath;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
@@ -14,7 +14,7 @@ mod terminal_results;
 pub(crate) use evaluation::TransitionValueEnvironments;
 
 /// Resolve a named transfer's exact declaration, retaining its owning machine.
-/// Machine declarations select entry; state declarations select that state.
+/// Machine declarations select entry; internal control symbols select their exact body.
 pub(crate) fn resolved_transition_target_state(
     program: &dyn crate::CheckingInput,
     target: symbols::SymbolHandle,
@@ -73,8 +73,6 @@ pub(crate) fn validate_transition_target_node(
     value_environment: &ValueEnvironment,
     argument_environments: &[ValueEnvironment],
     target: TransitionTargetHandle,
-    machine_symbols: &MachineSymbols<'_>,
-    symbols: &TopLevelSymbols<'_>,
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
     formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
@@ -102,7 +100,10 @@ pub(crate) fn validate_transition_target_node(
         return;
     }
     let TransitionTargetNode::Named {
-        path, arguments, ..
+        path,
+        arguments,
+        source_span,
+        ..
     } = target_node
     else {
         return;
@@ -124,10 +125,8 @@ pub(crate) fn validate_transition_target_node(
         diagnostics,
     );
 
-    // Entry transitions name the machine declaration, whereas named states
-    // name their state declaration. Resolve both exact identities before the
-    // compatibility spelling paths: a generated `entry` state is not found
-    // by looking up the machine's source name in the local state table.
+    // Source invocations and compiler-owned control edges retain exact
+    // selected identities. Generated body coordinates have no authored names.
     if let Some((owner, state)) = resolved_transition_target_state(program, path.symbol) {
         // Another machine in target position is a terminal call whose
         // normal result completes this state; a state of this machine,
@@ -188,82 +187,16 @@ pub(crate) fn validate_transition_target_node(
         return;
     }
 
-    let resolved_symbol = path.symbol;
-    let path = program.statement_table.name_path_members(path.members);
-
-    let state_member = if path.len() == 1 {
-        Some(0)
-    } else if path.len() == 2 && path[0].is_self_receiver() {
-        Some(1)
-    } else {
-        None
-    };
-    if let Some(member_index) = state_member {
-        let Some(state) = machine_symbols.state(path[member_index].as_str()) else {
-            // Resolution found no state, machine, parameter or requirement
-            // under this spelling. Lowering would otherwise meet an
-            // unresolved authored call after checking succeeded.
-            if !resolved_symbol.is_valid() {
-                diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}` transitions to `{}`, which names no state of this machine \
-                     and no machine entry or requirement",
-                    current_machine.name, path[member_index]
-                )));
-            }
-            return;
-        };
-
-        validate_transition_arguments_handles(
-            program,
-            current_machine,
-            current_state,
-            value_environment,
-            argument_environments,
-            arguments,
-            state.name.as_str(),
-            program.state_parameters(state),
-            writable_roots,
-            diagnostics,
-            formation_obligations,
-        );
-        return;
-    }
-
-    let Some(receiver_type) = machine_symbols.callable_field_type(path[0].as_str()) else {
-        return;
-    };
-
-    if path.len() == 2 {
-        let Some(machine) = symbols.machine(receiver_type) else {
-            return;
-        };
-
-        let Some(state) = program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.name == path[1])
-        else {
-            diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` has no state `{}`",
-                machine.name, path[1]
-            )));
-            return;
-        };
-
-        validate_transition_arguments_handles(
-            program,
-            current_machine,
-            current_state,
-            value_environment,
-            argument_environments,
-            arguments,
-            &state.name,
-            program.state_parameters(state),
-            writable_roots,
-            diagnostics,
-            formation_obligations,
-        );
-    }
+    // Authored names resolve once, before checking. A missing declaration
+    // cannot acquire an internal control destination from a matching spelling.
+    let members = program.statement_table.name_path_members(path.members);
+    diagnostics.push(
+        Diagnostic::error(format!(
+            "terminal call `{}` does not select a declared machine entry or callable requirement",
+            members.joined_path(),
+        ))
+        .with_source_span(*source_span),
+    );
 }
 
 #[allow(clippy::too_many_arguments)]
