@@ -9,13 +9,16 @@
 
 use diagnostics::Diagnostic;
 use effects::CompilerIntrinsicExecutionIdentity;
-use effects::provider_plan::ProviderPlan;
+use effects::provider_plan::{ProviderPlan, ServiceSchema};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// The source-free part of one retained provider review. The complete plan is
 /// compared before its row-aligned execution identities can supply a proposal.
 pub struct CompilerIntrinsicPlanProvenance<'a> {
     pub plan: &'a ProviderPlan,
+    /// The contract classification authenticated before projecting a direct
+    /// callable's selection coordinate. Ordinary plans use their own schema.
+    pub semantic_schema: &'a ServiceSchema,
     pub row_executions: &'a [Option<CompilerIntrinsicExecutionIdentity>],
 }
 
@@ -60,6 +63,7 @@ fn boundary_float_formats(
 struct SelectedIntrinsicRow<'a> {
     requirement_identity: &'a str,
     plan_index: usize,
+    semantic_schema: &'a ServiceSchema,
     execution: Option<CompilerIntrinsicExecutionIdentity>,
 }
 
@@ -100,6 +104,7 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
                 selected_rows.push(SelectedIntrinsicRow {
                     requirement_identity: plan.identities.text(row.requirement_identity),
                     plan_index,
+                    semantic_schema: retained.semantic_schema,
                     execution: *execution,
                 });
             }
@@ -167,6 +172,8 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
             selected_row.plan_index,
             boundary.id,
             settlement,
+            selected_row.semantic_schema,
+            &plans[selected_row.plan_index].schema,
         ));
     }
     if diagnostics.is_empty() {

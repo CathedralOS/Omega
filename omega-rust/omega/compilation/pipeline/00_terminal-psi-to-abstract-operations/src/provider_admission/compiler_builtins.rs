@@ -178,8 +178,14 @@ pub(super) fn settle_compiler_builtins<'request>(
                     boundary.id,
                 )
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
-                placed_schema::validate(module, boundary, proposal.provider_plan, &demand)
-                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                placed_schema::validate(
+                    module,
+                    boundary,
+                    proposal.provider_plan,
+                    proposal.semantic_schema,
+                    &demand,
+                )
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
                 require_placed_backing_origins(input, boundary.id)
                     .map_err(|reason| vec![Diagnostic::error(reason)])?;
                 let compiler_operation = placed_operation(operation);
@@ -188,7 +194,7 @@ pub(super) fn settle_compiler_builtins<'request>(
                     || demand.operation != operation
                     || operation == terminal_psi::TerminalPlacedAccessorKind::Take
                     || effects::compiler_placed_scalar_contract_identity(
-                        proposal.provider_plan.schema.identity_digest(),
+                        proposal.semantic_schema.identity_digest(),
                         placement_commitment,
                         access_slot,
                         compiler_operation,
