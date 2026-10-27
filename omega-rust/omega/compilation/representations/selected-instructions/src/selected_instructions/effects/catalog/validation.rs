@@ -32,14 +32,16 @@ fn has_policy_trap(semantic: MachineSemanticKind) -> bool {
         )
 }
 
-fn encoded_scalar_constraint(
+/// A positional roster: one `Use` row per input, then one early `Def` per
+/// result, each row naming its own position with no tie and no fixed view. The
+/// declared total pins the arity the arm requires, so a roster of any other
+/// length is not evidence for that row's operand shape.
+fn positional_roster(
     constraint: &register_model::RegisterInstructionConstraint,
     inputs: usize,
+    total: usize,
 ) -> bool {
-    constraint.operands.len() == 6
-        && constraint.implicit_uses.is_empty()
-        && constraint.implicit_defs.is_empty()
-        && !constraint.clobbers.is_empty()
+    constraint.operands.len() == total
         && constraint
             .operands
             .iter()
@@ -56,6 +58,18 @@ fn encoded_scalar_constraint(
                     && operand.fixed_view.is_none()
                     && operand.tied_to.is_none()
             })
+}
+
+/// The encoded scalar codec rows move six operands, declare no implicit unit
+/// dependency, and always clobber.
+fn encoded_scalar_constraint(
+    constraint: &register_model::RegisterInstructionConstraint,
+    inputs: usize,
+) -> bool {
+    constraint.implicit_uses.is_empty()
+        && constraint.implicit_defs.is_empty()
+        && !constraint.clobbers.is_empty()
+        && positional_roster(constraint, inputs, 6)
 }
 
 pub(super) fn validate_declaration(
@@ -1047,23 +1061,7 @@ fn validate_encoded_effects(
             && encoded.control == MachineEncodedControlEffect::FallThroughV1
             && encoded.external_operand_reads == [0, 1, 2]
             && encoded.external_operand_writes == [3, 4]
-            && constraint.operands.len() == 5
-            && constraint
-                .operands
-                .iter()
-                .enumerate()
-                .all(|(position, operand)| {
-                    operand.operand as usize == position
-                        && operand.access
-                            == if position < 3 {
-                                RegisterOperandAccess::Use
-                            } else {
-                                RegisterOperandAccess::Def
-                            }
-                        && operand.early_clobber == (position >= 3)
-                        && operand.fixed_view.is_none()
-                        && operand.tied_to.is_none()
-                })
+            && positional_roster(constraint, 3, 5)
             && encoded.implicit_unit_uses == constraint.implicit_uses
             && encoded.implicit_unit_defs == constraint.implicit_defs
             && encoded.implicit_unit_clobbers == constraint.clobbers => {}
@@ -1080,23 +1078,7 @@ fn validate_encoded_effects(
             && encoded.control == MachineEncodedControlEffect::FallThroughV1
             && encoded.external_operand_reads == [0, 1]
             && encoded.external_operand_writes == [2]
-            && constraint.operands.len() == 3
-            && constraint
-                .operands
-                .iter()
-                .enumerate()
-                .all(|(position, operand)| {
-                    operand.operand as usize == position
-                        && operand.access
-                            == if position < 2 {
-                                RegisterOperandAccess::Use
-                            } else {
-                                RegisterOperandAccess::Def
-                            }
-                        && operand.early_clobber == (position >= 2)
-                        && operand.fixed_view.is_none()
-                        && operand.tied_to.is_none()
-                })
+            && positional_roster(constraint, 2, 3)
             && encoded.implicit_unit_uses == constraint.implicit_uses
             && encoded.implicit_unit_defs == constraint.implicit_defs
             && encoded.implicit_unit_clobbers == constraint.clobbers => {}
@@ -1139,23 +1121,7 @@ fn validate_encoded_effects(
             && encoded.control == MachineEncodedControlEffect::FallThroughV1
             && encoded.external_operand_reads == [0, 1]
             && encoded.external_operand_writes == [2, 3, 4]
-            && constraint.operands.len() == 5
-            && constraint
-                .operands
-                .iter()
-                .enumerate()
-                .all(|(position, operand)| {
-                    operand.operand as usize == position
-                        && operand.access
-                            == if position < 2 {
-                                RegisterOperandAccess::Use
-                            } else {
-                                RegisterOperandAccess::Def
-                            }
-                        && operand.early_clobber == (position >= 2)
-                        && operand.fixed_view.is_none()
-                        && operand.tied_to.is_none()
-                })
+            && positional_roster(constraint, 2, 5)
             && encoded.implicit_unit_uses == constraint.implicit_uses
             && encoded.implicit_unit_defs == constraint.implicit_defs
             && encoded.implicit_unit_clobbers == constraint.clobbers => {}
@@ -1174,23 +1140,7 @@ fn validate_encoded_effects(
             && encoded.control == MachineEncodedControlEffect::FallThroughV1
             && encoded.external_operand_reads == [0, 1, 2, 3]
             && encoded.external_operand_writes == [4, 5, 6, 7]
-            && constraint.operands.len() == 8
-            && constraint
-                .operands
-                .iter()
-                .enumerate()
-                .all(|(position, operand)| {
-                    operand.operand as usize == position
-                        && operand.access
-                            == if position < 4 {
-                                RegisterOperandAccess::Use
-                            } else {
-                                RegisterOperandAccess::Def
-                            }
-                        && operand.early_clobber == (position >= 4)
-                        && operand.fixed_view.is_none()
-                        && operand.tied_to.is_none()
-                })
+            && positional_roster(constraint, 4, 8)
             && encoded.implicit_unit_uses == constraint.implicit_uses
             && encoded.implicit_unit_defs == constraint.implicit_defs
             && encoded.implicit_unit_clobbers == constraint.clobbers => {}
