@@ -15,12 +15,11 @@
 //!   j` re-proving its own bound against the field's declared capacity —
 //!   the same contract the view's read side composes from.
 use super::super::{
-    CheckFacts, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment, PrimitiveType,
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment, PrimitiveType,
 };
 use super::destination::Destination;
-use super::value::{self, AssignmentSource};
+use super::value;
 use crate::execution::terminal_unit::calls::borrowed_index_segment;
-use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::{byte_sequence_carrier, terminal_field_identity};
 
 /// The checked row for `view = v`, or `None` when the leaf family stays
@@ -30,17 +29,16 @@ use crate::execution::terminal_unit::types::{byte_sequence_carrier, terminal_fie
 /// view's live extent has no declared footprint bound to distribute the
 /// per-byte obligations against, so it stays refused.
 pub(super) fn plan(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    destination: &Destination<'_>,
+    site: &super::Site<'_, '_, '_>,
     view: PrimitiveType,
-    statement_index: u32,
-    assignment: &typed_trees::statement::TableAssignment,
-    source: AssignmentSource,
-    trace: &LocalConstructionTrace,
 ) -> Option<CheckedUnitEffectOperationPlan> {
+    let super::Occurrence {
+        program,
+        state,
+        statement_index,
+        ..
+    } = site.occurrence;
+    let destination = site.destination;
     // Byte leaves and their views have no local-rooted lowering: only an
     // exclusive borrowed parameter roots one.
     let store_root = checked_trees::CheckedStoreRoot::Parameter {
@@ -90,17 +88,7 @@ pub(super) fn plan(
     if element != PrimitiveType::U8 && store_width(element)? != view_bytes {
         return None;
     }
-    let value = value::assignment_value(
-        program,
-        facts,
-        machine,
-        state,
-        statement_index,
-        assignment,
-        source,
-        view,
-        trace,
-    );
+    let value = value::assignment_value(&site.occurrence, view);
     let value = value?;
     // A byte view carries no computation lane, exactly like a byte-field
     // store: the decomposition at lowering needs the authored pure value or

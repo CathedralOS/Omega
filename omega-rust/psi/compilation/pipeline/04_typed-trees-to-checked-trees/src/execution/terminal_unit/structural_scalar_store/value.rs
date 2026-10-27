@@ -33,16 +33,19 @@ pub(in crate::execution::terminal_unit) enum AssignmentSource {
 /// Select the scalar value an authored assignment stores into a leaf of
 /// `primitive_type`, then apply the value policy.
 pub(super) fn assignment_value(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    statement_index: u32,
-    assignment: &typed_trees::statement::TableAssignment,
-    source: AssignmentSource,
+    occurrence: &super::Occurrence<'_, '_>,
     primitive_type: PrimitiveType,
-    trace: &LocalConstructionTrace,
 ) -> Option<checked_trees::CheckedScalarStoreValue> {
+    let super::Occurrence {
+        program,
+        facts,
+        machine,
+        state,
+        statement_index,
+        assignment,
+        source,
+        trace,
+    } = *occurrence;
     let value = match source {
         AssignmentSource::StructuralValue { .. } => return None,
         AssignmentSource::CallResult {
@@ -170,24 +173,7 @@ pub(super) fn runtime_index(
 /// The `u8` a byte store writes: the same scalar source selection as every
 /// other store, including a computation that owns the value's calls.
 pub(super) fn byte_value(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    statement_index: u32,
-    assignment: &typed_trees::statement::TableAssignment,
-    source: AssignmentSource,
-    trace: &LocalConstructionTrace,
+    occurrence: &super::Occurrence<'_, '_>,
 ) -> Option<checked_trees::CheckedScalarStoreValue> {
-    assignment_value(
-        program,
-        facts,
-        machine,
-        state,
-        statement_index,
-        assignment,
-        source,
-        PrimitiveType::U8,
-        trace,
-    )
+    assignment_value(occurrence, PrimitiveType::U8)
 }

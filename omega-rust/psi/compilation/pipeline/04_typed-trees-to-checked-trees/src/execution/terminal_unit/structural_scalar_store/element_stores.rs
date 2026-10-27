@@ -8,24 +8,20 @@
 //! operation, with no dependency on the right-hand side's source arrangement.
 //! Byte views retain their independent predicate-preservation contract.
 
-use super::destination::Destination;
-use super::value::{self, AssignmentSource};
-use super::{
-    CheckFacts, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment, ExpressionNode,
-};
-use crate::execution::terminal_unit::control::LocalConstructionTrace;
+use super::value;
+use super::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment, ExpressionNode};
 
-pub(super) fn store(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    destination: &Destination<'_>,
-    statement_index: u32,
-    assignment: &typed_trees::statement::TableAssignment,
-    source: AssignmentSource,
-    trace: &LocalConstructionTrace,
-) -> Option<CheckedUnitEffectOperationPlan> {
+pub(super) fn store(site: &super::Site<'_, '_, '_>) -> Option<CheckedUnitEffectOperationPlan> {
+    let super::Occurrence {
+        program,
+        facts,
+        machine,
+        state,
+        statement_index,
+        assignment,
+        ..
+    } = site.occurrence;
+    let destination = site.destination;
     let projection = destination.storage_projection(program)?;
     let primitive_type = program.primitive_type_reference(projection.type_reference)?;
     if projection.ends_at_field {
@@ -62,17 +58,7 @@ pub(super) fn store(
         _ => return None,
     };
     let selected = element_selector_target(program, state, assignment.target, path)?;
-    let value = value::assignment_value(
-        program,
-        facts,
-        machine,
-        state,
-        statement_index,
-        assignment,
-        source,
-        primitive_type,
-        trace,
-    )?;
+    let value = value::assignment_value(&site.occurrence, primitive_type)?;
     Some(CheckedUnitEffectOperationPlan::new_store(
         statement_index,
         destination.root.destination(),
