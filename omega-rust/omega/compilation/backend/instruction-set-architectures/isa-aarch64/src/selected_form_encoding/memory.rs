@@ -1,7 +1,7 @@
 //! Unsigned-offset LDR with independently decoded pointer-read evidence.
 use super::{
     Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
-    ValidatedAarch64SelectedFormEncoding,
+    ValidatedAarch64SelectedFormEncoding, word_stream,
 };
 use crate::selected_form_encoding::selected_forms::{request_registers, resolve_registers};
 use register_model::RegisterViewId;

@@ -8,7 +8,7 @@ use super::{
     MachineAlternativeKey, MachineEncodedControlEffect, MachineEncodedEffects,
     MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
     RegisterViewId, SelectedInstructionKind, ValidatedAarch64SelectedFormEncoding,
-    ValidatedPhysicalRegisterModel, request_registers,
+    ValidatedPhysicalRegisterModel, request_registers, word_stream,
 };
 use crate::immediate_offset::{address_word_count, address_words, decode_address_words};
 
@@ -106,16 +106,11 @@ pub(super) fn validate(
         // Decode every opcode, shift and register before adding its contribution.
         // Only the first instruction reads the original base, including when the
         // allocator aliases base and destination.
-        let (words, remainder) = bytes.as_chunks::<4>();
-        if !remainder.is_empty()
-            || words.len() as u64 != address_word_count(u64::from(displacement))
-        {
+        let words =
+            word_stream(bytes).ok_or(Aarch64SelectedFormEncodingError::MalformedEncoding)?;
+        if words.len() as u64 != address_word_count(u64::from(displacement)) {
             return Err(Aarch64SelectedFormEncodingError::MalformedEncoding);
         }
-        let words = words
-            .iter()
-            .map(|word| u32::from_le_bytes(*word))
-            .collect::<Vec<_>>();
         if decode_address_words(&words, register, base) != Some(u64::from(displacement)) {
             return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
         }

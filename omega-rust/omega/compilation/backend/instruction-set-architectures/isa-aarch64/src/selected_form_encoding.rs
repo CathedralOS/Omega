@@ -128,17 +128,23 @@ fn nzcv_effects_encoding(
     })
 }
 
+/// The little-endian words of an encoded stream. A stream whose length is not
+/// a whole number of words carries no instruction in its tail, so it decodes
+/// as nothing.
+fn word_stream(bytes: &[u8]) -> Option<Vec<u32>> {
+    let (words, tail) = bytes.as_chunks::<4>();
+    tail.is_empty()
+        .then(|| words.iter().map(|word| u32::from_le_bytes(*word)).collect())
+}
+
 fn decode_all<D>(
     bytes: &[u8],
     decode_word: impl Fn(u32, usize) -> Result<D, Aarch64SelectedFormEncodingError>,
 ) -> Result<Vec<D>, Aarch64SelectedFormEncodingError> {
-    let (words, tail) = bytes.as_chunks::<4>();
-    if !tail.is_empty() {
-        return Err(Aarch64SelectedFormEncodingError::MalformedEncoding);
-    }
-    words
-        .iter()
+    word_stream(bytes)
+        .ok_or(Aarch64SelectedFormEncodingError::MalformedEncoding)?
+        .into_iter()
         .enumerate()
-        .map(|(position, word)| decode_word(u32::from_le_bytes(*word), position))
+        .map(|(position, word)| decode_word(word, position))
         .collect()
 }
