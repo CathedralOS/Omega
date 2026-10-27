@@ -83,6 +83,34 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
             );
         }
     }
+    // The checked Console adapter calls a private toolchain exit leaf. Its
+    // direct plan is not a package service selection; explicitly admit only
+    // that known intrinsic's termination authority for this target. Do not
+    // infer receiver permission from arbitrary implementation demand.
+    for leaf in &proposal.providers().direct_boundary_leaves {
+        if leaf.plan.target != target_name
+            || !matches!(
+                leaf.execution,
+                backend_plan::DirectBoundaryExecution::Intrinsic(Some(
+                    effects::CompilerIntrinsicExecutionIdentity::HostedExitProcessI32
+                ))
+            )
+        {
+            continue;
+        }
+        for row in &leaf.plan.rows {
+            minted_rows.push(
+                provider_admission::TerminalAuthorityPermissionPolicyRow::new(
+                    leaf.plan.schema.identity_digest(),
+                    permission_identities
+                        .intern(leaf.plan.identities.text(row.requirement_identity)),
+                    effects::TerminalAuthorityDisposition::from_classes([
+                        effects::TerminalAuthorityClass::ProcessTermination,
+                    ]),
+                ),
+            );
+        }
+    }
     let permission_rows = minted_rows.into_iter().fold(
         Vec::new(),
         |mut rows: Vec<provider_admission::TerminalAuthorityPermissionPolicyRow>, row| {

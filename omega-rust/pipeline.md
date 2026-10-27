@@ -275,6 +275,14 @@ Completion consumes an explicit native-proposal request and the produced
 application, not a checked compilation. The application retains physical-adapter
 selection; completion still binds its exact arrival contract against the artifact.
 
+Independent component emission belongs to the same source-free native compiler
+entrance as root emission. Product preparation supplies each verified component,
+retained proposal, complete receiving plan and accepted package permissions.
+Native compilation keeps each emitted image beside its admitted call, joins the
+root's settlements, and retains component products in the resulting runtime
+provisions. There is no public component-emission entrance or outer before/after
+native orchestration. Receiver policy remains separate from package acceptance.
+
 An anonymous Build runs before its final source graph has a declaration owner.
 The Psi production request therefore distinguishes invocation-only code from
 portable publication, using the same stages, Terminal representation and

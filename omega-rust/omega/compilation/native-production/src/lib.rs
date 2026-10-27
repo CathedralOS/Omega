@@ -12,6 +12,7 @@
 //! The artifact owner retains runtime provisions before emission consumes them.
 
 mod compiler;
+mod components;
 mod pipeline;
 mod realization;
 mod request;
@@ -20,9 +21,7 @@ mod request;
 mod pipeline_boundary;
 
 pub use compiler::compile;
-pub use realization::{
-    ComponentExportImage, ComponentExportRequest, ComponentNativeCall, ComponentNativeExport,
-    RealizedNativeProduct, emit_component_exports,
-};
+pub use components::ComponentCompilation;
+pub use realization::RealizedNativeProduct;
 pub use request::NativeCompileRequest;
 pub use terminal_psi_to_abstract_operations::{ComponentExportInput, ComponentNativeInputs};

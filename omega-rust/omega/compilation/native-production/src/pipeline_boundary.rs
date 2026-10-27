@@ -7,9 +7,14 @@ fn component_calls_are_request_data_not_an_alternate_compile_entrance() {
     let exports = include_str!("lib.rs");
     assert_eq!(compiler.matches("pub fn compile(").count(), 1);
     assert_eq!(compiler.matches("pub fn ").count(), 1);
-    assert!(compiler.contains("let components = request.components;"));
+    assert!(compiler.contains("crate::components::emit_components("));
+    assert!(compiler.contains("EmittedComponent::admit_call"));
+    assert!(compiler.contains("EmittedComponent::into_product"));
+    assert!(compiler.contains("with_component_products(component_products)"));
     assert!(request.contains("pub components:"));
     assert!(exports.contains("pub use compiler::compile;"));
+    assert!(!exports.contains("emit_component_exports"));
+    assert!(!exports.contains("ComponentNativeCall"));
 }
 
 #[test]

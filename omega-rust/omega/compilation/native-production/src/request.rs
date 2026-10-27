@@ -77,10 +77,10 @@ pub struct NativeCompileRequest<'request> {
     /// exactly once. Empty means derive from the selected plans, not fill holes
     /// in supplied custody. Private bodies borrow their own demand projection.
     pub imports: &'request [SourceEvaluatedImportSettlement<'request>],
-    /// Separately emitted components retain their own image and evidence owners.
-    /// Only their exact symbolic call settlements join this receiver's pipeline.
+    /// Compile these independently selected components before the root, retaining
+    /// their exact image/call evidence through receiver admission and publication.
     /// An empty roster uses the same compilation route without component calls.
-    pub components: &'request [crate::ComponentNativeCall<'request>],
+    pub components: &'request [crate::ComponentCompilation<'request>],
 }
 
 impl NativeCompileRequest<'_> {

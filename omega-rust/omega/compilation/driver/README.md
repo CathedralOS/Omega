@@ -257,9 +257,12 @@ Successful language judgments share checked storage, not authority. All reuse
 is invocation-local. Package targets finish together through `complete_package_products`
 so equal checked programs produce Terminal Psi once before native realization.
 
-[Native product preparation](src/native.rs) produces the same retained
-Terminal product as Terminal-only compilation, then consumes it through
-[`native_production::compile`](../native-production/src/compiler.rs).
+[Product completion](src/product_execution.rs) finishes the retained Terminal
+application and supplies explicit component, permission and image inputs to
+[`native_production::compile`](../native-production/src/compiler.rs). That
+source-free entrance owns component emission, exact receiver-call admission,
+root emission and component runtime retention. Product coordination does not
+emit components or join native call settlements itself.
 Fresh compilation and package re-entry share one source-free realization route:
 there is no direct-source native driver, second program-entry artifact, or
 prepared-compilation cache lifecycle. Package acceptance is captured separately

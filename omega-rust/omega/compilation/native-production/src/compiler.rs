@@ -22,8 +22,17 @@ pub fn compile(
     ),
 > {
     let recoverable_image_request = request.image_request.clone();
-    let components = request.components;
     let result = (|| {
+        let emitted_components = crate::components::emit_components(
+            request.components,
+            retained.artifact().view(),
+            &request.terminal_authority_policy,
+            &request.terminal_authority_permission_policy,
+        )?;
+        let components = emitted_components
+            .iter()
+            .map(crate::components::EmittedComponent::admit_call)
+            .collect::<Result<Vec<_>, _>>()?;
         let (artifact, proposal) = phase_profile::scope("06.1.a_prepare_terminal", || {
             request.prepare_terminal(retained)
         })?;
@@ -90,7 +99,7 @@ pub fn compile(
             &request.terminal_authority_policy,
             &request.terminal_authority_permission_policy,
         );
-        crate::realization::realize_native_artifact(
+        let mut produced = crate::realization::realize_native_artifact(
             artifact,
             input,
             crate::request::NativeRealizationRequest {
@@ -102,7 +111,25 @@ pub fn compile(
                 callback_thunks: &prepared.callback_thunks,
                 target_provider_proposals: proposal.target_provider_proposals(),
             },
-        )
+        )?;
+        drop(components);
+        let component_products = emitted_components
+            .into_iter()
+            .map(crate::components::EmittedComponent::into_product)
+            .collect::<Result<Vec<_>, _>>()?;
+        if !component_products.is_empty() {
+            let runtime = produced.runtime_provisions.take().ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "component native production lost its admitted runtime companions",
+                )]
+            })?;
+            produced.runtime_provisions = Some(
+                runtime
+                    .with_component_products(component_products)
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?,
+            );
+        }
+        Ok(produced)
     })();
     result.map_err(|diagnostics| (recoverable_image_request, diagnostics))
 }
