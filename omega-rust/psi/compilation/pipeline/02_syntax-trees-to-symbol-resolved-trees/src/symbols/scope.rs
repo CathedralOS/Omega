@@ -52,7 +52,8 @@ pub(crate) fn owned_conformance_realization(
     }
     let provisional = row
         .provisional_realization_ordinal
-        .and_then(|ordinal| program.machines.iter().nth(ordinal))
+        .filter(|ordinal| *ordinal < program.machines.len())
+        .map(|ordinal| &program.machines[ordinal])
         .map(|machine| machine.symbol);
     if row.provisional_realization_ordinal.is_some() && provisional.is_none() {
         return Err("owned conformance realization has an invalid construction ordinal");
@@ -66,16 +67,56 @@ pub(crate) fn owned_conformance_realization(
         provisional.filter(|symbol| symbol.is_valid())
     }
     .ok_or("owned conformance realization lost its exact enclosing capture scope")?;
-    if program
-        .machines
-        .iter()
-        .filter(|machine| machine.symbol == selected)
-        .count()
-        != 1
-    {
+    if program.machines.unique_by_symbol(selected).is_none() {
         return Err("owned conformance realization has no unique retained machine declaration");
     }
     Ok(selected)
+}
+
+/// Publish authored containment when declaration symbols first exist. This is
+/// independent of requirement-overload normalization: a provisional row still
+/// has to agree with any retained realization. Every later scope consumer reads
+/// this same inverse relationship instead of reconstructing it from all maps.
+pub(super) fn record_declaration_owners(
+    program: &symbol_resolved_trees::SymbolResolvedTrees,
+    symbols: &mut SymbolTable,
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    let mut ownership = Vec::new();
+    let mut diagnostics = Vec::new();
+    for conformance in program.conformances.iter() {
+        for row in conformance
+            .rows
+            .iter()
+            .filter(|row| row.source.owns_realization())
+        {
+            let machine = match owned_conformance_realization(program, row) {
+                Ok(machine) => machine,
+                Err(reason) => {
+                    diagnostics.push(diagnostics::Diagnostic::error(reason));
+                    continue;
+                }
+            };
+            if ownership
+                .iter()
+                .any(|(declaration, _)| *declaration == machine)
+            {
+                diagnostics.push(diagnostics::Diagnostic::error(
+                    "owned conformance realization has ambiguous enclosing capture scope",
+                ));
+            } else {
+                ownership.push((machine, conformance.symbol));
+            }
+        }
+    }
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
+    for (declaration, owner) in ownership {
+        symbols
+            .record_declaration_owner(declaration, owner)
+            .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
+    }
+    Ok(())
 }
 
 /// Exact namespace owning this machine, if it is a retained map member.
@@ -84,24 +125,26 @@ pub(crate) fn owned_conformance_namespace(
     program: &symbol_resolved_trees::SymbolResolvedTrees,
     machine: SymbolHandle,
 ) -> Result<SymbolHandle, &'static str> {
-    let mut owner = SymbolHandle::invalid();
-    for conformance in program.conformances.iter() {
+    let owner = program.symbols.get(machine).declaration_owner;
+    if !owner.is_valid() {
+        return Ok(owner);
+    }
+    for conformance in program
+        .conformances
+        .iter()
+        .filter(|map| map.symbol == owner)
+    {
         for row in conformance
             .rows
             .iter()
             .filter(|row| row.source.owns_realization())
         {
             if owned_conformance_realization(program, row)? == machine {
-                if owner.is_valid() {
-                    return Err(
-                        "owned conformance realization has ambiguous enclosing capture scope",
-                    );
-                }
-                owner = conformance.symbol;
+                return Ok(owner);
             }
         }
     }
-    Ok(owner)
+    Ok(SymbolHandle::invalid())
 }
 
 /// Static declaration context of owned map rows and nested machines. These

@@ -120,6 +120,7 @@ impl SymbolTable {
                     parent,
                     Symbol {
                         parent,
+                        declaration_owner: SymbolHandle::invalid(),
                         children: HandleSpan::empty(),
                         kind: SymbolKind::Module,
                         name: symbol_name,
