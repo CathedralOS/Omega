@@ -332,6 +332,64 @@ impl Invocation<'_> {
             .ok_or("constant call lost its entry")?;
         let custody =
             BuildTimeInvocationCustody::Source(typed.expression_table.source_span(expression));
+        if std::env::var_os("OMEGA_EXECUTION_SCOPE_TRACE").is_some()
+            && !self
+                .program
+                .admission
+                .execution_scope()
+                .permits(machine.symbol)
+        {
+            eprintln!(
+                "scope-source caller={:?} caller_name={} caller_permitted={} expression={expression:?} call={call:?}",
+                self.machine.symbol,
+                self.machine.name,
+                self.program
+                    .admission
+                    .execution_scope()
+                    .permits(self.machine.symbol)
+            );
+            if typed
+                .expression_table
+                .static_machine_application_is_valid(call.authored_machine_application)
+            {
+                eprintln!(
+                    "scope-source-application header={:?} arguments={:?} bindings={:?} lifetimes={:?}",
+                    typed
+                        .expression_table
+                        .static_machine_application(call.authored_machine_application),
+                    typed
+                        .expression_table
+                        .static_machine_application_arguments(call.authored_machine_application),
+                    typed
+                        .expression_table
+                        .static_machine_application_bindings(call.authored_machine_application),
+                    typed
+                        .expression_table
+                        .static_machine_application_lifetimes(call.authored_machine_application)
+                );
+            }
+            for receipt in typed
+                .machine_specializations
+                .iter()
+                .filter(|receipt| receipt.instance == machine.symbol)
+            {
+                eprintln!(
+                    "scope-instance-application header={:?} arguments={:?} bindings={:?} lifetimes={:?}",
+                    typed
+                        .expression_table
+                        .static_machine_application(receipt.binding_application),
+                    typed
+                        .expression_table
+                        .static_machine_application_arguments(receipt.binding_application),
+                    typed
+                        .expression_table
+                        .static_machine_application_bindings(receipt.binding_application),
+                    typed
+                        .expression_table
+                        .static_machine_application_lifetimes(receipt.binding_application)
+                );
+            }
+        }
         if self
             .program
             .admission

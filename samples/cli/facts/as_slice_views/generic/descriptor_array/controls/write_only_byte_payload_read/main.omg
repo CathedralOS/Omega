@@ -1,0 +1,21 @@
+// Intended invalid: byte metadata does not authorize reading payload contents.
+// Byte field metadata uses the explicit non-payload observation rule.
+use omega::language::core::slice;
+data ByteHolder { padding: u64; view: &[u8]; }
+data Carrier { padding: u64; owner: &ByteHolder; }
+machine measured(home: &write ByteHolder) -> u64
+requires home.view.len > 0 { home.view[0u64] as u64 }
+machine success() {}
+machine failure() crashes Trap { crash Trap; }
+machine main() crashes Trap {
+    let backing: [u8; 4] = [7u8, 8u8, 9u8, 10u8];
+    let view: &[u8] = &backing[..];
+    let mut holder: ByteHolder = ByteHolder { padding: 19, view: view };
+    let measured_extent: u64 = measured(&write holder);
+    transition measured_extent == 4 && holder.padding == 19
+        && holder.view[2u64] == 9u8
+        {
+        true -> success()
+        false -> failure()
+    }
+}

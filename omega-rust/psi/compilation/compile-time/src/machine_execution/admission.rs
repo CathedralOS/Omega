@@ -253,8 +253,83 @@ impl BuildTimeAdmissionPlan {
                     selected.body == symbol && self.execution_scope.permits(selected.family)
                 });
             if !permitted {
+                if std::env::var_os("OMEGA_EXECUTION_SCOPE_TRACE").is_some() {
+                    eprintln!(
+                        "scope-refusal root={root:?} root_name={:?} machine={symbol:?} name={:?}",
+                        program.machine(root).map(|machine| machine.name.as_str()),
+                        program.machine(symbol).map(|machine| machine.name.as_str())
+                    );
+                    for receipt in program
+                        .machine_specializations
+                        .iter()
+                        .filter(|row| row.instance == symbol)
+                    {
+                        eprintln!(
+                            "scope-invocation receipt={receipt:?} template_permitted={}",
+                            self.execution_scope.permits(receipt.template)
+                        );
+                    }
+                    for (_, capture) in program
+                        .captured_machine_applications
+                        .iter()
+                        .filter(|(_, row)| row.instance == symbol)
+                    {
+                        eprintln!(
+                            "scope-capture receipt={capture:?} template_permitted={} binding={:?} supplying={:?}",
+                            self.execution_scope.permits(capture.template),
+                            program
+                                .expression_table
+                                .static_machine_application(capture.binding_application),
+                            program
+                                .expression_table
+                                .static_machine_application(capture.supplying_application)
+                        );
+                    }
+                    for edge in self
+                        .call_edges
+                        .iter()
+                        .filter(|edge| edge.target_machine(program) == Some(symbol))
+                    {
+                        let owner = edge.source_machine_symbol;
+                        eprintln!(
+                            "scope-incoming owner={owner:?} name={:?} permitted={} edge={edge:?}",
+                            program.machine(owner).map(|machine| machine.name.as_str()),
+                            self.execution_scope.permits(owner)
+                        );
+                        let references =
+                            typed_trees::references::collect_selected_program_references(
+                                program,
+                                &typed_trees::references::DeclarationSelection::from_symbols([
+                                    owner,
+                                ]),
+                            );
+                        for expression in references.expressions {
+                            if let typed_trees::expression::ExpressionNode::Call(call) =
+                                program.expression_table.expression(expression)
+                                && call.target_symbol == edge.target_state_symbol
+                            {
+                                let valid = call.static_requirement_dispatch.as_ref().is_some_and(
+                                    |dispatch| {
+                                        validation::closed_requirement_dispatch_is_valid(
+                                            program,
+                                            owner,
+                                            call.target_symbol,
+                                            dispatch,
+                                        )
+                                    },
+                                );
+                                eprintln!(
+                                    "scope-call expression={expression:?} call={call:?} dispatch_valid={valid}"
+                                );
+                            }
+                        }
+                    }
+                }
                 return Err(format!(
-                    "build-time machine {symbol:?} is checking context only, outside the admitted execution selection"
+                    "build-time machine `{}` is checking context only, outside the admitted execution selection",
+                    program
+                        .machine(symbol)
+                        .map_or("<missing>", |machine| machine.name.as_str())
                 ));
             }
             for edge in self
