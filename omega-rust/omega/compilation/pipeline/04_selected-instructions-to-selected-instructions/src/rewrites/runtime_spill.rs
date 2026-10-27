@@ -521,26 +521,59 @@ pub(crate) fn require_dominated_uses(
     anchor: usize,
     use_blocks: &[usize],
 ) -> Result<(), RuntimeSpillError> {
-    let entry = function
-        .block_index(function.entry_block)
-        .ok_or(RuntimeSpillError::SourceMismatch)?;
+    let entry_id = function.entry_block;
+    let entry = if function
+        .blocks
+        .get(entry_id.0 as usize)
+        .is_some_and(|b| b.id == entry_id)
+    {
+        entry_id.0 as usize
+    } else {
+        function
+            .block_index(entry_id)
+            .ok_or(RuntimeSpillError::SourceMismatch)?
+    };
+    let only_anchor_uses = use_blocks.iter().all(|&b| b == anchor);
+    if only_anchor_uses && anchor == entry {
+        return Ok(());
+    }
+    let mut reached = vec![false; function.blocks.len()];
+    let mut pending = Vec::with_capacity(function.blocks.len());
     for bypass_anchor in [false, true] {
-        let mut reached = vec![false; function.blocks.len()];
-        let mut pending = vec![entry];
+        if bypass_anchor && only_anchor_uses {
+            break;
+        }
+        reached.fill(false);
+        pending.clear();
+        pending.push(entry);
         while let Some(block_index) = pending.pop() {
             if reached[block_index] || (bypass_anchor && block_index == anchor) {
                 continue;
             }
             reached[block_index] = true;
+            if !bypass_anchor && only_anchor_uses && block_index == anchor {
+                break;
+            }
             for successor in control(&function.blocks[block_index].terminator)
                 .1
                 .into_iter()
                 .flatten()
             {
-                let destination = function
-                    .block_index(successor.block)
-                    .ok_or(RuntimeSpillError::SourceMismatch)?;
-                pending.push(destination);
+                let succ_id = successor.block;
+                let destination = if function
+                    .blocks
+                    .get(succ_id.0 as usize)
+                    .is_some_and(|b| b.id == succ_id)
+                {
+                    succ_id.0 as usize
+                } else {
+                    function
+                        .block_index(succ_id)
+                        .ok_or(RuntimeSpillError::SourceMismatch)?
+                };
+                if !reached[destination] && !(bypass_anchor && destination == anchor) {
+                    pending.push(destination);
+                }
             }
         }
         if (!bypass_anchor && !reached[anchor])
@@ -587,7 +620,7 @@ pub(super) struct RuntimeSpillDerivation<'source> {
     /// `UnitWriteBounded`, the historical shape, every unit writer is a
     /// member. Proposal, replay, and the slot-reuse analysis all read this
     /// one decision.
-    pub span_closes: Vec<std::collections::BTreeSet<usize>>,
+    pub span_closes: Vec<Vec<usize>>,
     pub crossed_unit_write: bool,
     // Establishment retains its exact address operand; only later uses reload.
     pub retained_uses: std::collections::BTreeSet<(SelectedInstructionId, u16)>,
@@ -1542,8 +1575,16 @@ pub(super) fn derive_runtime_spill<'source>(
                 break;
             }
         }
+        let mut block_units_mask = 0u64;
+        let mut block_views_mask = 0u64;
         for block_index in 0..function.blocks.len() {
-            if let Some((units, views)) =
+            if let Some((implicit_mask, _, _, fixed_mask, has_high)) =
+                function.blocks.block_unit_masks(block_index)
+                && !has_high
+            {
+                block_units_mask |= implicit_mask;
+                block_views_mask |= fixed_mask;
+            } else if let Some((units, views)) =
                 function.blocks.block_implicit_units_and_fixed_views(block_index)
             {
                 for &unit in units {
@@ -1575,6 +1616,8 @@ pub(super) fn derive_runtime_spill<'source>(
                 mark_unit(unit);
             }
         }
+        units_mask |= block_units_mask;
+        views_mask |= block_views_mask;
         can_use_unit_mask &= seen_units.is_empty();
         if can_use_unit_mask {
             let mut pinned_mask = 0u64;
@@ -1797,11 +1840,7 @@ pub(super) fn derive_runtime_spill<'source>(
     // and every unit-writing instruction the policy did not cross. Proposal,
     // replay, and the slot-reuse last-writer walk all consume this set, so
     // the three of them can never disagree about where a span ends.
-    let mut span_closes: Vec<std::collections::BTreeSet<usize>> = function
-        .blocks
-        .iter()
-        .map(|_| std::collections::BTreeSet::new())
-        .collect();
+    let mut span_closes: Vec<Vec<usize>> = vec![Vec::new(); function.blocks.len()];
     for &block_index in &use_blocks {
         if !shared_reload[block_index]
             && redefinitions[block_index].is_empty()
@@ -1812,18 +1851,24 @@ pub(super) fn derive_runtime_spill<'source>(
             continue;
         }
         if let Some(writers) = function.blocks.block_unit_writer_indices(block_index) {
-            let mut closes = redefinitions[block_index].clone();
             let crossed = &crossed_unit_writes[block_index];
-            if crossed.is_empty() {
-                closes.extend(writers.iter().copied());
+            if redefinitions[block_index].is_empty() && crossed.is_empty() {
+                span_closes[block_index] = writers.to_vec();
             } else {
-                for &index in writers {
-                    if !crossed.contains(&index) {
-                        closes.insert(index);
+                let mut closes: Vec<usize> = redefinitions[block_index].iter().copied().collect();
+                if crossed.is_empty() {
+                    closes.extend_from_slice(writers);
+                } else {
+                    for &index in writers {
+                        if !crossed.contains(&index) {
+                            closes.push(index);
+                        }
                     }
                 }
+                closes.sort_unstable();
+                closes.dedup();
+                span_closes[block_index] = closes;
             }
-            span_closes[block_index] = closes;
         } else {
             let block = &function.blocks[block_index];
             span_closes[block_index] = block
@@ -1981,7 +2026,9 @@ pub(super) fn derive_runtime_spill<'source>(
             // idiom a value binding uses — and the slot-reuse replay must see
             // that load.
             let first = *positions.iter().min().unwrap();
-            pending.dedicated_reload = span_closes[pending.block].range(first..).next().is_some()
+            pending.dedicated_reload = span_closes[pending.block]
+                .last()
+                .is_some_and(|&last| last >= first)
                 || (pending.loads.len() > 1 && (!shared_reload[pending.block] || pinned));
             if pending.dedicated_reload {
                 use_positions[pending.block].end_of_block = true;

@@ -1,0 +1,11 @@
+// Expected exit: 0
+machine choose<T>(value: T) -> T {
+    let ignored: bool = identity<bool>(true);
+    value
+    machine identity<T>(item: T) -> T { item }
+}
+machine main() crashes Trap {
+    transition choose<u64>(42) == 42 { true -> done() _ -> failed() }
+    machine done() {}
+    machine failed() crashes Trap { crash Trap; }
+}

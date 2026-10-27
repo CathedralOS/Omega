@@ -652,7 +652,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         };
         let pending = PendingBoundaryCall {
             site: crate::results::TerminalEffectWait {
-                program: self.program.identity,
+                program: self.program.identity.semantic(),
                 machine: self.current_machine,
                 block: self.current,
                 operation: operation.id,
@@ -682,7 +682,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         let OperationKind::BoundaryCall { boundary, .. } = &operation.kind else {
             return Err(malformed());
         };
-        if pending.site.program != self.program.identity
+        if pending.site.program != self.program.identity.semantic()
             || pending.site.machine != self.current_machine
             || pending.site.block != self.current
             || pending.site.operation != operation.id

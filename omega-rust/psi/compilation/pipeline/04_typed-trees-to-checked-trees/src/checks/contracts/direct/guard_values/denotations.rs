@@ -413,8 +413,9 @@ impl Denotations<'_> {
             Some(frames),
         )
         .iter()
-        .any(|observation| observation.expression == local.initial_value && observation.value)
-        {
+        .any(|observation| {
+            observation.current_expression == local.initial_value && observation.value
+        }) {
             return None;
         }
         Some(local.initial_value)

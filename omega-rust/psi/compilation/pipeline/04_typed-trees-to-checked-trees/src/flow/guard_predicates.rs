@@ -1,8 +1,9 @@
 //! Saved decisions are historical values, not promises about current storage.
 //! Rejoin their exact local definition and selected Boolean polarity, collect
-//! complete effects through this use, then retain only repeatable observations
-//! whose read places survived. Flow facts and transition requirements consume
-//! this same judgment; generated names and adjacency grant no authority.
+//! complete effects through this use, and retain the actual decision separately
+//! from a reusable current expression. Flow storage facts rejoin the completed
+//! read and its write epoch; ordinary predicate inference still needs preserved
+//! repeatable inputs. Generated names and adjacency grant no authority.
 
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -10,7 +11,7 @@ use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionExit, TransitionGuardNode};
 
-/// One evaluated predicate kept through a proved noninterference interval.
+/// One evaluated decision retained through its reaching Boolean definition.
 /// Its source statement selects the actual Flow read and receiver. The later
 /// consuming guard never supplies a replacement evaluation of this expression.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -18,6 +19,29 @@ pub(crate) struct GuardObservation {
     pub expression: ExpressionHandle,
     pub value: bool,
     pub statement_index: usize,
+    /// Eligible input for ordinary current-expression inference. Historical
+    /// captures require repeatability and preserved inputs; immediate completed
+    /// expressions enter the existing checks on their individual observations.
+    /// The zero handle retains only the decision and its actual read record:
+    /// a tag read after initializer effects has its own later write cut.
+    pub current_expression: ExpressionHandle,
+}
+
+impl GuardObservation {
+    /// An immediate completed expression enters the existing current-input
+    /// checks. Historical captures must independently prove their interval.
+    pub(in crate::flow) fn evaluated(
+        expression: ExpressionHandle,
+        value: bool,
+        statement_index: usize,
+    ) -> Self {
+        Self {
+            expression,
+            value,
+            statement_index,
+            current_expression: expression,
+        }
+    }
 }
 
 /// Observations still true when the selected transition arm arrives. Dispatch
@@ -89,7 +113,11 @@ pub(crate) fn transition_guard_observations<'program>(
         &later_writes,
         Some(frames),
     ) {
-        let signed = (observation.expression, observation.value);
+        let expression = observation.current_expression;
+        if !expression.is_valid() {
+            continue;
+        }
+        let signed = (expression, observation.value);
         if !observations.contains(&signed) {
             observations.push(signed);
         }
@@ -97,10 +125,11 @@ pub(crate) fn transition_guard_observations<'program>(
     Some(observations)
 }
 
-/// Current observations of a saved predicate. The root is included when all
-/// its reads survive; independently preserved conjuncts remain useful when a
-/// disjoint effect prevents repeating the complete original computation. Extra
-/// writes belong to operands evaluated after dispatch and before the consumer.
+/// Retain the evaluated decision and its source statement. Repeating its
+/// expression is a separate judgment: only `current_expression` supplies that
+/// authority. A storage observer can instead rejoin the actual completed read
+/// and its own write epoch, including reads after an initializer's effects.
+/// Extra writes belong to operands after dispatch and before the consumer.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn saved_guard_observations<'program>(
     program: &dyn validation::CheckingInput,
@@ -169,31 +198,34 @@ pub(crate) fn saved_guard_observations<'program>(
                 &mut observations,
             );
             for (expression, value) in observations {
-                let observation = GuardObservation {
-                    expression,
-                    value,
-                    statement_index: observation_statement_index,
-                };
-                if !prepared.contains(&observation)
-                    && expression_is_stable_predicate(program, observation.expression)
+                let current_expression = (expression_is_stable_predicate(program, expression)
                     && reads_survive(
                         program,
                         machine,
                         state,
                         statement_index,
-                        observation.expression,
+                        expression,
                         &dispatch_writes,
                         frames,
-                    )
-                {
+                    ))
+                .then_some(expression)
+                .unwrap_or(ExpressionHandle::invalid());
+                let observation = GuardObservation {
+                    expression,
+                    value,
+                    statement_index: observation_statement_index,
+                    current_expression,
+                };
+                if !prepared.contains(&observation) {
                     prepared.push(observation);
                     // Ordinary authored Boolean locals and parser captures
                     // transport the same decision. Follow preserved aliases
                     // through this worklist, without a second recovery path.
-                    if program
-                        .expression_table
-                        .name_path_node(observation.expression)
-                        .is_some()
+                    if observation.current_expression.is_valid()
+                        && program
+                            .expression_table
+                            .name_path_node(observation.expression)
+                            .is_some()
                     {
                         dispatch.push((observation.expression, observation.value));
                     }

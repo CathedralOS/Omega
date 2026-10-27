@@ -232,22 +232,20 @@ mod tests {
                 )
                 .unwrap();
                 assert_eq!(encoded.footprint().encoded, effects(restore));
-                for bit in 0..encoded.bytes().len() * 8 {
-                    let mut changed = encoded.bytes().to_vec();
-                    changed[bit / 8] ^= 1 << (bit % 8);
-                    assert!(
+                crate::selected_form_encoding::assert_every_bit_flip_rejected(
+                    encoded.bytes(),
+                    |changed| {
                         validate_x86_64_selected_floating_control_form(
                             &physical,
                             kind,
                             alternative,
                             &[],
                             displacement,
-                            &changed
+                            changed,
                         )
-                        .is_err(),
-                        "bit {bit}"
-                    );
-                }
+                        .is_err()
+                    },
+                );
                 assert!(
                     validate_x86_64_selected_floating_control_form(
                         &physical,

@@ -182,7 +182,8 @@ pub use terminal_installation::{
     admit_target_machine_selections,
 };
 
-/// Admitted supply selection bound to one exact Terminal-Psi identity.
+/// Admitted supply selection bound to exact execution code custody: semantic
+/// content and, for invocation-only code, its retained live owner.
 /// Private fields preserve checked-provider custody; receiving hosts may add
 /// normal import choices through `TerminalProgram::admit_runtime_supplies`.
 /// Shared catalog admission supplies checked selections; this runtime carrier
@@ -193,7 +194,7 @@ pub struct TerminalRuntimeSupplies {
     pub(crate) x86_flags: Option<TerminalX86FlagsEnvironment>,
     pub(crate) memory_ordering: Option<crate::TerminalMemoryOrderingEnvironment>,
     pub(crate) entry: Option<terminal_psi::TargetMachineCallable>,
-    pub(crate) terminal_psi: terminal_psi::TerminalPsiIdentity,
+    pub(crate) code_identity: terminal_codec::TerminalExecutionIdentity,
     pub(crate) supplies: BTreeMap<BoundaryMachineId, AdmittedBoundarySupply>,
     pub(crate) assumed_bindings: Vec<AdmittedAssumedBinding>,
     pub(crate) folded_constant_target: Option<String>,
@@ -242,7 +243,9 @@ impl From<&terminal_installation::AdmittedProviderSelections> for TerminalRuntim
         Self {
             x86_flags: None,
             memory_ordering: None,
-            terminal_psi: selected.terminal_psi(),
+            code_identity: terminal_codec::TerminalExecutionIdentity::portable(
+                selected.terminal_psi(),
+            ),
             entry: None,
             supplies: selected
                 .providers()
@@ -275,7 +278,7 @@ impl TerminalRuntimeSupplies {
         selected: &terminal_installation::AdmittedComponentProvider,
     ) -> Result<Self, TerminalInterpretError> {
         let boundary = selected.receiving_boundary();
-        if selected.receiver() != self.terminal_psi || self.supplies.contains_key(&boundary) {
+        if selected.receiver() != &self.code_identity || self.supplies.contains_key(&boundary) {
             return Err(TerminalInterpretError::RuntimeSupplySelectionRejected {
                 boundary,
                 reason: "component selection names another receiver or an already selected slot",
@@ -293,7 +296,7 @@ impl TerminalRuntimeSupplies {
     }
 
     pub const fn terminal_psi(&self) -> terminal_psi::TerminalPsiIdentity {
-        self.terminal_psi
+        self.code_identity.semantic()
     }
 
     /// The root-authorized assumed binding contracts admitted alongside the

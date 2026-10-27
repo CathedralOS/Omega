@@ -14,6 +14,7 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 /// A declaration-backed bound, with exact common-field identities and IEEE format.
 /// This is a temporary projection roster, not an established fact about storage.
+#[derive(Clone)]
 pub struct DeclaredFloatFieldBound {
     pub path: Vec<SymbolHandle>,
     pub primitive: PrimitiveType,
@@ -42,6 +43,12 @@ pub fn declared_float_field_bounds(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Vec<DeclaredFloatFieldBound> {
+    if let Some(memos) = crate::frozen_program::frozen_program_memos(program)
+        && let Ok(cache) = memos.declared_float_field_bounds.lock()
+        && let Some(rows) = cache.get(&reference)
+    {
+        return rows.clone();
+    }
     let mut rows = Vec::new();
     collect(
         program,
@@ -50,6 +57,11 @@ pub fn declared_float_field_bounds(
         &mut Vec::new(),
         &mut rows,
     );
+    if let Some(memos) = crate::frozen_program::frozen_program_memos(program)
+        && let Ok(mut cache) = memos.declared_float_field_bounds.lock()
+    {
+        cache.insert(reference, rows.clone());
+    }
     rows
 }
 

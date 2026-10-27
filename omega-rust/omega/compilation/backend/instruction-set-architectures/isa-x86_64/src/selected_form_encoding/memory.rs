@@ -436,21 +436,20 @@ mod tests {
             let encoded =
                 encode_x86_64_selected_memory_form(&physical, kind, alternative, &operands, 24)
                     .unwrap();
-            for bit in 0..encoded.bytes().len() * 8 {
-                let mut corrupt = encoded.bytes().to_vec();
-                corrupt[bit / 8] ^= 1 << (bit % 8);
-                assert!(
+            crate::selected_form_encoding::assert_every_bit_flip_rejected(
+                encoded.bytes(),
+                |corrupt| {
                     validate_x86_64_selected_memory_form(
                         &physical,
                         kind,
                         alternative,
                         &operands,
                         24,
-                        &corrupt
+                        corrupt,
                     )
                     .is_err()
-                );
-            }
+                },
+            );
         }
     }
 

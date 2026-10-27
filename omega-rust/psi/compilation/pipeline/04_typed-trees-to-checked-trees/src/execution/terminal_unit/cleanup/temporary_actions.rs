@@ -734,13 +734,16 @@ pub(crate) fn finalize_completion_actions(
         let mut observation_replacements = Vec::new();
         for (node_handle, node) in plans.nodes.iter() {
             if !node.normal_cleanup_actions.is_empty() {
-                let checked_trees::CheckedScalarComputationKind::StructuralField {
-                    receiver_value,
-                    ..
-                } = node.kind
-                else {
+                let receiver_value = node.kind.observed_receiver();
+                if !facts
+                    .values
+                    .structural_values
+                    .nodes
+                    .is_valid(receiver_value)
+                {
+                    refusal = String::from("scalar observation cleanup lost its retained receiver");
                     return None;
-                };
+                }
                 let receiver = facts.values.structural_values.nodes.get(receiver_value);
                 let type_identity = shapes.add_type(receiver.type_reference, &[], &[])?;
                 let selected = plans

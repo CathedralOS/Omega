@@ -232,7 +232,7 @@ pub(in crate::execution::terminal_unit) fn build(
     // it unplanned, so the body has no route.
     let sequenced = |index: usize, statement: &StatementNode| {
         (!matches!(statement, StatementNode::Transition(_))
-            || call_occurrences::terminal_named_call(program, machine, state, index).is_some())
+            || call_occurrences::terminal_invocation(program, machine, state, index).is_some())
             && !is_arm_destructure_marker(statement)
             && !matches!(statement, StatementNode::Expression(expression)
                 if !is_unit(program, state.return_type)
@@ -464,7 +464,7 @@ pub(in crate::execution::terminal_unit) fn build(
             // the machine's result.
             || (matches!(statement, StatementNode::Transition(_))
                 && !is_unit(program, state.return_type)
-                && call_occurrences::terminal_named_call(program, machine, state, index)
+                && call_occurrences::terminal_invocation(program, machine, state, index)
                     .is_some());
         let mut structural_result = None;
         // A store whose source is this statement's own call is appended after
@@ -622,7 +622,7 @@ pub(in crate::execution::terminal_unit) fn build(
                 None
             }
             StatementNode::Transition(_)
-                if call_occurrences::terminal_named_call(program, machine, state, index)
+                if call_occurrences::terminal_invocation(program, machine, state, index)
                     .is_some() =>
             {
                 if let Some(primitive_type) = program.primitive_type_reference(state.return_type) {

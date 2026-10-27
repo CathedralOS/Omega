@@ -385,9 +385,11 @@ impl StructuralJudge<'_> {
         let shared = self.prepared_predicate_proofs(predicates, &unresolved);
         for (index, position) in unresolved.into_iter().enumerate() {
             // Shared false grants no negative fact. Preserve the original
-            // goal-first sufficient proof, including formerly Refuted rows.
-            proofs[position] = shared.as_ref().and_then(|values| values.get(index)) == Some(&true)
-                || self.proves_observed_integer_predicate(&predicates[position]);
+            // goal-first sufficient proof when the goal registered operations.
+            proofs[position] = match shared.as_ref().and_then(|values| values.get(index)).copied().flatten() {
+                Some(proven) => proven,
+                None => self.proves_observed_integer_predicate(&predicates[position]),
+            };
         }
         proofs
     }
@@ -396,32 +398,113 @@ impl StructuralJudge<'_> {
         &self,
         predicates: &[StructuralTerm],
         unresolved: &[usize],
-    ) -> Option<Vec<bool>> {
+    ) -> Option<Vec<Option<bool>>> {
         if !self.runtime_body_values || self.case_facts_only || unresolved.len() < 2 {
             return None;
         }
         let prepared = self.prepare_integer_premises()?;
+        let prepared_queries = prepared.observations.engine.lower_bound_queries();
+        let engine_contradictory = prepared_queries.prove_at_least(
+            &Polynomial::constant(BigInt::from_i64(-1)),
+            &BigInt::zero(),
+        );
+        let base_atoms = prepared.observations.atoms.len();
+        let base_bounds = prepared.observations.carrier_bounds.len();
+        let base_param_atoms = prepared.observations.engine.parameter_atoms.len();
+        let base_engine_reg = prepared
+            .observations
+            .engine
+            .integer_projection_registrations();
+        let mut work = prepared.for_goal();
         Some(
             unresolved
                 .iter()
                 .map(|position| {
-                    let mut observations = prepared.for_goal();
-                    let Some(comparison) =
-                        self.integer_comparison(&predicates[*position], &mut observations)
-                    else {
-                        return false;
+                    work.atoms.truncate(base_atoms);
+                    work.carrier_bounds.truncate(base_bounds);
+                    work.engine.parameter_atoms.truncate(base_param_atoms);
+                    let comparison = match self
+                        .project_integer_comparison(&predicates[*position], &mut work)
+                    {
+                        IntegerComparisonProjection::Comparison(comparison) => comparison,
+                        IntegerComparisonProjection::NotInteger => {
+                            work.operations.clear();
+                            if work.engine.integer_projection_registrations().1 != base_engine_reg.1
+                            {
+                                work = prepared.for_goal();
+                            }
+                            return Some(false);
+                        }
+                        IntegerComparisonProjection::UnavailableOperand => {
+                            work.operations.clear();
+                            if work.engine.integer_projection_registrations().1 != base_engine_reg.1
+                            {
+                                work = prepared.for_goal();
+                            }
+                            return None;
+                        }
                     };
+                    let (operator, left, right) = comparison;
+                    if work.operations.is_empty()
+                        && work.engine.integer_projection_registrations().1 == base_engine_reg.1
+                        && !work.carrier_bounds[base_bounds..]
+                            .iter()
+                            .any(|bound| bound.primitive == PrimitiveType::Addr)
+                    {
+                        if matches!(
+                            operator,
+                            BinaryOperator::Equal
+                                | BinaryOperator::LessOrEqual
+                                | BinaryOperator::GreaterOrEqual
+                        ) && left == right
+                        {
+                            return Some(true);
+                        }
+                        if operator == BinaryOperator::Equal
+                            && !engine_contradictory
+                            && work.atoms.len() > base_atoms
+                        {
+                            let diff = left.sub(&right);
+                            if (base_atoms..work.atoms.len()).any(|index| {
+                                let name = atom_name(index);
+                                diff.terms
+                                    .keys()
+                                    .any(|monomial| monomial.contains_key(&name))
+                            }) {
+                                return Some(false);
+                            }
+                        }
+                        if work.carrier_bounds.len() == base_bounds {
+                            return Some(IntegerObservations::comparison_holds(
+                                &prepared_queries,
+                                operator,
+                                &left,
+                                &right,
+                            ));
+                        }
+                    }
+                    let mut observations = work.clone();
+                    work.operations.clear();
+                    if work.engine.integer_projection_registrations().1 != base_engine_reg.1 {
+                        work = prepared.for_goal();
+                    }
                     let operations = 0..observations.operations.len();
+                    let goal_has_no_operations = operations.is_empty();
                     // Only this goal has registered since the sealed premise context.
                     // Even an unavailable projection is discarded with this whole fork.
                     if !observations.install_premises(&mut Vec::new())
                         || !observations.admitted(operations)
                     {
-                        return false;
+                        return None;
                     }
                     let queries = observations.engine.lower_bound_queries();
-                    let (operator, left, right) = comparison;
-                    IntegerObservations::comparison_holds(&queries, operator, &left, &right)
+                    if IntegerObservations::comparison_holds(&queries, operator, &left, &right) {
+                        Some(true)
+                    } else if goal_has_no_operations {
+                        Some(false)
+                    } else {
+                        None
+                    }
                 })
                 .collect(),
         )

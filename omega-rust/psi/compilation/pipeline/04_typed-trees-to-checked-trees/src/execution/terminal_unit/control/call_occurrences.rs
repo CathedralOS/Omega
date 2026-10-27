@@ -55,7 +55,7 @@ impl CallOccurrenceLedger {
     }
 }
 
-/// An unconditional named machine invocation completes this Unit body after
+/// An unconditional machine invocation completes this body after
 /// its ordinary call operation. Internal state destinations remain control
 /// edges; guarded invocations must not be hoisted into this linear sequence.
 /// Return the authored identity to join captured occurrences; the call builder
@@ -66,13 +66,13 @@ mod traced;
 pub(in crate::execution::terminal_unit) use collecting::call_owns_statement_computations;
 pub(in crate::execution::terminal_unit) use traced::outer_calls_in_prefix_traced;
 
-pub(in crate::execution::terminal_unit) fn terminal_named_call(
+pub(in crate::execution::terminal_unit) fn terminal_invocation(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
 ) -> Option<SymbolHandle> {
-    use typed_trees::statement::{TransitionExit, TransitionGuardNode, TransitionTargetNode};
+    use typed_trees::statement::{TransitionExit, TransitionGuardNode};
     let statements = typed_trees::statement::reachable_state_statements(
         program.statement_table.statements(state.statement_nodes),
     );
@@ -99,17 +99,19 @@ pub(in crate::execution::terminal_unit) fn terminal_named_call(
     {
         return None;
     }
-    let TransitionTargetNode::Named { path, .. } =
-        program.statement_table.transition_target(transition.target)
-    else {
-        return None;
-    };
-    // The authored path spells the callee as its machine or as its entry
+    let invocation = validation::completing_transition_invocation(program, transition.target)?;
+    // The invocation selects the callee as its machine or as its entry
     // state (a body-only machine resolves to the state itself); the flow
     // call facts name the entry state either way, so the terminal call is
     // identified by that resolved callable, not by the authored spelling.
     let (callable, return_type) =
-        validation::terminal_callable_target(program, machine, path.symbol)?;
+        validation::terminal_callable_target(program, machine, invocation.target)?;
+    // A retained value expression owns its result computation, including its
+    // calls. Unit has no such value root and must retain the invocation itself
+    // in the operation sequence. Never schedule both owners for one call.
+    if invocation.expression.is_valid() && !is_unit(program, return_type) {
+        return None;
+    }
     (program.normalized_type_identity(return_type)
         == program.normalized_type_identity(state.return_type))
     .then_some(callable)

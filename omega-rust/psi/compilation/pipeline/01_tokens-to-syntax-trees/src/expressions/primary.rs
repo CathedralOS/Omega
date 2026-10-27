@@ -17,6 +17,17 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     context: ExpressionContext,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
+    if context.allows_type_expression() && starts_lifetime_reference_type(input) {
+        let start = input;
+        let (reference, rest) = parse_type_reference_handle(syntax_trees, input)?;
+        let expression = syntax_trees
+            .expressions
+            .insert(ExpressionNode::TypeExpression(reference));
+        syntax_trees
+            .expressions
+            .set_source_span(expression, start.source_span_until(rest));
+        return Ok((expression, rest));
+    }
     if input.at_keyword(KeywordKind::True) {
         let source_span = input
             .tokens
@@ -539,3 +550,12 @@ fn parse_struct_literal_handle<'tokens, 'source>(
 
 #[cfg(test)]
 mod generic_type_operand_tests {}
+
+/// Tick-qualified reference syntax has an unambiguous static type role.
+/// Unqualified `&place` retains ordinary value-borrow parsing until resolution.
+pub(super) fn starts_lifetime_reference_type(input: Input<'_, '_>) -> bool {
+    input.at_punctuation(PunctuationKind::Ampersand)
+        && input
+            .take_punctuation(PunctuationKind::Ampersand, "&")
+            .is_ok_and(|rest| rest.at_punctuation(PunctuationKind::Apostrophe))
+}

@@ -310,7 +310,7 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                                 instructions.push(rewritten);
                                 if has_span_closes
                                     && open_reload.is_some()
-                                    && block_span_closes.contains(&instruction_index)
+                                    && block_span_closes.binary_search(&instruction_index).is_ok()
                                 {
                                     *open_reload = None;
                                 }
@@ -375,10 +375,10 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                                     );
                                     if has_span_closes
                                         && open_reload.is_some()
-                                        && block_span_closes
-                                            .range((active_start + 1)..active_end)
-                                            .next()
-                                            .is_some()
+                                        && block_span_closes[block_span_closes
+                                            .partition_point(|&idx| idx <= active_start)..]
+                                            .first()
+                                            .is_some_and(|&idx| idx < active_end)
                                     {
                                         open_reload = None;
                                     }

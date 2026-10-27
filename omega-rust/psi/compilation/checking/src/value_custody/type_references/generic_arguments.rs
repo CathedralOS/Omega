@@ -297,7 +297,8 @@ pub fn validate_closed_const_argument(
     if !argument.is_valid()
         || !matches!(
             program.type_reference_table.type_reference(argument),
-            TypeReferenceNode::Named { symbol, .. } if !symbol.is_valid()
+            TypeReferenceNode::Named { symbol, .. }
+                if !symbol.is_valid() || program.const_declaration_by_symbol(*symbol).is_some()
         )
     {
         return Err(vec![Diagnostic::error(format!(
@@ -778,7 +779,9 @@ pub(crate) fn validate_exact_typed_structured_const_argument(
         ));
     }
     let expected_name = program.normalized_type_identity_text(expected_type);
-    if value.type_name != expected_name {
+    let canonical_label =
+        canonical_carrier_label(program, AppliedValueCarrier::ordinary(expected_type));
+    if value.type_name != expected_name && value.type_name != canonical_label {
         return Err(format!(
             "expected carrier `{expected_name}`, but the canonical atom names `{}`",
             value.type_name

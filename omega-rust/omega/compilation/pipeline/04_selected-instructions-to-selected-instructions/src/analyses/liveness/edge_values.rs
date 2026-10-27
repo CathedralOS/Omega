@@ -16,12 +16,15 @@ mod case_payload;
 /// size, and runtime spill recovery repeats those analyses once per step.
 pub(crate) struct FunctionIndex<'function> {
     function: &'function SelectedFunction,
-    /// `(id, position)` for every register, sorted by id.
+    registers_identity: bool,
+    registers_strictly_sorted: bool,
+    /// `(id, position)` for every register, sorted by id (populated when not strictly sorted).
     registers: Vec<(VirtualRegisterId, usize)>,
     /// `(block, position)` for every block-parameter register, sorted by block
     /// and then by function order.
     parameters: Vec<(SelectedBlockId, usize)>,
-    /// `(id, position)` for every block, sorted by id and then by order.
+    blocks_identity: bool,
+    /// `(id, position)` for every block, sorted by id and then by order (populated when not identity).
     blocks: Vec<(SelectedBlockId, usize)>,
     /// Instruction IDs and their exact owning block and position, built lazily.
     instructions: std::sync::OnceLock<Vec<(selected_instructions::SelectedInstructionId, usize, usize)>>,
@@ -29,40 +32,63 @@ pub(crate) struct FunctionIndex<'function> {
 
 impl<'function> FunctionIndex<'function> {
     pub(crate) fn new(function: &'function SelectedFunction) -> Self {
-        let mut registers = function
-            .virtual_registers
-            .iter()
-            .enumerate()
-            .map(|(position, register)| (register.id, position))
-            .collect::<Vec<_>>();
-        if registers.windows(2).any(|w| w[0] > w[1]) {
+        let mut registers_identity = true;
+        let mut registers_strictly_sorted = true;
+        let mut parameters = Vec::new();
+        let mut prev_reg_id: Option<VirtualRegisterId> = None;
+        for (position, register) in function.virtual_registers.iter().enumerate() {
+            if register.id.0 as usize != position {
+                registers_identity = false;
+            }
+            if let Some(prev) = prev_reg_id
+                && prev >= register.id
+            {
+                registers_strictly_sorted = false;
+            }
+            prev_reg_id = Some(register.id);
+            if let VirtualRegisterOrigin::BlockParameter { block, .. } = register.origin {
+                parameters.push((block, position));
+            }
+        }
+        let mut registers = Vec::new();
+        if !registers_strictly_sorted {
+            registers = function
+                .virtual_registers
+                .iter()
+                .enumerate()
+                .map(|(position, register)| (register.id, position))
+                .collect::<Vec<_>>();
             registers.sort_unstable();
         }
-        let mut parameters = function
-            .virtual_registers
-            .iter()
-            .enumerate()
-            .filter_map(|(position, register)| match register.origin {
-                VirtualRegisterOrigin::BlockParameter { block, .. } => Some((block, position)),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
         if parameters.windows(2).any(|w| w[0] > w[1]) {
             parameters.sort_unstable();
         }
-        let mut blocks = function
-            .blocks
-            .iter()
-            .enumerate()
-            .map(|(position, block)| (block.id, position))
-            .collect::<Vec<_>>();
-        if blocks.windows(2).any(|w| w[0] > w[1]) {
-            blocks.sort_unstable();
+        let mut blocks_identity = true;
+        for (position, block) in function.blocks.iter().enumerate() {
+            if block.id.0 as usize != position {
+                blocks_identity = false;
+                break;
+            }
+        }
+        let mut blocks = Vec::new();
+        if !blocks_identity {
+            blocks = function
+                .blocks
+                .iter()
+                .enumerate()
+                .map(|(position, block)| (block.id, position))
+                .collect::<Vec<_>>();
+            if blocks.windows(2).any(|w| w[0] > w[1]) {
+                blocks.sort_unstable();
+            }
         }
         Self {
             function,
+            registers_identity,
+            registers_strictly_sorted,
             registers,
             parameters,
+            blocks_identity,
             blocks,
             instructions: std::sync::OnceLock::new(),
         }
@@ -109,6 +135,17 @@ impl<'function> FunctionIndex<'function> {
         &self,
         id: VirtualRegisterId,
     ) -> Option<&'function VirtualRegister> {
+        if self.registers_identity {
+            return self.function.virtual_registers.get(id.0 as usize);
+        }
+        if self.registers_strictly_sorted {
+            let idx = self
+                .function
+                .virtual_registers
+                .binary_search_by_key(&id, |reg| reg.id)
+                .ok()?;
+            return self.function.virtual_registers.get(idx);
+        }
         let start = self.registers.partition_point(|(other, _)| *other < id);
         match self.registers.get(start..)? {
             [(first, position), rest @ ..]
@@ -132,16 +169,40 @@ impl<'function> FunctionIndex<'function> {
             .filter_map(|(_, position)| self.function.virtual_registers.get(*position))
     }
 
+    /// The one block index carrying `id`, or `None` when no block or more than one carries it.
+    pub(crate) fn unique_block_index(&self, id: SelectedBlockId) -> Option<usize> {
+        if self.blocks_identity {
+            let idx = id.0 as usize;
+            return (idx < self.function.blocks.len()).then_some(idx);
+        }
+        let start = self.blocks.partition_point(|(other, _)| *other < id);
+        match self.blocks.get(start..)? {
+            [(first, position), rest @ ..]
+                if *first == id && rest.first().is_none_or(|(next, _)| *next != id) =>
+            {
+                Some(*position)
+            }
+            _ => None,
+        }
+    }
+
     /// Every block carrying `id`, in function order.
     pub(crate) fn blocks_with_id(
         &self,
         id: SelectedBlockId,
     ) -> impl Iterator<Item = &'function SelectedBlock> + '_ {
-        let start = self.blocks.partition_point(|(other, _)| *other < id);
-        self.blocks[start..]
-            .iter()
-            .take_while(move |(other, _)| *other == id)
-            .filter_map(|(_, position)| self.function.blocks.get(*position))
+        let (single, slice) = if self.blocks_identity {
+            (self.function.blocks.get(id.0 as usize), &[][..])
+        } else {
+            let start = self.blocks.partition_point(|(other, _)| *other < id);
+            (None, &self.blocks[start..])
+        };
+        single.into_iter().chain(
+            slice
+                .iter()
+                .take_while(move |(other, _)| *other == id)
+                .filter_map(|(_, position)| self.function.blocks.get(*position)),
+        )
     }
 }
 
@@ -316,18 +377,17 @@ pub(crate) fn validate_transports(
                 {
                     return Err(mismatch());
                 }
-                let destinations = index
-                    .parameters_of(edge.block)
-                    .filter(|register| {
-                        matches!(register.origin,
-                    VirtualRegisterOrigin::BlockParameter {source_value,..}
-                        if source_value == binding.semantic.parameter)
-                    })
-                    .collect::<Vec<_>>();
+                let mut destinations = index.parameters_of(edge.block).filter(|register| {
+                    matches!(register.origin,
+                VirtualRegisterOrigin::BlockParameter {source_value,..}
+                    if source_value == binding.semantic.parameter)
+                });
+                let first_dest = destinations.next();
                 match binding.transport {
-                    SelectedValueTransport::Unused if destinations.is_empty() => {}
+                    SelectedValueTransport::Unused if first_dest.is_none() => {}
                     SelectedValueTransport::Registers { parameter, .. }
-                        if destinations.len() == 1 && destinations[0].id == parameter =>
+                        if first_dest.is_some_and(|d| d.id == parameter)
+                            && destinations.next().is_none() =>
                     {
                         incoming_argument(function_index, &index, edge, parameter)?;
                     }

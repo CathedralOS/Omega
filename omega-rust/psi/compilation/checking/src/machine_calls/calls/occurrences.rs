@@ -30,6 +30,28 @@ pub enum CallSite<'program> {
 }
 
 impl<'program> CallSite<'program> {
+    /// Only the arm's whole invocation completes it. Calls inside its operands
+    /// still belong to argument evaluation, even when they select the same callee.
+    pub fn completes_transition(
+        &self,
+        program: &dyn crate::CheckingInput,
+        target: typed_trees::statement::TransitionTargetHandle,
+    ) -> bool {
+        use typed_trees::statement::TransitionTargetNode;
+        match (self, program.statement_table.transition_target(target)) {
+            (
+                Self::TransitionNamed { path, .. },
+                TransitionTargetNode::Named {
+                    path: destination, ..
+                },
+            ) => std::ptr::eq(*path, destination),
+            (Self::Expression { expression, .. }, TransitionTargetNode::Value(root)) => {
+                expression == root
+            }
+            _ => false,
+        }
+    }
+
     /// The source binder survives executable retargeting in every call
     /// position. Terminal forwarding changes continuation ownership, not the
     /// identity of the contract this occurrence selected.

@@ -135,8 +135,9 @@ impl Execution<'_, '_, '_> {
                 self.program,
                 type_reference,
                 &[],
-                validation::ContentsRequirement::BorrowFree,
+                validation::ContentsRequirement::StoredValue,
             )
+            || validation::reference_shell(self.program, type_reference).is_some()
         {
             return Vec::new();
         }
@@ -277,6 +278,28 @@ impl Execution<'_, '_, '_> {
                     if !relative
                         .iter()
                         .all(crate::flow::place_segment_has_static_identity)
+                    {
+                        continue;
+                    }
+                    // A record that stores a reference descriptor alongside
+                    // owned scalars still transports those owned members across
+                    // construction and match joins; reject only paths that
+                    // cross or end at a reference descriptor.
+                    let Some(member_type) = validation::owned_projection_type_reference(
+                        self.program,
+                        type_reference,
+                        relative,
+                    ) else {
+                        continue;
+                    };
+                    if validation::reference_shell(self.program, member_type).is_some()
+                        || (!matches!(fact.payload, FactPayload::CaseValue { value: true, .. })
+                            && !validation::has_contents(
+                                self.program,
+                                member_type,
+                                &[],
+                                validation::ContentsRequirement::BorrowFree,
+                            ))
                     {
                         continue;
                     }

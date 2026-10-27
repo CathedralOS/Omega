@@ -14,8 +14,11 @@ use super::{
     ValidatedPhysicalRegisterModel, ValidatedX86_64SelectedFormEncoding,
     X86_64SelectedFormEncodingError,
 };
-use crate::selected_form_encoding::instruction_bytes::{assemble_labeled_stream, modrm, rex};
-use crate::selected_form_encoding::request_validation::resolve_registers;
+use crate::selected_form_encoding::instruction_bytes::{
+    append_increment, append_indexed_byte_load, append_register_compare, append_self_clear,
+    append_self_test, assemble_labeled_stream,
+};
+use crate::selected_form_encoding::request_validation::byte_loop_registers;
 
 /// Branch-condition suffix of the near `0F 8x` conditional-jump form.
 const CC_E: u8 = 0x84;
@@ -147,37 +150,18 @@ fn emit_instruction(
     patches: &mut Vec<(usize, Label)>,
 ) {
     match instruction {
-        Instruction::XorSelf(register) => bytes.extend([
-            rex(register, 0, register),
-            0x31,
-            modrm(3, register, register),
-        ]),
-        Instruction::Inc(register) => {
-            bytes.extend([rex(0, 0, register), 0xff, modrm(3, 0, register)])
-        }
-        Instruction::TestSelf64(register) => bytes.extend([
-            rex(register, 0, register),
-            0x85,
-            modrm(3, register, register),
-        ]),
+        Instruction::XorSelf(register) => append_self_clear(bytes, register),
+        Instruction::Inc(register) => append_increment(bytes, register),
+        Instruction::TestSelf64(register) => append_self_test(bytes, register),
         Instruction::CompareRegister64 { source, operand } => {
-            bytes.extend([rex(source, 0, operand), 0x39, modrm(3, source, operand)])
+            append_register_compare(bytes, source, operand)
         }
         Instruction::LoadByte {
             value,
             base,
             index,
             offset,
-        } => {
-            bytes.extend([
-                rex(value, index, base),
-                0x0f,
-                0xb6,
-                modrm(2, value, 4),
-                ((index & 7) << 3) | (base & 7),
-            ]);
-            bytes.extend(offset.to_le_bytes());
-        }
+        } => append_indexed_byte_load(bytes, value, base, index, offset),
         Instruction::JumpConditional { condition, target } => {
             bytes.extend([0x0f, condition]);
             patches.push((bytes.len(), target));
@@ -327,31 +311,16 @@ fn request(
     operands: &[RegisterViewId],
     displacement: u32,
 ) -> Result<[u8; 8], X86_64SelectedFormEncodingError> {
-    super::request_validation::guard_canonical(physical)?;
-    if displacement != 0
-        || alternative
-            != (MachineAlternativeKey {
-                family: MachineAlternativeFamily::CompareByteSequences,
-                variant: 0,
-            })
-    {
-        return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
-    }
-    let registers: [u8; 8] = resolve_registers(physical, operands)?
-        .try_into()
-        .map_err(|_| X86_64SelectedFormEncodingError::OperandCountMismatch)?;
+    let registers = byte_loop_registers::<8>(
+        physical,
+        alternative,
+        MachineAlternativeFamily::CompareByteSequences,
+        operands,
+        4,
+    )?;
     // `rsp` cannot encode the SIB index the loop's byte loads use, so the
-    // cursor may never land there.
-    if registers[4] == 4 {
-        return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
-    }
-    // Early-clobber writes may never land on a preserved input or on a
-    // scratch written earlier in the sequence.
-    if registers[..4].contains(&registers[4])
-        || registers[..5].contains(&registers[5])
-        || registers[..6].contains(&registers[6])
-        || registers[..7].contains(&registers[7])
-    {
+    // cursor may never land there, and the form holds one zero displacement.
+    if displacement != 0 || registers[4] == 4 {
         return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
     }
     Ok(registers)
@@ -481,14 +450,10 @@ mod tests {
                 encoded.bytes(),
             )
             .unwrap();
-            for bit in 0..encoded.bytes().len() * 8 {
-                let mut changed = encoded.bytes().to_vec();
-                changed[bit / 8] ^= 1 << (bit % 8);
-                assert!(
-                    validate(&physical, alternative, &operands, 0, &changed).is_err(),
-                    "bit {bit}"
-                );
-            }
+            crate::selected_form_encoding::assert_every_bit_flip_rejected(
+                encoded.bytes(),
+                |changed| validate(&physical, alternative, &operands, 0, changed).is_err(),
+            );
             super::super::assert_byte_fragility(encoded.bytes(), |bytes| {
                 validate(&physical, alternative, &operands, 0, bytes).is_err()
             });

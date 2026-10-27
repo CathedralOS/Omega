@@ -34,9 +34,11 @@ linux_arm64 machine consume(cell: &Cell) -> u64 {
     selected - 73u64
 }
 machine main() crashes Trap {
-    let cell: Cell = Cell { value: 73u64 };
-    let difference: u64 = consume(&cell);
-    transition difference == 0u64 {
+    let ready: Cell = Cell { value: 90u64 };
+    let fallback: Cell = Cell { value: 12u64 };
+    let matched: u64 = consume(&ready);
+    let defaulted: u64 = consume(&fallback);
+    transition matched == 17u64 && defaulted == 0u64 {
         true -> done()
         false -> wrong()
     }

@@ -192,6 +192,12 @@ struct CandidateAccesses {
     last_existing_store: Vec<Option<usize>>,
     /// Per block: whether the block contains any `ExistingLoad` (body or terminator).
     has_loads: Vec<bool>,
+    /// Blocks where `last_existing_store[b].is_some()`.
+    store_blocks: Vec<usize>,
+    /// Blocks where `has_loads[b]` is true.
+    load_blocks: Vec<usize>,
+    /// True when every block in `load_blocks` starts its `accesses[b]` with `Event::ExistingStore`.
+    is_entry_insensitive: bool,
 }
 
 struct WindowSummary {
@@ -199,6 +205,10 @@ struct WindowSummary {
     anchored_stores: Vec<Vec<usize>>,
     last_store: Vec<Option<StorePosition>>,
     has_loads: Vec<bool>,
+    store_blocks: Vec<usize>,
+    load_blocks: Vec<usize>,
+    active_blocks: Vec<usize>,
+    is_entry_insensitive: bool,
 }
 
 struct ShareableScratch {
@@ -230,7 +240,7 @@ pub(super) fn assign(
     definitions: &[StorageDefinition],
     uses: &[BlockUsePositions],
     shared_reload: &[bool],
-    span_closes: &[std::collections::BTreeSet<usize>],
+    span_closes: &[Vec<usize>],
     reuse_slots: bool,
 ) -> Assignment {
     let private = LocalStorageSlotId::Spill { register: victim };
@@ -636,6 +646,10 @@ fn summarize_window(
     let mut anchored_stores = vec![Vec::new(); block_count];
     let mut last_store = vec![None; block_count];
     let mut has_loads = vec![false; block_count];
+    let mut store_blocks = Vec::new();
+    let mut load_blocks = Vec::new();
+    let mut active_blocks = Vec::new();
+    let mut is_entry_insensitive = true;
     for (block_index, block) in function.blocks.iter().enumerate() {
         let has_boundary = boundary[block_index]
             .iter()
@@ -651,19 +665,41 @@ fn summarize_window(
                 .then_some(index)
             })
             .collect();
-        last_store[block_index] = stores
+        let block_last_store = stores
             .last()
             .copied()
             .map(StorePosition::Instruction)
             .or_else(|| has_boundary.then_some(StorePosition::Boundary));
+        last_store[block_index] = block_last_store;
+        if block_last_store.is_some() {
+            store_blocks.push(block_index);
+        }
+        let block_has_loads = !load_marks[block_index].is_empty() || end_marks[block_index];
+        has_loads[block_index] = block_has_loads;
+        if block_has_loads {
+            load_blocks.push(block_index);
+            if !has_boundary
+                && !stores
+                    .first()
+                    .is_some_and(|&s_idx| load_marks[block_index].first().is_none_or(|&l_idx| s_idx < l_idx))
+            {
+                is_entry_insensitive = false;
+            }
+        }
+        if block_last_store.is_some() || block_has_loads {
+            active_blocks.push(block_index);
+        }
         anchored_stores[block_index] = stores;
-        has_loads[block_index] = !load_marks[block_index].is_empty() || end_marks[block_index];
     }
     WindowSummary {
         boundary_store,
         anchored_stores,
         last_store,
         has_loads,
+        store_blocks,
+        load_blocks,
+        active_blocks,
+        is_entry_insensitive,
     }
 }
 
@@ -723,7 +759,7 @@ impl RawCandidateSlots {
         const MULTI_OWNER: u32 = u32::MAX - 1;
         let mut address_owner: Vec<u32> = Vec::new();
         let mut owner_bits: Vec<u64> = Vec::new();
-        let mut any_address_owner = false;
+        let mut first_owner_word = usize::MAX;
 
         let invalidate = |slot: LocalStorageSlotId, invalid: &mut [bool]| {
             if let Some(idx) = lookup_slot(slot) {
@@ -766,7 +802,7 @@ impl RawCandidateSlots {
                                     owner_bits.resize(word + 1, 0);
                                 }
                                 owner_bits[word] |= 1u64 << (reg_idx & 63);
-                                any_address_owner = true;
+                                first_owner_word = first_owner_word.min(word);
                             } else if *entry != slot_idx as u32 {
                                 if *entry < MULTI_OWNER {
                                     invalid[*entry as usize] = true;
@@ -788,27 +824,41 @@ impl RawCandidateSlots {
             }
         }
 
-        if any_address_owner {
+        if first_owner_word != usize::MAX {
+            let active_owner_bits = &owner_bits[first_owner_word..];
             for block_index in 0..block_count {
                 let Some(summary) = function.blocks.block_slot_summary(block_index) else {
                     continue;
                 };
-                for (word_idx, (&non_load_word, &owner_word)) in summary
-                    .non_load_register_bits()
-                    .iter()
-                    .zip(&owner_bits)
-                    .enumerate()
+                if let Some(non_load_slice) =
+                    summary.non_load_register_bits().get(first_owner_word..)
                 {
-                    let mut hit = non_load_word & owner_word;
-                    while hit != 0 {
-                        let bit = hit.trailing_zeros() as usize;
-                        hit &= hit - 1;
-                        let reg_idx = (word_idx << 6) | bit;
-                        let owner = address_owner[reg_idx];
-                        if owner < MULTI_OWNER {
-                            invalid[owner as usize] = true;
+                    for (offset, (&non_load_word, &owner_word)) in
+                        non_load_slice.iter().zip(active_owner_bits).enumerate()
+                    {
+                        let mut hit = non_load_word & owner_word;
+                        while hit != 0 {
+                            let bit = hit.trailing_zeros() as usize;
+                            hit &= hit - 1;
+                            let reg_idx = ((first_owner_word + offset) << 6) | bit;
+                            let owner = address_owner[reg_idx];
+                            if owner < MULTI_OWNER {
+                                invalid[owner as usize] = true;
+                            }
                         }
                     }
+                }
+                let has_owner_load = summary
+                    .loads_register_bits()
+                    .get(first_owner_word..)
+                    .is_some_and(|load_slice| {
+                        load_slice
+                            .iter()
+                            .zip(active_owner_bits)
+                            .any(|(&load_w, &owner_w)| (load_w & owner_w) != 0)
+                    });
+                if !has_owner_load {
+                    continue;
                 }
                 for &(reg, index) in &summary.loads {
                     let Some(&owner) = address_owner.get(reg.0 as usize) else {
@@ -867,32 +917,47 @@ impl RawCandidateSlots {
                     });
                 }
             }
-            let last_existing_store = slot_accesses
-                .iter()
-                .map(|block_accesses| {
-                    block_accesses
+            let mut last_existing_store = Vec::with_capacity(self.block_count);
+            let mut has_loads = Vec::with_capacity(self.block_count);
+            let mut store_blocks = Vec::new();
+            let mut load_blocks = Vec::new();
+            let mut is_entry_insensitive = true;
+            for (block_index, (block_accesses, &term_load)) in
+                slot_accesses.iter().zip(&slot_terminal_loads).enumerate()
+            {
+                let last_store = block_accesses
+                    .iter()
+                    .rev()
+                    .find_map(|&(index, event)| {
+                        matches!(event, Event::ExistingStore).then_some(index)
+                    });
+                last_existing_store.push(last_store);
+                if last_store.is_some() {
+                    store_blocks.push(block_index);
+                }
+                let block_has_loads = term_load
+                    || block_accesses
                         .iter()
-                        .rev()
-                        .find_map(|&(index, event)| {
-                            matches!(event, Event::ExistingStore).then_some(index)
-                        })
-                })
-                .collect();
-            let has_loads = slot_accesses
-                .iter()
-                .zip(&slot_terminal_loads)
-                .map(|(block_accesses, &term_load)| {
-                    term_load
-                        || block_accesses
-                            .iter()
-                            .any(|&(_, event)| matches!(event, Event::ExistingLoad))
-                })
-                .collect();
+                        .any(|&(_, event)| matches!(event, Event::ExistingLoad));
+                has_loads.push(block_has_loads);
+                if block_has_loads {
+                    load_blocks.push(block_index);
+                    if !block_accesses
+                        .first()
+                        .is_some_and(|&(_, event)| matches!(event, Event::ExistingStore))
+                    {
+                        is_entry_insensitive = false;
+                    }
+                }
+            }
             self.finalized[slot_idx] = Some(CandidateAccesses {
                 accesses: slot_accesses,
                 terminal_loads: slot_terminal_loads,
                 last_existing_store,
                 has_loads,
+                store_blocks,
+                load_blocks,
+                is_entry_insensitive,
             });
         }
         self.finalized[slot_idx].as_ref()
@@ -912,54 +977,8 @@ fn shareable(
     end_marks: &[bool],
     scratch: &mut ShareableScratch,
 ) -> bool {
-    let block_count = successors.len();
-    scratch.pending.clear();
-    for block_index in 0..block_count {
-        scratch.entries[block_index] = 0;
-        let exit = match (
-            window.last_store[block_index],
-            candidate.last_existing_store[block_index],
-        ) {
-            (Some(StorePosition::Instruction(w_idx)), Some(e_idx)) => {
-                if e_idx > w_idx {
-                    Some(EXISTING)
-                } else {
-                    Some(NEW)
-                }
-            }
-            (Some(StorePosition::Boundary), Some(_)) => Some(EXISTING),
-            (Some(_), None) => Some(NEW),
-            (None, Some(_)) => Some(EXISTING),
-            (None, None) => None,
-        };
-        scratch.exits[block_index] = exit;
-        if exit.is_some() {
-            scratch.queued[block_index] = true;
-            scratch.pending.push_back(block_index);
-        } else {
-            scratch.queued[block_index] = false;
-        }
-    }
-    while let Some(block) = scratch.pending.pop_front() {
-        scratch.queued[block] = false;
-        let exit = scratch.exits[block].unwrap_or(scratch.entries[block]);
-        for &destination in &successors[block] {
-            let merged = scratch.entries[destination] | exit;
-            if merged == scratch.entries[destination] {
-                continue;
-            }
-            scratch.entries[destination] = merged;
-            if scratch.exits[destination].is_none() && !scratch.queued[destination] {
-                scratch.queued[destination] = true;
-                scratch.pending.push_back(destination);
-            }
-        }
-    }
-    for block_index in 0..block_count {
-        if !window.has_loads[block_index] && !candidate.has_loads[block_index] {
-            continue;
-        }
-        let mut state = scratch.entries[block_index];
+    let check_block = |block_index: usize, initial_state: u8| -> bool {
+        let mut state = initial_state;
         if window.boundary_store[block_index] {
             state = NEW;
         }
@@ -1013,6 +1032,75 @@ fn shareable(
         if candidate.terminal_loads[block_index] && state & NEW != 0 {
             return false;
         }
+        true
+    };
+
+    if window.is_entry_insensitive && candidate.is_entry_insensitive {
+        for &block_index in &window.active_blocks {
+            if candidate.accesses[block_index].is_empty() && !candidate.terminal_loads[block_index]
+            {
+                continue;
+            }
+            if !check_block(block_index, 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    scratch.pending.clear();
+    scratch.entries.fill(0);
+    scratch.exits.fill(None);
+    for &block_index in &window.store_blocks {
+        scratch.exits[block_index] = Some(NEW);
+        scratch.queued[block_index] = true;
+        scratch.pending.push_back(block_index);
+    }
+    for &block_index in &candidate.store_blocks {
+        let e_idx = candidate.last_existing_store[block_index].unwrap();
+        let exit = match window.last_store[block_index] {
+            Some(StorePosition::Instruction(w_idx)) => {
+                if e_idx > w_idx {
+                    Some(EXISTING)
+                } else {
+                    Some(NEW)
+                }
+            }
+            Some(StorePosition::Boundary) | None => Some(EXISTING),
+        };
+        scratch.exits[block_index] = exit;
+        if !scratch.queued[block_index] {
+            scratch.queued[block_index] = true;
+            scratch.pending.push_back(block_index);
+        }
+    }
+    while let Some(block) = scratch.pending.pop_front() {
+        scratch.queued[block] = false;
+        let exit = scratch.exits[block].unwrap_or(scratch.entries[block]);
+        for &destination in &successors[block] {
+            let merged = scratch.entries[destination] | exit;
+            if merged == scratch.entries[destination] {
+                continue;
+            }
+            scratch.entries[destination] = merged;
+            if scratch.exits[destination].is_none() && !scratch.queued[destination] {
+                scratch.queued[destination] = true;
+                scratch.pending.push_back(destination);
+            }
+        }
+    }
+    for &block_index in &window.load_blocks {
+        if !check_block(block_index, scratch.entries[block_index]) {
+            return false;
+        }
+    }
+    for &block_index in &candidate.load_blocks {
+        if window.has_loads[block_index] {
+            continue;
+        }
+        if !check_block(block_index, scratch.entries[block_index]) {
+            return false;
+        }
     }
     true
 }
@@ -1020,7 +1108,7 @@ fn shareable(
 fn loads_before(
     uses: &[BlockUsePositions],
     shared_reload: &[bool],
-    span_closes: &[std::collections::BTreeSet<usize>],
+    span_closes: &[Vec<usize>],
     block_index: usize,
     index: usize,
 ) -> bool {
@@ -1047,10 +1135,10 @@ fn loads_before(
     else {
         return true;
     };
-    span_closes[block_index]
-        .range(previous..index)
-        .next()
-        .is_some()
+    let closes = &span_closes[block_index];
+    closes[closes.partition_point(|&c| c < previous)..]
+        .first()
+        .is_some_and(|&c| c < index)
 }
 
 /// The declared bit-preserving pair bridging a foreign-class victim to the

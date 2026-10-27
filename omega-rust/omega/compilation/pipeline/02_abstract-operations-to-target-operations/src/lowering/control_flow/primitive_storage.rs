@@ -549,15 +549,8 @@ pub(super) fn lower(
                         .map(|parameter| parameter.structural_type)
                 })
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-            let (_, _, _, runs) = crate::lowering::structural_layout::runtime_borrowed_projection(
-                identity,
-                path,
-                StructuralAccess::SharedBorrow,
-                None,
-                types,
-                &mut std::collections::BTreeMap::new(),
-                &mut std::collections::BTreeSet::new(),
-            )?;
+            let runs =
+                crate::lowering::structural_layout::storage_address_indices(identity, path, types)?;
             let indices = super::scalar_sources::runtime_indices(
                 runs,
                 function,

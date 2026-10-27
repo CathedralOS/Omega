@@ -72,22 +72,7 @@ pub fn validate_machine_effect_catalog(
     Ok(ValidatedMachineEffectCatalog { catalog, identity })
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct MachineEffectCatalogIdentity([u8; 32]);
-
-impl MachineEffectCatalogIdentity {
-    pub(crate) fn from_canonical_bytes(bytes: &[u8]) -> Self {
-        Self(crate::digest_encoder::content_identity(&bytes).into())
-    }
-
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
+crate::identity::sha256_identity!(MachineEffectCatalogIdentity);
 
 /// The `MachineSemanticKind` catalog: a single roster drives the enum and the
 /// fixed-entry table so a variant cannot be declared in only one place.

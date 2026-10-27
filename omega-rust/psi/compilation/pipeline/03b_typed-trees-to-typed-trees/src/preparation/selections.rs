@@ -27,7 +27,7 @@ pub(crate) fn retain_static_argument_contexts(program: &mut TypedTrees) {
     #[derive(Default)]
     struct SourceCalls {
         owner: SymbolHandle,
-        data_owners: Vec<SymbolHandle>,
+        declaration_owners: Vec<SymbolHandle>,
         visited: Vec<ExpressionHandle>,
         expressions: Vec<(ExpressionHandle, SymbolHandle)>,
     }
@@ -38,7 +38,7 @@ pub(crate) fn retain_static_argument_contexts(program: &mut TypedTrees) {
 
     impl TypedReferences for SourceCalls {
         fn declaration(&mut self, owner: SymbolHandle) -> bool {
-            if !self.data_owners.contains(&owner) {
+            if !self.declaration_owners.contains(&owner) {
                 return false;
             }
             self.owner = owner;
@@ -57,16 +57,23 @@ pub(crate) fn retain_static_argument_contexts(program: &mut TypedTrees) {
     }
 
     let mut roots = SourceCalls {
-        data_owners: program
+        declaration_owners: program
             .data_definitions()
             .iter()
             .map(|data| data.symbol)
+            .chain(
+                program
+                    .const_declarations()
+                    .iter()
+                    .map(|constant| constant.symbol),
+            )
             .collect(),
         ..SourceCalls::default()
     };
     visit_declarations(program, &mut roots);
-    // Only data and machines supply the type/lifetime scopes this admission
-    // uses. Trait and mathematical descriptions keep their own checking law.
+    // Constants retain their own lexical declaration even after evaluation
+    // consumes the initializer. Trait and mathematical descriptions keep
+    // their separate checking law; this census grants no execution demand.
     for machine in program.machines() {
         roots.owner = machine.symbol;
         roots.visited.clear();
@@ -76,13 +83,22 @@ pub(crate) fn retain_static_argument_contexts(program: &mut TypedTrees) {
         let Some(call) = program.expression_table.call_node(expression) else {
             continue;
         };
-        if call.authored_machine_application.is_valid()
-            || (call.machine_arguments.is_empty()
-                && !has_region_telescope(program, call.target_symbol)
-                && !program
-                    .expression_table
-                    .name_path_node(call.receiver)
-                    .is_some_and(|path| program.conformance_by_symbol(path.symbol).is_some()))
+        if call.authored_machine_application.is_valid() {
+            let application = call.authored_machine_application;
+            let retained = program
+                .expression_table
+                .static_machine_application_mut(application);
+            if !retained.lexical_owner.is_valid() {
+                retained.lexical_owner = owner;
+            }
+            continue;
+        }
+        if call.machine_arguments.is_empty()
+            && !has_region_telescope(program, call.target_symbol)
+            && !program
+                .expression_table
+                .name_path_node(call.receiver)
+                .is_some_and(|path| program.conformance_by_symbol(path.symbol).is_some())
         {
             continue;
         }

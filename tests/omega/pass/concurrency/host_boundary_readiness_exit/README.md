@@ -19,8 +19,11 @@ The component entry reserves `Readiness::wait`, parks at the distinct
 `ProviderGate::wait`, then installs the explicitly selected `Immediate`
 implementation into that same receiver. Its result comes from a real guest
 component invocation; host observations are exactly `[1, 0, 42]`. Retained and
-loaded forms also reject ordinary missing imports, premature provider calls,
+loaded forms, and a separately produced invocation-private receiver, also reject ordinary missing imports, premature provider calls,
 host-adapter substitution, installation at a fuel pause, and rebinding.
+Two private receiver productions have equal semantic fingerprints but distinct
+live owners. Reusing one owner's execution plan or component selection with the
+other rejects. The successful private receiver is never exported or retagged.
 
 This supports provider readiness under **PIPELINE-ARCHITECTURE-ENFORCEMENT** and
 **TERMINAL-BUILD-SEED**. It does not establish dependency acquisition,

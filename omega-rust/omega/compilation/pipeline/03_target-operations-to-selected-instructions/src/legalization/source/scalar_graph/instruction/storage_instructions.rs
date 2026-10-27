@@ -843,7 +843,7 @@ pub(super) fn project_storage_address(
     }
     let root = scalar_graph_input::primitive_locals::read_root_type(optimized, *source)
         .ok_or(Error::custody())?;
-    let geometry = crate::structural_inputs::structural_reference_input::reference_source_geometry(
+    let geometry = crate::structural_inputs::structural_reference_input::storage_address_geometry(
         root,
         path,
         &unit.structural_types,

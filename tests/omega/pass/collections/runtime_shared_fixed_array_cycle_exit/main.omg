@@ -25,7 +25,7 @@ machine array_maximum(numbers: &[i32; 6]) -> i32 {
     transition { _ -> step(numbers, 0, 0) }
 
     // Loop head: scan until every element has been visited.
-    state step(numbers: &[i32; 6], index: i32, maximum: i32) -> i32
+    machine step(numbers: &[i32; 6], index: i32, maximum: i32) -> i32
     requires index >= 0 {
         transition index < 6 {
             true -> body(numbers, index, maximum)
@@ -34,7 +34,7 @@ machine array_maximum(numbers: &[i32; 6]) -> i32 {
     }
 
     // Read the current element; keep it if it beats the running maximum.
-    state body(numbers: &[i32; 6], index: i32, maximum: i32) -> i32
+    machine body(numbers: &[i32; 6], index: i32, maximum: i32) -> i32
     requires index >= 0
     requires index < 6 {
         let current: i32 = numbers[index];
@@ -46,7 +46,7 @@ machine array_maximum(numbers: &[i32; 6]) -> i32 {
 
     // Re-guard before the increment: the direct edge into bump proves
     // index + 1 cannot overflow -- fully Exact, no wrapping arithmetic.
-    state advance(numbers: &[i32; 6], index: i32, maximum: i32) -> i32
+    machine advance(numbers: &[i32; 6], index: i32, maximum: i32) -> i32
     requires index >= 0 {
         transition index < 6 {
             true -> bump(numbers, index, maximum)
@@ -54,13 +54,13 @@ machine array_maximum(numbers: &[i32; 6]) -> i32 {
         }
     }
 
-    state bump(numbers: &[i32; 6], index: i32, maximum: i32) -> i32
+    machine bump(numbers: &[i32; 6], index: i32, maximum: i32) -> i32
     requires index >= 0
     requires index < 6 {
         transition { _ -> step(numbers, index + 1, maximum) }
     }
 
-    state done(maximum: i32) -> i32 { maximum }
+    machine done(maximum: i32) -> i32 { maximum }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

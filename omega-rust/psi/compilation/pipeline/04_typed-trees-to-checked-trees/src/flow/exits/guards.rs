@@ -70,6 +70,42 @@ pub(super) fn append_guard_context(
         statement_index,
         transition_target,
     };
+    append_boolean_observations(
+        program,
+        semantic,
+        build,
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        expression,
+        value,
+        point,
+        entry_writes,
+        entry_unknown_write,
+        active_contexts,
+        active_constraints,
+    );
+}
+
+/// Every selective Boolean consumer publishes one evaluated decision. Expression
+/// matches and transitions share capture recovery, polarity, storage epochs and
+/// bound grouping; neither executes the saved predicate again.
+#[allow(clippy::too_many_arguments)]
+fn append_boolean_observations(
+    program: &dyn ::validation::CheckingInput,
+    semantic: &mut FactPlan,
+    build: &mut FlowBuildContext,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    value: bool,
+    point: ProgramPoint,
+    entry_writes: HandleSpan<checked_trees::FlowOperandReferent>,
+    entry_unknown_write: bool,
+    active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
+    active_constraints: &mut HandleSpan<FlowConstraintRef>,
+) {
     // Dispatch tests the saved decision, not its initializer again. Recover
     // that decision once for every guard consumer; numeric bounds must not
     // have a private recovery route that case and Boolean evidence miss.
@@ -97,11 +133,7 @@ pub(super) fn append_guard_context(
     // upper the sibling conjunct established. One call groups every
     // conjunct on the place into a single intersected row.
     let mut bound_expressions: Vec<ExpressionHandle> = Vec::new();
-    let current = GuardObservation {
-        expression,
-        value,
-        statement_index,
-    };
+    let current = GuardObservation::evaluated(expression, value, statement_index);
     for observation in std::iter::once(current).chain(captured) {
         let GuardObservation {
             expression, value, ..
@@ -119,7 +151,7 @@ pub(super) fn append_guard_context(
             active_contexts,
             active_constraints,
         );
-        if value {
+        if value && observation.current_expression.is_valid() {
             append_case_constraint_context(
                 program,
                 semantic,
@@ -595,22 +627,25 @@ pub(in crate::flow) fn append_predicate_context(
         expression,
         value,
         statement_index: observation_statement_index,
+        current_expression,
     } = observation;
 
-    append_entry_path_context(
-        program,
-        semantic,
-        build,
-        state_symbol,
-        observation_statement_index,
-        expression,
-        value,
-        point,
-        entry_writes,
-        entry_unknown_write,
-        active_contexts,
-        active_constraints,
-    );
+    if current_expression.is_valid() {
+        append_entry_path_context(
+            program,
+            semantic,
+            build,
+            state_symbol,
+            observation_statement_index,
+            expression,
+            value,
+            point,
+            entry_writes,
+            entry_unknown_write,
+            active_contexts,
+            active_constraints,
+        );
+    }
     let predicate_dependencies = super::super::observations::predicate_case_dependencies(
         program,
         build,
@@ -629,7 +664,8 @@ pub(in crate::flow) fn append_predicate_context(
         let state = &program.machine_states(machine)[state_position];
         // Each signed observation held when it was evaluated. A short-circuit
         // meet may have dropped its tag before this whole guard is known true;
-        // reconstruct it only across writes since that actual observation.
+        // reconstruct it only across the complete directed write interval
+        // since that actual observation, including intervening statements.
         // Earlier writes do not invalidate a freshly read tag. A later tag
         // replacement or unknown write still retires it, including for the
         // final signed observation of a guard containing trailing effects.
@@ -647,7 +683,7 @@ pub(in crate::flow) fn append_predicate_context(
         // replayed, but its independently repeatable leaves remain evidence if
         // every observed coordinate survived the actual write prefix. This is
         // deliberately conservative about writes before an observation too.
-        if !repeatable {
+        if !repeatable && current_expression.is_valid() {
             for (observation, selected) in observations.iter().copied() {
                 if !expression_is_stable_predicate(program, observation) {
                     continue;
@@ -731,22 +767,43 @@ pub(in crate::flow) fn append_predicate_context(
             ) else {
                 continue;
             };
+            let statements = super::super::reference_spans::appended_span_since(
+                &build.control.statements,
+                build.state_statements_start,
+            );
+            let first = super::super::operand_contexts::ContentObservationPoint {
+                state: state_symbol,
+                statement: observation_statement_index,
+                writes: observed.origin_writes,
+                unknown_write: observed.origin_unknown_write,
+            };
+            let second = super::super::operand_contexts::ContentObservationPoint {
+                state: state_symbol,
+                statement: statement_index,
+                writes: entry_writes,
+                unknown_write: entry_unknown_write,
+            };
+            let write_changes: super::super::operand_contexts::SourceWriteRelation = if observed
+                .descriptor
+                .is_valid()
+            {
+                super::super::operand_contexts::contents_overlap
+            } else {
+                |program, place, written| {
+                    super::super::case_tag_segments_may_overlap(program, &place.segments, written)
+                }
+            };
             if std::iter::once(&observed.subject)
                 .chain(&observed.dependencies)
                 .any(|subject| {
-                    let agrees = if observed.descriptor.is_valid() {
-                        super::super::operand_contexts::observation_prefixes_agree
-                    } else {
-                        super::super::operand_contexts::case_observation_prefixes_agree
-                    };
-                    !agrees(
+                    !super::super::operand_contexts::contents_observation_survives(
                         program,
                         &build.control,
-                        observed.origin_writes,
-                        observed.origin_unknown_write,
-                        entry_writes,
-                        entry_unknown_write,
+                        statements,
+                        first,
+                        second,
                         subject,
+                        write_changes,
                     )
                 })
             {
@@ -799,7 +856,7 @@ pub(in crate::flow) fn append_predicate_context(
     // downstream `requires pred(..)` or predicate-domain write discharges
     // wherever the operand travels. The refused arm mints nothing — a byte
     // carrier failing the class is not a positive class.
-    if value {
+    if value && current_expression.is_valid() {
         append_byte_predicate_context(
             program,
             semantic,
@@ -815,7 +872,7 @@ pub(in crate::flow) fn append_predicate_context(
     }
     // An effectful invocation's result is not a promise about evaluating that
     // invocation again. A saved local boolean is an ordinary stable place.
-    if !repeatable {
+    if !repeatable || !current_expression.is_valid() {
         return;
     }
     let Some(dependencies) = predicate_dependencies else {
@@ -878,6 +935,8 @@ pub(in crate::flow) fn append_match_pattern_context(
     statement_index: usize,
     payload: FactPayload,
     point: ProgramPoint,
+    entry_writes: HandleSpan<checked_trees::FlowOperandReferent>,
+    entry_unknown_write: bool,
     active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
     active_constraints: &mut HandleSpan<FlowConstraintRef>,
 ) {
@@ -958,8 +1017,8 @@ pub(in crate::flow) fn append_match_pattern_context(
             expression,
             matched,
             point,
-            HandleSpan::empty(),
-            true,
+            entry_writes,
+            entry_unknown_write,
             active_contexts,
             active_constraints,
         );
@@ -990,6 +1049,28 @@ pub(in crate::flow) fn append_match_pattern_context(
         || !match_input_has_builtin_meaning(program, build.operators, pattern)
     {
         return;
+    }
+    if let ExpressionNode::Boolean(expected) = program.expression_table.expression(pattern)
+        && validation::match_subject_primitive_type(program, dispatch)
+            == Some(typed_trees::types::PrimitiveType::Bool)
+        && let Some((machine_position, _)) = build.state_location(program, state_symbol)
+    {
+        let machine_symbol = program.machines()[machine_position].symbol;
+        append_boolean_observations(
+            program,
+            semantic,
+            build,
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            subject,
+            matched == *expected,
+            point,
+            entry_writes,
+            entry_unknown_write,
+            active_contexts,
+            active_constraints,
+        );
     }
     if !build.active_completed_copies.is_empty()
         && let Some(predicate) = crate::facts::boolean_predicates::bind_current_match(

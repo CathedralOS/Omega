@@ -47,14 +47,8 @@ fn byte_literal_address_is_an_unresolved_rip_relative_lea() {
             encoded.footprint().encoded.memory,
             MachineEncodedMemoryEffect::NoneV1
         );
-        for bit in 0..encoded.bytes().len() * 8 {
-            let mut changed = encoded.bytes().to_vec();
-            changed[bit / 8] ^= 1 << (bit % 8);
-            assert!(
-                validate_x86_64_selected_form_encoding(&physical, kind, key, &[view], &changed)
-                    .is_err(),
-                "changed encoding bit {bit}"
-            );
-        }
+        crate::selected_form_encoding::assert_every_bit_flip_rejected(encoded.bytes(), |changed| {
+            validate_x86_64_selected_form_encoding(&physical, kind, key, &[view], changed).is_err()
+        });
     }
 }

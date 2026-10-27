@@ -317,6 +317,629 @@ pub(super) fn recognize_structural_state_prefix<'a>(
     )
 }
 
+/// True when `local_symbol` is never referenced by any statement at or after
+/// `next_execution_position` in `execution` (excluding transition targets when
+/// `in_state_prefix_only` is true, since state-local prefix observers stop
+/// before evaluating transition targets).
+fn local_symbol_is_dead_in_remaining_prefix(
+    program: &dyn crate::CheckingInput,
+    statements: &[StatementNode],
+    execution: &[usize],
+    next_execution_position: usize,
+    local_symbol: SymbolHandle,
+    in_state_prefix_only: bool,
+) -> bool {
+    if !local_symbol.is_valid() {
+        return false;
+    }
+    let mentions_local = |root: ExpressionHandle| {
+        if !root.is_valid() {
+            return false;
+        }
+        let mut expressions = Vec::new();
+        crate::expression_traversal::collect_expression_tree(program, root, &mut expressions);
+        expressions.into_iter().any(|expression| {
+            matches!(
+                program.expression_table.expression(expression),
+                ExpressionNode::Name(path) if path.symbol == local_symbol
+            )
+        })
+    };
+    for &stmt_idx in execution.iter().skip(next_execution_position) {
+        let stmt = &statements[stmt_idx];
+        if in_state_prefix_only {
+            if let StatementNode::Transition(transition) = stmt {
+                if let TransitionGuardNode::When(guard) = transition.guard
+                    && mentions_local(guard)
+                {
+                    return false;
+                }
+                continue;
+            }
+        }
+        for (_, root) in program.tables.expression_roots(stmt) {
+            if mentions_local(root) {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+/// True when `local_symbol` is never referenced in any `TransitionGuardNode::When`
+/// or `Match` expression at or after `next_execution_position` in `execution`.
+fn local_symbol_is_never_branched_on_in_remaining_prefix(
+    program: &dyn crate::CheckingInput,
+    statements: &[StatementNode],
+    execution: &[usize],
+    next_execution_position: usize,
+    local_symbol: SymbolHandle,
+    in_state_prefix_only: bool,
+) -> bool {
+    if !local_symbol.is_valid() {
+        return false;
+    }
+    let mentions_local = |root: ExpressionHandle| {
+        if !root.is_valid() {
+            return false;
+        }
+        let mut expressions = Vec::new();
+        crate::expression_traversal::collect_expression_tree(program, root, &mut expressions);
+        expressions.into_iter().any(|expression| {
+            matches!(
+                program.expression_table.expression(expression),
+                ExpressionNode::Name(path) if path.symbol == local_symbol
+            )
+        })
+    };
+    let mentions_local_in_match = |root: ExpressionHandle| {
+        if !root.is_valid() {
+            return false;
+        }
+        let mut expressions = Vec::new();
+        crate::expression_traversal::collect_expression_tree(program, root, &mut expressions);
+        expressions.into_iter().any(|expression| {
+            matches!(
+                program.expression_table.expression(expression),
+                ExpressionNode::Match(_) if mentions_local(expression)
+            )
+        })
+    };
+    for (pos, &stmt_idx) in execution.iter().enumerate().skip(next_execution_position) {
+        let stmt = &statements[stmt_idx];
+        if in_state_prefix_only {
+            if let StatementNode::Transition(transition) = stmt {
+                if let TransitionGuardNode::When(guard) = transition.guard
+                    && mentions_local(guard)
+                {
+                    return false;
+                }
+                continue;
+            }
+        } else {
+            if pos + 1 == execution.len()
+                && let StatementNode::Expression(expr) = stmt
+                && mentions_local(*expr)
+            {
+                return false;
+            }
+            if let StatementNode::Transition(transition) = stmt {
+                if let TransitionGuardNode::When(guard) = transition.guard
+                    && mentions_local(guard)
+                {
+                    return false;
+                }
+                if transition.target.is_valid()
+                    && let typed_trees::statement::TransitionTargetNode::Value(target) =
+                        program.tables.statement_table.transition_target(transition.target)
+                    && mentions_local(*target)
+                {
+                    return false;
+                }
+            }
+        }
+        for (_, root) in program.tables.expression_roots(stmt) {
+            if mentions_local_in_match(root) {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+#[derive(Clone)]
+struct ActiveStatePrefixPath<'a> {
+    judge: StructuralJudge<'a>,
+    environment: Vec<(String, StructuralTerm)>,
+    established_guarantees: CitationFacts,
+}
+
+/// Evaluate all requested statement-entry prefix visitors (`in_transition_target == false`)
+/// of `state` in a single forward pass over `state`'s execution order instead of
+/// re-evaluating prefix statements `0..statement_index` for each statement.
+pub(super) fn recognize_structural_state_prefixes<'a>(
+    program: &'a dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    judge: &StructuralJudge<'a>,
+    classification: &typed_trees::proof_only::ProofOnlyClassification,
+    visitors: &mut [&mut dyn StructuralPrefixVisitor],
+) -> Vec<bool> {
+    let mut valid = vec![false; visitors.len()];
+    if !state.symbol.is_valid() || visitors.is_empty() {
+        return valid;
+    }
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let Some(execution) = program
+        .statement_table
+        .finite_execution_order(state.statement_nodes)
+        .ok()
+        .flatten()
+    else {
+        return valid;
+    };
+    let parameters = program.state_parameters(state);
+    let environment = parameters
+        .iter()
+        .map(|parameter| {
+            let name = parameter.name.as_str().to_owned();
+            (name.clone(), StructuralTerm::Variable(name))
+        })
+        .collect::<Vec<_>>();
+    let initial_judge = structural_arm_judge(program, judge, &[], &[]);
+    let mut active_paths = vec![ActiveStatePrefixPath {
+        judge: initial_judge,
+        environment,
+        established_guarantees: CitationFacts::default(),
+    }];
+    let mut transitions = Vec::new();
+    let mut saw_transition = false;
+    let mut fresh = 0usize;
+
+    let any_visitor_at_transition = visitors.iter().any(|visitor| {
+        visitor.site().state == state.symbol
+            && !visitor.site().in_transition_target
+            && visitor.site().statement_index < statements.len()
+            && matches!(
+                statements[visitor.site().statement_index],
+                StatementNode::Transition(_)
+            )
+    });
+
+    for (execution_position, statement_index) in execution.iter().copied().enumerate() {
+        let statement = &statements[statement_index];
+        let dead_local = match statement {
+            StatementNode::LocalData(local) => local_symbol_is_dead_in_remaining_prefix(
+                program,
+                statements,
+                &execution,
+                execution_position + 1,
+                local.symbol,
+                !any_visitor_at_transition,
+            ),
+            _ => false,
+        };
+        if is_arm_pattern_marker(statement) {
+            continue;
+        }
+        if !matches!(statement, StatementNode::Transition(_)) {
+            for (visitor_idx, visitor) in visitors.iter_mut().enumerate() {
+                if visitor.site().state == state.symbol
+                    && visitor.site().statement_index == statement_index
+                    && !visitor.site().in_transition_target
+                {
+                    for path in &active_paths {
+                        if visitor.is_complete() {
+                            break;
+                        }
+                        visitor.visit(
+                            program,
+                            machine,
+                            &path.judge,
+                            &path.environment,
+                            &[],
+                            &[],
+                            &path.established_guarantees,
+                        );
+                    }
+                    valid[visitor_idx] = true;
+                }
+            }
+        }
+        if visitors
+            .iter()
+            .enumerate()
+            .all(|(idx, visitor)| valid[idx] || visitor.is_complete())
+        {
+            return valid;
+        }
+        if let StatementNode::Transition(transition) = statement {
+            saw_transition = true;
+            if transition.continuation.is_valid()
+                || (transition.exit == TransitionExit::Ordinary && !transition.target.is_valid())
+            {
+                return valid;
+            }
+            transitions.push((statement_index, transition));
+            continue;
+        }
+        if saw_transition {
+            return valid;
+        }
+        let call_write_frame = if let StatementNode::Call(call) = statement
+            && active_paths
+                .first()
+                .is_some_and(|path| path.judge.requires_value_preservation())
+        {
+            let Some(frames) = active_paths[0].judge.frame_resolver() else {
+                return valid;
+            };
+            let mut writes = Vec::new();
+            let mut complete = true;
+            for frame in [
+                frames.may_write_frame(machine, call),
+                frames.statement_value_write_frame(machine, statement),
+            ] {
+                match frame.into_complete_paths() {
+                    Some(paths) => writes.extend(paths),
+                    None => complete = false,
+                }
+            }
+            Some((complete, writes))
+        } else {
+            None
+        };
+        let mut next_paths = Vec::new();
+        for mut path in active_paths {
+            let mut citation_preserves_values = true;
+            if let Some((complete, ref writes)) = call_write_frame {
+                citation_preserves_values = complete && writes.is_empty();
+                if path
+                    .judge
+                    .observe_storage_effects(state, complete.then_some(writes.as_slice()))
+                    .is_none()
+                {
+                    return valid;
+                }
+            }
+            if citation_preserves_values
+                && (!path.judge.has_runtime_body_values()
+                    || matches!(statement, StatementNode::Call(_)))
+                && let Some((target, arguments)) = citation_call_in_statement(program, statement)
+                && super::citations::can_establish_citation(
+                    program,
+                    classification,
+                    machine,
+                    &target,
+                    arguments.len(),
+                    path.judge.has_runtime_body_values(),
+                )
+            {
+                let expected = citation_argument_types(program, &target);
+                let arguments = arguments
+                    .iter()
+                    .enumerate()
+                    .map(|(position, argument)| {
+                        path.judge.callee_term_in_scope(
+                            expected
+                                .as_ref()
+                                .and_then(|types| types.get(position))
+                                .map(|expected| (machine, state, *expected)),
+                            *argument,
+                            &path.environment,
+                            0,
+                        )
+                    })
+                    .collect::<Option<Vec<_>>>();
+                if let Some(arguments) = arguments {
+                    establish_citation(
+                        program,
+                        machine,
+                        state,
+                        statement_index,
+                        &path.environment,
+                        &mut path.judge,
+                        classification,
+                        &[],
+                        &[],
+                        &mut path.established_guarantees,
+                        &target,
+                        &arguments,
+                    );
+                } else if !path.judge.has_runtime_body_values() {
+                    return valid;
+                }
+            }
+            match statement {
+                StatementNode::LocalData(local) => {
+                    let Some(mut outcomes) = (if local.initial_value.is_valid() {
+                        path.judge
+                            .normal_return_paths(
+                                local.initial_value,
+                                &path.environment,
+                                (machine, state, local.type_reference),
+                            )
+                            .map(|outcomes| {
+                                outcomes
+                                    .into_iter()
+                                    .map(|outcome| (Some(outcome.value), outcome.judge))
+                                    .collect::<Vec<_>>()
+                            })
+                    } else {
+                        Some(vec![(
+                            super::structural_terms::zero_value_structural_term(
+                                program,
+                                local.type_reference,
+                            ),
+                            path.judge.clone(),
+                        )])
+                    }) else {
+                        return valid;
+                    };
+                    if outcomes.len() > 1
+                        && outcomes.iter().all(|(_, outcome_judge)| {
+                            outcome_judge.has_no_new_effects_or_guarantees_since(&path.judge)
+                        })
+                    {
+                        if dead_local {
+                            let judge_refs: Vec<_> =
+                                outcomes.iter().map(|(_, judge)| judge).collect();
+                            let rejoined = path
+                                .judge
+                                .rejoin_pure_outcomes(&judge_refs, Some(local.initial_value));
+                            outcomes = vec![(None, rejoined)];
+                        } else if program.primitive_type_reference(local.type_reference)
+                            == Some(typed_trees::types::PrimitiveType::Bool)
+                            && local_symbol_is_never_branched_on_in_remaining_prefix(
+                                program,
+                                statements,
+                                &execution,
+                                execution_position + 1,
+                                local.symbol,
+                                !any_visitor_at_transition,
+                            )
+                        {
+                            let judge_refs: Vec<_> =
+                                outcomes.iter().map(|(_, judge)| judge).collect();
+                            let mut rejoined = path
+                                .judge
+                                .rejoin_pure_outcomes(&judge_refs, Some(local.initial_value));
+                            rejoined.capture_sequence += 1;
+                            let captured = StructuralTerm::CapturedValue {
+                                expression: local.initial_value,
+                                callable: SymbolHandle::invalid(),
+                                occurrence: rejoined.capture_sequence,
+                                result_type: local.type_reference,
+                            };
+                            outcomes = vec![(Some(captured), rejoined)];
+                        }
+                    }
+                    for (value, mut outcome_judge) in outcomes {
+                        let mut environment = path.environment.clone();
+                        environment.retain(|(name, _)| name != local.name.as_str());
+                        if let Some(value) = value {
+                            outcome_judge.observe_completed_binding(
+                                local.symbol,
+                                local.type_reference,
+                                value.clone(),
+                            );
+                            environment.push((local.name.as_str().to_owned(), value));
+                        }
+                        next_paths.push(ActiveStatePrefixPath {
+                            judge: outcome_judge,
+                            environment,
+                            established_guarantees: path.established_guarantees.clone(),
+                        });
+                    }
+                }
+                StatementNode::Assignment(_) if path.judge.has_runtime_body_values() => {
+                    let Some(outcomes) = path.judge.normal_assignment_paths(
+                        statement,
+                        &path.environment,
+                        (machine, state, state.return_type),
+                    ) else {
+                        return valid;
+                    };
+                    for outcome in outcomes {
+                        next_paths.push(ActiveStatePrefixPath {
+                            judge: outcome.judge,
+                            environment: path.environment.clone(),
+                            established_guarantees: path.established_guarantees.clone(),
+                        });
+                    }
+                }
+                StatementNode::Expression(expression) => {
+                    let is_tail = execution_position + 1 == execution.len();
+                    let result_type = if is_tail {
+                        state.return_type
+                    } else {
+                        crate::expression_result_type_reference(
+                            program,
+                            machine,
+                            state,
+                            *expression,
+                        )
+                        .unwrap_or_default()
+                    };
+                    let Some(outcomes) = path.judge.normal_return_paths(
+                        *expression,
+                        &path.environment,
+                        (machine, state, result_type),
+                    ) else {
+                        return valid;
+                    };
+                    if !is_tail {
+                        for outcome in outcomes {
+                            next_paths.push(ActiveStatePrefixPath {
+                                judge: outcome.judge,
+                                environment: path.environment.clone(),
+                                established_guarantees: path.established_guarantees.clone(),
+                            });
+                        }
+                    }
+                }
+                StatementNode::Call(_) if path.judge.requires_value_preservation() => {
+                    next_paths.push(path);
+                }
+                StatementNode::Call(call)
+                    if is_citation_statement(program, classification, machine, call) =>
+                {
+                    next_paths.push(path);
+                }
+                StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {
+                    next_paths.push(path);
+                }
+                _ => return valid,
+            }
+        }
+        active_paths = next_paths;
+    }
+
+    if transitions.is_empty() {
+        let synthetic_end = state.statement_nodes.count() as usize;
+        for (visitor_idx, visitor) in visitors.iter_mut().enumerate() {
+            if visitor.site().state == state.symbol
+                && visitor.site().statement_index == synthetic_end
+                && !visitor.site().in_transition_target
+            {
+                for path in &active_paths {
+                    if visitor.is_complete() {
+                        break;
+                    }
+                    visitor.visit(
+                        program,
+                        machine,
+                        &path.judge,
+                        &path.environment,
+                        &[],
+                        &[],
+                        &path.established_guarantees,
+                    );
+                }
+                valid[visitor_idx] = true;
+            }
+        }
+        return valid;
+    }
+
+    // Step active_paths through transitions in order.
+    let mut remaining_paths = active_paths
+        .into_iter()
+        .map(|path| (path, Vec::<(StructuralTerm, StructuralTerm)>::new()))
+        .collect::<Vec<_>>();
+    for (statement_index, transition) in transitions {
+        for (visitor_idx, visitor) in visitors.iter_mut().enumerate() {
+            if visitor.site().state == state.symbol
+                && visitor.site().statement_index == statement_index
+                && !visitor.site().in_transition_target
+            {
+                for (path, remaining_equations) in &remaining_paths {
+                    if visitor.is_complete() {
+                        break;
+                    }
+                    visitor.visit(
+                        program,
+                        machine,
+                        &path.judge,
+                        &path.environment,
+                        &[],
+                        remaining_equations,
+                        &path.established_guarantees,
+                    );
+                }
+                valid[visitor_idx] = true;
+            }
+        }
+        if visitors
+            .iter()
+            .enumerate()
+            .all(|(idx, visitor)| valid[idx] || visitor.is_complete())
+        {
+            return valid;
+        }
+        let mut next_remaining = Vec::new();
+        for (path, remaining_equations) in remaining_paths {
+            let TransitionGuardNode::When(guard) = transition.guard else {
+                continue;
+            };
+            let guard_preserves_values = path
+                .judge
+                .frame_resolver()
+                .and_then(|frames| frames.expression_may_write_paths(machine, guard))
+                .is_some_and(|paths| paths.is_empty());
+            if path.judge.requires_value_preservation() && !guard_preserves_values {
+                return valid;
+            }
+            let Some((subject_expression, constructor)) =
+                guard_observation(program, machine, state, guard, &mut fresh)
+            else {
+                return valid;
+            };
+            let observed = structural_arm_judge(program, &path.judge, &[], &remaining_equations);
+            let subject_type = crate::expression_result_type_reference(
+                program,
+                machine,
+                state,
+                subject_expression,
+            )
+            .unwrap_or_default();
+            let Some(outcomes) = observed.normal_return_paths(
+                subject_expression,
+                &path.environment,
+                (machine, state, subject_type),
+            ) else {
+                return valid;
+            };
+            for outcome in outcomes {
+                let subject = outcome.value;
+                let mut skipped_equations = remaining_equations.clone();
+                let truth = guard_preserves_values
+                    .then(|| {
+                        let StructuralTerm::Constructor { data, case, fields } = &constructor
+                        else {
+                            return None;
+                        };
+                        (data == "bool" && fields.is_empty())
+                            .then(|| {
+                                language_semantics::const_value::boolean_literal_spelling(case)
+                            })
+                            .flatten()
+                    })
+                    .flatten();
+                let subject_judgment = truth.map(|_| {
+                    outcome.judge.judge_equation(
+                        outcome.judge.resolve(subject.clone()),
+                        constructor.clone(),
+                        0,
+                    )
+                });
+                if !matches!(subject_judgment, Some(StructuralJudgment::Proven)) {
+                    if let Some(truth) = truth {
+                        skipped_equations.push((
+                            subject.clone(),
+                            StructuralTerm::Constructor {
+                                data: "bool".to_owned(),
+                                case: (!truth).to_string(),
+                                fields: Vec::new(),
+                            },
+                        ));
+                    }
+                    next_remaining.push((
+                        ActiveStatePrefixPath {
+                            judge: outcome.judge,
+                            environment: path.environment.clone(),
+                            established_guarantees: path.established_guarantees.clone(),
+                        },
+                        skipped_equations,
+                    ));
+                }
+            }
+        }
+        remaining_paths = next_remaining;
+    }
+    valid
+}
+
 #[allow(clippy::too_many_arguments)]
 fn recognize_structural_state_leaves<'a>(
     program: &'a dyn crate::CheckingInput,
@@ -547,7 +1170,25 @@ fn recognize_structural_state_leaves_from<'a>(
             }
             match statement {
                 StatementNode::LocalData(local) if !saw_transition => {
-                    let outcomes = phase_profile::scope("05.d.7.3b.1.cap.2d.local_init", || {
+                    let dead_local = requirement
+                        .as_deref()
+                        .is_some_and(|observer| observer.site().state == state.symbol)
+                        && local_symbol_is_dead_in_remaining_prefix(
+                            program,
+                            statements,
+                            &execution,
+                            execution_position + 1,
+                            local.symbol,
+                            requirement.as_deref().is_some_and(|observer| {
+                                !observer.site().in_transition_target
+                                    && observer.site().statement_index < statements.len()
+                                    && !matches!(
+                                        statements[observer.site().statement_index],
+                                        StatementNode::Transition(_)
+                                    )
+                            }),
+                        );
+                    let mut outcomes = phase_profile::scope("05.d.7.3b.1.cap.2d.local_init", || {
                         if local.initial_value.is_valid() {
                             judge
                                 .normal_return_paths(
@@ -576,6 +1217,52 @@ fn recognize_structural_state_leaves_from<'a>(
                             )])
                         }
                     })?;
+                    if outcomes.len() > 1
+                        && outcomes.iter().all(|(_, outcome_judge)| {
+                            outcome_judge.has_no_new_effects_or_guarantees_since(&judge)
+                        })
+                    {
+                        if dead_local {
+                            let judge_refs: Vec<_> =
+                                outcomes.iter().map(|(_, outcome_judge)| outcome_judge).collect();
+                            let rejoined =
+                                judge.rejoin_pure_outcomes(&judge_refs, Some(local.initial_value));
+                            outcomes = vec![(None, rejoined)];
+                        } else if requirement
+                            .as_deref()
+                            .is_some_and(|observer| observer.site().state == state.symbol)
+                            && program.primitive_type_reference(local.type_reference)
+                                == Some(typed_trees::types::PrimitiveType::Bool)
+                            && local_symbol_is_never_branched_on_in_remaining_prefix(
+                                program,
+                                statements,
+                                &execution,
+                                execution_position + 1,
+                                local.symbol,
+                                requirement.as_deref().is_some_and(|observer| {
+                                    !observer.site().in_transition_target
+                                        && observer.site().statement_index < statements.len()
+                                        && !matches!(
+                                            statements[observer.site().statement_index],
+                                            StatementNode::Transition(_)
+                                        )
+                                }),
+                            )
+                        {
+                            let judge_refs: Vec<_> =
+                                outcomes.iter().map(|(_, outcome_judge)| outcome_judge).collect();
+                            let mut rejoined =
+                                judge.rejoin_pure_outcomes(&judge_refs, Some(local.initial_value));
+                            rejoined.capture_sequence += 1;
+                            let captured = StructuralTerm::CapturedValue {
+                                expression: local.initial_value,
+                                callable: SymbolHandle::invalid(),
+                                occurrence: rejoined.capture_sequence,
+                                result_type: local.type_reference,
+                            };
+                            outcomes = vec![(Some(captured), rejoined)];
+                        }
+                    }
                     let mut leaves = Vec::new();
                     for (value, mut outcome_judge) in outcomes {
                         let mut pending_citations = pending_citations.clone();
@@ -909,26 +1596,45 @@ fn recognize_structural_state_leaves_from<'a>(
                     let mut branch_hypotheses = case_hypotheses.clone();
                     let mut branch_equations = remaining_equations.clone();
                     let mut skipped_equations = remaining_equations.clone();
+                    let truth = guard_preserves_values
+                        .then(|| {
+                            let StructuralTerm::Constructor { data, case, fields } = &constructor
+                            else {
+                                return None;
+                            };
+                            (data == "bool" && fields.is_empty())
+                                .then(|| {
+                                    language_semantics::const_value::boolean_literal_spelling(case)
+                                })
+                                .flatten()
+                        })
+                        .flatten();
+                    let subject_judgment = truth.map(|_| {
+                        outcome.judge.judge_equation(
+                            outcome.judge.resolve(subject.clone()),
+                            constructor.clone(),
+                            0,
+                        )
+                    });
                     // A Boolean has exactly two values. Nominal classifiers
                     // retain their selected tag but do not invent a single
                     // constructor for the complement of a multi-case type.
-                    if guard_preserves_values
-                        && let StructuralTerm::Constructor { data, case, fields } = &constructor
-                        && data == "bool"
-                        && fields.is_empty()
-                        && let Some(truth) =
-                            language_semantics::const_value::boolean_literal_spelling(case)
-                    {
-                        skipped_equations.push((
-                            subject.clone(),
-                            StructuralTerm::Constructor {
-                                data: "bool".to_owned(),
-                                case: (!truth).to_string(),
-                                fields: Vec::new(),
-                            },
-                        ));
+                    if !matches!(subject_judgment, Some(StructuralJudgment::Proven)) {
+                        if let Some(truth) = truth {
+                            skipped_equations.push((
+                                subject.clone(),
+                                StructuralTerm::Constructor {
+                                    data: "bool".to_owned(),
+                                    case: (!truth).to_string(),
+                                    fields: Vec::new(),
+                                },
+                            ));
+                        }
+                        next_remaining.push((outcome.judge.clone(), skipped_equations));
                     }
-                    next_remaining.push((outcome.judge.clone(), skipped_equations));
+                    if matches!(subject_judgment, Some(StructuralJudgment::Refuted)) {
+                        continue;
+                    }
                     if let Some((definition, variant)) =
                         super::structural_terms::case_guard_classifier(
                             program,

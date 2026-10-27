@@ -347,7 +347,7 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
         let selected = binding.selected();
         let boundary = selected.receiving_boundary();
         if self.closed
-            || selected.receiver() != self.program.terminal_psi()
+            || selected.receiver() != self.program.execution_identity()
             || !self.required_imports.contains(&boundary)
             || self.bindings.contains_key(&boundary)
             || self.components.contains_key(&boundary)

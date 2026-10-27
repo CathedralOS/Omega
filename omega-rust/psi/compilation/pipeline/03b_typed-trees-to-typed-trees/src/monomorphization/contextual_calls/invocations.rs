@@ -17,6 +17,71 @@ pub(super) struct Invocation {
     pub machine_arguments: Vec<StaticMachineArgument>,
     pub requirements: Vec<MachineDemand>,
     pub types: Vec<(SymbolHandle, TypeReferenceHandle)>,
+    pub use_site: InvocationUse,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum InvocationUse {
+    Executable,
+    RetainedEvaluation,
+}
+
+pub(super) enum InvocationScope {
+    State {
+        machine: SymbolHandle,
+        state: SymbolHandle,
+    },
+    Declaration(SymbolHandle),
+}
+
+impl InvocationScope {
+    fn owner(&self) -> SymbolHandle {
+        match self {
+            Self::State { machine, .. } => *machine,
+            Self::Declaration(owner) => *owner,
+        }
+    }
+
+    fn use_site(&self) -> InvocationUse {
+        match self {
+            Self::State { .. } => InvocationUse::Executable,
+            Self::Declaration(_) => InvocationUse::RetainedEvaluation,
+        }
+    }
+
+    pub(super) fn result_type(
+        &self,
+        program: &dyn validation::CheckingInput,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> Option<TypeReferenceHandle> {
+        match self {
+            Self::State { machine, state } => {
+                let machine = program.machine_by_symbol(*machine)?;
+                let state = program
+                    .machine_states(machine)
+                    .iter()
+                    .find(|candidate| candidate.symbol == *state)?;
+                validation::expression_result_type_reference(program, machine, state, expression)
+            }
+            Self::Declaration(owner) => validation::parameter_expression_result_type_reference(
+                program,
+                *owner,
+                &[],
+                expression,
+            ),
+        }
+    }
+
+    pub(super) fn has_open_parameters(&self, program: &TypedTrees) -> bool {
+        let mut owner = self.owner();
+        while owner.is_valid() {
+            if let Some(machine) = program.machine_by_symbol(owner) {
+                return program.callable_body_has_open_parameters(machine);
+            }
+            owner = program.symbols.get(owner).parent;
+        }
+        false
+    }
 }
 
 pub(super) struct MachineDemand {
@@ -54,16 +119,21 @@ pub(super) fn is_machine(program: &TypedTrees, symbol: SymbolHandle) -> bool {
 
 pub(super) fn collect(program: &mut TypedTrees) -> Result<Vec<Invocation>, Vec<super::Diagnostic>> {
     let mut pending = Vec::new();
+    let mut scopes = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
+            let scope = scopes.len();
+            scopes.push(InvocationScope::State {
+                machine: machine.symbol,
+                state: state.symbol,
+            });
             for (statement_handle, statement) in program
                 .statement_table
                 .iter_statements(state.statement_nodes)
             {
                 if let Some(call) = statement.as_call() {
                     pending.push((
-                        machine.clone(),
-                        state.clone(),
+                        scope,
                         CallSite::Statement(statement_handle),
                         call.target_symbol,
                         call.machine_arguments.to_vec(),
@@ -87,8 +157,7 @@ pub(super) fn collect(program: &mut TypedTrees) -> Result<Vec<Invocation>, Vec<s
                         continue;
                     };
                     pending.push((
-                        machine.clone(),
-                        state.clone(),
+                        scope,
                         site,
                         call.target_symbol,
                         call.machine_arguments.to_vec(),
@@ -101,9 +170,41 @@ pub(super) fn collect(program: &mut TypedTrees) -> Result<Vec<Invocation>, Vec<s
             }
         }
     }
+    // Constant evaluation has already consumed these recipes in its private
+    // executable graph. Final checking still owns every source application,
+    // including an explicitly applied provider. Retain its checking selection
+    // without rewriting the detached arguments needed by independent replay.
+    for declaration in program.const_declarations() {
+        let scope = scopes.len();
+        scopes.push(InvocationScope::Declaration(declaration.symbol));
+        let mut expressions = Vec::new();
+        for root in [
+            declaration.authored_initializer,
+            declaration.materialized_initializer,
+        ] {
+            if program.expression_table.expression_is_valid(root) {
+                validation::collect_expression_tree(program, root, &mut expressions);
+            }
+        }
+        for expression in expressions {
+            let Some(call) = program.expression_table.call_node(expression) else {
+                continue;
+            };
+            pending.push((
+                scope,
+                CallSite::Expression(expression),
+                call.target_symbol,
+                call.machine_arguments.to_vec(),
+                program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .to_vec(),
+            ));
+        }
+    }
     let mut invocations = Vec::new();
     let mut diagnostics = Vec::new();
-    for (caller, state, site, target, selected, arguments) in pending {
+    for (scope, site, target, selected, arguments) in pending {
         if invocations
             .iter()
             .any(|invocation: &Invocation| invocation.site == site)
@@ -112,8 +213,7 @@ pub(super) fn collect(program: &mut TypedTrees) -> Result<Vec<Invocation>, Vec<s
         }
         if let Some(invocation) = proposal(
             program,
-            &caller,
-            &state,
+            &scopes[scope],
             site,
             target,
             &selected,
@@ -132,8 +232,7 @@ pub(super) fn collect(program: &mut TypedTrees) -> Result<Vec<Invocation>, Vec<s
 
 fn proposal(
     program: &mut TypedTrees,
-    caller: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    scope: &InvocationScope,
     site: CallSite,
     selected_target: SymbolHandle,
     selected: &[StaticMachineArgument],
@@ -163,13 +262,18 @@ fn proposal(
     } else {
         (selected_target, selected.to_vec(), Vec::new())
     };
-    let owner = if application.is_valid() {
+    let retained_owner = if application.is_valid() {
         program
             .expression_table
             .static_machine_application(application)
             .lexical_owner
     } else {
-        caller.symbol
+        SymbolHandle::invalid()
+    };
+    let owner = if retained_owner.is_valid() {
+        retained_owner
+    } else {
+        scope.owner()
     };
     if let Err(message) =
         super::super::body_rewriting::normalize_const_arguments(program, owner, &mut selected)
@@ -184,16 +288,20 @@ fn proposal(
         return None;
     }
     let (parameters, runtime): (&[TypeParameter], Vec<TypeReferenceHandle>) = if let Some(machine) =
-        program.machines().iter().find(|machine| {
-            program
-                .machine_states(machine)
-                .iter()
-                .any(|state| state.symbol == target)
-        }) {
+        program
+            .machines()
+            .iter()
+            .find(|machine| program.machine_or_state_symbol(machine, target))
+    {
         let entry = program
             .machine_states(machine)
             .iter()
-            .find(|state| state.symbol == target)?;
+            .find(|state| state.symbol == target)
+            .or_else(|| {
+                (machine.symbol == target)
+                    .then(|| program.machine_states(machine).first())
+                    .flatten()
+            })?;
         (
             program.machine_type_parameters(machine),
             program
@@ -249,8 +357,7 @@ fn proposal(
     }
     let types = operands::derive(
         program,
-        caller,
-        state,
+        scope,
         site,
         &parameters,
         &selected,
@@ -259,10 +366,11 @@ fn proposal(
     )?;
     Some(Invocation {
         site,
-        owner: caller.symbol,
+        owner: scope.owner(),
         target,
         machine_arguments,
         requirements,
         types,
+        use_site: scope.use_site(),
     })
 }

@@ -6,6 +6,7 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionRecordError,
 };
 use symbol_resolved_trees::SymbolResolvedTrees;
+use symbol_resolved_trees::name::DiagnosticName;
 use symbols::SymbolKind;
 
 /// Attach the authored const selection to the substituted expression. The
@@ -176,6 +177,7 @@ pub(crate) fn finalize_const_argument_selections(
     slots: &[crate::resolution::lowerer::PendingConstArgumentSlot],
     lexical_inputs: &[crate::lowering::state::StateLexicalInputs],
 ) -> Result<(), Diagnostic> {
+    let mut selected_arguments = Vec::new();
     for (selection_ordinal, selection) in pending.iter().enumerate() {
         let origin = &selection.origin;
         let mut declarations = program.const_declarations.iter().filter(|declaration| {
@@ -267,6 +269,15 @@ pub(crate) fn finalize_const_argument_selections(
                     )
                     .with_source_span(origin.reference));
                 }
+                selected_arguments.push((
+                    slot.arguments,
+                    slot.ordinal,
+                    declaration.symbol,
+                    DiagnosticName::from_str(
+                        program.symbols.name(declaration.symbol),
+                        origin.reference,
+                    ),
+                ));
             }
             matched = true;
         }
@@ -285,6 +296,21 @@ pub(crate) fn finalize_const_argument_selections(
                 selected,
             )
             .map_err(const_selection_record_diagnostic)?;
+    }
+    // Preparation's value encoding predates nominal symbol allocation. Once
+    // custody has joined the exact declaration and receiving carrier, publish
+    // that selected value rather than its provisional short type label. Defer
+    // replacement until every origin has checked the original argument.
+    for (arguments, ordinal, selected, selected_name) in selected_arguments {
+        let argument = &mut program
+            .tables
+            .declarations
+            .child_type_references
+            .span_mut_or_empty(arguments)[ordinal];
+        if let symbol_resolved_trees::types::TypeReference::Named { symbol, name, .. } = argument {
+            *symbol = selected;
+            *name = selected_name;
+        }
     }
     Ok(())
 }

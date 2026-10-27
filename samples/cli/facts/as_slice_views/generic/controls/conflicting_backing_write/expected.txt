@@ -1,0 +1,2 @@
+mutates `entries[0]`
+while local borrow `view` is still active

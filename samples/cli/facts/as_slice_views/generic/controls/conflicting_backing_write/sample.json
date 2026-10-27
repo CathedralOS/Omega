@@ -1,0 +1,8 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "mutates `entries[0]`",
+    "while local borrow `view` is still active"
+  ]
+}
