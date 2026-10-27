@@ -1685,7 +1685,6 @@ dependencies = [
  "task-plans",
  "terminal-codec",
  "terminal-psi",
- "typed-trees",
 ]
 
 [[package]]
