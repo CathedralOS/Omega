@@ -1,0 +1,25 @@
+// Counter.value <= 60 makes exact i32 70 + value representable without a per-call bound.
+// Expected exit: 0
+data Counter [copy] where self.value <= 60 { value: i32; }
+machine produce(replacement: i32, select: bool) -> Counter
+requires replacement <= 60
+{
+    let mut counter: Counter = Counter { value: 0 };
+    route(&mut counter, replacement, select);
+    counter
+    machine route(counter: &mut Counter, replacement: i32, select: bool) {
+        transition select { true -> fill(counter, replacement) false -> fill(counter, 60) }
+    }
+    machine fill(counter: &mut Counter, replacement: i32) {
+        counter.value = replacement;
+    }
+}
+machine compute(counter: &Counter) -> i32 { 70 + counter.value }
+machine main() crashes Trap {
+    let first: Counter = produce(59, true);
+    let second: Counter = produce(60, false);
+    transition compute(&first) == 129 && compute(&second) == 130 {
+        true -> done() false -> bad()
+    }
+    machine done() {} machine bad() crashes Trap { crash Trap; }
+}

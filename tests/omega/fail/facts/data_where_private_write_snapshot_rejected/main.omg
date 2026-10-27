@@ -1,0 +1,26 @@
+// Counter.value <= 60 makes exact i32 70 + value representable without a per-call bound.
+data Counter [copy] where self.value <= 60 { value: i32; }
+data Cell { prefix: u64; value: i32; canary: u64; }
+machine bump(cell: &mut Cell) -> bool ensures cell.value == 61; {
+    cell.value = 61;
+    true
+}
+machine produce(source: &mut Cell) -> Counter
+requires source.value <= 60
+{
+    let mut counter: Counter = Counter { value: 0 };
+    fill(&mut counter, bump(source), source.value);
+    counter
+    machine fill(counter: &mut Counter, changed: bool, replacement: i32) {
+        counter.value = replacement;
+    }
+}
+machine compute(counter: &Counter) -> i32 { 70 + counter.value }
+machine main() crashes Trap {
+    let mut source: Cell = Cell { prefix: 11, value: 60, canary: 17 };
+    let counter: Counter = produce(&mut source);
+    transition compute(&counter) == 130 && source.value == 61 && source.prefix == 11 && source.canary == 17 {
+        true -> done() false -> bad()
+    }
+    machine done() {} machine bad() crashes Trap { crash Trap; }
+}
