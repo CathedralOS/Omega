@@ -3,7 +3,6 @@
 //! Iterating to a fixed point reaches the same unique maximal fold set a
 //! single reverse-postorder pass computes: folding only adds literal bindings
 //! and never removes one, so the scan order cannot change which leaves fold.
-//! The independent verifier replays the relation in graph order.
 
 use semantic_vocabulary::ValueId;
 use std::collections::BTreeMap;
