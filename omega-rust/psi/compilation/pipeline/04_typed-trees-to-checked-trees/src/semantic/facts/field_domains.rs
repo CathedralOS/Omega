@@ -38,7 +38,6 @@ use facts::{
     QualificationEvidence,
 };
 use symbols::SymbolHandle;
-use typed_trees::data::DataMember;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -738,14 +737,4 @@ pub(super) fn append_local_zii_field_domain_facts(
             );
         }
     }
-}
-
-/// Every normalized predicate-domain symbol on a field type, looking through a
-/// leading reference (`&[u8] in Utf8 & NoNul`). Semantic-only constraints do
-/// not become flow facts.
-fn field_domain_symbols(
-    program: &dyn ::validation::CheckingInput,
-    type_reference: TypeReferenceHandle,
-) -> Vec<SymbolHandle> {
-    validation::field_domains::predicate_domain_constraint_symbols(program, type_reference)
 }
