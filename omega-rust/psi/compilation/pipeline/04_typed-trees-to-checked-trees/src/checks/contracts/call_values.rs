@@ -837,6 +837,49 @@ fn proves_bound_predicate_mode<'program>(
     // Judge one formula in the observed-value namespace. Producer evidence
     // joins each exact copied value independently, rather than requiring all
     // operands to retain the same context or choosing one global proof mode.
+    // A joined storage read may have no common branch context. Retain only
+    // independently proved equal scalar read cuts; the storage DAG still owes
+    // complete predecessor coverage and preservation before using any of them.
+    let mut read_cuts = Vec::new();
+    if fold_observed_values && let Some(frames) = frames {
+        for observation in &predicate.bindings {
+            let Some(actual) = actual(observation) else {
+                continue;
+            };
+            let Some(values) = captured_values(program, facts, state, call, &actual) else {
+                continue;
+            };
+            if !values.iter().any(|value| value.producer_epoch.is_some()) {
+                continue;
+            }
+            let Some(capture) = captured_operand(program, facts, state, call, &actual) else {
+                continue;
+            };
+            let Some(value) = super::prover::captured_scalar_at_path(
+                program,
+                facts,
+                state,
+                capture.row(),
+                &actual.path,
+                call.statement_index + 1,
+                call.entry_constraints,
+                frames,
+            ) else {
+                continue;
+            };
+            let Some(primitive) = observation.operand.primitive_type() else {
+                continue;
+            };
+            super::prover::captured_values::retain_reads(
+                program,
+                facts,
+                &values,
+                primitive,
+                &value,
+                &mut read_cuts,
+            );
+        }
+    }
     let mut selected_contexts: Option<Vec<FactContextHandle>> = None;
     let mut binding_epochs: Vec<&checked_trees::FlowOperandFact> = Vec::new();
     let mut captures = Vec::new();
@@ -861,6 +904,22 @@ fn proves_bound_predicate_mode<'program>(
                 call.statement_index.checked_add(1)?,
                 call.entry_constraints,
                 frames,
+            )
+            && let Some(literal) = observed_literal(value, operand.primitive_type()?)
+        {
+            *operand = literal;
+            return Some(());
+        }
+        if fold_observed_values
+            && !read_cuts.is_empty()
+            && let Some(values) = captured_values(program, facts, state, call, &actual)
+            && let Some(value) = super::prover::captured_values::scalar_preserved_at_values(
+                program,
+                facts,
+                &values,
+                operand.primitive_type()?,
+                call.invocation_storage,
+                &read_cuts,
             )
             && let Some(literal) = observed_literal(value, operand.primitive_type()?)
         {

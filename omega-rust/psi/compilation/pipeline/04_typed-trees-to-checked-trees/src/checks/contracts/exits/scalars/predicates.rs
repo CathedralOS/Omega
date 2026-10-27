@@ -155,6 +155,15 @@ impl ExitScalars<'_, '_> {
                     &binding.place.segments,
                 )?;
                 if values.len() == 1 {
+                    if let Some(observed) = crate::flow::captured_observation_places(
+                        self.program,
+                        &self.facts.flow,
+                        &values[0],
+                    ) {
+                        if let [observed] = observed.as_slice() {
+                            binding.place = observed.projected.clone();
+                        }
+                    }
                     captured_predicates::retain_bindings(
                         self.program,
                         self.facts,
