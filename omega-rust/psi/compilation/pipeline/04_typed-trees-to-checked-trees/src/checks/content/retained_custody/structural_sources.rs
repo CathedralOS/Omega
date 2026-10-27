@@ -57,9 +57,7 @@ pub(super) fn parameter_sources(
                     nested: false,
                     path: Vec::new(),
                 };
-                if !sources.contains(&source) {
-                    sources.push(source);
-                }
+                crate::collections::push_unique(&mut sources, source);
             }
         }
     }

@@ -69,9 +69,7 @@ impl DeclaredFieldRequirements {
             if let Some((_, requirements)) =
                 rows.iter_mut().find(|(candidate, _)| *candidate == owner)
             {
-                if !requirements.contains(&requirement) {
-                    requirements.push(requirement);
-                }
+                crate::collections::push_unique(&mut *requirements, requirement);
             } else {
                 rows.push((owner, vec![requirement]));
             }

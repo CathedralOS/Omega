@@ -305,9 +305,7 @@ impl CallJoinPreparation {
             event.provenance = binding.provenance;
         }
         // Failed lookups matter too: a new receipt must trigger preparation.
-        if !self.dependencies.contains(&receiver) {
-            self.dependencies.push(receiver);
-        }
+        crate::collections::push_unique(&mut self.dependencies, receiver);
     }
 }
 
@@ -734,9 +732,7 @@ fn bound_sources_at_call(
                 identity,
             }],
         };
-        if !sources.contains(&bound) {
-            sources.push(bound);
-        }
+        crate::collections::push_unique(&mut sources, bound);
     }
     if sources.is_empty() {
         Err("completed caller argument omits the exact returned input-source path")
@@ -873,27 +869,23 @@ fn expand_joined_frontier(
             } => Some(claim_identity),
             _ => None,
         })?;
-    let origins = events
-        .iter()
-        .filter(|event| {
-            event.kind == PermissionEventKind::Establish
-                && event.state_symbol == owner
-                && event.claim_identity == joined_identity
-        })
-        .filter_map(|event| {
-            let (at, expression, path) =
-                super::receiving_value(program, &ownership.segments, event)?;
-            (at == statement && expression == call_expression).then_some(path)
-        })
-        .fold(Vec::new(), |mut origins, path| {
-            // A completed child can establish the same claim at successive
-            // receiving homes. Those rows still name one call occurrence and
-            // result path; distinct result paths remain ambiguous.
-            if !origins.contains(&path) {
-                origins.push(path);
-            }
-            origins
-        });
+    // A completed child can establish the same claim at successive
+    // receiving homes. Those rows still name one call occurrence and
+    // result path; distinct result paths remain ambiguous.
+    let origins = crate::collections::unique_in_order(
+        events
+            .iter()
+            .filter(|event| {
+                event.kind == PermissionEventKind::Establish
+                    && event.state_symbol == owner
+                    && event.claim_identity == joined_identity
+            })
+            .filter_map(|event| {
+                let (at, expression, path) =
+                    super::receiving_value(program, &ownership.segments, event)?;
+                (at == statement && expression == call_expression).then_some(path)
+            }),
+    );
     let [requested] = origins.as_slice() else {
         return None;
     };
@@ -1557,9 +1549,7 @@ pub(crate) fn publish_call_claim_joins(
                         provenance,
                         receipt.identity,
                     );
-                    if !rewrites.contains(&rewrite) {
-                        rewrites.push(rewrite);
-                    }
+                    crate::collections::push_unique(&mut rewrites, rewrite);
                 }
             }
         }

@@ -90,9 +90,7 @@ pub(crate) fn derive_machine_summary(
                         if !entry_parameter_roots.contains(&instance.subject.root) {
                             return Some(no_guarantee(machine.symbol));
                         }
-                        if !premises.contains(&instance) {
-                            premises.push(instance);
-                        }
+                        crate::collections::push_unique(&mut premises, instance);
                     }
                 }
             }
@@ -168,9 +166,7 @@ fn family_summary(
                 .position(|parameter| parameter.symbol == premise.subject.root)?;
             let mut premise = premise.clone();
             premise.subject.root = parameters[position].symbol;
-            if !premises.contains(&premise) {
-                premises.push(premise);
-            }
+            crate::collections::push_unique(&mut premises, premise);
         }
     }
     Some(CheckedProgressSummary {
@@ -445,9 +441,7 @@ pub(super) fn resolve_call_place_premises(
             ProgressPremise { profile, subject },
             call_frames,
         )? {
-            if !premises.contains(&premise) {
-                premises.push(premise);
-            }
+            crate::collections::push_unique(&mut premises, premise);
         }
     }
     Some(premises)

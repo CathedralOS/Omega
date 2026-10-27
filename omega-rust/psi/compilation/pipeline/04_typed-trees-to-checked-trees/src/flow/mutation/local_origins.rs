@@ -237,9 +237,7 @@ pub(super) fn assignment_storage_regions(
                 place,
                 call_frames,
             )? {
-                if !regions.contains(&region) {
-                    regions.push(region);
-                }
+                crate::collections::push_unique(&mut regions, region);
             }
         }
         return Some(regions);
@@ -589,9 +587,7 @@ fn rebase_write_regions(
                         region,
                         call_frames,
                     )? {
-                        if !projected.contains(&rebased) {
-                            projected.push(rebased);
-                        }
+                        crate::collections::push_unique(&mut projected, rebased);
                     }
                     continue;
                 }
@@ -604,9 +600,7 @@ fn rebase_write_regions(
                 // Another possible origin may fully cover this descriptor.
                 // Its replacement cannot erase the retained incoming target.
                 let region = StorageRegion::Declared(place.clone());
-                if !projected.contains(&region) {
-                    projected.push(region);
-                }
+                crate::collections::push_unique(&mut projected, region);
                 continue;
             }
             if crossed.contains(&origin_index) {

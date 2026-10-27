@@ -141,6 +141,36 @@ struct ExpressionDependencyScope<'scope> {
 }
 
 impl<'field> RangeFacts<'field> {
+    /// Walk one expression's exact typed reads under a statement bound, through
+    /// this pass's checked calls and checked operators, and report whether the
+    /// walk completed. The bound is the only part a capture site chooses — the
+    /// current statement, a frozen selector prefix, or the whole state — and an
+    /// incomplete walk keeps its walked prefix in `reads`. Every capture site
+    /// built the walker itself and restated the same eight arguments; the read
+    /// set a capture records is the walk's, not the site's, so one owner keeps
+    /// the walker's operator and call context from drifting per site.
+    pub(super) fn walk_reads(
+        &self,
+        program: &dyn ::validation::CheckingInput,
+        machine: &Machine,
+        state: &State,
+        statement_bound: usize,
+        expression: ExpressionHandle,
+        reads: &mut Vec<CanonicalPlace>,
+    ) -> bool {
+        ReadWalk::new(
+            program,
+            machine,
+            state,
+            statement_bound,
+            self.checked_calls,
+            self.checked_operators,
+            reads,
+            self.bound_lookup(),
+        )
+        .collect_reads(expression, 0)
+    }
+
     pub(in crate::checks::ranges) fn forget_collection_expression(&mut self, label: &str) {
         self.forget_collection_facts(label);
         // A later state or binding can reuse the display label for different
@@ -165,19 +195,14 @@ impl<'field> RangeFacts<'field> {
             return None;
         }
         let mut reads = Vec::new();
-        let complete = {
-            let mut walk = ReadWalk::new(
-                program,
-                machine,
-                state,
-                self.statement_index,
-                self.checked_calls,
-                self.checked_operators,
-                &mut reads,
-                self.bound_lookup(),
-            );
-            walk.collect_reads(expression, 0)
-        };
+        let complete = self.walk_reads(
+            program,
+            machine,
+            state,
+            self.statement_index,
+            expression,
+            &mut reads,
+        );
         if !complete || reads.len() != 1 {
             return None;
         }
@@ -446,19 +471,14 @@ impl<'field> RangeFacts<'field> {
         let length = self.capture_length(program, machine, state, source);
         let mut reads = Vec::new();
         let value = (captures::has_scalar_snapshot_meaning(program, machine, state, source, 0)
-            && {
-                let mut walk = ReadWalk::new(
-                    program,
-                    machine,
-                    state,
-                    self.statement_index,
-                    self.checked_calls,
-                    self.checked_operators,
-                    &mut reads,
-                    self.bound_lookup(),
-                );
-                walk.collect_reads(source, 0)
-            }
+            && self.walk_reads(
+                program,
+                machine,
+                state,
+                self.statement_index,
+                source,
+                &mut reads,
+            )
             && !reads
                 .iter()
                 .any(|read| places_overlap(program, read, &place)))
@@ -580,19 +600,14 @@ impl<'field> RangeFacts<'field> {
             collection,
         )?;
         let mut reads = Vec::new();
-        let complete = {
-            let mut walk = ReadWalk::new(
-                program,
-                machine,
-                state,
-                self.statement_index,
-                self.checked_calls,
-                self.checked_operators,
-                &mut reads,
-                self.bound_lookup(),
-            );
-            walk.collect_reads(collection, 0)
-        };
+        let complete = self.walk_reads(
+            program,
+            machine,
+            state,
+            self.statement_index,
+            collection,
+            &mut reads,
+        );
         if !complete
             || !reads
                 .iter()
@@ -769,19 +784,14 @@ impl<'field> RangeFacts<'field> {
             machine,
             Some(scope.evaluation),
             expression,
-        ) && {
-            let mut walk = ReadWalk::new(
-                program,
-                machine,
-                scope.evaluation,
-                self.statement_index,
-                self.checked_calls,
-                self.checked_operators,
-                &mut reads,
-                self.bound_lookup(),
-            );
-            walk.collect_reads(expression, 0)
-        };
+        ) && self.walk_reads(
+            program,
+            machine,
+            scope.evaluation,
+            self.statement_index,
+            expression,
+            &mut reads,
+        );
         let descriptor_read = validation::collection_length_receiver(
             program,
             machine,

@@ -117,9 +117,7 @@ impl<'program, 'frames> ProvenExitExpressions<'program, 'frames> {
                 .map(|matching| matching.expression)
                 .collect::<Vec<_>>();
             for expression in inherited {
-                if !outcome.expressions.contains(&expression) {
-                    outcome.expressions.push(expression);
-                }
+                crate::collections::push_unique(&mut outcome.expressions, expression);
             }
         }
     }

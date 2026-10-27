@@ -938,9 +938,7 @@ fn completed_call_claims(
             source: ReturnedClaimSource::Live(event.claim_identity),
             condition: conditions.always(),
         };
-        if !claims.contains(&claim) {
-            claims.push(claim);
-        }
+        crate::collections::push_unique(&mut claims, claim);
     }
     Ok(claims)
 }

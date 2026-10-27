@@ -54,9 +54,10 @@ pub(crate) fn retire_fact_only_citations(
                                 caller: machine.symbol,
                                 theorem: theorem.symbol,
                             };
-                            if !facts.proof.indexed_citations.contains(&citation) {
-                                facts.proof.indexed_citations.push(citation);
-                            }
+                            crate::collections::push_unique(
+                                &mut facts.proof.indexed_citations,
+                                citation,
+                            );
                         }
                     }
                     facts.flow.control.retire_calls(

@@ -137,9 +137,7 @@ pub(super) fn instantiate_known_call_mutation_summary_places(
             call_frames,
         )?;
         for contribution in contributions {
-            if !instantiated.contains(&contribution) {
-                instantiated.push(contribution);
-            }
+            crate::collections::push_unique(&mut instantiated, contribution);
         }
     }
 
@@ -195,9 +193,7 @@ pub(super) fn instantiate_known_call_receiver_summary_places(
             WritePlaceNamespace::AccessRoute,
             None,
         )? {
-            if !instantiated.contains(&place) {
-                instantiated.push(place);
-            }
+            crate::collections::push_unique(&mut instantiated, place);
         }
     }
 
@@ -1138,9 +1134,7 @@ pub(super) fn captured_argument_write_regions(
                     destination,
                     call_frames,
                 )? {
-                    if !regions.contains(&region) {
-                        regions.push(region);
-                    }
+                    crate::collections::push_unique(&mut regions, region);
                 }
             }
         }
@@ -1185,9 +1179,7 @@ pub(super) fn captured_argument_write_regions(
             call_frames,
         )?;
         for place in rebased {
-            if !places.contains(&place) {
-                places.push(place);
-            }
+            crate::collections::push_unique(&mut places, place);
         }
     }
     Some(places)

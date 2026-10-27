@@ -430,9 +430,7 @@ fn extend_values(
     for value in additional {
         // Structural meaning keeps opposite zero signs distinct. NaN payloads
         // are not part of this proof-only observation and cannot be invented.
-        if !values.contains(&value) {
-            values.push(value);
-        }
+        crate::collections::push_unique(&mut *values, value);
     }
 }
 

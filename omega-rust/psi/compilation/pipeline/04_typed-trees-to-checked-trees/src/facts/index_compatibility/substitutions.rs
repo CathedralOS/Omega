@@ -62,9 +62,7 @@ pub(super) fn established_index_equalities(
             actual_substitutions,
             expected_substitutions,
         )?;
-        if !evidence.contains(&fact) {
-            evidence.push(fact);
-        }
+        crate::collections::push_unique(&mut evidence, fact);
     }
     Some(evidence)
 }

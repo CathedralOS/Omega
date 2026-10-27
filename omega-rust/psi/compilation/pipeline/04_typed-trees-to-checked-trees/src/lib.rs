@@ -29,6 +29,7 @@ mod semantic;
 mod values;
 
 // Beside the route.
+mod collections;
 mod labels;
 
 // Orchestration seams, called after a checked tree exists.

@@ -131,9 +131,7 @@ impl ReadWalk<'_, '_, '_> {
                     root: facts::PlaceRoot::Symbol(symbol),
                     segments: Vec::new(),
                 };
-                if !self.reads.contains(&place) {
-                    self.reads.push(place);
-                }
+                crate::collections::push_unique(&mut self.reads, place);
                 true
             })
     }

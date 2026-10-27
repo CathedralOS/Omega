@@ -210,9 +210,7 @@ impl<'a> SelectorEvaluation<'a> {
             .filter_map(StatedOrderingPremise::equality_candidates)
             .flatten()
         {
-            if !candidates.contains(&candidate) {
-                candidates.push(candidate);
-            }
+            crate::collections::push_unique(&mut candidates, candidate);
         }
         let mut pending = vec![(left, right)];
         let mut visited = Vec::new();

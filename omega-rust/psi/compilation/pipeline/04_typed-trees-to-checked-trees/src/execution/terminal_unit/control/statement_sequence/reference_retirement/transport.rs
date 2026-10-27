@@ -52,9 +52,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
             if !facts.borrow.state_owns_loan(borrowing, *supplier) {
                 return None;
             }
-            if !output.contains(&(receiver, *supplier)) {
-                output.push((receiver, *supplier));
-            }
+            crate::collections::push_unique(&mut output, (receiver, *supplier));
         }
     }
     for operation in operations {
@@ -181,9 +179,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
                     .into_iter()
                     .filter(|(_, statement)| *statement == formation)
                 {
-                    if !output.contains(&(receiver, supplier)) {
-                        output.push((receiver, supplier));
-                    }
+                    crate::collections::push_unique(&mut output, (receiver, supplier));
                 }
             }
         }

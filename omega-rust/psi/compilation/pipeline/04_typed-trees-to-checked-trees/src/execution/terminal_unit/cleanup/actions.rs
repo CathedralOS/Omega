@@ -391,9 +391,7 @@ pub(super) fn disposition_actions(
                     None,
                 )
                 .ok_or("cleanup cannot lower its selected transfer path")?;
-            if !partition_paths.contains(&selected_path) {
-                partition_paths.push(selected_path);
-            }
+            crate::collections::push_unique(&mut partition_paths, selected_path);
         }
     }
     // Geometry chooses the live complement, not whether it is cleanup-free.

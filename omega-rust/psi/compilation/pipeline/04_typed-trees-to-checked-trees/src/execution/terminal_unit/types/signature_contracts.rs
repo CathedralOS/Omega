@@ -360,9 +360,7 @@ pub(in crate::execution::terminal_unit) fn fold_boundary_result_domains(
     };
     for (domain, selected_symbol) in guaranteed {
         shapes.add_selected_domain(domain, selected_symbol, result_type, binders, false)?;
-        if !qualifications.contains(&domain) {
-            qualifications.push(domain);
-        }
+        crate::collections::push_unique(&mut qualifications, domain);
     }
     qualifications.sort_by_key(|domain| domain.0);
     Some(CheckedBoundaryMachineResultPlan::Structural {
