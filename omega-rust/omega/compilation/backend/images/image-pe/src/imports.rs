@@ -397,8 +397,9 @@ mod tests {
     };
     use target::{ForeignLocatorCandidate, NativeTarget, TargetProfile, normalize_foreign_locator};
 
-    #[test]
-    fn installed_import_thunks_enter_the_executable_region_inventory() {
+    /// A final image carrying one import row: the fixture shape every
+    /// bootstrap-import test in this module starts from.
+    fn image_with_import(name: &str, import: FinalImageImportPlan) -> FinalImage {
         let mut image = FinalImage::with_capacity(
             NativeTarget::windows_x64(),
             Default::default(),
@@ -408,16 +409,29 @@ mod tests {
             0,
         );
         let symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
-            name: "ExitProcess".into(),
+            name: name.into(),
             kind: object_file::SymbolKind::Import,
             ..FinalImageSymbol::default()
         });
         image.symbol_table.imports.insert(FinalImageImport {
             symbol_handle: symbol,
-            import: FinalImageImportPlan::StringBackedBootstrap {
+            import,
+        });
+        image
+    }
+
+    fn bootstrap_import_image(name: &str) -> FinalImage {
+        image_with_import(
+            name,
+            FinalImageImportPlan::StringBackedBootstrap {
                 library: "KERNEL32.dll".into(),
             },
-        });
+        )
+    }
+
+    #[test]
+    fn installed_import_thunks_enter_the_executable_region_inventory() {
+        let mut image = bootstrap_import_image("ExitProcess");
 
         let thunks = install_import_thunks(&mut image, 3).expect("valid bootstrap import");
         validate_import_thunk_footprints(&mut image, &thunks)
@@ -436,25 +450,7 @@ mod tests {
 
     #[test]
     fn mutated_import_thunk_opcode_rejects_final_validation() {
-        let mut image = FinalImage::with_capacity(
-            NativeTarget::windows_x64(),
-            Default::default(),
-            Handle::invalid(),
-            1,
-            1,
-            0,
-        );
-        let symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
-            name: "ExitProcess".into(),
-            kind: object_file::SymbolKind::Import,
-            ..FinalImageSymbol::default()
-        });
-        image.symbol_table.imports.insert(FinalImageImport {
-            symbol_handle: symbol,
-            import: FinalImageImportPlan::StringBackedBootstrap {
-                library: "KERNEL32.dll".into(),
-            },
-        });
+        let mut image = bootstrap_import_image("ExitProcess");
         let thunks = install_import_thunks(&mut image, 3).expect("valid bootstrap import");
         image.memory.text[0] = 0x90;
 
@@ -643,23 +639,7 @@ mod tests {
             "rejection must precede thunk mutation"
         );
 
-        let mut missing = FinalImage::with_capacity(
-            NativeTarget::windows_x64(),
-            Default::default(),
-            Handle::invalid(),
-            1,
-            1,
-            0,
-        );
-        let symbol = missing.symbol_table.symbols.insert(FinalImageSymbol {
-            name: "missing-plan".into(),
-            kind: object_file::SymbolKind::Import,
-            ..FinalImageSymbol::default()
-        });
-        missing.symbol_table.imports.insert(FinalImageImport {
-            symbol_handle: symbol,
-            import: FinalImageImportPlan::None,
-        });
+        let mut missing = image_with_import("missing-plan", FinalImageImportPlan::None);
         let diagnostic = install_import_thunks(&mut missing, 3)
             .expect_err("an import symbol without retained coordinates must reject");
         assert!(
