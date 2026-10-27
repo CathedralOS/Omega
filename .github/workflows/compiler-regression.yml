@@ -44,8 +44,9 @@ jobs:
       matrix:
         runner: ${{ fromJSON(inputs.runtime_value_generics && '["ubuntu-24.04", "windows-2025", "macos-14", "ubuntu-24.04-arm"]' || inputs.linux_arm64 && '["ubuntu-24.04-arm"]' || (inputs.cleanup || inputs.foreign_records) && '["ubuntu-24.04", "windows-2025"]' || '["ubuntu-24.04"]') }}
     runs-on: ${{ matrix.runner }}
-    # The measured cold Windows build takes nearly 30 minutes.
-    timeout-minutes: 45
+    # Windows used 30 minutes building, completed both corpus legs, then hit
+    # 45 minutes during public CLI controls. Keep time for those and cache upload.
+    timeout-minutes: ${{ matrix.runner == 'windows-2025' && 60 || 45 }}
     env:
       CARGO_BUILD_JOBS: '2'
       # Keep generated package outputs below Windows link.exe's path limit.
@@ -121,11 +122,11 @@ jobs:
           if-no-files-found: warn
           compression-level: 0
           retention-days: 7
-      # A runtime rejection must not discard a successful cold Rust build.
+      # A runtime rejection or cancellation must not discard a cold Rust build.
       # Every next observation still rebuilds through Cargo's content checks
       # and validates the actual executable/profile before running programs.
       - name: Preserve compiler build cache
-        if: ${{ always() && !cancelled() && steps.compiler-cache.outputs.cache-hit != 'true' && steps.compiler-cache.outputs.cache-primary-key != '' }}
+        if: ${{ always() && steps.compiler-cache.outputs.cache-hit != 'true' && steps.compiler-cache.outputs.cache-primary-key != '' }}
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
