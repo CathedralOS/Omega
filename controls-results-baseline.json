@@ -1,0 +1,56 @@
+[
+  {
+    "name": "relational",
+    "invalid": false,
+    "sha256": "960d170def29049da86aaaea431e5845b685e1a23e1aa98f395e2c3c54df0488",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/returned-read/producer-baseline/omega",
+      "run",
+      "--both",
+      "build/returned-read/controls/relational/main.omg"
+    ],
+    "exit": 200,
+    "stdout": "",
+    "stderr": "native compile FAILED:\n  error: cannot compile admitted project: checked compilation failed for package `saved_observation_snapshot_through_local` with 1 diagnostic(s)\n  error: cannot prove requires contract for call same from probe: saved == value (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+  },
+  {
+    "name": "relational_invalid",
+    "invalid": true,
+    "sha256": "315e3d610d1e79620a1ab3dd8308edb63f3d218f4020141a631a79361f381c69",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/returned-read/producer-baseline/omega",
+      "--check",
+      "build/returned-read/controls/relational_invalid/main.omg"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `saved_observation_snapshot_through_local` with 1 diagnostic(s)\n  error: cannot prove requires contract for call same from probe: saved == 3 (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+  },
+  {
+    "name": "saved_after_write",
+    "invalid": false,
+    "sha256": "06f79cf6abdde488a9c82fa97669e4e558f4a4d3b3c1b4d0d92e4b1f7151d51f",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/returned-read/producer-baseline/omega",
+      "run",
+      "--both",
+      "build/returned-read/controls/saved_after_write/main.omg"
+    ],
+    "exit": 200,
+    "stdout": "",
+    "stderr": "native compile FAILED:\n  error: cannot compile admitted project: checked compilation failed for package `saved_observation_snapshot_through_local` with 1 diagnostic(s)\n  error: cannot prove requires contract for call seven from main: saved == 7 (needs fact `value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+  },
+  {
+    "name": "stale_before_call",
+    "invalid": true,
+    "sha256": "a6ee72d5d799c93176ad1023829bdca35948ec5bbe92882fd89d7ef84bc881cf",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/returned-read/producer-baseline/omega",
+      "--check",
+      "build/returned-read/controls/stale_before_call/main.omg"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `saved_observation_snapshot_through_local` with 1 diagnostic(s)\n  error: cannot prove requires contract for call same from main: saved == later (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+  }
+]

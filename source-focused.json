@@ -1,0 +1,1751 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "0cea3eb4248095679c5a73562b89ec9410a98683",
+  "dirty": false,
+  "leg": "checked",
+  "target": null,
+  "golden": "tests/omega/corpus_outcomes.txt",
+  "golden_reason_gaps": {
+    "rows": 1,
+    "of": 18633
+  },
+  "subset": true,
+  "filter": "saved_observation_snapshot,saved_case_predicate,runtime_reference_call_scalar_snapshot_exit,scalar_field_snapshot_before_binary_write,scalar_field_snapshot_after_selector_write,runtime_temporary_lending_order_exit,temporary_cleanup_captured_false_integer,structural_result_field_guarantee_exit",
+  "shard": null,
+  "verdict": "moved",
+  "exit_code": 1,
+  "counts": {
+    "fixtures": 75,
+    "by_status": {
+      "checked": 36,
+      "rejected": 39
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {
+      "new": 25,
+      "perf_faster": 5
+    }
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": {
+    "stamped": 50,
+    "legacy": 0,
+    "unknown_revisions": 0,
+    "oldest": {
+      "revision": "a92f16431042",
+      "commits_behind": 356
+    }
+  },
+  "perf_context": {
+    "golden": {
+      "cpus": 10,
+      "jobs": "2",
+      "load1_end": 8.21,
+      "load1_start": 7.27,
+      "machine": "arm64",
+      "platform": "darwin",
+      "schema": "omega-corpus-context-v1"
+    },
+    "current": {
+      "schema": "omega-corpus-context-v1",
+      "jobs": null,
+      "cpus": 10,
+      "platform": "darwin",
+      "machine": "arm64",
+      "load1_start": 2.22,
+      "load1_end": 5.05
+    },
+    "warnings": [
+      "the golden was recorded on a busy machine (pre-run load 7.27 on 10 cpus); fixtures only look faster now \u2014 treat perf_faster moves as noise"
+    ]
+  },
+  "observations": [
+    {
+      "fixture": "pass/borrows/runtime_reference_call_scalar_snapshot_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2207,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/calls/runtime_temporary_lending_order_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2212,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/control_flow/saved_case_predicate_disjoint_effects_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2039,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/control_flow/saved_case_predicate_receiver_writes_before_read_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2151,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_inferred_reference_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2229,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2224,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2260,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2218,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2183,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2142,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1821,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2070,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2035,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2009,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_relational_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1985,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_relational_return_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1893,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_saved_after_write_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1937,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_through_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1944,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_through_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1963,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_through_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1872,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_through_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1644,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_through_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2080,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_through_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2009,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_through_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2015,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_through_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2075,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_through_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2002,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1992,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2035,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2000,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2036,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1879,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2057,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1975,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1938,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2066,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/providers/structural_result_field_guarantee_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1933,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/control_flow/saved_case_predicate_guard_write_retires",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1053,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `quotient` state `entry` statement 2: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/control_flow/saved_case_predicate_local_write_retires",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1091,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `quotient` state `entry` statement 3: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/control_flow/saved_case_predicate_receiver_trailing_write_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1445,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/control_flow/saved_case_predicate_receiver_writes_before_read_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1421,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/drops/temporary_cleanup_captured_false_integer",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1040,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Token does not establish Token::drop clause `token.value == 7`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_inferred_reference_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1451,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1448,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1578,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1561,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `holder.choice.amount`: captured source `holder.choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1610,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1401,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1613,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `quotient` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1533,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1516,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1403,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence",
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence",
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence",
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_relational_invalid_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1243,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call same from probe: saved == 3 (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_stale_before_call_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1385,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call same from main: saved == later (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_through_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1203,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_through_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1254,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_through_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1544,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from main: note.observed == items[0] && note.observed == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_through_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1560,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_through_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1427,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from probe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_through_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1561,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from read_kept at statement 3: result == items[0] && result == 7"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_through_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1336,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call check from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_through_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1315,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from hold: observed == items[0] && observed == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_through_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1375,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_uncovered_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1827,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from probe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_unknown_after_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1580,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from probe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_through_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1179,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_through_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1517,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_through_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1496,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from main: note.observed == items[0] && note.observed == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_through_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1448,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_through_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1435,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from probe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_through_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1342,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from read_kept at statement 3: result == items[0] && result == 7"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_through_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1284,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call check from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_through_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1286,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from hold: observed == items[0] && observed == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_through_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1168,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/scalar_field_snapshot_after_selector_write",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 818,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call demand_same from inspect: before == after (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/scalar_field_snapshot_before_binary_write",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 784,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call demand_same from inspect: before == after (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  ],
+  "fixtures": [
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_relational_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/saved_observation_snapshot_after_call_relational_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 1985,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_relational_return_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/saved_observation_snapshot_after_call_relational_return_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 1893,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_saved_after_write_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/saved_observation_snapshot_after_call_saved_after_write_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 1937,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_through_call_result_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/saved_observation_snapshot_after_call_through_call_result_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 1944,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_through_const_name_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/saved_observation_snapshot_after_call_through_const_name_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 1963,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_through_field_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/saved_observation_snapshot_after_call_through_field_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 1872,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_through_local_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/saved_observation_snapshot_after_call_through_local_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 1644,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_through_match_join_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/saved_observation_snapshot_after_call_through_match_join_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2080,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_through_other_machine_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/saved_observation_snapshot_after_call_through_other_machine_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2009,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_through_other_state_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/saved_observation_snapshot_after_call_through_other_state_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2015,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_through_parameter_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/saved_observation_snapshot_after_call_through_parameter_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2075,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_through_target_body_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/saved_observation_snapshot_after_call_through_target_body_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2002,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_const_name_rejected",
+      "verdict": "perf_faster",
+      "reasons": [
+        "17078ms -> 1578ms (>=2x faster)"
+      ],
+      "before": {
+        "fixture": "fail/facts/saved_case_predicate_through_const_name_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 17078,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+        ],
+        "regressed_from": null,
+        "recorded_at": "2f6555324361"
+      },
+      "after": {
+        "fixture": "fail/facts/saved_case_predicate_through_const_name_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1578,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_field_rejected",
+      "verdict": "perf_faster",
+      "reasons": [
+        "17076ms -> 1561ms (>=2x faster)"
+      ],
+      "before": {
+        "fixture": "fail/facts/saved_case_predicate_through_field_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 17076,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `holder.choice.amount`: captured source `holder.choice::Full.amount` has no live case evidence"
+        ],
+        "regressed_from": null,
+        "recorded_at": "2f6555324361"
+      },
+      "after": {
+        "fixture": "fail/facts/saved_case_predicate_through_field_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1561,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `holder.choice.amount`: captured source `holder.choice::Full.amount` has no live case evidence"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_local_rejected",
+      "verdict": "perf_faster",
+      "reasons": [
+        "7034ms -> 1610ms (>=2x faster)"
+      ],
+      "before": {
+        "fixture": "fail/facts/saved_case_predicate_through_local_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 7034,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+        ],
+        "regressed_from": null,
+        "recorded_at": "2f6555324361"
+      },
+      "after": {
+        "fixture": "fail/facts/saved_case_predicate_through_local_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1610,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_match_join_rejected",
+      "verdict": "perf_faster",
+      "reasons": [
+        "16887ms -> 1401ms (>=2x faster)"
+      ],
+      "before": {
+        "fixture": "fail/facts/saved_case_predicate_through_match_join_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 16887,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+        ],
+        "regressed_from": null,
+        "recorded_at": "2f6555324361"
+      },
+      "after": {
+        "fixture": "fail/facts/saved_case_predicate_through_match_join_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1401,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_other_machine_rejected",
+      "verdict": "perf_faster",
+      "reasons": [
+        "16833ms -> 1613ms (>=2x faster)"
+      ],
+      "before": {
+        "fixture": "fail/facts/saved_case_predicate_through_other_machine_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 16833,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "machine `quotient` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+        ],
+        "regressed_from": null,
+        "recorded_at": "2f6555324361"
+      },
+      "after": {
+        "fixture": "fail/facts/saved_case_predicate_through_other_machine_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1613,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "machine `quotient` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_relational_invalid_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/saved_observation_snapshot_after_call_relational_invalid_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1243,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call same from probe: saved == 3 (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_stale_before_call_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/saved_observation_snapshot_after_call_stale_before_call_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1385,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call same from main: saved == later (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_through_call_result_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/saved_observation_snapshot_after_call_through_call_result_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1203,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_through_const_name_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/saved_observation_snapshot_after_call_through_const_name_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1254,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_through_field_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/saved_observation_snapshot_after_call_through_field_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1544,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call agree from main: note.observed == items[0] && note.observed == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_through_local_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/saved_observation_snapshot_after_call_through_local_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1560,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_through_match_join_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/saved_observation_snapshot_after_call_through_match_join_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1427,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call agree from probe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_through_other_machine_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/saved_observation_snapshot_after_call_through_other_machine_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1561,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove ensures contract for exit from read_kept at statement 3: result == items[0] && result == 7"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_through_other_state_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/saved_observation_snapshot_after_call_through_other_state_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1336,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call check from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_through_parameter_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/saved_observation_snapshot_after_call_through_parameter_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1315,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call agree from hold: observed == items[0] && observed == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_through_target_body_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/saved_observation_snapshot_after_call_through_target_body_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1375,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+          "cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+          "cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+          "cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_uncovered_join_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/saved_observation_snapshot_after_call_uncovered_join_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1827,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call agree from probe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_unknown_after_join_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/saved_observation_snapshot_after_call_unknown_after_join_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1580,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call agree from probe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    }
+  ]
+}

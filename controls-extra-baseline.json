@@ -1,0 +1,42 @@
+[
+  {
+    "name": "relational_return",
+    "invalid": false,
+    "sha256": "d5e9115321423f7a209d70c3b5ddb1501b6a381019ca363bbce776c5cc114743",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/returned-read/producer-baseline/omega",
+      "run",
+      "--both",
+      "build/returned-read/controls/relational_return/main.omg"
+    ],
+    "exit": 200,
+    "stdout": "",
+    "stderr": "native compile FAILED:\n  error: cannot compile admitted project: checked compilation failed for package `saved_observation_snapshot_through_local` with 1 diagnostic(s)\n  error: cannot prove ensures contract for exit from probe at statement 3: result == value\n"
+  },
+  {
+    "name": "uncovered_join",
+    "invalid": true,
+    "sha256": "7c813aaa760422a7bc10ef0a4995b8e93f3d4c145c05c3f5139fb5592cf6289a",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/returned-read/producer-baseline/omega",
+      "--check",
+      "build/returned-read/controls/uncovered_join/main.omg"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `saved_observation_snapshot_through_match_join` with 1 diagnostic(s)\n  error: cannot prove requires contract for call agree from probe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+  },
+  {
+    "name": "unknown_after_join",
+    "invalid": true,
+    "sha256": "3e57dcf09640eb792d8a0b307e9a3272bd594e9fd4c3a81b71989a3ae6c2ec84",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/returned-read/producer-baseline/omega",
+      "--check",
+      "build/returned-read/controls/unknown_after_join/main.omg"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `saved_observation_snapshot_through_match_join` with 1 diagnostic(s)\n  error: cannot prove requires contract for call agree from probe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+  }
+]

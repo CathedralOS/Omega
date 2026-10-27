@@ -1,0 +1,121 @@
+{
+  "schema": "qualification-handoff-1",
+  "role": "implementation",
+  "candidate": "2bc59765844c7b0a23de537e45dd17033459ad11",
+  "source_revision": "2bc59765844c7b0a23de537e45dd17033459ad11",
+  "changed_paths": [],
+  "canonical_context": [
+    {
+      "contract": "wiki/spec/language/state_contracts.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/captured_predicates.rs"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Retain a primitive copied observation as a binding to its exact source at the recorded producer read epoch. The source may remain a reference, but the observed value must be a stable copy and every identity, primitive interpretation, and intervening-write obligation must still hold. Transport the existing whole checked predicates; do not introduce pre-call facts, scalar-only replay, or a new guarantee recognizer.",
+      "passages": [
+        "## Mutation and subject identity\n\nFacts apply to their exact subjects and program points. Assignments first\n[capture their destination place](expressions.md#evaluation-schedule), including\nits selectors and bounds at that program point. They then evaluate the\nright-hand side and its effects, capture transferable evidence, and finally\ninvalidate overlapping destination facts and establish the new value at the\ncaptured place. Right-hand-side mutations invalidate their own overlapping facts\nwhen they occur; the captured selector is not a fact that the selector's live\nbinding still has its earlier value. Uninitialized storage\nhas no assumed zero. Copies transport facts about the captured value, not source\nexpressions to be reevaluated after mutation.\n\nA reference identifies live storage, not its former contents. Replacing a local\nreference binding changes that binding without redirecting aliases made from its\nprevious value. A write through the reference changes the referent, not the\nbinding. Stored reference leaves retain their captured origins until replacement\nor exposure invalidates that relation. Type or lifetime correspondence alone\ndoes not establish a returned reference's storage origin.\n\nCaller-visible mutation summaries include operand evaluation and callee writes.\nA complete empty summary preserves facts; an unknown summary proves no\nnon-interference. Fact invalidation uses storage footprints, while borrow\nauthorization uses the access route. Neither may-write summarie"
+      ],
+      "revision": "2bc59765844c7b0a23de537e45dd17033459ad11",
+      "blob": "3f0063b497dff2a77ef78b292b1f3315cf7b22d9"
+    },
+    {
+      "contract": "wiki/spec/terminal-psi/structural_access.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/captured_predicates.rs"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Retain a primitive copied observation as a binding to its exact source at the recorded producer read epoch. The source may remain a reference, but the observed value must be a stable copy and every identity, primitive interpretation, and intervening-write obligation must still hold. Transport the existing whole checked predicates; do not introduce pre-call facts, scalar-only replay, or a new guarantee recognizer.",
+      "passages": [
+        "Before a write or mutating/consuming call invalidates current field facts, a\nlive exact equality between a scalar field and an immutable SSA value\nmay capture the affected scalar occurrences in those facts. The equality must\nmatch the canonical root, complete path and scalar type; it may come from a\nvalidated read, completed store or imported guarantee. Conditional equalities\ncannot supply unconditional substitutions. Correlations keep their whole\nconnective, and any remaining affected storage observation still invalidates\nthe fact. This preserves a saved value's proof without transferring it to a\nnew read. It adds neither an entry-origin claim for private crash checking nor\nan invariant for an unchecked cyclic arrival. Capture replaces facts rather\nthan enumerating combinations of old and new observations."
+      ],
+      "revision": "2bc59765844c7b0a23de537e45dd17033459ad11",
+      "blob": "6c00a87b9e24e32011efe09bc95ac2c2abd2ce88"
+    },
+    {
+      "contract": "wiki/spec/terminal-psi/fact_validity.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/captured_predicates.rs"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Retain a primitive copied observation as a binding to its exact source at the recorded producer read epoch. The source may remain a reference, but the observed value must be a stable copy and every identity, primitive interpretation, and intervening-write obligation must still hold. Transport the existing whole checked predicates; do not introduce pre-call facts, scalar-only replay, or a new guarantee recognizer.",
+      "passages": [
+        "- A primitive read may introduce an equality between its copied SSA result and\n  an exact reaching stored SSA value. Every actual predecessor must supply that\n  same value; potentially aliasing writes, unknown call effects, missing stores,\n  and unproved cyclic arrivals prevent introduction. The store/read types and\n  dominance must check independently. Subsequent writes cannot change either\n  captured SSA value. This does not introduce symbolic store summaries or a\n  floating-point equality rule.\n\nThe scalar block-predicate rule generalizes range induction to matching-token\nmerges without introducing a union of path facts. Its prerequisites are\nexact predicate formation/scope, exhaustive arrival reconstruction, checked\narrival derivations, simultaneous substitution, and the existing cyclic cuts.\nNo branch-local identity becomes a destination premise. This revision does not\nclaim a proved universal composition theorem.\n\n**Implementation status (re-verified `52d95a9d76f`, linux x86-64):** the cyclic\ncontrols above have checked equivalents on the source path.\n`typed-trees-to-checked-trees`'s `checks/ranges/incoming_guards.rs` meets\nmulti-predecessor joins by intersection \u2014 a fact holds at a join's entry only\nwhen every incoming edge carries it \u2014 and declines loop-header bounds to the\ninvariant pass. `checks/ranges/loop_invariants.rs` (`collect`/`seed` entry\npoints) and `checks/contracts/exits/cyclic_headers.rs` implement the cyclic\nreconvergence rule: a re-entered state's heade"
+      ],
+      "revision": "2bc59765844c7b0a23de537e45dd17033459ad11",
+      "blob": "5159dc678b42b8bb7737f0c60a0a20c966fcd6df"
+    }
+  ],
+  "context_fingerprint": "ab756fc7535281ecd2ac16f5752aa33aa020db8423c83358d877cf6cd7f3e70a",
+  "reinject_context": [
+    {
+      "contract": "wiki/spec/language/state_contracts.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/captured_predicates.rs"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Retain a primitive copied observation as a binding to its exact source at the recorded producer read epoch. The source may remain a reference, but the observed value must be a stable copy and every identity, primitive interpretation, and intervening-write obligation must still hold. Transport the existing whole checked predicates; do not introduce pre-call facts, scalar-only replay, or a new guarantee recognizer.",
+      "passages": [
+        "## Mutation and subject identity\n\nFacts apply to their exact subjects and program points. Assignments first\n[capture their destination place](expressions.md#evaluation-schedule), including\nits selectors and bounds at that program point. They then evaluate the\nright-hand side and its effects, capture transferable evidence, and finally\ninvalidate overlapping destination facts and establish the new value at the\ncaptured place. Right-hand-side mutations invalidate their own overlapping facts\nwhen they occur; the captured selector is not a fact that the selector's live\nbinding still has its earlier value. Uninitialized storage\nhas no assumed zero. Copies transport facts about the captured value, not source\nexpressions to be reevaluated after mutation.\n\nA reference identifies live storage, not its former contents. Replacing a local\nreference binding changes that binding without redirecting aliases made from its\nprevious value. A write through the reference changes the referent, not the\nbinding. Stored reference leaves retain their captured origins until replacement\nor exposure invalidates that relation. Type or lifetime correspondence alone\ndoes not establish a returned reference's storage origin.\n\nCaller-visible mutation summaries include operand evaluation and callee writes.\nA complete empty summary preserves facts; an unknown summary proves no\nnon-interference. Fact invalidation uses storage footprints, while borrow\nauthorization uses the access route. Neither may-write summarie"
+      ],
+      "revision": "2bc59765844c7b0a23de537e45dd17033459ad11",
+      "blob": "3f0063b497dff2a77ef78b292b1f3315cf7b22d9"
+    },
+    {
+      "contract": "wiki/spec/terminal-psi/structural_access.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/captured_predicates.rs"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Retain a primitive copied observation as a binding to its exact source at the recorded producer read epoch. The source may remain a reference, but the observed value must be a stable copy and every identity, primitive interpretation, and intervening-write obligation must still hold. Transport the existing whole checked predicates; do not introduce pre-call facts, scalar-only replay, or a new guarantee recognizer.",
+      "passages": [
+        "Before a write or mutating/consuming call invalidates current field facts, a\nlive exact equality between a scalar field and an immutable SSA value\nmay capture the affected scalar occurrences in those facts. The equality must\nmatch the canonical root, complete path and scalar type; it may come from a\nvalidated read, completed store or imported guarantee. Conditional equalities\ncannot supply unconditional substitutions. Correlations keep their whole\nconnective, and any remaining affected storage observation still invalidates\nthe fact. This preserves a saved value's proof without transferring it to a\nnew read. It adds neither an entry-origin claim for private crash checking nor\nan invariant for an unchecked cyclic arrival. Capture replaces facts rather\nthan enumerating combinations of old and new observations."
+      ],
+      "revision": "2bc59765844c7b0a23de537e45dd17033459ad11",
+      "blob": "6c00a87b9e24e32011efe09bc95ac2c2abd2ce88"
+    },
+    {
+      "contract": "wiki/spec/terminal-psi/fact_validity.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/captured_predicates.rs"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Retain a primitive copied observation as a binding to its exact source at the recorded producer read epoch. The source may remain a reference, but the observed value must be a stable copy and every identity, primitive interpretation, and intervening-write obligation must still hold. Transport the existing whole checked predicates; do not introduce pre-call facts, scalar-only replay, or a new guarantee recognizer.",
+      "passages": [
+        "- A primitive read may introduce an equality between its copied SSA result and\n  an exact reaching stored SSA value. Every actual predecessor must supply that\n  same value; potentially aliasing writes, unknown call effects, missing stores,\n  and unproved cyclic arrivals prevent introduction. The store/read types and\n  dominance must check independently. Subsequent writes cannot change either\n  captured SSA value. This does not introduce symbolic store summaries or a\n  floating-point equality rule.\n\nThe scalar block-predicate rule generalizes range induction to matching-token\nmerges without introducing a union of path facts. Its prerequisites are\nexact predicate formation/scope, exhaustive arrival reconstruction, checked\narrival derivations, simultaneous substitution, and the existing cyclic cuts.\nNo branch-local identity becomes a destination premise. This revision does not\nclaim a proved universal composition theorem.\n\n**Implementation status (re-verified `52d95a9d76f`, linux x86-64):** the cyclic\ncontrols above have checked equivalents on the source path.\n`typed-trees-to-checked-trees`'s `checks/ranges/incoming_guards.rs` meets\nmulti-predecessor joins by intersection \u2014 a fact holds at a join's entry only\nwhen every incoming edge carries it \u2014 and declines loop-header bounds to the\ninvariant pass. `checks/ranges/loop_invariants.rs` (`collect`/`seed` entry\npoints) and `checks/contracts/exits/cyclic_headers.rs` implement the cyclic\nreconvergence rule: a re-entered state's heade"
+      ],
+      "revision": "2bc59765844c7b0a23de537e45dd17033459ad11",
+      "blob": "5159dc678b42b8bb7737f0c60a0a20c966fcd6df"
+    }
+  ],
+  "context_refresh": true,
+  "checks": [
+    {
+      "id": "context-only",
+      "kind": "build",
+      "command": [
+        "cargo",
+        "check",
+        "--locked",
+        "-p",
+        "typed-trees-to-checked-trees"
+      ],
+      "inputs": [
+        "Cargo.lock",
+        "Cargo.toml",
+        "omega-rust",
+        "rust-toolchain.toml",
+        "wiki/spec/language/state_contracts.md",
+        "wiki/spec/terminal-psi/fact_validity.md",
+        "wiki/spec/terminal-psi/structural_access.md"
+      ],
+      "artifacts": [],
+      "closure_reason": "Implementation context only; nine real programs and invalid controls establish acceptance.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 300
+    }
+  ],
+  "assessments": [],
+  "review_instruction": "Judge behavior against these passages; uncovered semantics need an explicit owner decision. Inspect the candidate diff and check evidence; passage identity alone is not semantic compliance.",
+  "prior_context_retained": false
+}

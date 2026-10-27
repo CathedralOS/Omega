@@ -1,0 +1,255 @@
+{
+  "schema": "qualification-handoff-1",
+  "role": "implementation",
+  "candidate": "eb3c9901c9c0ef47385b3d1ad89fdaa1351ca945",
+  "source_revision": "2bc59765844c7b0a23de537e45dd17033459ad11",
+  "changed_paths": [
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/call_values.rs",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/captured_predicates.rs",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits/scalars.rs",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits/scalars/predicates.rs",
+    "samples/cli/facts/saved_observation_snapshot/after_call/call_result/build.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/call_result/invalid/build.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/call_result/invalid/main.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/call_result/main.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/const_name/build.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/const_name/invalid/build.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/const_name/invalid/main.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/const_name/main.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/field/build.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/field/invalid/build.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/field/invalid/main.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/field/main.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/local/build.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/local/invalid/build.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/local/invalid/main.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/local/main.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/match_join/build.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/match_join/invalid/build.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/match_join/invalid/main.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/match_join/main.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/other_machine/build.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/other_machine/invalid/build.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/other_machine/invalid/main.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/other_machine/main.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/other_state/build.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/other_state/invalid/build.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/other_state/invalid/main.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/other_state/main.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/parameter/build.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/parameter/invalid/build.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/parameter/invalid/main.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/parameter/main.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/target_body/build.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/target_body/invalid/build.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/target_body/invalid/main.omg",
+    "samples/cli/facts/saved_observation_snapshot/after_call/target_body/main.omg",
+    "tests/omega/fail/facts/saved_observation_snapshot_after_call_through_call_result_rejected/build.omg",
+    "tests/omega/fail/facts/saved_observation_snapshot_after_call_through_call_result_rejected/expected.txt",
+    "tests/omega/fail/facts/saved_observation_snapshot_after_call_through_call_result_rejected/main.omg",
+    "tests/omega/fail/facts/saved_observation_snapshot_after_call_through_const_name_rejected/build.omg",
+    "tests/omega/fail/facts/saved_observation_snapshot_after_call_through_const_name_rejected/expected.txt",
+    "tests/omega/fail/facts/saved_observation_snapshot_after_call_through_const_name_rejected/main.omg",
+    "tests/omega/fail/facts/saved_observation_snapshot_after_call_through_field_rejected/build.omg",
+    "tests/omega/fail/facts/saved_observation_snapshot_after_call_through_field_rejected/expected.txt",
+    "tests/omega/fail/facts/saved_observation_snapshot_after_call_through_field_rejected/main.omg",
+    "tests/omega/fail/facts/saved_observation_snapshot_after_call_through_local_rejected/build.omg",
+    "tests/omega/fail/facts/saved_observation_snapshot_after_call_through_local_rejected/expected.txt",
+    "tests/omega/fail/facts/saved_observation_snapshot_after_call_through_local_rejected/main.omg",
+    "tests/omega/fail/facts/saved_observation_snapshot_after_call_through_match_join_rejected/build.omg",
+    "tests/omega/fail/facts/saved_observation_snapshot_after_call_through_match_join_rejected/expected.txt",
+    "tests/omega/fail/facts/saved_observation_snapshot_after_call_through_match_join_rejected/main.omg",
+    "tests/omega/fail/facts/saved_observation_snapshot_after_call_through_other_machine_rejected/build.omg",
+    "tests/omega/fail/facts/saved_observation_snapshot_after_call_through_other_machine_rejected/expected.txt",
+    "tests/omega/fail/facts/saved_observation_snapshot_after_call_through_other_machine_rejected/main.omg",
+    "tests/omega/fail/facts/saved_observation_snapshot_after_call_through_other_state_rejected/build.omg",
+    "tests/omega/fail/facts/saved_observation_snapshot_after_call_through_other_state_rejected/expected.txt",
+    "tests/omega/fail/facts/saved_observation_snapshot_after_call_through_other_state_rejected/main.omg",
+    "tests/omega/fail/facts/saved_observation_snapshot_after_call_through_parameter_rejected/build.omg",
+    "tests/omega/fail/facts/saved_observation_snapshot_after_call_through_parameter_rejected/expected.txt",
+    "tests/omega/fail/facts/saved_observation_snapshot_after_call_through_parameter_rejected/main.omg",
+    "tests/omega/fail/facts/saved_observation_snapshot_after_call_through_target_body_rejected/build.omg",
+    "tests/omega/fail/facts/saved_observation_snapshot_after_call_through_target_body_rejected/expected.txt",
+    "tests/omega/fail/facts/saved_observation_snapshot_after_call_through_target_body_rejected/main.omg",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_call_result_exit/build.omg",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_call_result_exit/expected_interpreter_exit.txt",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_call_result_exit/expected_native_exit.txt",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_call_result_exit/main.omg",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_const_name_exit/build.omg",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_const_name_exit/expected_interpreter_exit.txt",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_const_name_exit/expected_native_exit.txt",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_const_name_exit/main.omg",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_field_exit/build.omg",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_field_exit/expected_interpreter_exit.txt",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_field_exit/expected_native_exit.txt",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_field_exit/main.omg",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_local_exit/build.omg",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_local_exit/expected_interpreter_exit.txt",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_local_exit/expected_native_exit.txt",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_local_exit/main.omg",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_match_join_exit/build.omg",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_match_join_exit/expected_interpreter_exit.txt",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_match_join_exit/expected_native_exit.txt",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_match_join_exit/main.omg",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_other_machine_exit/build.omg",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_other_machine_exit/expected_interpreter_exit.txt",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_other_machine_exit/expected_native_exit.txt",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_other_machine_exit/main.omg",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_other_state_exit/build.omg",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_other_state_exit/expected_interpreter_exit.txt",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_other_state_exit/expected_native_exit.txt",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_other_state_exit/main.omg",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_parameter_exit/build.omg",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_parameter_exit/expected_interpreter_exit.txt",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_parameter_exit/expected_native_exit.txt",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_parameter_exit/main.omg",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_target_body_exit/build.omg",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_target_body_exit/expected_interpreter_exit.txt",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_target_body_exit/expected_native_exit.txt",
+    "tests/omega/pass/facts/saved_observation_snapshot_after_call_through_target_body_exit/main.omg"
+  ],
+  "canonical_context": [
+    {
+      "contract": "wiki/spec/language/state_contracts.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/captured_predicates.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/call_values.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits/scalars.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits/scalars/predicates.rs",
+        "omega-rust/psi/compilation/checking/src/value_custody/completed_storage",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/captured_values"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Retain a primitive copied observation as a binding to its exact source at the recorded producer read epoch. The source may remain a reference, but the observed value must be a stable copy and every identity, primitive interpretation, and intervening-write obligation must still hold. Transport the existing whole checked predicates; do not introduce pre-call facts, scalar-only replay, or a new guarantee recognizer.",
+      "passages": [
+        "## Mutation and subject identity\n\nFacts apply to their exact subjects and program points. Assignments first\n[capture their destination place](expressions.md#evaluation-schedule), including\nits selectors and bounds at that program point. They then evaluate the\nright-hand side and its effects, capture transferable evidence, and finally\ninvalidate overlapping destination facts and establish the new value at the\ncaptured place. Right-hand-side mutations invalidate their own overlapping facts\nwhen they occur; the captured selector is not a fact that the selector's live\nbinding still has its earlier value. Uninitialized storage\nhas no assumed zero. Copies transport facts about the captured value, not source\nexpressions to be reevaluated after mutation.\n\nA reference identifies live storage, not its former contents. Replacing a local\nreference binding changes that binding without redirecting aliases made from its\nprevious value. A write through the reference changes the referent, not the\nbinding. Stored reference leaves retain their captured origins until replacement\nor exposure invalidates that relation. Type or lifetime correspondence alone\ndoes not establish a returned reference's storage origin.\n\nCaller-visible mutation summaries include operand evaluation and callee writes.\nA complete empty summary preserves facts; an unknown summary proves no\nnon-interference. Fact invalidation uses storage footprints, while borrow\nauthorization uses the access route. Neither may-write summarie"
+      ],
+      "revision": "2bc59765844c7b0a23de537e45dd17033459ad11",
+      "blob": "3f0063b497dff2a77ef78b292b1f3315cf7b22d9"
+    },
+    {
+      "contract": "wiki/spec/terminal-psi/structural_access.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/captured_predicates.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/call_values.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits/scalars.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits/scalars/predicates.rs",
+        "omega-rust/psi/compilation/checking/src/value_custody/completed_storage",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/captured_values"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Retain a primitive copied observation as a binding to its exact source at the recorded producer read epoch. The source may remain a reference, but the observed value must be a stable copy and every identity, primitive interpretation, and intervening-write obligation must still hold. Transport the existing whole checked predicates; do not introduce pre-call facts, scalar-only replay, or a new guarantee recognizer.",
+      "passages": [
+        "Before a write or mutating/consuming call invalidates current field facts, a\nlive exact equality between a scalar field and an immutable SSA value\nmay capture the affected scalar occurrences in those facts. The equality must\nmatch the canonical root, complete path and scalar type; it may come from a\nvalidated read, completed store or imported guarantee. Conditional equalities\ncannot supply unconditional substitutions. Correlations keep their whole\nconnective, and any remaining affected storage observation still invalidates\nthe fact. This preserves a saved value's proof without transferring it to a\nnew read. It adds neither an entry-origin claim for private crash checking nor\nan invariant for an unchecked cyclic arrival. Capture replaces facts rather\nthan enumerating combinations of old and new observations."
+      ],
+      "revision": "2bc59765844c7b0a23de537e45dd17033459ad11",
+      "blob": "6c00a87b9e24e32011efe09bc95ac2c2abd2ce88"
+    },
+    {
+      "contract": "wiki/spec/terminal-psi/fact_validity.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/captured_predicates.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/call_values.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits/scalars.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits/scalars/predicates.rs",
+        "omega-rust/psi/compilation/checking/src/value_custody/completed_storage",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/captured_values"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Retain a primitive copied observation as a binding to its exact source at the recorded producer read epoch. The source may remain a reference, but the observed value must be a stable copy and every identity, primitive interpretation, and intervening-write obligation must still hold. Transport the existing whole checked predicates; do not introduce pre-call facts, scalar-only replay, or a new guarantee recognizer.",
+      "passages": [
+        "- A primitive read may introduce an equality between its copied SSA result and\n  an exact reaching stored SSA value. Every actual predecessor must supply that\n  same value; potentially aliasing writes, unknown call effects, missing stores,\n  and unproved cyclic arrivals prevent introduction. The store/read types and\n  dominance must check independently. Subsequent writes cannot change either\n  captured SSA value. This does not introduce symbolic store summaries or a\n  floating-point equality rule.\n\nThe scalar block-predicate rule generalizes range induction to matching-token\nmerges without introducing a union of path facts. Its prerequisites are\nexact predicate formation/scope, exhaustive arrival reconstruction, checked\narrival derivations, simultaneous substitution, and the existing cyclic cuts.\nNo branch-local identity becomes a destination premise. This revision does not\nclaim a proved universal composition theorem.\n\n**Implementation status (re-verified `52d95a9d76f`, linux x86-64):** the cyclic\ncontrols above have checked equivalents on the source path.\n`typed-trees-to-checked-trees`'s `checks/ranges/incoming_guards.rs` meets\nmulti-predecessor joins by intersection \u2014 a fact holds at a join's entry only\nwhen every incoming edge carries it \u2014 and declines loop-header bounds to the\ninvariant pass. `checks/ranges/loop_invariants.rs` (`collect`/`seed` entry\npoints) and `checks/contracts/exits/cyclic_headers.rs` implement the cyclic\nreconvergence rule: a re-entered state's heade"
+      ],
+      "revision": "2bc59765844c7b0a23de537e45dd17033459ad11",
+      "blob": "5159dc678b42b8bb7737f0c60a0a20c966fcd6df"
+    }
+  ],
+  "context_fingerprint": "87c454feeb3a49cea647bf9181738bd87701dd858c78033198c2a06242e6c354",
+  "reinject_context": [
+    {
+      "contract": "wiki/spec/language/state_contracts.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/captured_predicates.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/call_values.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits/scalars.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits/scalars/predicates.rs",
+        "omega-rust/psi/compilation/checking/src/value_custody/completed_storage",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/captured_values"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Retain a primitive copied observation as a binding to its exact source at the recorded producer read epoch. The source may remain a reference, but the observed value must be a stable copy and every identity, primitive interpretation, and intervening-write obligation must still hold. Transport the existing whole checked predicates; do not introduce pre-call facts, scalar-only replay, or a new guarantee recognizer.",
+      "passages": [
+        "## Mutation and subject identity\n\nFacts apply to their exact subjects and program points. Assignments first\n[capture their destination place](expressions.md#evaluation-schedule), including\nits selectors and bounds at that program point. They then evaluate the\nright-hand side and its effects, capture transferable evidence, and finally\ninvalidate overlapping destination facts and establish the new value at the\ncaptured place. Right-hand-side mutations invalidate their own overlapping facts\nwhen they occur; the captured selector is not a fact that the selector's live\nbinding still has its earlier value. Uninitialized storage\nhas no assumed zero. Copies transport facts about the captured value, not source\nexpressions to be reevaluated after mutation.\n\nA reference identifies live storage, not its former contents. Replacing a local\nreference binding changes that binding without redirecting aliases made from its\nprevious value. A write through the reference changes the referent, not the\nbinding. Stored reference leaves retain their captured origins until replacement\nor exposure invalidates that relation. Type or lifetime correspondence alone\ndoes not establish a returned reference's storage origin.\n\nCaller-visible mutation summaries include operand evaluation and callee writes.\nA complete empty summary preserves facts; an unknown summary proves no\nnon-interference. Fact invalidation uses storage footprints, while borrow\nauthorization uses the access route. Neither may-write summarie"
+      ],
+      "revision": "2bc59765844c7b0a23de537e45dd17033459ad11",
+      "blob": "3f0063b497dff2a77ef78b292b1f3315cf7b22d9"
+    },
+    {
+      "contract": "wiki/spec/terminal-psi/structural_access.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/captured_predicates.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/call_values.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits/scalars.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits/scalars/predicates.rs",
+        "omega-rust/psi/compilation/checking/src/value_custody/completed_storage",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/captured_values"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Retain a primitive copied observation as a binding to its exact source at the recorded producer read epoch. The source may remain a reference, but the observed value must be a stable copy and every identity, primitive interpretation, and intervening-write obligation must still hold. Transport the existing whole checked predicates; do not introduce pre-call facts, scalar-only replay, or a new guarantee recognizer.",
+      "passages": [
+        "Before a write or mutating/consuming call invalidates current field facts, a\nlive exact equality between a scalar field and an immutable SSA value\nmay capture the affected scalar occurrences in those facts. The equality must\nmatch the canonical root, complete path and scalar type; it may come from a\nvalidated read, completed store or imported guarantee. Conditional equalities\ncannot supply unconditional substitutions. Correlations keep their whole\nconnective, and any remaining affected storage observation still invalidates\nthe fact. This preserves a saved value's proof without transferring it to a\nnew read. It adds neither an entry-origin claim for private crash checking nor\nan invariant for an unchecked cyclic arrival. Capture replaces facts rather\nthan enumerating combinations of old and new observations."
+      ],
+      "revision": "2bc59765844c7b0a23de537e45dd17033459ad11",
+      "blob": "6c00a87b9e24e32011efe09bc95ac2c2abd2ce88"
+    },
+    {
+      "contract": "wiki/spec/terminal-psi/fact_validity.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/captured_predicates.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/call_values.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits/scalars.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits/scalars/predicates.rs",
+        "omega-rust/psi/compilation/checking/src/value_custody/completed_storage",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/prover/captured_values"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Retain a primitive copied observation as a binding to its exact source at the recorded producer read epoch. The source may remain a reference, but the observed value must be a stable copy and every identity, primitive interpretation, and intervening-write obligation must still hold. Transport the existing whole checked predicates; do not introduce pre-call facts, scalar-only replay, or a new guarantee recognizer.",
+      "passages": [
+        "- A primitive read may introduce an equality between its copied SSA result and\n  an exact reaching stored SSA value. Every actual predecessor must supply that\n  same value; potentially aliasing writes, unknown call effects, missing stores,\n  and unproved cyclic arrivals prevent introduction. The store/read types and\n  dominance must check independently. Subsequent writes cannot change either\n  captured SSA value. This does not introduce symbolic store summaries or a\n  floating-point equality rule.\n\nThe scalar block-predicate rule generalizes range induction to matching-token\nmerges without introducing a union of path facts. Its prerequisites are\nexact predicate formation/scope, exhaustive arrival reconstruction, checked\narrival derivations, simultaneous substitution, and the existing cyclic cuts.\nNo branch-local identity becomes a destination premise. This revision does not\nclaim a proved universal composition theorem.\n\n**Implementation status (re-verified `52d95a9d76f`, linux x86-64):** the cyclic\ncontrols above have checked equivalents on the source path.\n`typed-trees-to-checked-trees`'s `checks/ranges/incoming_guards.rs` meets\nmulti-predecessor joins by intersection \u2014 a fact holds at a join's entry only\nwhen every incoming edge carries it \u2014 and declines loop-header bounds to the\ninvariant pass. `checks/ranges/loop_invariants.rs` (`collect`/`seed` entry\npoints) and `checks/contracts/exits/cyclic_headers.rs` implement the cyclic\nreconvergence rule: a re-entered state's heade"
+      ],
+      "revision": "2bc59765844c7b0a23de537e45dd17033459ad11",
+      "blob": "5159dc678b42b8bb7737f0c60a0a20c966fcd6df"
+    }
+  ],
+  "context_refresh": true,
+  "checks": [
+    {
+      "id": "context-only",
+      "kind": "build",
+      "command": [
+        "cargo",
+        "check",
+        "--locked",
+        "-p",
+        "typed-trees-to-checked-trees"
+      ],
+      "inputs": [
+        "Cargo.lock",
+        "Cargo.toml",
+        "omega-rust",
+        "rust-toolchain.toml",
+        "wiki/spec/language/state_contracts.md",
+        "wiki/spec/terminal-psi/fact_validity.md",
+        "wiki/spec/terminal-psi/structural_access.md"
+      ],
+      "artifacts": [],
+      "closure_reason": "Implementation context only; nine real programs and invalid controls establish acceptance.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 300
+    }
+  ],
+  "assessments": [],
+  "review_instruction": "Judge behavior against these passages; uncovered semantics need an explicit owner decision. Inspect the candidate diff and check evidence; passage identity alone is not semantic compliance.",
+  "prior_context_retained": false
+}
