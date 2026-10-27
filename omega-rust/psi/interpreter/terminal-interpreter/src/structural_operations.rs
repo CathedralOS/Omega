@@ -13,7 +13,7 @@ use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::byte_sequences::storage::ByteSequenceStorage;
 use crate::errors::{TerminalInterpretError, malformed};
-use crate::execution::{OperationFlow, TerminalExecution};
+use crate::execution::{OperationFlow, TerminalExecution, operation_kind};
 use crate::record::storage::{ConstructorStorage, ConstructorValue};
 use crate::runtime_rows::RuntimeRows;
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
@@ -1273,15 +1273,9 @@ impl TerminalExecution<'_> {
         // Type geometry still uses the authored operation's captured selector
         // coordinates: a concrete index alone cannot establish a view's extent.
         let declared = machine.operation(operation.id).ok_or_else(malformed)?;
-        let OperationKind::StoreStructuralField {
-            destination,
-            path: declared_path,
-            field: declared_field,
-            ..
-        } = &declared.kind
-        else {
-            return Err(malformed());
-        };
+        operation_kind!(*declared => StoreStructuralField {
+            destination, path: declared_path, field: declared_field, ..
+        });
         if *destination != root || *declared_field != field || declared_path.len() != path.len() {
             return Err(malformed());
         }

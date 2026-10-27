@@ -452,6 +452,20 @@ macro_rules! dispatch_operations {
     };
 }
 
+/// Destructure the operation kind an executor was handed, or reject the
+/// operation as malformed. Matching is against the borrowed kind, so the
+/// caller's own pattern — renames, `ref` bindings, and its `..` rest row —
+/// stays at the site and keeps every binding mode the body already reads.
+macro_rules! operation_kind {
+    ($operation:expr => $variant:ident $($fields:tt)*) => {
+        let OperationKind::$variant $($fields)* = &$operation.kind else {
+            return Err($crate::errors::malformed());
+        };
+    };
+}
+
+pub(crate) use operation_kind;
+
 impl<'artifact> TerminalExecution<'artifact> {
     /// Start one instance on an already-admitted program: bind this
     /// invocation's inputs and custody, commit no operation. The program is

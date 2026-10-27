@@ -17,7 +17,7 @@
 //! through after calls without manufacturing a second element snapshot.
 
 use crate::errors::{TerminalInterpretError, malformed};
-use crate::execution::{OperationFlow, TerminalExecution};
+use crate::execution::{OperationFlow, TerminalExecution, operation_kind};
 use crate::runtime_rows::RuntimeRows;
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::values::StructuralScalarRuntimeField;
@@ -1292,17 +1292,9 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::ElementViewWrite {
-            destination,
-            index,
-            value,
-            length,
-            path,
-            ..
-        } = &operation.kind
-        else {
-            return Err(malformed());
-        };
+        operation_kind!(operation => ElementViewWrite {
+            destination, index, value, length, path, ..
+        });
         if operation.result != OperationResult::Unit {
             return Err(malformed());
         }
@@ -1357,9 +1349,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::ElementViewLength { source } = &operation.kind else {
-            return Err(malformed());
-        };
+        operation_kind!(operation => ElementViewLength { source });
         let result = operation.result.scalar().ok_or_else(malformed)?;
         let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| malformed())?;
         if result.scalar_type != ScalarType::Integer(integer_type) {
@@ -1433,16 +1423,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::ElementViewRead {
-            source,
-            index,
-            length,
-            path,
-            ..
-        } = &operation.kind
-        else {
-            return Err(malformed());
-        };
+        operation_kind!(operation => ElementViewRead { source, index, length, path, .. });
         // Scalar element reads use this operation; structural element fields
         // resolve through the common structural projection owner.
         let result = operation.result.scalar().ok_or_else(malformed)?;
@@ -1464,16 +1445,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &Operation,
     ) -> Result<(), TerminalInterpretError> {
-        let OperationKind::ElementViewSubslice {
-            source,
-            start,
-            end,
-            length,
-            ..
-        } = &operation.kind
-        else {
-            return Err(malformed());
-        };
+        operation_kind!(operation => ElementViewSubslice { source, start, end, length, .. });
         let result = operation.result.structural().ok_or_else(malformed)?;
         let start = count(start, &self.values)?;
         let end = count(end, &self.values)?;

@@ -4,6 +4,7 @@
 //! FixedIndex paths. Declared result metadata never supplies missing child proof.
 use super::storage::{ConstructorStorage, ConstructorValue};
 use super::*;
+use crate::execution::operation_kind;
 use terminal_psi::OperationKind;
 
 impl TerminalExecution<'_> {
@@ -11,9 +12,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<crate::execution::OperationFlow, TerminalInterpretError> {
-        let OperationKind::EstablishStructuralArray { elements } = &operation.kind else {
-            return Err(malformed());
-        };
+        operation_kind!(operation => EstablishStructuralArray { elements });
         let result = operation.result.structural().ok_or_else(malformed)?;
         let Some(StructuralTypeShape::FixedArray { element, length }) = self
             .program

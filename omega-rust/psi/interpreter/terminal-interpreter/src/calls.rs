@@ -19,7 +19,9 @@ use crate::custody::{
 use crate::effects::results::TerminalEffectResult;
 use crate::effects::{TerminalEffect, TerminalEffectHandler, TerminalEffectRejection};
 use crate::errors::{TerminalInterpretError, malformed};
-use crate::execution::{OperationFlow, SuspendedCall, SuspendedCallResult, TerminalExecution};
+use crate::execution::{
+    OperationFlow, SuspendedCall, SuspendedCallResult, TerminalExecution, operation_kind,
+};
 use crate::results::TerminalExecutionStatus;
 use crate::runtime_rows::RuntimeRows;
 use std::collections::{BTreeMap, BTreeSet};
@@ -683,9 +685,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         handler: &mut impl TerminalEffectHandler,
         pending: &PendingBoundaryCall,
     ) -> Result<Option<TerminalExecutionStatus>, TerminalInterpretError> {
-        let OperationKind::BoundaryCall { boundary, .. } = &operation.kind else {
-            return Err(malformed());
-        };
+        operation_kind!(operation => BoundaryCall { boundary, .. });
         if pending.site.program != self.program.identity.semantic()
             || pending.site.machine != self.current_machine
             || pending.site.block != self.current
@@ -730,14 +730,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         handler: &mut impl TerminalEffectHandler,
         pending: PendingBoundaryCall,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::BoundaryCall {
-            boundary,
-            structural_arguments,
-            ..
-        } = &operation.kind
-        else {
-            return Err(malformed());
-        };
+        operation_kind!(operation => BoundaryCall { boundary, structural_arguments, .. });
         let PendingBoundaryCall {
             arguments: mut boundary_arguments,
             remaining_claims,

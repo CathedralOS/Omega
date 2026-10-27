@@ -5,7 +5,7 @@ use semantic_vocabulary::{IntegerSign, IntegerType, ValueId};
 use terminal_psi::{Operation, OperationKind, StructuralAccess};
 
 use crate::errors::{TerminalInterpretError, malformed};
-use crate::execution::TerminalExecution;
+use crate::execution::{TerminalExecution, operation_kind};
 use crate::values::TerminalStructuralValue;
 
 impl TerminalExecution<'_> {
@@ -16,16 +16,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &Operation,
     ) -> Result<(), TerminalInterpretError> {
-        let OperationKind::ByteSequenceSubslice {
-            source,
-            start,
-            end,
-            length,
-            ..
-        } = &operation.kind
-        else {
-            return Err(malformed());
-        };
+        operation_kind!(operation => ByteSequenceSubslice { source, start, end, length, .. });
         let result = operation.result.structural().ok_or(malformed())?;
         let count_type = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| malformed())?;
         let count = |operand: &ValueId| -> Result<usize, TerminalInterpretError> {
