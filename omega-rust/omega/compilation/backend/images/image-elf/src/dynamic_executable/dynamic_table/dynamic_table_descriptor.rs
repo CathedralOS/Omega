@@ -10,8 +10,6 @@
 //! [System V ABI section header]: https://gabi.xinuos.com/elf/03-sheader.html
 //! [dynamic section]: https://gabi.xinuos.com/elf/08-dynamic.html#dynamic-section
 
-use target::compatibility_fingerprint::Fnv1a;
-
 use super::super::checked::{self, CandidateValidationError};
 use crate::bytes::require_name;
 use crate::dynamic_executable::checked::{checked_product, checked_sum, checked_u32, require};
@@ -311,12 +309,9 @@ fn non_authoritative_descriptor_compatibility_fingerprint(
     payload: &ValidatedElfDynamicTablePayload,
     contents: &ElfDynamicTableSectionDescriptorContents,
 ) -> u64 {
-    let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf-dynamic-table-section-descriptor.v1");
-    hash.bytes(
-        &payload
-            .non_authoritative_payload_compatibility_fingerprint()
-            .to_le_bytes(),
+    let mut hash = checked::stage_fingerprint(
+        b"omega.elf-dynamic-table-section-descriptor.v1",
+        payload.non_authoritative_payload_compatibility_fingerprint(),
     );
     hash.bytes(&contents.section_name_table_seed);
     let row = &contents.descriptor;

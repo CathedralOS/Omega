@@ -16,8 +16,6 @@
 //! [x86-64 psABI]: https://gitlab.com/x86-psABIs/x86-64-ABI
 //! [AArch64 ELF ABI]: https://github.com/ARM-software/abi-aa/blob/main/aaelf64/aaelf64.rst
 
-use target::compatibility_fingerprint::Fnv1a;
-
 use super::super::checked::{self, CandidateValidationError};
 use crate::dynamic_executable::checked::{checked_u32, require};
 use crate::dynamic_executable::import_sections::dynamic_section_descriptors::ValidatedElfDynamicSectionDescriptorPlan;
@@ -581,12 +579,9 @@ fn non_authoritative_linkage_compatibility_fingerprint(
     descriptors: &ValidatedElfDynamicSectionDescriptorPlan,
     contents: &ElfProcedureLinkageRelocationContents,
 ) -> u64 {
-    let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf-procedure-linkage-relocations.v1");
-    hash.bytes(
-        &descriptors
-            .non_authoritative_descriptor_compatibility_fingerprint()
-            .to_le_bytes(),
+    let mut hash = checked::stage_fingerprint(
+        b"omega.elf-procedure-linkage-relocations.v1",
+        descriptors.non_authoritative_descriptor_compatibility_fingerprint(),
     );
     hash.bytes(
         descriptors

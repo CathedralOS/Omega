@@ -468,12 +468,9 @@ fn non_authoritative_payload_roster_compatibility_fingerprint(
     section_headers: &ValidatedElfSectionHeaderTableTemplate,
     contents: &ElfIndexedSectionPayloadContents,
 ) -> u64 {
-    let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf-indexed-section-payloads.v1");
-    hash.bytes(
-        &section_headers
-            .non_authoritative_template_compatibility_fingerprint()
-            .to_le_bytes(),
+    let mut hash = checked::stage_fingerprint(
+        b"omega.elf-indexed-section-payloads.v1",
+        section_headers.non_authoritative_template_compatibility_fingerprint(),
     );
     for row in &contents.rows {
         hash.bytes(&row.index.to_le_bytes());

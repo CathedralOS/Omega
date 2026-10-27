@@ -9,8 +9,6 @@
 //! [`Elf64_Dyn`]: https://gabi.xinuos.com/elf/08-dynamic.html#dynamic-section
 //! [data encoding]: https://gabi.xinuos.com/elf/02-eheader.html#data-encoding
 
-use target::compatibility_fingerprint::Fnv1a;
-
 use super::super::checked::{self, CandidateValidationError};
 use crate::bytes::write_u64;
 use crate::constants::{
@@ -289,12 +287,9 @@ fn non_authoritative_payload_compatibility_fingerprint(
     plan: &ValidatedElfDynamicTagPlan,
     contents: &ElfDynamicTablePayloadContents,
 ) -> u64 {
-    let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf-dynamic-table-payload.v1");
-    hash.bytes(
-        &plan
-            .non_authoritative_tag_compatibility_fingerprint()
-            .to_le_bytes(),
+    let mut hash = checked::stage_fingerprint(
+        b"omega.elf-dynamic-table-payload.v1",
+        plan.non_authoritative_tag_compatibility_fingerprint(),
     );
     hash.bytes(&contents.bytes);
     hash.bytes(&(contents.address_fixups.len() as u64).to_le_bytes());

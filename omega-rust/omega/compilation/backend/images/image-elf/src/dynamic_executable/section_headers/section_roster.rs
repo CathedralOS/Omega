@@ -10,8 +10,6 @@
 //! [section header]: https://gabi.xinuos.com/elf/03-sheader.html#section-header
 //! [`e_shstrndx`]: https://gabi.xinuos.com/elf/02-eheader.html#elf-header
 
-use target::compatibility_fingerprint::Fnv1a;
-
 use super::super::checked::{self, CandidateValidationError};
 use crate::bytes::require_name;
 use crate::constants::SECTION_COUNT;
@@ -568,12 +566,9 @@ fn non_authoritative_roster_compatibility_fingerprint(
     section_names: &ValidatedElfSectionNameTablePlan,
     contents: &ElfDynamicSectionRosterContents,
 ) -> u64 {
-    let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf-dynamic-section-roster.v2");
-    hash.bytes(
-        &section_names
-            .non_authoritative_table_compatibility_fingerprint()
-            .to_le_bytes(),
+    let mut hash = checked::stage_fingerprint(
+        b"omega.elf-dynamic-section-roster.v2",
+        section_names.non_authoritative_table_compatibility_fingerprint(),
     );
     hash.bytes(&contents.section_name_table_index.to_le_bytes());
     hash.bytes(&(contents.rows.len() as u64).to_le_bytes());

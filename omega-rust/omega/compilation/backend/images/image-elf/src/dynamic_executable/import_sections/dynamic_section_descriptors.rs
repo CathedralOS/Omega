@@ -13,8 +13,6 @@
 //! [GNU section types]: https://refspecs.linuxfoundation.org/LSB_5.0.0/LSB-Core-generic/LSB-Core-generic/sections.html
 //! [original GNU implementation]: https://sourceware.org/pipermail/binutils/2006-July/048074.html
 
-use target::compatibility_fingerprint::Fnv1a;
-
 use super::super::checked::{self, CandidateValidationError};
 use crate::bytes::{name_at, require_name};
 use crate::dynamic_executable::checked::{read_u32, require};
@@ -540,12 +538,9 @@ fn non_authoritative_descriptor_compatibility_fingerprint(
     payloads: &ValidatedElfDynamicSectionPayloads,
     contents: &ElfDynamicSectionDescriptorContents,
 ) -> u64 {
-    let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf-dynamic-section-descriptors.v2");
-    hash.bytes(
-        &payloads
-            .non_authoritative_payload_compatibility_fingerprint()
-            .to_le_bytes(),
+    let mut hash = checked::stage_fingerprint(
+        b"omega.elf-dynamic-section-descriptors.v2",
+        payloads.non_authoritative_payload_compatibility_fingerprint(),
     );
     hash.bytes(&contents.section_name_table_seed);
     for row in &contents.descriptors {

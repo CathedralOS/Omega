@@ -15,6 +15,7 @@ use diagnostics::Diagnostic;
 use crate::constants::{
     ELF64_DYNAMIC_ROW_SIZE, ELF64_DYNAMIC_VALUE_OFFSET, ELF64_SECTION_HEADER_SIZE,
 };
+use target::compatibility_fingerprint::Fnv1a;
 
 pub(super) fn require(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
     condition
@@ -127,6 +128,17 @@ pub(super) fn field_mut<'a>(
     bytes
         .get_mut(offset..end)
         .ok_or_else(|| Diagnostic::error(format!("{context} exceeds its storage")))
+}
+
+/// Start one stage's non-authoritative compatibility fingerprint: the stage's
+/// own domain tag, then the exact digest of the carrier it consumed. Every
+/// staged fingerprint in this lane begins that way, so the seed rule is stated
+/// once instead of in each stage's own encoder.
+pub(super) fn stage_fingerprint(tag: &[u8], upstream: u64) -> Fnv1a {
+    let mut hash = Fnv1a::new();
+    hash.bytes(tag);
+    hash.bytes(&upstream.to_le_bytes());
+    hash
 }
 
 pub(super) fn checked_sum_u64(

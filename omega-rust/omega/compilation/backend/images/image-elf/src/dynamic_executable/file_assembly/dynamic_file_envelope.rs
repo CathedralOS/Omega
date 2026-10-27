@@ -11,8 +11,6 @@
 //! copy any dynamic payload into a file image, mutate the retained `FinalImage`,
 //! grant loader, publication, or runnable-image authority.
 
-use target::compatibility_fingerprint::Fnv1a;
-
 use super::super::checked::{self, CandidateValidationError};
 use crate::bytes::{write_u16, write_u32, write_u64};
 use crate::constants::ELF64_SECTION_HEADER_SIZE;
@@ -523,12 +521,9 @@ fn non_authoritative_envelope_compatibility_fingerprint(
     resolved: &ValidatedElfResolvedDynamicTable,
     contents: &ElfDynamicFileEnvelopeContents,
 ) -> u64 {
-    let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf.dynamic-file-envelope.v1");
-    hash.bytes(
-        &resolved
-            .non_authoritative_resolved_compatibility_fingerprint()
-            .to_le_bytes(),
+    let mut hash = checked::stage_fingerprint(
+        b"omega.elf.dynamic-file-envelope.v1",
+        resolved.non_authoritative_resolved_compatibility_fingerprint(),
     );
     hash.bytes(&contents.header_prefix_bytes);
     hash.bytes(&contents.entry_address.to_le_bytes());

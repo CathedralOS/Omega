@@ -7,8 +7,6 @@
 //! absolute file offset or virtual address, resolve a section-header fixup,
 //! emit a program header, or mutate an image.
 
-use target::compatibility_fingerprint::Fnv1a;
-
 use super::super::checked::{self, CandidateValidationError};
 use crate::dynamic_executable::checked::require;
 use crate::dynamic_executable::dynamic_table::dynamic_table_descriptor::ValidatedElfDynamicTableSectionDescriptorPlan;
@@ -359,12 +357,9 @@ fn non_authoritative_layout_compatibility_fingerprint(
     payloads: &ValidatedElfIndexedSectionPayloadPlan,
     contents: &ElfRelativeSectionPayloadLayoutContents,
 ) -> u64 {
-    let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf-relative-section-payload-layout.v1");
-    hash.bytes(
-        &payloads
-            .non_authoritative_payload_roster_compatibility_fingerprint()
-            .to_le_bytes(),
+    let mut hash = checked::stage_fingerprint(
+        b"omega.elf-relative-section-payload-layout.v1",
+        payloads.non_authoritative_payload_roster_compatibility_fingerprint(),
     );
     for row in &contents.rows {
         hash.bytes(&row.index.to_le_bytes());

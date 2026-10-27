@@ -720,12 +720,9 @@ fn non_authoritative_tag_compatibility_fingerprint(
     descriptors: &ValidatedElfProcedureLinkageSectionDescriptorPlan,
     contents: &ElfDynamicTagContents,
 ) -> u64 {
-    let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf-dynamic-tags.v2");
-    hash.bytes(
-        &descriptors
-            .non_authoritative_descriptor_compatibility_fingerprint()
-            .to_le_bytes(),
+    let mut hash = checked::stage_fingerprint(
+        b"omega.elf-dynamic-tags.v2",
+        descriptors.non_authoritative_descriptor_compatibility_fingerprint(),
     );
     hash.bytes(&(contents.rows.len() as u64).to_le_bytes());
     for row in &contents.rows {

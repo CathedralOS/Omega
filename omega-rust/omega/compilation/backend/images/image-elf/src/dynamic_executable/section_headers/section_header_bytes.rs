@@ -9,8 +9,6 @@
 //! [`Elf64_Shdr`]: https://gabi.xinuos.com/elf/03-sheader.html#section-header
 //! [data encoding]: https://gabi.xinuos.com/elf/02-eheader.html#data-encoding
 
-use target::compatibility_fingerprint::Fnv1a;
-
 use super::super::checked::{self, CandidateValidationError};
 use crate::bytes::{write_u32, write_u64};
 use crate::constants::{ELF64_SECTION_HEADER_SIZE, SECTION_COUNT, SHF_ALLOC};
@@ -385,12 +383,9 @@ fn non_authoritative_template_compatibility_fingerprint(
     roster: &ValidatedElfDynamicSectionRoster,
     contents: &ElfSectionHeaderTableTemplateContents,
 ) -> u64 {
-    let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf-section-header-table-template.v1");
-    hash.bytes(
-        &roster
-            .non_authoritative_roster_compatibility_fingerprint()
-            .to_le_bytes(),
+    let mut hash = checked::stage_fingerprint(
+        b"omega.elf-section-header-table-template.v1",
+        roster.non_authoritative_roster_compatibility_fingerprint(),
     );
     hash.bytes(&contents.bytes);
     hash.bytes(&(contents.placement_fixups.len() as u64).to_le_bytes());

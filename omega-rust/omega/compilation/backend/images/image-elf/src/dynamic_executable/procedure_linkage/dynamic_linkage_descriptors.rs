@@ -14,8 +14,6 @@
 //! [x86-64 psABI]: https://gitlab.com/x86-psABIs/x86-64-ABI/-/blob/master/x86-64-ABI/dl.tex
 //! [AArch64 System V ABI]: https://github.com/ARM-software/abi-aa/blob/main/sysvabi64/sysvabi64.rst#procedure-linkage-table
 
-use target::compatibility_fingerprint::Fnv1a;
-
 use super::super::checked::{self, CandidateValidationError};
 use crate::bytes::require_name;
 use crate::dynamic_executable::checked::{checked_sum, checked_u32, require};
@@ -489,12 +487,9 @@ fn non_authoritative_descriptor_compatibility_fingerprint(
     templates: &ValidatedElfProcedureLinkageTemplatePlan,
     contents: &ElfProcedureLinkageSectionDescriptorContents,
 ) -> u64 {
-    let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf-procedure-linkage-section-descriptors.v1");
-    hash.bytes(
-        &templates
-            .non_authoritative_template_compatibility_fingerprint()
-            .to_le_bytes(),
+    let mut hash = checked::stage_fingerprint(
+        b"omega.elf-procedure-linkage-section-descriptors.v1",
+        templates.non_authoritative_template_compatibility_fingerprint(),
     );
     hash.bytes(&contents.section_name_table_seed);
     hash.bytes(&(contents.descriptors.len() as u64).to_le_bytes());
