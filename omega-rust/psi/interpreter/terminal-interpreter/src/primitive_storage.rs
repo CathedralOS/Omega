@@ -1691,15 +1691,13 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let identity = self.local_structural_identities.allocate()?;
-        let view = TerminalStructuralValue {
-            opaque_identity: identity,
-            structural_type: result.structural_type,
-            // Canonical admission authenticated these memberships against the
-            // exact initializing SSA value; storage retains that same theory.
-            qualifications: result.qualifications.clone(),
-            projected_qualifications: Vec::new(),
-            path: Vec::new(),
-        };
+        // Canonical admission authenticated these memberships against the
+        // exact initializing SSA value; storage retains that same theory.
+        let view = TerminalStructuralValue::minted(
+            identity,
+            result.structural_type,
+            result.qualifications.clone(),
+        );
         self.structural_values.insert(result.place, view.clone())?;
         self.structural_primitive_storage
             .insert(StructuralRuntimePlace::from(&view), scalar)?;

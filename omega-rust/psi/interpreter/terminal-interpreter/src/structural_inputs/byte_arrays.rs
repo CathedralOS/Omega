@@ -227,15 +227,12 @@ impl TerminalExecution<'_> {
             let root = match local_array_roots.get(&place) {
                 Some(root) => root.clone(),
                 None => {
-                    let root = TerminalStructuralValue {
-                        opaque_identity: self
-                            .local_structural_identities
+                    let root = TerminalStructuralValue::minted(
+                        self.local_structural_identities
                             .allocate_staged(identity_cursor)?,
-                        structural_type: array.structural_type,
-                        qualifications: array.qualifications.clone(),
-                        projected_qualifications: Vec::new(),
-                        path: Vec::new(),
-                    };
+                        array.structural_type,
+                        array.qualifications.clone(),
+                    );
                     local_array_roots.insert(place, root.clone())?;
                     root
                 }
@@ -396,13 +393,7 @@ impl TerminalExecution<'_> {
                     u8::try_from(byte).map_err(|_| malformed())?;
             }
             return Ok((
-                TerminalStructuralValue {
-                    opaque_identity: source.place.get(),
-                    structural_type: view_type,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                    path: Vec::new(),
-                },
+                TerminalStructuralValue::minted(source.place.get(), view_type, Vec::new()),
                 ByteSequenceBinding::Immutable(ByteSequenceView::new(bytes)),
             ));
         }

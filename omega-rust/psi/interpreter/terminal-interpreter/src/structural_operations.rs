@@ -181,13 +181,11 @@ impl TerminalExecution<'_> {
         if roster.len() != fields.len() {
             return Err(malformed());
         }
-        let mut value = TerminalStructuralValue {
-            opaque_identity: self.local_structural_identities.allocate()?,
-            structural_type: result.structural_type,
-            qualifications: result.qualifications.clone(),
-            projected_qualifications: Vec::new(),
-            path: Vec::new(),
-        };
+        let mut value = TerminalStructuralValue::minted(
+            self.local_structural_identities.allocate()?,
+            result.structural_type,
+            result.qualifications.clone(),
+        );
         let member_root = StructuralRuntimePlace::from(&value);
         let mut storage = ConstructorStorage::new(self.account.as_ref());
         let mut consumed = Vec::new();
@@ -352,13 +350,7 @@ impl TerminalExecution<'_> {
             }
             self.structural_values.insert(
                 destination,
-                TerminalStructuralValue {
-                    opaque_identity: destination.get(),
-                    structural_type: *structural_type,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                    path: Vec::new(),
-                },
+                TerminalStructuralValue::minted(destination.get(), *structural_type, Vec::new()),
             )?;
         }
         Ok(OperationFlow::Advance)
@@ -585,13 +577,11 @@ impl TerminalExecution<'_> {
         }
         self.structural_values.insert(
             result.place,
-            TerminalStructuralValue {
-                opaque_identity: self.local_structural_identities.allocate()?,
-                structural_type: result.structural_type,
-                qualifications: result.qualifications.clone(),
-                projected_qualifications: Vec::new(),
-                path: Vec::new(),
-            },
+            TerminalStructuralValue::minted(
+                self.local_structural_identities.allocate()?,
+                result.structural_type,
+                result.qualifications.clone(),
+            ),
         )?;
         self.track_affine_result(result);
         Ok(OperationFlow::Advance)
@@ -620,13 +610,7 @@ impl TerminalExecution<'_> {
         };
         self.structural_values.insert(
             destination,
-            TerminalStructuralValue {
-                opaque_identity: destination.get(),
-                structural_type: *structural_type,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-                path: Vec::new(),
-            },
+            TerminalStructuralValue::minted(destination.get(), *structural_type, Vec::new()),
         )?;
         self.live_affine_frontier.insert(StructuralAffineDiscard {
             place: destination,
@@ -1500,13 +1484,11 @@ impl TerminalExecution<'_> {
             // Snapshot the live byte value before publishing its independent
             // identity. Later indexed writes detach the immutable backing.
             let bytes = bytes.clone();
-            let copied = TerminalStructuralValue {
-                opaque_identity: self.local_structural_identities.allocate()?,
-                structural_type: result.structural_type,
-                qualifications: result.qualifications.clone(),
-                projected_qualifications: Vec::new(),
-                path: Vec::new(),
-            };
+            let copied = TerminalStructuralValue::minted(
+                self.local_structural_identities.allocate()?,
+                result.structural_type,
+                result.qualifications.clone(),
+            );
             self.byte_sequence_values.insert(
                 result.place,
                 crate::byte_sequences::binding::ByteSequenceBinding::Immutable(
@@ -1921,13 +1903,11 @@ impl TerminalExecution<'_> {
             };
             leaves.push((member.field, scalar));
         }
-        let copied = TerminalStructuralValue {
-            opaque_identity: self.local_structural_identities.allocate()?,
-            structural_type: result.structural_type,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-            path: Vec::new(),
-        };
+        let copied = TerminalStructuralValue::minted(
+            self.local_structural_identities.allocate()?,
+            result.structural_type,
+            Vec::new(),
+        );
         let parent = StructuralRuntimePlace::from(&copied);
         for (field, scalar) in leaves {
             self.structural_scalar_fields.insert(

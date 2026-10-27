@@ -31,15 +31,12 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let mut cursor = self.local_structural_identities.cursor();
-        let mut value = TerminalStructuralValue {
-            opaque_identity: self
-                .local_structural_identities
+        let mut value = TerminalStructuralValue::minted(
+            self.local_structural_identities
                 .allocate_staged(&mut cursor)?,
-            structural_type: result.structural_type,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-            path: Vec::new(),
-        };
+            result.structural_type,
+            Vec::new(),
+        );
         let mut staged = ConstructorStorage::new(self.account.as_ref());
         let mut frontier = self.live_affine_frontier.clone();
         let mut consumed = Vec::new();
