@@ -324,10 +324,34 @@ pub(super) fn apply_named_operator_call_effects(
     // independent content admission, which requires a completed receipt.
     if ordinary_call_ordinal.is_none() {
         let selected = *build.operators.named_uses.get(named_use);
-        let Some(return_type) = validation::expression_type_reference_for_origin(
+        let checked_trees::CheckedValueOrigin::StateStatement {
+            machine_symbol,
+            state_symbol,
+            statement_index: selected_statement,
+            ..
+        } = selected.origin
+        else {
+            return;
+        };
+        if machine_symbol != caller_machine_symbol
+            || state_symbol != caller_state_symbol
+            || selected_statement != statement_index
+        {
+            return;
+        }
+        let Some((machine, state)) =
+            validation::machine_state_by_symbols(program, machine_symbol, state_symbol)
+        else {
+            return;
+        };
+        // This is the occurrence's applied source result, never the receiver
+        // query's fallback to the operator's unapplied declaration type. An
+        // unavailable application must not reintroduce foreign generic binders.
+        let Some(return_type) = validation::expression_result_type_reference(
             program,
+            machine,
+            state,
             selected.expression,
-            selected.origin,
         ) else {
             return;
         };
