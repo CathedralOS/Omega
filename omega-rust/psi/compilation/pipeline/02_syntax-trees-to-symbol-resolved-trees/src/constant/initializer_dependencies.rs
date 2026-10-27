@@ -1113,22 +1113,32 @@ impl<'program> Collector<'program> {
             return Err("constant dependency has stale signature clauses".to_owned());
         }
         for clause in clauses {
-            let facts = program.proof_facts(clause.facts);
-            if facts.len() != clause.facts.len() {
-                return Err("constant dependency has stale contract facts".to_owned());
-            }
-            for fact in facts {
-                match fact {
-                    symbol_resolved_trees::domain::ProofFact::Expression(expression) => {
-                        self.expressions.push(*expression)
-                    }
-                    symbol_resolved_trees::domain::ProofFact::Membership(membership) => {
-                        self.expressions.push(membership.value);
-                        for reference in program.child_type_references(membership.domain_arguments)
-                        {
-                            self.types.push(reference);
-                        }
-                    }
+            self.predicate_facts(clause.facts)?;
+        }
+        Ok(())
+    }
+
+    /// Type/default-domain and invocation predicates share the same exact
+    /// dependency roster. Readiness selects their bodies; it proves no clause.
+    fn predicate_facts(
+        &mut self,
+        span: arena::HandleSpan<symbol_resolved_trees::domain::ProofFact>,
+    ) -> Result<(), String> {
+        let facts = self.program.proof_facts(span);
+        if facts.len() != span.len() {
+            return Err("constant dependency has stale predicate facts".to_owned());
+        }
+        for fact in facts {
+            match fact {
+                symbol_resolved_trees::domain::ProofFact::Expression(expression) => {
+                    self.expressions.push(*expression);
+                }
+                symbol_resolved_trees::domain::ProofFact::Membership(membership) => {
+                    self.expressions.push(membership.value);
+                    self.types.extend(
+                        self.program
+                            .child_type_references(membership.domain_arguments),
+                    );
                 }
             }
         }

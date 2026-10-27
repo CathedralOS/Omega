@@ -71,11 +71,22 @@ pub(crate) fn retain(
     {
         return Err(error(reference, "lost its exact authored expression"));
     }
-    let value = super::declaration_values::evaluated_declaration_value(
-        syntax,
-        definition,
-        lowerer.constant_selection.as_ref(),
-    )
+    let value = if lowerer.const_resolution_mode
+        == crate::resolution::lowerer::ConstResolutionMode::Complete
+    {
+        super::declaration_values::evaluated_declaration_value(
+            syntax,
+            definition,
+            lowerer.constant_selection.as_ref(),
+        )
+    } else {
+        crate::preparation::generic_data::canonicalize_pending_initializer_payload(
+            syntax,
+            definition,
+            lowerer.constant_selection.as_ref(),
+        )
+        .map(|value| value.value.encoding.into())
+    }
     .map_err(|_| error(reference, "materialized value is not canonical"))?;
     if value != receipt.result_value {
         return Err(error(

@@ -341,11 +341,13 @@ pub(crate) fn evaluate(
         for ordinal in &ready {
             if declarations[*ordinal].leaves.is_empty() {
                 let value = preparation
-                    .canonicalize_initializer_value(&syntax, &declarations[*ordinal].definition)
+                    .canonicalize_initializer_payload(&syntax, &declarations[*ordinal].definition)
                     .map_err(|reason| {
                         failure(declarations[*ordinal].definition.name.source_span(), reason)
                     })?;
-                declarations[*ordinal].evaluated_value = Some(value.encoding.into());
+                // This payload remains private until prove_ready checks its
+                // complete destination and stamps the exact qualification.
+                declarations[*ordinal].evaluated_value = Some(value.value.encoding.into());
             }
         }
         ready.retain(|ordinal| !declarations[*ordinal].leaves.is_empty());
@@ -654,10 +656,11 @@ pub(crate) fn evaluate(
                 let mut materialized_definition = definition.clone();
                 materialized_definition.value = value;
                 preparation
-                    .canonicalize_initializer_value(&syntax, &materialized_definition)
+                    .canonicalize_initializer_payload(&syntax, &materialized_definition)
                     .map_err(|reason| {
                         failure(syntax.expressions.source_span(authored_expression), reason)
                     })?
+                    .value
                     .encoding
                     .into()
             };

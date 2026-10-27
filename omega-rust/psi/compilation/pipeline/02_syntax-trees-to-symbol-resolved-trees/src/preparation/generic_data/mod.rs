@@ -63,8 +63,9 @@ pub(crate) use const_evaluation::{
     prove_const_literal_predicates,
 };
 pub(in crate::preparation::generic_data) use const_evaluation::{
-    EvaluatedConst, canonicalize_closed_domain_indices, canonicalize_const_definition,
-    canonicalize_selected_declaration_value, canonicalize_selected_index_expression,
+    ConstPredicateAdmission, EvaluatedConst, canonicalize_closed_domain_indices,
+    canonicalize_const_definition, canonicalize_selected_declaration_value,
+    canonicalize_selected_declaration_value_with_admission, canonicalize_selected_index_expression,
     capture_machine_runtime_template_names, checked_fact_integer,
     collect_data_type_reference_positions, collect_machine_type_reference_positions,
     const_integer_in_envelope, const_integer_type, domain_index_parameters,
@@ -342,6 +343,50 @@ fn unique_domain_index_parameters<'syntax>(
     domain_index_parameters(syntax, definition)
 }
 
+/// Whether this exact selected destination carries declaration predicates.
+/// This schedules the ordinary checked result judgment; it proves nothing.
+pub(crate) fn const_destination_requires_proof(
+    syntax: &SyntaxTrees,
+    definition: &ConstDefinition,
+    selection: Option<&declaration_selection::ConstantSelection>,
+) -> bool {
+    const_evaluation::const_type_requires_declaration_proof(
+        syntax,
+        definition.type_reference,
+        &mut Vec::new(),
+        selection,
+    )
+}
+
+pub(crate) fn canonicalize_pending_initializer_payload(
+    syntax: &SyntaxTrees,
+    definition: &ConstDefinition,
+    selection: Option<&declaration_selection::ConstantSelection>,
+) -> Result<crate::resolution::ConstInitializerPayload, String> {
+    let mut payload = definition.clone();
+    while let TypeReferenceNode::Constrained { base_type, .. } = syntax
+        .type_references
+        .type_reference(payload.type_reference)
+    {
+        payload.type_reference = *base_type;
+    }
+    let value = canonicalize_selected_declaration_value_with_admission(
+        syntax,
+        &payload,
+        selection,
+        ConstPredicateAdmission::PendingDestination,
+    )?;
+    Ok(crate::resolution::ConstInitializerPayload {
+        value,
+        pending_destination: const_destination_requires_proof(syntax, definition, selection)
+            .then_some(crate::resolution::ConstDestinationObligation {
+                declaration: definition.name.source_span(),
+                destination: definition.type_reference,
+                initializer: definition.value,
+            }),
+    })
+}
+
 /// Canonicalize one source const declaration against its own declared type.
 ///
 /// This is the narrow handoff used by declaration/API retention. The returned
@@ -398,7 +443,23 @@ pub(crate) fn canonicalize_selected_declared_const_definition(
             payload.type_reference = *base_type;
         }
     }
-    canonicalize_selected_declaration_value(syntax, &payload, selection)
+    if definition
+        .qualification
+        .as_ref()
+        .is_some_and(|qualification| {
+            qualification.destination == definition.type_reference
+                && qualification.initializer == definition.value
+        })
+    {
+        canonicalize_selected_declaration_value_with_admission(
+            syntax,
+            &payload,
+            selection,
+            ConstPredicateAdmission::CheckedDestination,
+        )
+    } else {
+        canonicalize_selected_declaration_value(syntax, &payload, selection)
+    }
 }
 
 /// Find `Base<Args..>` spellings in FIELD type position where `Base` is a

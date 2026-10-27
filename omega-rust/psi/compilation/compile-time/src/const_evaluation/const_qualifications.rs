@@ -15,7 +15,7 @@ use source::SourceMap;
 use symbols::SourceScopedTopLevelBinding;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{ConstQualification, Item};
-use syntax_trees::types::{TypeConstraintNode, TypeReferenceNode};
+use syntax_trees::types::TypeReferenceNode;
 
 pub(crate) fn prove_ready(
     mut syntax: SyntaxTrees,
@@ -29,19 +29,10 @@ pub(crate) fn prove_ready(
             let Item::Const(definition) = syntax.root_item(*item) else {
                 return None;
             };
-            let TypeReferenceNode::Constrained { constraints, .. } = syntax
-                .type_references
-                .type_reference(definition.type_reference)
-            else {
-                return None;
-            };
-            (definition.qualification.is_none()
-                && syntax
-                    .type_references
-                    .constraints(*constraints)
-                    .iter()
-                    .any(|constraint| matches!(constraint, TypeConstraintNode::Domain(_))))
-            .then_some((*item, definition.clone()))
+            definition
+                .qualification
+                .is_none()
+                .then_some((*item, definition.clone()))
         })
         .collect::<Vec<_>>();
     if candidates.is_empty() {
@@ -63,10 +54,7 @@ pub(crate) fn prove_ready(
         // The initializer owner distinguishes completed case names from pending
         // const references and computations. Syntactic `Name` is not readiness.
         if selection.pending_leaves(&syntax, &definition)?.is_empty()
-            && selection
-                .trees()
-                .const_declaration_at_source_span(definition.name.source_span())
-                .is_some_and(|declaration| declaration.evaluated_value.is_some())
+            && selection.initializer_requires_destination_proof(&syntax, &definition)
         {
             pending.push((item, definition));
         }

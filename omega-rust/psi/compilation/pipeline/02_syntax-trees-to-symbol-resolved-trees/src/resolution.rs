@@ -25,7 +25,8 @@ pub use body_completion::{
     DeferredResolvedFrontier, RebasedResolvedBodyCompletion, ResolvedBodyCompletion,
 };
 pub use continuations::{
-    ConstInitializerSelection, RebasedSeededSymbolResolvedTrees, SeededSymbolResolvedTrees,
+    ConstDestinationObligation, ConstInitializerPayload, ConstInitializerSelection,
+    RebasedSeededSymbolResolvedTrees, SeededSymbolResolvedTrees,
 };
 use diagnostics::Diagnostic;
 use lowerer::{ConstResolutionMode, Lowerer};

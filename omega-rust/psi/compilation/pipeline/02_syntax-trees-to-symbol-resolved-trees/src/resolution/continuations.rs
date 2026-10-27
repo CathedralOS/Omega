@@ -22,6 +22,19 @@ pub struct ConstInitializerSelection {
     pub(crate) selection: crate::preparation::declaration_selection::ConstantSelection<'static>,
 }
 
+/// Encoding for private initializer preparation. Its bytes carry no domain
+/// evidence; the exact pending destination must still pass ordinary checking.
+pub struct ConstInitializerPayload {
+    pub value: language_semantics::const_value::CanonicalConstValue,
+    pub pending_destination: Option<ConstDestinationObligation>,
+}
+
+pub struct ConstDestinationObligation {
+    pub declaration: source::SourceSpan,
+    pub destination: syntax_trees::types::TypeReferenceHandle,
+    pub initializer: syntax_trees::expression::ExpressionHandle,
+}
+
 impl ConstInitializerSelection {
     pub fn initializer_expression_dependencies(
         &self,
@@ -166,22 +179,26 @@ impl ConstInitializerSelection {
     /// Encode completed initializer payloads, without asserting the destination's
     /// qualification. The compile-time owner checks that separate result judgment
     /// before returning the authoritative declaration to normal resolution.
-    pub fn canonicalize_initializer_value(
+    pub fn canonicalize_initializer_payload(
         &self,
         syntax: &SyntaxTrees,
         definition: &syntax_trees::item::ConstDefinition,
-    ) -> Result<language_semantics::const_value::CanonicalConstValue, String> {
-        let mut payload = definition.clone();
-        while let syntax_trees::types::TypeReferenceNode::Constrained { base_type, .. } = syntax
-            .type_references
-            .type_reference(payload.type_reference)
-        {
-            payload.type_reference = *base_type;
-        }
-        payload.qualification = None;
-        crate::preparation::generic_data::canonicalize_selected_declared_const_definition(
+    ) -> Result<ConstInitializerPayload, String> {
+        crate::preparation::generic_data::canonicalize_pending_initializer_payload(
             syntax,
-            &payload,
+            definition,
+            Some(&self.selection),
+        )
+    }
+
+    pub fn initializer_requires_destination_proof(
+        &self,
+        syntax: &SyntaxTrees,
+        definition: &syntax_trees::item::ConstDefinition,
+    ) -> bool {
+        crate::preparation::generic_data::const_destination_requires_proof(
+            syntax,
+            definition,
             Some(&self.selection),
         )
     }

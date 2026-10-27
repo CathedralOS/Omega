@@ -779,6 +779,16 @@ pub(in crate::preparation::generic_data) fn validate_const_index_type(
     )
 }
 
+/// Payload encoding and destination establishment are different judgments.
+/// Only the compile-time owner may keep a pending payload private or consume
+/// an exact checked destination receipt. Neither encoding mode proves a fact.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(in crate::preparation::generic_data) enum ConstPredicateAdmission {
+    ProveSyntax,
+    PendingDestination,
+    CheckedDestination,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ConstValuePurpose {
     Declaration,
@@ -807,6 +817,20 @@ pub(in crate::preparation::generic_data) fn canonicalize_selected_declaration_va
     definition: &ConstDefinition,
     selection: Option<&ConstantSelection>,
 ) -> Result<CanonicalConstValue, String> {
+    canonicalize_selected_declaration_value_with_admission(
+        syntax,
+        definition,
+        selection,
+        ConstPredicateAdmission::ProveSyntax,
+    )
+}
+
+pub(in crate::preparation::generic_data) fn canonicalize_selected_declaration_value_with_admission(
+    syntax: &SyntaxTrees,
+    definition: &ConstDefinition,
+    selection: Option<&ConstantSelection>,
+    admission: ConstPredicateAdmission,
+) -> Result<CanonicalConstValue, String> {
     // Materializable declaration values and structural static indices are
     // different judgments. Determined floats and proved data predicates permit
     // ordinary declarations, while index requests retain their stronger fences.
@@ -819,12 +843,13 @@ pub(in crate::preparation::generic_data) fn canonicalize_selected_declaration_va
         &substitution,
         ConstValuePurpose::Declaration,
     )?;
-    let node = canonicalize_const_expression(
+    let node = canonicalize_const_expression_with_admission(
         syntax,
         definition.type_reference,
         definition.value,
         selection,
         &substitution,
+        admission,
     )?;
     canonical_const_result(syntax, definition.type_reference, node, selection)
 }
@@ -1138,6 +1163,24 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression(
     selection: Option<&ConstantSelection>,
     substitution: &GenericApplicationSubstitution,
 ) -> Result<CanonicalConstNode, String> {
+    canonicalize_const_expression_with_admission(
+        syntax,
+        expected_type,
+        expression,
+        selection,
+        substitution,
+        ConstPredicateAdmission::ProveSyntax,
+    )
+}
+
+pub(in crate::preparation::generic_data) fn canonicalize_const_expression_with_admission(
+    syntax: &SyntaxTrees,
+    expected_type: TypeReferenceHandle,
+    expression: ExpressionHandle,
+    selection: Option<&ConstantSelection>,
+    substitution: &GenericApplicationSubstitution,
+    admission: ConstPredicateAdmission,
+) -> Result<CanonicalConstNode, String> {
     // A carrier spelled as a bare parameter reselects the enclosing
     // application's already-closed argument handle.
     if let Some(name) = syntax
@@ -1147,12 +1190,13 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression(
         .as_named()
         && let Some(argument) = substitution.get(name.as_str(syntax))
     {
-        return canonicalize_const_expression(
+        return canonicalize_const_expression_with_admission(
             syntax,
             *argument,
             expression,
             selection,
             &GenericApplicationSubstitution::new(),
+            admission,
         );
     }
     // A rewritten `Named` instance spelling canonicalizes through its
@@ -1161,30 +1205,40 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression(
         .type_references
         .generic_application_origin(expected_type);
     if origin.is_valid() && origin != expected_type {
-        return canonicalize_const_expression(syntax, origin, expression, selection, substitution);
+        return canonicalize_const_expression_with_admission(
+            syntax,
+            origin,
+            expression,
+            selection,
+            substitution,
+            admission,
+        );
     }
     match syntax.tables.type_references.type_reference(expected_type) {
         TypeReferenceNode::Constrained {
             base_type,
             constraints,
         } => {
-            let node = canonicalize_const_expression(
+            let node = canonicalize_const_expression_with_admission(
                 syntax,
                 *base_type,
                 expression,
                 selection,
                 substitution,
+                admission,
             )?;
             // A leaf landing under `in <domain>` owes the declaration-site
             // domain discharge the declaration's own constrained carrier gets:
             // nested positions are the construction-site parallel of the
             // runtime field-domain gate.
-            crate::preparation::generic_data::prove_const_leaf_domain_constraints(
-                syntax,
-                syntax.tables.type_references.constraints(*constraints),
-                &node,
-                selection,
-            )?;
+            if admission == ConstPredicateAdmission::ProveSyntax {
+                crate::preparation::generic_data::prove_const_leaf_domain_constraints(
+                    syntax,
+                    syntax.tables.type_references.constraints(*constraints),
+                    &node,
+                    selection,
+                )?;
+            }
             Ok(node)
         }
         TypeReferenceNode::Named(type_name)
@@ -1263,9 +1317,9 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression(
             };
             Ok(CanonicalConstNode::Float { format, bits })
         }
-        TypeReferenceNode::Named(type_name) => {
-            canonicalize_data_const_expression(syntax, type_name, expression, selection)
-        }
+        TypeReferenceNode::Named(type_name) => canonicalize_data_const_expression_with_admission(
+            syntax, type_name, expression, selection, admission,
+        ),
         TypeReferenceNode::Generic {
             base_name,
             lifetime_arguments,
@@ -1280,13 +1334,14 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression(
                 // A synthesized instance's lookup spelling already selects the
                 // fully substituted declaration.
                 let definition = selected_synthesized_instance(syntax, base_name)?;
-                return canonicalize_selected_data_const_expression(
+                return canonicalize_selected_data_const_expression_with_admission(
                     syntax,
                     definition,
                     definition.name.as_str(syntax),
                     expression,
                     selection,
                     &GenericApplicationSubstitution::new(),
+                    admission,
                 );
             }
             let definition = selected_data(syntax, base_name, selection)?;
@@ -1320,22 +1375,24 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression(
             if let Some(instance) =
                 synthesized_instance(syntax, selection, definition, &resolved_arguments)
             {
-                return canonicalize_selected_data_const_expression(
+                return canonicalize_selected_data_const_expression_with_admission(
                     syntax,
                     instance,
                     &label,
                     expression,
                     selection,
                     &GenericApplicationSubstitution::new(),
+                    admission,
                 );
             }
-            canonicalize_selected_data_const_expression(
+            canonicalize_selected_data_const_expression_with_admission(
                 syntax,
                 definition,
                 &label,
                 expression,
                 selection,
                 &next_substitution,
+                admission,
             )
         }
         TypeReferenceNode::FixedArray {
@@ -1359,12 +1416,13 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression(
             let values = values
                 .iter()
                 .map(|value| {
-                    canonicalize_const_expression(
+                    canonicalize_const_expression_with_admission(
                         syntax,
                         *element_type,
                         *value,
                         selection,
                         substitution,
+                        admission,
                     )
                 })
                 .collect::<Result<Vec<_>, _>>()?;
@@ -1448,26 +1506,44 @@ pub(in crate::preparation::generic_data) fn canonicalize_data_const_expression(
     expression: ExpressionHandle,
     selection: Option<&ConstantSelection>,
 ) -> Result<CanonicalConstNode, String> {
+    canonicalize_data_const_expression_with_admission(
+        syntax,
+        type_name,
+        expression,
+        selection,
+        ConstPredicateAdmission::ProveSyntax,
+    )
+}
+
+pub(in crate::preparation::generic_data) fn canonicalize_data_const_expression_with_admission(
+    syntax: &SyntaxTrees,
+    type_name: &Identifier,
+    expression: ExpressionHandle,
+    selection: Option<&ConstantSelection>,
+    admission: ConstPredicateAdmission,
+) -> Result<CanonicalConstNode, String> {
     let definition = selected_data(syntax, type_name, selection)?;
     // A directly named declaration's members never see an enclosing
     // application's parameters.
-    canonicalize_selected_data_const_expression(
+    canonicalize_selected_data_const_expression_with_admission(
         syntax,
         definition,
         definition.name.as_str(syntax),
         expression,
         selection,
         &GenericApplicationSubstitution::new(),
+        admission,
     )
 }
 
-fn canonicalize_selected_data_const_expression(
+fn canonicalize_selected_data_const_expression_with_admission(
     syntax: &SyntaxTrees,
     definition: &DataDefinition,
     type_name: &str,
     expression: ExpressionHandle,
     selection: Option<&ConstantSelection>,
     substitution: &GenericApplicationSubstitution,
+    admission: ConstPredicateAdmission,
 ) -> Result<CanonicalConstNode, String> {
     let value = match syntax.expressions.expression(expression) {
         ExpressionNode::StructLiteral(literal) => {
@@ -1517,12 +1593,13 @@ fn canonicalize_selected_data_const_expression(
                     .data_payload_fields(variant.payload)
                     .iter()
                     .collect::<Vec<_>>();
-                let fields = canonicalize_named_fields(
+                let fields = canonicalize_named_fields_with_admission(
                     syntax,
                     &declared_fields,
                     literal.fields,
                     selection,
                     substitution,
+                    admission,
                 )?;
                 Ok(CanonicalConstNode::Variant {
                     type_name: type_name.to_owned(),
@@ -1551,12 +1628,13 @@ fn canonicalize_selected_data_const_expression(
                         _ => None,
                     })
                     .collect::<Vec<_>>();
-                let fields = canonicalize_named_fields(
+                let fields = canonicalize_named_fields_with_admission(
                     syntax,
                     &declared_fields,
                     literal.fields,
                     selection,
                     substitution,
+                    admission,
                 )?;
                 Ok(CanonicalConstNode::Record {
                     type_name: type_name.to_owned(),
@@ -1626,16 +1704,25 @@ fn canonicalize_selected_data_const_expression(
         }
         _ => Err(format!("expected a `{type_name}` structural literal")),
     }?;
-    super::facts::prove_const_data_predicates(syntax, definition, &value, substitution, selection)?;
+    if admission == ConstPredicateAdmission::ProveSyntax {
+        super::facts::prove_const_data_predicates(
+            syntax,
+            definition,
+            &value,
+            substitution,
+            selection,
+        )?;
+    }
     Ok(value)
 }
 
-pub(in crate::preparation::generic_data) fn canonicalize_named_fields(
+fn canonicalize_named_fields_with_admission(
     syntax: &SyntaxTrees,
     declared_fields: &[&syntax_trees::item::DataField],
     literal_fields: HandleSpan<syntax_trees::expression::TableStructLiteralField>,
     selection: Option<&ConstantSelection>,
     substitution: &GenericApplicationSubstitution,
+    admission: ConstPredicateAdmission,
 ) -> Result<Vec<(String, CanonicalConstNode)>, String> {
     let authored = syntax.expressions.struct_fields(literal_fields);
     let mut canonical = Vec::with_capacity(declared_fields.len());
@@ -1653,12 +1740,13 @@ pub(in crate::preparation::generic_data) fn canonicalize_named_fields(
         };
         canonical.push((
             declared.name.as_str(syntax).to_owned(),
-            canonicalize_const_expression(
+            canonicalize_const_expression_with_admission(
                 syntax,
                 declared.type_reference,
                 field.value,
                 selection,
                 substitution,
+                admission,
             )?,
         ));
     }

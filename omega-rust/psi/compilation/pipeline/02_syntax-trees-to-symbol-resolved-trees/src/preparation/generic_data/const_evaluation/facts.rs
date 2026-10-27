@@ -1607,7 +1607,7 @@ pub(in crate::preparation::generic_data) fn prove_const_leaf_domain_constraints(
 /// Find declaration predicates through the exact selected member types. This
 /// only selects a required check; it grants no value or membership. Recursion
 /// rejoins source-owned declarations rather than guessing from a leaf spelling.
-fn const_type_requires_declaration_proof(
+pub(crate) fn const_type_requires_declaration_proof(
     syntax: &SyntaxTrees,
     type_reference: TypeReferenceHandle,
     visiting: &mut Vec<source::SourceSpan>,
@@ -1709,6 +1709,19 @@ pub(crate) fn prove_const_literal_predicates(
 ) -> Result<(), String> {
     if crate::constant::requires_const_initializer_evaluation(syntax, definition) {
         return Ok(());
+    }
+    if definition
+        .qualification
+        .as_ref()
+        .is_some_and(|qualification| {
+            qualification.destination == definition.type_reference
+                && qualification.initializer == definition.value
+        })
+    {
+        return super::super::canonicalize_selected_declared_const_definition(
+            syntax, definition, selection,
+        )
+        .map(|_| ());
     }
     if !const_type_requires_declaration_proof(
         syntax,
