@@ -414,7 +414,6 @@ mod tests {
         let block = Block {
             id: block_id,
             parameters: Vec::new(),
-            parameter_order: Vec::new(),
             erased_scalar_formals: Vec::new(),
             erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
@@ -450,6 +449,7 @@ mod tests {
             declaration: None,
             nominal_cleanup_subject: None,
             parameters: Vec::new(),
+            parameter_order: Vec::new(),
             structural_parameters: Vec::new(),
             structural_places: Vec::new(),
             entry_claims: Vec::new(),
