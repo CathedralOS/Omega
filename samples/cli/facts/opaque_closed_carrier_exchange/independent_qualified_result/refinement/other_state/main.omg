@@ -16,9 +16,9 @@ machine consume(first: InternetAddress in Classified::Ready, second: InternetAdd
 
 machine main() reaches AddressParts, AddressBridge crashes Trap {
  transition { _ -> receive(AddressBridge::classified_make(10, 66051), AddressBridge::make(44048, 513)) }
- state receive(first: InternetAddress in Classified::Ready, second: InternetAddress) {
+ machine receive(first: InternetAddress in Classified::Ready, second: InternetAddress) {
   transition consume(first, second) { true -> done() _ -> failed() }
  }
- state done() {}
- state failed() { crash Trap; }
+ machine done() {}
+ machine failed() { crash Trap; }
 }
