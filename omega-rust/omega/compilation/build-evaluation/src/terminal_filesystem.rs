@@ -11,7 +11,7 @@ use package_compilation::build_execution::{
 };
 use psi_compiler::{TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation as Operation};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use terminal_interpreter::{
     TerminalBoundaryByteBuffer, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
     TerminalEffectResult, TerminalImportAdapter, TerminalImportSignature, TerminalScalarValue,
@@ -31,8 +31,8 @@ enum MarkerKind {
     Receipt,
 }
 
-struct FilesystemActivation<'scope> {
-    runtime: BuildFilesystemRuntime<'scope>,
+struct FilesystemActivation {
+    runtime: BuildFilesystemRuntime,
     markers: Vec<Marker>,
 }
 
@@ -42,22 +42,22 @@ struct FilesystemFacets {
     output: TerminalStructuralValue,
 }
 
-pub(crate) struct TerminalBuildFilesystemHost<'scope> {
-    calls: &'scope [TerminalBuildFilesystemCall],
+pub(crate) struct TerminalBuildFilesystemHost {
+    calls: Arc<[TerminalBuildFilesystemCall]>,
     facets: Option<FilesystemFacets>,
-    account: &'scope EvaluationInvocationAccount,
-    machine_name: &'scope str,
-    activation: Mutex<Option<FilesystemActivation<'scope>>>,
+    account: EvaluationInvocationAccount,
+    machine_name: String,
+    activation: Mutex<Option<FilesystemActivation>>,
 }
 
-impl<'scope> TerminalBuildFilesystemHost<'scope> {
+impl TerminalBuildFilesystemHost {
     pub(crate) fn new(
-        produced: &'scope psi_compiler::ProducedTerminalProgram,
+        produced: &psi_compiler::ProducedTerminalProgram,
         original: &TerminalStructuralValue,
-        account: &'scope EvaluationInvocationAccount,
-        scope: &'scope BuildMachineFilesystemScope,
-        machine_name: &'scope str,
-    ) -> Result<Self, String> {
+        account: &EvaluationInvocationAccount,
+        scope: &BuildMachineFilesystemScope,
+        machine_name: &str,
+    ) -> Result<Arc<Self>, String> {
         let artifact = produced.view();
         let calls = produced
             .build_filesystem()
@@ -71,8 +71,8 @@ impl<'scope> TerminalBuildFilesystemHost<'scope> {
                 markers: Vec::new(),
             })
         };
-        Ok(Self {
-            calls,
+        Ok(Arc::new(Self {
+            calls: Arc::clone(calls),
             facets: if calls.is_empty() {
                 None
             } else {
@@ -82,18 +82,18 @@ impl<'scope> TerminalBuildFilesystemHost<'scope> {
                     output: crate::terminal_requests::build_facet(artifact, original, "output")?,
                 })
             },
-            account,
-            machine_name,
+            account: account.clone(),
+            machine_name: machine_name.to_owned(),
             activation: Mutex::new(activation),
-        })
+        }))
     }
 
     pub(crate) fn adapter(
-        &self,
+        self: &Arc<Self>,
         signature: TerminalImportSignature,
-    ) -> FilesystemAdapter<'_, 'scope> {
+    ) -> FilesystemAdapter {
         FilesystemAdapter {
-            host: self,
+            host: Arc::clone(self),
             signature,
         }
     }
@@ -128,18 +128,18 @@ impl<'scope> TerminalBuildFilesystemHost<'scope> {
     }
 }
 
-pub(crate) struct FilesystemAdapter<'host, 'scope> {
-    host: &'host TerminalBuildFilesystemHost<'scope>,
+pub(crate) struct FilesystemAdapter {
+    host: Arc<TerminalBuildFilesystemHost>,
     signature: TerminalImportSignature,
 }
 
-impl TerminalImportAdapter for FilesystemAdapter<'_, '_> {
+impl TerminalImportAdapter for FilesystemAdapter {
     fn implemented_signature(&self) -> TerminalImportSignature {
         self.signature.clone()
     }
 }
 
-impl TerminalEffectHandler for FilesystemAdapter<'_, '_> {
+impl TerminalEffectHandler for FilesystemAdapter {
     fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
         Err(TerminalEffectRejection::new(
             "Build filesystem requires result-aware dispatch",
@@ -164,7 +164,7 @@ impl TerminalEffectHandler for FilesystemAdapter<'_, '_> {
     }
 }
 
-impl FilesystemAdapter<'_, '_> {
+impl FilesystemAdapter {
     fn dispatch(
         &self,
         effect: &TerminalEffect,
@@ -258,7 +258,7 @@ impl FilesystemAdapter<'_, '_> {
                 };
                 let path = bytes(1)?;
                 runtime.resolve(root, path)?;
-                mint(markers, self.host.account, result, path.len(), || {
+                mint(markers, &self.host.account, result, path.len(), || {
                     let mut retained = Vec::new();
                     retained
                         .try_reserve_exact(path.len())
@@ -275,7 +275,7 @@ impl FilesystemAdapter<'_, '_> {
                     );
                 }
                 let root = runtime.named_input(bytes(1)?)?;
-                mint(markers, self.host.account, result, 0, || {
+                mint(markers, &self.host.account, result, 0, || {
                     Ok(MarkerKind::Source(root))
                 })
             }
@@ -336,7 +336,7 @@ impl FilesystemAdapter<'_, '_> {
             Operation::Require => {
                 output()?;
                 let obligation = runtime.require(bytes(1)?)?;
-                mint(markers, self.host.account, result, 0, || {
+                mint(markers, &self.host.account, result, 0, || {
                     Ok(MarkerKind::Obligation(obligation))
                 })
             }
@@ -353,14 +353,14 @@ impl FilesystemAdapter<'_, '_> {
                     )))
                 } else {
                     runtime.complete_output(obligation, relative)?;
-                    mint(markers, self.host.account, result, 0, || {
+                    mint(markers, &self.host.account, result, 0, || {
                         Ok(MarkerKind::Receipt)
                     })
                 }
             }
             Operation::Fail => {
                 output()?;
-                runtime.fail_output(obligation(1)?, bytes(2)?, self.host.machine_name)?;
+                runtime.fail_output(obligation(1)?, bytes(2)?, &self.host.machine_name)?;
                 Ok(TerminalEffectResult::Unit)
             }
             Operation::RequiredPath => {

@@ -30,7 +30,6 @@ use crate::instance::TerminalInstance;
 use crate::structural_inputs::TerminalStructuralInputs;
 use crate::values::TerminalScalarValue;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, StructuralTypeId};
-use std::borrow::Cow;
 use std::collections::BTreeMap;
 use terminal_psi::{
     BoundaryMachineDeclaration, StructuralTypeDeclaration, TerminalModule, TerminalPsiIdentity,
@@ -43,9 +42,35 @@ pub(crate) struct AdmittedTerminalProgram<'artifact> {
     /// Semantic content plus the exact live owner of invocation-only code.
     /// Provider installations retain this whole identity, not just its digest.
     pub(crate) identity: terminal_codec::TerminalExecutionIdentity,
-    pub(crate) catalogs: std::sync::Arc<Cow<'artifact, TerminalModule>>,
+    pub(crate) catalogs: std::sync::Arc<ProgramStorage<'artifact>>,
     /// Selected geometry belongs to an execution view, never canonical storage.
     pub(crate) target_layouts: Option<std::sync::Arc<terminal_installation::AdmittedTargetLayouts>>,
+}
+
+/// The same canonical tables at each ownership boundary. A retained producer
+/// owner makes a suspended instance movable without cloning or decoding code.
+pub(crate) enum ProgramStorage<'artifact> {
+    Borrowed(&'artifact TerminalModule),
+    Owned(TerminalModule),
+    Retained(terminal_codec::RetainedTerminalCode),
+}
+
+impl std::ops::Deref for ProgramStorage<'_> {
+    type Target = TerminalModule;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Borrowed(module) => module,
+            Self::Owned(module) => module,
+            Self::Retained(code) => code.view().module(),
+        }
+    }
+}
+
+impl AsRef<TerminalModule> for ProgramStorage<'_> {
+    fn as_ref(&self) -> &TerminalModule {
+        self
+    }
 }
 
 impl AdmittedTerminalProgram<'_> {
@@ -340,7 +365,7 @@ impl<'artifact> TerminalProgram<'artifact> {
             .map_err(TerminalArtifactInterpretError::SemanticDecode)?;
         Ok(Self::from_admitted(AdmittedTerminalProgram {
             identity: terminal_codec::TerminalExecutionIdentity::portable(identity),
-            catalogs: std::sync::Arc::new(Cow::Owned(module)),
+            catalogs: std::sync::Arc::new(ProgramStorage::Owned(module)),
             target_layouts: None,
         }))
     }
@@ -352,7 +377,18 @@ impl<'artifact> TerminalProgram<'artifact> {
         let artifact = artifact.into();
         Self::from_admitted(AdmittedTerminalProgram {
             identity: artifact.custody_identity(),
-            catalogs: std::sync::Arc::new(Cow::Borrowed(artifact.module())),
+            catalogs: std::sync::Arc::new(ProgramStorage::Borrowed(artifact.module())),
+            target_layouts: None,
+        })
+    }
+
+    /// Retain the producer's immutable execution owner without decoding or
+    /// copying its code. Invocation-private identity remains private and exact;
+    /// host imports still require ordinary instance admission.
+    pub fn retain(code: terminal_codec::RetainedTerminalCode) -> Self {
+        Self::from_admitted(AdmittedTerminalProgram {
+            identity: code.view().custody_identity(),
+            catalogs: std::sync::Arc::new(ProgramStorage::Retained(code)),
             target_layouts: None,
         })
     }
@@ -365,7 +401,7 @@ impl<'artifact> TerminalProgram<'artifact> {
         let (module, identity) = artifact.into_semantics();
         Ok(Self::from_admitted(AdmittedTerminalProgram {
             identity: terminal_codec::TerminalExecutionIdentity::portable(identity),
-            catalogs: std::sync::Arc::new(Cow::Owned(module)),
+            catalogs: std::sync::Arc::new(ProgramStorage::Owned(module)),
             target_layouts: None,
         }))
     }

@@ -59,6 +59,15 @@ fn main() {
         settled_default_build_contexts();
         return;
     }
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--owned-activations")) {
+        interleaved_build_invocations();
+        terminal_build_filesystem();
+        return;
+    }
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--readiness-jobs")) {
+        nested_readiness_jobs();
+        return;
+    }
     initial_build_source_isolation();
     deferred_product_uses_captured_imports();
     unbound_build_invocation("separate_build_product_imports_exit");
@@ -228,6 +237,88 @@ fn main() {
 }
 
 /// Discovery binds the complete root snapshot before its first effect.
+fn nested_readiness_jobs() {
+    let authored = fixture_package_inputs::repo_root()
+        .join("tests/omega/pass/build/nested_provider_readiness");
+    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "nested-readiness-jobs",
+        false,
+    )
+    .unwrap();
+    let root = temporary.path().join("project");
+    for package in ["", "backing", "backing/leaf"] {
+        std::fs::create_dir_all(root.join(package)).unwrap();
+        for file in ["build.omg", "main.omg"] {
+            std::fs::copy(
+                authored.join(package).join(file),
+                root.join(package).join(file),
+            )
+            .unwrap();
+        }
+    }
+    let profile = target::TargetProfile::host_if_supported().unwrap();
+    for cycle in [false, true] {
+        if cycle {
+            std::fs::write(
+                root.join("backing/leaf/build.omg"),
+                r#"
+use omega::language::core::program_image;
+machine build(builder: &mut Build) suspends; {
+    Build::package(builder, "readiness_leaf");
+    Build::build_depend_as(builder, "root", Source::Path { location: "../.." });
+    suspend Build::await_provider<ProgramImage, root::TestImage>(builder);
+}
+"#,
+            )
+            .unwrap();
+        }
+        let preparation = package_manager::operations::begin_local_project_preparation(
+            &root.join("main.omg"),
+            &[profile],
+            true,
+        )
+        .unwrap()
+        .unwrap();
+        let mut session = omega_build::BuildSession::create(&temporary.path().join(if cycle {
+            "cycle-session"
+        } else {
+            "session"
+        }))
+        .unwrap();
+        let before = counters::build_execution_count();
+        let result = omega_build::resolve_project_sources(
+            &mut session,
+            omega_build::ProjectSourceRequest {
+                preparation,
+                collect_timings: false,
+                execution: package_compilation::BuildExecutionInputs {
+                    profile: Some(profile),
+                    ..Default::default()
+                },
+            },
+        );
+        if cycle {
+            let error = result
+                .err()
+                .expect("readiness cycle must reject")
+                .to_string();
+            assert!(
+                error.contains("cyclic Build readiness dependency"),
+                "{error}"
+            );
+        } else {
+            let resolved = result.unwrap_or_else(|error| panic!("nested readiness: {error}"));
+            assert_eq!(resolved.builds.len(), 3);
+        }
+        assert_eq!(
+            counters::build_execution_count(),
+            before + 3,
+            "each Build starts once, including before cycle refusal"
+        );
+    }
+    println!("nested_readiness_kept_three_live_jobs_and_rejected_cycle_without_replay");
+}
+
 fn source_discovery_root_inputs() {
     let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
         "discovery-root-inputs",
@@ -840,7 +931,7 @@ fn terminal_build_filesystem() {
     assert!(!guard_dropped.load(std::sync::atomic::Ordering::Acquire));
     let returned = {
         let execution = invocation.execution().expect("authored Build");
-        let mut host = execution.host().expect("generator host");
+        let host = execution.host().expect("generator host");
         let mut activation = host.start().expect("generator activation");
         let mut pauses = 0;
         loop {
@@ -2317,7 +2408,7 @@ fn return_execution(
     execution: Option<&mut build_evaluation::PreparedBuildExecution>,
 ) -> Option<build_evaluation::ReturnedBuild> {
     execution.map(|execution| {
-        let mut host = execution.host().expect("issue Build host once");
+        let host = execution.host().expect("issue Build host once");
         let mut activation = host.start().expect("start Build once");
         while !activation.advance(1024).expect("advance Build").returned {}
         activation.complete().expect("normal Build return")
@@ -2396,12 +2487,17 @@ fn interleaved_build_invocations() {
     }));
     assert_eq!(counters::build_execution_count(), before);
     let first_returned = {
-        let mut host = first
+        let host = first
             .execution()
             .expect("fresh Build")
             .host()
             .expect("first host");
         let mut activation = host.start().expect("first activation");
+        assert!(
+            host.clone().start().is_err(),
+            "a shared host cannot replay Build"
+        );
+        drop(host);
         let step = activation.advance(64).expect("first partial execution");
         assert!(!step.returned);
         assert_eq!(
@@ -2409,8 +2505,10 @@ fn interleaved_build_invocations() {
             1,
             "early role is observable before return"
         );
-        // The first activation borrows no compiler session. Finish another
-        // package through Product checking while its continuation stays live.
+        // Move the invocation while its activation is paused and the host's
+        // caller handle is gone. Neither job borrows a coordinator stack frame.
+        let mut pending = vec![(first, activation)];
+        // Finish another package through Product checking before resuming it.
         let mut second = session
             .begin_package_build(request())
             .expect("second admission while paused");
@@ -2422,6 +2520,7 @@ fn interleaved_build_invocations() {
         session
             .check_package_build(second)
             .expect("second Product while first is paused");
+        (first, activation) = pending.pop().expect("retained live job");
         while !activation.advance(1024).expect("resume first").returned {}
         activation.complete().expect("first normal return")
     };

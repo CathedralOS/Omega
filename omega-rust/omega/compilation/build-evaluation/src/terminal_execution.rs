@@ -2,7 +2,7 @@
 //!
 //! This is the execution owner, not source discovery or package resolution.
 //! The caller advances execution, receives requests between fuel slices, and must join
-//! them before publishing a product. Both protocol adapters borrow one activation;
+//! them before publishing a product. Protocol adapters retain one activation's state;
 //! a pause never reconstructs the instance or replays earlier effects.
 
 mod project;
@@ -10,7 +10,6 @@ mod provider_installation;
 mod source_join;
 pub use source_join::BuildDependencySelection;
 
-use build_time_evaluation::BuildTimeValue;
 use evaluation_accounting::EvaluationInvocationAccount;
 use language_semantics::declaration_selection::{
     ExecutedBuildSelection, ExecutedProductSelection, ExecutedRootBinding,
@@ -77,27 +76,27 @@ impl ReturnedBuild {
     }
 }
 
-/// Host custody outlives the interpreter's borrowed adapters. One host starts
+/// Host custody is retained by the interpreter's owned adapters. One host starts
 /// one activation; dropping a paused activation cannot start its effects again.
-pub struct TerminalBuildHost<'code> {
-    produced: &'code ProducedTerminalProgram,
-    account: &'code EvaluationInvocationAccount,
+pub struct TerminalBuildHost {
+    produced: std::sync::Arc<ProducedTerminalProgram>,
+    account: EvaluationInvocationAccount,
     original: TerminalStructuralValue,
-    requests: TerminalBuildRequestHost<'code>,
-    bindings: TerminalBuildBindingHost<'code>,
-    filesystem: crate::terminal_filesystem::TerminalBuildFilesystemHost<'code>,
-    started: bool,
+    requests: std::sync::Arc<TerminalBuildRequestHost>,
+    bindings: std::sync::Arc<TerminalBuildBindingHost>,
+    filesystem: std::sync::Arc<crate::terminal_filesystem::TerminalBuildFilesystemHost>,
+    started: std::sync::atomic::AtomicBool,
     value_admission: BuildValueAdmission,
-    initial: &'code BuildTimeValue,
+    machine: std::sync::Arc<package_compilation::build_execution::SelectedBuildMachine>,
 }
 
-impl<'code> TerminalBuildHost<'code> {
+impl TerminalBuildHost {
     pub(crate) fn new(
-        produced: &'code ProducedTerminalProgram,
-        account: &'code EvaluationInvocationAccount,
-        machine: &'code package_compilation::build_execution::SelectedBuildMachine,
-        filesystem_scope: &'code package_compilation::BuildMachineFilesystemScope,
-    ) -> Result<Self, String> {
+        produced: std::sync::Arc<ProducedTerminalProgram>,
+        account: &EvaluationInvocationAccount,
+        machine: std::sync::Arc<package_compilation::build_execution::SelectedBuildMachine>,
+        filesystem_scope: &package_compilation::BuildMachineFilesystemScope,
+    ) -> Result<std::sync::Arc<Self>, String> {
         let artifact = produced.view();
         let program = TerminalProgram::borrow(artifact);
         let entry = program.entry().map_err(describe)?;
@@ -123,33 +122,32 @@ impl<'code> TerminalBuildHost<'code> {
             Some(account),
         )?;
         let filesystem = crate::terminal_filesystem::TerminalBuildFilesystemHost::new(
-            produced,
+            &produced,
             &original,
             account,
             filesystem_scope,
             &machine.name,
         )?;
-        Ok(Self {
+        Ok(std::sync::Arc::new(Self {
             produced,
-            account,
+            account: account.clone(),
             original,
             requests,
             bindings,
             filesystem,
-            started: false,
+            started: std::sync::atomic::AtomicBool::new(false),
             value_admission: machine.value_admission,
-            initial: &machine.initial_build,
-        })
+            machine,
+        }))
     }
 
-    pub fn start(&mut self) -> Result<TerminalBuildActivation<'_, 'code>, String> {
-        if self.started {
+    pub fn start(self: &std::sync::Arc<Self>) -> Result<TerminalBuildActivation, String> {
+        if self.started.swap(true, std::sync::atomic::Ordering::AcqRel) {
             return Err("Build host has already started its activation".into());
         }
-        self.started = true;
         artifacts::compile_timings::counters::record_build_execution();
         let artifact = self.produced.view();
-        let program = TerminalProgram::borrow(artifact);
+        let program = TerminalProgram::retain(self.produced.retain_code());
         let request_calls = self
             .produced
             .build_requests()
@@ -171,7 +169,7 @@ impl<'code> TerminalBuildHost<'code> {
             .calls_for(artifact)
             .ok_or("Build filesystem calls lost their artifact custody")?;
         let mut provider_slots = Vec::new();
-        for call in binding_calls {
+        for call in binding_calls.iter() {
             if let language_semantics::declaration_selection::BuildSelectionRequest::ProviderReadiness(request) = &call.request {
                 provider_slots.extend_from_slice(&request.requirement.boundaries);
             }
@@ -211,7 +209,7 @@ impl<'code> TerminalBuildHost<'code> {
                     ..Default::default()
                 },
                 installation: Some(&supplies),
-                account: Some(self.account),
+                account: Some(&self.account),
                 ..Default::default()
             })
             .map_err(describe)?;
@@ -253,7 +251,7 @@ impl<'code> TerminalBuildHost<'code> {
             TerminalFuelMeter::with_invocation(self.account.clone(), Some(0)).map_err(describe)?;
         Ok(TerminalBuildActivation {
             instance,
-            host: self,
+            host: std::sync::Arc::clone(self),
             fuel,
             state: ActivationState::Running,
             requests: Vec::new(),
@@ -270,9 +268,9 @@ enum ActivationState {
 
 /// One interpreter instance, including its suspended continuation and shared
 /// account. The caller owns scheduling between advances; no callback hides it.
-pub struct TerminalBuildActivation<'host, 'code> {
-    instance: TerminalInstance<'host, 'code>,
-    host: &'host TerminalBuildHost<'code>,
+pub struct TerminalBuildActivation {
+    instance: TerminalInstance<'static, 'static>,
+    host: std::sync::Arc<TerminalBuildHost>,
     fuel: TerminalFuelMeter,
     state: ActivationState,
     requests: Vec<IssuedBuildRequest>,
@@ -286,7 +284,7 @@ pub struct TerminalBuildStep<'step> {
     pub awaiting_query: Option<std::sync::Arc<crate::terminal_bindings::BuildProductQuery>>,
 }
 
-impl<'host, 'code> TerminalBuildActivation<'host, 'code> {
+impl TerminalBuildActivation {
     /// Resume only the exact demand that paused this activation. A failed answer
     /// poisons it rather than allowing later effects to conceal query failure.
     pub fn answer_query(
@@ -331,7 +329,7 @@ impl<'host, 'code> TerminalBuildActivation<'host, 'code> {
     }
 
     /// The exact receiving code for independently checked provider admission.
-    pub fn view(&self) -> terminal_codec::TerminalExecutionView<'code> {
+    pub fn view(&self) -> terminal_codec::TerminalExecutionView<'_> {
         self.host.produced.view()
     }
 
@@ -447,7 +445,7 @@ impl<'host, 'code> TerminalBuildActivation<'host, 'code> {
         let (settings, optimization_report) = crate::terminal_settings::extract(
             &self.instance,
             self.host.value_admission,
-            self.host.initial,
+            &self.host.machine.initial_build,
         )?;
         self.instance.close().map_err(describe)?;
         drop(self.instance);

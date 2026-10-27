@@ -478,7 +478,7 @@ mod tests {
         let identity = terminal_codec::terminal_psi_identity(&module).unwrap();
         let mut program = AdmittedTerminalProgram {
             identity: terminal_codec::TerminalExecutionIdentity::portable(identity),
-            catalogs: std::sync::Arc::new(std::borrow::Cow::Owned(module)),
+            catalogs: std::sync::Arc::new(crate::program::ProgramStorage::Owned(module)),
             target_layouts: None,
         };
         set_machine(&mut program, entry, machine(1, Vec::new()));
