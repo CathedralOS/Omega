@@ -1,4 +1,4 @@
-use register_model::{RegisterOperandAccess, RegisterUnitId, RegisterWriteSemantics};
+use register_model::{RegisterUnitId, write_semantics_tag};
 
 use crate::PostAllocationMachinePlan;
 
@@ -103,11 +103,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &crate::PostAllocationMa
         crate::codec_bytes::push_encoded(bytes, operand.virtual_register.0.to_le_bytes());
         crate::codec_bytes::push_encoded(bytes, operand.class.0.to_le_bytes());
         crate::codec_bytes::push_encoded(bytes, operand.view.0.to_le_bytes());
-        bytes.push(match operand.access {
-            RegisterOperandAccess::Use => 0,
-            RegisterOperandAccess::Def => 1,
-            RegisterOperandAccess::UseDef => 2,
-        });
+        bytes.push(operand.access.access_tag());
         encode_units(bytes, &operand.storage_units);
         encode_units(bytes, &operand.read_units);
         encode_units(bytes, &operand.write_units);
@@ -115,14 +111,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &crate::PostAllocationMa
             None => bytes.push(0),
             Some(semantics) => {
                 bytes.push(1);
-                bytes.push(match semantics {
-                    RegisterWriteSemantics::ExactView => 0,
-                    RegisterWriteSemantics::PreservesUnwritten => 1,
-                    RegisterWriteSemantics::ZeroExtendsParent => 2,
-                    RegisterWriteSemantics::ZeroExtendsWithinUnit => 3,
-                    RegisterWriteSemantics::Discards => 4,
-                    RegisterWriteSemantics::InstructionDefined => 5,
-                });
+                bytes.push(write_semantics_tag(semantics));
             }
         }
     }
