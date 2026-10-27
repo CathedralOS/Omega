@@ -580,11 +580,11 @@ pub(in super::super) fn decode_cleanup(
             let structural_type = decode_id(cursor, StructuralTypeId::new)?;
             let cleanup_machine = decode_id(cursor, MachineId::new)?;
             let consumed_claims = decode_ids(cursor, ClaimId::new)?;
-            let cleanup_receiver = match cursor.byte()? {
-                0 => None,
-                1 => Some(decode_id(cursor, PlaceId::new)?),
-                tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
-            };
+            let cleanup_receiver = crate::cursor::optional(
+                cursor,
+                |cursor| decode_id(cursor, PlaceId::new),
+                FixedViewCopyDecodeError::UnknownOption,
+            )?;
             Ok(TerminalAffineCleanupAction::InvokeNominal(
                 terminal_psi::NominalAffineCleanup {
                     retains_descendants: tag == 5,

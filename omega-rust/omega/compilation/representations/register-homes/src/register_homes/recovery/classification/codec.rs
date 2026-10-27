@@ -162,15 +162,11 @@ fn classification_row(
     let scalar_type = scalar_type(cursor)?;
     let class = RegisterClassId(cursor.u16()?);
     let origin = origin(cursor)?;
-    let definition_site = match cursor.byte()? {
-        0 => None,
-        1 => Some(definition_site(cursor)?),
-        tag => {
-            return Err(RecoveryClassificationDecodeError::UnknownDefinitionSite(
-                tag,
-            ));
-        }
-    };
+    let definition_site = crate::cursor::optional(
+        cursor,
+        definition_site,
+        RecoveryClassificationDecodeError::UnknownDefinitionSite,
+    )?;
     let classification = match cursor.byte()? {
         0 => {
             let defining_instruction = SelectedInstructionId(cursor.u32()?);

@@ -77,11 +77,11 @@ impl SpillChoicePlan {
                     for _ in 0..contender_count {
                         let virtual_register = VirtualRegisterId(cursor.u32()?);
                         let exclusive_end = LiveRangePoint(cursor.u32()?);
-                        let reclaimed_view = match cursor.byte()? {
-                            0 => None,
-                            1 => Some(RegisterViewId(cursor.u16()?)),
-                            tag => return Err(SpillChoiceDecodeError::UnknownOption(tag)),
-                        };
+                        let reclaimed_view = crate::cursor::optional(
+                            &mut cursor,
+                            |cursor| Ok(RegisterViewId(cursor.u16()?)),
+                            SpillChoiceDecodeError::UnknownOption,
+                        )?;
                         contenders.push(PressureContender {
                             virtual_register,
                             exclusive_end,
