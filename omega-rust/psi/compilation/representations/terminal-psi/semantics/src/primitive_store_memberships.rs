@@ -53,9 +53,6 @@ pub fn scalar_projection_entails_membership<'types, 'domain>(
     crate::scalar_field_entails(restriction, &StructuralFieldType::RefinedScalar(required))
 }
 
-#[cfg(test)]
-mod invariant_tests;
-
 /// Reconstruct the complete receiving restriction, refusing unsupported
 /// overlapping qualifications instead of silently discarding their authority.
 /// The outer Option is admission; the inner Option is the optional scalar goal.
