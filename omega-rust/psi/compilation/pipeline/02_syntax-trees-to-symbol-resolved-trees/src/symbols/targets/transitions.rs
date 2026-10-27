@@ -1,12 +1,10 @@
-use arena::{Arena, HandleSpan};
+use arena::Arena;
 use symbols::{JoinedPath, SymbolHandle, SymbolKind, SymbolTable};
 
 use crate::symbols::expressions::{
     assign_expression_span_symbols, assign_statement_expression_symbols,
 };
-use crate::symbols::lookup::{
-    call_target_for_attached_data, child_symbol_by_kinds, diagnostic_path_source_span,
-};
+use crate::symbols::lookup::{call_target_for_attached_data, diagnostic_path_source_span};
 use crate::symbols::scope::MachineScope;
 use crate::symbols::scoped_paths::resolve_state_scoped_members;
 
@@ -22,35 +20,8 @@ pub(in crate::symbols) fn assign_transition_target_symbols(
 ) {
     let symbol_resolved_trees::statement::TransitionTarget::Named(named) = target else {
         if let symbol_resolved_trees::statement::TransitionTarget::Value(expression) = target {
-            // The parser leaves a parenthesized lone call (`-> (count(n))`)
-            // as a value expression -- only here, where the machine's states
-            // are known, can it be told apart from a state transition. A call
-            // that names an unmarked sibling state keeps its transition
-            // meaning; a recursive machine invocation and any other
-            // callee really is a value expression (`-> (burn(4, 12))`).
-            if let Some(named) = reclassify_state_call_value_target(
-                machine,
-                expression_table,
-                statement_path_members,
-                *expression,
-                symbols,
-            ) {
-                *target = symbol_resolved_trees::statement::TransitionTarget::Named(named);
-                let symbol_resolved_trees::statement::TransitionTarget::Named(named) = target
-                else {
-                    unreachable!("transition target was just reclassified as named");
-                };
-                assign_expression_span_symbols(
-                    symbols,
-                    machine,
-                    parameters,
-                    state_symbol,
-                    expression_table,
-                    child_type_references,
-                    named.arguments,
-                );
-                return;
-            }
+            // Parenthesized terminal calls keep ordinary callable selection.
+            // Generated body coordinates are never source declarations.
             assign_statement_expression_symbols(
                 symbols,
                 machine,
@@ -78,30 +49,9 @@ pub(in crate::symbols) fn assign_transition_target_symbols(
     let path = statement_path_members.span_or_empty(named.path);
     let target_name = path.last().cloned();
 
-    // A transition target is a state coordinate, even when an attached-data
-    // field has the same spelling. Ordinary scoped lookup includes fields and
-    // would otherwise bind `-> next()` to `self.next` before the state-only
-    // fallback below had a chance to run.
-    if path.len() == 1
-        && let Some(target_name) = target_name.as_ref()
-    {
-        let target_symbol = child_symbol_by_kinds(
-            symbols,
-            machine.symbol,
-            &[SymbolKind::State],
-            target_name.as_str(),
-        );
-        if target_symbol.is_valid() {
-            named.head_symbol = target_symbol;
-            named.symbol = target_symbol;
-            return;
-        }
-    }
-
-    // Terminal calls retain the same exact lexical entry or requirement as
-    // ordinary calls. Discarding an independently owned entry here forced
-    // typed checking to rediscover a target by its unqualified name.
-    // The current invocation's private state targets keep precedence above.
+    // Terminal and ordinary calls select the same source declaration. The
+    // callable resolver alone supplies signature coordinates; retain their
+    // owning invocation here instead of exposing a generated body by name.
     if path.len() == 1
         && let Some(target_name) = target_name.as_ref()
     {
@@ -114,10 +64,7 @@ pub(in crate::symbols) fn assign_transition_target_symbols(
             child_type_references,
             symbols,
         );
-        if matches!(
-            symbols.get(target_symbol).kind,
-            SymbolKind::MachineParameter | SymbolKind::State
-        ) {
+        if target_symbol.is_valid() {
             // Callable lookup names a machine's entry for its signature.
             // A terminal invocation retains the machine identity: reusing
             // its entry state would turn recursion into an internal arrival
@@ -161,14 +108,19 @@ pub(in crate::symbols) fn assign_transition_target_symbols(
                 symbols,
             );
             if selected.is_valid() {
-                named.symbol = selected;
+                named.symbol = terminal_call_target(symbols, selected);
                 return;
             }
         }
     }
-    if symbol.is_valid() {
+    let body_coordinate = symbols.get(symbol).kind == SymbolKind::State
+        && symbols.get(symbols.get(symbol).parent).kind == SymbolKind::Machine;
+    if symbol.is_valid() && !body_coordinate {
         named.symbol = symbol;
         return;
+    }
+    if body_coordinate && named.head_symbol == symbol {
+        named.head_symbol = SymbolHandle::invalid();
     }
 
     let Some(target_name) = target_name else {
@@ -204,24 +156,10 @@ pub(in crate::symbols) fn assign_transition_target_symbols(
             return;
         }
     }
-
-    if path.len() <= 2 {
-        let target_symbol = child_symbol_by_kinds(
-            symbols,
-            machine.symbol,
-            &[SymbolKind::State],
-            target_name.as_str(),
-        );
-        if target_symbol.is_valid() {
-            named.head_symbol = target_symbol;
-            named.symbol = target_symbol;
-            return;
-        }
-    }
 }
 
 /// Callable entry coordinates supply a signature, while the owning machine
-/// supplies invocation identity. Private state arrivals bypass this conversion.
+/// supplies invocation identity. This does not make a body name source-visible.
 fn terminal_call_target(symbols: &SymbolTable, target: SymbolHandle) -> SymbolHandle {
     if symbols.get(target).kind == SymbolKind::State
         && symbols.get(symbols.get(target).parent).kind == SymbolKind::Machine
@@ -230,58 +168,4 @@ fn terminal_call_target(symbols: &SymbolTable, target: SymbolHandle) -> SymbolHa
     } else {
         target
     }
-}
-
-/// Recover only an unmarked sibling-state jump from a parenthesized call.
-/// Machine recursion must first resolve as an ordinary invocation: spelling a
-/// machine's leaf name does not establish a state target, and converting its
-/// call here would erase its operational acknowledgement. Identity-based tail
-/// normalization happens afterward in `statements::tail_calls`, independently
-/// of call admission (language/state_contracts.md and language/effects.md).
-fn reclassify_state_call_value_target(
-    machine: &MachineScope<'_>,
-    expression_table: &symbol_resolved_trees::expression::ExpressionTable,
-    statement_path_members: &mut Arena<symbol_resolved_trees::name::DiagnosticName>,
-    expression: symbol_resolved_trees::expression::ExpressionHandle,
-    symbols: &SymbolTable,
-) -> Option<symbol_resolved_trees::statement::NamedTransitionTarget> {
-    let symbol_resolved_trees::expression::ExpressionNode::Call(call) =
-        expression_table.expression(expression)
-    else {
-        return None;
-    };
-    if call.receiver.is_valid()
-        || !call.machine_arguments.is_empty()
-        || call.operational_acknowledgement.acknowledges_suspend
-        || call.operational_acknowledgement.acknowledges_block
-    {
-        return None;
-    }
-
-    let state_symbol = child_symbol_by_kinds(
-        symbols,
-        machine.symbol,
-        &[SymbolKind::State],
-        call.target.as_str(),
-    );
-    if !state_symbol.is_valid() {
-        return None;
-    }
-
-    let mut path = HandleSpan::empty();
-    statement_path_members.append_to_span(&mut path, call.target.clone());
-
-    Some(symbol_resolved_trees::statement::NamedTransitionTarget {
-        receiver_symbol: Default::default(),
-        head_symbol: state_symbol,
-        symbol: state_symbol,
-        storage: symbol_resolved_trees::statement::NamedTransitionTargetStorage {
-            operational_acknowledgement: Default::default(),
-            path,
-            arguments: call.arguments,
-            evidence_arguments: call.evidence_arguments.clone(),
-            source_span: call.target.source_span(),
-            authored_call_selection: None,
-        },
-    })
 }
