@@ -60,6 +60,65 @@ macro_rules! receipt_accessor_rows {
     };
 }
 
+/// The producer rows a staged shell re-serves unchanged: one internal rule per
+/// accessor, so a shell names its producer field and the rows it re-serves
+/// instead of restating each delegation body and its doc. `$producer` is the
+/// field holding the retained producer stage, and every row delegates to that
+/// producer's own method of the same name.
+macro_rules! staged_producer_accessors {
+    ($producer:ident; $($row:ident),* $(,)?) => {
+        $( staged_producer_accessors!(@row $producer, $row); )*
+    };
+    (@row $producer:ident, selected) => {
+        /// The current selected program this stage describes.
+        pub const fn selected(&self) -> &ValidatedSelectedInstructions {
+            self.$producer.selected()
+        }
+    };
+    (@row $producer:ident, liveness) => {
+        /// The liveness facts over the current program.
+        pub const fn liveness(&self) -> &ValidatedLiveness {
+            self.$producer.liveness()
+        }
+    };
+    (@row $producer:ident, ranges) => {
+        /// The live ranges over the current program.
+        pub const fn ranges(&self) -> &ValidatedLiveRanges {
+            self.$producer.ranges()
+        }
+    };
+    (@row $producer:ident, register_environment) => {
+        /// The target register environment admitted with the current program.
+        pub const fn register_environment(&self) -> &ValidatedTargetRegisterEnvironment {
+            self.$producer.register_environment()
+        }
+    };
+    (@row $producer:ident, allocator_availability) => {
+        /// The environment-derived allocator availability governing the program.
+        pub const fn allocator_availability(&self) -> &ValidatedAllocatorAvailability {
+            self.$producer.allocator_availability()
+        }
+    };
+    (@row $producer:ident, source_legality_stage) => {
+        /// The source legality stage this stage's program was derived from.
+        pub const fn source_legality_stage(&self) -> &StagedOptimizedAllocationLegality {
+            self.$producer.source_legality_stage()
+        }
+    };
+    (@row $producer:ident, selections) => {
+        /// The governing optimizer selections for this admission.
+        pub fn selections(&self) -> &OptimizationSelections {
+            self.$producer.selections()
+        }
+    };
+    (@row $producer:ident, budget_per_pass) => {
+        /// The per-pass work budget admitted beside the same evidence.
+        pub fn budget_per_pass(&self) -> OptimizationWorkBudget {
+            self.$producer.budget_per_pass()
+        }
+    };
+}
+
 /// The validated analyses a staged optimization keeps: liveness, live
 /// ranges, and allocation legality.
 macro_rules! validated_analysis_accessors {

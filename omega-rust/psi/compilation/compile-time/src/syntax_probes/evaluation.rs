@@ -237,22 +237,8 @@ fn validate_declaration_roots(
 }
 
 fn selected_body_dependencies(program: &TypedTrees, execution: &mut Vec<SymbolHandle>) {
-    let operational = validation::infer_operational_may(program);
-    let mut pending_machine_position = 0;
-    while let Some(&symbol) = execution.get(pending_machine_position) {
-        pending_machine_position += 1;
-        let Some(machine) = operational.machine_by_symbol(symbol) else {
-            continue;
-        };
-        for state in operational.states.span_or_empty(machine.states) {
-            for call in operational.calls.span_or_empty(state.calls) {
-                let target = call.target_machine_symbol;
-                if target.is_valid() && !execution.contains(&target) {
-                    execution.push(target);
-                }
-            }
-        }
-    }
+    crate::BuildTimeAdmissionPlan::infer(program, None)
+        .append_execution_dependencies(program, execution);
 }
 
 /// Calls are not the whole checking domain: a demanded signature, data predicate,

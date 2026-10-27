@@ -153,6 +153,9 @@ pub(super) fn unique_unit_boundary(
     if matches.next().is_some() {
         return unsupported("attached Unit closure contains duplicate boundary machine plans");
     }
+    if !plan.pending_scalar_requires.is_empty() || !plan.pending_scalar_recipes.is_empty() {
+        return unsupported("attached Unit boundary retains pending scalar contract clauses");
+    }
     Ok(plan)
 }
 

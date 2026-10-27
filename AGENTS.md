@@ -394,6 +394,30 @@ task's full acceptance. Prove out and list these obligations in the sample fact:
   ([machine-state evidence](wiki/spec/build/machine_state_evidence.md),
   [executable installation](wiki/spec/build/executable_installation.md),
   [calling plans](wiki/spec/build/calling_plans.md)).
+- **Runtime falsifiability (`Psi 05–07` and `Omega 00–09`):** just as
+  `<place>/invalid/main.omg` is the static falsifier that proves `Psi 01–04`
+  rejects when the static obligation is removed, `main()` in `<place>/main.omg`
+  must be a runtime falsifier that traps (`crash Trap`) if `Psi 05–07` or
+  `Omega 00–09` mis-lowers the construct at runtime:
+  - **Branch and pattern discrimination:** every arm of a `match`, `transition`,
+    or conditional guard under test must yield a distinct runtime outcome, and
+    `main()` must invoke the construct with inputs exercising both the matching
+    path and the fallback path. Never test only a boundary input where the
+    matched branch and the `_` fallback evaluate to the same number (for example,
+    testing only `value == 73` when `_ -> 73` so `selected - 73 == 0` passes on
+    either branch).
+  - **Observable cleanup and restoration:** when the fact's sentence names affine
+    cleanup (`DiscardRoot`, `DiscardResidual`, `InvokeNominal`, `RetireHome`) or
+    borrowed-window restoration, the discarded or retired carrier must produce an
+    observable runtime side effect (such as a `drop` / `dropped by` hook
+    updating caller-visible state or a restored borrow window read back after the
+    call) that `main()` verifies ran for the discarded value and did not run for
+    the surviving projection. Mutating only the dying temporary or dropping a
+    plain scalar record is a runtime no-op and does not prove cleanup lowering.
+  - **Storage and ABI neighbor canaries:** when the fact's sentence names an
+    indexed store, field projection, recast, or multi-slot ABI placement,
+    surround the target slot with non-zero canary fields and assert both the
+    updated target value and the untouched neighbors in `main()`.
 
 These are requirement categories, not a new test matrix or a claim that they
 exhaust the accepted language. Keep the concrete remaining requirements and

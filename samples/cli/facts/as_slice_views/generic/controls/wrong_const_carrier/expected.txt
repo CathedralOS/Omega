@@ -1,0 +1,2 @@
+generic machine `whole_view` has a static selection
+complete type/const/machine/conformance specialization tuple cannot be derived

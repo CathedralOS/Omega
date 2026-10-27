@@ -24,17 +24,43 @@ pub(crate) fn retain_deferred_constant_recipes(
     {
         recipes.push(RetainedConstantRecipe {
             position: RetainedConstantPosition::ArrayLength(type_reference),
+            invocations: Default::default(),
             machine,
             name: Identifier::generated(name),
             source_span,
         });
     }
-    for endpoint in range_endpoints::pending_endpoints(typed, domain)? {
+    let endpoints = range_endpoints::pending_endpoints(typed, domain)?;
+    for endpoint in &endpoints {
+        let position = if endpoint.contract_expression {
+            RetainedConstantPosition::ContractExpression(endpoint.root)
+        } else {
+            RetainedConstantPosition::RangeEndpoint(endpoint.expression)
+        };
+        if recipes.iter().any(|recipe| recipe.position == position)
+            || typed
+                .constant_recipes
+                .iter()
+                .any(|(_, recipe)| recipe.position == position)
+        {
+            continue;
+        }
+        let invocations = if endpoint.contract_expression {
+            typed.expression_table.insert_expression_handles(
+                endpoints
+                    .iter()
+                    .filter(|call| call.contract_expression && call.root == endpoint.root)
+                    .map(|call| call.expression),
+            )
+        } else {
+            Default::default()
+        };
         recipes.push(RetainedConstantRecipe {
-            position: RetainedConstantPosition::RangeEndpoint(endpoint.expression),
+            position,
+            invocations,
             machine: endpoint.machine,
             name: Identifier::generated(typed.symbols.name(endpoint.machine)),
-            source_span: typed.expression_table.source_span(endpoint.expression),
+            source_span: typed.expression_table.source_span(endpoint.root),
         });
     }
     let plan = const_applications::const_application_plan(typed, domain);
@@ -50,6 +76,7 @@ pub(crate) fn retain_deferred_constant_recipes(
                 root: application.root,
             },
             machine,
+            invocations: Default::default(),
             name: Identifier::generated(if machine.is_valid() {
                 typed.symbols.name(machine)
             } else {

@@ -64,7 +64,11 @@ pub(super) fn resolve(
             retain(
                 service(typed, &event.request)?,
                 event.request.source_span,
-                event.selecting_machine,
+                event.selecting_machine.ok_or_else(|| {
+                    Diagnostic::error(
+                        "executed service exclusion lost its authored machine coordinate",
+                    )
+                })?,
             )
         })();
         result.map_err(|error| vec![error.with_source_span(event.request.source_span)])?;

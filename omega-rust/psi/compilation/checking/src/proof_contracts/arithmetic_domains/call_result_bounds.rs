@@ -517,3 +517,82 @@ pub(super) fn builtin(
         operand_types,
     )
 }
+
+/// Selected constant bounds use the same normal-return contract projection as
+/// literal intervals. The resulting recipe travels with the captured value;
+/// target closure reads the exact retained invocation, never the caller's home.
+pub(super) fn normal_return_recipe(
+    program: &dyn crate::CheckingInput,
+    callee: &CalleeContract<'_>,
+) -> Option<checked_trees::IntegerRangeRecipe> {
+    use checked_trees::IntegerRangeRecipe;
+    if program.constant_recipes.is_empty() {
+        return None;
+    }
+    let primitive = program.primitive_type_reference(callee.return_type)?;
+    let mut pending = program
+        .contract_expressions(callee.contracts.iter(), SignatureContractKind::Ensures)
+        .collect::<Vec<_>>();
+    let mut result: Option<IntegerRangeRecipe> = None;
+    while let Some(expression) = pending.pop() {
+        let Some(binary) = program.expression_table.binary_node(expression) else {
+            continue;
+        };
+        if binary.operator == BinaryOperator::And {
+            pending.extend([binary.left, binary.right]);
+            continue;
+        }
+        let is_result = |expression| {
+            crate::reserved_result_owner(program, expression).is_some_and(|(owner, reference)| {
+                owner == callee.callable && reference == callee.return_type
+            })
+        };
+        let (bound, operator) = if is_result(binary.left) {
+            (binary.right, binary.operator)
+        } else if is_result(binary.right) {
+            (binary.left, binary.operator.mirrored())
+        } else {
+            continue;
+        };
+        if !program
+            .constant_recipe_for_contract_expression(bound)
+            .is_valid()
+        {
+            continue;
+        }
+        let bound_type = crate::parameter_expression_result_type_reference(
+            program,
+            callee.callable,
+            callee.parameters,
+            bound,
+        );
+        let operand_types = if is_result(binary.left) {
+            [Some(callee.return_type), bound_type]
+        } else {
+            [bound_type, Some(callee.return_type)]
+        };
+        if !builtin(
+            program,
+            callee.callable,
+            expression,
+            binary.operator,
+            &operand_types,
+        ) {
+            continue;
+        }
+        let Some(bound_recipe) = super::deferred_bounds::comparison_recipe(
+            program,
+            callee.callable,
+            primitive,
+            bound,
+            operator,
+        ) else {
+            continue;
+        };
+        result = Some(result.map_or_else(
+            || bound_recipe.clone(),
+            |previous| previous.intersect(&bound_recipe),
+        ));
+    }
+    result
+}

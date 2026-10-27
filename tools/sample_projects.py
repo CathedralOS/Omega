@@ -142,13 +142,13 @@ def discover(root: Path, repository: Path = ROOT, filters: tuple[str, ...] = ())
     return sorted(found, key=lambda project: project.directory.as_posix())
 
 
-def rejection_verdict(project: Project, exit_code: int, output: str) -> tuple[bool, str]:
+def rejection_verdict(project: Project, exit_code: int, output: str, expected_exit: int = 1) -> tuple[bool, str]:
     if not project.rejection and not project.rejection_any:
         return False, "missing authored rejection expectation"
-    # The CLI's source-rejection exit is 1. Signals, panic exits and shell failures
+    # Checking rejects with 1; run admission refuses with 200. Signals and panic exits
     # cannot satisfy a source rule even if their output echoes a fragment.
-    if exit_code != 1:
-        return False, f"expected source rejection exit 1, got {exit_code}"
+    if exit_code != expected_exit:
+        return False, f"expected rejection exit {expected_exit}, got {exit_code}"
     normalize = str.casefold if project.rejection_casefold else lambda text: text
     output = normalize(output)
     missing = [fragment for fragment in project.rejection if normalize(fragment) not in output]

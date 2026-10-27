@@ -79,14 +79,14 @@ struct ObservedEqualityTerms {
     resolved: [StructuralTerm; 2],
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub(super) struct CaseGuarantee {
     subject: StructuralTerm,
     data: SymbolHandle,
     case: SymbolHandle,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 struct MembershipGuarantee {
     subject: StructuralTerm,
     domain: SymbolHandle,
@@ -94,7 +94,7 @@ struct MembershipGuarantee {
 }
 
 #[derive(Clone)]
-pub(super) enum StructuralTerm {
+pub(crate) enum StructuralTerm {
     Variable(String),
     /// A frame-authenticated observation of an input referent. Scalar reads
     /// retain their declared content authority. A collection additionally keeps
@@ -259,6 +259,16 @@ impl StructuralTerm {
         }
     }
 
+    pub(super) fn boolean_value(&self) -> Option<bool> {
+        let Self::Constructor { data, case, fields } = self.semantic_value() else {
+            return None;
+        };
+        if data != "bool" || !fields.is_empty() {
+            return None;
+        }
+        language_semantics::const_value::boolean_literal_spelling(case)
+    }
+
     pub(super) fn into_semantic_value(self) -> Self {
         match self {
             Self::ObservedValue { value, .. } => (*value).into_semantic_value(),
@@ -363,7 +373,7 @@ pub(super) struct StructuralJudge<'program> {
     storage_exposures: Arc<storage_effects::StorageExposureRecord>,
     // Typed storage observations retain live values and detached entry snapshots.
     stored_values: Arc<Vec<storage_effects::CapturedStorageValue>>,
-    capture_sequence: usize,
+    pub(super) capture_sequence: usize,
     storage_write_sequence: usize,
     pub(super) normal_guarantees: Arc<Vec<(StructuralTerm, StructuralTerm)>>,
     // Producer identity comes only from the captured public result contract.
@@ -457,6 +467,230 @@ impl<'program> StructuralJudge<'program> {
 
     pub(super) fn has_exact_case_subjects(&self) -> bool {
         !self.resolve_applications
+    }
+
+    /// True when `self` has performed no storage writes and added no call
+    /// guarantees, memberships, content equations, or case facts since `base`.
+    pub(super) fn has_no_new_effects_or_guarantees_since(&self, base: &Self) -> bool {
+        !self.hypotheses_contradictory
+            && self.hypotheses_contradictory == base.hypotheses_contradictory
+            && self.storage_write_sequence == base.storage_write_sequence
+            && self.invalidated_storage.len() == base.invalidated_storage.len()
+            && self.storage_exposures == base.storage_exposures
+            && self.captured_result_equations.len() == base.captured_result_equations.len()
+            && self.normal_memberships.len() == base.normal_memberships.len()
+            && self.normal_content_guarantees.len() == base.normal_content_guarantees.len()
+            && self.case_facts.len() == base.case_facts.len()
+    }
+
+    /// True when `self` has added no non-boolean rewrites, non-boolean
+    /// substitutions, or integer ordering/equality guarantees since `base`.
+    pub(super) fn has_no_new_non_boolean_facts_since(&self, base: &Self) -> bool {
+        let is_bool = |term: &StructuralTerm| term.boolean_value().is_some();
+        self.substitutions
+            .get(base.substitutions.len()..)
+            .is_some_and(|added| added.iter().all(|(_, term)| is_bool(term)))
+            && self
+                .rewrites
+                .entries()
+                .get(base.rewrites.entries().len()..)
+                .is_some_and(|added| added.iter().all(|(_, rhs)| is_bool(rhs)))
+            && self
+                .normal_guarantees
+                .get(base.normal_guarantees.len()..)
+                .is_some_and(|added| {
+                    added.iter().all(|(left, right)| {
+                        is_bool(left)
+                            || (is_bool(right)
+                                && !matches!(
+                                    (left.semantic_value(), right.boolean_value()),
+                                    (
+                                        StructuralTerm::MathematicalBinary {
+                                            operator:
+                                                typed_trees::expression::BinaryOperator::Equal
+                                                | typed_trees::expression::BinaryOperator::Less
+                                                | typed_trees::expression::BinaryOperator::LessOrEqual
+                                                | typed_trees::expression::BinaryOperator::Greater
+                                                | typed_trees::expression::BinaryOperator::GreaterOrEqual,
+                                            ..
+                                        },
+                                        Some(true)
+                                    ) | (
+                                        StructuralTerm::MathematicalBinary {
+                                            operator:
+                                                typed_trees::expression::BinaryOperator::NotEqual
+                                                | typed_trees::expression::BinaryOperator::Less
+                                                | typed_trees::expression::BinaryOperator::LessOrEqual
+                                                | typed_trees::expression::BinaryOperator::Greater
+                                                | typed_trees::expression::BinaryOperator::GreaterOrEqual,
+                                            ..
+                                        },
+                                        Some(false)
+                                    ) | (
+                                        StructuralTerm::ScalarBinary {
+                                            operator:
+                                                typed_trees::expression::BinaryOperator::Equal
+                                                | typed_trees::expression::BinaryOperator::Less
+                                                | typed_trees::expression::BinaryOperator::LessOrEqual
+                                                | typed_trees::expression::BinaryOperator::Greater
+                                                | typed_trees::expression::BinaryOperator::GreaterOrEqual,
+                                            ..
+                                        },
+                                        Some(true)
+                                    ) | (
+                                        StructuralTerm::ScalarBinary {
+                                            operator:
+                                                typed_trees::expression::BinaryOperator::NotEqual
+                                                | typed_trees::expression::BinaryOperator::Less
+                                                | typed_trees::expression::BinaryOperator::LessOrEqual
+                                                | typed_trees::expression::BinaryOperator::Greater
+                                                | typed_trees::expression::BinaryOperator::GreaterOrEqual,
+                                            ..
+                                        },
+                                        Some(false)
+                                    )
+                                ))
+                    })
+                })
+    }
+
+    /// Rejoin branch outcomes that performed no storage writes and added no
+    /// call guarantees since `base`, preserving `base`'s branch-neutral
+    /// hypotheses while intersecting `stored_values` and `normal_results`.
+    pub(super) fn rejoin_pure_outcomes(
+        &self,
+        outcomes: &[&Self],
+        exclude_result: Option<ExpressionHandle>,
+    ) -> Self {
+        let mut rejoined = self.clone();
+        let Some(&first) = outcomes.first() else {
+            return rejoined;
+        };
+        rejoined.capture_sequence = outcomes
+            .iter()
+            .map(|judge| judge.capture_sequence)
+            .max()
+            .unwrap_or(self.capture_sequence);
+        if outcomes[1..].iter().all(|judge| {
+            Arc::ptr_eq(&first.stored_values, &judge.stored_values)
+                || first.stored_values == judge.stored_values
+        }) {
+            rejoined.stored_values = Arc::clone(&first.stored_values);
+        } else {
+            let mut intersected = Vec::with_capacity(first.stored_values.len());
+            for entry in first.stored_values.iter() {
+                if outcomes[1..]
+                    .iter()
+                    .all(|judge| judge.stored_values.contains(entry))
+                {
+                    intersected.push(entry.clone());
+                    continue;
+                }
+                let mut matched_read = entry.completed_read;
+                let mut matched_current = entry.current.clone();
+                let mut matched_entry = entry.entry.clone();
+                let mut all_have_coord = true;
+                for judge in &outcomes[1..] {
+                    let Some(other) = judge
+                        .stored_values
+                        .iter()
+                        .find(|s| s.coordinate == entry.coordinate)
+                    else {
+                        all_have_coord = false;
+                        break;
+                    };
+                    if matched_read != other.completed_read {
+                        matched_read = None;
+                    }
+                    if matched_entry != other.entry {
+                        matched_entry = None;
+                    }
+                    if matched_current != other.current {
+                        if let (
+                            Some(StructuralTerm::CapturedValue {
+                                expression: e1,
+                                callable: c1,
+                                result_type: t1,
+                                ..
+                            }),
+                            Some(StructuralTerm::CapturedValue {
+                                expression: e2,
+                                callable: c2,
+                                result_type: t2,
+                                ..
+                            }),
+                        ) = (matched_current.as_ref(), other.current.as_ref())
+                            && e1 == e2
+                            && c1 == c2
+                            && t1 == t2
+                        {
+                            // Keep matched_current (same expression/callable/type).
+                        } else {
+                            matched_current = None;
+                        }
+                    }
+                }
+                if all_have_coord && (matched_current.is_some() || matched_entry.is_some()) {
+                    if matched_current.is_none() {
+                        matched_read = None;
+                    }
+                    intersected.push(storage_effects::CapturedStorageValue {
+                        coordinate: entry.coordinate.clone(),
+                        entry: matched_entry,
+                        current: matched_current,
+                        completed_read: matched_read,
+                    });
+                }
+            }
+            rejoined.stored_values = Arc::new(intersected);
+        }
+        if exclude_result.is_none()
+            && outcomes[1..].iter().all(|judge| {
+                Arc::ptr_eq(&first.normal_results, &judge.normal_results)
+                    || first.normal_results == judge.normal_results
+            })
+        {
+            rejoined.normal_results = Arc::clone(&first.normal_results);
+        } else {
+            let mut intersected = Vec::with_capacity(first.normal_results.len());
+            for (expr, val) in first.normal_results.iter() {
+                if Some(*expr) == exclude_result {
+                    continue;
+                }
+                if outcomes[1..].iter().all(|judge| {
+                    judge
+                        .normal_results
+                        .iter()
+                        .any(|(other_expr, other_val)| other_expr == expr && other_val == val)
+                }) {
+                    intersected.push((*expr, val.clone()));
+                } else if let StructuralTerm::CapturedValue {
+                    expression: e1,
+                    callable: c1,
+                    result_type: t1,
+                    ..
+                } = val
+                    && outcomes[1..].iter().all(|judge| {
+                        judge.normal_results.iter().any(|(other_expr, other_val)| {
+                            other_expr == expr
+                                && matches!(
+                                    other_val,
+                                    StructuralTerm::CapturedValue {
+                                        expression: e2,
+                                        callable: c2,
+                                        result_type: t2,
+                                        ..
+                                    } if e1 == e2 && c1 == c2 && t1 == t2
+                                )
+                        })
+                    })
+                {
+                    intersected.push((*expr, val.clone()));
+                }
+            }
+            rejoined.normal_results = Arc::new(intersected);
+        }
+        rejoined
     }
 
     /// Executed calls are values from individual invocations, not applications

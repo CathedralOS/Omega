@@ -1,0 +1,8 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "violates required fact",
+    "1 < 2 && 4 < 4"
+  ]
+}

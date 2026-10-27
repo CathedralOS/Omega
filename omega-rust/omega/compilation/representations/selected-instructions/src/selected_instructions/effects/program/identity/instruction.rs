@@ -109,7 +109,7 @@ fn encode_barrier(bytes: &mut Vec<u8>, barrier: MachineBarrier) {
     });
 }
 
-fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
+pub(crate) fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
     bytes.push(match kind {
         SelectedInstructionKind::Store { .. } => 24,
         SelectedInstructionKind::AddressOffset { .. } => 25,
@@ -425,7 +425,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
 /// little-endian payload. Shared by every identity domain that encodes an
 /// `IntegerValue` — the selected-effect program identity and the plan identity
 /// both derive exactly these bytes.
-pub(crate) fn encode_integer(bytes: &mut Vec<u8>, value: semantic_vocabulary::IntegerValue) {
+fn encode_integer(bytes: &mut Vec<u8>, value: semantic_vocabulary::IntegerValue) {
     match value {
         semantic_vocabulary::IntegerValue::Signed(value) => {
             bytes.push(0);

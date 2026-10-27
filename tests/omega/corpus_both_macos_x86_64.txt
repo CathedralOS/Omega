@@ -9,6 +9,22 @@
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 16, "jobs": null, "load1_end": 4.82, "load1_start": 4.38, "machine": "x86_64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/borrows/returned_slice_record_reference_custody_exit built 14599ms exit:0 interpreter-exit:0 interpreter:agrees @761f5fae99a7+wt
+pass/facts/abstract_signature_call_applied_callback_forwarded_applied_exit built 13180ms exit:0 interpreter-exit:0 interpreter:agrees @3c2ec6aaf4dd
+pass/facts/abstract_signature_call_applied_callback_opposite_instances_exit built 17639ms exit:0 interpreter-exit:0 interpreter:agrees @3c2ec6aaf4dd
+pass/facts/abstract_signature_call_applied_callback_repeated_recipe_exit built 17527ms exit:0 interpreter-exit:0 interpreter:agrees @3c2ec6aaf4dd
+pass/facts/abstract_signature_call_applied_callback_root_exit built 13293ms exit:0 interpreter-exit:0 interpreter:agrees @3c2ec6aaf4dd
+pass/facts/abstract_signature_call_applied_callback_structural_type_argument_exit built 13134ms exit:0 interpreter-exit:0 interpreter:agrees @3c2ec6aaf4dd
+pass/facts/abstract_signature_call_applied_callback_through_call_result_exit built 12684ms exit:0 interpreter-exit:0 interpreter:agrees @3c2ec6aaf4dd
+pass/facts/abstract_signature_call_applied_callback_through_const_name_exit built 17914ms exit:0 interpreter-exit:0 interpreter:agrees @3c2ec6aaf4dd
+pass/facts/abstract_signature_call_applied_callback_through_field_exit built 13142ms exit:0 interpreter-exit:0 interpreter:agrees @3c2ec6aaf4dd
+pass/facts/abstract_signature_call_applied_callback_through_local_exit built 12893ms exit:0 interpreter-exit:0 interpreter:agrees @3c2ec6aaf4dd
+pass/facts/abstract_signature_call_applied_callback_through_match_join_exit built 13076ms exit:0 interpreter-exit:0 interpreter:agrees @3c2ec6aaf4dd
+pass/facts/abstract_signature_call_applied_callback_through_other_machine_exit built 13256ms exit:0 interpreter-exit:0 interpreter:agrees @3c2ec6aaf4dd
+pass/facts/abstract_signature_call_applied_callback_through_other_state_exit built 13327ms exit:0 interpreter-exit:0 interpreter:agrees @3c2ec6aaf4dd
+pass/facts/abstract_signature_call_applied_callback_through_parameter_exit built 13174ms exit:0 interpreter-exit:0 interpreter:agrees @3c2ec6aaf4dd
+pass/facts/abstract_signature_call_applied_callback_through_target_body_exit built 13091ms exit:0 interpreter-exit:0 interpreter:agrees @3c2ec6aaf4dd
+pass/facts/abstract_signature_call_applied_callback_type_argument_exit built 13018ms exit:0 interpreter-exit:0 interpreter:agrees @3c2ec6aaf4dd
+pass/facts/abstract_signature_call_applied_callback_type_bound_exit built 12714ms exit:0 interpreter-exit:0 interpreter:agrees @3c2ec6aaf4dd
 pass/facts/abstract_signature_call_constant_initializer_exit built 6697ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
 pass/facts/abstract_signature_call_constant_initializer_forwarded_exit built 6935ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
 pass/facts/abstract_signature_call_constant_initializer_selected_entries_exit built 8996ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt

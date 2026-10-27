@@ -1,0 +1,2 @@
+requires 7 <= `limit`
+closes `limit` to 6

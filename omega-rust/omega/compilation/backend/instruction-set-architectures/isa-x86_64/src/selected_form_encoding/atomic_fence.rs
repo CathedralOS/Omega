@@ -54,21 +54,10 @@ mod tests {
             encoded.footprint().encoded,
             MachineEncodedEffects::atomic_fence_v1()
         );
-        for bit in 0..encoded.bytes().len() * 8 {
-            let mut bytes = encoded.bytes().to_vec();
-            bytes[bit / 8] ^= 1 << (bit % 8);
-            assert!(
-                crate::validate_x86_64_selected_form_encoding(
-                    &physical,
-                    kind,
-                    alternative,
-                    &[],
-                    &bytes
-                )
-                .is_err(),
-                "changed bit {bit}"
-            );
-        }
+        crate::selected_form_encoding::assert_every_bit_flip_rejected(encoded.bytes(), |bytes| {
+            crate::validate_x86_64_selected_form_encoding(&physical, kind, alternative, &[], bytes)
+                .is_err()
+        });
         let mut extended = encoded.bytes().to_vec();
         extended.push(0);
         for bytes in [&extended[..], &encoded.bytes()[..encoded.bytes().len() - 1]] {

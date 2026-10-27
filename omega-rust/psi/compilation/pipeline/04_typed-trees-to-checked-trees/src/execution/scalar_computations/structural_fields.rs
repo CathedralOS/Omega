@@ -135,7 +135,7 @@ impl Builder<'_, '_> {
         Some(self.publish_scalar_observation(expression, receiver_value, observation))
     }
 
-    /// A scalar read finishes its fresh reference receiver before a later
+    /// A scalar field or tag read finishes its fresh reference receiver before a later
     /// operand can write the backing. The captured scalar is independent; the
     /// descriptor is not an owned referent or a receiver kept until scope exit.
     /// Nominal temporary owners retain their separately checked normal death.
@@ -143,13 +143,11 @@ impl Builder<'_, '_> {
         &mut self,
         kind: &CheckedScalarComputationKind,
     ) -> arena::HandleSpan<checked_trees::CheckedNormalCleanupAction> {
-        let CheckedScalarComputationKind::StructuralField { receiver_value, .. } = kind else {
-            return arena::HandleSpan::empty();
-        };
+        let receiver_value = kind.observed_receiver();
         if !receiver_value.is_valid() {
             return arena::HandleSpan::empty();
         }
-        let receiver = self.structural_values.nodes.get(*receiver_value);
+        let receiver = self.structural_values.nodes.get(receiver_value);
         if !validation::canonical_place_from_expression_in_state(
             self.program,
             self.state,

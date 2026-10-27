@@ -643,6 +643,20 @@ pub enum CheckedScalarComputationKind {
     },
 }
 
+impl CheckedScalarComputationKind {
+    /// Complete retained value read by a scalar observation. Zero means there
+    /// is no computed receiver for this node. Preparation, intrinsic receiver
+    /// retirement and cleanup finalization share this semantic inventory;
+    /// choosing an operation's source spelling supplies no receiver authority.
+    pub fn observed_receiver(&self) -> super::structural_values::CheckedStructuralValueHandle {
+        match self {
+            Self::StructuralField { receiver_value, .. }
+            | Self::CaseMembership { receiver_value, .. } => *receiver_value,
+            _ => super::structural_values::CheckedStructuralValueHandle::invalid(),
+        }
+    }
+}
+
 /// Which executable one scalar invocation enters. Operand order, custody and
 /// temporary retirement are independent of the callee kind.
 #[derive(Debug, Clone, PartialEq, Eq)]

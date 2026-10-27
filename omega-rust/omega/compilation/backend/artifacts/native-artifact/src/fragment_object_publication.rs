@@ -83,11 +83,8 @@ pub fn publish_fragment_object(
     // entry metadata. Bind before capture; later equality must still reject
     // any replacement, omission or mutation of that checked binding.
     if let Some(entry) = request.program_entry {
-        // The settlement is the boundary that would lend each bound
-        // placed-view referent; neither the hosted receiver bridge nor the
-        // semantic wrapper carries that custody yet, so a nonempty bound set
-        // fails closed here rather than publishing an entry whose loans
-        // nobody emits.
+        // Every bound loan needs its exact initialized recipe and an implemented
+        // target-owned lender; unsupported entry families still fail closed.
         if entry.placed_view_establishments().len() != entry.private_entry_ram().len()
             || entry
                 .placed_view_establishments()
@@ -100,11 +97,13 @@ pub fn publish_fragment_object(
                         || !loan.referent.qualifications.is_empty()
                 })
             || !entry.private_entry_ram().is_empty()
-                && ![
+                && !([
                     target::NativeTarget::linux_x64(),
                     target::NativeTarget::macos_arm64(),
                 ]
                 .contains(&object.target())
+                    || object.target() == target::NativeTarget::windows_x64()
+                        && entry.source().target_slot().owner == target::TargetProfile::WindowsX64)
         {
             return Err(crate::native_artifact_error(
                 "ProgramEntry placed-view custody",

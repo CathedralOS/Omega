@@ -22,60 +22,78 @@ pub(crate) fn substitute_cloned_type_parameters(
     type_start: usize,
     instance: SymbolHandle,
 ) -> Result<(), Diagnostic> {
+    // Equations belong to the declaration, while supplied types belong to its
+    // callers. Prefer the proved formal definition before substituting actuals:
+    // replacing `Value == &'storage mut T` with an anonymous actual would erase
+    // the result-to-input relation when another reference parameter is present.
+    // Copy all replacements first. Their dependent binders participate in the
+    // same substitution regardless of telescope order; supplied operands retain
+    // their own scope and are never interpreted as declaration equations.
+    let mut replacements = Vec::new();
     for ((parameter_symbol, _), binding) in candidate
         .template
         .type_parameters
         .iter()
         .zip(candidate.type_bindings.iter())
     {
-        let occurrences: Vec<_> = program
-            .type_reference_table
-            .named_references()
-            .filter(|(handle, symbol, _)| {
-                handle.arena_index() as usize >= type_start && symbol == parameter_symbol
-            })
-            .map(|(handle, _, _)| handle)
-            .collect();
-        let replacement_handle = copy_type_reference(
-            source,
-            program,
-            binding.expect("complete specialization"),
-            &[],
-        );
-        let owner = source
-            .unwrap_or(program)
-            .expression_table
-            .static_machine_application(candidate.binding_application)
-            .lexical_owner;
+        let input = source.unwrap_or(program);
+        let definition = input
+            .machine_by_symbol(candidate.template.template_symbol)
+            .and_then(|machine| {
+                input
+                    .declared_type_equations
+                    .span_or_empty(machine.declared_type_equations)
+                    .iter()
+                    .find_map(|equation| {
+                        matches!(input.type_reference_table.type_reference(equation.parameter),
+                        TypeReferenceNode::Named { symbol, .. } if symbol == parameter_symbol)
+                        .then_some(equation.definition)
+                    })
+            });
+        let replacement = definition.unwrap_or(binding.expect("complete specialization"));
+        let replacement_handle = copy_type_reference(source, program, replacement, &[]);
+        let owner = if definition.is_some() {
+            candidate.template.template_symbol
+        } else {
+            source
+                .unwrap_or(program)
+                .expression_table
+                .static_machine_application(candidate.binding_application)
+                .lexical_owner
+        };
         program
             .type_reference_table
             .retain_operand_lifetime_owner(replacement_handle, owner)
             .map_err(Diagnostic::error)?;
-        // A shared body's binder must rejoin every supplying call. An
-        // occurrence-local inferred result already belongs to its caller:
-        // preserve the actual operand's origin, rather than retaining a call
-        // handle that would need a second copy/substitution correspondence.
-        if instance.is_valid() {
-            let origin = typed_trees::types::TypeOperandOrigin::MachineParameter {
-                instance,
-                parameter: *parameter_symbol,
-            };
-            program
-                .type_reference_table
-                .set_operand_origin(replacement_handle, origin);
+        if instance.is_valid() && definition.is_none() {
+            program.type_reference_table.set_operand_origin(
+                replacement_handle,
+                typed_trees::types::TypeOperandOrigin::MachineParameter {
+                    instance,
+                    parameter: *parameter_symbol,
+                },
+            );
         }
+        replacements.push((*parameter_symbol, replacement_handle));
+    }
+    for (parameter_symbol, replacement_handle) in replacements {
+        let occurrences: Vec<_> = program
+            .type_reference_table
+            .named_references()
+            .filter(|(handle, symbol, _)| {
+                handle.arena_index() as usize >= type_start && *symbol == parameter_symbol
+            })
+            .map(|(handle, _, _)| handle)
+            .collect();
         for occurrence in occurrences {
             program
                 .type_reference_table
                 .substitute_from(occurrence, replacement_handle)
                 .map_err(Diagnostic::error)?;
         }
-        // Clone-owned compounds whose child still names the binder point at
-        // the template's interned leaf — out of the occurrence scan's reach.
-        // Repoint those fields at the argument's fresh node.
         program.type_reference_table.substitute_shared_children(
             type_start,
-            *parameter_symbol,
+            parameter_symbol,
             replacement_handle,
         );
     }

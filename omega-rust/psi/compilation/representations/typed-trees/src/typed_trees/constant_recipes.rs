@@ -35,6 +35,8 @@ pub enum RetainedConstantPosition {
     ArrayLength(TypeReferenceHandle),
     /// `T[lo..=call()]`: the endpoint call expression inside the range.
     RangeEndpoint(ExpressionHandle),
+    /// A closed integer expression occurring in a source proof clause.
+    ContractExpression(ExpressionHandle),
     /// `Data<call()>`: the `ConstExpression` argument node and its authored
     /// root expression.
     ConstApplication {
@@ -47,6 +49,8 @@ pub enum RetainedConstantPosition {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RetainedConstantRecipe {
     pub position: RetainedConstantPosition,
+    /// Exact nested value calls whose admission the contract root owns.
+    pub invocations: arena::HandleSpan<ExpressionHandle>,
     /// The zero-argument machine the position applies, resolved in the
     /// authored scope; diagnostics and receipts name it.
     pub machine: SymbolHandle,
@@ -76,6 +80,14 @@ pub struct ClosedConstantRecipe {
     pub value: BigInt,
 }
 
+/// Exact scoped body used while a portable family was evaluated privately.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ConstantTargetBodySelection {
+    pub head: SymbolHandle,
+    pub member: SymbolHandle,
+    pub target_scope: String,
+}
+
 /// Every recipe's value under one target capsule, with the realization
 /// receipts the evaluation consumed. Empty in the shared program.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -84,6 +96,7 @@ pub struct ConstantRecipeClosure {
     pub target_scope: String,
     pub values: Vec<ClosedConstantRecipe>,
     pub receipts: Vec<ConstantRecipeDependencyReceipt>,
+    pub target_bodies: Vec<ConstantTargetBodySelection>,
 }
 
 impl ConstantRecipeClosure {
@@ -195,6 +208,35 @@ impl crate::TypedTrees {
             .unwrap_or_default()
     }
 
+    /// The retained integer root in an ordinary contract clause.
+    pub fn constant_recipe_for_contract_expression(
+        &self,
+        expression: ExpressionHandle,
+    ) -> ConstantRecipeHandle {
+        self.constant_recipes
+            .iter()
+            .find(|(_, recipe)| {
+                recipe.position == RetainedConstantPosition::ContractExpression(expression)
+            })
+            .map(|(handle, _)| handle)
+            .unwrap_or_default()
+    }
+
+    /// A contract root's exact invocation roster defers formation to ordinary
+    /// selected evaluation. This does not identify the invocation's value with
+    /// the surrounding arithmetic root's completed integer.
+    pub fn is_deferred_contract_invocation(&self, expression: ExpressionHandle) -> bool {
+        self.constant_recipes.iter().any(|(_, recipe)| {
+            matches!(
+                recipe.position,
+                RetainedConstantPosition::ContractExpression(_)
+            ) && self
+                .expression_table
+                .expression_handles(recipe.invocations)
+                .contains(&expression)
+        })
+    }
+
     /// The recipe retained for a const-generic argument site, or the invalid handle.
     pub fn constant_recipe_for_const_application(
         &self,
@@ -279,6 +321,9 @@ impl crate::TypedTrees {
                     .expression_table
                     .constant_integer_value(expression)
                     .map(BigInt::from_i64),
+                RetainedConstantPosition::ContractExpression(expression) => {
+                    evaluated.closed_integer_expression_value(expression)
+                }
                 // The fold rewrites the argument node to the literal's
                 // canonical spelling; the authored root expression stays.
                 RetainedConstantPosition::ConstApplication { site, root } => {
@@ -313,6 +358,7 @@ impl crate::TypedTrees {
         }
         if unclosed.is_empty() {
             Ok(ConstantRecipeClosure {
+                target_bodies: Vec::new(),
                 values,
                 receipts,
                 ..Default::default()
@@ -339,7 +385,8 @@ impl crate::TypedTrees {
                         ..
                     }
                 ),
-                RetainedConstantPosition::RangeEndpoint(expression) => {
+                RetainedConstantPosition::RangeEndpoint(expression)
+                | RetainedConstantPosition::ContractExpression(expression) => {
                     !self.pending_const_range_endpoints.contains(&expression)
                 }
                 RetainedConstantPosition::ConstApplication { site, .. } => !matches!(

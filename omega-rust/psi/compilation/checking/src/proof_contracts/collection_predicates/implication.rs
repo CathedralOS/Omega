@@ -251,9 +251,20 @@ fn ordering_relations(
         return Vec::new();
     };
     let mut subjects = Vec::new();
-    for (argument, value) in application.arguments.iter().zip(&arguments) {
+    for ((parameter, argument), value) in parameters
+        .iter()
+        .zip(application.arguments.iter())
+        .zip(&arguments)
+    {
         if proof
-            .integer_subjects(*argument, value.clone(), &mut path, &mut subjects, 0)
+            .integer_subjects(
+                *argument,
+                parameter.type_reference,
+                value.clone(),
+                &mut path,
+                &mut subjects,
+                0,
+            )
             .is_none()
         {
             return Vec::new();

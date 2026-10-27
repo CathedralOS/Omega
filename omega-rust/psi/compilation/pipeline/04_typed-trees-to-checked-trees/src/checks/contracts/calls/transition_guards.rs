@@ -78,8 +78,12 @@ fn selected_transition_premise<'program>(
         call_frames,
     );
     let premises = std::iter::once(guard)
-        .chain(captured.into_iter().filter_map(|(premise, holds)| {
-            (holds
+        .chain(captured.into_iter().filter_map(|observation| {
+            let premise = observation.current_expression;
+            if !premise.is_valid() {
+                return None;
+            }
+            (observation.value
                 && super::super::guard_operands::premise_reads_survive_arm_operand_writes(
                     program,
                     facts,

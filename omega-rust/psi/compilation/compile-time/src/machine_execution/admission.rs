@@ -56,6 +56,7 @@ pub(crate) fn require_const_expression_selection(
         Some(BuildTimeInvocationCustody::Source(source)),
         authority,
         &[],
+        None,
     ) {
         Some(violation) => Err(violation.message),
         None => Ok(()),
@@ -116,6 +117,13 @@ impl<'program> BuildTimeProgram<'program> {
         match self {
             Self::Typed(program) => program,
             Self::Checked(program) => program,
+        }
+    }
+
+    fn operator_facts(self) -> Option<&'program checked_trees::CheckedOperatorFacts> {
+        match self {
+            Self::Typed(_) => None,
+            Self::Checked(program) => Some(&program.facts.operators),
         }
     }
 
@@ -220,7 +228,31 @@ impl BuildTimeAdmissionPlan {
     ) -> Self {
         let operational = validation::infer_operational_may(program);
         let service_reaches = validation::infer_service_reaches(program, &operational);
-        let (suspension, blocking, call_edges) = project_operational_axes(&operational);
+        let (suspension, blocking, mut call_edges) = project_operational_axes(&operational);
+        // Selected trait algebra is an exact source execution edge, just like
+        // an ordinary named call. Retain the selected body so every admission
+        // axis traverses it; this does not select an external provider.
+        let operators = validation::derive_pre_flow_operator_selections(program);
+        for (expression, origin, _, _) in operators.resolved_expression_selections() {
+            let Some(owner) = origin.machine_symbol() else {
+                continue;
+            };
+            let Some(candidate) = operators.selected_trait_candidate_in_machine(expression, owner)
+            else {
+                continue;
+            };
+            if !candidate.realization_machine_symbol.is_valid()
+                || !candidate.realization_state_symbol.is_valid()
+            {
+                continue;
+            }
+            call_edges.push(BuildTimeCallEdge {
+                source_machine_symbol: owner,
+                target_machine_symbol: candidate.realization_machine_symbol,
+                target_state_symbol: candidate.realization_state_symbol,
+                target_operator_symbol: candidate.trait_requirement_symbol,
+            });
+        }
         Self {
             service_reaches,
             suspension,
@@ -307,6 +339,31 @@ impl BuildTimeAdmissionPlan {
         closure
     }
 
+    /// Extend a demanded source roster with the same exact execution edges
+    /// admission will inspect, including source-selected trait realizations.
+    /// This query grants no checking, invocation or effect authority.
+    pub(crate) fn append_execution_dependencies(
+        &self,
+        program: &TypedTrees,
+        execution: &mut Vec<SymbolHandle>,
+    ) {
+        let mut position = 0;
+        while let Some(&machine) = execution.get(position) {
+            position += 1;
+            for edge in self
+                .call_edges
+                .iter()
+                .filter(|edge| edge.source_machine_symbol == machine)
+            {
+                if let Some(target) = edge.target_machine(program) {
+                    if !execution.contains(&target) {
+                        execution.push(target);
+                    }
+                }
+            }
+        }
+    }
+
     pub fn with_selected_operators(
         mut self,
         program: &TypedTrees,
@@ -317,7 +374,7 @@ impl BuildTimeAdmissionPlan {
         Ok(self)
     }
 
-    pub(crate) fn closure_needs_operator_selection(
+    pub(crate) fn closure_needs_execution_preparation(
         &self,
         program: &TypedTrees,
         root: SymbolHandle,
@@ -330,6 +387,30 @@ impl BuildTimeAdmissionPlan {
                 continue;
             }
             visited.push(machine);
+            // An ordinary body with proof-static implementation evidence must
+            // close that exact application before its selected call graph is
+            // available. Retain the work; preparation still owes every actual
+            // and denotation obligation. Mathematical/bodyless declarations
+            // never acquire a value job from an abstract evidence telescope.
+            if program
+                .machine_by_symbol(machine)
+                .is_some_and(|declaration| {
+                    declaration.supplies_checked_body()
+                        && !declaration.conformance_bounds.is_empty()
+                })
+            {
+                return true;
+            }
+            // A portable family head has no executable body in shared Psi.
+            // Its exact scoped member is another selected realization demand,
+            // even when every member contains only ordinary checked code.
+            if program
+                .target_machine_families
+                .iter()
+                .any(|family| family.canonical == machine && !family.members.is_empty())
+            {
+                return true;
+            }
             // Named and normalized token requirements appear as ordinary
             // calls. Their bodies are supplied by selected providers, not by
             // the requirement declarations in this closure.
@@ -340,7 +421,10 @@ impl BuildTimeAdmissionPlan {
             }) {
                 return true;
             }
-            let boundary_use = |selected_operator_symbol| {
+            let boundary_use = |selected_operator_symbol: SymbolHandle| {
+                if !selected_operator_symbol.is_valid() {
+                    return false;
+                }
                 // Named trait requirements and token views carry the same
                 // unsettled realization demand. Read their exact declaration,
                 // never the spelling of a call or the absence of an entry.
@@ -363,11 +447,22 @@ impl BuildTimeAdmissionPlan {
             {
                 return true;
             }
+            // Operational inference retains exact named/signature selections
+            // before every expression has a value-origin fact. Those rows
+            // still owe selected realization; no unresolved target acquires
+            // a boundary meaning merely because another row needs one.
+            if self.call_edges.iter().any(|edge| {
+                edge.source_machine_symbol == machine
+                    && (boundary_use(edge.target_operator_symbol)
+                        || boundary_use(edge.target_state_symbol))
+            }) {
+                return true;
+            }
             pending.extend(
                 self.call_edges
                     .iter()
                     .filter(|edge| edge.source_machine_symbol == machine)
-                    .map(|edge| edge.target_machine_symbol),
+                    .filter_map(|edge| edge.target_machine(program)),
             );
         }
         false
@@ -387,12 +482,7 @@ impl BuildTimeAdmissionPlan {
         machine: &Machine,
         custody: BuildTimeInvocationCustody,
     ) -> Result<(), BuildTimeAdmissionRejection> {
-        self.require_floor(
-            BuildTimeProgram::Typed(program),
-            machine,
-            Some(custody),
-            false,
-        )
+        self.require_checked_invocation_floor(program, machine, custody, false)
     }
 
     /// Common floor for one concrete invocation whose own checked probe
@@ -408,11 +498,29 @@ impl BuildTimeAdmissionPlan {
         machine: &Machine,
         custody: BuildTimeInvocationCustody,
     ) -> Result<(), BuildTimeAdmissionRejection> {
-        self.require_floor(
-            BuildTimeProgram::Typed(program),
-            machine,
+        self.require_checked_invocation_floor(program, machine, custody, true)
+    }
+
+    fn require_checked_invocation_floor(
+        &self,
+        program: &TypedTrees,
+        machine: &Machine,
+        custody: BuildTimeInvocationCustody,
+        discharge_authored_requires: bool,
+    ) -> Result<(), BuildTimeAdmissionRejection> {
+        let checked = concrete_invocation::checked_demanded_closure(program, machine.symbol)?;
+        let execution = checked.typed.as_ref();
+        let root = execution
+            .machine_by_symbol(machine.symbol)
+            .ok_or_else(|| "checked invocation lost its exact declaration".to_owned())?;
+        let admission = Self::infer(execution, self.selection_authority.clone())
+            .with_selected_operators(execution, &self.selected_operators)?
+            .with_selected_machine_bodies(execution, &self.selected_machine_bodies)?;
+        admission.require_floor(
+            BuildTimeProgram::Checked(&checked),
+            root,
             Some(custody),
-            true,
+            discharge_authored_requires,
         )
     }
 
@@ -566,6 +674,7 @@ impl BuildTimeAdmissionPlan {
             custody,
             authority,
             &self.selected_operators,
+            input.operator_facts(),
         );
         if services.is_empty()
             && !transitive_may_suspend
@@ -856,17 +965,26 @@ impl BuildTimeAdmissionPlan {
         let [machine] = matching.as_slice() else {
             return Err("build-time invocation has no unique exact machine".into());
         };
-        self.require_const_evaluable_invocation(
-            program,
+        let discharge_authored_requires = discharge_authored_requires
+            || self.zero_argument_invocation_discharge(program, machine, &arguments, Some(custody));
+        let checked = concrete_invocation::checked_demanded_closure(program, machine_symbol)?;
+        let execution = checked.typed.as_ref();
+        let machine = execution
+            .machine_by_symbol(machine_symbol)
+            .ok_or("checked constant invocation lost its exact machine")?;
+        let admission = Self::infer(execution, self.selection_authority.clone())
+            .with_selected_operators(execution, &self.selected_operators)?
+            .with_selected_machine_bodies(execution, &self.selected_machine_bodies)?;
+        admission.require_floor(
+            BuildTimeProgram::Checked(&checked),
             machine,
-            &arguments,
-            custody,
+            Some(custody),
             discharge_authored_requires,
         )?;
         let measured = self
             .accounting
             .evaluate(
-                checked_interpreter::BuildMachineProgram::Typed(program),
+                checked_interpreter::BuildMachineProgram::Checked(&checked),
                 BuildMachineEvaluationRequest {
                     product_entry_compatibility: None,
                     operators: &self.selected_operators,
@@ -875,7 +993,7 @@ impl BuildTimeAdmissionPlan {
                 },
             )
             .map(BuildTimeOperationEvaluation::into_measured)?;
-        require_const_evaluable_result(program, machine, measured.value())?;
+        require_const_evaluable_result(execution, machine, measured.value())?;
         Ok(measured)
     }
 

@@ -650,10 +650,17 @@ fn reference_leaf_following<'live>(
 /// retained descriptor and names its whole placed referent. A type or catalog
 /// row cannot manufacture this association for ordinary ingress storage.
 pub(super) fn placed_source(
+    function: &AbstractFunction,
     live: &LiveDefinitions,
+    types: &StructuralTypeLookup<'_>,
     source: &StructuralArgument,
 ) -> Option<target_operations::TargetPlacedInterpretation> {
     if source.path.is_empty() {
+        if let Some(origins) = live.borrowed_reference_sources.get(&source.place) {
+            return optimization_unit_semantics::descriptor_results::placed_results::agree(
+                origins.as_ref()?.iter().map(|origin| origin.placed.clone()),
+            );
+        }
         return live
             .placed_formals
             .get(&source.place)
@@ -663,8 +670,7 @@ pub(super) fn placed_source(
     let (StructuralPathSegment::Referent, path) = source.path.split_last()? else {
         return None;
     };
-    live.references
-        .get(&(source.place, path.to_vec()))?
+    reference_leaf(function, live, types, source.place, path)?
         .placed
         .clone()
 }
@@ -733,7 +739,7 @@ pub(super) fn placed_call_custody(
             .get(runtime_position)
             .filter(|argument| argument.access == parameter.access)
             .ok_or_else(|| invalid(PlacedCallCustodyError::FormalDemandMismatch))?;
-        let association = match placed_source(live, argument) {
+        let association = match placed_source(caller, live, types, argument) {
             Some(target_operations::TargetPlacedInterpretation::Captured(captured)) => {
                 optimization_unit_semantics::placed_references::validate_backing(
                     catalog.as_slice(),
@@ -1029,7 +1035,7 @@ pub(super) fn establish(
             root,
             carrier_type: result.structural_type,
             referent,
-            placed: placed_source(live, source),
+            placed: placed_source(function, live, types, source),
         },
     );
     // A reference owns descriptor storage just like every other structural
@@ -1557,7 +1563,7 @@ pub(super) fn call_results(
                     carrier_type: leaf_type(types, result.structural_type, &mapping.path)
                         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?,
                     referent: expected,
-                    placed: placed_source(live, source),
+                    placed: placed_source(function, live, types, source),
                 }
             };
             public_interpretations.push(leaf.placed.take().filter(|_| {
@@ -1600,7 +1606,7 @@ pub(super) fn call_results(
                         {
                             return transferred.placed.clone();
                         }
-                        placed_source(live, &actual)
+                        placed_source(function, live, types, &actual)
                     },
                     |correspondence| {
                         target_operations::TargetPlacedInterpretation::Captured(

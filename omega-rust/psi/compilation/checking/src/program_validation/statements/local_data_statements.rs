@@ -433,6 +433,54 @@ pub(super) fn validate(
         }
     }
     if local_data.initial_value.is_valid() {
+        let mut completed_values = Vec::new();
+        let aggregate_with_writes = matches!(
+            program
+                .expression_table
+                .expression(local_data.initial_value),
+            typed_trees::expression::ExpressionNode::StructLiteral(_)
+                | typed_trees::expression::ExpressionNode::ArrayLiteral(_)
+        ) && calls::expression_has_calls(
+            program,
+            local_data.initial_value,
+        ) && scope
+            .call_frames
+            .and_then(|frames| frames.expression_may_write_paths(machine, local_data.initial_value))
+            .is_none_or(|written| !written.is_empty());
+        let captured_values = if aggregate_with_writes
+            && let Some(state) = current_state
+            && let Some(captured) = arithmetic_domains::occurrence_integer_child_values(
+                program,
+                machine.symbol,
+                state.symbol,
+                statement_index,
+                local_data.initial_value,
+            ) {
+            let keys = captured
+                .iter()
+                .map(|value| {
+                    (
+                        value.expression.arena_index(),
+                        value.expression.generation(),
+                    )
+                })
+                .collect::<std::collections::BTreeSet<_>>();
+            completed_values.extend(
+                arithmetic_decisions.expression_values[first_checked_interval..]
+                    .iter()
+                    .filter(|value| {
+                        !keys.contains(&(
+                            value.expression.arena_index(),
+                            value.expression.generation(),
+                        ))
+                    })
+                    .cloned(),
+            );
+            completed_values.extend(captured);
+            &completed_values[..]
+        } else {
+            &arithmetic_decisions.expression_values[first_checked_interval..]
+        };
         let mut copied_value = arithmetic_domains::CopiedIntegerValue::capture(
             program,
             machine,
@@ -440,7 +488,7 @@ pub(super) fn validate(
             local_data.initial_value,
             local_data.type_reference,
             value_environment,
-            &arithmetic_decisions.expression_values[first_checked_interval..],
+            captured_values,
         );
         copied_value.capture_local_relations(
             program,

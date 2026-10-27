@@ -54,17 +54,29 @@ pub fn declared_collection_extent(
 /// evidence that any bytes are present.
 pub fn fixed_array_type_length(
     program: &dyn crate::CheckingInput,
-    mut reference: typed_trees::types::TypeReferenceHandle,
+    reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<usize> {
+    match fixed_array_type_extent(program, reference)? {
+        typed_trees::types::FixedArrayLength::Literal(extent) => Some(*extent),
+        _ => None,
+    }
+}
+
+/// The declared full-array extent retains its resolved static binder when it
+/// is not closed yet. This grants geometry only; bounded byte owners still
+/// have an independent live length, and no content observation is introduced.
+pub fn fixed_array_type_extent(
+    program: &dyn crate::CheckingInput,
+    mut reference: typed_trees::types::TypeReferenceHandle,
+) -> Option<&typed_trees::types::FixedArrayLength> {
     loop {
         if crate::bounded_byte_buffer_capacity(program, reference).is_some() {
             return None;
         }
         match program.type_reference_table.type_reference(reference) {
-            typed_trees::types::TypeReferenceNode::FixedArray {
-                length: typed_trees::types::FixedArrayLength::Literal(extent),
-                ..
-            } => return Some(*extent),
+            typed_trees::types::TypeReferenceNode::FixedArray { length, .. } => {
+                return Some(length);
+            }
             typed_trees::types::TypeReferenceNode::Reference { referee, .. }
             | typed_trees::types::TypeReferenceNode::Constrained {
                 base_type: referee, ..

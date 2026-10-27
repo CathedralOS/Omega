@@ -239,21 +239,11 @@ pub(super) fn build(
                             )?,
                         }
                     }
-                    TransitionTargetNode::Value(expression)
-                        if result != checked_trees::CheckedControlResultPlan::Unit
-                            && transition.exit == TransitionExit::Ordinary
-                            && !transition.continuation.is_valid() =>
-                    {
-                        complete_expression(*expression, shapes, operations)?
-                    }
                     // An unconditional terminal machine call already ran as
                     // this state's last operation (the sequence planned and
                     // counted it and bound its value); the callee's normal
                     // result completes this machine here.
-                    TransitionTargetNode::Named { .. }
-                        if terminal_calls::external_callable(
-                            program, machine, fused, transition,
-                        )
+                    _ if terminal_calls::external_callable(program, machine, fused, transition)
                         .is_some() =>
                     {
                         trace.phase("state graph: terminator: terminal call completion");
@@ -264,6 +254,13 @@ pub(super) fn build(
                             scalar_result,
                             structural_result,
                         )?
+                    }
+                    TransitionTargetNode::Value(expression)
+                        if result != checked_trees::CheckedControlResultPlan::Unit
+                            && transition.exit == TransitionExit::Ordinary
+                            && !transition.continuation.is_valid() =>
+                    {
+                        complete_expression(*expression, shapes, operations)?
                     }
                     _ => {
                         trace.phase("state graph: terminator: jump successor");
@@ -355,6 +352,30 @@ pub(super) fn build(
                         )
                         .map(Ok);
                     }
+                    // A value root owns its call results. Unit has no value
+                    // computation, so its whole invocation is the arm operation.
+                    if terminal_calls::external_callable(program, machine, fused, transition)
+                        .is_some()
+                    {
+                        return terminal_calls::arm_call(
+                            program,
+                            facts,
+                            scalar_callees,
+                            shapes,
+                            machine,
+                            state,
+                            structural,
+                            entry_claims,
+                            local_results,
+                            operations,
+                            &result,
+                            next_scalar_binding,
+                            transition,
+                            edge_ordinal,
+                            trace,
+                        )
+                        .map(|arm| Err((arm, Vec::new())));
+                    }
                     if let TransitionTargetNode::Value(expression) =
                         program.statement_table.transition_target(transition.target)
                     {
@@ -415,30 +436,6 @@ pub(super) fn build(
                                 operand_calls,
                             ))
                         });
-                    }
-                    // Another machine in target position is an invocation
-                    // that completes this machine on its own arm only.
-                    if terminal_calls::external_callable(program, machine, fused, transition)
-                        .is_some()
-                    {
-                        return terminal_calls::arm_call(
-                            program,
-                            facts,
-                            scalar_callees,
-                            shapes,
-                            machine,
-                            state,
-                            structural,
-                            entry_claims,
-                            local_results,
-                            operations,
-                            &result,
-                            next_scalar_binding,
-                            transition,
-                            edge_ordinal,
-                            trace,
-                        )
-                        .map(|arm| Err((arm, Vec::new())));
                     }
                     successor(
                         program,

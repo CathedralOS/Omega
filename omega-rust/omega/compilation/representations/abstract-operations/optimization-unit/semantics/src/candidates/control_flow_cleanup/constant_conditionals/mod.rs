@@ -1,8 +1,5 @@
 //! Optimizer module role: executable entrance. Constant-conditional validation.
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
-use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationSafetyClass,
-};
 use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 
 mod replay;
@@ -11,23 +8,12 @@ pub(crate) fn validate_constant_conditional_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
-    super::super::contract::validate(
+    super::super::contract::admit(
         input,
         candidate,
-        b"omega.psi-rule.constant-conditional-fold.v5",
-        AnalysisSet::new([
-            AnalysisKind::ControlFlowGraph,
-            AnalysisKind::ScalarConstants,
-        ]),
-        AnalysisInvalidationSet::new([
-            AnalysisKind::ControlFlowGraph,
-            AnalysisKind::CallGraph,
-            AnalysisKind::UseDefinition,
-            AnalysisKind::EffectSummaries,
-        ]),
-        OptimizationSafetyClass::ExactOperationSemantics,
+        &super::super::contract::CONSTANT_CONDITIONAL_FOLD,
     )?;
-    if candidate.predicted_cost_delta() != -1 || !candidate.substitutions().is_empty() {
+    if !candidate.substitutions().is_empty() {
         return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
     }
     replay::validate(input, candidate)

@@ -46,6 +46,14 @@ pub(crate) fn parse_proof_fact_expression_handle<'tokens, 'source>(
     parse_expression_handle_in(syntax_trees, input, ExpressionContext::ProofFact)
 }
 
+/// Only owning declaration predicates introduce a logical subject.
+pub(crate) fn parse_logical_proof_fact_expression_handle<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, ExpressionHandle> {
+    parse_expression_handle_in(syntax_trees, input, ExpressionContext::LogicalProofFact)
+}
+
 /// Parse the operator subset that can appear in a const generic argument
 /// without consuming the closing `>` as a comparison. This intentionally
 /// stops above the comparison/equality/logical layers while retaining ordinary
@@ -232,11 +240,11 @@ fn parse_unary_expression_handle<'tokens, 'source>(
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
     // Keep the common single prefix in this invocation. Only additional
     // prefixes need growing scratch; no chain limit or recursive call is added.
-    let Some((first_prefix, mut input)) = take_unary_prefix(input)? else {
+    let Some((first_prefix, mut input)) = take_unary_prefix(input, context)? else {
         return parse_postfix_expression_handle(syntax_trees, input, context);
     };
     let mut prefixes = Vec::new();
-    while let Some((prefix, rest)) = take_unary_prefix(input)? {
+    while let Some((prefix, rest)) = take_unary_prefix(input, context)? {
         prefixes.push(prefix);
         input = rest;
     }
@@ -252,12 +260,19 @@ fn parse_unary_expression_handle<'tokens, 'source>(
 /// particular, contextual acknowledgement names followed by a call remain
 /// ordinary names, while a prefix must reach the expression parser intact.
 pub(crate) fn has_unary_expression_prefix(input: Input<'_, '_>) -> Result<bool, crate::ParseError> {
-    take_unary_prefix(input).map(|prefix| prefix.is_some())
+    take_unary_prefix(input, ExpressionContext::Default).map(|prefix| prefix.is_some())
 }
 
 fn take_unary_prefix<'tokens, 'source>(
     input: Input<'tokens, 'source>,
+    context: ExpressionContext,
 ) -> Result<Option<(UnaryPrefix<'tokens, 'source>, Input<'tokens, 'source>)>, crate::ParseError> {
+    // A named lifetime is part of a static reference type, not a value
+    // borrow prefix. Leave the complete type for the ordinary primary/type
+    // parser, including when it occurs beneath another unary prefix.
+    if context.allows_type_expression() && super::primary::starts_lifetime_reference_type(input) {
+        return Ok(None);
+    }
     // Acknowledgements remain ordinary identifiers when followed by `(`.
     if input.at_contextual("suspend")
         && input

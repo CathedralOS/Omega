@@ -313,6 +313,9 @@ fn lower_scalar_requires(
     scalar_types: &[ScalarType],
     views: &crate::scalar_lowering::contracts::ContractViewNamespace<'_>,
 ) -> Result<Vec<Proposition>, LoweringError> {
+    if !plan.pending_scalar_requires.is_empty() || !plan.pending_scalar_recipes.is_empty() {
+        return unsupported("boundary scalar contract clauses remain pending");
+    }
     lower_scalar_contract(identities, &plan.scalar_requires, scalar_types, views)
 }
 

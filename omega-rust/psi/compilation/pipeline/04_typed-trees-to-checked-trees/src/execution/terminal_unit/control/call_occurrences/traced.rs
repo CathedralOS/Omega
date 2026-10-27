@@ -13,7 +13,7 @@ use super::collecting::{
     collect_owned_root_calls, collect_range_calls, collect_root_calls,
     collect_structural_argument_calls,
 };
-use super::{ordered_statement_call, terminal_named_call};
+use super::{ordered_statement_call, terminal_invocation};
 use crate::execution::terminal_unit::control::{statement_sequence, structural_operands};
 
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
@@ -612,7 +612,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
         // Non-completing named transitions remain selected control edges,
         // never unconditional calls emitted by this linear sequence.
         if let StatementNode::Transition(transition) = statement
-            && terminal_named_call(program, owner, state, call.statement_index)
+            && terminal_invocation(program, owner, state, call.statement_index)
                 != Some(call.target_symbol)
         {
             if matches!(
@@ -633,13 +633,15 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
             call.call_ordinal,
         )?;
         // Occurrence traversal marks every transition target as selected.
-        // The exact terminal named occurrence instead has its control authority
-        // from terminal_named_call: final Always, no preceding transition or
+        // The exact terminal invocation instead has its control authority
+        // from terminal_invocation: final Always, no preceding transition or
         // continuation, and an ordinary result matching the enclosing return.
         // Nested expression calls cannot inherit that completion proof.
-        let terminal_completion = matches!(site, validation::CallSite::TransitionNamed { .. })
-            && terminal_named_call(program, owner, state, call.statement_index)
-                == Some(call.target_symbol);
+        let terminal_completion = statement.as_transition().is_some_and(|transition| {
+            site.completes_transition(program, transition.target)
+                && terminal_invocation(program, owner, state, call.statement_index)
+                    == Some(call.target_symbol)
+        });
         if !terminal_completion {
             validation::call_is_unconditional(
                 program,

@@ -62,15 +62,12 @@ pub(super) fn close_constant_recipes(
     } else {
         (**typed).clone()
     };
-    ConstantRecipeObligation::discharge_all(
-        &shared.facts.constant_recipe_obligations,
-        &closed_typed,
-    )?;
     let mut closed_facts = shared.facts.clone();
     let mut proof_targets = vec![selected_target_profile];
     let predicate_rows = &shared.facts.constant_predicate_obligations;
     let range_rows = &shared.facts.integer_range_obligations;
-    if !predicate_rows.is_empty() || !range_rows.is_empty() {
+    let recipe_rows = &shared.facts.constant_recipe_obligations;
+    if !predicate_rows.is_empty() || !range_rows.is_empty() || !recipe_rows.is_empty() {
         for machine in typed.machines() {
             if let Some(name) = typed.machine_authored_target(machine) {
                 let target = target::TargetProfile::from_canonical_target_name(name)
@@ -83,17 +80,26 @@ pub(super) fn close_constant_recipes(
     }
     closed_facts.constant_predicate_obligations.clear();
     closed_facts.integer_range_obligations.clear();
+    closed_facts.constant_recipe_obligations.clear();
     let mut predicate_closed = vec![false; predicate_rows.len()];
     let mut range_closed = vec![false; range_rows.len()];
+    let mut recipe_closed = vec![false; recipe_rows.len()];
     let declaration_owners =
         provider_planning::target_machines::declaration_formation_owners(shared);
     let proof_owners: Vec<_> = predicate_rows
         .iter()
         .map(|row| row.caller())
         .chain(range_rows.iter().map(|row| row.owner()))
+        .chain(
+            recipe_rows
+                .iter()
+                .map(|row| row.owner())
+                .filter(|owner| owner.is_valid()),
+        )
         .collect();
     for target in proof_targets {
         if target != selected_target_profile
+            && !recipe_rows.iter().any(|row| !row.owner().is_valid())
             && !provider_planning::target_machines::target_has_proof_demand(
                 shared,
                 target,
@@ -149,7 +155,17 @@ pub(super) fn close_constant_recipes(
                                 && declaration_owners.contains(&obligation.owner()))))
             })
             .collect();
-        if predicate_applications.is_empty() && range_applications.is_empty() {
+        let recipe_applications: Vec<_> = recipe_rows
+            .iter()
+            .enumerate()
+            .filter(|(_, obligation)| {
+                !obligation.owner().is_valid() || applications.contains(&obligation.owner())
+            })
+            .collect();
+        if predicate_applications.is_empty()
+            && range_applications.is_empty()
+            && recipe_applications.is_empty()
+        {
             continue;
         }
         let proof_program = match &supplemental {
@@ -175,6 +191,18 @@ pub(super) fn close_constant_recipes(
                 .constant_predicate_obligations
                 .push(application);
             predicate_closed[position] = true;
+        }
+        // Recipe comparisons belong to the caller application just like
+        // constant predicates and arithmetic snapshots. A nonselected tagged
+        // body's endpoint must close under its own provider capsule.
+        for (position, obligation) in recipe_applications {
+            let mut application = obligation.clone();
+            ConstantRecipeObligation::discharge_all(
+                std::slice::from_mut(&mut application),
+                program,
+            )?;
+            closed_facts.constant_recipe_obligations.push(application);
+            recipe_closed[position] = true;
         }
         let address_model = if range_applications
             .iter()
@@ -217,13 +245,23 @@ pub(super) fn close_constant_recipes(
             range_closed[position] = true;
         }
         if let Some(proof_program) = proof_program {
+            closed_typed.constant_recipe_closure.target_bodies.extend(
+                proof_program
+                    .constant_recipe_closure
+                    .target_bodies
+                    .iter()
+                    .cloned(),
+            );
             closed_typed
                 .constant_recipe_closure
                 .receipts
                 .extend(proof_program.constant_recipe_closure.receipts);
         }
     }
-    if predicate_closed.contains(&false) || range_closed.contains(&false) {
+    if predicate_closed.contains(&false)
+        || range_closed.contains(&false)
+        || recipe_closed.contains(&false)
+    {
         return Err(vec![Diagnostic::error(
             "retained proof obligation has no target application",
         )]);
@@ -245,14 +283,37 @@ pub(super) fn close_constant_recipes(
             .then(left.plan_identity.cmp(&right.plan_identity))
     });
     receipts.dedup();
+    let target_bodies = &mut closed_typed.constant_recipe_closure.target_bodies;
+    target_bodies.sort_by_key(|row| {
+        (
+            row.target_scope.clone(),
+            row.head.arena_index(),
+            row.head.generation(),
+            row.member.arena_index(),
+            row.member.generation(),
+        )
+    });
+    target_bodies.dedup();
     if !receipts.is_empty() {
         closed_typed.constant_recipe_closure.target_scope =
             selected_target_profile.target_name().to_owned();
     }
-    Ok(Arc::new(CheckedTrees::with_roots(
-        closed_typed,
-        closed_facts,
-    )))
+    let closed = CheckedTrees::with_roots(closed_typed, closed_facts);
+    let pending_boundary_clauses = closed
+        .facts
+        .flow
+        .terminal_unit_effects
+        .boundary_machines
+        .iter()
+        .any(|plan| {
+            !plan.pending_scalar_requires.is_empty() || !plan.pending_scalar_recipes.is_empty()
+        });
+    let closed = if pending_boundary_clauses {
+        psi_compiler::settle_closed_constant_execution(closed)?
+    } else {
+        closed
+    };
+    Ok(Arc::new(closed))
 }
 
 /// Resume one capsule's existing evaluator and rejoin by canonical identity.
@@ -281,6 +342,7 @@ fn close_constant_values(
         &validation::derive_pre_flow_operator_selections(authored),
         selected_provider_plan_facts,
     )?;
+    let target_bodies = evaluation.target_body_receipts();
     let (operators, provider_bodies) = evaluation.pending_fold_providers();
     let mut receipts: Vec<ConstantRecipeDependencyReceipt> = operators
         .iter()
@@ -318,7 +380,9 @@ fn close_constant_values(
     // storage keeps its symbolic positions for every other target.
     let mut evaluated = authored.clone();
     evaluation.evaluate_pending(&mut evaluated, source.constant_recipe_continuations.clone())?;
-    let closure = typed.read_constant_recipe_closure(&evaluated, receipts)?;
+    let mut closure = typed.read_constant_recipe_closure(&evaluated, receipts)?;
+    closure.target_bodies = target_bodies;
+    closure.target_scope = selected_target_profile.target_name().to_owned();
     let mut closed_typed = (**typed).clone().with_constant_recipe_closure(closure);
     closed_typed.plan_laid_layouts = std::mem::take(&mut evaluated.plan_laid_layouts);
     closed_typed.plan_laid_target_layouts = std::mem::take(&mut evaluated.plan_laid_target_layouts);

@@ -17,6 +17,17 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     context: ExpressionContext,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
+    if context.allows_type_expression() && starts_lifetime_reference_type(input) {
+        let start = input;
+        let (reference, rest) = parse_type_reference_handle(syntax_trees, input)?;
+        let expression = syntax_trees
+            .expressions
+            .insert(ExpressionNode::TypeExpression(reference));
+        syntax_trees
+            .expressions
+            .set_source_span(expression, start.source_span_until(rest));
+        return Ok((expression, rest));
+    }
     if input.at_keyword(KeywordKind::True) {
         let source_span = input
             .tokens
@@ -50,6 +61,21 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
     }
 
     if input.at_keyword(KeywordKind::SelfValue) {
+        if context.allows_logical_subject() {
+            let source_span =
+                input.source_span(input.tokens.first().expect("logical subject token"));
+            let input = input.take_keyword(KeywordKind::SelfValue, "self")?;
+            let member = syntax_trees
+                .expressions
+                .append_identifier_path_member(Identifier::new("self", source_span));
+            let expression = syntax_trees.expressions.insert(ExpressionNode::Name(
+                arena::HandleSpan::from_parts(member, 1),
+            ));
+            syntax_trees
+                .expressions
+                .set_source_span(expression, source_span);
+            return Ok((expression, input));
+        }
         return Err(input.error_here(
             "implicit `self` is retired; name the explicit parameter or domain subject",
         ));
@@ -524,3 +550,12 @@ fn parse_struct_literal_handle<'tokens, 'source>(
 
 #[cfg(test)]
 mod generic_type_operand_tests {}
+
+/// Tick-qualified reference syntax has an unambiguous static type role.
+/// Unqualified `&place` retains ordinary value-borrow parsing until resolution.
+pub(super) fn starts_lifetime_reference_type(input: Input<'_, '_>) -> bool {
+    input.at_punctuation(PunctuationKind::Ampersand)
+        && input
+            .take_punctuation(PunctuationKind::Ampersand, "&")
+            .is_ok_and(|rest| rest.at_punctuation(PunctuationKind::Apostrophe))
+}

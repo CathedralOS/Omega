@@ -184,6 +184,15 @@ pub(crate) fn hoist_terminal_value_machine_call(
     expression: ExpressionHandle,
     hoisted: &mut Vec<Statement>,
 ) -> ExpressionHandle {
+    // Unit completion carries no value storage. The full invocation remains
+    // available to ordinary call checking/planning, including its static
+    // arguments and acknowledgement; this does not discard a non-Unit result.
+    if matches!(
+        lowerer.current_state_return_type,
+        None | Some(TypeReference::Unit)
+    ) {
+        return expression;
+    }
     let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
     let Some(call) = expressions.call_node(expression) else {
         return expression;

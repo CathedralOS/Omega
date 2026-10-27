@@ -30,6 +30,7 @@ use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTarge
 use typed_trees::types::PrimitiveType;
 
 mod construction_bounds;
+mod deferred_predicates;
 mod field_obligations;
 mod observations;
 mod window_elements;
@@ -93,7 +94,8 @@ pub(crate) fn validate_struct_literal_fields(
                 machine,
                 state,
                 ExpressionHandle::invalid(),
-            );
+            )
+            .retaining_range_obligations();
             for (statement_index, statement) in program
                 .statement_table
                 .indexed_statements(state.statement_nodes)
@@ -216,6 +218,7 @@ pub(crate) fn validate_struct_literal_fields(
                     }
                 }
             }
+            formation_obligations.extend(observations.take_range_obligations());
         }
     }
     stored_integer_writes
@@ -293,6 +296,7 @@ fn scan_expression(
                 program,
                 machine,
                 state,
+                observations,
                 expression,
                 statement_index,
                 literal,
@@ -429,6 +433,7 @@ fn scan_expression(
                 program,
                 machine,
                 state,
+                observations,
                 expression,
                 statement_index,
                 &literal,
@@ -459,6 +464,7 @@ fn validate_literal_field_names(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
+    observations: &ConstructionObservations<'_>,
     expression: ExpressionHandle,
     statement_index: usize,
     literal: &TableStructLiteral,
@@ -545,6 +551,7 @@ fn validate_literal_field_names(
         program,
         machine,
         state,
+        observations,
         expression,
         statement_index,
         literal,
@@ -596,6 +603,7 @@ fn validate_literal_field_names(
                 program,
                 machine,
                 state,
+                observations,
                 expression,
                 statement_index,
                 literal,

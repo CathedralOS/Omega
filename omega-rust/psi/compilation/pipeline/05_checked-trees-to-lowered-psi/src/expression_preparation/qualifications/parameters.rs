@@ -89,16 +89,19 @@ pub(super) fn prepare(
                             &checked.typed,
                             membership.domain_symbol,
                         );
-                        let vacuous = validation::field_domains::domain_is_vacuous(
+                        let tag = validation::scalar_membership_is_tag(
                             &checked.typed,
-                            membership.domain_symbol,
-                            &mut Vec::new(),
+                            membership,
+                            primitive,
                         );
-                        if !routed && !vacuous {
+                        if !routed && !tag {
                             continue;
                         }
-                        if validation::scalar_membership_value_carrier(&checked.typed, membership)
-                            != Some(primitive)
+                        if routed
+                            && validation::scalar_membership_value_carrier(
+                                &checked.typed,
+                                membership,
+                            ) != Some(primitive)
                         {
                             return unsupported(
                                 "scalar entry membership has no exact primitive application",
@@ -238,8 +241,12 @@ impl PreparedScalarQualifications {
             .ok_or_else(|| LoweringError::MissingScalarParameterQualification {
                 state: checked.symbols.display_path(state, "::"),
                 source_position: position,
-                prepared_positions: self.parameters.iter().filter(|parameter| parameter.state == state)
-                    .map(|parameter| parameter.position).collect(),
+                prepared_positions: self
+                    .parameters
+                    .iter()
+                    .filter(|parameter| parameter.state == state)
+                    .map(|parameter| parameter.position)
+                    .collect(),
             })
     }
 }

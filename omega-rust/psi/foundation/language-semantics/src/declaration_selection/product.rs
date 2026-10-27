@@ -24,6 +24,18 @@ impl Default for BuildSelectionRequest {
 }
 
 impl BuildSelectionRequest {
+    /// Behavior exclusions name the enclosing machine. Other selections retain
+    /// their operand scopes directly and need no lexical machine subject.
+    pub fn requires_lexical_subject(&self) -> bool {
+        match self {
+            Self::Exclusion(_) => true,
+            Self::Declaration(request) => {
+                request.operation == super::BuildOperation::ServiceExclusion
+            }
+            Self::Entry(_) => false,
+        }
+    }
+
     pub fn source_span(&self) -> source::SourceSpan {
         match self {
             Self::Entry(request) => request.source_span,
@@ -135,7 +147,7 @@ pub enum ExecutedBuildSelection {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutedProductSelection {
     pub request: std::sync::Arc<ProductDeclarationRequest>,
-    pub selecting_machine: source::SourceSpan,
+    pub selecting_machine: Option<source::SourceSpan>,
     /// Provider choices retain the actual evaluated mode. Representation
     /// choices carry no composition argument.
     pub composition: Option<CompositionMode>,

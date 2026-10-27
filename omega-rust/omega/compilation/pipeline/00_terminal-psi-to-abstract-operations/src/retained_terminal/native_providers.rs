@@ -112,10 +112,10 @@ impl TerminalNativeRealizationProposal {
         components: &[&super::AdmittedNativeComponentCall<'_>],
     ) -> Result<(crate::VerifiedNativeArtifactInput, PreparedNativeExecution), Vec<Diagnostic>>
     {
-        if components
-            .iter()
-            .any(|component| component.selection().receiver() != artifact.view().identity())
-        {
+        if components.iter().any(|component| {
+            component.selection().receiver()
+                != &terminal_codec::TerminalExecutionIdentity::portable(artifact.view().identity())
+        }) {
             return Err(vec![Diagnostic::error(
                 "component scope selection names another receiving artifact",
             )]);

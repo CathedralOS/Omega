@@ -71,7 +71,7 @@ pub struct TerminalExecution<'artifact> {
     pub(crate) account: Option<EvaluationInvocationAccount>,
     /// A host fault is not a resumable pause. Retain its exact site and custody
     /// so retry cannot repeat an operation that may already have had effects.
-    failure: Option<TerminalInterpretError>,
+    pub(crate) failure: Option<TerminalInterpretError>,
     pub(crate) provider_storage: crate::provider_storage::RuntimeProviderStorage,
     /// Entry storage may be supplied only before the first resume, including
     /// a resume which exhausts its fuel without executing an operation.
@@ -962,7 +962,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                     .get(&demand.boundary)
                     .is_some_and(|admission| {
                         admission.answers(
-                            self.program.identity,
+                            self.program.identity.semantic(),
                             self.process_domain.as_ref(),
                             *demand,
                         )

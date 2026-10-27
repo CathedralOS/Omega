@@ -131,7 +131,16 @@ The construct under test must establish and carry the static proof fact into the
 consuming operation itself: never re-establish the fact in the caller after the
 construct completes using a post-hoc equality guard (`transition x == 100`), and
 verify via `git diff` that `<place>/main.omg` vs. `<place>/invalid/main.omg`
-differ only in the construct's own value, domain, or contract. Keep
+differ only in the construct's own value, domain, or contract. Just as
+`<place>/invalid/main.omg` is the static falsifier for `Psi 01–04`, `main()` in
+`<place>/main.omg` must be a runtime falsifier that traps (`crash Trap`) if
+`Psi 05–07` or `Omega 00–09` mis-lowers the construct: exercise both matching
+and fallback paths with distinct runtime outcomes (never testing only a
+boundary value where both arms evaluate to the same number), make affine
+cleanup (`DiscardRoot`, `DiscardResidual`, `InvokeNominal`, `RetireHome`) or
+restoration observable in caller-visible state rather than mutating only a
+dying temporary or dropping a plain scalar struct, and check untouched neighbor
+canaries around indexed/projected/ABI writes. Keep
 producer/target-bound run records in the existing qualification/claim record or
 commit. Close only the acceptance that evidence actually establishes.
 

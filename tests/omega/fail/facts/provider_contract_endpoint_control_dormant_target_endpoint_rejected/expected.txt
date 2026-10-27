@@ -1,0 +1,2 @@
+requires contract for call bounded from dormant_demand
+selected target realization closes `limit` to 6

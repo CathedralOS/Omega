@@ -117,7 +117,7 @@ pub(crate) fn pending_const_applications_need_operator_selection(
                 .filter(|call| call.site == application.site)
                 .any(|call| {
                     call.machine.is_valid()
-                        && admission.closure_needs_operator_selection(
+                        && admission.closure_needs_execution_preparation(
                             execution,
                             resolve_application_callee(execution, call)
                                 .map_or(call.machine, |callee| callee.instance),
@@ -987,6 +987,7 @@ fn resolve_application_callee(
             root: call.root,
             machine: call.machine,
             static_application: call.static_application,
+            contract_expression: false,
         },
     )
 }

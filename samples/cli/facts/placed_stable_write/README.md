@@ -2,6 +2,14 @@
 
 Fact: an exact permitted Stable field operation writes its original storage.
 
+Owning task: **PLAN-LAID-VIEWS** in [TASKS.md](../../../../TASKS.md).
+This row establishes subordinate placed-input transport. A borrowed arrival
+retains its original backing, storage projection, access and established placed
+interpretation together. Every incoming path must justify the same interpretation
+before a call can consume it; the carrier type alone establishes none of these.
+Externally installed entry lending and its retirement remain separate acceptance
+of that task, exercised by `installed_entry_storage` and the source-access customer.
+
 This is a prerequisite of BUMP-ALLOCATOR-CANARY, not allocator completion.
 Each program starts with initialized ordinary RAM, obtains an exclusive placed
 view, and writes 29 through its field accessor while a second, disjoint placed
@@ -95,3 +103,10 @@ placed views and later writes to either the selected or unselected input of a
 reference-returning call. An unrelated later write executes with both engines.
 These controls pin the distinction between pointer geometry and declared lifetime
 debt; an enclosure cannot supply value equality or access authority.
+
+Lowering retains the placed interpretation beside each exact captured borrowed
+source. A region-level result may conservatively overlap its entire original
+inline allocation; it cannot become an address or permission grant. Pointer
+crossings, unknown element families and unresolved roots remain conservative.
+The `placed_reference_results/two_live` pin distinguishes independent backing,
+while its overlap, stale-write and wrong-backing controls retain loan checks.

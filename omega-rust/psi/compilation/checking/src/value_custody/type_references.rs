@@ -42,6 +42,7 @@ mod constraint_validation;
 mod formation;
 mod generic_arguments;
 mod open_index_expressions;
+mod static_argument_scope;
 
 use constraint_validation::validate_type_constraints_node;
 pub(crate) use generic_arguments::{
@@ -79,7 +80,6 @@ pub(crate) use open_index_expressions::validate_indexed_qualification_arguments;
 use crate::StateSignatureOwner;
 use crate::declarations::symbols::TopLevelSymbols;
 use diagnostics::Diagnostic;
-use std::borrow::Cow;
 use std::fmt;
 use typed_trees::data::{TypeParameter, TypeParameterKind};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
@@ -91,6 +91,10 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 pub enum StaticTypeArgumentOwner<'program> {
     Machine(&'program typed_trees::machine::Machine),
     Data(&'program typed_trees::data::DataDefinition),
+    Constant {
+        symbol: symbols::SymbolHandle,
+        name: &'program str,
+    },
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -304,6 +308,9 @@ impl fmt::Display for TypeReferenceOwner<'_> {
                     StaticTypeArgumentOwner::Data(data) => {
                         write!(formatter, "data `{}`", data.name)?;
                     }
+                    StaticTypeArgumentOwner::Constant { name, .. } => {
+                        write!(formatter, "constant `{name}`")?;
+                    }
                 }
                 formatter.write_str(" static type argument")?;
                 *generic_depth
@@ -412,9 +419,9 @@ impl fmt::Display for TypeReferenceOwner<'_> {
 /// Check a static type argument before specialization can erase its call site.
 /// The callee need not use this type in its body: formation, qualification and
 /// lifetime obligations belong to the caller's authored argument itself.
-pub fn validate_static_type_argument(
-    program: &dyn crate::CheckingInput,
-    caller: StaticTypeArgumentOwner<'_>,
+pub fn validate_static_type_argument<'program>(
+    program: &'program dyn crate::CheckingInput,
+    caller: StaticTypeArgumentOwner<'program>,
     type_reference: TypeReferenceHandle,
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -423,18 +430,7 @@ pub fn validate_static_type_argument(
     // The invocation telescope excludes an owned member's captures. Static
     // operands are authored in the same lexical scope as its signature and
     // locals, so use retained declaration containment for all three.
-    let (type_parameters, lifetime_parameters, lexical_owner) = match caller {
-        StaticTypeArgumentOwner::Machine(machine) => {
-            let (types, lifetimes) = program
-                .machine_type_reference_scope(machine, |left, right| left.name == right.name);
-            (Cow::Owned(types), Cow::Owned(lifetimes), machine.symbol)
-        }
-        StaticTypeArgumentOwner::Data(data) => (
-            Cow::Borrowed(program.data_type_parameters(data)),
-            Cow::Borrowed(data.lifetime_parameters.as_slice()),
-            data.symbol,
-        ),
-    };
+    let (type_parameters, lifetime_parameters, lexical_owner) = caller.parameters(program);
     validate_type_reference_handle(
         program,
         type_reference,

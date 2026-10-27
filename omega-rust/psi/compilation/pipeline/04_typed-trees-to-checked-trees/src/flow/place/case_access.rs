@@ -204,19 +204,30 @@ impl<'program> CaseEvidence<'program> {
     }
 
     fn has_value(&self, subject: &CanonicalPlace, case: SymbolHandle, required: bool) -> bool {
-        if !stable_subject(
+        let stable = stable_subject(
             self.program,
             self.machine,
             self.state,
             self.statement_index,
             subject,
-        ) || !case.is_valid()
-            || self.program.symbols.get(case).kind != symbols::SymbolKind::Variant
-        {
-            return false;
+        );
+        let selected = stable
+            && case.is_valid()
+            && self.program.symbols.get(case).kind == symbols::SymbolKind::Variant
+            && self.has_value_for_subject(&self.prepare_stable_subject(subject), case, required);
+        if !selected && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            eprintln!(
+                "CHECKSITE current-case machine={:?} state={:?} statement={} subject={subject:?} stable={stable} case={case:?} required={required} observations={:?}",
+                self.machine.symbol,
+                self.state.symbol,
+                self.statement_index,
+                self.observations
+                    .iter()
+                    .map(|row| (&row.place, row.variant, row.selected))
+                    .collect::<Vec<_>>()
+            );
         }
-        let prepared = self.prepare_stable_subject(subject);
-        self.has_value_for_subject(&prepared, case, required)
+        selected
     }
 
     /// The caller authenticated stability at this evidence batch's exact cut.
@@ -446,8 +457,20 @@ pub(crate) fn stable_subject(
     // An evaluated temporary is an identity too. Live facts name its exact
     // occurrence; matching them neither replays its producer nor transfers a
     // selected tag to another equal-looking call or constructor.
-    (matches!(subject.root, PlaceRoot::Symbol(symbol) if symbol.is_valid())
-        || matches!(subject.root, PlaceRoot::Expression(expression) if expression.is_valid()))
+    let stable_root = match subject.root {
+        PlaceRoot::Symbol(symbol) => symbol.is_valid(),
+        PlaceRoot::Expression(expression) => expression.is_valid(),
+        // This is the exact original formal's live storage, not its entry
+        // contents or a newly granted reference. Observation and use share
+        // this identity even when a runtime binding no longer names it.
+        // Actual tag facts and their write epochs remain independently owed.
+        PlaceRoot::InvocationReferent { parameter, .. } => {
+            super::super::entry_origins::invocation_referent(program, machine, parameter)
+                == Some(subject.root)
+        }
+        _ => false,
+    };
+    stable_root
         && subject.segments.iter().all(|segment| {
             matches!(segment, PlaceSegment::Field { symbol } if symbol.is_valid())
                 || matches!(segment, PlaceSegment::Case { variant } if variant.is_valid())

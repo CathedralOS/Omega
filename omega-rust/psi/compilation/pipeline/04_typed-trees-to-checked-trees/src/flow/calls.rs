@@ -447,7 +447,11 @@ fn append_call_result_field_domain_facts<'plans>(
     ) else {
         return;
     };
-    let key = (machine.symbol, expression);
+    let selected = program.requirement_call_signature(machine.symbol, call);
+    let key = (
+        borrow_call.target_symbol,
+        selected.map_or(0, |s| std::ptr::from_ref(s) as usize),
+    );
     // These are provisional checked-signature facts, not new issuance. The
     // content checker independently rejoins routed result claims to this
     // invocation after linear claim reconstruction; ordinary callee exits
@@ -457,7 +461,7 @@ fn append_call_result_field_domain_facts<'plans>(
             program,
             build,
             borrow_call.target_symbol,
-            program.requirement_call_signature(machine.symbol, call),
+            selected,
         ));
         build.call_result_identities.insert(key, computed);
     }
@@ -488,7 +492,7 @@ fn append_call_result_field_domain_facts<'plans>(
     // an exact result membership the adapter's own contract carries is kept
     // because its body owes it. A promise about an input, another projection,
     // or another domain application cannot stand in for this result row.
-    let realization = checked_realization_result_identities(program, call);
+    let realization = checked_realization_result_identities(program, build, call);
     let mut refs = HandleSpan::empty();
     for row @ (path, domain_symbol, semantic_domain) in paths.iter() {
         if realization
@@ -535,15 +539,18 @@ fn append_call_result_field_domain_facts<'plans>(
 /// publisher. Scanning domain symbols alone would let `ensures input in D`
 /// authorize an unrelated `result in D`. An empty checked-body roster grants
 /// nothing; absence denotes a crossing or bodyless provider and adds no fence.
-fn checked_realization_result_identities(
-    program: &dyn ::validation::CheckingInput,
+fn checked_realization_result_identities<'plans>(
+    program: &'plans dyn ::validation::CheckingInput,
+    build: &mut FlowBuildContext<'plans>,
     call: &typed_trees::expression::TableCallExpression,
 ) -> Option<
-    Vec<(
-        Vec<facts::PlaceSegment>,
-        SymbolHandle,
-        language_semantics::SemanticDomainId,
-    )>,
+    std::rc::Rc<
+        Vec<(
+            Vec<facts::PlaceSegment>,
+            SymbolHandle,
+            language_semantics::SemanticDomainId,
+        )>,
+    >,
 > {
     let dispatch = call.static_requirement_dispatch.as_ref()?;
     program
@@ -553,11 +560,17 @@ fn checked_realization_result_identities(
     // Monomorphization has already joined the executable target to that
     // selection. Read the actual target's substituted types and contracts:
     // template parameter identities cannot match a closed invocation's rows.
-    Some(call_result_qualification_identities(
-        program,
-        call.target_symbol,
-        None,
-    ))
+    let key = (call.target_symbol, 0);
+    if !build.call_result_identities.contains_key(&key) {
+        let computed = std::rc::Rc::new(call_result_qualification_identities_indexed(
+            program,
+            build,
+            call.target_symbol,
+            None,
+        ));
+        build.call_result_identities.insert(key, computed);
+    }
+    build.call_result_identities.get(&key).cloned()
 }
 
 /// Authored `ensures <parameter> in <domain>` claims the call hands back on
@@ -593,10 +606,8 @@ fn append_call_parameter_domain_facts<'plans>(
         _ => None,
     };
     let key = (
-        machine.symbol,
-        state.symbol,
-        borrow_call.statement_index,
-        borrow_call.call_ordinal,
+        borrow_call.target_symbol,
+        selected.map_or(0, |s| std::ptr::from_ref(s) as usize),
     );
     if !build.call_parameter_identities.contains_key(&key) {
         let computed = std::rc::Rc::new(call_parameter_qualification_identities_indexed(

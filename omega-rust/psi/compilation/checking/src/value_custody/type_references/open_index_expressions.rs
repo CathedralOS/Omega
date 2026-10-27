@@ -539,7 +539,7 @@ fn validate_indexed_domain_argument_pack(
         // Closed preparation data is not an admission receipt. Even an unused
         // indexed type owes its full receiving carrier before derived theory
         // can supply a premise; reuse the ordinary immutable tuple judgment.
-        if closed_application && !symbol.is_valid() {
+        if closed_application {
             if let Err(mut failures) = super::generic_arguments::validate_closed_const_argument(
                 program,
                 domain_name,

@@ -70,37 +70,6 @@ pub(super) struct CaseObservation {
     pub(super) origin_unknown_write: bool,
 }
 
-/// The current read establishes the case, independently of the original
-/// invocation's contents. Its retained formal is a stable proof identity even
-/// after executable state bindings change; the common entry owner authenticates
-/// that identity and exact declared reference type. This grants no entry tag or
-/// ownership. Every observation/dependency and mutation clock below stays live.
-fn fresh_case_subject_is_stable(
-    program: &dyn validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-    subject: &CanonicalPlace,
-) -> bool {
-    if super::stable_case_subject(program, machine, state, statement_index, subject) {
-        return true;
-    }
-    let facts::PlaceRoot::InvocationReferent { parameter, .. } = subject.root else {
-        return false;
-    };
-    if super::entry_origins::invocation_referent(program, machine, parameter) != Some(subject.root)
-    {
-        return false;
-    }
-    // Reuse only the existing suffix-denotation check. The substitute root is
-    // never published, used as a fact, or treated as a current state binding.
-    let coordinates = CanonicalPlace {
-        root: facts::PlaceRoot::Symbol(parameter),
-        segments: subject.segments.clone(),
-    };
-    super::stable_case_subject(program, machine, state, statement_index, &coordinates)
-}
-
 pub(super) fn case_observation(
     program: &dyn validation::CheckingInput,
     build: &mut FlowBuildContext<'_>,
@@ -177,7 +146,7 @@ pub(super) fn case_observation(
     let machine = program.machine_holding_state(state)?;
     let state_definition = program.state_in_machine(machine, state)?;
     if std::iter::once(&place).chain(&dependencies).any(|subject| {
-        !fresh_case_subject_is_stable(program, machine, state_definition, statement_index, subject)
+        !super::stable_case_subject(program, machine, state_definition, statement_index, subject)
     }) {
         return None;
     }

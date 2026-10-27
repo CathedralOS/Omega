@@ -178,6 +178,116 @@ admission.
   Terminal Psi. The other four authored targets have no runtime observation
   on this Intel host and remain outside this run's platform qualification.
 
+## Applied generic callback production
+
+The next production under **OPERATOR-MACHINE-SUPPLY** keeps the same premise,
+selected body and `hold` operation, and supplies the callback's explicit static
+tuple: `const DIRECT: bool = apply<witness<1>>(true)`, with
+`witness<const Marker: u64>`. The unused parameter still owes its declared kind,
+carrier and bounds. The frozen [root](constant_initializer/applied_callback/main.omg)
+has source SHA-256
+`e5383eb6e400c986fd0c5a1b5b93b5da04b0881b8a993c214266abca86415b7b`.
+The optimized producer from fixed source
+`37f85b4aa3810cfb579257afb37cc8b99508c84f` refuses it before execution with
+`a nested machine application without a completely admitted callable tuple`.
+That is the formation gap after the constant-custody repair in PR 253.
+The first repair candidate, `f2dcd8f0c3adc0ed943d2987aa49af7097cf1f87`,
+executes the unchanged root with native exit 0 and Terminal exit 0. The full
+new production is now pinned at optimized producer
+`3c2ec6aaf4ddff261c9d25f85b2a664a440a3da0`: its root, nine transports and six
+compositions observe native exit 0 and Terminal exit 0 on Intel macOS, and its
+22 invalid controls reach their intended obligations. The current qualification
+ledger retains full-fact public acceptance and affected-consumer checks; exact
+independent review and publication are separately bound to the author candidate.
+These observations do not close the parent capability.
+
+| Place | Positive | Reject twin |
+| --- | --- | --- |
+| local | [local](constant_initializer/applied_callback/local/main.omg) | [invalid](constant_initializer/applied_callback/local/invalid/main.omg) |
+| field | [field](constant_initializer/applied_callback/field/main.omg) | [invalid](constant_initializer/applied_callback/field/invalid/main.omg) |
+| parameter | [parameter](constant_initializer/applied_callback/parameter/main.omg) | [invalid](constant_initializer/applied_callback/parameter/invalid/main.omg) |
+| call result | [call result](constant_initializer/applied_callback/call_result/main.omg) | [invalid](constant_initializer/applied_callback/call_result/invalid/main.omg) |
+| match join | [match join](constant_initializer/applied_callback/match_join/main.omg) | [invalid](constant_initializer/applied_callback/match_join/invalid/main.omg) |
+| const name | [const name](constant_initializer/applied_callback/const_name/main.omg) | [invalid](constant_initializer/applied_callback/const_name/invalid/main.omg) |
+| nested machine | [other state](constant_initializer/applied_callback/other_state/main.omg) | [invalid](constant_initializer/applied_callback/other_state/invalid/main.omg) |
+| another machine | [other machine](constant_initializer/applied_callback/other_machine/main.omg) | [invalid](constant_initializer/applied_callback/other_machine/invalid/main.omg) |
+| target body | [target body](constant_initializer/applied_callback/target_body/main.omg) | [invalid](constant_initializer/applied_callback/target_body/invalid/main.omg) |
+
+Each twin changes only the premise's own result to false. The nine transports
+and root are pinned under
+`tests/omega/{pass,fail}/facts/abstract_signature_call_applied_callback_*`.
+The same selected-tuple mechanism also has positive compositions for an unused
+[type argument](constant_initializer/applied_callback/type_argument/main.omg),
+an unused [copy bound](constant_initializer/applied_callback/type_bound/main.omg),
+[opposite results from two applications of one provider](constant_initializer/applied_callback/opposite_instances/main.omg),
+[a repeated recipe](constant_initializer/applied_callback/repeated_recipe/main.omg)
+and [forwarding through another binder](constant_initializer/applied_callback/forwarded_applied/main.omg),
+plus an unused [structural array type](constant_initializer/applied_callback/structural_type_argument/main.omg).
+Each has a premise-false twin. Additional controls pin an unused type-bound
+violation, an out-of-range const argument, a stronger callback premise, a wider
+crash contract, and an incorrect result selected by a different application.
+Those controls must reach their own obligations; a missing tuple is insufficient.
+
+The structural array production exposed a second declaration-context gap after
+the numeric and named-type cases passed. The unchanged source
+`apply<witness<[u8; 4]>>(true)` still refused at fixed source 37 and the historical
+CCA producer with no retained caller type/lifetime context. A private checking
+projection omitted its compiler-created probe root, while arena span relocation
+left four identical declaration headers. Lexical type formation now reads the
+exact supplying declaration independently of executable root membership. All
+retained copies must agree on the complete declaration; conflicting revisions
+refuse, and reading a header grants no executable body. The structural positive
+now observes both exits at 0, its [premise-false twin](constant_initializer/applied_callback/structural_type_argument/invalid/main.omg)
+rejects the premise, and an [undeclared lifetime](constant_initializer/applied_callback/undeclared_structural_lifetime/main.omg)
+still rejects ordinary type formation. This region-free array and the negative
+lifetime control do not establish general projected reference-lifetime support.
+
+The repair prepares the ordinary occurrence-owned provider view for retained
+constant recipes. It preserves the authored arguments for replay and consumes
+the selected roster only in executable occurrences. Full tuple formation and
+callable refinement remain separate checking obligations. Pre-integration host public
+acceptance records 41 positive executions and 48 intended refusals, while the
+explicit both-engine capture records 41 native/Terminal exit-0 pairs and retains
+287 products plus all 41 approved locks. The 89-fixture source corpus preserves
+raw exit 1 for ten inherited timing flags; the 41-fixture both-engine corpus
+preserves raw exit 1 for three inherited timing flags. Every such flag is an
+existing I1 row, strictly faster now, with unchanged execution and oracle fields;
+new fixtures permit no movement. The ledger retains those raw failures rather
+than weakening their goldens.
+
+GitHub reported an actual merge conflict for PR 293, requiring integration of
+main `e30c4a48ed7fa75d18636474ff74e60116d1bc52`. The owned compiler delta stayed
+unchanged, and every incoming golden record and all authored witness/oracle
+files were preserved. Optimized integrated producer
+`c00365388d873e8c54b084d9a14778009ae4465f` re-established all 41 native/Terminal
+exit-0 pairs and all 48 intended refusals. Its 89-fixture source corpus retains
+raw exit 1 for 16 known I1 timing flags; its 41-fixture both-engine corpus retains
+raw exit 1 for two. Every flag is strictly faster than I1, with unchanged
+execution fields and oracles. The existing 38 contextual fixtures still retain
+the exact fixed-37 raw exit 3 boundary below. Integrated receipts, 287 products
+and 41 approved replay locks are retained separately from the earlier producer;
+exact integrated review is a separate qualification gate.
+
+Further valid-positive refusals are retained against fixed baseline 37
+and the historical first candidate `f2dcd8f`: a provider tuple containing a Machine argument refuses
+`an unclosed machine or runtime operand`, a cross-module const alias loses its
+exact declaration selection, and a generic abstract-premise call confuses its
+actual and required `T`. Their current producer behavior has not been re-observed;
+they remain the same parent's next formation work.
+This Type/Const application step does not claim those repairs. The broader
+task's law, declaration migration and other-host acceptance remain open.
+
+The bounded existing contextual-call check also preserves two inherited
+open-Const refusals:
+[`contextual_static_machine_const_scopes_exit`](../../../../tests/omega/pass/generics/contextual_static_machine_const_scopes_exit/main.omg)
+and [`contextual_static_machine_open_const_exit`](../../../../tests/omega/pass/generics/contextual_static_machine_open_const_exit/main.omg).
+Both fixed producer 37 and current producer `3c2ec6aaf4dd` refuse those positives
+before execution. All 38 selected existing fixtures retain exactly the same
+status, diagnostic, facts and oracle fields, including three inherited diagnostic
+movements. The raw gate exit remains 3, with no oracle or infrastructure errors;
+it is an attributed inherited failure, not a clean corpus or an accepted language
+restriction. Open-Const families remain part of the parent formation acceptance.
+
 ## Execution
 
 Every positive place binds `ProgramEntry` for all four hosted targets

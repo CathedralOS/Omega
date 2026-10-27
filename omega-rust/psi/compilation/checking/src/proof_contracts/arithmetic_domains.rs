@@ -38,6 +38,7 @@ pub(crate) use bitwise::binary as bitwise_binary;
 mod referent_predicates;
 pub(crate) use referent_predicates::referent_predicates_preserved;
 mod call_result_bounds;
+mod deferred_bounds;
 pub(crate) use call_result_bounds::normal_return_referent_interval;
 mod call_result_measures;
 pub use call_result_measures::normal_return_length_collection;
@@ -92,7 +93,8 @@ pub use selected_scalar_intervals::{
 pub(crate) use slice_lengths::{carried_slice_length, publish_slice_length};
 mod stored_integer_writes;
 pub(crate) use guard_narrowing::{
-    OccurrenceValueEnvironments, occurrence_value_environment, occurrence_value_environments,
+    OccurrenceValueEnvironments, occurrence_integer_child_values, occurrence_value_environment,
+    occurrence_value_environments,
 };
 mod total_specification;
 mod unsigned_representability;
@@ -116,7 +118,7 @@ pub use guard_narrowing::{
     OccurrenceIntegerBounds, arrival_integer_expression_bounds,
     occurrence_collection_footprint_fits, occurrence_integer_bounds,
     occurrence_integer_expression_bounds, occurrence_integer_expression_fits_range,
-    occurrence_integer_expressions_bounds,
+    occurrence_integer_expression_recipe, occurrence_integer_expressions_bounds,
 };
 pub(crate) use guard_narrowing::{
     fall_through_narrowed_environment, guard_narrowed_environment, incoming_guard_environments,

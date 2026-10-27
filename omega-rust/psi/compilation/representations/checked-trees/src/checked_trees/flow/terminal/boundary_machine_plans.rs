@@ -138,6 +138,11 @@ pub struct CheckedBoundaryMachinePlan {
     /// scalar parameter ranges. `Parameter` positions index
     /// `scalar_parameters`. Callers owe one obligation per lowered row.
     pub scalar_requires: Vec<crate::ClosedScalarContractValue>,
+    /// Complete authored clauses awaiting exact selected integer closure.
+    /// These are pending obligations, never an empty/true scalar contract.
+    /// Demanded invocation and Terminal publication both refuse this catalog.
+    pub pending_scalar_requires: Vec<typed_trees::signature::SignatureContract>,
+    pub pending_scalar_recipes: Vec<typed_trees::constant_recipes::ConstantRecipeHandle>,
     /// Retained normal-return scalar guarantees. The result follows all inputs
     /// in the same dense scalar namespace.
     pub scalar_ensures: Vec<CheckedBoundaryScalarGuarantee>,

@@ -236,7 +236,7 @@ impl TerminalExecution<'_> {
                 .get(&StructuralRuntimePlace::from(original))
                 .copied()
                 .unwrap_or(TerminalOriginalStorageRoot {
-                    artifact: self.program.identity,
+                    artifact: self.program.identity.semantic(),
                     namespace: self.local_structural_identities.exposure_namespace.ok_or(
                         TerminalInterpretError::UnsupportedSemanticVariant(
                             "original storage occurrence namespaces exhausted",

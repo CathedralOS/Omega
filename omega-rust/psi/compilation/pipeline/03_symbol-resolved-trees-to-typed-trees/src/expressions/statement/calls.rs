@@ -89,19 +89,13 @@ fn lower_ordinary_call(
         target: crate::lowerer::name::lower_name(&call.target),
         static_machine_parameter: symbols::SymbolHandle::invalid(),
         static_requirement_dispatch: None,
-        machine_arguments: call
-            .machine_arguments
-            .iter()
-            .map(|argument| {
-                crate::expressions::expression::lower_static_machine_argument(
-                    Some(lowerer.source_trees),
-                    &mut lowerer.typed_trees,
-                    lowerer.type_reference_exposure,
-                    argument,
-                )
-            })
-            .collect::<Result<Vec<_>, Diagnostic>>()?
-            .into_boxed_slice(),
+        machine_arguments: crate::signatures::lexical_context::call_arguments(
+            Some(lowerer.source_trees),
+            &mut lowerer.typed_trees,
+            lowerer.type_reference_exposure,
+            call.target_symbol,
+            &call.machine_arguments,
+        )?,
         arguments,
         evidence_arguments: call
             .evidence_arguments

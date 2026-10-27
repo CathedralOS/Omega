@@ -17,7 +17,7 @@ use crate::custody::{
     remove_affine_root, validate_boundary_requirements,
 };
 use crate::effects::results::TerminalEffectResult;
-use crate::effects::{TerminalEffect, TerminalEffectHandler};
+use crate::effects::{TerminalEffect, TerminalEffectHandler, TerminalEffectRejection};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, SuspendedCall, SuspendedCallResult, TerminalExecution};
 use crate::results::TerminalExecutionStatus;
@@ -438,6 +438,14 @@ impl<'artifact> TerminalExecution<'artifact> {
             }
         }
         let supply = self.boundary_supplies.get(&boundary).copied();
+        if supply == Some(crate::effects::AdmittedBoundarySupply::DeferredComponent) {
+            return Err(TerminalInterpretError::EffectRejected {
+                operation: operation.id,
+                rejection: TerminalEffectRejection::new(
+                    "component provider was called before its admitted installation",
+                ),
+            });
+        }
         if let Some(crate::effects::AdmittedBoundarySupply::ComponentProvider { .. }) = supply {
             return self.execute_component_call(operation, &scalar_arguments, meter, components);
         }
@@ -644,7 +652,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         };
         let pending = PendingBoundaryCall {
             site: crate::results::TerminalEffectWait {
-                program: self.program.identity,
+                program: self.program.identity.semantic(),
                 machine: self.current_machine,
                 block: self.current,
                 operation: operation.id,
@@ -674,7 +682,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         let OperationKind::BoundaryCall { boundary, .. } = &operation.kind else {
             return Err(malformed());
         };
-        if pending.site.program != self.program.identity
+        if pending.site.program != self.program.identity.semantic()
             || pending.site.machine != self.current_machine
             || pending.site.block != self.current
             || pending.site.operation != operation.id

@@ -18,18 +18,8 @@ use register_model::{RegisterConstraintCatalogIdentity, TargetRegisterEnvironmen
 use semantic_vocabulary::FuelScheduleIdentity;
 use target::NativeTarget;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct PreAllocationMachineEffectIdentity([u8; 32]);
+crate::identity::sha256_identity!(PreAllocationMachineEffectIdentity);
 
-impl PreAllocationMachineEffectIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
 impl PreAllocationMachineEffectPlan {
     /// Every function's blocks, in function order.
     pub fn blocks(&self) -> impl Iterator<Item = &BlockMachineEffects> + '_ {

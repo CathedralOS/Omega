@@ -224,3 +224,36 @@ golden moves. The five fixed-baseline comparisons and ranked theorem-core
 checking also pass. Earlier producer observations retain their historical
 identities; this integrated validation covers the incoming compiler, library,
 readiness and native-pipeline changes.
+
+The fixed-array production `*/indexed_predicate/` keeps the same fact and
+operation while observing `positions[0]` and `positions[1]` inside the borrowed
+record. Fresh optimized main `20c47069543ba51860a4c9082664e1d8cac70195`
+refuses both this predicate and its direct indexed relation. Optimized producer
+`229a6a754e52807de50c94b355ed93abb62b808a` runs all nine places with native
+and Terminal exit 0; changing only `!=` to `<=` retains the overlap refusals.
+The producer obtains elements through the existing collection observation
+identity, proves each finite selector against the actual length, and refuses
+ambiguous observation paths. The consumer checks every fixed-index prefix
+against that prefix's declared extent; a typed element path alone supplies no
+bounds evidence.
+
+The `controls/indexed_*` programs distinguish two array fields with identical
+index coordinates, saved scalar-element snapshots, stale original contents,
+and operands captured before a later argument writes the original array.
+Their reject controls retain overlap, caller-predicate or exact index-bound
+formation diagnostics. This establishes fixed integer-element arrays inside
+owned records; it does not establish arbitrary runtime-length enumeration,
+stored-reference traversal, arbitrary nested collection element shapes, or the
+parent's remaining structured-callee/domain and theorem acceptance. Engine
+observations remain specific to macOS ARM64.
+
+Fresh final optimized producer
+`15cba48fc19157be657b41db21ac47ad3995ddc2` repeats the complete fact's
+130 public observations: 58 native/Terminal exit-zero agreements and 72
+fact-sensitive rejects. The retained corpus checks 57 positives and 72 rejects;
+all 57 executable fixtures agree at native/Terminal exit 0. The five affected
+historical consumers lose no behavior, and the ranked recursive theorem core
+still checks. Scoped golden recording adds only the 25 new checking fixtures
+and 12 new native fixtures. These fresh observations supersede no historical
+producer identities; final golden/README changes preserve the producer's
+compiler, library and per-program input/oracle bytes.
