@@ -97,10 +97,15 @@ fn producer_alias<'facts>(
     };
     // A typed receiving read may detach contents from a producer that remains
     // a live descriptor. Its recorded read epoch owns that source identity;
-    // later actuals observe the copy, not a new read of the descriptor. Without
-    // that cut, a live view still owes preservation through the actual's epoch.
+    // later actuals observe the copy, not a new read of the descriptor. The
+    // producer may be the input descriptor before the call wrote its referent;
+    // that old content is not the read's value. Its recorded descriptor graph
+    // supplies the address, while the read supplies post-receiver predicates.
+    // Without that cut, a live view still owes content preservation through the
+    // actual's epoch. Binding-prefix checks below remain independent.
     let producer_epoch = captured.producer_epoch.unwrap_or(captured.operand);
     if crate::flow::operand_binds_live_view(program, captured.type_reference)
+        && captured.producer_epoch.is_none()
         && !crate::flow::operand_observations_agree(
             program,
             &facts.flow,
