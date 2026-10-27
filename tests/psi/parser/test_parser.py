@@ -78,8 +78,8 @@ class Reader:
 
 def decode(payload: bytes) -> Observation:
     reader = Reader(payload)
-    assert reader.bytes(8) == b"OMGPAR15"
-    assert reader.u64() == 15
+    assert reader.bytes(8) == b"OMGPAR14"
+    assert reader.u64() == 14
     accepted = reader.byte() == 1
     diagnostic = reader.byte()
     diagnostic_span = (reader.u64(), reader.u64(), reader.u64())
@@ -470,6 +470,7 @@ def decode(payload: bytes) -> Observation:
             reader.u64(), reader.u64(), reader.u64(),
             reader.u64(), reader.u64(),
             reader.u64(), reader.u64(),
+            reader.byte(), reader.u64(), reader.u64(), reader.u64(),
             reader.u64(), reader.u64(),
             reader.u64(), reader.u64(),
             reader.byte(),
@@ -1004,14 +1005,14 @@ def root_declaration_cases(program: str) -> None:
     # Domains: predicate subjects, generic families with index arguments,
     # bracketed carriers, establishment routes, transparent aliases and an
     # empty body.
-    source = b'pub domain i32::Positive requires self > 0;'
+    source = b"pub domain i32::Positive(value) requires value > 0;"
     declaration_accepted(
         program, "predicate-domain", source,
         roots=((DOMAIN, 0, *whole(source)),),
         type_references=(named(source, b"i32"),),
-        domains=((0, *span(source, b"Positive"), 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1,
+        domains=((0, *span(source, b"Positive"), 0, 0, 0, 0, 1, *span(source, b"value"), 0, 1, 0, 0, 0, 0, 0, 1,
                   *whole(source)),),
-        clauses=((6, 0, 0, 1, 2, *span(source, b"requires self > 0")),),
+        clauses=((6, 0, 0, 1, 2, *span(source, b"requires value > 0")),),
     )
     source = b"domain<T, const U: Unit> T::Quantity<U>;"
     declaration_accepted(
@@ -1023,9 +1024,9 @@ def root_declaration_cases(program: str) -> None:
         ),
         type_references=(named(source, b"Unit"), named(source, b"T", 2), named(source, b"U", 3)),
         type_arguments=(2,),
-        domains=((1, *span(source, b"Quantity"), 0, 1, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, *whole(source)),),
+        domains=((1, *span(source, b"Quantity"), 0, 1, 0, 2, 0, *NONE, 0, 0, 0, 0, 0, 0, 0, 0, *whole(source)),),
     )
-    source = b'pub domain [u8]::Path requires no_nul(self);'
+    source = b"pub domain [u8]::Path(path) requires no_nul(path);"
     declaration_accepted(
         program, "bracketed-carrier-domain", source,
         roots=((DOMAIN, 0, *whole(source)),),
@@ -1033,22 +1034,22 @@ def root_declaration_cases(program: str) -> None:
             named(source, b"u8"),
             (5, *NONE, *span(source, b"[u8]"), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
         ),
-        domains=((1, *span(source, b"Path"), 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1,
+        domains=((1, *span(source, b"Path"), 0, 0, 0, 0, 1, *span(source, b"path"), 0, 1, 0, 0, 0, 0, 0, 1,
                   *whole(source)),),
-        clauses=((6, 0, 0, 1, 2, *span(source, b"requires no_nul(self)")),),
+        clauses=((6, 0, 0, 1, 2, *span(source, b"requires no_nul(path)")),),
     )
     # A bodyless domain's `;` ends it when the next declaration's carrier is
     # bracketed: `domain [u8]::Text` opens a declaration, not a fact.
-    source = b'domain u64::Small requires self < 8;\ndomain [u8]::Text requires valid_utf8(self);'
-    first = b'domain u64::Small requires self < 8;'
-    second = b'domain [u8]::Text requires valid_utf8(self);'
+    source = b"domain u64::Small(value) requires value < 8;\ndomain [u8]::Text(bytes) requires valid_utf8(bytes);"
+    first = b"domain u64::Small(value) requires value < 8;"
+    second = b"domain [u8]::Text(bytes) requires valid_utf8(bytes);"
     declaration_accepted(
         program, "bodyless-domains-in-sequence", source,
         roots=((DOMAIN, 0, *span(source, first)), (DOMAIN, 1, *span(source, second))),
         domains=(
-            (0, *span(source, b"Small"), 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
+            (0, *span(source, b"Small"), 0, 0, 0, 0, 1, *span(source, b"value"), 0, 1, 0, 0, 0, 0, 0, 0,
              *span(source, first)),
-            (2, *span(source, b"Text"), 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0,
+            (2, *span(source, b"Text"), 0, 0, 0, 0, 1, *span(source, b"bytes"), 1, 1, 0, 0, 0, 0, 0, 0,
              *span(source, second)),
         ),
     )
@@ -1059,7 +1060,7 @@ def root_declaration_cases(program: str) -> None:
         members=(span(source, b"Issues"), span(source, b"issue"), span(source, b"mint")),
         type_references=(named(source, b"Reservation"),),
         name_paths=((0, 2, *span(source, b"Issues::issue")), (2, 1, *span(source, b"mint"))),
-        domains=((0, *span(source, b"Issued"), 0, 0, 0, 0, 0, 0, 0, 2, 0, 2, 0, 1, *whole(source)),),
+        domains=((0, *span(source, b"Issued"), 0, 0, 0, 0, 0, *NONE, 0, 0, 0, 2, 0, 2, 0, 1, *whole(source)),),
     )
     source = b"pub domain Socket::Usable = Socket::Connected & Socket::Authenticated;"
     declaration_accepted(
@@ -1067,14 +1068,14 @@ def root_declaration_cases(program: str) -> None:
         roots=((DOMAIN, 0, *whole(source)),),
         type_references=(named(source, b"Socket"),),
         name_paths=((0, 2, *span(source, b"Socket::Connected")), (2, 2, *span(source, b"Socket::Authenticated"))),
-        domains=((0, *span(source, b"Usable"), 0, 0, 0, 0, 0, 0, 2, 0, 1, 0, 2, 1, *whole(source)),),
+        domains=((0, *span(source, b"Usable"), 0, 0, 0, 0, 0, *NONE, 0, 0, 2, 0, 1, 0, 2, 1, *whole(source)),),
     )
-    source = b'domain Player::Alive requires self.health > 0 { }'
+    source = b"domain Player::Alive(player) requires player.health > 0 { }"
     declaration_accepted(
         program, "domain-empty-body", source,
         roots=((DOMAIN, 0, *whole(source)),),
         type_references=(named(source, b"Player"),),
-        domains=((0, *span(source, b"Alive"), 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
+        domains=((0, *span(source, b"Alive"), 0, 0, 0, 0, 1, *span(source, b"player", 1), 0, 1, 0, 0, 0, 0, 0, 0,
                   *whole(source)),),
     )
 
@@ -1192,7 +1193,7 @@ def root_declaration_cases(program: str) -> None:
             (3, 1, *span(source, b"machine f(x: u64) -> u64 requires x > 0;")),
             (DOMAIN, 0, *span(source, b"domain<T> T::Wrapped;")),
         ),
-        domains=((3, *span(source, b"Wrapped"), 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0,
+        domains=((3, *span(source, b"Wrapped"), 0, 0, 0, 1, 0, *NONE, 1, 0, 0, 0, 0, 0, 0, 0,
                   *span(source, b"domain<T> T::Wrapped;")),),
     )
     assert [(row[19], row[26]) for row in actual.machines] == [(0, 1), (0, 0)], f"bodyless: {actual.machines}"
@@ -1279,8 +1280,8 @@ def root_declaration_cases(program: str) -> None:
         ("domain-carrier", b"domain ::X;", 130, (7, 9), {}),
         ("domain-separator", b"domain i32 X;", 131, (11, 12), {"type_reference_count": 1}),
         ("domain-name", b"domain i32::;", 132, (12, 13), {"type_reference_count": 1}),
-        ("domain-subject", b"domain i32::X(;", 133, (13, 14), {"type_reference_count": 1}),
-        ("domain-subject-end", b"domain i32::X(v;", 133, (13, 14), {"type_reference_count": 1}),
+        ("domain-subject", b"domain i32::X(;", 133, (14, 15), {"type_reference_count": 1}),
+        ("domain-subject-end", b"domain i32::X(v;", 134, (15, 16), {"type_reference_count": 1}),
         ("domain-constituent", b"domain i32::X = ;", 135, (16, 17), {"type_reference_count": 1}),
         ("established-by", b"domain i32::X established Y;", 136, (26, 27), {"type_reference_count": 1}),
         ("domain-route", b"domain i32::X established by ;", 137, (29, 30), {"type_reference_count": 1}),

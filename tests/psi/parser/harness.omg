@@ -36,7 +36,7 @@ blocks;
     Lexer::initialize(&mut lexer, 1);
     transition { _ -> read(parser_harness, &mut lexer) }
 
-    machine read(parser_harness: &mut ParserHarness, lexer: &mut Lexer) {
+    state read(parser_harness: &mut ParserHarness, lexer: &mut Lexer) {
         let input: ByteRead = block Console::read_byte();
         transition input {
             ByteRead::Byte { value } -> retain(parser_harness, lexer, value)
@@ -44,7 +44,7 @@ blocks;
         }
     }
 
-    machine retain(parser_harness: &mut ParserHarness, lexer: &mut Lexer, value: i32) {
+    state retain(parser_harness: &mut ParserHarness, lexer: &mut Lexer, value: i32) {
         Lexer::append_source_byte(lexer, value as u8);
         transition lexer.source.last_retained {
             true -> read(parser_harness, lexer)
@@ -52,7 +52,7 @@ blocks;
         }
     }
 
-    machine source_full(parser_harness: &mut ParserHarness, lexer: &mut Lexer) {
+    state source_full(parser_harness: &mut ParserHarness, lexer: &mut Lexer) {
         // Read the rejection span before borrowing the lexer mutably for the call.
         let length: u64 = lexer.source.length;
         Lexer::reject(lexer, LexDiagnosticCode::SourceCapacityExceeded,
@@ -62,7 +62,7 @@ blocks;
         Console::exit_process(252);
     }
 
-    machine tokenize(parser_harness: &mut ParserHarness, lexer: &mut Lexer) {
+    state tokenize(parser_harness: &mut ParserHarness, lexer: &mut Lexer) {
         Lexer::tokenize(lexer);
         transition lexer.output.accepted {
             true -> prepare_parse(parser_harness, lexer)
@@ -70,13 +70,13 @@ blocks;
         }
     }
 
-    machine prepare_parse(parser_harness: &mut ParserHarness, lexer: &Lexer) {
+    state prepare_parse(parser_harness: &mut ParserHarness, lexer: &Lexer) {
         let mut parser: Parser;
         Parser::initialize(&mut parser);
         transition { _ -> parse(parser_harness, lexer, &mut parser) }
     }
 
-    machine parse(parser_harness: &mut ParserHarness, lexer: &Lexer, parser: &mut Parser) {
+    state parse(parser_harness: &mut ParserHarness, lexer: &Lexer, parser: &mut Parser) {
         Parser::parse(parser, lexer.source.id, lexer.source.length as u64 in Trapping, &lexer.output);
         transition parser.output.accepted {
             true -> accepted(parser_harness, &parser.output)
@@ -84,28 +84,28 @@ blocks;
         }
     }
 
-    machine accepted(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state accepted(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_parse_observation(parser_harness, output);
         ParserHarness::write_machine_tables(parser_harness, output);
         ParserHarness::write_declaration_tables(parser_harness, output);
         Console::exit_process(0);
     }
 
-    machine parse_rejected(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state parse_rejected(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_parse_observation(parser_harness, output);
         ParserHarness::write_machine_tables(parser_harness, output);
         ParserHarness::write_declaration_tables(parser_harness, output);
         Console::exit_process(250);
     }
 
-    machine rejected(parser_harness: &mut ParserHarness) {
+    state rejected(parser_harness: &mut ParserHarness) {
         Console::exit_process(251);
     }
 }
 
 // Versioned canonical structural parse observation. Every scalar coordinate
-// and count is little-endian u64. The stream begins with `OMGPAR15`, version
-// 15, acceptance and diagnostic fields, followed by ordered root, use-item,
+// and count is little-endian u64. The stream begins with `OMGPAR14`, version
+// 14, acceptance and diagnostic fields, followed by ordered root, use-item,
 // path-member, data-item, authored data-member, direct data-field, case-payload
 // field, data-case, type-reference, and generic-parameter tables. Field and
 // case rows carry their stable-identity flag and literal span.
@@ -127,19 +127,19 @@ machine ParserHarness::write_parse_observation(
     ParserHarness::write_byte(parser_harness, 65);
     ParserHarness::write_byte(parser_harness, 82);
     ParserHarness::write_byte(parser_harness, 49);
-    ParserHarness::write_byte(parser_harness, 53);
-    ParserHarness::write_u64(parser_harness, 15);
+    ParserHarness::write_byte(parser_harness, 52);
+    ParserHarness::write_u64(parser_harness, 14);
     transition output.accepted {
         true -> parse_accepted_header(parser_harness, output)
         _ -> parse_rejected_header(parser_harness, output)
     }
 
-    machine parse_accepted_header(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state parse_accepted_header(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_byte(parser_harness, 1);
         transition { _ -> parse_diagnostic_none(parser_harness, output) }
     }
 
-    machine parse_rejected_header(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state parse_rejected_header(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_byte(parser_harness, 0);
         transition output.diagnostic.code {
             ParseDiagnosticCode::None -> parse_diagnostic_none(parser_harness, output)
@@ -281,7 +281,8 @@ machine ParserHarness::write_parse_observation(
             ParseDiagnosticCode::ExpectedDomainCarrier -> parse_diagnostic(parser_harness, output, 130)
             ParseDiagnosticCode::ExpectedDomainSeparator -> parse_diagnostic(parser_harness, output, 131)
             ParseDiagnosticCode::ExpectedDomainName -> parse_diagnostic(parser_harness, output, 132)
-            ParseDiagnosticCode::RetiredDomainSubject -> parse_diagnostic(parser_harness, output, 133)
+            ParseDiagnosticCode::ExpectedDomainSubject -> parse_diagnostic(parser_harness, output, 133)
+            ParseDiagnosticCode::ExpectedDomainSubjectEnd -> parse_diagnostic(parser_harness, output, 134)
             ParseDiagnosticCode::ExpectedDomainConstituent -> parse_diagnostic(parser_harness, output, 135)
             ParseDiagnosticCode::ExpectedEstablishedBy -> parse_diagnostic(parser_harness, output, 136)
             ParseDiagnosticCode::ExpectedDomainRoute -> parse_diagnostic(parser_harness, output, 137)
@@ -344,17 +345,17 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    machine parse_diagnostic_none(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state parse_diagnostic_none(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_byte(parser_harness, 0);
         transition { _ -> parse_diagnostic_coordinates(parser_harness, output) }
     }
 
-    machine parse_diagnostic(parser_harness: &mut ParserHarness, output: &SyntaxTrees, tag: u8) {
+    state parse_diagnostic(parser_harness: &mut ParserHarness, output: &SyntaxTrees, tag: u8) {
         ParserHarness::write_byte(parser_harness, tag);
         transition { _ -> parse_diagnostic_coordinates(parser_harness, output) }
     }
 
-    machine parse_diagnostic_coordinates(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state parse_diagnostic_coordinates(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_source_span(parser_harness, output.diagnostic.source_span);
         ParserHarness::write_u64(parser_harness, output.root_count as u64 in Trapping);
         transition output.root_count > 0 {
@@ -363,7 +364,7 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    machine parse_root(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
+    state parse_root(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
     requires index <= 4095
     {
         let root: RootItem = output.roots[index];
@@ -380,7 +381,7 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    machine parse_root_tagged(
+    state parse_root_tagged(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         root: RootItem,
         index: u64,
@@ -398,14 +399,14 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    machine parse_root_bound(parser_harness: &mut ParserHarness, output: &SyntaxTrees, next: u64) {
+    state parse_root_bound(parser_harness: &mut ParserHarness, output: &SyntaxTrees, next: u64) {
         transition next < 4096 {
             true -> parse_root(parser_harness, output, next)
             _ -> parse_use_count(parser_harness, output)
         }
     }
 
-    machine parse_use_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state parse_use_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_u64(parser_harness, output.use_count as u64 in Trapping);
         transition output.use_count > 0 {
             true -> parse_use_item(parser_harness, output, 0)
@@ -413,7 +414,7 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    machine parse_use_item(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
+    state parse_use_item(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
     requires index <= 1023
     {
         let item: UseItem = output.uses[index];
@@ -427,14 +428,14 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    machine parse_use_bound(parser_harness: &mut ParserHarness, output: &SyntaxTrees, next: u64) {
+    state parse_use_bound(parser_harness: &mut ParserHarness, output: &SyntaxTrees, next: u64) {
         transition next < 1024 {
             true -> parse_use_item(parser_harness, output, next)
             _ -> parse_member_count(parser_harness, output)
         }
     }
 
-    machine parse_member_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state parse_member_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_u64(parser_harness, output.member_count as u64 in Trapping);
         transition output.member_count > 0 {
             true -> parse_member(parser_harness, output, 0)
@@ -442,7 +443,7 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    machine parse_member(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
+    state parse_member(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
     requires index <= 31999
     {
         let member: IdentifierSpan = output.members[index];
@@ -454,14 +455,14 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    machine parse_member_bound(parser_harness: &mut ParserHarness, output: &SyntaxTrees, next: u64) {
+    state parse_member_bound(parser_harness: &mut ParserHarness, output: &SyntaxTrees, next: u64) {
         transition next < 32000 {
             true -> parse_member(parser_harness, output, next)
             _ -> parse_data_count(parser_harness, output)
         }
     }
 
-    machine parse_data_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state parse_data_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_u64(parser_harness, output.data_count as u64 in Trapping);
         transition output.data_count > 0 {
             true -> parse_data_item(parser_harness, output, 0)
@@ -469,7 +470,7 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    machine parse_data_item(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
+    state parse_data_item(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
     requires index <= 255
     {
         let item: DataItem = output.data_items[index];
@@ -487,7 +488,7 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    machine parse_data_multiplicity(
+    state parse_data_multiplicity(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         item: DataItem,
         index: u64,
@@ -502,7 +503,7 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    machine parse_data_public(
+    state parse_data_public(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         item: DataItem,
         index: u64
@@ -513,7 +514,7 @@ machine ParserHarness::write_parse_observation(
         transition { _ -> parse_data_span(parser_harness, output, item, index) }
     }
 
-    machine parse_data_private(
+    state parse_data_private(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         item: DataItem,
         index: u64
@@ -524,7 +525,7 @@ machine ParserHarness::write_parse_observation(
         transition { _ -> parse_data_span(parser_harness, output, item, index) }
     }
 
-    machine parse_data_span(
+    state parse_data_span(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         item: DataItem,
         index: u64
@@ -544,14 +545,14 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    machine parse_data_bound(parser_harness: &mut ParserHarness, output: &SyntaxTrees, next: u64) {
+    state parse_data_bound(parser_harness: &mut ParserHarness, output: &SyntaxTrees, next: u64) {
         transition next < 256 {
             true -> parse_data_item(parser_harness, output, next)
             _ -> parse_data_member_count(parser_harness, output)
         }
     }
 
-    machine parse_data_member_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state parse_data_member_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_u64(parser_harness, output.data_member_count as u64 in Trapping);
         transition output.data_member_count > 0 {
             true -> parse_data_member(parser_harness, output, 0)
@@ -559,7 +560,7 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    machine parse_data_member(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
+    state parse_data_member(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
     requires index <= 2047
     {
         let member: DataMember = output.data_members[index];
@@ -569,7 +570,7 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    machine parse_data_member_kind(
+    state parse_data_member_kind(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         member: DataMember,
         index: u64,
@@ -587,14 +588,14 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    machine parse_data_member_bound(parser_harness: &mut ParserHarness, output: &SyntaxTrees, next: u64) {
+    state parse_data_member_bound(parser_harness: &mut ParserHarness, output: &SyntaxTrees, next: u64) {
         transition next < 2048 {
             true -> parse_data_member(parser_harness, output, next)
             _ -> parse_field_count(parser_harness, output)
         }
     }
 
-    machine parse_field_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state parse_field_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_u64(parser_harness, output.field_count as u64 in Trapping);
         transition output.field_count > 0 {
             true -> parse_field(parser_harness, output, 0)
@@ -602,7 +603,7 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    machine parse_field(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
+    state parse_field(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
     requires index <= 1023
     {
         let field: DataField = output.fields[index];
@@ -618,14 +619,14 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    machine parse_field_bound(parser_harness: &mut ParserHarness, output: &SyntaxTrees, next: u64) {
+    state parse_field_bound(parser_harness: &mut ParserHarness, output: &SyntaxTrees, next: u64) {
         transition next < 1024 {
             true -> parse_field(parser_harness, output, next)
             _ -> parse_payload_field_count(parser_harness, output)
         }
     }
 
-    machine parse_payload_field_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state parse_payload_field_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_u64(parser_harness, output.payload_field_count as u64 in Trapping);
         transition output.payload_field_count > 0 {
             true -> parse_payload_field(parser_harness, output, 0)
@@ -633,7 +634,7 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    machine parse_payload_field(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
+    state parse_payload_field(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
     requires index <= 1023
     {
         let field: DataField = output.payload_fields[index];
@@ -649,14 +650,14 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    machine parse_payload_field_bound(parser_harness: &mut ParserHarness, output: &SyntaxTrees, next: u64) {
+    state parse_payload_field_bound(parser_harness: &mut ParserHarness, output: &SyntaxTrees, next: u64) {
         transition next < 1024 {
             true -> parse_payload_field(parser_harness, output, next)
             _ -> parse_case_count(parser_harness, output)
         }
     }
 
-    machine parse_case_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state parse_case_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_u64(parser_harness, output.case_count as u64 in Trapping);
         transition output.case_count > 0 {
             true -> parse_case(parser_harness, output, 0)
@@ -664,7 +665,7 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    machine parse_case(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
+    state parse_case(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
     requires index <= 1535
     {
         let data_case: DataCase = output.cases[index];
@@ -683,14 +684,14 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    machine parse_case_bound(parser_harness: &mut ParserHarness, output: &SyntaxTrees, next: u64) {
+    state parse_case_bound(parser_harness: &mut ParserHarness, output: &SyntaxTrees, next: u64) {
         transition next < 1536 {
             true -> parse_case(parser_harness, output, next)
             _ -> parse_type_reference_count(parser_harness, output)
         }
     }
 
-    machine parse_type_reference_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state parse_type_reference_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_u64(parser_harness, output.type_reference_count as u64 in Trapping);
         transition output.type_reference_count > 0 {
             true -> parse_type_reference(parser_harness, output, 0)
@@ -703,7 +704,7 @@ machine ParserHarness::write_parse_observation(
     // qualifier's span, owner path included (zero when unqualified), its access tag (zero unless a reference, then 1
     // shared or 2 mutable) and its inner, length, first-argument,
     // argument-count and first-row handles.
-    machine parse_type_reference(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
+    state parse_type_reference(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
     requires index <= 65535
     {
         let type_reference: TypeReference = output.type_references[index];
@@ -716,7 +717,7 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    machine parse_reference_row(
+    state parse_reference_row(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         type_reference: TypeReference,
         index: u64
@@ -730,7 +731,7 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    machine parse_type_row(
+    state parse_type_row(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         type_reference: TypeReference,
         index: u64,
@@ -748,7 +749,7 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    machine parse_type_domain(
+    state parse_type_domain(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         type_reference: TypeReference,
         index: u64,
@@ -762,7 +763,7 @@ machine ParserHarness::write_parse_observation(
         transition { _ -> parse_type_tail(parser_harness, output, type_reference, index, access) }
     }
 
-    machine parse_type_unqualified(
+    state parse_type_unqualified(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         type_reference: TypeReference,
         index: u64,
@@ -777,7 +778,7 @@ machine ParserHarness::write_parse_observation(
         transition { _ -> parse_type_tail(parser_harness, output, type_reference, index, access) }
     }
 
-    machine parse_type_tail(
+    state parse_type_tail(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         type_reference: TypeReference,
         index: u64,
@@ -798,7 +799,7 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    machine parse_type_tag(
+    state parse_type_tag(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         type_reference: TypeReference,
         index: u64
@@ -811,7 +812,7 @@ machine ParserHarness::write_parse_observation(
 
     // An untagged row reports a zero lifetime span, as an unqualified row
     // reports a zero domain span.
-    machine parse_type_untagged(
+    state parse_type_untagged(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         type_reference: TypeReference,
         index: u64
@@ -824,7 +825,7 @@ machine ParserHarness::write_parse_observation(
         transition { _ -> parse_type_lifetime_counts(parser_harness, output, type_reference, index) }
     }
 
-    machine parse_type_lifetime_counts(
+    state parse_type_lifetime_counts(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         type_reference: TypeReference,
         index: u64
@@ -840,45 +841,45 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    machine parse_type_reference_bound(parser_harness: &mut ParserHarness, output: &SyntaxTrees, next: u64) {
+    state parse_type_reference_bound(parser_harness: &mut ParserHarness, output: &SyntaxTrees, next: u64) {
         transition next < 65536 {
             true -> parse_type_reference(parser_harness, output, next)
             _ -> parse_type_argument_count(parser_harness, output)
         }
     }
 
-    machine parse_type_argument_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state parse_type_argument_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_u64(parser_harness, output.type_argument_count as u64 in Trapping);
         transition { _ -> parse_type_argument(parser_harness, output, 0) }
     }
 
-    machine parse_type_argument(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64) {
+    state parse_type_argument(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64) {
         transition index < output.type_argument_count {
             true -> parse_type_argument_bound(parser_harness, output, index)
             _ -> parse_type_lifetime_count(parser_harness, output)
         }
     }
 
-    machine parse_type_argument_bound(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64) {
+    state parse_type_argument_bound(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64) {
         transition index < 1024 {
             true -> parse_type_argument_row(parser_harness, output, index)
             _ -> parse_type_lifetime_count(parser_harness, output)
         }
     }
 
-    machine parse_type_lifetime_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state parse_type_lifetime_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_u64(parser_harness, output.type_lifetime_count as u64 in Trapping);
         transition { _ -> parse_type_lifetime(parser_harness, output, 0) }
     }
 
-    machine parse_type_lifetime(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64) {
+    state parse_type_lifetime(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64) {
         transition index < output.type_lifetime_count && index < 1024 {
             true -> parse_type_lifetime_row(parser_harness, output, index)
             _ -> parse_generic_count(parser_harness, output)
         }
     }
 
-    machine parse_type_lifetime_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
+    state parse_type_lifetime_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
     requires index <= 1023
     {
         let tag: IdentifierSpan = output.type_lifetimes[index];
@@ -886,14 +887,14 @@ machine ParserHarness::write_parse_observation(
         transition { _ -> parse_type_lifetime(parser_harness, output, index + 1) }
     }
 
-    machine parse_type_argument_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
+    state parse_type_argument_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
     requires index <= 1023
     {
         ParserHarness::write_u64(parser_harness, output.type_arguments[index] as u64 in Trapping);
         transition { _ -> parse_type_argument(parser_harness, output, index + 1) }
     }
 
-    machine parse_generic_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state parse_generic_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_u64(parser_harness, output.generic_parameter_count as u64 in Trapping);
         transition output.generic_parameter_count > 0 {
             true -> parse_generic_parameter(parser_harness, output, 0)
@@ -901,7 +902,7 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    machine parse_generic_parameter(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
+    state parse_generic_parameter(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
     requires index <= 255
     {
         let parameter: GenericParameter = output.generic_parameters[index];
@@ -916,7 +917,7 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    machine parse_generic_parameter_kind(
+    state parse_generic_parameter_kind(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         parameter: GenericParameter,
         index: u64,
@@ -928,7 +929,7 @@ machine ParserHarness::write_parse_observation(
         transition { _ -> parse_generic_parameter_name(parser_harness, output, parameter, index) }
     }
 
-    machine parse_generic_parameter_name(
+    state parse_generic_parameter_name(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         parameter: GenericParameter,
         index: u64
@@ -942,7 +943,7 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    machine parse_generic_parameter_typed(
+    state parse_generic_parameter_typed(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         parameter: GenericParameter,
         index: u64
@@ -954,7 +955,7 @@ machine ParserHarness::write_parse_observation(
         transition { _ -> parse_generic_parameter_bounds(parser_harness, output, parameter, index) }
     }
 
-    machine parse_generic_parameter_untyped(
+    state parse_generic_parameter_untyped(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         parameter: GenericParameter,
         index: u64
@@ -966,7 +967,7 @@ machine ParserHarness::write_parse_observation(
         transition { _ -> parse_generic_parameter_bounds(parser_harness, output, parameter, index) }
     }
 
-    machine parse_generic_parameter_bounds(parser_harness: &mut ParserHarness, output: &SyntaxTrees, parameter: GenericParameter,
+    state parse_generic_parameter_bounds(parser_harness: &mut ParserHarness, output: &SyntaxTrees, parameter: GenericParameter,
         index: u64
     )
     requires index <= 255
@@ -978,7 +979,7 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    machine parse_generic_parameter_bounded(
+    state parse_generic_parameter_bounded(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         parameter: GenericParameter,
         index: u64,
@@ -995,14 +996,14 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    machine parse_generic_parameter_bound(parser_harness: &mut ParserHarness, output: &SyntaxTrees, next: u64) {
+    state parse_generic_parameter_bound(parser_harness: &mut ParserHarness, output: &SyntaxTrees, next: u64) {
         transition next < 256 {
             true -> parse_generic_parameter(parser_harness, output, next)
             _ -> parse_done()
         }
     }
 
-    machine parse_done() { }
+    state parse_done() { }
 }
 
 // The machine, parameter and state tables follow the generic parameters.
@@ -1021,14 +1022,14 @@ crashes Trap
     ParserHarness::write_u64(parser_harness, output.machine_count as u64 in Trapping);
     transition { _ -> machine_row(parser_harness, output, 0) }
 
-    machine machine_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state machine_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         transition index < output.machine_count {
             true -> write_machine(parser_harness, output, index)
             _ -> parameter_count(parser_harness, output)
         }
     }
 
-    machine write_machine(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state write_machine(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         let item: MachineItem = SyntaxTrees::machine_item(output, index);
         ParserHarness::write_flag(parser_harness, item.has_owner);
         ParserHarness::write_source_span(parser_harness, item.owner.source_span);
@@ -1062,7 +1063,7 @@ crashes Trap
         }
     }
 
-    machine machine_container(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping, item: MachineItem, tag: u8) {
+    state machine_container(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping, item: MachineItem, tag: u8) {
         ParserHarness::write_byte(parser_harness, tag);
         transition item.operator {
             OperatorToken::None -> machine_token(parser_harness, output, index, item, 0)
@@ -1082,7 +1083,7 @@ crashes Trap
         }
     }
 
-    machine machine_token(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping, item: MachineItem, tag: u8) {
+    state machine_token(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping, item: MachineItem, tag: u8) {
         ParserHarness::write_byte(parser_harness, tag);
         ParserHarness::write_source_span(parser_harness, item.token.source_span);
         ParserHarness::write_u64(parser_harness, item.first_contract);
@@ -1093,19 +1094,19 @@ crashes Trap
         transition { _ -> machine_row(parser_harness, output, index + 1) }
     }
 
-    machine parameter_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state parameter_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_u64(parser_harness, output.parameter_count as u64 in Trapping);
         transition { _ -> parameter_row(parser_harness, output, 0) }
     }
 
-    machine parameter_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state parameter_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         transition index < output.parameter_count {
             true -> write_parameter(parser_harness, output, index)
             _ -> state_count(parser_harness, output)
         }
     }
 
-    machine write_parameter(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state write_parameter(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         let parameter: Parameter = SyntaxTrees::parameter(output, index);
         ParserHarness::write_source_span(parser_harness, parameter.name.source_span);
         ParserHarness::write_u64(parser_harness, parameter.type_reference);
@@ -1113,23 +1114,23 @@ crashes Trap
         transition { _ -> parameter_row(parser_harness, output, index + 1) }
     }
 
-    machine state_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state state_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_u64(parser_harness, output.state_count as u64 in Trapping);
         transition { _ -> state_row(parser_harness, output, 0) }
     }
 
-    machine state_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state state_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         transition index < output.state_count {
             true -> write_state(parser_harness, output, index)
             _ -> bodies(parser_harness, output)
         }
     }
 
-    machine bodies(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state bodies(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_body_tables(parser_harness, output);
     }
 
-    machine write_state(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state write_state(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         let item: StateItem = SyntaxTrees::state_item(output, index);
         ParserHarness::write_source_span(parser_harness, item.name.source_span);
         ParserHarness::write_u64(parser_harness, item.first_parameter);
@@ -1144,7 +1145,7 @@ crashes Trap
         transition { _ -> state_row(parser_harness, output, index + 1) }
     }
 
-    machine done() {}
+    state done() {}
 }
 
 
@@ -1167,14 +1168,14 @@ crashes Trap
     ParserHarness::write_u64(parser_harness, output.expression_count as u64 in Trapping);
     transition { _ -> expression_row(parser_harness, output, 0) }
 
-    machine expression_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state expression_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         transition index < output.expression_count {
             true -> write_expression(parser_harness, output, index)
             _ -> argument_count(parser_harness, output)
         }
     }
 
-    machine write_expression(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state write_expression(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         let expression: Expression = SyntaxTrees::expression(output, index);
         transition expression.kind {
             ExpressionKind::Name -> expression_kind(parser_harness, output, index, expression, 1)
@@ -1198,7 +1199,7 @@ crashes Trap
         }
     }
 
-    machine expression_kind(
+    state expression_kind(
         parser_harness: &mut ParserHarness,
         output: &SyntaxTrees,
         index: u64 in Trapping,
@@ -1238,7 +1239,7 @@ crashes Trap
         }
     }
 
-    machine expression_operator(
+    state expression_operator(
         parser_harness: &mut ParserHarness,
         output: &SyntaxTrees,
         index: u64 in Trapping,
@@ -1257,37 +1258,37 @@ crashes Trap
         transition { _ -> expression_row(parser_harness, output, index + 1) }
     }
 
-    machine argument_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state argument_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_u64(parser_harness, output.argument_count as u64 in Trapping);
         transition { _ -> argument_row(parser_harness, output, 0) }
     }
 
-    machine argument_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state argument_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         transition index < output.argument_count {
             true -> write_argument(parser_harness, output, index)
             _ -> field_count(parser_harness, output)
         }
     }
 
-    machine write_argument(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state write_argument(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         let argument: u64 in Trapping = SyntaxTrees::argument(output, index);
         ParserHarness::write_u64(parser_harness, argument);
         transition { _ -> argument_row(parser_harness, output, index + 1) }
     }
 
-    machine field_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state field_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_u64(parser_harness, output.construct_field_count as u64 in Trapping);
         transition { _ -> field_row(parser_harness, output, 0) }
     }
 
-    machine field_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state field_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         transition index < output.construct_field_count {
             true -> write_field(parser_harness, output, index)
             _ -> statement_count(parser_harness, output)
         }
     }
 
-    machine write_field(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state write_field(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         let field: ConstructField = SyntaxTrees::construct_field(output, index);
         ParserHarness::write_source_span(parser_harness, field.name.source_span);
         ParserHarness::write_u64(parser_harness, field.value);
@@ -1295,19 +1296,19 @@ crashes Trap
         transition { _ -> field_row(parser_harness, output, index + 1) }
     }
 
-    machine statement_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state statement_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_u64(parser_harness, output.statement_count as u64 in Trapping);
         transition { _ -> statement_row(parser_harness, output, 0) }
     }
 
-    machine statement_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state statement_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         transition index < output.statement_count {
             true -> write_statement(parser_harness, output, index)
             _ -> arm_count(parser_harness, output)
         }
     }
 
-    machine write_statement(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state write_statement(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         let statement: Statement = SyntaxTrees::statement(output, index);
         transition statement.kind {
             StatementKind::Let -> statement_kind(parser_harness, output, index, statement, 1)
@@ -1320,7 +1321,7 @@ crashes Trap
         }
     }
 
-    machine statement_kind(
+    state statement_kind(
         parser_harness: &mut ParserHarness,
         output: &SyntaxTrees,
         index: u64 in Trapping,
@@ -1340,7 +1341,7 @@ crashes Trap
         }
     }
 
-    machine statement_cause(
+    state statement_cause(
         parser_harness: &mut ParserHarness,
         output: &SyntaxTrees,
         index: u64 in Trapping,
@@ -1354,19 +1355,19 @@ crashes Trap
         transition { _ -> statement_row(parser_harness, output, index + 1) }
     }
 
-    machine arm_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state arm_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_u64(parser_harness, output.arm_count as u64 in Trapping);
         transition { _ -> arm_row(parser_harness, output, 0) }
     }
 
-    machine arm_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state arm_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         transition index < output.arm_count {
             true -> write_arm(parser_harness, output, index)
             _ -> pattern_field_count(parser_harness, output)
         }
     }
 
-    machine write_arm(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state write_arm(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         let arm: TransitionArm = SyntaxTrees::arm(output, index);
         transition arm.kind {
             ArmPatternKind::Guard -> arm_kind(parser_harness, output, index, arm, 1)
@@ -1376,7 +1377,7 @@ crashes Trap
         }
     }
 
-    machine arm_kind(
+    state arm_kind(
         parser_harness: &mut ParserHarness,
         output: &SyntaxTrees,
         index: u64 in Trapping,
@@ -1396,7 +1397,7 @@ crashes Trap
         }
     }
 
-    machine arm_target(
+    state arm_target(
         parser_harness: &mut ParserHarness,
         output: &SyntaxTrees,
         index: u64 in Trapping,
@@ -1411,31 +1412,31 @@ crashes Trap
         transition { _ -> arm_row(parser_harness, output, index + 1) }
     }
 
-    machine pattern_field_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state pattern_field_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_u64(parser_harness, output.pattern_field_count as u64 in Trapping);
         transition { _ -> pattern_field_row(parser_harness, output, 0) }
     }
 
-    machine pattern_field_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state pattern_field_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         transition index < output.pattern_field_count {
             true -> write_pattern_field(parser_harness, output, index)
             _ -> clause_count(parser_harness, output)
         }
     }
 
-    machine clause_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state clause_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_u64(parser_harness, output.clause_count as u64 in Trapping);
         transition { _ -> clause_row(parser_harness, output, 0) }
     }
 
-    machine clause_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state clause_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         transition index < output.clause_count {
             true -> write_clause(parser_harness, output, index)
             _ -> done()
         }
     }
 
-    machine write_clause(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state write_clause(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         let clause: Clause = SyntaxTrees::clause(output, index);
         transition clause.kind {
             ClauseKind::Reaches -> clause_kind(parser_harness, output, index, clause, 1)
@@ -1451,7 +1452,7 @@ crashes Trap
         }
     }
 
-    machine clause_kind(
+    state clause_kind(
         parser_harness: &mut ParserHarness,
         output: &SyntaxTrees,
         index: u64 in Trapping,
@@ -1467,7 +1468,7 @@ crashes Trap
         }
     }
 
-    machine clause_cause(
+    state clause_cause(
         parser_harness: &mut ParserHarness,
         output: &SyntaxTrees,
         index: u64 in Trapping,
@@ -1487,7 +1488,7 @@ crashes Trap
         transition { _ -> clause_row(parser_harness, output, index + 1) }
     }
 
-    machine write_pattern_field(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state write_pattern_field(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         let field: PatternField = SyntaxTrees::pattern_field(output, index);
         ParserHarness::write_source_span(parser_harness, field.name.source_span);
         ParserHarness::write_flag(parser_harness, field.has_value);
@@ -1499,7 +1500,7 @@ crashes Trap
         transition { _ -> pattern_field_row(parser_harness, output, index + 1) }
     }
 
-    machine done() {}
+    state done() {}
 }
 
 // The declaration tables follow the clauses: name paths (member range,
@@ -1509,7 +1510,7 @@ crashes Trap
 // (name, generic range, trait type handle, machine range, row range,
 // visibility flag, span), conformance rows (requirement and target path
 // handles, span), domains (carrier type handle, name, index argument range,
-// generic range, clause range, route range, alias
+// generic range, subject flag and span, clause range, route range, alias
 // flag, constituent range, visibility flag, span), constants (owner flag and
 // span, name, type handle, value handle, visibility flag, span) and
 // propositions (name, generic range, parameter range, body tag 1 primitive,
@@ -1527,14 +1528,14 @@ crashes Trap
     ParserHarness::write_u64(parser_harness, output.name_path_count as u64 in Trapping);
     transition { _ -> path_row(parser_harness, output, 0) }
 
-    machine path_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state path_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         transition index < output.name_path_count {
             true -> write_path(parser_harness, output, index)
             _ -> trait_count(parser_harness, output)
         }
     }
 
-    machine write_path(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state write_path(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         let path: NamePath = SyntaxTrees::name_path(output, index);
         ParserHarness::write_u64(parser_harness, path.first_member);
         ParserHarness::write_u64(parser_harness, path.member_count);
@@ -1542,19 +1543,19 @@ crashes Trap
         transition { _ -> path_row(parser_harness, output, index + 1) }
     }
 
-    machine trait_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state trait_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_u64(parser_harness, output.trait_count as u64 in Trapping);
         transition { _ -> trait_row(parser_harness, output, 0) }
     }
 
-    machine trait_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state trait_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         transition index < output.trait_count {
             true -> write_trait(parser_harness, output, index)
             _ -> parent_count(parser_harness, output)
         }
     }
 
-    machine write_trait(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state write_trait(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         let item: TraitItem = SyntaxTrees::trait_item(output, index);
         ParserHarness::write_source_span(parser_harness, item.name.source_span);
         ParserHarness::write_u64(parser_harness, item.first_generic_parameter);
@@ -1573,37 +1574,37 @@ crashes Trap
         transition { _ -> trait_row(parser_harness, output, index + 1) }
     }
 
-    machine parent_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state parent_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_u64(parser_harness, output.trait_parent_count as u64 in Trapping);
         transition { _ -> parent_row(parser_harness, output, 0) }
     }
 
-    machine parent_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state parent_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         transition index < output.trait_parent_count {
             true -> write_parent(parser_harness, output, index)
             _ -> conformance_count(parser_harness, output)
         }
     }
 
-    machine write_parent(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state write_parent(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         let parent: u64 in Trapping = SyntaxTrees::trait_parent(output, index);
         ParserHarness::write_u64(parser_harness, parent);
         transition { _ -> parent_row(parser_harness, output, index + 1) }
     }
 
-    machine conformance_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state conformance_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_u64(parser_harness, output.conformance_count as u64 in Trapping);
         transition { _ -> conformance_row(parser_harness, output, 0) }
     }
 
-    machine conformance_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state conformance_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         transition index < output.conformance_count {
             true -> write_conformance(parser_harness, output, index)
             _ -> reference_row_count(parser_harness, output)
         }
     }
 
-    machine write_conformance(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state write_conformance(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         let item: ConformanceItem = SyntaxTrees::conformance_item(output, index);
         ParserHarness::write_source_span(parser_harness, item.name.source_span);
         ParserHarness::write_u64(parser_harness, item.first_generic_parameter);
@@ -1618,19 +1619,19 @@ crashes Trap
         transition { _ -> conformance_row(parser_harness, output, index + 1) }
     }
 
-    machine reference_row_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state reference_row_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_u64(parser_harness, output.conformance_row_count as u64 in Trapping);
         transition { _ -> reference_row(parser_harness, output, 0) }
     }
 
-    machine reference_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state reference_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         transition index < output.conformance_row_count {
             true -> write_reference_row(parser_harness, output, index)
             _ -> domain_count(parser_harness, output)
         }
     }
 
-    machine write_reference_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state write_reference_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         let row: ConformanceRow = SyntaxTrees::conformance_row(output, index);
         ParserHarness::write_u64(parser_harness, row.requirement);
         ParserHarness::write_u64(parser_harness, row.target);
@@ -1638,19 +1639,19 @@ crashes Trap
         transition { _ -> reference_row(parser_harness, output, index + 1) }
     }
 
-    machine domain_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state domain_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_u64(parser_harness, output.domain_count as u64 in Trapping);
         transition { _ -> domain_row(parser_harness, output, 0) }
     }
 
-    machine domain_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state domain_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         transition index < output.domain_count {
             true -> write_domain(parser_harness, output, index)
             _ -> constant_count(parser_harness, output)
         }
     }
 
-    machine write_domain(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state write_domain(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         let item: DomainItem = SyntaxTrees::domain_item(output, index);
         ParserHarness::write_u64(parser_harness, item.carrier);
         ParserHarness::write_source_span(parser_harness, item.name.source_span);
@@ -1658,6 +1659,8 @@ crashes Trap
         ParserHarness::write_u64(parser_harness, item.argument_count);
         ParserHarness::write_u64(parser_harness, item.first_generic_parameter);
         ParserHarness::write_u64(parser_harness, item.generic_parameter_count);
+        ParserHarness::write_flag(parser_harness, item.has_subject);
+        ParserHarness::write_source_span(parser_harness, item.subject.source_span);
         ParserHarness::write_u64(parser_harness, item.first_clause);
         ParserHarness::write_u64(parser_harness, item.clause_count);
         ParserHarness::write_u64(parser_harness, item.first_route);
@@ -1670,19 +1673,19 @@ crashes Trap
         transition { _ -> domain_row(parser_harness, output, index + 1) }
     }
 
-    machine constant_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state constant_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_u64(parser_harness, output.constant_count as u64 in Trapping);
         transition { _ -> constant_row(parser_harness, output, 0) }
     }
 
-    machine constant_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state constant_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         transition index < output.constant_count {
             true -> write_constant(parser_harness, output, index)
             _ -> proposition_count(parser_harness, output)
         }
     }
 
-    machine write_constant(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state write_constant(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         let item: ConstantItem = SyntaxTrees::constant_item(output, index);
         ParserHarness::write_flag(parser_harness, item.has_owner);
         ParserHarness::write_source_span(parser_harness, item.owner.source_span);
@@ -1694,31 +1697,31 @@ crashes Trap
         transition { _ -> constant_row(parser_harness, output, index + 1) }
     }
 
-    machine proposition_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state proposition_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_u64(parser_harness, output.proposition_count as u64 in Trapping);
         transition { _ -> proposition_row(parser_harness, output, 0) }
     }
 
-    machine proposition_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state proposition_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         transition index < output.proposition_count {
             true -> write_proposition(parser_harness, output, index)
             _ -> contract_count(parser_harness, output)
         }
     }
 
-    machine contract_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state contract_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_u64(parser_harness, output.contract_count as u64 in Trapping);
         transition { _ -> contract_row(parser_harness, output, 0) }
     }
 
-    machine contract_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state contract_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         transition index < output.contract_count {
             true -> write_contract(parser_harness, output, index)
             _ -> match_arm_count(parser_harness, output)
         }
     }
 
-    machine write_contract(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state write_contract(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         let contract: Contract = SyntaxTrees::contract(output, index);
         transition contract.kind {
             ContractKind::Machine -> contract_kind(parser_harness, output, index, contract, 1)
@@ -1726,7 +1729,7 @@ crashes Trap
         }
     }
 
-    machine contract_kind(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping, contract: Contract, tag: u8) {
+    state contract_kind(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping, contract: Contract, tag: u8) {
         ParserHarness::write_byte(parser_harness, tag);
         ParserHarness::write_source_span(parser_harness, contract.name.source_span);
         ParserHarness::write_u64(parser_harness, contract.first_generic_parameter);
@@ -1741,19 +1744,19 @@ crashes Trap
         transition { _ -> contract_row(parser_harness, output, index + 1) }
     }
 
-    machine match_arm_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state match_arm_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_u64(parser_harness, output.match_arm_count as u64 in Trapping);
         transition { _ -> match_arm_row(parser_harness, output, 0) }
     }
 
-    machine match_arm_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state match_arm_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         transition index < output.match_arm_count {
             true -> write_match_arm(parser_harness, output, index)
             _ -> definition_count(parser_harness, output)
         }
     }
 
-    machine write_match_arm(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state write_match_arm(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         let arm: TransitionArm = SyntaxTrees::match_arm(output, index);
         transition arm.kind {
             ArmPatternKind::Guard -> match_arm_kind(parser_harness, output, index, arm, 1)
@@ -1763,7 +1766,7 @@ crashes Trap
         }
     }
 
-    machine match_arm_kind(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping, arm: TransitionArm, tag: u8) {
+    state match_arm_kind(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping, arm: TransitionArm, tag: u8) {
         ParserHarness::write_byte(parser_harness, tag);
         ParserHarness::write_u64(parser_harness, arm.pattern);
         ParserHarness::write_u64(parser_harness, arm.target);
@@ -1771,12 +1774,12 @@ crashes Trap
         transition { _ -> match_arm_row(parser_harness, output, index + 1) }
     }
 
-    machine definition_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state definition_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_u64(parser_harness, output.definition_count as u64 in Trapping);
         transition { _ -> definition_row(parser_harness, output, 0) }
     }
 
-    machine definition_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state definition_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         transition index < output.definition_count {
             true -> write_definition(parser_harness, output, index)
             _ -> erased_count(parser_harness, output)
@@ -1785,19 +1788,19 @@ crashes Trap
 
     // Erased bindings (kind tag 1 parameter, 2 field, 3 payload field, 4
     // local; handle; span).
-    machine erased_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+    state erased_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_u64(parser_harness, output.erased_binding_count as u64 in Trapping);
         transition { _ -> erased_row(parser_harness, output, 0) }
     }
 
-    machine erased_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state erased_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         transition index < output.erased_binding_count {
             true -> write_erased(parser_harness, output, index)
             _ -> done()
         }
     }
 
-    machine write_erased(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state write_erased(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         let binding: ErasedBinding = SyntaxTrees::erased_binding(output, index);
         transition binding.kind {
             ErasedBindingKind::Parameter -> erased_kind(parser_harness, output, index, binding, 1)
@@ -1807,14 +1810,14 @@ crashes Trap
         }
     }
 
-    machine erased_kind(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping, binding: ErasedBinding, tag: u8) {
+    state erased_kind(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping, binding: ErasedBinding, tag: u8) {
         ParserHarness::write_byte(parser_harness, tag);
         ParserHarness::write_u64(parser_harness, binding.handle);
         ParserHarness::write_source_span(parser_harness, binding.source_span);
         transition { _ -> erased_row(parser_harness, output, index + 1) }
     }
 
-    machine write_definition(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state write_definition(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         let item: DefinitionItem = SyntaxTrees::definition_item(output, index);
         ParserHarness::write_source_span(parser_harness, item.name.source_span);
         ParserHarness::write_u64(parser_harness, item.first_generic_parameter);
@@ -1830,7 +1833,7 @@ crashes Trap
         transition { _ -> definition_row(parser_harness, output, index + 1) }
     }
 
-    machine write_proposition(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+    state write_proposition(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         let item: PropositionItem = SyntaxTrees::proposition_item(output, index);
         ParserHarness::write_source_span(parser_harness, item.name.source_span);
         ParserHarness::write_u64(parser_harness, item.first_generic_parameter);
@@ -1844,7 +1847,7 @@ crashes Trap
         }
     }
 
-    machine proposition_body(
+    state proposition_body(
         parser_harness: &mut ParserHarness,
         output: &SyntaxTrees,
         index: u64 in Trapping,
@@ -1859,7 +1862,7 @@ crashes Trap
         transition { _ -> proposition_row(parser_harness, output, index + 1) }
     }
 
-    machine done() {}
+    state done() {}
 }
 
 machine ParserHarness::write_flag(parser_harness: &mut ParserHarness, value: bool) reaches Console {
@@ -1868,11 +1871,11 @@ machine ParserHarness::write_flag(parser_harness: &mut ParserHarness, value: boo
         _ -> clear(parser_harness)
     }
 
-    machine set(parser_harness: &mut ParserHarness) {
+    state set(parser_harness: &mut ParserHarness) {
         ParserHarness::write_byte(parser_harness, 1);
     }
 
-    machine clear(parser_harness: &mut ParserHarness) {
+    state clear(parser_harness: &mut ParserHarness) {
         ParserHarness::write_byte(parser_harness, 0);
     }
 }
@@ -1906,11 +1909,11 @@ machine ParserHarness::flag(value: bool) -> u8 {
         _ -> zero()
     }
 
-    machine one() -> u8 {
+    state one() -> u8 {
         1
     }
 
-    machine zero() -> u8 {
+    state zero() -> u8 {
         0
     }
 }

@@ -568,7 +568,16 @@ def main() -> None:
     accepted(
         program,
         "declared-domains-qualify-their-carrier",
-        b'domain u64::Small\nrequires self < 8;\ndomain [u8]::Text\nrequires valid_utf8(self);\nmachine take(x: u64 in Small) -> u64 { x }\nmachine show(text: &[u8] in Text) {}\nmachine f(held: u64 in Small, bare: u64, raw: &[u8]) -> u64 {\n    let a: u64 = take(held);\n    let b: u64 = take(bare);\n    let c: u64 = held;\n    show(raw);\n    take(3)\n}',
+        b"domain u64::Small(value)\nrequires value < 8;\ndomain [u8]::Text(bytes)\nrequires valid_utf8(bytes);\n"
+        b"machine take(x: u64 in Small) -> u64 { x }\n"
+        b"machine show(text: &[u8] in Text) {}\n"
+        b"machine f(held: u64 in Small, bare: u64, raw: &[u8]) -> u64 {\n"
+        b"    let a: u64 = take(held);\n"
+        b"    let b: u64 = take(bare);\n"
+        b"    let c: u64 = held;\n"
+        b"    show(raw);\n"
+        b"    take(3)\n"
+        b"}",
         ((b"held!2", "u64 in Domain0"), (b"bare!2", "u64"), (b"take(3)", "u64")),
         adaptations=((b"held!2", ""), (b"bare!2", "qualified"), (b"raw!2", "qualified"), (b"3", "landed")),
     )
@@ -848,9 +857,9 @@ def main() -> None:
     rejected(
         program,
         "byte-predicates-apply-to-byte-views",
-        b'domain u64::Odd\nrequires valid_utf8(self);',
+        b"domain u64::Odd(value)\nrequires valid_utf8(value);",
         "NoMatchingMachine",
-        b"valid_utf8(self)",
+        b"valid_utf8(value)",
     )
     rejected(
         program,
@@ -1048,7 +1057,8 @@ def main() -> None:
     rejected(
         program,
         "match-arms-of-two-domains",
-        b'domain i64::Km requires self >= 0;\ndomain i64::Miles requires self >= 0;\nmachine f(b: bool, near: i64 in Km, far: i64 in Miles) -> i64 in Km { match b { true -> near, false -> far } }',
+        b"domain i64::Km(value) requires value >= 0;\ndomain i64::Miles(value) requires value >= 0;\n"
+        b"machine f(b: bool, near: i64 in Km, far: i64 in Miles) -> i64 in Km { match b { true -> near, false -> far } }",
         "MismatchedTypes",
         b"far!2",
     )
@@ -1114,7 +1124,7 @@ def main() -> None:
     accepted(
         program,
         "array-literal-tree-is-its-elements",
-        b'domain u8::Small\nrequires self < 4;\nmachine f() -> u8 { let a: [u8; 2] = [1, 9]; a[0] }',
+        b"domain u8::Small(value)\nrequires value < 4;\nmachine f() -> u8 { let a: [u8; 2] = [1, 9]; a[0] }",
         ((b"[1, 9]", "[u8; 2]"),),
     )
     accepted(
@@ -1238,7 +1248,12 @@ def main() -> None:
     accepted(
         program,
         "quoted-literals-copy-exact-qualified-byte-arrays",
-        b'domain [u8; 2]::Utf8 requires valid_utf8(self);\ndomain [u8]::Utf8 requires valid_utf8(self);\ndata M { line: [u8; 2] in Utf8; raw: [u8; 2]; }\nmachine f(m: &mut M, view: &[u8] in Utf8) -> bool {\n    m.line = "ok";\n    m.raw = "hi";\n    let local: [u8; 2] in Utf8 = "go";\n    m.line == "ok" && view == "ok" && m.line.len == 2\n}',
+        b"domain [u8; 2]::Utf8(bytes) requires valid_utf8(bytes);\n"
+        b"domain [u8]::Utf8(bytes) requires valid_utf8(bytes);\n"
+        b"data M { line: [u8; 2] in Utf8; raw: [u8; 2]; }\n"
+        b"machine f(m: &mut M, view: &[u8] in Utf8) -> bool {\n"
+        b"    m.line = \"ok\";\n    m.raw = \"hi\";\n    let local: [u8; 2] in Utf8 = \"go\";\n"
+        b"    m.line == \"ok\" && view == \"ok\" && m.line.len == 2\n}",
         ((b"m.line == \"ok\"", "bool"), (b"m.line.len", "u64")),
         adaptations=((b"\"ok\"", "qualified"), (b"\"hi\"", "landed"), (b"\"go\"", "qualified")),
     )
@@ -1246,7 +1261,9 @@ def main() -> None:
         rejected(
             program,
             "qualified-quoted-width-" + str(len(literal) - 2),
-            b'domain [u8; 2]::Utf8 requires valid_utf8(self);\ndata M { line: [u8; 2] in Utf8; }\nmachine f(m: &mut M) { m.line = ' + literal + b"; }",
+            b"domain [u8; 2]::Utf8(bytes) requires valid_utf8(bytes);\n"
+            b"data M { line: [u8; 2] in Utf8; }\n"
+            b"machine f(m: &mut M) { m.line = " + literal + b"; }",
             "MismatchedTypes",
             literal,
         )
@@ -1426,13 +1443,13 @@ def main() -> None:
     accepted(
         program,
         "domain-membership-fact",
-        b'domain u64::Small\nrequires self < 4;\nmachine f(x: u64) -> u64\nrequires x in Small\n{ x }',
+        b"domain u64::Small(value)\nrequires value < 4;\nmachine f(x: u64) -> u64\nrequires x in Small\n{ x }",
         ((b"x in Small", "bool"),),
     )
     rejected(
         program,
         "membership-of-another-carrier",
-        b'domain u64::Small\nrequires self < 4;\nmachine f(x: u8) -> bool\nrequires x in Small\n{ true }',
+        b"domain u64::Small(value)\nrequires value < 4;\nmachine f(x: u8) -> bool\nrequires x in Small\n{ true }",
         "MismatchedTypes",
         b"x!2",
     )
@@ -1503,13 +1520,13 @@ def main() -> None:
     accepted(
         program,
         "declared-domain",
-        b'domain u64::Small requires self < 4;\nmachine f(x: u64 in Small) -> u64 in Small { x }',
+        b"domain u64::Small(value) requires value < 4;\nmachine f(x: u64 in Small) -> u64 in Small { x }",
         ((b"x!2", "u64 in Domain0"),),
     )
     accepted(
         program,
         "path-qualified-declared-domain",
-        b'domain u64::Small requires self < 4;\nmachine f(x: u64 in u64::Small) -> u64 in Small { x }',
+        b"domain u64::Small(value) requires value < 4;\nmachine f(x: u64 in u64::Small) -> u64 in Small { x }",
         ((b"x!2", "u64 in Domain0"),),
     )
     rejected(

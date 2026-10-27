@@ -160,9 +160,6 @@ where
     // A value-position match's arms stage here until its `}`.
     pending_arms: [TransitionArm; 64] in Trapping;
     pending_arm_count: u64;
-    // Only declaration predicates admit the exact logical subject. Ordinary
-    // machine bodies/contracts and binding names never acquire a receiver.
-    expression_logical_subject: bool;
     expression_result: u64 in Trapping;
     expression_allow_construct: bool;
     expression_allow_membership: bool;
@@ -216,6 +213,9 @@ where
     declaration_type: u64 in Trapping;
     declaration_first_argument: u64 in Trapping;
     declaration_argument_count: u64 in Trapping;
+    declaration_has_subject: bool;
+    declaration_subject_start: u64 in Trapping;
+    declaration_subject_end: u64 in Trapping;
     declaration_first_clause: u64 in Trapping;
     declaration_clause_count: u64 in Trapping;
     declaration_first_path: u64 in Trapping;

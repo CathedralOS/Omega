@@ -4,7 +4,7 @@ A selected predicate-domain match arm establishes value >= 73, and the joined va
 
 Owning outcome: **MATCH-SELECTIVE-LOWERING** in [TASKS.md](../../../../TASKS.md). The requirement is ordered predicate-domain selection over one saved subject, with the selected domain facts retained through the scalar result join and ordinary exact arithmetic.
 
-The root [main.omg](main.omg) and its four-target [build.omg](build.omg) retain the same fact, input and subtraction as the frozen reproduction. Published root/local witnesses use explicit nested completion machines with their own crash contracts; the original baseline source and receipt remain immutable in the claim record. Every positive declares `Expected exit: 0` and exercises both the matching `Cell::Ready` path (`Cell { value: 90u64 }` yielding `17u64`) and the wildcard fallback path (`Cell { value: 12u64 }` yielding `0u64`). The same `Cell::Ready` predicate supplies `cell.value >= 73u64`; the wildcard supplies `73u64`. The consumer performs the same subtraction without a caller guard establishing the bound. Each twin changes only the domain predicate to `cell.value >= 72u64`.
+The root [main.omg](main.omg) and its four-target [build.omg](build.omg) retain the same fact, input and subtraction as the frozen reproduction. Published root/local witnesses use explicit nested completion machines with their own crash contracts; the original baseline source and receipt remain immutable in the claim record. Every positive declares `Expected exit: 0` and exercises both the matching `Cell::Ready` path (`Cell { value: 90u64 }` yielding `17u64`) and the wildcard fallback path (`Cell { value: 12u64 }` yielding `0u64`). The same `Cell::Ready` predicate supplies `self.value >= 73u64`; the wildcard supplies `73u64`. The consumer performs the same subtraction without a caller guard establishing the bound. Each twin changes only the domain predicate to `self.value >= 72u64`.
 
 | Place | Positive | Weakened-domain twin |
 | --- | --- | --- |
@@ -23,7 +23,7 @@ The [ordered-effects control](controls/ordered_effects/main.omg) evaluates a com
 ## Logical subject migration
 
 The same row also establishes **DOMAIN-DEFAULT-PREDICATE-UNIFICATION**'s
-retirement of authored domain subject binders. `Cell::Ready` now states
+Rust producer's retirement of authored domain subject binders. `Cell::Ready` now states
 `requires self.value >= 73u64`; `self` names the exact selected value and
 creates no runtime receiver or authority. Each twin changes only the bound to
 72. The target place uses four ordinary named implementations, each selected
@@ -45,7 +45,10 @@ controls also live under `tests/omega/fail/domains/`.
 
 The parent remains open for case-dependent defaults, typed extraction, guarded
 payload formation and matching, mutation restoration and removal of case-local
-predicate paths. Product data-`where self` resolution and the baseline
+predicate paths. The Omega-written Psi producer still needs logical `self`
+parsing/resolution, authored-binder retirement, and data-`where self` resolution.
+Its existing product gate is blocked before these changes by retired state syntax;
+this Rust-producer milestone makes no product-compiler execution claim. The baseline
 `named_const_subject_binding` nested/inherited scalar result-domain refusals
 remain engineering work; this syntax migration does not claim to complete them.
 

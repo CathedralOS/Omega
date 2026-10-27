@@ -826,12 +826,6 @@ impl<'program> StructuralJudge<'program> {
         entries: &mut Vec<NormalOperationEntry<'program>>,
         demand: NormalValueDemand<'_>,
     ) -> Option<Vec<NormalReturnPath<'program>>> {
-        // This cut precedes the requested expression. Only independently
-        // completed predecessors can rule out a continuation; its own result
-        // equation must never justify forming the operation.
-        if self.hypotheses_contradictory || self.integer_premises_contradictory() {
-            return Some(Vec::new());
-        }
         let paths = self.evaluate_normal_value_paths(
             expression,
             environment,
@@ -1026,11 +1020,6 @@ impl<'program> StructuralJudge<'program> {
                         continue;
                     }
                     selected.assume_normal_equation(left.value.clone(), guard_value);
-                    if selected.hypotheses_contradictory
-                        || selected.integer_premises_contradictory()
-                    {
-                        continue;
-                    }
                     if truth == evaluate_right {
                         for right in selected.evaluate_normal_paths(
                             binary.right,
@@ -1425,12 +1414,6 @@ impl<'program> StructuralJudge<'program> {
         let mut outcomes: Vec<NormalReturnPath<'program>> = contexts
             .into_iter()
             .map(|(mut judge, inputs)| {
-                // Operand completion can select additional guards or call
-                // outcomes. Reject an impossible prefix before publishing the
-                // operation entry, while its result is still unavailable.
-                if judge.hypotheses_contradictory || judge.integer_premises_contradictory() {
-                    return Some(Vec::new());
-                }
                 let call_inputs = if let Some(call) = program.expression_table.call_node(expression)
                 {
                     let mut cursor = 0;

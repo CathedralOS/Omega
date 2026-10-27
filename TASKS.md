@@ -208,8 +208,9 @@ retired-syntax deletions to completion.
 - **DOMAIN-DEFAULT-PREDICATE-UNIFICATION.** Implement the owner-ratified
   [predicate subject](wiki/spec/language/domains.md#declaration-and-membership)
   and [case-dependent default domains](wiki/spec/language/data_and_literals.md#case-constraints).
-  - Complete product data-`where self` resolution and remove case-level
-    `where` with its parallel internal predicate paths; migrate their library,
+  - Complete fixed logical `self` parsing/resolution and retire authored domain
+    subject binders in the Omega-written Psi producer, including data-`where self`
+    resolution. Remove case-level `where` with its parallel internal predicate paths; migrate their library,
     sample and fixture users in the same change. Repair nested/inherited scalar
     domain result establishment, including qualified constant destinations.
   - Carry one general predicate representation through formation, construction,

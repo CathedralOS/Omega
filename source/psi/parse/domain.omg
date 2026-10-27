@@ -9,7 +9,7 @@ use psi::syntax::syntax;
 use psi::tokens::tokens;
 
 // `[public] domain [<generic parameters>] Carrier::Name [<index arguments>]
-// tail`, entered at the `domain` word. The carrier is a name or
+// [(subject)] tail`, entered at the `domain` word. The carrier is a name or
 // a bracketed array or slice type, retained as a type reference; the index
 // arguments share the static argument grammar. The tail is a transparent
 // alias `= Path {& Path};`, or `[requires facts] [established by Path {,
@@ -35,6 +35,9 @@ crashes Trap
         parser.declaration_first_generic = parser.output.generic_parameter_count as u64 in Trapping;
         parser.declaration_first_argument = parser.output.type_argument_count as u64 in Trapping;
         parser.declaration_argument_count = 0;
+        parser.declaration_has_subject = false;
+        parser.declaration_subject_start = 0;
+        parser.declaration_subject_end = 0;
         let generic: bool = Parser::at_punctuation(parser, input, PunctuationKind::Less);
         transition generic {
             true -> generics(parser, input)
@@ -132,8 +135,30 @@ crashes Trap
     machine subject(parser: &mut Parser, input: &TokenStream) {
         let bound: bool = Parser::at_punctuation(parser, input, PunctuationKind::LeftParen);
         transition bound {
-            true -> reject(parser, input, ParseDiagnosticCode::RetiredDomainSubject)
+            true -> subject_open(parser, input)
             _ -> tail(parser, input)
+        }
+    }
+
+    machine subject_open(parser: &mut Parser, input: &TokenStream) {
+        Parser::take_current(parser, input);
+        Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedDomainSubject);
+        transition parser.output.accepted {
+            true -> subject_named(parser, input)
+            _ -> done()
+        }
+    }
+
+    machine subject_named(parser: &mut Parser, input: &TokenStream) {
+        parser.declaration_has_subject = true;
+        parser.declaration_subject_start = parser.name_start;
+        parser.declaration_subject_end = parser.name_end;
+        Parser::expect_punctuation(parser, input, PunctuationKind::RightParen,
+            ParseDiagnosticCode::ExpectedDomainSubjectEnd
+        );
+        transition parser.output.accepted {
+            true -> tail(parser, input)
+            _ -> done()
         }
     }
 
@@ -303,6 +328,8 @@ crashes Trap
             argument_count: parser.declaration_argument_count,
             first_generic_parameter: parser.declaration_first_generic,
             generic_parameter_count: (parser.output.generic_parameter_count as u64 in Trapping) - parser.declaration_first_generic,
+            has_subject: parser.declaration_has_subject,
+            subject: Parser::identifier_span(parser, parser.declaration_subject_start, parser.declaration_subject_end),
             first_clause: parser.declaration_first_clause,
             clause_count: parser.declaration_clause_count,
             first_route: first_route,

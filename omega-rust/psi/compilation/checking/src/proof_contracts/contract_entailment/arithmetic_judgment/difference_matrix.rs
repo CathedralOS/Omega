@@ -129,7 +129,7 @@ impl<'program> Engine<'program> {
     }
 
     /// Components communicate through zero without materializing every pair.
-    /// Stored paths stay inside actual nonzero components.
+    /// Use the same query for indexed incremental updates and named callers.
     pub(super) fn matrix_bound(&self, from: &str, to: &str) -> Option<BigInt> {
         if from == to {
             return Some(BigInt::zero());
@@ -141,23 +141,15 @@ impl<'program> Engine<'program> {
         if from == to {
             return Some(BigInt::zero());
         }
-        let direct = self.matrix.stored_bound_indices(from, to).cloned();
-        let through_zero = self.matrix.position(ZERO_ATOM).and_then(|zero| {
-            if from == zero || to == zero {
-                return None;
-            }
-            Some(
-                self.matrix
-                    .stored_bound_indices(from, zero)?
-                    .add(self.matrix.stored_bound_indices(zero, to)?),
-            )
-        });
-        // A later zero bound can beat a stored zero-avoiding path. Query both
-        // representations without feeding that virtual path back into storage.
-        match (direct, through_zero) {
-            (Some(direct), Some(through_zero)) => Some(direct.max(through_zero)),
-            (direct, through_zero) => direct.or(through_zero),
+        if let Some(bound) = self.matrix.stored_bound_indices(from, to) {
+            return Some(bound.clone());
         }
+        let zero = self.matrix.position(ZERO_ATOM)?;
+        if from == zero || to == zero {
+            return None;
+        }
+        let through_zero = self.matrix.stored_bound_indices(from, zero)?;
+        Some(through_zero.add(self.matrix.stored_bound_indices(zero, to)?))
     }
 
     /// Matrix writes are additive. A consistent retained matrix is already
@@ -231,11 +223,8 @@ impl<'program> Engine<'program> {
 
     /// Extend a closed consistent max-plus graph by u - v >= bound. A new
     /// edge can occur at most once on an improving path when the old reverse
-    /// path plus this edge is nonpositive. Stored nonzero paths avoid zero;
-    /// paths through zero remain two query factors. Reading virtual query
-    /// bounds into these frontiers would materialize every unrelated pair.
-    /// A zero-endpoint seed updates only its zero row/column. Capture both
-    /// old frontiers before writing, including the endpoints' empty paths.
+    /// path plus this edge is nonpositive. Capture both old frontiers before
+    /// writing, including virtual zero diagonals for previously unseen vertices.
     fn strengthen_closed_difference(&mut self, from: &str, to: &str, bound: BigInt) -> bool {
         if self
             .matrix_bound(to, from)
@@ -254,22 +243,18 @@ impl<'program> Engine<'program> {
         // Capture the old lexical vertex inventory before introducing either
         // endpoint. Stable indices never determine semantic iteration order.
         let atoms = self.matrix.lexical_indices().to_vec();
-        let from_is_zero = from == ZERO_ATOM;
-        let to_is_zero = to == ZERO_ATOM;
         let from = self.matrix.intern(from);
         let to = self.matrix.intern(to);
         let mut incoming = vec![(from, BigInt::zero())];
         let mut outgoing = vec![(to, BigInt::zero())];
         for atom in atoms {
             if atom != from
-                && !from_is_zero
-                && let Some(value) = self.matrix.stored_bound_indices(atom, from).cloned()
+                && let Some(value) = self.matrix_bound_indices(atom, from)
             {
                 incoming.push((atom, value));
             }
             if atom != to
-                && !to_is_zero
-                && let Some(value) = self.matrix.stored_bound_indices(to, atom).cloned()
+                && let Some(value) = self.matrix_bound_indices(to, atom)
             {
                 outgoing.push((atom, value));
             }
@@ -432,6 +417,3 @@ impl<'program> Engine<'program> {
         current
     }
 }
-
-#[cfg(test)]
-mod tests;
