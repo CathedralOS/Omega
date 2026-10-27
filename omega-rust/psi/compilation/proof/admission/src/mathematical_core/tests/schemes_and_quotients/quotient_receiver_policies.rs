@@ -283,13 +283,12 @@ fn a_quotient_refusing_policy_distinguishes_the_same_certificate() {
         let packed = sigma(&mut arena, a_domain, codomain);
         squash(&mut arena, packed)
     };
-    let quotient_certificate = MathematicalCertificate {
-        signature: declarations.clone(),
-        level_arity: 0,
-        context: vec![element],
-        term: covered,
-        expected: covered_type,
-    };
+    let quotient_certificate = MathematicalCertificate::with_signature(
+        declarations.clone(),
+        vec![element],
+        covered,
+        covered_type,
+    );
     verify_mathematical_certificate(&mut arena, &quotient_certificate, &mut budget).unwrap();
 
     // The representative-level judgment — `idSym Two a b p : Id Two b
@@ -306,28 +305,21 @@ fn a_quotient_refusing_policy_distinguishes_the_same_certificate() {
         family.id_sym(&mut arena, Level::Constant(0), ty, a, b, p)
     };
     let symmetrized_type = two_identity(&mut arena, 1, 2);
-    let representative_certificate = MathematicalCertificate {
-        signature: declarations.clone(),
-        level_arity: 0,
-        context: vec![two(&mut arena), two(&mut arena), identity_ab],
-        term: symmetrized,
-        expected: symmetrized_type,
-    };
+    let representative_certificate = MathematicalCertificate::with_signature(
+        declarations.clone(),
+        vec![two(&mut arena), two(&mut arena), identity_ab],
+        symmetrized,
+        symmetrized_type,
+    );
     verify_mathematical_certificate(&mut arena, &representative_certificate, &mut budget).unwrap();
 
     // A forged certificate — the same evidence claimed at a different
     // squash — is refused by verification itself: no policy ever sees a
     // judgment the kernel did not re-decide.
-    let forged = MathematicalCertificate {
-        signature: declarations,
-        level_arity: 0,
-        context: vec![element],
-        term: covered,
-        expected: {
-            let carrier = two(&mut arena);
-            squash(&mut arena, carrier)
-        },
-    };
+    let forged = MathematicalCertificate::with_signature(declarations, vec![element], covered, {
+        let carrier = two(&mut arena);
+        squash(&mut arena, carrier)
+    });
     let error =
         verify_mathematical_certificate(&mut arena, &forged, &mut default_budget()).unwrap_err();
     assert!(
