@@ -48,7 +48,10 @@ pub(crate) fn rejoin_expression_call_accesses<'program>(
     let collector = match &site {
         CallSite::Expression { expression, call } => {
             if *expression != source.authored_expression
-                || validation::call_target_symbol(program, call) != source.target_symbol
+                || validation::call_target_entry_symbol(
+                    program,
+                    validation::call_target_symbol(program, call),
+                ) != source.target_symbol
             {
                 return None;
             }

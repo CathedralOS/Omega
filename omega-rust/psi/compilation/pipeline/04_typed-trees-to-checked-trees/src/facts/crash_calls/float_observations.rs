@@ -218,7 +218,13 @@ impl<'a> FloatObservations<'a> {
                             && call.authored_expression == expression
                     });
                 let call = calls.next()?;
-                if calls.next().is_some() || call.target_symbol != authored.target_symbol {
+                if calls.next().is_some()
+                    || call.target_symbol
+                        != validation::call_target_entry_symbol(
+                            self.program,
+                            validation::call_target_symbol(self.program, authored),
+                        )
+                {
                     return None;
                 }
                 let (callee, entry) =
