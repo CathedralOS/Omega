@@ -4,14 +4,13 @@ use crate::{
     OptimizationUnitValidationError, ValidatedPsiRewrite, reconstruct_closed_scalar_node_boundary,
 };
 use optimization_unit::{
-    OptimizationFact, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch, ValueDefinition,
-    ValueDefinitionSite,
+    OptimizationFact, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch,
 };
 
 use super::operation_partition::independently_validated_dead_scalar_shape;
 use crate::candidates::{
     accept_region_rewrite, candidate_block, candidate_function, rebuild_node_metadata,
-    set_node_effect_link,
+    receiver_custody_distinct, retirable_scalar_node, set_node_effect_link,
 };
 
 pub(super) fn validate_dead_scalar_node_candidate(
@@ -37,18 +36,7 @@ pub(super) fn validate_dead_scalar_node_candidate(
     if source_operation != patch.source_operation
         || result != patch.result
         || scalar_type != patch.scalar_type
-        || node.definitions
-            != [ValueDefinition {
-                value: result,
-                scalar_type,
-                site: ValueDefinitionSite::Node {
-                    block: block.id,
-                    node: patch.location.node,
-                },
-            }]
-        || !node.successors.is_empty()
-        || !node.ownership.is_empty()
-        || block.nodes.get(node_index + 1).is_none()
+        || !retirable_scalar_node(block, node_index, node, result, scalar_type)
     {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
@@ -101,12 +89,7 @@ pub(super) fn validate_dead_scalar_node_candidate(
             return Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch);
         }
     }
-    let receiver = &block.nodes[node_index + 1];
-    if receiver
-        .provenance
-        .iter()
-        .any(|source| node.provenance.contains(source))
-    {
+    if !receiver_custody_distinct(block, node_index, node) {
         return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
     }
     let (expected_blocks, accepted_provenance) =
