@@ -1920,6 +1920,28 @@ impl<'program> StructuralJudge<'program> {
         // enclosing unfold, which grows exponentially with the term's depth.
         let parameter_count = environment.len();
 
+        // A pure ordinary application can contain a call-valued local or
+        // tail as well as a Named terminal target. Only its already-eligible
+        // body gets specification termification; each nested call still owes
+        // its own operational admission, selections and source formation.
+        // Closed computation and ordinary runtime-prefix capture are unchanged.
+        let specification_body = (self.runtime_body_values
+            && !self.require_closed_computation
+            && !self.specification_terms
+            && specification_application_candidate(
+                program,
+                self.machine_symbol,
+                target,
+                selections,
+                self.frame_resolver(),
+            )
+            .is_ok())
+        .then(|| {
+            let mut body = self.clone();
+            body.specification_terms = true;
+            body
+        });
+        let body = specification_body.as_ref().unwrap_or(self);
         let mut environment = environment;
         let statements = program.statement_table.statements(state.statement_nodes);
         for (index, statement) in statements.iter().enumerate() {
@@ -1933,7 +1955,7 @@ impl<'program> StructuralJudge<'program> {
                 continue; // exhaustiveness carrier, not shape
             }
             if let Some(local) = statement.as_local_data() {
-                let term = self.callee_term(
+                let term = body.callee_term(
                     local.initial_value,
                     &environment,
                     StaticObservations {
@@ -1961,7 +1983,7 @@ impl<'program> StructuralJudge<'program> {
             if let Some(expression) = statement.as_expression() {
                 return (index + 1 == statements.len())
                     .then(|| {
-                        self.callee_term(
+                        body.callee_term(
                             *expression,
                             &environment,
                             StaticObservations {
@@ -2036,7 +2058,7 @@ impl<'program> StructuralJudge<'program> {
                         // recursive unfolding. Non-case scalar guards use the
                         // same captured environment and selected source meaning.
                         // Unknown never chooses an arm or assumes the goal.
-                        match self.judge_predicate_in_scope(
+                        match body.judge_predicate_in_scope(
                             (machine, state, state.return_type),
                             guard,
                             &environment,
@@ -2053,7 +2075,7 @@ impl<'program> StructuralJudge<'program> {
                 continue;
             }
             return match program.statement_table.transition_target(transition.target) {
-                TransitionTargetNode::Value(value) => self.callee_term(
+                TransitionTargetNode::Value(value) => body.callee_term(
                     *value,
                     &environment,
                     StaticObservations {
@@ -2097,7 +2119,7 @@ impl<'program> StructuralJudge<'program> {
                         .expression_handles(*arguments)
                         .iter()
                         .map(|argument| {
-                            self.callee_term(
+                            body.callee_term(
                                 *argument,
                                 &environment,
                                 StaticObservations {
