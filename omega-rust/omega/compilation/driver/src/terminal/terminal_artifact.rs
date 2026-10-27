@@ -10,6 +10,7 @@ use crate::execution_settlement::SelectedProviderCustody;
 use crate::observations::PsiStageTimings;
 use artifacts::compile_timings::{CompileTimings, StageMeta};
 use diagnostics::Diagnostic;
+use native_production::TerminalApplication;
 use optimization_core::OptimizationSelections;
 use psi_compiler::{TerminalApplicationCustody, TerminalProductionCustody};
 use std::sync::Arc;
@@ -86,19 +87,6 @@ impl<'a> TerminalProductionView<'a> {
 pub(crate) struct TerminalProductRequest<'a> {
     pub view: TerminalProductionView<'a>,
     pub selections: &'a OptimizationSelections,
-}
-
-/// One target's produced canonical artifact beside the entry receipt its
-/// installation and native proposal consume. The artifact is shared storage;
-/// the receipt and Build provider companion belong to this application. No
-/// source owner is needed to recover provider proposals after production.
-pub(crate) struct ProducedTerminalApplication {
-    pub artifact: Arc<terminal_codec::CanonicalTerminalArtifact>,
-    pub receipt: terminal_psi::CheckedProgramEntryTerminalReceipt,
-    pub provider_proposals: Vec<backend_plan::TerminalTargetProviderProposal>,
-    /// Authored adapter selection, not authority to enter it. Completion still
-    /// binds the exact physical arrival contract against canonical candidates.
-    pub physical_entry_adapter: bool,
 }
 
 /// Admission retains the request's entry and composition policy together.
@@ -178,7 +166,7 @@ impl<'a> AdmittedTerminalApplication<'a> {
 /// keeps each request with its policy; cohorts own applications, not indices.
 pub(crate) fn produce_retained_terminal_artifacts(
     requests: Vec<TerminalProductRequest<'_>>,
-) -> Vec<Result<ProducedTerminalApplication, Vec<Diagnostic>>> {
+) -> Vec<Result<TerminalApplication, Vec<Diagnostic>>> {
     let mut outcomes = Vec::with_capacity(requests.len());
     let mut cohorts: Vec<Vec<AdmittedTerminalApplication<'_>>> = Vec::new();
     for (position, request) in requests.into_iter().enumerate() {
@@ -238,7 +226,7 @@ pub(crate) fn produce_retained_terminal_artifacts(
                                     "terminal-artifact production retained no checked ProgramEntry receipt",
                                 )]
                             })?;
-                            Ok(ProducedTerminalApplication {
+                            Ok(TerminalApplication {
                                 physical_entry_adapter: application
                                     .request
                                     .view
@@ -428,7 +416,7 @@ fn produce_target_provider_proposals(
     source: &TerminalProductionView<'_>,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     selections: &OptimizationSelections,
-) -> Vec<terminal_psi_to_abstract_operations::TerminalTargetProviderProposal> {
+) -> Vec<backend_plan::TerminalTargetProviderProposal> {
     let mut targets = source
         .provider_defaults
         .iter()
@@ -465,33 +453,4 @@ fn produce_target_provider_proposals(
         optimization_selection: selections.identity(),
     }
     .publish()
-}
-
-/// Assemble one target's retained terminal product after installation: the
-/// shared artifact, its per-application entry receipt projected to the native
-/// proposal, and the same target's provider proposals. Proposal construction
-/// consumes explicit installed inputs — placements, establishments and grants
-/// are installation products. Build provider proposals and adapter intent already
-/// belong to the produced application; completion has no checked-source input.
-pub(crate) fn finish_terminal_application(
-    produced: ProducedTerminalApplication,
-    request: terminal_psi_to_abstract_operations::TerminalNativeProposalRequest<'_>,
-) -> Result<compilation_products::RetainedTerminalArtifact, Vec<Diagnostic>> {
-    let mut proposal =
-        terminal_psi_to_abstract_operations::project_terminal_native_realization_proposal(
-            &produced.artifact,
-            produced.receipt,
-            request,
-        )?;
-    if produced.physical_entry_adapter {
-        proposal
-            .bind_physical_adapter(&produced.artifact)
-            .map_err(|message| vec![Diagnostic::error(message)])?;
-    }
-    Ok(
-        compilation_products::RetainedTerminalArtifact::new_with_native_realization_proposal(
-            produced.artifact,
-            proposal.with_target_provider_proposals(produced.provider_proposals),
-        ),
-    )
 }

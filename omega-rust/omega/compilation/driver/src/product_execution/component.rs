@@ -1,16 +1,14 @@
 //! Publish a dependency's checked component for an independent consumer.
 
 use crate::CheckedCompilation;
-use crate::terminal::{
-    ProducedTerminalApplication, TerminalProductRequest, TerminalProductionView,
-    finish_terminal_application,
-};
+use crate::terminal::{TerminalProductRequest, TerminalProductionView};
 use artifacts::compile_timings::CompileTimings;
 use compilation_products::IndependentComponentProduct;
 use component_description::{
     ComponentDescriptionFacts, DescribeError, publish_component_description,
 };
 use diagnostics::Diagnostic;
+use native_production::TerminalApplication;
 use package_compilation::IndependentComponentDescription;
 
 /// The compiler batches portable production; this owner retains only the
@@ -78,13 +76,13 @@ impl ComponentPublication {
 
     pub(crate) fn finish(
         self,
-        produced: ProducedTerminalApplication,
+        produced: TerminalApplication,
     ) -> Result<IndependentComponentProduct, Vec<Diagnostic>> {
         let request = self.checked.terminal_native_proposal_request(
             self.selections.effective(),
             &self.exported_calling_applications,
         )?;
-        let retained = finish_terminal_application(produced, request)?;
+        let retained = produced.prepare(request)?;
         let description = describe_component(&self.checked, &retained)?;
         let accepted_permissions =
             super::native_inputs::accepted_terminal_authority_permission_policy(&self.checked)?;

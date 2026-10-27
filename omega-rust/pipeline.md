@@ -274,6 +274,13 @@ for receiving admission, not failures of shared portable production.
 Completion consumes an explicit native-proposal request and the produced
 application, not a checked compilation. The application retains physical-adapter
 selection; completion still binds its exact arrival contract against the artifact.
+The native compiler owns this source-free preparation in `application.rs`, plus
+admission of the independently supplied package-permission rows. Product
+coordination supplies those inputs and requests preparation; it has no direct
+dependency on numbered Omega stages. Artifact-only and component publication use
+the same preparation without emitting an image. This does not yet remove source
+provider selection from product coordination or stage vocabulary from shared
+product representations.
 
 Independent component emission belongs to the same source-free native compiler
 entrance as root emission. Product preparation supplies each verified component,
