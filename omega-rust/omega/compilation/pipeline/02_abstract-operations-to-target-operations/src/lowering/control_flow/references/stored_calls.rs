@@ -188,29 +188,34 @@ pub(in crate::lowering) fn catalog(
         return std::sync::Arc::new(effects);
     };
     let mut analysis = DescriptorAnalysis::with_reference_slots(types.catalog(), &graph);
+    let has_placed_views = !types.catalog().placed_views().is_empty();
     // Read-only functions also observe nested reference contents. Restricting
     // this roster to functions with write effects loses those observations.
     for machine in &graph {
         effects
             .observations
             .insert(machine.id, analysis.source_observations(machine.id));
-        let result = functions.get(&machine.id).and_then(|function| {
-            let result = function.result.structural()?;
-            optimization_unit_semantics::descriptor_results::placed_results::summarize(
-                types.catalog(),
-                boundaries,
-                &function.structural_parameters,
-                result.structural_type,
-                &analysis.result_slots(machine.id)?,
-                |machine, operation| {
-                    functions
-                        .get(&machine)?
-                        .operations
-                        .iter()
-                        .find(|candidate| candidate.psi_operation() == Some(operation))
-                },
-            )
-        });
+        let result = if has_placed_views {
+            functions.get(&machine.id).and_then(|function| {
+                let result = function.result.structural()?;
+                optimization_unit_semantics::descriptor_results::placed_results::summarize(
+                    types.catalog(),
+                    boundaries,
+                    &function.structural_parameters,
+                    result.structural_type,
+                    &analysis.result_slots(machine.id)?,
+                    |machine, operation| {
+                        functions
+                            .get(&machine)?
+                            .operations
+                            .iter()
+                            .find(|candidate| candidate.psi_operation() == Some(operation))
+                    },
+                )
+            })
+        } else {
+            None
+        };
         effects.placed_results.insert(machine.id, result);
     }
     for function in candidates {

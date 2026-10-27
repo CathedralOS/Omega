@@ -21,11 +21,7 @@ use terminal_psi::{StructuralPlaceDeclaration, TerminalModule};
 
 pub(crate) fn reconcile_leaf_copy_place_declarations(module: &mut TerminalModule) {
     for machine in &mut module.machines {
-        let mut declared: BTreeSet<_> = machine
-            .structural_places
-            .iter()
-            .map(|place| place.id)
-            .collect();
+        let mut declared: Option<BTreeSet<_>> = None;
         let mut additions = Vec::new();
         for block in &machine.blocks {
             for operation in &block.operations {
@@ -38,6 +34,13 @@ pub(crate) fn reconcile_leaf_copy_place_declarations(module: &mut TerminalModule
                 let Some(result) = operation.result.structural() else {
                     continue;
                 };
+                let declared = declared.get_or_insert_with(|| {
+                    machine
+                        .structural_places
+                        .iter()
+                        .map(|place| place.id)
+                        .collect()
+                });
                 if !declared.insert(result.place) {
                     continue;
                 }
@@ -51,7 +54,9 @@ pub(crate) fn reconcile_leaf_copy_place_declarations(module: &mut TerminalModule
             }
         }
         machine.structural_places.extend(additions);
-        machine.structural_places.sort_by_key(|place| place.id);
+        if !machine.structural_places.is_sorted_by_key(|place| place.id) {
+            machine.structural_places.sort_by_key(|place| place.id);
+        }
     }
 }
 

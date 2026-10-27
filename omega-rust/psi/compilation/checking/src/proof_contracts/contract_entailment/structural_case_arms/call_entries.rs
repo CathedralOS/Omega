@@ -33,6 +33,10 @@ pub(super) fn observe_statement<'program>(
     requirement: &mut Option<&mut dyn StructuralPrefixVisitor>,
     guarantees: &CitationFacts,
 ) -> Option<()> {
+    let observer = requirement.as_deref()?;
+    if observer.site().state == state.symbol || path.contains(&observer.site().state) {
+        return Some(());
+    }
     for site in crate::machine_calls::calls::collect_call_sites_in_statement(
         program,
         invocation,
