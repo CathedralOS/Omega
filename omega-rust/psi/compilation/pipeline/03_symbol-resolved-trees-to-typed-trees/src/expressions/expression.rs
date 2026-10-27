@@ -155,6 +155,18 @@ pub(crate) fn lower_static_machine_argument(
         }),
         symbol: argument.symbol,
     };
+    let mut captured =
+        crate::signatures::lexical_context::captured_arguments(program, selected.symbol);
+    if !captured.is_empty() {
+        let application = selected.application.get_or_insert_with(|| {
+            Box::new(typed::expression::StaticSymbolApplication {
+                lifetime_arguments: Box::default(),
+                arguments: Box::default(),
+            })
+        });
+        captured.extend(std::mem::take(&mut application.arguments));
+        application.arguments = captured.into_boxed_slice();
+    }
     // Nominal type selections retain the whole operand. Looking up a bare
     // named carrier later would erase its lifetime/type application before
     // both ordinary call admission and contextual provider formation.

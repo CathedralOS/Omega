@@ -11041,6 +11041,36 @@ fail/facts/nested_fourteen_level_record_field_bound_through_target_body_rejected
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_machine_invocation/call_result rejected 1834ms expected @02e7d90a49ae+wt
+	machine `keep` state `entry` terminal expression expects `T`, got `bool`
+	machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`
+fail/facts/nested_machine_invocation/capture_rejected rejected 1840ms expected @02e7d90a49ae+wt
+	machine `inner` state `entry` uses `value`, which is not a declared local, parameter, field, or type in this state (check the spelling)
+	machine `inner$specialized$e968490059a8ab0c$0` state `entry` uses `value`, which is not a declared local, parameter, field, or type in this state (check the spelling)
+fail/facts/nested_machine_invocation/const_name rejected 1841ms expected @02e7d90a49ae+wt
+	machine `keep` state `entry` terminal expression expects `T`, got `bool`
+	machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`
+fail/facts/nested_machine_invocation/field rejected 1837ms expected @02e7d90a49ae+wt
+	machine `keep` state `entry` terminal expression expects `T`, got `bool`
+	machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`
+fail/facts/nested_machine_invocation/local rejected 1840ms expected @02e7d90a49ae+wt
+	machine `keep` state `entry` terminal expression expects `T`, got `bool`
+	machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`
+fail/facts/nested_machine_invocation/match_join rejected 1836ms expected @02e7d90a49ae+wt
+	machine `keep` state `entry` terminal expression expects `T`, got `bool`
+	machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`
+fail/facts/nested_machine_invocation/other_machine rejected 1838ms expected @02e7d90a49ae+wt
+	machine `keep` state `entry` terminal expression expects `T`, got `bool`
+	machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`
+fail/facts/nested_machine_invocation/other_state rejected 1833ms expected @02e7d90a49ae+wt
+	machine `keep` state `entry` terminal expression expects `T`, got `bool`
+	machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`
+fail/facts/nested_machine_invocation/parameter rejected 1838ms expected @02e7d90a49ae+wt
+	machine `keep` state `entry` terminal expression expects `T`, got `bool`
+	machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`
+fail/facts/nested_machine_invocation/target_body rejected 1841ms expected @02e7d90a49ae+wt
+	machine `keep` state `entry` terminal expression expects `T`, got `bool`
+	machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`
 fail/facts/nested_nine_level_record_field_bound_through_call_result_rejected rejected 879ms expected @a92f16431042
 	exact arithmetic in machine `check_bound` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/nested_nine_level_record_field_bound_through_const_name_rejected rejected 874ms expected @a92f16431042

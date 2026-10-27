@@ -530,18 +530,13 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     // argument: no generic callee exists to bind it either.
                     Box::default()
                 } else {
-                    call.machine_arguments
-                        .iter()
-                        .map(|argument| {
-                            crate::expressions::expression::lower_static_machine_argument(
-                                self.program,
-                                self.target_trees,
-                                self.source.authored_expression_exposure(expression),
-                                argument,
-                            )
-                        })
-                        .collect::<Result<Vec<_>, Diagnostic>>()?
-                        .into_boxed_slice()
+                    crate::signatures::lexical_context::call_arguments(
+                        self.program,
+                        self.target_trees,
+                        self.source.authored_expression_exposure(expression),
+                        target_symbol,
+                        &call.machine_arguments,
+                    )?
                 };
                 let requirement_application = if call.requirement_application.is_valid() {
                     let program = self.program.ok_or_else(|| {
