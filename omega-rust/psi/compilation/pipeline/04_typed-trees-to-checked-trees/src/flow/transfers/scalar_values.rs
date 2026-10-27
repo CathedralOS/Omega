@@ -201,15 +201,16 @@ fn completed_statement_place(
     statement: &StatementNode,
     source: ExpressionHandle,
 ) -> Option<(CanonicalPlace, typed_trees::types::PrimitiveType)> {
-    let place = validation::canonical_place_from_expression_in_state(
-        program,
-        state,
-        statement_index,
-        source,
-    )?;
-    if place.root != facts::PlaceRoot::Expression(source) || !place.segments.is_empty() {
+    if !program.expression_table.expression_is_valid(source) {
         return None;
     }
+    // The completed value owns this namespace even when its producer was a
+    // reference with no ordinary scalar storage coordinate. Selecting it does
+    // not invent a fact: only an actual completion may have published one.
+    let place = CanonicalPlace {
+        root: facts::PlaceRoot::Expression(source),
+        segments: Vec::new(),
+    };
     let destination = match statement {
         StatementNode::LocalData(local) => local.type_reference,
         StatementNode::Assignment(assignment) => validation::expression_type_reference_in_state(

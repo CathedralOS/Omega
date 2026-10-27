@@ -1507,6 +1507,10 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 return None;
             }
             ExpressionNode::Match(dispatch) => {
+                // Each selected arm is evaluated into this receiving carrier.
+                // Its natural reference type is not a second outer read after
+                // an arm already produced an owned primitive observation.
+                *formed_type = destination;
                 *completion = checked_trees::FlowOperandCompletion::Selected(self.dispatch(
                     expression,
                     *dispatch,
