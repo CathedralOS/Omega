@@ -12,7 +12,6 @@
 //! exact use-site roster, initializer dominance, and the shifted-custody
 //! provenance ledger.
 
-use crate::candidates::provenance_realized_at;
 use crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_uses;
 use crate::candidates::state_specialization::cyclic_machines;
 use crate::candidates::{
@@ -22,10 +21,9 @@ use crate::candidates::{
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::{
-    FieldValueResolution, FieldValueRow, FoldedFieldValue, OptimizationNode, ProvenanceRewrite,
-    PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
-    PsiRewritePatch, ScalarSubstitution, field_evidence, field_value_reads,
-    receiver_custody_distinct, retirable_scalar_node,
+    FieldValueResolution, FieldValueRow, FoldedFieldValue, OptimizationNode,
+    PsiOptimizationFunction, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch,
+    ScalarSubstitution, field_evidence, field_value_accounting, field_value_reads,
 };
 use semantic_vocabulary::{BlockId, ScalarType};
 use std::collections::{BTreeMap, BTreeSet};
@@ -113,105 +111,6 @@ fn expected_substitutions(rows: &[FieldValueRow]) -> Vec<ScalarSubstitution> {
     substitutions
 }
 
-/// The exact block region and node custody a row roster carries. A `Constant`
-/// row folds its observation in place: the read's own provenance and fuel
-/// stay realized at the same node. A `Forward` row retires its observation
-/// node: the read's custody lands at the node that inherits the vacated
-/// index — the next surviving input node — and every later node in the block
-/// shifts down one coordinate per earlier retirement. Because effects are a
-/// function-wide sequence, every block at or after the earliest retired-node
-/// block is inside the region, and every provenance-bearing node in a
-/// region block whose custody moved — or whose own operation changed — gets
-/// one ledger row.
-fn expected_accounting(
-    function: &PsiOptimizationFunction,
-    rows: &[FieldValueRow],
-) -> Result<(Vec<BlockId>, Vec<ProvenanceRewrite>), OptimizationUnitValidationError> {
-    let mut removals: BTreeMap<BlockId, BTreeSet<u32>> = BTreeMap::new();
-    let mut fold_sites: BTreeSet<(BlockId, u32)> = BTreeSet::new();
-    let mut use_sites: BTreeSet<(BlockId, u32)> = BTreeSet::new();
-    for row in rows {
-        match &row.resolution {
-            FieldValueResolution::Constant(_) => {
-                fold_sites.insert((row.site.block, row.site.node));
-            }
-            FieldValueResolution::Forward(forwarded) => {
-                removals
-                    .entry(row.site.block)
-                    .or_default()
-                    .insert(row.site.node);
-                for site in &forwarded.uses {
-                    use_sites.insert((site.block, site.node));
-                }
-            }
-        }
-    }
-    let earliest_removal = function
-        .blocks
-        .iter()
-        .position(|block| removals.contains_key(&block.id));
-    let mut affected = BTreeSet::new();
-    let mut provenance = Vec::new();
-    for (block_position, block) in function.blocks.iter().enumerate() {
-        let removal = removals.get(&block.id);
-        let first_removed = removal.and_then(|set| set.iter().next().copied());
-        let in_suffix = earliest_removal.is_some_and(|position| block_position > position);
-        let mut block_affected = removal.is_some() || in_suffix;
-        for (index, node) in block.nodes.iter().enumerate() {
-            let node_index = u32::try_from(index)
-                .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
-            let coordinate = (block.id, node_index);
-            if fold_sites.contains(&coordinate) || use_sites.contains(&coordinate) {
-                block_affected = true;
-            }
-            let retired = removal.is_some_and(|set| set.contains(&node_index));
-            let shifted = first_removed.is_some_and(|first| node_index > first);
-            if !retired
-                && !shifted
-                && !in_suffix
-                && !fold_sites.contains(&coordinate)
-                && !use_sites.contains(&coordinate)
-            {
-                continue;
-            }
-            if !retired && node.provenance.is_empty() {
-                continue;
-            }
-            let input_site = PsiRealizationSite::Node(optimization_unit::NodeLocation {
-                machine: function.machine,
-                block: block.id,
-                node: node_index,
-            });
-            let output_index = node_index
-                .checked_sub(
-                    u32::try_from(
-                        removal
-                            .map(|set| set.iter().filter(|removed| **removed < node_index).count())
-                            .unwrap_or(0),
-                    )
-                    .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?,
-                )
-                .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-            let output_site = PsiRealizationSite::Node(optimization_unit::NodeLocation {
-                machine: function.machine,
-                block: block.id,
-                node: output_index,
-            });
-            provenance.push(provenance_realized_at(
-                input_site,
-                output_site,
-                &node.provenance,
-                &node.fuel,
-            ));
-        }
-        if block_affected {
-            affected.insert(block.id);
-        }
-    }
-    canonicalize_provenance(&mut provenance);
-    Ok((affected.into_iter().collect(), provenance))
-}
-
 pub(super) fn validate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
@@ -248,7 +147,9 @@ pub(super) fn validate(
     if candidate.substitutions() != expected_substitutions(&patch.reads) {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let (expected_blocks, expected_provenance) = expected_accounting(function, &patch.reads)?;
+    let (expected_blocks, expected_provenance) =
+        optimization_unit::field_value_accounting(function, &patch.reads)
+            .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
 
     let folded = patch
         .reads
