@@ -418,17 +418,14 @@ fn assign_contract_call_symbols(
                 child_type_references,
                 cast.target_type,
             );
-            crate::symbols::type_references::each_type_reference_handle(
-                cast.semantic_domain_arguments,
-                |handle| {
-                    crate::symbols::type_references::reassign_type_reference_symbols(
-                        symbols,
-                        child_type_references,
-                        machine.type_parameters,
-                        handle,
-                    );
-                },
-            );
+            for handle in cast.semantic_domain_arguments.handles() {
+                crate::symbols::type_references::reassign_type_reference_symbols(
+                    symbols,
+                    child_type_references,
+                    machine.type_parameters,
+                    handle,
+                );
+            }
         }
         ExpressionNode::Call(call) => {
             assign_calls!(

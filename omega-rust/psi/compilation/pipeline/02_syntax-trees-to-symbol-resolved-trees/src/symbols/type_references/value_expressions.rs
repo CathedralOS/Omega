@@ -266,17 +266,6 @@ pub(in crate::symbols) fn assign_type_value_expression_symbols(
     }
 }
 
-/// The handles a `HandleSpan<TypeReference>` covers in a child arena — the
-/// manual `from_parts` walk reassign sites repeat.
-pub(in crate::symbols) fn each_type_reference_handle(
-    span: arena::HandleSpan<TypeReference>,
-    mut visit: impl FnMut(Handle<TypeReference>),
-) {
-    for handle in span.handles() {
-        visit(handle);
-    }
-}
-
 /// Re-assign symbols and value expressions on a cloned child type reference,
 /// then write it back — the tail every Cast/argument reassign site repeats.
 pub(in crate::symbols) fn reassign_type_reference_symbols_and_values(
