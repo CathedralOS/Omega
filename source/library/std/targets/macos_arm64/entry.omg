@@ -27,7 +27,7 @@ machine MacosArm64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         _ -> reject()
     }
 
-    state physical(signature: BoundarySignature) -> BoundaryPlanResult {
+    machine physical(signature: BoundarySignature) -> BoundaryPlanResult {
         transition signature.has_result {
             true -> physical_indices(signature, signature.parameters[0],
                 signature.parameters[1], signature.parameters[2],
@@ -36,7 +36,7 @@ machine MacosArm64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         }
     }
 
-    state physical_indices(signature: BoundarySignature, argc: u64,
+    machine physical_indices(signature: BoundarySignature, argc: u64,
         argv: u64, envp: u64, apple: u64, result: u64) -> BoundaryPlanResult
     {
         transition argc < 256 && argv < 256 && envp < 256 && apple < 256
@@ -50,7 +50,7 @@ machine MacosArm64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         }
     }
 
-    state physical_shapes(argc: ValueShape, argv: ValueShape, envp: ValueShape,
+    machine physical_shapes(argc: ValueShape, argv: ValueShape, envp: ValueShape,
         apple: ValueShape, result: ValueShape) -> BoundaryPlanResult
     {
         transition HostedEntryShapes::integer_shape(&argc, 4)
@@ -64,7 +64,7 @@ machine MacosArm64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         }
     }
 
-    state build_physical() -> BoundaryPlanResult {
+    machine build_physical() -> BoundaryPlanResult {
         let mut output: BoundaryEntryPlan;
         output.call.parameter_count = 4;
         // X-register identity plus a four-byte fragment denotes W0.
@@ -77,14 +77,14 @@ machine MacosArm64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         transition { _ -> finish(output) }
     }
 
-    state semantic(signature: BoundarySignature) -> BoundaryPlanResult {
+    machine semantic(signature: BoundarySignature) -> BoundaryPlanResult {
         transition signature.has_result {
             false -> semantic_indices(signature, signature.parameters[0], signature.parameters[1])
             _ -> reject()
         }
     }
 
-    state semantic_indices(signature: BoundarySignature, image: u64,
+    machine semantic_indices(signature: BoundarySignature, image: u64,
         storage: u64) -> BoundaryPlanResult
     {
         transition image < 256 && storage < 256
@@ -95,14 +95,14 @@ machine MacosArm64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         }
     }
 
-    state semantic_shapes(image: ValueShape, storage: ValueShape, signature: BoundarySignature) -> BoundaryPlanResult {
+    machine semantic_shapes(image: ValueShape, storage: ValueShape, signature: BoundarySignature) -> BoundaryPlanResult {
         transition HostedEntryShapes::extent_shape(image, &signature) && HostedEntryShapes::extent_shape(storage, &signature) {
             true -> build_semantic()
             _ -> reject()
         }
     }
 
-    state build_semantic() -> BoundaryPlanResult {
+    machine build_semantic() -> BoundaryPlanResult {
         let mut output: BoundaryEntryPlan;
         output.call.parameter_count = 2;
         output.call.parameters[0] = HostedEntryShapes::arm_extent_value(0, 1);
@@ -110,7 +110,7 @@ machine MacosArm64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         transition { _ -> finish(output) }
     }
 
-    state finish(output: BoundaryEntryPlan) -> BoundaryPlanResult {
+    machine finish(output: BoundaryEntryPlan) -> BoundaryPlanResult {
         let mut plan: BoundaryEntryPlan = output;
         plan.call.convention = CallingConvention::Aapcs64;
         plan.call.stack_alignment = 16;
@@ -168,7 +168,7 @@ machine MacosArm64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         BoundaryPlanResult::Accepted { plan: plan }
     }
 
-    state reject() -> BoundaryPlanResult {
+    machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection {
                 reason: "MacosApplication requires exact physical or program-storage entry shapes",

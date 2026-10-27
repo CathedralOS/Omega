@@ -51,20 +51,20 @@ machine posix_byte_view_parameters(signature: &BoundarySignature, plan: &mut Bou
         true -> result(signature, plan, &signature.shapes[signature.result])
         _ -> false
     }
-    state result(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan, shape: &ValueShape) -> bool {
+    machine result(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan, shape: &ValueShape) -> bool {
         transition shape.class {
             ValueClass::Integer -> result_size(signature, plan, shape)
             _ -> false
         }
     }
-    state result_size(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan, shape: &ValueShape) -> bool {
+    machine result_size(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan, shape: &ValueShape) -> bool {
         transition (shape.byte_size == 4 && shape.alignment == 4)
             || (shape.byte_size == 8 && shape.alignment == 8) {
             true -> result_place(signature, plan, shape)
             _ -> false
         }
     }
-    state result_place(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan, shape: &ValueShape) -> bool {
+    machine result_place(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan, shape: &ValueShape) -> bool {
         plan.call.has_result = true;
         plan.call.result.shape = AbiValueShape { class: AbiValueClass::Integer, byte_size: shape.byte_size, alignment: shape.alignment };
         plan.call.result.location_count = 1;
@@ -95,7 +95,7 @@ machine posix_byte_view_parameter(signature: &BoundarySignature, plan: &mut Boun
             ordinal < signature.parameter_count && ordinal < 6 && ordinal < 32 -> root(signature, plan, ordinal, word, signature.parameters[ordinal])
             _ -> 7
         }
-    state root(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan, ordinal: u64, word: u64, root: u64) -> u64
+    machine root(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan, ordinal: u64, word: u64, root: u64) -> u64
     requires ordinal < 6;
     {
         transition root < signature.shape_count && root < 256 {
@@ -103,7 +103,7 @@ machine posix_byte_view_parameter(signature: &BoundarySignature, plan: &mut Boun
             _ -> 7
         }
     }
-    state shape(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan, ordinal: u64, word: u64, shape: &ValueShape) -> u64
+    machine shape(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan, ordinal: u64, word: u64, shape: &ValueShape) -> u64
     requires ordinal < 6;
     {
         transition shape.class {
@@ -112,7 +112,7 @@ machine posix_byte_view_parameter(signature: &BoundarySignature, plan: &mut Boun
             _ -> 7
         }
     }
-    state reference(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan, ordinal: u64, word: u64, shape: &ValueShape) -> u64
+    machine reference(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan, ordinal: u64, word: u64, shape: &ValueShape) -> u64
     requires ordinal < 6;
     {
         transition {
@@ -121,7 +121,7 @@ machine posix_byte_view_parameter(signature: &BoundarySignature, plan: &mut Boun
             _ -> 7
         }
     }
-    state scalar(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan, ordinal: u64, word: u64, shape: &ValueShape) -> u64
+    machine scalar(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan, ordinal: u64, word: u64, shape: &ValueShape) -> u64
     requires ordinal < 6;
     {
         transition word < 6 && ((shape.byte_size == 4 && shape.alignment == 4)
@@ -130,7 +130,7 @@ machine posix_byte_view_parameter(signature: &BoundarySignature, plan: &mut Boun
             _ -> 7
         }
     }
-    state place(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan, ordinal: u64, word: u64, shape: &ValueShape, pair: bool) -> u64
+    machine place(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan, ordinal: u64, word: u64, shape: &ValueShape, pair: bool) -> u64
     requires ordinal < 6, word < 6;
     {
         plan.call.parameters[ordinal].shape = AbiValueShape {
@@ -141,7 +141,7 @@ machine posix_byte_view_parameter(signature: &BoundarySignature, plan: &mut Boun
             _ -> single(signature, plan, ordinal, word, shape.byte_size)
         }
     }
-    state pair(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan, ordinal: u64, word: u64) -> u64
+    machine pair(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan, ordinal: u64, word: u64) -> u64
     requires ordinal < 6, word < 6;
     {
         transition word <= 4 {
@@ -149,7 +149,7 @@ machine posix_byte_view_parameter(signature: &BoundarySignature, plan: &mut Boun
             _ -> 7
         }
     }
-    state pair_place(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan, ordinal: u64, word: u64) -> u64
+    machine pair_place(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan, ordinal: u64, word: u64) -> u64
     requires ordinal < 6, word <= 4;
     {
         plan.call.parameters[ordinal].location_count = 2;
@@ -161,7 +161,7 @@ machine posix_byte_view_parameter(signature: &BoundarySignature, plan: &mut Boun
         };
         word + 2
     }
-    state single(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan, ordinal: u64, word: u64, size: u64) -> u64
+    machine single(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan, ordinal: u64, word: u64, size: u64) -> u64
     requires ordinal < 6, word < 6;
     {
         plan.call.parameters[ordinal].location_count = 1;
@@ -177,7 +177,7 @@ machine posix_byte_view_argument_register(word: u64, convention: &CallingConvent
         CallingConvention::LinuxSyscallX86_64 -> x86(word)
         _ -> MachineRegister::Aarch64X { index: word }
     }
-    state x86(word: u64) -> MachineRegister {
+    machine x86(word: u64) -> MachineRegister {
         transition word {
             0 -> MachineRegister::X86Rdi
             1 -> MachineRegister::X86Rsi

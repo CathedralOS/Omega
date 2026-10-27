@@ -29,7 +29,7 @@ machine MacosX64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         _ -> reject()
     }
 
-    state physical(signature: BoundarySignature) -> BoundaryPlanResult {
+    machine physical(signature: BoundarySignature) -> BoundaryPlanResult {
         transition signature.has_result {
             true -> physical_indices(signature, signature.parameters[0],
                 signature.parameters[1], signature.parameters[2],
@@ -38,7 +38,7 @@ machine MacosX64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         }
     }
 
-    state physical_indices(signature: BoundarySignature, argc: u64,
+    machine physical_indices(signature: BoundarySignature, argc: u64,
         argv: u64, envp: u64, apple: u64, result: u64) -> BoundaryPlanResult
     {
         transition argc < 256 && argv < 256 && envp < 256 && apple < 256
@@ -52,7 +52,7 @@ machine MacosX64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         }
     }
 
-    state physical_shapes(argc: ValueShape, argv: ValueShape, envp: ValueShape,
+    machine physical_shapes(argc: ValueShape, argv: ValueShape, envp: ValueShape,
         apple: ValueShape, result: ValueShape) -> BoundaryPlanResult
     {
         transition HostedEntryShapes::integer_shape(&argc, 4)
@@ -66,7 +66,7 @@ machine MacosX64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         }
     }
 
-    state build_physical() -> BoundaryPlanResult {
+    machine build_physical() -> BoundaryPlanResult {
         let mut output: BoundaryEntryPlan;
         output.call.parameter_count = 4;
         // System V AMD64 integer argument order: edi, rsi, rdx, rcx.
@@ -83,14 +83,14 @@ machine MacosX64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         transition { _ -> finish(output) }
     }
 
-    state semantic(signature: BoundarySignature) -> BoundaryPlanResult {
+    machine semantic(signature: BoundarySignature) -> BoundaryPlanResult {
         transition signature.has_result {
             false -> semantic_indices(signature, signature.parameters[0], signature.parameters[1])
             _ -> reject()
         }
     }
 
-    state semantic_indices(signature: BoundarySignature, image: u64,
+    machine semantic_indices(signature: BoundarySignature, image: u64,
         storage: u64) -> BoundaryPlanResult
     {
         transition image < 256 && storage < 256
@@ -101,14 +101,14 @@ machine MacosX64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         }
     }
 
-    state semantic_shapes(image: ValueShape, storage: ValueShape, signature: BoundarySignature) -> BoundaryPlanResult {
+    machine semantic_shapes(image: ValueShape, storage: ValueShape, signature: BoundarySignature) -> BoundaryPlanResult {
         transition MacosX64::extent_shape(image, &signature) && MacosX64::extent_shape(storage, &signature) {
             true -> build_semantic()
             _ -> reject()
         }
     }
 
-    state build_semantic() -> BoundaryPlanResult {
+    machine build_semantic() -> BoundaryPlanResult {
         let mut output: BoundaryEntryPlan;
         output.call.parameter_count = 2;
         // The generated bridge passes the image and initial-storage roots in
@@ -120,7 +120,7 @@ machine MacosX64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         transition { _ -> finish(output) }
     }
 
-    state finish(output: BoundaryEntryPlan) -> BoundaryPlanResult {
+    machine finish(output: BoundaryEntryPlan) -> BoundaryPlanResult {
         let mut plan: BoundaryEntryPlan = output;
         plan.call.convention = CallingConvention::SystemVAMD64;
         plan.call.stack_alignment = 16;
@@ -128,7 +128,7 @@ machine MacosX64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         transition { _ -> seal(plan) }
     }
 
-    state seal(plan: BoundaryEntryPlan) -> BoundaryPlanResult {
+    machine seal(plan: BoundaryEntryPlan) -> BoundaryPlanResult {
         let mut output: BoundaryEntryPlan = plan;
         // System V AMD64 caller-saved banks.
         output.call.ordinary_clobbers.register_count = 25;
@@ -198,7 +198,7 @@ machine MacosX64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         BoundaryPlanResult::Accepted { plan: output }
     }
 
-    state reject() -> BoundaryPlanResult {
+    machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection {
                 reason: "MacosX64Application requires exact physical or program-storage entry shapes",
@@ -212,7 +212,7 @@ machine MacosX64::extent_shape(shape: ValueShape, signature: &BoundarySignature)
         ValueClass::Record { first_field, field_count } -> record(shape, first_field, field_count, signature)
         _ -> no()
     }
-    state record(shape: ValueShape, first_field: u64, field_count: u64, signature: &BoundarySignature) -> bool {
+    machine record(shape: ValueShape, first_field: u64, field_count: u64, signature: &BoundarySignature) -> bool {
         transition shape.byte_size == 16 && shape.alignment == 8
             && field_count == 2 && first_field < 255
         {
@@ -220,7 +220,7 @@ machine MacosX64::extent_shape(shape: ValueShape, signature: &BoundarySignature)
             _ -> no()
         }
     }
-    state field_range(signature: &BoundarySignature, first_field: u64) -> bool
+    machine field_range(signature: &BoundarySignature, first_field: u64) -> bool
     requires first_field <= 254
     {
         let second_field: u64 = first_field + 1;
@@ -229,7 +229,7 @@ machine MacosX64::extent_shape(shape: ValueShape, signature: &BoundarySignature)
             _ -> no()
         }
     }
-    state fields(signature: &BoundarySignature, base: &ValueField, length: &ValueField) -> bool {
+    machine fields(signature: &BoundarySignature, base: &ValueField, length: &ValueField) -> bool {
         transition base.byte_offset == 0 && length.byte_offset == 8
             && base.shape < 256 && length.shape < 256
             && base.shape < signature.shape_count && length.shape < signature.shape_count
@@ -238,10 +238,10 @@ machine MacosX64::extent_shape(shape: ValueShape, signature: &BoundarySignature)
             _ -> no()
         }
     }
-    state words(base: &ValueShape, length: &ValueShape) -> bool {
+    machine words(base: &ValueShape, length: &ValueShape) -> bool {
         HostedEntryShapes::integer_shape(base, 8) && HostedEntryShapes::integer_shape(length, 8)
     }
-    state no() -> bool { false }
+    machine no() -> bool { false }
 }
 
 boundary trait MacosX64Application: ProgramStorageEntry + MacosX64PhysicalEntry + Calling<MacosX64CallingPolicy> {}
