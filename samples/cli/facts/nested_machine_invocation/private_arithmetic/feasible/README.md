@@ -41,8 +41,7 @@ on other hosts remains unverified. The fixture prefix under
 The runtime oracle exercises two accepted multibyte ranges, both match-join
 arms, ASCII, zero, out-of-range bytes, an exhausted inner bound and the initial
 bound's false edge. Replacing an accepted path by a fallback or changing its
-increment makes the oracle trap. The field place also observes the neighboring
-field values through its guarded transport.
+increment makes the oracle trap.
 
 Applicable requirements:
 
