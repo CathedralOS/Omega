@@ -1869,7 +1869,7 @@ fail/boundary/named_target_foreign_provider_missing_member rejected 2641ms expec
 	build selects provider `ProbeProvider` for slot `Probe`, but no candidate exists in the loaded dependency closure
 fail/boundary/opaque_result_requires_representation rejected 2192ms expected @a92f16431042
 	`main` uses opaque boundary data `Token` by value, but the build selects no `OpaqueRepresentation<Token, _>` application; add `Build::select_representation<Token, <conformance>>(builder)`; in state `main::entry`, statement 0
-fail/build/acquired_generator_output_final_check_refused rejected 2342ms expected published:none @a92f16431042
+fail/build/acquired_generator_output_final_check_refused rejected 1819ms expected published:none @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	scalar constant `GENERATED` is invalid: const value `-1` does not fit `u32`
 fail/build/artifact_only_rollback_overlay_refused rejected 7040ms expected published:none @a92f16431042
 	artifact-only builds execute no product optimization stages to roll back
@@ -2312,6 +2312,10 @@ fail/calls/nested_call_argument_constraints_unproven rejected 3384ms expected @a
 	machine `nested` state `entry` value call to `admit` violates required fact `value >= 0.0 && value <= 0.5`: the instantiated fact is structurally false (`40.0 >= 0.0 && 40.0 <= 0.5`)
 fail/calls/nested_call_footprint_retires_second_argument rejected 2465ms expected @a92f16431042
 	cannot prove requires contract for call bounded from main: cells.second <= 8 (needs fact `value <= 8` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `write`
+fail/calls/nested_machine_private_descendant rejected 527ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	qualified call `hidden` has no resolved callable declaration
+fail/calls/nested_machine_runtime_capture rejected 610ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	machine `read` state `entry` uses `value`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 fail/calls/nested_range_call_out_of_bounds rejected 2130ms expected @a92f16431042
 	cannot prove subslice range end bound `..4` is within slice length 3
 fail/calls/non_unit_compound_expression_requires_use rejected 509ms expected @a92f16431042
@@ -2377,7 +2381,7 @@ fail/calls/recursive_terminal_parenthesized_missing_acknowledgement rejected 126
 	call to `scan` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 fail/calls/recursive_terminal_postcondition_not_established rejected 1955ms expected @a92f16431042
 	cannot prove ensures contract for exit from scan at statement 3: context.value == 0
-fail/calls/recursive_unit_zero_requires_rejected rejected 8797ms expected @a92f16431042
+fail/calls/recursive_unit_zero_requires_rejected rejected 12438ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	cannot prove requires contract for call recurse from Main::main: 0 > 0 (needs fact `value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
 fail/calls/requirement_expression_extra_static_type rejected 184ms expected @a92f16431042
 	`Input::read` expects 0 static invocation argument(s), got 1; explicit selection requires a named implementation as the final static argument
@@ -2396,6 +2400,10 @@ fail/calls/retired_core_binding_parameter rejected 1240ms expected @a92f16431042
 	machine `invalid` state `entry` parameter `slot` references unknown generic type `Binding`
 fail/calls/returned_record_fields_require_every_normal_path rejected 792ms expected @f12ecf5d5aa1+wt
 	cannot prove requires contract for call read_field from main: match choose() { true => shared chosen, false => shared spare }.kept == 17 (needs fact `place.kept == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `joined.kept == 17`
+fail/calls/runtime_recursive_unit_borrowed_non_tail_rejected rejected 6407ms expected @f091b8a4bc456552f8dfeb90392365fdb21f29b9
+	machine call cycle: `visit`, `next` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/calls/runtime_recursive_unit_non_tail_rejected rejected 6404ms expected @f091b8a4bc456552f8dfeb90392365fdb21f29b9
+	machine call cycle: `descend`, `next` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/calls/selected_crash_formal_stale_argument_rejected rejected 4016ms expected @a92f16431042
 	call from `safe` to `read` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/calls/selected_local_owner_reuse rejected 2254ms expected @a92f16431042
@@ -3045,6 +3053,8 @@ fail/control_flow/implicit_entry_parameter_capture rejected 598ms expected @a92f
 	machine `inspect` state `finish` uses `input`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 fail/control_flow/linear_result_repeated_successor_arguments rejected 2670ms expected @a92f16431042
 	cannot use `receipt` in machine `main` state `entry` (statement 1) after `receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `receipt` first
+fail/control_flow/nested_machine_statement_after_declarations rejected 199ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	tests/omega/fail/control_flow/nested_machine_statement_after_declarations/main.omg:1:38: executable statements cannot follow nested machine declarations
 fail/control_flow/projected_float_payload_after_guard_mutation rejected 21039ms expected @a92f16431042
 	machine `read` state `entry` statement 1: cannot prove selected case for payload access
 fail/control_flow/projected_float_payload_after_negated_guard_mutation rejected 20938ms expected @a92f16431042
@@ -11232,39 +11242,79 @@ fail/facts/nested_fourteen_level_record_field_bound_through_target_body_rejected
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nested_machine_invocation/call_result rejected 1834ms expected @02e7d90a49ae+wt
+fail/facts/nested_machine_inferred_requirement_call_result_rejected rejected 2179ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nested_machine_inferred_requirement_const_name_rejected rejected 2202ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call same from forward$specialized$3e1b7aec6f86087c$0: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call same from forward$specialized$084767401bf0eeb2$1: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nested_machine_inferred_requirement_field_rejected rejected 1695ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nested_machine_inferred_requirement_local_rejected rejected 2427ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nested_machine_inferred_requirement_match_join_rejected rejected 2476ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nested_machine_inferred_requirement_other_machine_rejected rejected 2284ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nested_machine_inferred_requirement_other_state_rejected rejected 2637ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nested_machine_inferred_requirement_parameter_rejected rejected 2380ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nested_machine_inferred_requirement_target_body_rejected rejected 2601ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nested_machine_invocation/call_result rejected 766ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	machine `keep` state `entry` terminal expression expects `T`, got `bool`
 	machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`
-fail/facts/nested_machine_invocation/capture_rejected rejected 1840ms expected @02e7d90a49ae+wt
+fail/facts/nested_machine_invocation/capture_rejected rejected 953ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	machine `inner` state `entry` uses `value`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 	machine `inner$specialized$e968490059a8ab0c$0` state `entry` uses `value`, which is not a declared local, parameter, field, or type in this state (check the spelling)
-fail/facts/nested_machine_invocation/const_name rejected 1841ms expected @02e7d90a49ae+wt
+fail/facts/nested_machine_invocation/const_name rejected 950ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	machine `keep` state `entry` terminal expression expects `T`, got `bool`
 	machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`
-fail/facts/nested_machine_invocation/field rejected 1837ms expected @02e7d90a49ae+wt
+fail/facts/nested_machine_invocation/copied_payload rejected 1475ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	state `clear` receives `item` as both mutable and read-only
+fail/facts/nested_machine_invocation/field rejected 563ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	machine `keep` state `entry` terminal expression expects `T`, got `bool`
 	machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`
-fail/facts/nested_machine_invocation/inferred_crash rejected 2036ms expected @5a04fc6149ab+wt
+fail/facts/nested_machine_invocation/inferred_crash rejected 1709ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	call from `main` to `wrong` at statement 0 call 0 has an uncovered Abort crash route; publish a same-cause route whose guard covers this invocation
 	machine `wrong` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
-fail/facts/nested_machine_invocation/local rejected 1840ms expected @02e7d90a49ae+wt
+fail/facts/nested_machine_invocation/local rejected 1323ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	machine `keep` state `entry` terminal expression expects `T`, got `bool`
 	machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`
-fail/facts/nested_machine_invocation/match_join rejected 1836ms expected @02e7d90a49ae+wt
+fail/facts/nested_machine_invocation/match_join rejected 1098ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	machine `keep` state `entry` terminal expression expects `T`, got `bool`
 	machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`
-fail/facts/nested_machine_invocation/other_machine rejected 1838ms expected @02e7d90a49ae+wt
+fail/facts/nested_machine_invocation/nominal_index rejected 75ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	indexed-domain selected constant has canonical type `named(name(OtherUnit))`, expected `named(name(Unit))`
+fail/facts/nested_machine_invocation/other_machine rejected 1109ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	machine `keep` state `entry` terminal expression expects `T`, got `bool`
 	machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`
-fail/facts/nested_machine_invocation/other_state rejected 1833ms expected @02e7d90a49ae+wt
+fail/facts/nested_machine_invocation/other_state rejected 1066ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	machine `keep` state `entry` terminal expression expects `T`, got `bool`
 	machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`
-fail/facts/nested_machine_invocation/parameter rejected 1838ms expected @02e7d90a49ae+wt
+fail/facts/nested_machine_invocation/parameter rejected 1028ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	machine `keep` state `entry` terminal expression expects `T`, got `bool`
 	machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`
-fail/facts/nested_machine_invocation/target_body rejected 1841ms expected @02e7d90a49ae+wt
+fail/facts/nested_machine_invocation/ranked_callee rejected 1354ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	terminating machine step: cannot prove strict rank decrease on a recurrent arrival: the transition from `step` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+	machine call cycle: `step` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_invocation/retired_state rejected 8ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	tests/omega/fail/facts/nested_machine_invocation/retired_state/main.omg:3:5: nested `state` declarations are retired; declare a nested `machine` with its own signature and contract
+fail/facts/nested_machine_invocation/retired_state_after_body rejected 7ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	tests/omega/fail/facts/nested_machine_invocation/retired_state_after_body/main.omg:3:5: nested `state` declarations are retired; declare a nested `machine` with its own signature and contract
+fail/facts/nested_machine_invocation/retired_state_after_machine rejected 6ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	tests/omega/fail/facts/nested_machine_invocation/retired_state_after_machine/main.omg:4:5: nested `state` declarations are retired; declare a nested `machine` with its own signature and contract
+fail/facts/nested_machine_invocation/target_body rejected 745ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	machine `keep` state `entry` terminal expression expects `T`, got `bool`
 	machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`
+fail/facts/nested_machine_invocation/unit_completion rejected 370ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	machine `dispatch` state `entry`: `finish(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local
+	call to `entry` discards its non-unit `u64` result; consume the value or discard it explicitly with `_ = entry(...);`
+	machine `dispatch$specialized$2022ecce155df880$0` state `entry`: `entry(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local
 fail/facts/nested_nine_level_record_field_bound_through_call_result_rejected rejected 879ms expected @a92f16431042
 	exact arithmetic in machine `check_bound` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/nested_nine_level_record_field_bound_through_const_name_rejected rejected 874ms expected @a92f16431042
@@ -13002,96 +13052,96 @@ fail/facts/saturating_integer_arithmetic_through_target_body_rejected rejected 9
 	exact arithmetic in machine `compute` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `compute` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `compute` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/saved_byte_predicate_through_call_result rejected 1640ms expected @a92f16431042
-	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_byte_predicate_through_const_name rejected 2769ms expected @a92f16431042
-	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_byte_predicate_through_field rejected 2749ms expected @a92f16431042
-	cannot prove requires contract for call inspect from probe: ascii_only(holder.bytes[0..1]) && holder.bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_byte_predicate_through_local rejected 2761ms expected @a92f16431042
-	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_byte_predicate_through_match_join rejected 2740ms expected @a92f16431042
-	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_byte_predicate_through_other_machine rejected 2776ms expected @a92f16431042
-	cannot prove requires contract for call inspect from observe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_byte_predicate_through_other_state rejected 1874ms expected @a92f16431042
-	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `observe`
-fail/facts/saved_byte_predicate_through_parameter rejected 2779ms expected @a92f16431042
-	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_byte_predicate_through_target_body rejected 2692ms expected @a92f16431042
-	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_case_predicate_inferred_reference_rejected rejected 5186ms expected @2f6555324361
+fail/facts/saved_byte_predicate_through_call_result rejected 2170ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`
+fail/facts/saved_byte_predicate_through_const_name rejected 2219ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`
+fail/facts/saved_byte_predicate_through_field rejected 2211ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	cannot prove requires contract for call inspect from probe: ascii_only(holder.bytes[0..1]) && holder.bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`
+fail/facts/saved_byte_predicate_through_local rejected 2063ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`
+fail/facts/saved_byte_predicate_through_match_join rejected 1993ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`
+fail/facts/saved_byte_predicate_through_other_machine rejected 2108ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	cannot prove requires contract for call inspect from observe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`
+fail/facts/saved_byte_predicate_through_other_state rejected 1903ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	cannot prove requires contract for call inspect from observe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`
+fail/facts/saved_byte_predicate_through_parameter rejected 1883ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`
+fail/facts/saved_byte_predicate_through_target_body rejected 2337ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`
+	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`
+	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`
+	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`
+fail/facts/saved_case_predicate_inferred_reference_rejected rejected 2169ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
-fail/facts/saved_case_predicate_through_call_result_rejected rejected 5028ms expected @2f6555324361
+fail/facts/saved_case_predicate_through_call_result_rejected rejected 2259ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
-fail/facts/saved_case_predicate_through_const_name_rejected rejected 17078ms expected @2f6555324361
+fail/facts/saved_case_predicate_through_const_name_rejected rejected 2196ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
-fail/facts/saved_case_predicate_through_field_rejected rejected 17076ms expected @2f6555324361
+fail/facts/saved_case_predicate_through_field_rejected rejected 2114ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `holder.choice.amount`: captured source `holder.choice::Full.amount` has no live case evidence
-fail/facts/saved_case_predicate_through_local_rejected rejected 7034ms expected @2f6555324361
+fail/facts/saved_case_predicate_through_local_rejected rejected 2095ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
-fail/facts/saved_case_predicate_through_match_join_rejected rejected 16887ms expected @2f6555324361
+fail/facts/saved_case_predicate_through_match_join_rejected rejected 2398ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
-fail/facts/saved_case_predicate_through_other_machine_rejected rejected 16833ms expected @2f6555324361
+fail/facts/saved_case_predicate_through_other_machine_rejected rejected 2255ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	machine `quotient` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
-fail/facts/saved_case_predicate_through_other_state_rejected rejected 2956ms expected @2f6555324361
+fail/facts/saved_case_predicate_through_other_state_rejected rejected 2196ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
-fail/facts/saved_case_predicate_through_parameter_rejected rejected 3090ms expected @2f6555324361
+fail/facts/saved_case_predicate_through_parameter_rejected rejected 2376ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
-fail/facts/saved_case_predicate_through_target_body_rejected rejected 2918ms expected @2f6555324361
-	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
-	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
+fail/facts/saved_case_predicate_through_target_body_rejected rejected 2073ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
 	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
-fail/facts/saved_observation_snapshot_after_call_relational_invalid_rejected rejected 1243ms expected @0cea3eb42480
+	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
+	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
+fail/facts/saved_observation_snapshot_after_call_relational_invalid_rejected rejected 2050ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	cannot prove requires contract for call same from probe: saved == 3 (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_after_call_stale_before_call_rejected rejected 1385ms expected @0cea3eb42480
+fail/facts/saved_observation_snapshot_after_call_stale_before_call_rejected rejected 2400ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	cannot prove requires contract for call same from main: saved == later (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_after_call_through_call_result_rejected rejected 1203ms expected @0cea3eb42480
+fail/facts/saved_observation_snapshot_after_call_through_call_result_rejected rejected 2176ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_after_call_through_const_name_rejected rejected 1254ms expected @0cea3eb42480
+fail/facts/saved_observation_snapshot_after_call_through_const_name_rejected rejected 2163ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_after_call_through_field_rejected rejected 1544ms expected @0cea3eb42480
+fail/facts/saved_observation_snapshot_after_call_through_field_rejected rejected 2209ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	cannot prove requires contract for call agree from main: note.observed == items[0] && note.observed == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_after_call_through_local_rejected rejected 1560ms expected @0cea3eb42480
+fail/facts/saved_observation_snapshot_after_call_through_local_rejected rejected 1993ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_after_call_through_match_join_rejected rejected 1427ms expected @0cea3eb42480
+fail/facts/saved_observation_snapshot_after_call_through_match_join_rejected rejected 2042ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	cannot prove requires contract for call agree from probe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_after_call_through_other_machine_rejected rejected 1561ms expected @0cea3eb42480
+fail/facts/saved_observation_snapshot_after_call_through_other_machine_rejected rejected 1947ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	cannot prove ensures contract for exit from read_kept at statement 3: result == items[0] && result == 7
-fail/facts/saved_observation_snapshot_after_call_through_other_state_rejected rejected 1336ms expected @0cea3eb42480
+fail/facts/saved_observation_snapshot_after_call_through_other_state_rejected rejected 2039ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	cannot prove requires contract for call check from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_after_call_through_parameter_rejected rejected 1315ms expected @0cea3eb42480
+fail/facts/saved_observation_snapshot_after_call_through_parameter_rejected rejected 2047ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	cannot prove requires contract for call agree from hold: observed == items[0] && observed == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_after_call_through_target_body_rejected rejected 1375ms expected @0cea3eb42480
+fail/facts/saved_observation_snapshot_after_call_through_target_body_rejected rejected 2046ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_after_call_uncovered_join_rejected rejected 1827ms expected @0cea3eb42480
+fail/facts/saved_observation_snapshot_after_call_uncovered_join_rejected rejected 2126ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	cannot prove requires contract for call agree from probe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_after_call_unknown_after_join_rejected rejected 1580ms expected @0cea3eb42480
+fail/facts/saved_observation_snapshot_after_call_unknown_after_join_rejected rejected 2138ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	cannot prove requires contract for call agree from probe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_through_call_result_rejected rejected 2253ms expected @386a5e718459+wt
+fail/facts/saved_observation_snapshot_through_call_result_rejected rejected 2328ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_through_const_name_rejected rejected 2004ms expected @386a5e718459+wt
+fail/facts/saved_observation_snapshot_through_const_name_rejected rejected 2317ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_through_field_rejected rejected 2095ms expected @386a5e718459+wt
+fail/facts/saved_observation_snapshot_through_field_rejected rejected 2056ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	cannot prove requires contract for call agree from main: note.observed == items[0] && note.observed == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_through_local_rejected rejected 1989ms expected @386a5e718459+wt
+fail/facts/saved_observation_snapshot_through_local_rejected rejected 2210ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_through_match_join_rejected rejected 1996ms expected @386a5e718459+wt
+fail/facts/saved_observation_snapshot_through_match_join_rejected rejected 2532ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	cannot prove requires contract for call agree from probe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_through_other_machine_rejected rejected 2150ms expected @386a5e718459+wt
+fail/facts/saved_observation_snapshot_through_other_machine_rejected rejected 2197ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	cannot prove ensures contract for exit from read_kept at statement 3: result == items[0] && result == 7
-fail/facts/saved_observation_snapshot_through_other_state_rejected rejected 2000ms expected @386a5e718459+wt
+fail/facts/saved_observation_snapshot_through_other_state_rejected rejected 2370ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	cannot prove requires contract for call check from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_through_parameter_rejected rejected 1987ms expected @386a5e718459+wt
+fail/facts/saved_observation_snapshot_through_parameter_rejected rejected 2119ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	cannot prove requires contract for call agree from hold: observed == items[0] && observed == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_through_target_body_rejected rejected 2088ms expected @386a5e718459+wt
+fail/facts/saved_observation_snapshot_through_target_body_rejected rejected 2207ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -20221,11 +20271,11 @@ fail/proofs/entry_comparison_invalidated_by_mutation rejected 2300ms expected @5
 	cannot prove ensures contract for exit from stale at statement 1: result > 0
 fail/proofs/entry_comparison_not_inherited_by_state rejected 3238ms expected @598688c61fee
 	cannot prove ensures contract for exit from wrong at statement 0: result > 0
-fail/proofs/fact_only_proof_value_citation_linear_resource rejected 2897ms expected @a92f16431042
-	linear value `value::Node.token` reaches scope exit without being consumed or transferred
-fail/proofs/fact_only_proof_value_citation_missing_premise rejected 2500ms expected @a92f16431042
-	cannot prove requires contract for call zero from main: constructor:81:package:6b6f67d4467813117f6ea99f24fafa84b18eb7e376cd0cf431446e1d331761c8::Ordinal9:name:Step21:payload:name:previous107:constructor:81:package:6b6f67d4467813117f6ea99f24fafa84b18eb7e376cd0cf431446e1d331761c8::Ordinal9:name:Zero == constructor:81:package:6b6f67d4467813117f6ea99f24fafa84b18eb7e376cd0cf431446e1d331761c8::Ordinal9:name:Zero (needs fact `value == Ordinal` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/proofs/fact_only_proof_value_citation_mutable rejected 2110ms expected @a92f16431042
+fail/proofs/fact_only_proof_value_citation_linear_resource rejected 2223ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	linear value `value::Node.token` reaches scope exit without being consumed or transferred in machine `reflexive` state `entry`
+fail/proofs/fact_only_proof_value_citation_missing_premise rejected 1906ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	cannot prove requires contract for call zero from main: constructor:81:package:44e1e8f7e4626a08868bba2883c6bfcf1c404f02446cedae98e74a3d2c9c29fe::Ordinal9:name:Step21:payload:name:previous107:constructor:81:package:44e1e8f7e4626a08868bba2883c6bfcf1c404f02446cedae98e74a3d2c9c29fe::Ordinal9:name:Zero == constructor:81:package:44e1e8f7e4626a08868bba2883c6bfcf1c404f02446cedae98e74a3d2c9c29fe::Ordinal9:name:Zero (needs fact `value == Ordinal` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/fact_only_proof_value_citation_mutable rejected 511ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	machine `reflexive` state `entry` parameter `value` mentions proof-only `Ordinal`, which has no runtime layout
 	mutable argument for state `entry` must be a named place
 fail/proofs/family_carrier_relation_extra_premise_rejected rejected 1725ms expected @a92f16431042
@@ -20356,6 +20406,23 @@ fail/proofs/negated_guard_after_mutation rejected 3773ms expected @a92f16431042
 	cannot prove ensures contract for exit from changed at statement 1: !selection.enabled || result == 1
 fail/proofs/nested_boolean_target_family_requires_agreement rejected 2666ms expected @a92f16431042
 	cannot prove requires contract for call demand from main: relay() == true (needs fact `value == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/nested_machine_computed_rank_preserving rejected 295ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	proof-only machine call cycle: `descend`, `forward` -- no complete structural ranking establishes strict descent on every cycle; exact arguments must preserve or descend from the ranking subject, and preserving edges must be acyclic; computed ranking: a computed closing argument is not proved smaller on every incoming path
+fail/proofs/nested_machine_escaping_selection_rejected rejected 1915ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/nested_machine_induction rejected 366ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	machine `copy_identity` ensures contract proof fact `copy_branch(value) == Branch` is disproved structurally: under the requires hypotheses the sides resolve to constructor forms that contradict the claim
+fail/proofs/nested_machine_inferred_requirement rejected 1475ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/nested_machine_proof_erasure_rejected rejected 1473ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/nested_machine_public_contract_missing_rejected rejected 1163ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	cannot prove requires contract for call same from public_value: selected == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/nested_machine_rank_bypassed rejected 301ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	proof-only machine call cycle: `descend`, `forward` -- no complete structural ranking establishes strict descent on every cycle; exact arguments must preserve or descend from the ranking subject, and preserving edges must be acyclic; computed ranking: a helper-only cycle can avoid every ranked entry
+	recursive proof machine `forward` needs a single structural measure: declare `terminates by <param>;` naming one proof-data parameter -- a cycle without a measure is an unproven termination claim (measured recursion, both strata)
+fail/proofs/nested_machine_rank_forwarding rejected 330ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+	proof-only machine call cycle: `descend`, `forward` -- no complete structural ranking establishes strict descent on every cycle; exact arguments must preserve or descend from the ranking subject, and preserving edges must be acyclic; computed ranking: a computed closing argument is not proved smaller on every incoming path
 fail/proofs/nonbyte_array_literal_comparison rejected 373ms expected @598688c61fee
 	cannot form specification operator `==` in machine `invalid` requires contract: no exact selected meaning
 fail/proofs/nonlinear_square_range_false_twin rejected 1113ms expected @a92f16431042
@@ -23021,7 +23088,7 @@ pass/boundary/named_target_foreign_provider_exit checked 2369ms check-target:mac
 pass/boundary/nested_projected_structural_crash_formal_exit checked 2135ms check-target:macos_arm64 @a92f16431042
 pass/boundary/static_foreign_scalar_result_locals_exit checked 6426ms check-target:macos_arm64 @a92f16431042
 pass/boundary/static_opaque_qualifier_exit checked 2329ms check-target:macos_arm64 @a92f16431042
-pass/build/acquired_generator_completed_output_set checked 6972ms check-target:macos_arm64 published:files/companion.txt,files/generated.omg @a92f16431042
+pass/build/acquired_generator_completed_output_set checked 6988ms check-target:macos_arm64 published:files/companion.txt,files/generated.omg @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 pass/build/artifact_only_output checked 2929ms @a92f16431042
 pass/build/artifact_only_required_output_completion checked 4969ms published:files/manifest.txt @a92f16431042
 pass/build/build_domain_context checked 2386ms @a92f16431042
@@ -23068,8 +23135,7 @@ pass/build/generated_source_selects_authored checked 4405ms published:files/gene
 pass/build/installed_entry_ram_stack_occurrence_exit checked 6380ms check-target:macos_arm64 @3c5cd09b7f5d
 pass/build/installed_entry_ram_two_occurrences_exit checked 4148ms check-target:macos_arm64 @3c5cd09b7f5d
 pass/build/named_map_target_family_rows_exit checked 6379ms check-target:macos_arm64 @a92f16431042
-pass/build/nested_generated_dependency_dual_purpose rejected 363ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
-	quoted byte literal has 41 source byte(s), but owned fixed byte array `[u8; 38]` requires exactly 38; fixed-array literal copying neither truncates nor pads
+pass/build/nested_generated_dependency_dual_purpose checked 3498ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 pass/build/package_batch_distinct_builds checked 2291ms check-target:macos_arm64 @a92f16431042
 pass/build/policy_array_entry_context_exit checked 2274ms check-target:macos_arm64 @a92f16431042
 pass/build/product_description_paths_exit checked 2258ms check-target:macos_arm64 @a92f16431042
@@ -23203,7 +23269,7 @@ pass/calls/nested_call_policy_parameters_exit checked 7281ms check-target:macos_
 pass/calls/nested_call_runtime_index_arg_exit checked 7163ms check-target:macos_arm64 @a92f16431042
 pass/calls/nested_call_tail_roots_exit checked 7303ms check-target:macos_arm64 @a92f16431042
 pass/calls/nested_indexed_scalar_arguments_exit checked 7216ms check-target:macos_arm64 @a92f16431042
-pass/calls/nested_machine_continuation checked 7177ms check-target:macos_arm64 @a92f16431042
+pass/calls/nested_machine_continuation checked 14156ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 pass/calls/nested_scalar_argument_evaluation_order_exit checked 1783ms check-target:macos_arm64 @a92f16431042
 pass/calls/nested_self_call_argument_exit checked 7235ms check-target:macos_arm64 @a92f16431042
 pass/calls/nested_subject_call_operand checked 1549ms @a92f16431042
@@ -23235,6 +23301,7 @@ pass/calls/private_callback_call_closure checked 12415ms check-target:macos_arm6
 pass/calls/projected_receiver_callee checked 2202ms @a92f16431042
 pass/calls/qualified_record_call_result_field_exit checked 7272ms check-target:macos_arm64 @a92f16431042
 pass/calls/recursive_terminal_block_acknowledgement_exit checked 2158ms check-target:macos_arm64 @a92f16431042
+pass/calls/recursive_unit_positive_requires_control_exit checked 14524ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 pass/calls/reference_loan_field_requires checked 1854ms @a92f16431042
 pass/calls/requirement_declared_static_operands checked 1498ms @a92f16431042
 pass/calls/requires_carrier_ceiling_vacuous checked 6621ms check-target:macos_arm64 @a92f16431042
@@ -23360,8 +23427,6 @@ pass/calls/runtime_qualified_owned_result_argument_exit checked 4069ms check-tar
 pass/calls/runtime_qualified_record_call_results_reused_exit checked 4730ms check-target:macos_arm64 @a92f16431042
 pass/calls/runtime_qualified_tail_recursion_exit checked 9467ms check-target:macos_arm64 @a92f16431042
 pass/calls/runtime_qualified_terminal_result_exit checked 3707ms check-target:macos_arm64 @a92f16431042
-pass/calls/runtime_recursive_unit_borrowed_continuation_exit checked 9104ms check-target:macos_arm64 @a92f16431042
-pass/calls/runtime_recursive_unit_continuation_exit checked 8817ms check-target:macos_arm64 @a92f16431042
 pass/calls/runtime_reference_returned_slice_element_write_exit checked 10486ms check-target:macos_arm64 @a92f16431042
 pass/calls/runtime_referenced_local_outlives_sibling_guard_call_exit checked 8620ms check-target:macos_arm64 @a92f16431042
 pass/calls/runtime_returned_record_fields_through_normal_paths_exit checked 894ms check-target:macos_arm64 @459c03ca72b4+wt
@@ -27026,6 +27091,37 @@ pass/facts/nested_fourteen_level_record_field_bound_through_other_machine_exit c
 pass/facts/nested_fourteen_level_record_field_bound_through_other_state_exit checked 2827ms check-target:macos_arm64 @a92f16431042
 pass/facts/nested_fourteen_level_record_field_bound_through_parameter_exit checked 1925ms check-target:macos_arm64 @a92f16431042
 pass/facts/nested_fourteen_level_record_field_bound_through_target_body_exit checked 2803ms check-target:macos_arm64 @a92f16431042
+pass/facts/nested_machine_inferred_requirement_call_result_exit checked 3029ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/nested_machine_inferred_requirement_const_name_exit checked 2983ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/nested_machine_inferred_requirement_field_exit checked 2717ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/nested_machine_inferred_requirement_local_exit checked 2924ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/nested_machine_inferred_requirement_match_join_exit checked 3251ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/nested_machine_inferred_requirement_other_machine_exit checked 3021ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/nested_machine_inferred_requirement_other_state_exit checked 2966ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/nested_machine_inferred_requirement_parameter_exit checked 3297ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/nested_machine_inferred_requirement_target_body_exit checked 2829ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/nested_machine_invocation/ancestor_cycle checked 2494ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/nested_machine_invocation/attached_context checked 2413ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/nested_machine_invocation/borrow_context checked 2467ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/nested_machine_invocation/call_result checked 2619ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/nested_machine_invocation/callable_context checked 2495ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/nested_machine_invocation/const_context checked 2296ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/nested_machine_invocation/const_name checked 2792ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/nested_machine_invocation/copied_payload checked 2688ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/nested_machine_invocation/field checked 2575ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/nested_machine_invocation/generic_context checked 2416ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/nested_machine_invocation/inferred_crash checked 2675ms check-target:macos_arm64 terminal-target.windows_x86_64:trap terminal-target.linux_x86_64:trap terminal-target.macos_arm64:trap terminal-target.linux_arm64:trap terminal-target-artifact:unchanged terminal-targets:match @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/nested_machine_invocation/local checked 2356ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/nested_machine_invocation/match_join checked 2995ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/nested_machine_invocation/nominal_index checked 2766ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/nested_machine_invocation/other_machine checked 3065ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/nested_machine_invocation/other_state checked 2849ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/nested_machine_invocation/parameter checked 2799ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/nested_machine_invocation/ranked_callee checked 2809ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/nested_machine_invocation/selected_helper checked 2557ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/nested_machine_invocation/shadowing checked 2298ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/nested_machine_invocation/target_body checked 2896ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/nested_machine_invocation/unit_completion checked 2785ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 pass/facts/nested_nine_level_record_field_bound_through_call_result_exit checked 2797ms check-target:macos_arm64 @a92f16431042
 pass/facts/nested_nine_level_record_field_bound_through_const_name_exit checked 2817ms check-target:macos_arm64 @a92f16431042
 pass/facts/nested_nine_level_record_field_bound_through_field_exit checked 1906ms check-target:macos_arm64 @a92f16431042
@@ -27762,46 +27858,46 @@ pass/facts/saturating_integer_arithmetic_through_other_machine_exit checked 2510
 pass/facts/saturating_integer_arithmetic_through_other_state_exit checked 3478ms check-target:macos_arm64 @a92f16431042
 pass/facts/saturating_integer_arithmetic_through_parameter_exit checked 2369ms check-target:macos_arm64 @a92f16431042
 pass/facts/saturating_integer_arithmetic_through_target_body_exit checked 2333ms check-target:macos_arm64 @a92f16431042
-pass/facts/saved_byte_predicate_through_call_result checked 3255ms check-target:macos_arm64 @a92f16431042
-pass/facts/saved_byte_predicate_through_const_name checked 2936ms check-target:macos_arm64 @a92f16431042
-pass/facts/saved_byte_predicate_through_field checked 2945ms check-target:macos_arm64 @a92f16431042
-pass/facts/saved_byte_predicate_through_local checked 2774ms check-target:macos_arm64 @a92f16431042
-pass/facts/saved_byte_predicate_through_match_join checked 2846ms check-target:macos_arm64 @a92f16431042
-pass/facts/saved_byte_predicate_through_other_machine checked 2840ms check-target:macos_arm64 @a92f16431042
-pass/facts/saved_byte_predicate_through_other_state checked 2289ms check-target:macos_arm64 @a92f16431042
-pass/facts/saved_byte_predicate_through_parameter checked 2395ms check-target:macos_arm64 @a92f16431042
-pass/facts/saved_byte_predicate_through_target_body checked 3271ms check-target:macos_arm64 @a92f16431042
-pass/facts/saved_case_predicate_inferred_reference_exit checked 5058ms check-target:macos_arm64 @2f6555324361
-pass/facts/saved_case_predicate_through_call_result_exit checked 4539ms check-target:macos_arm64 @2f6555324361
-pass/facts/saved_case_predicate_through_const_name_exit checked 5031ms check-target:macos_arm64 @2f6555324361
-pass/facts/saved_case_predicate_through_field_exit checked 4933ms check-target:macos_arm64 @2f6555324361
-pass/facts/saved_case_predicate_through_local_exit checked 5664ms check-target:macos_arm64 @2f6555324361
-pass/facts/saved_case_predicate_through_match_join_exit checked 6161ms check-target:macos_arm64 @2f6555324361
-pass/facts/saved_case_predicate_through_other_machine_exit checked 5867ms check-target:macos_arm64 @2f6555324361
-pass/facts/saved_case_predicate_through_other_state_exit checked 5636ms check-target:macos_arm64 @2f6555324361
-pass/facts/saved_case_predicate_through_parameter_exit checked 5442ms check-target:macos_arm64 @2f6555324361
-pass/facts/saved_case_predicate_through_target_body_exit checked 5654ms check-target:macos_arm64 @2f6555324361
-pass/facts/saved_observation_snapshot_after_call_relational_exit checked 1985ms check-target:macos_arm64 @0cea3eb42480
-pass/facts/saved_observation_snapshot_after_call_relational_return_exit checked 1893ms check-target:macos_arm64 @0cea3eb42480
-pass/facts/saved_observation_snapshot_after_call_saved_after_write_exit checked 1937ms check-target:macos_arm64 @0cea3eb42480
-pass/facts/saved_observation_snapshot_after_call_through_call_result_exit checked 1944ms check-target:macos_arm64 @0cea3eb42480
-pass/facts/saved_observation_snapshot_after_call_through_const_name_exit checked 1963ms check-target:macos_arm64 @0cea3eb42480
-pass/facts/saved_observation_snapshot_after_call_through_field_exit checked 1872ms check-target:macos_arm64 @0cea3eb42480
-pass/facts/saved_observation_snapshot_after_call_through_local_exit checked 1644ms check-target:macos_arm64 @0cea3eb42480
-pass/facts/saved_observation_snapshot_after_call_through_match_join_exit checked 2080ms check-target:macos_arm64 @0cea3eb42480
-pass/facts/saved_observation_snapshot_after_call_through_other_machine_exit checked 2009ms check-target:macos_arm64 @0cea3eb42480
-pass/facts/saved_observation_snapshot_after_call_through_other_state_exit checked 2015ms check-target:macos_arm64 @0cea3eb42480
-pass/facts/saved_observation_snapshot_after_call_through_parameter_exit checked 2075ms check-target:macos_arm64 @0cea3eb42480
-pass/facts/saved_observation_snapshot_after_call_through_target_body_exit checked 2002ms check-target:macos_arm64 @0cea3eb42480
-pass/facts/saved_observation_snapshot_through_call_result_exit checked 2751ms check-target:macos_arm64 @386a5e718459+wt
-pass/facts/saved_observation_snapshot_through_const_name_exit checked 2752ms check-target:macos_arm64 @386a5e718459+wt
-pass/facts/saved_observation_snapshot_through_field_exit checked 2735ms check-target:macos_arm64 @386a5e718459+wt
-pass/facts/saved_observation_snapshot_through_local_exit checked 2762ms check-target:macos_arm64 @386a5e718459+wt
-pass/facts/saved_observation_snapshot_through_match_join_exit checked 2758ms check-target:macos_arm64 @386a5e718459+wt
-pass/facts/saved_observation_snapshot_through_other_machine_exit checked 2740ms check-target:macos_arm64 @386a5e718459+wt
-pass/facts/saved_observation_snapshot_through_other_state_exit checked 2771ms check-target:macos_arm64 @386a5e718459+wt
-pass/facts/saved_observation_snapshot_through_parameter_exit checked 2817ms check-target:macos_arm64 @386a5e718459+wt
-pass/facts/saved_observation_snapshot_through_target_body_exit checked 2475ms check-target:macos_arm64 @386a5e718459+wt
+pass/facts/saved_byte_predicate_through_call_result checked 2698ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_byte_predicate_through_const_name checked 2855ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_byte_predicate_through_field checked 2530ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_byte_predicate_through_local checked 2756ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_byte_predicate_through_match_join checked 2502ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_byte_predicate_through_other_machine checked 2550ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_byte_predicate_through_other_state checked 2602ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_byte_predicate_through_parameter checked 2510ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_byte_predicate_through_target_body checked 2607ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_case_predicate_inferred_reference_exit checked 2465ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_case_predicate_through_call_result_exit checked 2792ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_case_predicate_through_const_name_exit checked 3219ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_case_predicate_through_field_exit checked 2833ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_case_predicate_through_local_exit checked 2485ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_case_predicate_through_match_join_exit checked 2734ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_case_predicate_through_other_machine_exit checked 2779ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_case_predicate_through_other_state_exit checked 3209ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_case_predicate_through_parameter_exit checked 2834ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_case_predicate_through_target_body_exit checked 3068ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_observation_snapshot_after_call_relational_exit checked 2510ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_observation_snapshot_after_call_relational_return_exit checked 2781ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_observation_snapshot_after_call_saved_after_write_exit checked 2831ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_observation_snapshot_after_call_through_call_result_exit checked 2556ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_observation_snapshot_after_call_through_const_name_exit checked 2680ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_observation_snapshot_after_call_through_field_exit checked 2698ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_observation_snapshot_after_call_through_local_exit checked 2453ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_observation_snapshot_after_call_through_match_join_exit checked 3041ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_observation_snapshot_after_call_through_other_machine_exit checked 2560ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_observation_snapshot_after_call_through_other_state_exit checked 2857ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_observation_snapshot_after_call_through_parameter_exit checked 2909ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_observation_snapshot_after_call_through_target_body_exit checked 2723ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_observation_snapshot_through_call_result_exit checked 2697ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_observation_snapshot_through_const_name_exit checked 2640ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_observation_snapshot_through_field_exit checked 3160ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_observation_snapshot_through_local_exit checked 2555ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_observation_snapshot_through_match_join_exit checked 2770ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_observation_snapshot_through_other_machine_exit checked 2692ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_observation_snapshot_through_other_state_exit checked 2558ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_observation_snapshot_through_parameter_exit checked 2820ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/saved_observation_snapshot_through_target_body_exit checked 2636ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 pass/facts/saved_symbolic_observation_correlated_pair_exit checked 2035ms check-target:macos_arm64 @b800c26bd214
 pass/facts/saved_symbolic_observation_reverse_guarantee_exit checked 2006ms check-target:macos_arm64 @b800c26bd214
 pass/facts/saved_symbolic_observation_through_call_result_exit checked 1904ms check-target:macos_arm64 @b800c26bd214
@@ -30997,8 +31093,7 @@ pass/proofs/embedded_address_bounds_exit checked 7933ms check-target:macos_arm64
 pass/proofs/embedded_successor_call_requirement_exit checked 2427ms check-target:macos_arm64 @a92f16431042
 pass/proofs/embedded_successor_transports_upper_bound_exit checked 2105ms check-target:macos_arm64 @a92f16431042
 pass/proofs/erased_mathematical_initializers checked 1438ms @a92f16431042
-pass/proofs/fact_only_proof_value_citation_exit rejected 2166ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @a92f16431042
-	cannot retain constructed value storage shapes for state `entry` of machine `main`
+pass/proofs/fact_only_proof_value_citation_exit checked 2521ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 pass/proofs/family_carrier_relation_laws checked 1427ms @a92f16431042
 pass/proofs/field_view_index_contract checked 7077ms @a92f16431042
 pass/proofs/float_guarded_negated_result_contract checked 6343ms @a92f16431042
@@ -31029,6 +31124,12 @@ pass/proofs/nat_exact_subtraction_compile checked 1391ms @a92f16431042
 pass/proofs/nat_metric_triangle_compile checked 1710ms @a92f16431042
 pass/proofs/negative_disjunction_post_mutation_bound checked 2821ms check-target:macos_arm64 @a92f16431042
 pass/proofs/nested_loop_digit_bytes_keep_utf8_exit checked 5898ms check-target:macos_arm64 @a92f16431042
+pass/proofs/nested_machine_induction checked 2393ms @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/proofs/nested_machine_inferred_requirement checked 2207ms @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/proofs/nested_machine_proof_erasure_exit checked 2509ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/proofs/nested_machine_public_contract_exit checked 2476ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/proofs/nested_machine_rank_forwarding checked 2051ms @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/proofs/nested_machine_unrelated_selection_exit checked 2782ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 pass/proofs/normal_return_expression_statement_sequence_exit checked 2027ms check-target:macos_arm64 @a92f16431042
 pass/proofs/numeric_state_contract checked 1806ms @a92f16431042
 pass/proofs/numeric_state_contract_exit checked 1990ms check-target:macos_arm64 @a92f16431042
@@ -32086,7 +32187,7 @@ pass/traits/nominal_machine_binder_static_dispatch checked 6614ms check-target:m
 pass/traits/operator_machine_add checked 1942ms @a92f16431042
 pass/traits/prepared_callable_nested_borrow_paths_exit incomplete 1940ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	`check_byte_views` has no executable body: this compiler does not lower a state of it yet (normal-exit cleanup); in state `check_byte_views::inspect`
-pass/traits/public_nested_machine_contract_scopes checked 2166ms check-target:macos_arm64 @a92f16431042
+pass/traits/public_nested_machine_contract_scopes checked 2308ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 pass/traits/renamed_invocation_contract_binders checked 1519ms @a92f16431042
 pass/traits/ring_requirement_satisfies_exit checked 6391ms check-target:macos_arm64 @a92f16431042
 pass/traits/runtime_dyn_array_assignments_establishment_exit checked 614ms check-target:macos_arm64 @0360a23ad5f5+wt

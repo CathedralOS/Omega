@@ -2350,8 +2350,6 @@ pass/calls/runtime_numeric_operand_order_exit built 12276ms exit:0 interpreter-e
 pass/calls/runtime_numeric_operand_single_evaluation_exit built 11879ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/calls/runtime_owned_state_scalar_field_store_exit built 17044ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/calls/runtime_qualified_tail_recursion_exit built 16127ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
-pass/calls/runtime_recursive_unit_borrowed_continuation_exit built 16816ms exit:70 stdout:match stderr:match interpreter-exit:70 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @a92f16431042
-pass/calls/runtime_recursive_unit_continuation_exit built 15206ms exit:70 stdout:match stderr:match interpreter-exit:70 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @a92f16431042
 pass/calls/runtime_static_entry_context_exit built 2451ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/calls/runtime_std_math_sin_cos_exit built 16410ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/calls/runtime_terminal_call_state_machine_call_operand_exit built 8258ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
