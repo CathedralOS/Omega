@@ -7,7 +7,7 @@ The nine places now read `items[0]` through an opaque generic reference result:
 `capture<View>(source: View, marker: &mut u64, event: u64) -> View`, with
 `View == &'source u64`. The owned `u64` receiving context performs the read
 after the helper completes. The helper writes a caller-visible marker so an
-omitted or repeated evaluation cannot silently satisfy the runtime oracle.
+omitted call or incorrect match arm cannot silently satisfy the runtime oracle.
 
 The consuming operation remains `agree(observed, current)` with
 `requires observed == current && observed == 7`. Every positive starts with
@@ -61,7 +61,7 @@ establish execution on macOS ARM64 only.
   admitted without widening access authority.
 - **Composition:** the same fact and consuming operation cross all nine places.
   Match arms receive the owned scalar context before their results join.
-  Marker effects expose which arm executed and whether evaluation occurred once.
+  Marker effects expose which arm executed and whether the call was omitted.
 - **Soundness boundaries:** every candidate referent must have the same scalar
   interpretation; scalar equality requires agreement across all referents and
   range evidence uses their hull. Write-only or differently interpreted
