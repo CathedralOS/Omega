@@ -475,7 +475,7 @@ fn carried_exclusive_referents(
                     .collect(),
             };
             referents.push(CarriedStorage {
-                region: StorageRegion::Declared(CanonicalPlace {
+                region: loan_write_region(CanonicalPlace {
                     root: loan.root,
                     segments: borrow.loan_segments(loan).to_vec(),
                 }),
@@ -547,13 +547,23 @@ pub(super) fn retained_loan_write_regions(
         if !loan.root.is_valid() {
             return None;
         }
-        let region = StorageRegion::Declared(CanonicalPlace {
+        let region = loan_write_region(CanonicalPlace {
             root: loan.root,
             segments: borrow.loan_segments(loan).to_vec(),
         });
         crate::collections::push_unique(&mut regions, region);
     }
     Some(regions)
+}
+
+/// A checked provider-output loan retains its performed identity but names no
+/// declaration-relative backing. It cannot restore a caller ownership home.
+fn loan_write_region(place: CanonicalPlace) -> StorageRegion {
+    if matches!(place.root, facts::PlaceRoot::InvocationOutput(_)) {
+        StorageRegion::UnresolvedContent { carrier: place }
+    } else {
+        StorageRegion::Declared(place)
+    }
 }
 
 /// Whether a recorded loan's owner path and a place's field path overlap.
