@@ -1021,13 +1021,9 @@ impl CheckedUnitEffectOperationPlan {
                     return Some(result);
                 }
             }
-            // The operands and prepared operation are disjoint owners. Borrow
-            // that operation field directly after the ordered operand search;
-            // borrowing the whole call would overlap a returned operand loan.
-            if let CheckedValueInvocationOutcome::Prepared { operation, .. } = &mut call.outcome
-                && let Some(result) =
-                    operation.discardable_structural_result_by_ordinal_mut(binding_ordinal)
-            {
+            if let Some(result) = call.operation_mut().and_then(|operation| {
+                operation.discardable_structural_result_by_ordinal_mut(binding_ordinal)
+            }) {
                 return Some(result);
             }
         }

@@ -46,11 +46,10 @@ not authorize them.
 ## Evidence and requirements
 
 The fixed fetched base is `56b550d41aec59c4ac3e59ca3d570f1a2afb9dc5`.
-It initially fails Rust compilation with E0499 in
-`discardable_structural_result_by_ordinal_mut`. The necessary disjoint-field
-borrowing prerequisite is `aa4ebe6e319d61c060e969f51646249837a64c21`;
-its independently built optimized producer rejects all nine unchanged positives
-with `a member lacks a supported exact ranking witness` for `count, forward`.
+The pinned `nightly-2026-09-04` producer builds that unchanged source and
+rejects the unchanged nine positives with `a member lacks a supported exact
+ranking witness` for `count, forward`. Earlier Homebrew observations remain
+labelled separately; the submitted representation lookup remains unchanged.
 Raw baseline, candidate, qualification and resource observations are retained in
 this workbench's `build/joint-rank/` and identified in the publication record.
 
