@@ -30,6 +30,19 @@ pub(super) struct PrimitiveProjection {
     pub(super) leaf: StorageProjection,
 }
 
+impl PrimitiveProjection {
+    /// Every selector this address owns, in region order: each pointer slot
+    /// before the final region. Selection applies one run per authored
+    /// segment, so they never flatten into a single offset.
+    pub(super) fn selector_runs(self) -> Vec<(semantic_vocabulary::ValueId, u32)> {
+        self.pointer_slots
+            .into_iter()
+            .chain([self.leaf])
+            .flat_map(|region| region.indices)
+            .collect()
+    }
+}
+
 /// Select borrowed backing after each stored reference crossing. Offsets are
 /// relative to the last referent, never to a descriptor containing its pointer.
 /// Ordinary and foreign calls use the same geometry; call custody establishes
@@ -142,6 +155,22 @@ pub(super) struct ReferenceProjectionRegions<'path> {
     pub(super) path: &'path [StructuralPathSegment],
     pub(super) pointer_slots: Vec<StorageProjection>,
     pub(super) readable: bool,
+}
+
+impl ReferenceProjectionRegions<'_> {
+    /// Every selector this projection owns, in region order: each ordered
+    /// pointer crossing contributes its own runs before the final region's
+    /// leaf. Selection scales one run per authored segment around its load.
+    pub(super) fn selector_runs(
+        self,
+        leaf: Vec<(semantic_vocabulary::ValueId, u32)>,
+    ) -> Vec<(semantic_vocabulary::ValueId, u32)> {
+        self.pointer_slots
+            .into_iter()
+            .flat_map(|slot| slot.indices)
+            .chain(leaf)
+            .collect()
+    }
 }
 
 pub(super) fn reference_projection_regions<'path>(
@@ -748,23 +777,6 @@ fn structural_field_shape(
     }
 }
 
-pub(super) fn resolve_structural_field_path(
-    structural_type: StructuralTypeId,
-    path: &[StructuralPathSegment],
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
-) -> Result<(StructuralTypeId, ValueShape, u32), LoweringError> {
-    projection_path(
-        structural_type,
-        path,
-        declarations,
-        cache,
-        active,
-        StructuralFieldType::canonical_leaf_type,
-    )
-}
-
 fn field_geometry<'types>(
     structural_type: StructuralTypeId,
     segment: &StructuralPathSegment,
@@ -948,6 +960,9 @@ pub(super) fn case_projection(
     Ok((endpoint, shape, offset))
 }
 
+/// Resolve a static storage projection to its canonical leaf. A path that
+/// selects through a runtime index belongs to the runtime projection query,
+/// whose caller owns each selector's dominating source.
 pub(super) fn resolve_structural_projection_path(
     structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
@@ -955,31 +970,13 @@ pub(super) fn resolve_structural_projection_path(
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
 ) -> Result<(StructuralTypeId, ValueShape, u32), LoweringError> {
-    projection_path(
-        structural_type,
-        path,
-        declarations,
-        cache,
-        active,
-        StructuralFieldType::canonical_leaf_type,
-    )
-}
-
-fn projection_path(
-    structural_type: StructuralTypeId,
-    path: &[StructuralPathSegment],
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
-    leaf_type: impl Fn(&StructuralFieldType) -> Option<StructuralFieldType>,
-) -> Result<(StructuralTypeId, ValueShape, u32), LoweringError> {
     let (selected, shape, offset, indices) = storage_projection_path(
         structural_type,
         path,
         declarations,
         cache,
         active,
-        leaf_type,
+        StructuralFieldType::canonical_leaf_type,
     )?;
     if !indices.is_empty() {
         return Err(LoweringError::UnsupportedStructuralReference(
@@ -1311,12 +1308,7 @@ pub(super) fn runtime_leaf_copy_projection(
         active,
         |field| field.leaf_copy_type(Some(expected)),
     )?;
-    let indices = regions
-        .pointer_slots
-        .into_iter()
-        .flat_map(|slot| slot.indices)
-        .chain(leaf_indices)
-        .collect();
+    let indices = regions.selector_runs(leaf_indices);
     Ok((selected, shape, byte_offset, indices))
 }
 
@@ -1345,12 +1337,7 @@ pub(super) fn runtime_borrowed_projection(
         active,
         |field| field.borrowed_presentation_type(access, expected),
     )?;
-    let indices = regions
-        .pointer_slots
-        .into_iter()
-        .flat_map(|slot| slot.indices)
-        .chain(leaf_indices)
-        .collect();
+    let indices = regions.selector_runs(leaf_indices);
     Ok((selected, shape, offset, indices))
 }
 
@@ -1383,12 +1370,7 @@ pub(super) fn storage_address_indices(
         )?
         .3
     };
-    Ok(regions
-        .pointer_slots
-        .into_iter()
-        .flat_map(|slot| slot.indices)
-        .chain(leaf_indices)
-        .collect())
+    Ok(regions.selector_runs(leaf_indices))
 }
 
 fn runtime_projection_with_leaf_type(

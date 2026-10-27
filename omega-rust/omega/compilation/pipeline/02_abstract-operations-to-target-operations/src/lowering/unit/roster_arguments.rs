@@ -2,7 +2,7 @@
 //! roster, earlier call results, dominating local homes and established views.
 
 use super::super::structural_layout::{
-    checked_align_up_u32, resolve_structural_field_path, structural_parameter_shape,
+    checked_align_up_u32, resolve_structural_projection_path, structural_parameter_shape,
     structural_shape,
 };
 use crate::LoweringError;
@@ -502,7 +502,7 @@ pub(in crate::lowering) fn fixed_array_view_argument(
         let backing_offset = if window.backing_path.is_empty() {
             0
         } else {
-            resolve_structural_field_path(
+            resolve_structural_projection_path(
                 root.structural_type,
                 window.backing_path,
                 structural_types,
@@ -542,7 +542,7 @@ pub(in crate::lowering) fn fixed_array_view_argument(
         let (array_type, backing_offset) = if argument.path.is_empty() {
             (root.structural_type, 0)
         } else {
-            let (array_type, _, backing_offset) = resolve_structural_field_path(
+            let (array_type, _, backing_offset) = resolve_structural_projection_path(
                 root.structural_type,
                 &argument.path,
                 structural_types,
