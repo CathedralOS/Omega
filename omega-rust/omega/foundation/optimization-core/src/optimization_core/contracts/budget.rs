@@ -1,5 +1,4 @@
 use super::CoreContractDecodeError;
-use std::fmt;
 
 /// The input extent one budget's ceilings are calibrated for, in the units a
 /// pass measures its input by — blocks, instructions, operands and writes. A
@@ -104,10 +103,7 @@ impl OptimizationWorkBudget {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct InvalidOptimizationWorkBudget;
 
-impl fmt::Display for InvalidOptimizationWorkBudget {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("every optimization work-budget axis must be nonzero")
-    }
-}
-
-impl std::error::Error for InvalidOptimizationWorkBudget {}
+crate::fixed_error_display!(
+    InvalidOptimizationWorkBudget,
+    "every optimization work-budget axis must be nonzero"
+);

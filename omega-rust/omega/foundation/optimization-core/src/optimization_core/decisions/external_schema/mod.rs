@@ -244,13 +244,7 @@ pub enum ExternalDecisionSchemaError {
     TrailingBytes,
 }
 
-impl std::fmt::Display for ExternalDecisionSchemaError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "invalid external optimization decision schema: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for ExternalDecisionSchemaError {}
+crate::invalid_error_display!(
+    ExternalDecisionSchemaError,
+    "external optimization decision schema"
+);

@@ -2,7 +2,6 @@ use super::{
     AnalysisInvalidationSet, AnalysisSet, CoreContractDecodeError, OptimizationSafetyClass,
 };
 use crate::{OptimizationPassIdentity, OptimizationRuleIdentity};
-use std::fmt;
 
 const RULE_CONTRACT_MAGIC: &[u8; 8] = b"OMGRUL\0\0";
 const RULE_CONTRACT_SCHEMA_VERSION: u32 = 1;
@@ -114,10 +113,7 @@ pub enum InvalidOptimizationRuleContract {
     ZeroVersion,
 }
 
-impl fmt::Display for InvalidOptimizationRuleContract {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("optimization rule version must be nonzero")
-    }
-}
-
-impl std::error::Error for InvalidOptimizationRuleContract {}
+crate::fixed_error_display!(
+    InvalidOptimizationRuleContract,
+    "optimization rule version must be nonzero"
+);
