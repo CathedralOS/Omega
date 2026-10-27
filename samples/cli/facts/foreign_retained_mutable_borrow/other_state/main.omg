@@ -136,7 +136,8 @@ windows_x86_64 machine release(capacity: Capacity in Capacity::Available) satisf
 machine forward<'a>(pending: Pending<'a> in Pending::Retained) -> Pending<'a>
 ensures result in Pending::Retained {
     transition { _ -> forwarded(pending) }
-    machine forwarded(pending: Pending<'a> in Pending::Retained) -> Pending<'a> { pending }
+    machine forwarded(pending: Pending<'a> in Pending::Retained) -> Pending<'a>
+    ensures result in Pending::Retained { pending }
 }
 data Main {}
 machine Main::main(main: &mut Main) reaches Writer crashes Trap {
