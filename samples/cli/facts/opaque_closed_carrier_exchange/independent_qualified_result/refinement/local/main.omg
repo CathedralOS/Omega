@@ -7,7 +7,7 @@ public data AddressPair { first: InternetAddress in Classified::Ready; second: I
 machine consume(first: InternetAddress in Classified::Ready, second: InternetAddress) -> bool reaches AddressParts, AddressBridge {
     let mut pair: AddressPair = AddressPair { first: first, second: second };
     let old_host: u32 = AddressBridge::classified_host(pair.first);
-    pair.first = classify(AddressBridge::make(10, 1027));
+    pair.first = classify(AddressBridge::make(10, 1027)) as InternetAddress in Classified::Ready;
     let sibling_host: u32 = AddressBridge::host(pair.second);
     let replacement_host: u32 = AddressBridge::host(pair.first as InternetAddress);
     old_host == 66051 && sibling_host == 513 && replacement_host == 1027

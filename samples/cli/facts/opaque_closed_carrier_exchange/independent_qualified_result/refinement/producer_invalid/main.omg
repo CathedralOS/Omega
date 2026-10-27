@@ -6,7 +6,7 @@ use omega::language::core::representation;
 public boundary data InternetAddress;
 public domain InternetAddress::Classified established by classify;
 public domain InternetAddress::Classified::Ready;
-public machine classify(address: InternetAddress) -> InternetAddress in Classified::Ready { address }
+public machine classify(address: InternetAddress) -> InternetAddress in Classified { address }
 public data AddressWord { address: u32; }
 public data AddressCarrier<T> { payload: T; }
 public AddressRepresentation satisfies OpaqueRepresentation<InternetAddress, AddressCarrier<AddressCarrier<AddressWord>>> { }
@@ -96,7 +96,7 @@ public boundary trait AddressBridge {
  machine classified_host(address: InternetAddress in Classified::Ready) -> u32 reaches AddressParts;
 }
 public AddressBridgeProvider satisfies AddressBridge {
- machine classified_make(network: u32, host: u32) -> InternetAddress in Classified::Ready reaches AddressParts { AddressParts::make(network, host) }
+ machine classified_make(network: u32, host: u32) -> InternetAddress in Classified::Ready reaches AddressParts { AddressParts::make(network, host) as InternetAddress in Classified::Ready }
  machine host(address: InternetAddress) -> u32 reaches AddressParts { AddressParts::host(address) }
  machine classified_host(address: InternetAddress in Classified::Ready) -> u32 reaches AddressParts {
   AddressParts::host(address as InternetAddress)
