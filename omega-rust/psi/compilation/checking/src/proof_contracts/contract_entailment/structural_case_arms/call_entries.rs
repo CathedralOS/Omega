@@ -133,14 +133,14 @@ pub(super) fn observe_statement<'program>(
     Some(())
 }
 
-/// Entering one executed prefix does not treat the callee as a repeatable
-/// mathematical function. Runtime visitors retain ordered storage effects;
-/// theorem and case-only traversal still require observation-free semantics.
+/// Observing an executed prefix or normal completion does not treat the callee
+/// as a repeatable mathematical function. Runtime observation retains ordered
+/// storage effects; theorem and case-only traversal keep their existing policy.
 pub(super) fn body_can_be_observed(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
-    runtime_prefix: bool,
+    preserve_runtime_values: bool,
 ) -> bool {
     if !machine.body_is_present
         || !machine.supply_mode.is_checked_body()
@@ -148,7 +148,7 @@ pub(super) fn body_can_be_observed(
     {
         return false;
     }
-    if runtime_prefix || classification.is_proof_machine(program, machine) {
+    if preserve_runtime_values || classification.is_proof_machine(program, machine) {
         return true;
     }
     let Some(entry) = program.machine_states(machine).first() else {

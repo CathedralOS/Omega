@@ -1767,6 +1767,10 @@ fn recognize_structural_state_leaves_from<'a>(
                     continue;
                 }
                 let target = &transition.target;
+                // Normal completion observes executed code even without an
+                // occurrence visitor. Its runtime judge owns ordered writes
+                // and captured values; theorem/case-only traversal retains
+                // the existing denotational eligibility requirement.
                 let body_transfer = terminal_body_transfer(
                     program,
                     invocation,
@@ -1774,7 +1778,7 @@ fn recognize_structural_state_leaves_from<'a>(
                     target,
                     transition.source_target,
                     classification,
-                    requirement.is_some() && judge.requires_value_preservation(),
+                    judge.requires_value_preservation(),
                 );
                 if let Some((target_state, argument_handles, call_expression)) = body_transfer
                     // An active theorem's recursive value stays an application.
@@ -1984,7 +1988,7 @@ fn terminal_body_transfer<'program>(
     target: &TransitionTargetNode,
     source_target: Option<typed_trees::statement::TransitionTargetHandle>,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
-    runtime_prefix: bool,
+    preserve_runtime_values: bool,
 ) -> Option<(
     &'program typed_trees::state::State,
     &'program [ExpressionHandle],
@@ -2046,7 +2050,7 @@ fn terminal_body_transfer<'program>(
         }
         _ => return None,
     };
-    call_entries::body_can_be_observed(program, callee, classification, runtime_prefix)
+    call_entries::body_can_be_observed(program, callee, classification, preserve_runtime_values)
         .then_some((entry, arguments, expression))
 }
 
