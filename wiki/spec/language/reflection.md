@@ -4,7 +4,8 @@ Reflection describes an explicitly selected type and specializes ordinary checke
 machines over its members. Libraries own inspection, encoding, editing, ordering,
 and migration policy. No format-specific compiler operation, expansion keyword,
 AST quotation, mandatory object header, or implicit runtime registry follows.
-Implementation work is tracked in [TASKS.md](../../../TASKS.md#semantic-reflection).
+Implementation work is tracked under `WIRE-CODEC-LIBRARY` (including
+`SEMANTIC-REFLECTION`) in [TASKS.md](../../../TASKS.md).
 
 ## Semantic descriptions
 
@@ -67,6 +68,13 @@ semantic member to the applicable physical field key and validated plan; it
 rejects wrong owner, application, revision, relevance, or case mappings.
 There is no second offset calculator or interpretation of a semantic member index
 as its byte offset.
+
+Semantic data remains layout-neutral. A selected representation application
+joins that same exact schema to its policy and physical geometry; a transparent
+alias changes neither semantic identity nor the selected representation.
+Fixed-memory families and variable-length encoded carriers retain their
+different projection and conversion capabilities under the
+[representation contract](../layouts/plans.md#representation-applications).
 
 Geometry may be queried only after the selected [layout plan](../layouts/plans.md)
 is validated. Core `size_of<T>()` and `align_of<T>()` consume that same plan,
