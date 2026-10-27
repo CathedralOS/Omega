@@ -69,19 +69,54 @@ fn readiness_installs_exact_component_without_replaying_the_receiver() {
                 .into(),
             candidate: candidate.candidate,
         };
-        let admitted = terminal_installation::admit_component_provider(
-            artifact.view(),
-            boundary,
-            artifact.view(),
-            &selection,
-        )
-        .expect("exact checked component contract");
-        for loaded in [false, true] {
-            let program = if loaded {
-                TerminalProgram::load_envelope(&artifact.to_bytes()).unwrap()
-            } else {
-                TerminalProgram::borrow(artifact.view())
-            };
+        let produce_invocation = || {
+            let mut request = psi_compiler::TerminalProductionRequest::new(
+                &checked.execution().program,
+                psi_compiler::TerminalMachineSelection::Name(entry),
+                checked.sources().exact_toolchain_sources(),
+            );
+            request.publication = terminal_codec::TerminalPublication::Invocation;
+            request
+                .produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)
+                .unwrap()
+        };
+        let invocation = produce_invocation();
+        let other_invocation = produce_invocation();
+        assert!(invocation.artifact().is_err(), "receiver stays private");
+        assert_eq!(
+            invocation.view().identity(),
+            other_invocation.view().identity(),
+            "identical semantic content"
+        );
+        assert_ne!(
+            invocation.view().custody_identity(),
+            other_invocation.view().custody_identity(),
+            "distinct live code owners"
+        );
+        for (receiver, program, loaded) in [
+            (
+                artifact.view().into(),
+                TerminalProgram::borrow(artifact.view()),
+                false,
+            ),
+            (
+                artifact.view().into(),
+                TerminalProgram::load_envelope(&artifact.to_bytes()).unwrap(),
+                true,
+            ),
+            (
+                invocation.view(),
+                TerminalProgram::borrow(invocation.view()),
+                true,
+            ),
+        ] {
+            let admitted = terminal_installation::admit_component_provider(
+                receiver,
+                boundary,
+                artifact.view(),
+                &selection,
+            )
+            .expect("exact checked component contract and receiver custody");
             let requirements = program.execution_requirements(None).unwrap();
             let host_imports = requirements
                 .imports
@@ -102,6 +137,33 @@ fn readiness_installs_exact_component_without_replaying_the_receiver() {
                 })
                 .unwrap();
             let supplies = program.defer_component(supplies, boundary).unwrap();
+            if receiver.custody_identity() == invocation.view().custody_identity() {
+                let other = TerminalProgram::borrow(other_invocation.view());
+                assert!(
+                    other
+                        .instantiate(terminal_interpreter::TerminalInstantiation {
+                            installation: Some(&supplies),
+                            ..Default::default()
+                        })
+                        .is_err(),
+                    "another private owner cannot reuse the execution plan"
+                );
+                let other_supplies = other
+                    .admit_runtime_supplies(terminal_interpreter::TerminalRuntimeSupplyRequest {
+                        host_imports: &host_imports,
+                        installation: None,
+                        entry: None,
+                        x86_flags: None,
+                        memory_ordering: None,
+                        target_machines: None,
+                        target_layouts: None,
+                    })
+                    .unwrap();
+                assert!(
+                    other_supplies.with_component_provider(&admitted).is_err(),
+                    "semantic equality does not transfer the admitted component selection"
+                );
+            }
             assert!(
                 program.defer_component(supplies.clone(), boundary).is_err(),
                 "reservation cannot replace a supply"

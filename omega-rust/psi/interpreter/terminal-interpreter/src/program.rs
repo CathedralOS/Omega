@@ -40,9 +40,9 @@ use terminal_psi::{
 /// its decoded module; in-process execution borrows the compiler's retained
 /// module. Neither route reconstructs executable machines or declaration maps.
 pub(crate) struct AdmittedTerminalProgram<'artifact> {
-    /// Canonical Terminal-Psi identity of the module, computed once
-    /// at admission; provider installations bind to this exact identity.
-    pub(crate) identity: TerminalPsiIdentity,
+    /// Semantic content plus the exact live owner of invocation-only code.
+    /// Provider installations retain this whole identity, not just its digest.
+    pub(crate) identity: terminal_codec::TerminalExecutionIdentity,
     pub(crate) catalogs: std::sync::Arc<Cow<'artifact, TerminalModule>>,
     /// Selected geometry belongs to an execution view, never canonical storage.
     pub(crate) target_layouts: Option<std::sync::Arc<terminal_installation::AdmittedTargetLayouts>>,
@@ -56,7 +56,7 @@ impl AdmittedTerminalProgram<'_> {
         &self,
         installation: Option<&crate::effects::TerminalRuntimeSupplies>,
     ) -> Result<MachineId, TerminalInterpretError> {
-        if installation.is_some_and(|installation| installation.terminal_psi != self.identity) {
+        if installation.is_some_and(|installation| installation.code_identity != self.identity) {
             return Err(TerminalInterpretError::ProviderInstallationIdentityMismatch);
         }
         if let Some(target) = self.catalogs.folded_constants.target.as_deref() {
@@ -82,7 +82,7 @@ impl AdmittedTerminalProgram<'_> {
         let selected = installation.and_then(|installation| installation.target_machines.as_ref());
         let machine = match selected {
             Some(selected) => selected
-                .entry(self.identity, &self.catalogs, root)
+                .entry(self.identity.semantic(), &self.catalogs, root)
                 .map_err(TerminalInterpretError::TargetMachineSelection)?,
             None => match root {
                 terminal_psi::TargetMachineCallable::Machine(machine) => {
@@ -114,9 +114,9 @@ impl AdmittedTerminalProgram<'_> {
         let layouts = installation.and_then(|supplies| supplies.target_layouts.as_ref());
         if let Some(layouts) = layouts {
             let machines = installation.and_then(|supplies| supplies.target_machines.as_ref());
-            if layouts.terminal_psi() != self.identity
+            if layouts.terminal_psi() != self.identity.semantic()
                 || machines.is_none_or(|machines| {
-                    machines.terminal_psi() != self.identity
+                    machines.terminal_psi() != self.identity.semantic()
                         || machines.target() != layouts.target()
                 })
             {
@@ -339,7 +339,7 @@ impl<'artifact> TerminalProgram<'artifact> {
         let identity = terminal_codec::terminal_psi_identity(&module)
             .map_err(TerminalArtifactInterpretError::SemanticDecode)?;
         Ok(Self::from_admitted(AdmittedTerminalProgram {
-            identity,
+            identity: terminal_codec::TerminalExecutionIdentity::portable(identity),
             catalogs: std::sync::Arc::new(Cow::Owned(module)),
             target_layouts: None,
         }))
@@ -351,7 +351,7 @@ impl<'artifact> TerminalProgram<'artifact> {
     pub fn borrow(artifact: impl Into<terminal_codec::TerminalExecutionView<'artifact>>) -> Self {
         let artifact = artifact.into();
         Self::from_admitted(AdmittedTerminalProgram {
-            identity: artifact.identity(),
+            identity: artifact.custody_identity(),
             catalogs: std::sync::Arc::new(Cow::Borrowed(artifact.module())),
             target_layouts: None,
         })
@@ -364,7 +364,7 @@ impl<'artifact> TerminalProgram<'artifact> {
             .map_err(TerminalArtifactInterpretError::ArtifactDecode)?;
         let (module, identity) = artifact.into_semantics();
         Ok(Self::from_admitted(AdmittedTerminalProgram {
-            identity,
+            identity: terminal_codec::TerminalExecutionIdentity::portable(identity),
             catalogs: std::sync::Arc::new(Cow::Owned(module)),
             target_layouts: None,
         }))
@@ -372,7 +372,12 @@ impl<'artifact> TerminalProgram<'artifact> {
 
     /// The exact Terminal-Psi identity this program was admitted under.
     pub fn terminal_psi(&self) -> TerminalPsiIdentity {
-        self.program.identity
+        self.program.identity.semantic()
+    }
+
+    /// Exact code custody, including the live owner of invocation-only code.
+    pub fn execution_identity(&self) -> &terminal_codec::TerminalExecutionIdentity {
+        &self.program.identity
     }
 
     /// Admit receiving-host supply choices against this immutable program.
@@ -385,15 +390,15 @@ impl<'artifact> TerminalProgram<'artifact> {
         &self,
         request: crate::effects::TerminalRuntimeSupplyRequest<'_>,
     ) -> Result<crate::effects::TerminalRuntimeSupplies, TerminalInterpretError> {
-        if request
-            .installation
-            .is_some_and(|installation| installation.terminal_psi() != self.program.identity)
-        {
+        if request.installation.is_some_and(|installation| {
+            terminal_codec::TerminalExecutionIdentity::portable(installation.terminal_psi())
+                != self.program.identity
+        }) {
             return Err(TerminalInterpretError::ProviderInstallationIdentityMismatch);
         }
         if request
             .target_machines
-            .is_some_and(|selected| selected.terminal_psi() != self.program.identity)
+            .is_some_and(|selected| selected.terminal_psi() != self.program.identity.semantic())
         {
             return Err(TerminalInterpretError::TargetMachineSelectionIdentityMismatch);
         }
@@ -403,7 +408,7 @@ impl<'artifact> TerminalProgram<'artifact> {
             .unwrap_or_else(|| TerminalRuntimeSupplies {
                 x86_flags: None,
                 memory_ordering: None,
-                terminal_psi: self.program.identity,
+                code_identity: self.program.identity.clone(),
                 entry: None,
                 supplies: BTreeMap::new(),
                 assumed_bindings: Vec::new(),
@@ -457,7 +462,7 @@ impl<'artifact> TerminalProgram<'artifact> {
         mut installation: TerminalRuntimeSupplies,
         boundary: BoundaryMachineId,
     ) -> Result<TerminalRuntimeSupplies, TerminalInterpretError> {
-        if installation.terminal_psi != self.program.identity {
+        if installation.code_identity != self.program.identity {
             return Err(TerminalInterpretError::ProviderInstallationIdentityMismatch);
         }
         self.select_external_supply(
@@ -625,7 +630,7 @@ impl<'artifact> TerminalProgram<'artifact> {
             return std::sync::Arc::clone(&self.program);
         };
         std::sync::Arc::new(AdmittedTerminalProgram {
-            identity: self.program.identity,
+            identity: self.program.identity.clone(),
             catalogs: std::sync::Arc::clone(&self.program.catalogs),
             target_layouts: Some(std::sync::Arc::clone(layouts)),
         })

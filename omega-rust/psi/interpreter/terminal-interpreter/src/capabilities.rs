@@ -86,7 +86,7 @@ pub(crate) fn check_with_private_entry_ram(
         return Err(TerminalInterpretError::TargetLayoutSelectionIdentityMismatch);
     }
     if private_entry_ram.iter().any(|recipe| {
-        recipe.terminal() != program.identity
+        recipe.terminal() != program.identity.semantic()
             || recipe.input().machine != entry
             || !program.catalogs.placed_view_inputs.contains(recipe.input())
     }) {
@@ -475,7 +475,7 @@ mod tests {
         module.machines.push(machine(0, Vec::new()));
         let identity = terminal_codec::terminal_psi_identity(&module).unwrap();
         let mut program = AdmittedTerminalProgram {
-            identity,
+            identity: terminal_codec::TerminalExecutionIdentity::portable(identity),
             catalogs: std::sync::Arc::new(std::borrow::Cow::Owned(module)),
             target_layouts: None,
         };
@@ -850,7 +850,7 @@ mod tests {
         let installation = TerminalRuntimeSupplies {
             x86_flags: None,
             memory_ordering: None,
-            terminal_psi: program.identity,
+            code_identity: program.identity.clone(),
             entry: None,
             supplies: BTreeMap::from([(
                 boundary,
@@ -1087,7 +1087,7 @@ mod tests {
         let mut installation = TerminalRuntimeSupplies {
             x86_flags: None,
             memory_ordering: None,
-            terminal_psi: program.identity,
+            code_identity: program.identity.clone(),
             entry: None,
             supplies: BTreeMap::from([(boundary, AdmittedBoundarySupply::CheckedProvider(target))]),
             assumed_bindings: Vec::new(),
@@ -1106,8 +1106,10 @@ mod tests {
                 external_completions: Vec::new(),
             }
         );
-        installation.terminal_psi.program_fingerprint =
-            terminal_psi::SemanticFingerprint::from_bytes([1; 32]);
+        let mut wrong_identity = installation.code_identity.semantic();
+        wrong_identity.program_fingerprint = terminal_psi::SemanticFingerprint::from_bytes([1; 32]);
+        installation.code_identity =
+            terminal_codec::TerminalExecutionIdentity::portable(wrong_identity);
         assert_eq!(
             check(&program, Some(&installation)),
             Err(TerminalInterpretError::ProviderInstallationIdentityMismatch)

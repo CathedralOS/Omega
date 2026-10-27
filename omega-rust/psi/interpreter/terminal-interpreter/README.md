@@ -53,7 +53,10 @@ pre-entry supply plan. It supplies neither executable code nor a host adapter;
 a premature call fails. `bind_component` can complete that reservation while
 the original receiver is parked at a checked host-readiness crossing, using the
 same sealed import/export admission and fully prepared component closure as
-pre-entry installation. Fuel pauses and failed activations cannot authorize the
+pre-entry installation. Receiving code may remain invocation-private: both the
+selection and execution plan retain its full code-owner identity. Equal semantic
+bytes from another private owner cannot reuse either, and native consumers
+require portable receiver identity. Fuel pauses and failed activations cannot authorize the
 change; an established slot cannot be rebound. The source-produced
 `terminal_effect_readiness` test covers retained and loaded code, actual guest
 provider execution, no prefix replay and premature-call/adapter/rebinding

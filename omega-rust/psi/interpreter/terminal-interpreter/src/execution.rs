@@ -962,7 +962,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                     .get(&demand.boundary)
                     .is_some_and(|admission| {
                         admission.answers(
-                            self.program.identity,
+                            self.program.identity.semantic(),
                             self.process_domain.as_ref(),
                             *demand,
                         )

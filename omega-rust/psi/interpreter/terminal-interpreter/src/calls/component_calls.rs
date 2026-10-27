@@ -46,7 +46,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             provider_boundary: selected.provider_boundary(),
             candidate: selected.candidate(),
         };
-        if selected.receiver() != self.program.identity
+        if selected.receiver() != &self.program.identity
             || selected.receiving_boundary() != *boundary
             || self.boundary_supplies.get(boundary) != Some(&expected_supply)
         {
