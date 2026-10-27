@@ -1363,79 +1363,57 @@ fn recognize_structural_state_leaves_from<'a>(
                     return Some(leaves);
                 }
                 StatementNode::Expression(expression) if !saw_transition => {
-                    let is_tail = execution_position + 1 == execution.len();
-                    let result_type = if is_tail {
-                        state.return_type
-                    } else {
-                        crate::expression_result_type_reference(
-                            program,
-                            invocation,
-                            state,
-                            *expression,
-                        )
-                        .unwrap_or_default()
-                    };
-                    if !is_tail
-                        || matches!(
-                            program
-                                .type_reference_table
-                                .type_reference(state.return_type),
-                            typed_trees::types::TypeReferenceNode::Unit
-                        )
-                    {
-                        let outcomes = judge.normal_completion_paths(
-                            *expression,
-                            &environment,
-                            (invocation, state, result_type),
-                        )?;
-                        let mut leaves = Vec::new();
-                        for completed in outcomes {
-                            leaves.extend(recognize_structural_state_leaves_from(
-                                program,
-                                machine,
-                                &completed,
-                                classification,
-                                diagnostics,
-                                states,
-                                state,
-                                parameter_names,
-                                environment.clone(),
-                                case_hypotheses.clone(),
-                                case_equations.clone(),
-                                pending_citations.clone(),
-                                collect_citations,
-                                path,
-                                fresh,
-                                requirement,
-                                established_guarantees.clone(),
-                                next_statement,
-                            )?);
-                        }
-                        return Some(leaves);
+                    // A terminal expression and an authored terminal arm have
+                    // one result/transfer operation, including Unit completion.
+                    // Normal-return evaluation alone would hide calls from
+                    // prefix observers in deeper declarations.
+                    if execution_position + 1 == execution.len() {
+                        saw_transition = true;
+                        transitions.push((
+                            statement_index,
+                            TerminalArm {
+                                guard: TransitionGuardNode::Always,
+                                exit: TransitionExit::Ordinary,
+                                target: TransitionTargetNode::Value(*expression),
+                                source_target: None,
+                            },
+                        ));
+                        continue;
                     }
-                    let outcomes = phase_profile::scope("05.d.7.3b.1.cap.2d.expr", || {
-                        judge.normal_return_paths(
-                            *expression,
-                            &environment,
-                            (invocation, state, result_type),
-                        )
-                    })?;
+                    let result_type = crate::expression_result_type_reference(
+                        program,
+                        invocation,
+                        state,
+                        *expression,
+                    )
+                    .unwrap_or_default();
+                    let outcomes = judge.normal_completion_paths(
+                        *expression,
+                        &environment,
+                        (invocation, state, result_type),
+                    )?;
                     let mut leaves = Vec::new();
-                    for outcome in outcomes {
-                        if requirement.is_none() {
-                            leaves.push(finalize_structural_case_arm(
-                                program,
-                                machine,
-                                &outcome.judge,
-                                classification,
-                                diagnostics,
-                                parameter_names,
-                                case_hypotheses.clone(),
-                                case_equations.clone(),
-                                pending_citations.clone(),
-                                outcome.value,
-                            ));
-                        }
+                    for completed in outcomes {
+                        leaves.extend(recognize_structural_state_leaves_from(
+                            program,
+                            machine,
+                            &completed,
+                            classification,
+                            diagnostics,
+                            states,
+                            state,
+                            parameter_names,
+                            environment.clone(),
+                            case_hypotheses.clone(),
+                            case_equations.clone(),
+                            pending_citations.clone(),
+                            collect_citations,
+                            path,
+                            fresh,
+                            requirement,
+                            established_guarantees.clone(),
+                            next_statement,
+                        )?);
                     }
                     return Some(leaves);
                 }
@@ -1478,7 +1456,18 @@ fn recognize_structural_state_leaves_from<'a>(
                     {
                         return None;
                     }
-                    transitions.push((statement_index, transition));
+                    transitions.push((
+                        statement_index,
+                        TerminalArm {
+                            guard: transition.guard,
+                            exit: transition.exit,
+                            target: program
+                                .statement_table
+                                .transition_target(transition.target)
+                                .clone(),
+                            source_target: Some(transition.target),
+                        },
+                    ));
                 }
                 // Assertions have their own checked obligations; ignoring an
                 // assertion here cannot introduce its conclusion as a premise.
@@ -1731,12 +1720,13 @@ fn recognize_structural_state_leaves_from<'a>(
                 if matches!(transition.exit, TransitionExit::Crash(_)) {
                     continue;
                 }
-                let target = program.statement_table.transition_target(transition.target);
+                let target = &transition.target;
                 let body_transfer = terminal_body_transfer(
                     program,
                     invocation,
                     state,
-                    transition.target,
+                    target,
+                    transition.source_target,
                     classification,
                 );
                 if let Some((target_state, argument_handles, call_expression)) = body_transfer
@@ -1897,29 +1887,21 @@ fn prefix_site_is_reachable(
         if symbol == observer.site().state {
             return true;
         }
-        for statement in program.statement_table.statements(state.statement_nodes) {
-            let StatementNode::Transition(transition) = statement else {
-                continue;
-            };
-            for target in [transition.target, transition.continuation] {
-                let selected = match program.statement_table.transition_target(target) {
-                    TransitionTargetNode::Named { path, .. } => path.symbol,
-                    TransitionTargetNode::Value(expression) => {
-                        let ExpressionNode::Call(call) =
-                            program.expression_table.expression(*expression)
-                        else {
-                            continue;
-                        };
-                        super::structural_terms::structural_call_target(program, owner.symbol, call)
-                    }
-                    _ => continue,
-                };
+        for (index, _) in program
+            .statement_table
+            .indexed_statements(state.statement_nodes)
+        {
+            for site in crate::machine_calls::calls::collect_call_sites_in_statement(
+                program, owner, state, index,
+            ) {
+                let selected = site.target_symbol(program);
                 let Some((_, destination)) =
                     crate::machine_calls::calls::machine_state_by_symbol(program, selected)
                         .or_else(|| {
                             crate::machine_calls::calls::find_machine_head(program, selected)
                         })
                 else {
+                    // Unknown dispatch cannot justify pruning a source path.
                     return true;
                 };
                 pending.push(destination.symbol);
@@ -1927,6 +1909,15 @@ fn prefix_site_is_reachable(
         }
     }
     false
+}
+
+/// Local execution view: no synthetic source statement or arena identity is
+/// created when a body's final expression supplies its completion operation.
+struct TerminalArm {
+    guard: TransitionGuardNode,
+    exit: TransitionExit,
+    target: TransitionTargetNode,
+    source_target: Option<typed_trees::statement::TransitionTargetHandle>,
 }
 
 /// Terminal source calls and internal control edges have different encodings,
@@ -1937,65 +1928,70 @@ fn terminal_body_transfer<'program>(
     program: &'program dyn crate::CheckingInput,
     invocation: &Machine,
     state: &typed_trees::state::State,
-    target: typed_trees::statement::TransitionTargetHandle,
+    target: &TransitionTargetNode,
+    source_target: Option<typed_trees::statement::TransitionTargetHandle>,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
 ) -> Option<(
     &'program typed_trees::state::State,
     &'program [ExpressionHandle],
     Option<ExpressionHandle>,
 )> {
-    let (callee, entry, arguments, expression) =
-        match program.statement_table.transition_target(target) {
-            TransitionTargetNode::Named {
-                path, arguments, ..
-            } => {
-                if let Some(entry) = crate::machine_calls::calls::named_transition_target_state(
-                    program, invocation, state, target,
-                ) {
-                    return Some((
-                        program.state_by_symbol(entry.symbol)?,
-                        program.statement_table.expression_handles(*arguments),
-                        None,
-                    ));
-                }
-                let (callee, entry) =
-                    crate::machine_calls::calls::find_machine_head(program, path.symbol)?;
-                (
-                    callee,
-                    entry,
+    let (callee, entry, arguments, expression) = match target {
+        TransitionTargetNode::Named {
+            path, arguments, ..
+        } => {
+            if let Some(source_target) = source_target
+                && let Some(entry) = crate::machine_calls::calls::named_transition_target_state(
+                    program,
+                    invocation,
+                    state,
+                    source_target,
+                )
+            {
+                return Some((
+                    program.state_by_symbol(entry.symbol)?,
                     program.statement_table.expression_handles(*arguments),
                     None,
-                )
+                ));
             }
-            TransitionTargetNode::Value(expression) => {
-                let ExpressionNode::Call(call) = program.expression_table.expression(*expression)
-                else {
-                    return None;
-                };
-                let super::specification_calls::SelectedCallContract::Concrete(callee, entry) =
-                    super::specification_calls::selected_call_contract(
-                        program,
-                        invocation.symbol,
+            let (callee, entry) =
+                crate::machine_calls::calls::find_machine_head(program, path.symbol)?;
+            (
+                callee,
+                entry,
+                program.statement_table.expression_handles(*arguments),
+                None,
+            )
+        }
+        TransitionTargetNode::Value(expression) => {
+            let ExpressionNode::Call(call) = program.expression_table.expression(*expression)
+            else {
+                return None;
+            };
+            let super::specification_calls::SelectedCallContract::Concrete(callee, entry) =
+                super::specification_calls::selected_call_contract(
+                    program,
+                    invocation.symbol,
+                    call,
+                )?
+            else {
+                return None;
+            };
+            (
+                callee,
+                entry,
+                crate::call_site_argument_expressions(
+                    program,
+                    &crate::CallSite::Expression {
+                        expression: *expression,
                         call,
-                    )?
-                else {
-                    return None;
-                };
-                (
-                    callee,
-                    entry,
-                    crate::call_site_argument_expressions(
-                        program,
-                        &crate::CallSite::Expression {
-                            expression: *expression,
-                            call,
-                        },
-                    ),
-                    Some(*expression),
-                )
-            }
-            _ => return None,
-        };
+                    },
+                ),
+                Some(*expression),
+            )
+        }
+        _ => return None,
+    };
     (callee.body_is_present
         && callee.supply_mode.is_checked_body()
         && !callee.target_family_interface

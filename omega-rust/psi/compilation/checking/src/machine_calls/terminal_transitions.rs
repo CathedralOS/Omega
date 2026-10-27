@@ -15,6 +15,9 @@ pub fn normalize_terminal_transition_calls(
     program: &mut TypedTrees,
     first_machine: usize,
     completed_machines: &[symbols::SymbolHandle],
+    captured_arguments: impl Fn(
+        symbols::SymbolHandle,
+    ) -> Vec<typed_trees::expression::StaticMachineArgument>,
 ) {
     let mut targets = Vec::new();
     for (index, machine) in program.machines().iter().enumerate() {
@@ -147,7 +150,9 @@ pub fn normalize_terminal_transition_calls(
                 static_machine_parameter,
                 target: leaf,
                 static_requirement_dispatch: None,
-                machine_arguments: Default::default(),
+                // Resolution supplies the same lifted lexical telescope as
+                // ordinary calls. Runtime parameters remain explicit operands.
+                machine_arguments: captured_arguments(path.symbol).into_boxed_slice(),
                 quotient_operation: None,
                 private_layout_operation: None,
                 layout_query: None,

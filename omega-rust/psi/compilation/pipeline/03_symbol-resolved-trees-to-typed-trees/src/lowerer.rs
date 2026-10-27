@@ -386,6 +386,12 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.typed_machines,
         cohort.completed_machines,
+        |callee| {
+            crate::signatures::lexical_context::captured_arguments(
+                Some(lowerer.source_trees),
+                callee,
+            )
+        },
     );
     bind_dynamic_call_targets(&mut lowerer.typed_trees)
 }
