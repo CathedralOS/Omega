@@ -94,6 +94,10 @@ pub(super) fn scalar_fields(
                 pending.push(Visit::LeaveField);
                 let logical = match field.field_type {
                     StructuralFieldType::Scalar(scalar) => scalar,
+                    StructuralFieldType::BoundedInteger(bounds) => {
+                        ScalarType::Integer(bounds.integer_type())
+                    }
+                    StructuralFieldType::RefinedScalar(refinement) => refinement.carrier(),
                     StructuralFieldType::IeeeFloat(format) => ScalarType::IeeeFloat(format),
                     StructuralFieldType::Structural(child) => {
                         pending.push(Visit::Type(child));

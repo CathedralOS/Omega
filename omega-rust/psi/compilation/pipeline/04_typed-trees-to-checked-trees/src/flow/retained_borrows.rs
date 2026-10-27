@@ -18,6 +18,7 @@ pub(super) fn handbacks(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     call: &BorrowCallFact,
+    argument_sources: Option<&super::call_phases::ArgumentSources<'_, '_>>,
 ) -> Vec<RetainedBorrowHandback> {
     let Some(recorded) = borrow
         .call_at(
@@ -84,7 +85,8 @@ pub(super) fn handbacks(
     };
     let mut holders = Vec::new();
     for (position, parameter) in parameters.iter().enumerate() {
-        if returned.contains(&position)
+        if !argument_sources.is_some_and(|sources| sources.observation_survives(position, &[]))
+            || returned.contains(&position)
             || validation::reference_shell(program, parameter.type_reference).is_some()
             || !validation::borrow_contracts::is_borrow_carrying_data(
                 program,
