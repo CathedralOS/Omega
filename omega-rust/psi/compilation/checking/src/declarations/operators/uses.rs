@@ -115,18 +115,25 @@ pub fn collect_pre_specialization_operator_selections(
     }
 }
 
+/// The retained facts of one occurrence-deduplicated operator walk: the
+/// operator, named and candidate rows of a single visit share one sink.
+#[derive(Default)]
+struct OperatorUseSink {
+    seen: HashSet<(ExpressionHandle, CheckedValueOrigin), symbols::BuildSymbolHasher>,
+    uses: Arena<CheckedOperatorUseFact>,
+    named_uses: Arena<CheckedNamedOperatorUseFact>,
+    candidates: Arena<CheckedOperatorCandidateFact>,
+}
+
 /// The operator and named uses with their candidates, without the requirement
 /// uses and declaration contracts `build_operator_facts` adds.
 pub fn build_operator_uses(
     program: &dyn crate::CheckingInput,
     values: &CheckedValueFacts,
 ) -> CheckedOperatorFacts {
-    let mut uses = Arena::default();
-    let mut named_uses = Arena::default();
-    let mut candidates = Arena::default();
     // Membership only: the walk never iterates this set, so its handle and
     // origin keys take the integer hasher instead of SipHash.
-    let mut seen = HashSet::with_hasher(symbols::BuildSymbolHasher);
+    let mut sink = OperatorUseSink::default();
 
     for (_, value) in values.values.iter() {
         // The recursive walk already visits every child with its enclosing
@@ -136,17 +143,15 @@ pub fn build_operator_uses(
         if matches!(value.origin, CheckedValueOrigin::NestedExpression { .. }) {
             continue;
         }
-        collect_expression_operator_use(
-            program,
-            value.expression,
-            value.origin,
-            &mut seen,
-            &mut uses,
-            &mut named_uses,
-            &mut candidates,
-        );
+        collect_expression_operator_use(program, value.expression, value.origin, &mut sink);
     }
 
+    let OperatorUseSink {
+        uses,
+        named_uses,
+        candidates,
+        ..
+    } = sink;
     CheckedOperatorFacts::with_roots(uses, named_uses, candidates)
 }
 
@@ -154,26 +159,19 @@ fn collect_expression_operator_use(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     origin: CheckedValueOrigin,
-    seen: &mut HashSet<(ExpressionHandle, CheckedValueOrigin), symbols::BuildSymbolHasher>,
-    uses: &mut Arena<CheckedOperatorUseFact>,
-    named_uses: &mut Arena<CheckedNamedOperatorUseFact>,
-    candidates: &mut Arena<CheckedOperatorCandidateFact>,
+    sink: &mut OperatorUseSink,
 ) {
-    if !expression.is_valid() || !seen.insert((expression, origin)) {
+    if !expression.is_valid() || !sink.seen.insert((expression, origin)) {
         return;
     }
 
-    match program.expression_table.expression(expression) {
+    let node = program.expression_table.expression(expression);
+    match node {
+        // A case dispatch contributes one arm-local floating equality use ahead
+        // of each arm, so its arms are walked here; the record/candidate facts
+        // of the other nodes below never depend on an arm order.
         ExpressionNode::Match(dispatch) => {
-            collect_expression_operator_use(
-                program,
-                dispatch.subject,
-                origin,
-                seen,
-                uses,
-                named_uses,
-                candidates,
-            );
+            collect_expression_operator_use(program, dispatch.subject, origin, sink);
             let subject_type =
                 expression_type_reference_for_origin(program, dispatch.subject, origin);
             let floating_subject = subject_type
@@ -201,68 +199,31 @@ fn collect_expression_operator_use(
                                 subject_type,
                                 expression_type_reference_for_origin(program, pattern, origin),
                             ],
-                            candidates,
+                            &mut sink.candidates,
                         );
                         equality.occurrence =
                             checked_trees::CheckedOperatorOccurrence::MatchEquality { source_arm };
-                        uses.append(equality);
+                        sink.uses.append(equality);
                     }
                 }
                 for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
-                    collect_expression_operator_use(
-                        program, pattern, origin, seen, uses, named_uses, candidates,
-                    );
+                    collect_expression_operator_use(program, pattern, origin, sink);
                 }
-                collect_expression_operator_use(
-                    program, arm.value, origin, seen, uses, named_uses, candidates,
-                );
+                collect_expression_operator_use(program, arm.value, origin, sink);
             }
+            return;
         }
-        ExpressionNode::Atomic(atomic) => collect_expression_operator_use(
-            program,
-            atomic.value,
-            origin,
-            seen,
-            uses,
-            named_uses,
-            candidates,
-        ),
         ExpressionNode::Indexed(indexed) => {
             let spelling = indexed_operator_spelling(program, indexed.index);
             let operand_types = indexed_operand_types(program, indexed, origin);
-            uses.append(operator_use_fact(
+            sink.uses.append(operator_use_fact(
                 program,
                 expression,
                 origin,
                 spelling,
                 &operand_types,
-                candidates,
+                &mut sink.candidates,
             ));
-            collect_expression_operator_use(
-                program,
-                indexed.collection,
-                origin,
-                seen,
-                uses,
-                named_uses,
-                candidates,
-            );
-            collect_expression_operator_use(
-                program,
-                indexed.index,
-                origin,
-                seen,
-                uses,
-                named_uses,
-                candidates,
-            );
-        }
-        ExpressionNode::ArrayLiteral(values) => {
-            for value in program.expression_table.expression_handles(*values) {
-                collect_expression_operator_use(
-                    program, *value, origin, seen, uses, named_uses, candidates,
-                );
-            }
         }
         ExpressionNode::Binary(binary) => {
             // Resolve from the complete recoverable operand tuple. A
@@ -281,119 +242,27 @@ fn collect_expression_operator_use(
                     origin,
                     spelling,
                     &operand_types,
-                    candidates,
+                    &mut sink.candidates,
                 )
             {
-                uses.append(fact);
+                sink.uses.append(fact);
             }
-            collect_expression_operator_use(
-                program,
-                binary.left,
-                origin,
-                seen,
-                uses,
-                named_uses,
-                candidates,
-            );
-            collect_expression_operator_use(
-                program,
-                binary.right,
-                origin,
-                seen,
-                uses,
-                named_uses,
-                candidates,
-            );
-        }
-        ExpressionNode::Cast(cast) => {
-            collect_expression_operator_use(
-                program, cast.value, origin, seen, uses, named_uses, candidates,
-            );
         }
         ExpressionNode::Call(call) => {
             if let Some(named_use) = named_operator_use_fact(program, expression, origin, call) {
-                named_uses.append(named_use);
-            }
-            collect_expression_operator_use(
-                program,
-                call.receiver,
-                origin,
-                seen,
-                uses,
-                named_uses,
-                candidates,
-            );
-            for argument in program.expression_table.expression_handles(call.arguments) {
-                collect_expression_operator_use(
-                    program, *argument, origin, seen, uses, named_uses, candidates,
-                );
+                sink.named_uses.append(named_use);
             }
         }
-        ExpressionNode::Member(member) => {
-            collect_expression_operator_use(
-                program,
-                member.receiver,
-                origin,
-                seen,
-                uses,
-                named_uses,
-                candidates,
-            );
-        }
-        ExpressionNode::Borrow(inner) => {
-            collect_expression_operator_use(
-                program,
-                inner.target,
-                origin,
-                seen,
-                uses,
-                named_uses,
-                candidates,
-            );
-        }
-        ExpressionNode::Unary(unary) => {
-            collect_expression_operator_use(
-                program,
-                unary.operand,
-                origin,
-                seen,
-                uses,
-                named_uses,
-                candidates,
-            );
-        }
-        ExpressionNode::Range(range) => {
-            collect_expression_operator_use(
-                program,
-                range.start,
-                origin,
-                seen,
-                uses,
-                named_uses,
-                candidates,
-            );
-            collect_expression_operator_use(
-                program, range.end, origin, seen, uses, named_uses, candidates,
-            );
-        }
-        ExpressionNode::StructLiteral(struct_literal) => {
-            for field in program
-                .expression_table
-                .struct_fields(struct_literal.fields)
-            {
-                collect_expression_operator_use(
-                    program,
-                    field.value,
-                    origin,
-                    seen,
-                    uses,
-                    named_uses,
-                    candidates,
-                );
-            }
-        }
-        ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => {}
+        _ => {}
     }
+
+    // Every remaining node contributes only its executable operand edges. The
+    // shared roster owns which edges those are — record fields, both range
+    // endpoints, case arm bodies, array elements, call arguments and a folded
+    // atomic carrier — so this walk no longer restates the node taxonomy.
+    crate::expression_traversal::executable_children(program, node, |child| {
+        collect_expression_operator_use(program, child, origin, sink);
+    });
 }
 
 /// Retain the selected identity of one unambiguously resolved named operator
