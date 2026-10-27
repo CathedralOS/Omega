@@ -581,8 +581,8 @@ defines the complete product bar.
     normal completion and cyclic private arrivals, with the complete callee
     contract (exact actuals/snapshots, live facts and write invalidation,
     result/Unit postconditions, effects/markers, loans, invariant/hole
-    restoration, cleanup, linear custody, and joint SCC ranking across
-    nested/sibling/ancestor/top-level edges without ambient parent entry facts).
+    restoration, cleanup, linear custody, and private helper coordinates for
+    ranged/structural joint SCC measures without ambient parent entry facts).
   - Update Terminal production, codecs/checking, both interpreters, native
     lowering, and WCSU together so runtime cycles remain constant-stack with all
     live backing accounted for.

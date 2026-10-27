@@ -15,6 +15,7 @@
 
 mod component_selection;
 mod graph;
+mod joint_natural;
 mod order;
 mod progress;
 mod ranking;
@@ -63,13 +64,17 @@ pub(crate) fn admit_machine_rankings(
         // A locally acyclic prefix can belong to a recurrent call component.
         // Only a demanded arrival witness adds that obligation: an unused
         // unbounded view cannot reject an ordinary acyclic body.
+        let joint_ranked = components.iter().any(|component| {
+            component.positions.contains(&position)
+                && component.decision.as_ref().is_ok_and(Option::is_some)
+        });
         let needs_judgment = witness.is_some_and(|witness| {
             cycle
                 || witness.rank_range.is_some()
                 || topology
                     .as_ref()
                     .is_some_and(|topology| topology.requires_arrival_witness(position))
-        });
+        }) || joint_ranked;
         let mut local_terminates = machine.supply_mode
             == language_semantics::MachineSupplyMode::CheckedBody
             && !cycle
@@ -167,7 +172,7 @@ pub(crate) fn admit_machine_rankings(
             );
         }
         if local_terminates
-            && witness.is_some()
+            && (witness.is_some() || joint_ranked)
             && admitted.for_body(machine.symbol, machine.states).is_none()
         {
             if let Some(identity) = ranking::RankArrivalAdmission::entry_only(program, machine) {
@@ -181,7 +186,29 @@ pub(crate) fn admit_machine_rankings(
                 }
             }
         }
-        let observations = if local_terminates && witness.is_some() {
+        let joint_observations = components
+            .iter()
+            .filter_map(|component| component.decision.as_ref().ok()?.as_ref())
+            .flat_map(|component| &component.states)
+            .filter(|coordinate| {
+                program
+                    .machine_states(machine)
+                    .iter()
+                    .any(|state| state.symbol == coordinate.state)
+            })
+            .map(|coordinate| checked_trees::CheckedStateNaturalRank {
+                state: coordinate.state,
+                parameter: coordinate.parameter,
+                parameter_position: coordinate.parameter_position,
+                measure: checked_trees::CheckedNaturalRankMeasure::IntegerParameter {
+                    primitive_type: coordinate.primitive_type,
+                },
+                observation: Default::default(),
+            })
+            .collect::<Vec<_>>();
+        let observations = if local_terminates && !joint_observations.is_empty() {
+            admitted.observations.insert_many(joint_observations)
+        } else if local_terminates && witness.is_some() {
             ranking::prepare_natural_observations(program, machine, &admitted)
                 .map(|observations| admitted.observations.insert_many(observations))
                 .unwrap_or_default()

@@ -88,10 +88,15 @@ pub(super) fn natural_rank_plans_for_fused(
         .collect::<Vec<_>>();
     let mut ranks = Vec::new();
     for (owner, state) in fused {
-        if owner.termination_plan.implementation_witness.is_none() {
+        let judgment = admitted.judgment_for_body(owner.symbol, owner.states)?;
+        // A private component member can carry a source-proved coordinate
+        // without authoring a second ranking clause. Read the retained
+        // observation roster rather than reconstructing declaration evidence.
+        if owner.termination_plan.implementation_witness.is_none()
+            && judgment.observations.is_empty()
+        {
             continue;
         }
-        let judgment = admitted.judgment_for_body(owner.symbol, owner.states)?;
         if !judgment.local_terminates {
             return None;
         }

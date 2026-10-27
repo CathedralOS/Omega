@@ -46,6 +46,23 @@ pub(super) fn select(
             source_outcomes: Vec::new(),
         };
     }
+    if let Some(decision) = super::joint_natural::select(program, component, frames) {
+        let admitted = decision.is_ok();
+        return SelectedComponent {
+            positions: component.to_vec(),
+            source_natural: None,
+            bodies: Vec::new(),
+            decision: decision.map(Some),
+            source_outcomes: if admitted {
+                component
+                    .iter()
+                    .map(|position| (*position, ranking::DecreaseOutcome::Proven(None)))
+                    .collect()
+            } else {
+                Vec::new()
+            },
+        };
+    }
     if let Some(result) = super::source_natural::admit(program, component, frames) {
         return match result {
             Ok(source) => SelectedComponent {
