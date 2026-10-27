@@ -17,6 +17,7 @@
 use super::structural_judgment::{StructuralJudge, StructuralTerm};
 use super::structural_prefix::{
     PrefixObservation, StructuralPrefixSite, StructuralPrefixVisitor, observe_runtime_state_prefix,
+    observe_runtime_state_prefixes,
 };
 use crate::ScopedArithmeticValue;
 use crate::proof_contracts::arithmetic_domains::{
@@ -89,7 +90,14 @@ pub fn captured_numeric_observations(
     in_transition_target: bool,
     demand: NumericObservationDemand,
 ) -> CapturedNumericObservations {
-    let memos = crate::frozen_program::frozen_program_memos(program);
+    let memos = crate::frozen_program::frozen_program_memos(program).filter(|_| {
+        program
+            .machine(machine.symbol)
+            .is_some_and(|stored| std::ptr::eq(stored, machine))
+            && program
+                .state_in_machine(machine, state.symbol)
+                .is_some_and(|stored| std::ptr::eq(stored, state))
+    });
     let site: NumericSite = (
         machine.symbol,
         state.symbol,
@@ -103,10 +111,31 @@ pub fn captured_numeric_observations(
     {
         return observations.clone();
     }
+    let statement_count = program.statement_table.statements(state.statement_nodes).len();
+    if let Some(memos) = memos
+        && !in_transition_target
+        && !demand.scalar_values
+        && statement_index <= statement_count
+    {
+        let batch = collect_state_numeric_observations_batch(program, machine, state, demand);
+        let result = batch
+            .get(statement_index)
+            .cloned()
+            .unwrap_or_default();
+        if let Ok(mut completed) = memos.completed_numeric_observations.lock() {
+            for (index, observations) in batch.into_iter().enumerate() {
+                completed.insert(
+                    (machine.symbol, state.symbol, index, false, demand),
+                    observations,
+                );
+            }
+        }
+        return result;
+    }
     // This query's callers are checking orchestration and scalar lowering;
     // the normal-value owner never re-enters either adapter. Optional memos
     // change reuse only: one-shot views retain their original selections.
-    let (observations, complete) = collect_numeric_observations(
+    let (observations, _complete) = collect_numeric_observations(
         program,
         machine,
         state,
@@ -114,15 +143,201 @@ pub fn captured_numeric_observations(
         in_transition_target,
         demand,
     );
-    // An unknown path is unavailable evidence, never a cached
-    // negative that could conceal a later completed observation.
-    if complete
-        && let Some(memos) = memos
+    if let Some(memos) = memos
         && let Ok(mut completed) = memos.completed_numeric_observations.lock()
     {
         completed.insert(site, observations.clone());
     }
     observations
+}
+
+fn finalize_visitor_observations(
+    state: SymbolHandle,
+    demand: NumericObservationDemand,
+    visitor: Observations,
+) -> CapturedNumericObservations {
+    let scalar_values = if demand.scalar_values {
+        visitor
+            .values
+            .into_iter()
+            .filter_map(|(expression, value)| {
+                Some(CapturedScalarObservation {
+                    expression,
+                    value: value?,
+                })
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let integer_operations = visitor
+        .orderings
+        .into_iter()
+        .map(
+            |(expression, minimum, preserves_storage)| CapturedIntegerOperation {
+                state,
+                expression,
+                minimum_difference: minimum,
+                preserves_storage,
+            },
+        )
+        .collect();
+    let scalar_associations = visitor
+        .associations
+        .into_iter()
+        .flat_map(|(expression, places)| {
+            places
+                .into_iter()
+                .map(move |current| CapturedScalarAssociation {
+                    state,
+                    expression,
+                    current,
+                })
+        })
+        .collect();
+    CapturedNumericObservations {
+        scalar_values,
+        integer_operations,
+        scalar_associations,
+    }
+}
+
+fn collect_state_numeric_observations_batch(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    demand: NumericObservationDemand,
+) -> Vec<CapturedNumericObservations> {
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let total_sites = statements.len() + 1;
+    let needs_relations = demand.integer_operations || demand.scalar_associations;
+    let mut statement_candidates = vec![Vec::new(); statements.len()];
+    let mut statement_operations = vec![Vec::new(); statements.len()];
+    let mut statement_results = vec![Vec::new(); statements.len()];
+    let mut state_candidates = Vec::new();
+
+    for (index, statement) in statements.iter().enumerate() {
+        if demand.scalar_associations {
+            let delivered = match statement {
+                typed_trees::statement::StatementNode::LocalData(local) => {
+                    Some(local.initial_value)
+                }
+                typed_trees::statement::StatementNode::Assignment(assignment) => {
+                    Some(assignment.value)
+                }
+                _ => None,
+            };
+            if let Some(delivered) = delivered {
+                CopiedIntegerValue::visit_delivered_values(
+                    program,
+                    delivered,
+                    &mut |expression| {
+                        if crate::expression_result_type_reference(
+                            program, machine, state, expression,
+                        )
+                        .and_then(|reference| program.primitive_type_reference(reference))
+                        .is_some_and(|primitive| primitive.is_fixed_integer())
+                            && !statement_results[index].contains(&expression)
+                        {
+                            statement_results[index].push(expression);
+                        }
+                    },
+                );
+            }
+        }
+        if !demand.scalar_values && !needs_relations {
+            continue;
+        }
+        for (_, root) in program.tables.expression_roots(statement) {
+            let mut expressions = Vec::new();
+            crate::expression_traversal::collect_expression_tree(program, root, &mut expressions);
+            for expression in expressions {
+                if super::observed_projections::integer_storage_read(
+                    program, machine, state, expression,
+                )
+                .is_some()
+                {
+                    if demand.scalar_values && !state_candidates.contains(&expression) {
+                        state_candidates.push(expression);
+                    }
+                    if !demand.scalar_values
+                        && needs_relations
+                        && !statement_candidates[index].contains(&expression)
+                    {
+                        statement_candidates[index].push(expression);
+                    }
+                }
+                if demand.integer_operations
+                    && integer_subtraction(program, machine, state, expression).is_some()
+                    && !statement_operations[index].contains(&expression)
+                {
+                    statement_operations[index].push(expression);
+                }
+            }
+        }
+    }
+
+    let mut visitors = Vec::new();
+    let mut visitor_indices = Vec::new();
+    for statement_index in 0..total_sites {
+        let candidates = if demand.scalar_values {
+            state_candidates.clone()
+        } else if needs_relations && statement_index < statements.len() {
+            std::mem::take(&mut statement_candidates[statement_index])
+        } else {
+            Vec::new()
+        };
+        let operations = if statement_index < statements.len() {
+            std::mem::take(&mut statement_operations[statement_index])
+        } else {
+            Vec::new()
+        };
+        let results = if statement_index < statements.len() {
+            std::mem::take(&mut statement_results[statement_index])
+        } else {
+            Vec::new()
+        };
+        if (!demand.scalar_values || candidates.is_empty())
+            && operations.is_empty()
+            && results.is_empty()
+        {
+            continue;
+        }
+        visitor_indices.push(statement_index);
+        visitors.push(Observations {
+            state: state.symbol,
+            statement_index,
+            in_transition_target: false,
+            wants_scalar_values: demand.scalar_values,
+            candidates,
+            values: Vec::new(),
+            operations,
+            orderings: Vec::new(),
+            results,
+            associations: Vec::new(),
+            complete: true,
+        });
+    }
+
+    let mut results = vec![CapturedNumericObservations::default(); total_sites];
+    if visitors.is_empty() {
+        return results;
+    }
+    let valid = {
+        let mut refs: Vec<&mut dyn StructuralPrefixVisitor> = visitors
+            .iter_mut()
+            .map(|visitor| visitor as &mut dyn StructuralPrefixVisitor)
+            .collect();
+        observe_runtime_state_prefixes(program, machine, state, &mut refs)
+    };
+    for ((statement_index, visitor), is_valid) in
+        visitor_indices.into_iter().zip(visitors).zip(valid)
+    {
+        if is_valid {
+            results[statement_index] = finalize_visitor_observations(state.symbol, demand, visitor);
+        }
+    }
+    results
 }
 
 fn collect_numeric_observations(
@@ -208,6 +423,7 @@ fn collect_numeric_observations(
         state: state.symbol,
         statement_index,
         in_transition_target,
+        wants_scalar_values: demand.scalar_values,
         candidates,
         values: Vec::new(),
         operations,
@@ -299,6 +515,7 @@ struct Observations {
     state: SymbolHandle,
     statement_index: usize,
     in_transition_target: bool,
+    wants_scalar_values: bool,
     candidates: Vec<ExpressionHandle>,
     values: Vec<(ExpressionHandle, Option<ScopedArithmeticValue>)>,
     operations: Vec<ExpressionHandle>,
@@ -568,7 +785,9 @@ impl StructuralPrefixVisitor for Observations {
 
     fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {
         let (program, machine, state, judge, environment) = observation;
-        self.collect(program, machine, state, &judge);
+        if self.wants_scalar_values {
+            self.collect(program, machine, state, &judge);
+        }
         let Some(statement) = program
             .statement_table
             .statement_at(state, self.statement_index)
@@ -584,6 +803,68 @@ impl StructuralPrefixVisitor for Observations {
                 .copied()
                 .filter(|result| !self.candidates.contains(result)),
         );
+        let roots: Vec<_> = program
+            .tables
+            .expression_roots(statement)
+            .into_iter()
+            .map(|(_, expression)| expression)
+            .filter(|expression| expression.is_valid())
+            .collect();
+        if roots.len() > 1
+            && !matches!(statement, typed_trees::statement::StatementNode::Transition(_))
+            && judge.frame_resolver().is_some_and(|frames| {
+                roots.iter().all(|&root| {
+                    frames
+                        .expression_write_frame(machine, root)
+                        .complete_paths()
+                        .is_some_and(|paths| paths.is_empty())
+                })
+            })
+        {
+            let last_root = *roots.last().unwrap();
+            let reference =
+                crate::expression_result_type_reference(program, machine, state, last_root)
+                    .unwrap_or(state.return_type);
+            if let Some(observations) = judge.completed_observations(
+                self.statement_index,
+                last_root,
+                environment,
+                (machine, state, reference),
+                &requested,
+                &self.operations,
+            ) {
+                for entry in observations.operations {
+                    let Some(arguments) = entry.observed_arguments() else {
+                        continue;
+                    };
+                    self.collect_ordering(
+                        program,
+                        machine,
+                        state,
+                        entry.expression,
+                        &arguments,
+                        &entry.judge,
+                    );
+                }
+                let results = self
+                    .results
+                    .iter()
+                    .copied()
+                    .filter(|result| {
+                        roots.iter().any(|&root| {
+                            crate::expression_owners::expression_contains(program, root, *result)
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                for outcome in observations.paths {
+                    if self.wants_scalar_values {
+                        self.collect(program, machine, state, &outcome);
+                    }
+                    self.collect_associations(program, machine, state, &results, &outcome);
+                }
+                return;
+            }
+        }
         // The normal-value owner installs each root's completed leading roots
         // itself, including ordered call arguments and guard/target context.
         for (_, expression) in program.tables.expression_roots(statement) {
@@ -628,7 +909,9 @@ impl StructuralPrefixVisitor for Observations {
                 })
                 .collect::<Vec<_>>();
             for outcome in observations.paths {
-                self.collect(program, machine, state, &outcome);
+                if self.wants_scalar_values {
+                    self.collect(program, machine, state, &outcome);
+                }
                 self.collect_associations(program, machine, state, &results, &outcome);
             }
         }

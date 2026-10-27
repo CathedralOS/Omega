@@ -61,6 +61,7 @@ pub struct BlockSlotSummary {
     pub events: Vec<BlockSlotEvent>,
     pub loads: Vec<(VirtualRegisterId, usize)>,
     non_load_register_bits: Vec<u64>,
+    loads_register_bits: Vec<u64>,
 }
 
 impl BlockSlotSummary {
@@ -75,6 +76,11 @@ impl BlockSlotSummary {
     #[inline]
     pub fn non_load_register_bits(&self) -> &[u64] {
         &self.non_load_register_bits
+    }
+
+    #[inline]
+    pub fn loads_register_bits(&self) -> &[u64] {
+        &self.loads_register_bits
     }
 }
 
@@ -106,6 +112,11 @@ struct BlockLookup {
     maximum_instruction: SelectedInstructionId,
     operand_count: Option<usize>,
     transport_count: Option<usize>,
+    implicit_use_mask: u64,
+    upward_unit_uses_mask: u64,
+    unit_kills_mask: u64,
+    fixed_views_mask: u64,
+    has_high_units_or_views: bool,
     implicit_use_units: Vec<register_model::RegisterUnitId>,
     upward_unit_uses: Vec<register_model::RegisterUnitId>,
     unit_kills: Vec<register_model::RegisterUnitId>,
@@ -118,6 +129,8 @@ struct BlockLookup {
     virtual_kills_bits: Vec<u64>,
     has_constraint_operands: bool,
     register_instruction_spans: Vec<(u32, u32)>,
+    copy_affinities: Vec<super::CopyAffinity>,
+    has_malformed_copy: bool,
 }
 impl BlockEntry {
     fn new(block: SelectedBlock) -> Arc<Self> {
@@ -175,6 +188,8 @@ impl BlockEntry {
             let mut upward_virtual_uses_bits = Vec::with_capacity(bitset_words);
             let mut virtual_kills_bits = Vec::with_capacity(bitset_words);
             let mut has_constraint_operands = false;
+            let mut copy_affinities = Vec::new();
+            let mut has_malformed_copy = false;
             let record_spans = self.block.instructions.len() >= 64;
             let mut register_instruction_spans: Vec<(u32, u32)> = if record_spans {
                 Vec::with_capacity(self.block.instructions.len())
@@ -213,6 +228,20 @@ impl BlockEntry {
                 }
                 if !instruction.clobbers.is_empty() || !instruction.implicit_defs.is_empty() {
                     unit_writer_indices.push(index);
+                }
+                if instruction.kind == super::SelectedInstructionKind::CopyI64 {
+                    if let [source, destination] = instruction.operands.as_slice() {
+                        if source.virtual_register != destination.virtual_register {
+                            copy_affinities.push(super::CopyAffinity {
+                                block: self.block.id,
+                                instruction: instruction.id,
+                                source: source.virtual_register,
+                                destination: destination.virtual_register,
+                            });
+                        }
+                    } else {
+                        has_malformed_copy = true;
+                    }
                 }
                 if matches!(
                     instruction.kind,
@@ -389,6 +418,13 @@ impl BlockEntry {
                     }
                 }
             }
+            let has_high_units_or_views = !implicit_use_units.is_empty()
+                || !upward_unit_uses.is_empty()
+                || !unit_kills.is_empty()
+                || !fixed_views.is_empty();
+            if copy_affinities.len() > 1 {
+                copy_affinities.sort_unstable();
+            }
             let mut m = implicit_use_mask;
             while m != 0 {
                 let bit = m.trailing_zeros() as u16;
@@ -427,6 +463,11 @@ impl BlockEntry {
                 maximum_instruction: maximum,
                 operand_count,
                 transport_count,
+                implicit_use_mask,
+                upward_unit_uses_mask,
+                unit_kills_mask,
+                fixed_views_mask,
+                has_high_units_or_views,
                 implicit_use_units,
                 upward_unit_uses,
                 unit_kills,
@@ -439,6 +480,8 @@ impl BlockEntry {
                 virtual_kills_bits,
                 has_constraint_operands,
                 register_instruction_spans,
+                copy_affinities,
+                has_malformed_copy,
             }
         })
     }
@@ -449,6 +492,7 @@ impl BlockEntry {
                 events: Vec::new(),
                 loads: Vec::new(),
                 non_load_register_bits: Vec::with_capacity(bitset_words),
+                loads_register_bits: Vec::with_capacity(bitset_words),
             };
             for (index, instruction) in self.block.instructions.iter().enumerate() {
                 match instruction.kind {
@@ -518,6 +562,10 @@ impl BlockEntry {
                         for operand in &instruction.operands {
                             if operand.access == register_model::RegisterOperandAccess::Use {
                                 slot_summary.loads.push((operand.virtual_register, index));
+                                set_register_bit(
+                                    &mut slot_summary.loads_register_bits,
+                                    operand.virtual_register,
+                                );
                             } else {
                                 set_register_bit(
                                     &mut slot_summary.non_load_register_bits,
@@ -563,6 +611,10 @@ impl BlockEntry {
                     slot_summary
                         .loads
                         .push((operand.virtual_register, usize::MAX));
+                    set_register_bit(
+                        &mut slot_summary.loads_register_bits,
+                        operand.virtual_register,
+                    );
                 } else {
                     set_register_bit(
                         &mut slot_summary.non_load_register_bits,
@@ -864,6 +916,25 @@ impl SelectedBlocks {
     ) -> Option<(&[register_model::RegisterUnitId], &[register_model::RegisterViewId])> {
         let lookup = self.0.get(block_index)?.lookup();
         Some((&lookup.implicit_use_units, &lookup.fixed_views))
+    }
+    /// Memoized 64-bit masks `(implicit_use_mask, upward_unit_uses_mask, unit_kills_mask, fixed_views_mask, has_high_units_or_views)` per block.
+    pub fn block_unit_masks(&self, block_index: usize) -> Option<(u64, u64, u64, u64, bool)> {
+        let lookup = self.0.get(block_index)?.lookup();
+        Some((
+            lookup.implicit_use_mask,
+            lookup.upward_unit_uses_mask,
+            lookup.unit_kills_mask,
+            lookup.fixed_views_mask,
+            lookup.has_high_units_or_views,
+        ))
+    }
+    /// Memoized sorted `CopyAffinity` rows and whether any `CopyI64` in `block_index` has a malformed operand slice.
+    pub fn block_copy_affinities(
+        &self,
+        block_index: usize,
+    ) -> Option<(&[super::CopyAffinity], bool)> {
+        let lookup = self.0.get(block_index)?.lookup();
+        Some((&lookup.copy_affinities, lookup.has_malformed_copy))
     }
     /// Memoized upward-exposed unit uses and unit kills per block.
     pub fn block_unit_transfer(

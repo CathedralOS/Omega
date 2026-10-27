@@ -67,7 +67,11 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
     let mut rows = Vec::new();
     let mut preserved = Vec::new();
     let mut guarantees = Vec::new();
-    let parameter_claims = build.call_parameter_identities.get(&key).cloned();
+    let param_key = (
+        borrow_call.target_symbol,
+        selected.map_or(0, |s| std::ptr::from_ref(s) as usize),
+    );
+    let parameter_claims = build.call_parameter_identities.get(&param_key).cloned();
     for (argument_position, parameter) in parameters.iter().enumerate() {
         let referent =
             crate::checks::contracts::exclusive_referent_type(program, parameter.type_reference);

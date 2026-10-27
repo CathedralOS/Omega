@@ -197,7 +197,7 @@ pub(super) struct FlowBuildContext<'plans> {
     /// Result contracts are invocation-owned: a shared requirement target
     /// does not imply the same applied local index tuple.
     pub(super) call_result_identities: HashMap<
-        (SymbolHandle, typed_trees::expression::ExpressionHandle),
+        (SymbolHandle, usize),
         Rc<
             Vec<(
                 Vec<facts::PlaceSegment>,
@@ -223,7 +223,7 @@ pub(super) struct FlowBuildContext<'plans> {
     /// Out-parameter `ensures <parameter> in D` rows per invocation: the same
     /// program-pure contract collection as `call_result_identities`.
     pub(super) call_parameter_identities: HashMap<
-        (SymbolHandle, SymbolHandle, usize, usize),
+        (SymbolHandle, usize),
         Rc<Vec<(usize, SymbolHandle, language_semantics::SemanticDomainId)>>,
     >,
     /// Provable `(field path, domain)` reseed rows a readable `&mut`
