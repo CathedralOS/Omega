@@ -1,6 +1,23 @@
 //! Source guards for the application/compiler ownership boundary.
 
 #[test]
+fn readiness_prepares_helper_products_without_recursive_dependency_calls() {
+    let source = include_str!("build_execution/source_resolution/readiness.rs");
+    let preparation = source
+        .split_once("fn prepare_product(")
+        .expect("helper Product entrance")
+        .1
+        .split_once("fn prepared_product(")
+        .expect("retained Product lookup")
+        .0;
+    assert!(!preparation.contains("self.prepare_product("));
+    assert!(preparation.contains("while let Some(current) = pending.last_mut()"));
+    assert!(preparation.contains("self.complete_product(current)?"));
+    assert!(source.contains(".with_complete_dependency_generated_sources(generated)"));
+    assert!(source.contains("*source == position && *scope == purpose"));
+}
+
+#[test]
 fn package_audit_owns_session_and_target_execution_in_build() {
     let mut application = include_str!("package_inspection.rs");
     for operation in [

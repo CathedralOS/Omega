@@ -376,7 +376,11 @@ completion accepts the exact returned Build, never an execution callback or a
 checked-tree sidecar. Target-local refusals and post-Build discovery remain in
 their outcomes. Explicit provider readiness retains the suspended activation
 while its named dependency is acquired, settled and compiled to Terminal Psi,
-then installs that exact implementation before resuming. The final source join
+then installs that exact implementation before resuming. Helper Product
+preparation uses an explicit dependency-first frontier, retaining
+generated bundles by package and purpose without recursive preparation calls.
+Source acquisition and checking still retain recursive walks; this frontier does
+not remove the existing large compiler stack reservation. The final source join
 also reconciles helper graphs retained with workspace declaration observations;
 unselected members' pending Product requests stay inert. Package locks retain
 catalog execution custody separately from Product routing. Applied/inherited

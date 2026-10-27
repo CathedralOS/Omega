@@ -1,0 +1,16 @@
+use omega::language::core::program_image;
+use left;
+use right;
+
+public TestImage satisfies ProgramImage {
+    machine retained_suffix_start() -> addr {
+        let first: addr = left::left_value();
+        let second: addr = right::right_value();
+        transition first == second {
+            true -> same(first)
+            _ -> different()
+        }
+        machine same(value: addr) -> addr { value }
+        machine different() -> addr { 128 }
+    }
+}

@@ -42,6 +42,20 @@ struct QueryDependencies {
     selections: Vec<build_evaluation::BuildDependencySelection>,
 }
 
+/// Invocation scratch for one Product waiting on its generated-source inputs.
+/// A dependency's completed bundle returns to this frame, not a recursive Rust
+/// call. The same source may still have distinct Build and Product occurrences.
+struct PendingProduct {
+    source: usize,
+    purpose: DependencyPurpose,
+    inputs: package_compilation::PackageCompilationInputs,
+    dependencies: std::collections::btree_set::IntoIter<(
+        semantic_vocabulary::PackageKeyIdentity,
+        DependencyPurpose,
+    )>,
+    generated: Vec<package_compilation::PackageGeneratedSourceBundle>,
+}
+
 pub(super) struct ReadinessScheduler<'session, 'operation> {
     session: &'session mut BuildSession,
     acquisitions: &'session mut BuildSourceAcquisitions<'operation>,
@@ -513,39 +527,96 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
         position: usize,
         purpose: DependencyPurpose,
     ) -> Result<PackageBuild, ProjectSourceResolutionError> {
-        if let Some((_, _, prepared)) = self
-            .products
+        if let Some(prepared) = self.prepared_product(position, purpose)? {
+            return Ok(prepared);
+        }
+        let mut pending = vec![self.pending_product(position, purpose)?];
+        while let Some(current) = pending.last_mut() {
+            if let Some((package, purpose)) = current.dependencies.next() {
+                let dependency = self
+                    .sources
+                    .iter()
+                    .position(|source| source.declared.identity() == package)
+                    .ok_or_else(|| Source("helper dependency has no retained Build".into()))?;
+                if let Some(prepared) = self.prepared_product(dependency, purpose)? {
+                    current
+                        .generated
+                        .push(prepared.generated_source_bundle().clone());
+                } else {
+                    pending.push(self.pending_product(dependency, purpose)?);
+                }
+                continue;
+            }
+
+            let current = pending
+                .pop()
+                .ok_or_else(|| Source("helper preparation lost its pending Product".into()))?;
+            let prepared = self.complete_product(current)?;
+            match pending.last_mut() {
+                Some(parent) => parent
+                    .generated
+                    .push(prepared.generated_source_bundle().clone()),
+                None => return Ok(prepared),
+            }
+        }
+        Err(Source("helper preparation has no Product root".into()))
+    }
+
+    fn prepared_product(
+        &self,
+        position: usize,
+        purpose: DependencyPurpose,
+    ) -> Result<Option<PackageBuild>, ProjectSourceResolutionError> {
+        self.products
             .iter()
             .find(|(source, scope, _)| *source == position && *scope == purpose)
-        {
-            return prepared
-                .select_target(self.profile, prepared.package_inputs().clone())
-                .map_err(Compilation);
-        }
+            .map(|(_, _, prepared)| {
+                prepared.select_target(self.profile, prepared.package_inputs().clone())
+            })
+            .transpose()
+            .map_err(Compilation)
+    }
+
+    fn pending_product(
+        &self,
+        position: usize,
+        purpose: DependencyPurpose,
+    ) -> Result<PendingProduct, ProjectSourceResolutionError> {
         let Some(ResolvedBuild::Settled(completed)) = &self.sources[position].build else {
             return Err(Source(
                 "helper preparation requires its settled dependency graph".into(),
             ));
         };
-        let mut inputs = completed
+        let inputs = completed
             .package_inputs()
             .clone()
             .with_compilation_purpose(purpose)
             .map_err(|errors| Source(format!("helper purpose admission: {errors:?}")))?;
-        let mut generated = Vec::new();
-        for (package, dependency_purpose) in inputs.required_dependency_source_instances() {
-            let dependency = self
-                .sources
-                .iter()
-                .position(|source| source.declared.identity() == package)
-                .ok_or_else(|| Source("helper dependency has no retained Build".into()))?;
-            let build = self.prepare_product(dependency, dependency_purpose)?;
-            generated.push(build.generated_source_bundle().clone());
-        }
-        inputs = inputs
+        let dependencies = inputs.required_dependency_source_instances().into_iter();
+        Ok(PendingProduct {
+            source: position,
+            purpose,
+            inputs,
+            generated: Vec::with_capacity(dependencies.len()),
+            dependencies,
+        })
+    }
+
+    fn complete_product(
+        &mut self,
+        pending: PendingProduct,
+    ) -> Result<PackageBuild, ProjectSourceResolutionError> {
+        let PendingProduct {
+            source,
+            purpose,
+            inputs,
+            generated,
+            ..
+        } = pending;
+        let inputs = inputs
             .with_complete_dependency_generated_sources(generated)
             .map_err(|errors| Source(format!("helper generated source join: {errors:?}")))?;
-        let Some(ResolvedBuild::Settled(completed)) = &mut self.sources[position].build else {
+        let Some(ResolvedBuild::Settled(completed)) = &mut self.sources[source].build else {
             return Err(Source(
                 "helper preparation consumed its settled Build".into(),
             ));
@@ -558,7 +629,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
         let retained = prepared
             .select_target(self.profile, prepared.package_inputs().clone())
             .map_err(Compilation)?;
-        self.products.push((position, purpose, retained));
+        self.products.push((source, purpose, retained));
         Ok(prepared)
     }
 }
