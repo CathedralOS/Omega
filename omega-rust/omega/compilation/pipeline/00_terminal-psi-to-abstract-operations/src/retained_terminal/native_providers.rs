@@ -326,7 +326,7 @@ impl TerminalNativeRealizationProposal {
         let intrinsic_provenance = selection
             .plans()
             .iter()
-            .map(|plan| {
+            .map(|plan| -> Result<_, Vec<Diagnostic>> {
                 if let Some(position) = self
                     .providers()
                     .selection
