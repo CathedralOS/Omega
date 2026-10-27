@@ -7,6 +7,10 @@
 //! private-machine pruning.
 
 use crate::rules::catalog::BuiltInRuleRegistration;
+use optimization_core::{
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleContract,
+    OptimizationSafetyClass,
+};
 use optimization_unit::{
     FuelSettlement, NodeLocation, OptimizationBlock, OptimizationNode, ProvenanceDisposition,
     ProvenanceRewrite, PsiOptimizationFunction, PsiProvenance, PsiRealizationSite,
@@ -44,6 +48,53 @@ pub(super) fn built_in_registrations() -> Vec<BuiltInRuleRegistration> {
         BuiltInRuleRegistration::new(5, UnreachablePrivateMachinePruneRule),
         BuiltInRuleRegistration::new(6, NonAdjacentBlockMergeRule),
     ]
+}
+
+/// The contract every structural control-flow cleanup rule states by hand:
+/// this pass, the scalar roster those rewrites invalidate under structural
+/// identity. Only the rule identity, version and required analyses differ.
+fn control_flow_cleanup_rule_contract(
+    identity: &'static [u8],
+    version: u32,
+    required_analyses: AnalysisSet,
+) -> OptimizationRuleContract {
+    crate::rules::standard_rule_contract(
+        identity,
+        crate::rules::CONTROL_FLOW_CLEANUP_PASS_NAME,
+        version,
+        required_analyses,
+        AnalysisInvalidationSet::new([
+            AnalysisKind::ControlFlowGraph,
+            AnalysisKind::UseDefinition,
+            AnalysisKind::EffectSummaries,
+        ]),
+        OptimizationSafetyClass::StructuralIdentity,
+    )
+}
+
+/// The two cleanup rules whose rewrite reaches past scalar dataflow -- the
+/// conditional fold and the unreachable-machine prune -- publish the call
+/// graph beside the scalar roster. `safety_class` stays the rule's own: the
+/// prune re-expresses the same program, the fold replaces the operation.
+fn call_graph_control_flow_cleanup_rule_contract(
+    identity: &'static [u8],
+    version: u32,
+    required_analyses: AnalysisSet,
+    safety_class: OptimizationSafetyClass,
+) -> OptimizationRuleContract {
+    crate::rules::standard_rule_contract(
+        identity,
+        crate::rules::CONTROL_FLOW_CLEANUP_PASS_NAME,
+        version,
+        required_analyses,
+        AnalysisInvalidationSet::new([
+            AnalysisKind::ControlFlowGraph,
+            AnalysisKind::CallGraph,
+            AnalysisKind::UseDefinition,
+            AnalysisKind::EffectSummaries,
+        ]),
+        safety_class,
+    )
 }
 
 /// One realized-at rewrite shared by every cleanup rule's site stamp: the
