@@ -1810,28 +1810,27 @@ fn recognize_structural_state_leaves_from<'a>(
                                 None,
                             )?
                         };
-                    let subjects =
-                        if judge.requires_value_preservation() {
-                            let frames = judge.frame_resolver()?;
-                            if let Some(expression) = call_expression {
-                                frames.expression_entry_reference_subjects(
+                    let subjects = if judge.requires_value_preservation() {
+                        let frames = judge.frame_resolver()?;
+                        if let Some(expression) = call_expression {
+                            frames.expression_entry_reference_subjects(
+                                invocation,
+                                expression,
+                                target_parameters,
+                            )
+                        } else {
+                            transition.source_target.and_then(|target| {
+                                frames.transition_entry_reference_subjects(
                                     invocation,
-                                    expression,
+                                    target,
                                     target_parameters,
                                 )
-                            } else {
-                                transition.source_target.and_then(|target| {
-                                    frames.transition_entry_reference_subjects(
-                                        invocation,
-                                        target,
-                                        target_parameters,
-                                    )
-                                })
-                            }
-                        } else {
-                            None
+                            })
                         }
-                        .unwrap_or_default();
+                    } else {
+                        None
+                    }
+                    .unwrap_or_default();
                     for frame in target_frames {
                         let arguments = frame.observed_arguments()?;
                         let (target_environment, captured) = frame.judge.bind_invocation(
