@@ -1771,7 +1771,11 @@ fn recognize_structural_state_leaves_from<'a>(
                                 // Unfold checked, observation-free bodies,
                                 // regardless of nesting or result relevance.
                                 // Boundary declarations supply no body evidence.
-                                let callee = program.machine_by_symbol(target.symbol)?;
+                                let (callee, entry) =
+                                    crate::machine_calls::calls::find_machine_head(
+                                        program,
+                                        target.symbol,
+                                    )?;
                                 (callee.body_is_present
                                     && callee.supply_mode.is_checked_body()
                                     && !callee.target_family_interface
@@ -1780,7 +1784,7 @@ fn recognize_structural_state_leaves_from<'a>(
                                         callee,
                                         classification,
                                     ))
-                                .then(|| program.machine_states(callee).first())?
+                                .then_some(entry)
                             })?;
                         if requirement.as_deref().is_some_and(|observer| {
                             observer.site().state == state.symbol
