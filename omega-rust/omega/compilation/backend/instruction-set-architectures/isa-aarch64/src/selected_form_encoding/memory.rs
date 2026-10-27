@@ -3,7 +3,7 @@ use super::{
     Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
     ValidatedAarch64SelectedFormEncoding,
 };
-use crate::selected_form_encoding::selected_forms::resolve_registers;
+use crate::selected_form_encoding::selected_forms::{request_registers, resolve_registers};
 use register_model::RegisterViewId;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::MachineAlternativeFamily;

@@ -6,7 +6,7 @@
 
 use super::plan_words::{self, COND_NE, Instruction};
 use super::{Aarch64SelectedFormEncodingError, ValidatedAarch64SelectedFormEncoding, decode_all};
-use crate::selected_form_encoding::selected_forms::resolve_registers;
+use crate::selected_form_encoding::selected_forms::request_registers;
 use register_model::RegisterViewId;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::MachineAlternativeFamily;
@@ -116,30 +116,15 @@ fn request(
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
 ) -> Result<[u8; 8], Aarch64SelectedFormEncodingError> {
-    if physical.identity() != crate::canonical_aarch64_physical_register_model_identity() {
-        return Err(Aarch64SelectedFormEncodingError::NonCanonicalPhysicalModel);
-    }
-    if alternative
-        != (MachineAlternativeKey {
-            family: MachineAlternativeFamily::CompareByteSequences,
-            variant: 0,
-        })
-    {
-        return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch);
-    }
-    let registers: [u8; 8] = resolve_registers(physical, operands)?
-        .try_into()
-        .map_err(|_| Aarch64SelectedFormEncodingError::OperandCountMismatch)?;
-    // Early-clobber writes may never land on a preserved input or on a
-    // scratch written earlier in the sequence.
-    if registers[..4].contains(&registers[4])
-        || registers[..5].contains(&registers[5])
-        || registers[..6].contains(&registers[6])
-        || registers[..7].contains(&registers[7])
-    {
-        return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-    }
-    Ok(registers)
+    // Operands 4-7 are early-clobber scratch: each is written before the
+    // operands after it are read.
+    request_registers(
+        physical,
+        alternative,
+        MachineAlternativeFamily::CompareByteSequences,
+        operands,
+        4,
+    )
 }
 
 pub(super) fn encode(

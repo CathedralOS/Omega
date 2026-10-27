@@ -8,7 +8,7 @@ use super::{
     MachineAlternativeKey, MachineEncodedControlEffect, MachineEncodedEffects,
     MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
     RegisterViewId, SelectedInstructionKind, ValidatedAarch64SelectedFormEncoding,
-    ValidatedPhysicalRegisterModel, resolve_registers,
+    ValidatedPhysicalRegisterModel, request_registers,
 };
 use selected_instructions::PackedByteWidth;
 
@@ -40,20 +40,17 @@ fn request(
         _ => return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch),
     };
     let width = width.byte_size();
-    if physical.identity() != crate::canonical_aarch64_physical_register_model_identity()
-        || alternative != (MachineAlternativeKey { family, variant: 0 })
-        || byte_offset != displacement
+    let registers: [u8; 3] = request_registers(physical, alternative, family, operands, 2)?;
+    let [base, value, _] = registers;
+    // A load writes the value before it reads the base.
+    if load && base == value {
+        return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+    }
+    if byte_offset != displacement
         || displacement
             .checked_add(u32::from(width) - 1)
             .is_none_or(|last| last > 4095)
     {
-        return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-    }
-    let registers: [u8; 3] = resolve_registers(physical, operands)?
-        .try_into()
-        .map_err(|_| Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
-    let [base, value, scratch] = registers;
-    if scratch == base || scratch == value || (load && base == value) {
         return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
     }
     Ok((load, width, registers))

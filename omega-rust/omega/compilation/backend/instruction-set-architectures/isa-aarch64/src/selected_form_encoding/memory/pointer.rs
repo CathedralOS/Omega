@@ -8,7 +8,7 @@ use super::{
     MachineAlternativeKey, MachineEncodedControlEffect, MachineEncodedEffects,
     MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
     RegisterViewId, SelectedInstructionKind, ValidatedAarch64SelectedFormEncoding,
-    ValidatedPhysicalRegisterModel, resolve_registers,
+    ValidatedPhysicalRegisterModel, request_registers,
 };
 use crate::immediate_offset::{address_word_count, address_words, decode_address_words};
 
@@ -46,19 +46,14 @@ fn request(
         ),
         _ => return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch),
     };
-    if physical.identity() != crate::canonical_aarch64_physical_register_model_identity()
-        || alternative != (MachineAlternativeKey { family, variant: 0 })
-        || byte_offset != displacement
+    let [first, second] = request_registers::<2>(physical, alternative, family, operands, 2)?;
+    if byte_offset != displacement
         || (matches!(kind, SelectedInstructionKind::Store { .. })
             && (!displacement.is_multiple_of(scale) || displacement / scale > 4095))
     {
         return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
     }
-    let registers = resolve_registers(physical, operands)?;
-    let [first, second] = registers.as_slice() else {
-        return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-    };
-    Ok((opcode, scale, *first, *second))
+    Ok((opcode, scale, first, second))
 }
 
 pub(super) fn encode(
