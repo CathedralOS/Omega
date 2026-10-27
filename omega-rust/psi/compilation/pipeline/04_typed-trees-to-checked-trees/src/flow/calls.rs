@@ -872,9 +872,10 @@ fn result_type_carries_identity_rows(
     )
 }
 
-/// The return-type-driven identity rows: declared owned-field domains plus
-/// type-level constraint domains. Independent of the callable's contracts,
-/// so callers may memoize them per return type.
+/// The return-type-driven identity rows: the complete checked child duties
+/// plus type-level constraint domains. Independent of the callable's explicit
+/// contracts, so callers may memoize them per return type. Routed referent
+/// duties are proved independently at the callee's exits, not inferred here.
 fn result_type_domain_rows(
     program: &dyn ::validation::CheckingInput,
     return_type: typed_trees::types::TypeReferenceHandle,
@@ -884,18 +885,7 @@ fn result_type_domain_rows(
     language_semantics::SemanticDomainId,
 )> {
     let mut domains =
-        validation::field_domains::declared_owned_field_domain_identities(program, return_type);
-    // Normal return also proves predicate requirements on readable children,
-    // including stored borrowed views. Transport that checked promise with the
-    // completed result; the owned-only roster deliberately stops at references.
-    // Routed memberships keep their independent owned provenance judgment.
-    domains.extend(
-        validation::field_domains::declared_result_field_domain_paths(program, return_type)
-            .into_iter()
-            .filter(|(_, domain, _)| {
-                crate::checks::contracts::value_provable_domain(program, *domain)
-            }),
-    );
+        validation::field_domains::declared_result_field_domain_identities(program, return_type);
     domains.extend(
         validation::field_domains::domain_constraint_identities(program, return_type)
             .into_iter()

@@ -429,6 +429,26 @@ pub type FieldDomainIdentity = (
     language_semantics::SemanticDomainId,
 );
 
+/// Every declared child duty of a completed result: readable referents and
+/// owned storage retain the same exact paths and applied domain identities.
+/// This is an obligation roster, not evidence of membership. A checked callee
+/// must prove routed rows from its actual completed values or live referents
+/// before its caller can use the corresponding normal-return promise.
+/// A root reference still requires its caller to select the readable referent;
+/// these rows confer no owned claim or authority to follow a pointer.
+pub fn declared_result_field_domain_identities(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Vec<FieldDomainIdentity> {
+    let mut rows = declared_result_field_domain_paths(program, reference);
+    for row in declared_owned_field_domain_identities(program, reference) {
+        if !rows.contains(&row) {
+            rows.push(row);
+        }
+    }
+    rows
+}
+
 /// Declared child obligations, including linear custody and nominal cleanup
 /// hidden by a parent, and paths whose owned layout is unresolved. These paths do not mint
 /// additional claim identities. A whole-value disposition must account for
