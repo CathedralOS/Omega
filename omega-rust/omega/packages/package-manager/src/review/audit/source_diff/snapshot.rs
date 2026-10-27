@@ -2,7 +2,10 @@
 
 use super::diff::{DiffBudget, myers_diff, render_hunks, source_line_count, split_lines};
 use super::output::BoundedOutput;
-use super::{PackageSourcePatchError, PackageSourcePatchLimits, PackageSourcePatchSide};
+use super::{
+    MAXIMUM_BYTES_PER_SNAPSHOT, MAXIMUM_ENTRIES_PER_SNAPSHOT, MAXIMUM_METADATA_BYTES_PER_SNAPSHOT,
+};
+use super::{PackageSourcePatchError, PackageSourcePatchSide};
 use crate::resolution::source::PackageSourceCustody;
 use package_source::local::operations::{
     capture_verified_package_source_snapshot, verify_package_source_snapshot,
@@ -68,7 +71,6 @@ pub(super) fn render_resolution(
 pub(super) fn capture_snapshot(
     custody: &PackageSourceCustody,
     side: PackageSourcePatchSide,
-    limits: PackageSourcePatchLimits,
 ) -> Result<BTreeMap<Vec<u8>, VerifiedPackageSourceEntryKind>, PackageSourcePatchError> {
     custody
         .selection_evidence()
@@ -76,12 +78,8 @@ pub(super) fn capture_snapshot(
         .map_err(|error| PackageSourcePatchError::SourceSelectionCustody { side, error })?;
     let custody_limits = custody.source_limits();
     let review_limits = LocalSourceLimits {
-        max_entries: custody_limits
-            .max_entries
-            .min(limits.maximum_entries_per_snapshot()),
-        max_bytes: custody_limits
-            .max_bytes
-            .min(limits.maximum_bytes_per_snapshot()),
+        max_entries: custody_limits.max_entries.min(MAXIMUM_ENTRIES_PER_SNAPSHOT),
+        max_bytes: custody_limits.max_bytes.min(MAXIMUM_BYTES_PER_SNAPSHOT),
         max_depth: custody_limits.max_depth,
     };
     let entries = match custody.captured_source() {
@@ -110,12 +108,12 @@ pub(super) fn capture_snapshot(
             })
             .ok_or(PackageSourcePatchError::SourceMetadataExceeded {
                 side,
-                maximum_bytes: limits.maximum_metadata_bytes_per_snapshot(),
+                maximum_bytes: MAXIMUM_METADATA_BYTES_PER_SNAPSHOT,
             })?;
-        if metadata_bytes > limits.maximum_metadata_bytes_per_snapshot() {
+        if metadata_bytes > MAXIMUM_METADATA_BYTES_PER_SNAPSHOT {
             return Err(PackageSourcePatchError::SourceMetadataExceeded {
                 side,
-                maximum_bytes: limits.maximum_metadata_bytes_per_snapshot(),
+                maximum_bytes: MAXIMUM_METADATA_BYTES_PER_SNAPSHOT,
             });
         }
         captured.insert(relative_path, kind);

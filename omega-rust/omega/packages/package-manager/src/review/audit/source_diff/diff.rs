@@ -2,7 +2,7 @@
 
 use super::output::{BoundedOutput, render_source_line};
 use super::patch::CONTEXT_LINES;
-use super::{PackageSourcePatchError, PackageSourcePatchLimits};
+use super::{MAXIMUM_DIFF_WORK, MAXIMUM_LINES, MAXIMUM_TRACE_CELLS, PackageSourcePatchError};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct SourceLine<'source> {
@@ -69,11 +69,11 @@ pub(super) struct DiffBudget {
 }
 
 impl DiffBudget {
-    pub(super) const fn new(limits: PackageSourcePatchLimits) -> Self {
+    pub(super) const fn new() -> Self {
         Self {
-            maximum_lines: limits.maximum_lines(),
-            maximum_work: limits.maximum_diff_work(),
-            maximum_trace_cells: limits.maximum_trace_cells(),
+            maximum_lines: MAXIMUM_LINES,
+            maximum_work: MAXIMUM_DIFF_WORK,
+            maximum_trace_cells: MAXIMUM_TRACE_CELLS,
             lines: 0,
             work: 0,
             trace_cells: 0,

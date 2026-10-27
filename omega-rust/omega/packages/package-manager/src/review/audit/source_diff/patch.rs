@@ -7,6 +7,7 @@ use package_source::SourceResolveError;
 use std::collections::BTreeSet;
 use std::fmt;
 
+use super::MAXIMUM_OUTPUT_BYTES;
 use super::diff::DiffBudget;
 use super::output::BoundedOutput;
 use super::snapshot::{
@@ -16,86 +17,6 @@ use super::snapshot::{
 
 const PATCH_SCHEMA: &str = "OMEGA_PACKAGE_SOURCE_PATCH_V1\n";
 pub(super) const CONTEXT_LINES: usize = 3;
-
-/// Independent ceilings for one model-facing source patch.
-///
-/// Snapshot bytes are capped before capture, diff work is counted across all
-/// changed files, and output rejects rather than truncates. These are review
-/// resource limits, not package identity or admission policy.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct PackageSourcePatchLimits {
-    maximum_entries_per_snapshot: usize,
-    maximum_bytes_per_snapshot: u64,
-    maximum_metadata_bytes_per_snapshot: usize,
-    maximum_lines: usize,
-    maximum_diff_work: usize,
-    maximum_trace_cells: usize,
-    maximum_output_bytes: usize,
-}
-
-impl PackageSourcePatchLimits {
-    pub const fn new(
-        maximum_entries_per_snapshot: usize,
-        maximum_bytes_per_snapshot: u64,
-        maximum_metadata_bytes_per_snapshot: usize,
-        maximum_lines: usize,
-        maximum_diff_work: usize,
-        maximum_trace_cells: usize,
-        maximum_output_bytes: usize,
-    ) -> Self {
-        Self {
-            maximum_entries_per_snapshot,
-            maximum_bytes_per_snapshot,
-            maximum_metadata_bytes_per_snapshot,
-            maximum_lines,
-            maximum_diff_work,
-            maximum_trace_cells,
-            maximum_output_bytes,
-        }
-    }
-
-    pub const fn maximum_entries_per_snapshot(self) -> usize {
-        self.maximum_entries_per_snapshot
-    }
-
-    pub const fn maximum_bytes_per_snapshot(self) -> u64 {
-        self.maximum_bytes_per_snapshot
-    }
-
-    pub const fn maximum_metadata_bytes_per_snapshot(self) -> usize {
-        self.maximum_metadata_bytes_per_snapshot
-    }
-
-    pub const fn maximum_lines(self) -> usize {
-        self.maximum_lines
-    }
-
-    pub const fn maximum_diff_work(self) -> usize {
-        self.maximum_diff_work
-    }
-
-    pub const fn maximum_trace_cells(self) -> usize {
-        self.maximum_trace_cells
-    }
-
-    pub const fn maximum_output_bytes(self) -> usize {
-        self.maximum_output_bytes
-    }
-}
-
-impl Default for PackageSourcePatchLimits {
-    fn default() -> Self {
-        Self::new(
-            4_096,
-            16 * 1024 * 1024,
-            4 * 1024 * 1024,
-            250_000,
-            4_000_000,
-            4_000_000,
-            1024 * 1024,
-        )
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum PackageSourcePatchSide {
@@ -239,7 +160,6 @@ impl PackageSourcePatch {
 pub(crate) fn render_package_source_patch(
     baseline: Option<&PackageSourceCustody>,
     candidate: &PackageSourceCustody,
-    limits: PackageSourcePatchLimits,
 ) -> Result<PackageSourcePatch, PackageSourcePatchError> {
     let _stage = timings::stage("source_patch_rendering");
     if baseline.is_some_and(|baseline| baseline.key() != candidate.key()) {
@@ -247,9 +167,9 @@ pub(crate) fn render_package_source_patch(
     }
 
     let baseline_entries = baseline
-        .map(|baseline| capture_snapshot(baseline, PackageSourcePatchSide::Baseline, limits))
+        .map(|baseline| capture_snapshot(baseline, PackageSourcePatchSide::Baseline))
         .transpose()?;
-    let candidate_entries = capture_snapshot(candidate, PackageSourcePatchSide::Candidate, limits)?;
+    let candidate_entries = capture_snapshot(candidate, PackageSourcePatchSide::Candidate)?;
     let baseline_entries = baseline_entries.unwrap_or_default();
     let changed_paths = baseline_entries
         .keys()
@@ -268,7 +188,7 @@ pub(crate) fn render_package_source_patch(
             )
         })
         .count();
-    let mut output = BoundedOutput::new(limits.maximum_output_bytes());
+    let mut output = BoundedOutput::new(MAXIMUM_OUTPUT_BYTES);
     output.push(PATCH_SCHEMA)?;
     output.push("mode ")?;
     output.push(if baseline.is_some() {
@@ -300,7 +220,7 @@ pub(crate) fn render_package_source_patch(
     output.push_usize(incomplete_model_content_entries)?;
     output.push("\n")?;
 
-    let mut budget = DiffBudget::new(limits);
+    let mut budget = DiffBudget::new();
     for path in &changed_paths {
         render_entry(
             &mut output,
