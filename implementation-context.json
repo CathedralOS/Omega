@@ -1,0 +1,151 @@
+{
+  "schema": "qualification-handoff-1",
+  "role": "implementation",
+  "candidate": "040c210f8b482bdc14c0e2ebd597f101d9f56696",
+  "source_revision": "040c210f8b482bdc14c0e2ebd597f101d9f56696",
+  "changed_paths": [],
+  "canonical_context": [
+    {
+      "contract": "wiki/spec/language/state_contracts.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/captured_predicates",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/captured_predicates.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/call_values.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits/scalars/predicates.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/operand_values.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/contextual_cleanup/requirements.rs"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Preserve the completed value inventory and its authenticated selection conditions. Rebind each producer predicate only under conditions where every possible destination candidate has an agreeing alias and epoch. Prove each promoted predicate or required conclusion from independent established premises on every selection; do not enumerate actual combinations or combine incompatible branch contexts.",
+      "passages": [
+        "## Mutation and subject identity\n\nFacts apply to their exact subjects and program points. Assignments first\n[capture their destination place](expressions.md#evaluation-schedule), including\nits selectors and bounds at that program point. They then evaluate the\nright-hand side and its effects, capture transferable evidence, and finally\ninvalidate overlapping destination facts and establish the new value at the\ncaptured place. Right-hand-side mutations invalidate their own overlapping facts\nwhen they occur; the captured selector is not a fact that the selector's live\nbinding still has its earlier value. Uninitialized storage\nhas no assumed zero. Copies transport facts about the captured value, not source\nexpressions to be reevaluated after mutation.\n\nA reference identifies live storage, not its former contents. Replacing a local\nreference binding changes that binding without redirecting aliases made from its\nprevious value. A write through the reference changes the referent, not the\nbinding. Stored reference leaves retain their captured origins until replacement\nor exposure invalidates that relation. Type or lifetime correspondence alone\ndoes not establish a returned reference's storage origin.\n\nCaller-visible mutation summaries include operand evaluation and callee writes.\nA complete empty summary preserves facts; an unknown summary proves no\nnon-interference. Fact invalidation uses storage footprints, while borrow\nauthorization uses the access route. Neither may-write summarie"
+      ],
+      "revision": "040c210f8b482bdc14c0e2ebd597f101d9f56696",
+      "blob": "3f0063b497dff2a77ef78b292b1f3315cf7b22d9"
+    },
+    {
+      "contract": "wiki/spec/terminal-psi/structural_access.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/captured_predicates",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/captured_predicates.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/call_values.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits/scalars/predicates.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/operand_values.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/contextual_cleanup/requirements.rs"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Preserve the completed value inventory and its authenticated selection conditions. Rebind each producer predicate only under conditions where every possible destination candidate has an agreeing alias and epoch. Prove each promoted predicate or required conclusion from independent established premises on every selection; do not enumerate actual combinations or combine incompatible branch contexts.",
+      "passages": [
+        "Before a write or mutating/consuming call invalidates current field facts, a\nlive exact equality between a scalar field and an immutable SSA value\nmay capture the affected scalar occurrences in those facts. The equality must\nmatch the canonical root, complete path and scalar type; it may come from a\nvalidated read, completed store or imported guarantee. Conditional equalities\ncannot supply unconditional substitutions. Correlations keep their whole\nconnective, and any remaining affected storage observation still invalidates\nthe fact. This preserves a saved value's proof without transferring it to a\nnew read. It adds neither an entry-origin claim for private crash checking nor\nan invariant for an unchecked cyclic arrival. Capture replaces facts rather\nthan enumerating combinations of old and new observations."
+      ],
+      "revision": "040c210f8b482bdc14c0e2ebd597f101d9f56696",
+      "blob": "6c00a87b9e24e32011efe09bc95ac2c2abd2ce88"
+    },
+    {
+      "contract": "wiki/spec/terminal-psi/fact_validity.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/captured_predicates",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/captured_predicates.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/call_values.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits/scalars/predicates.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/operand_values.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/contextual_cleanup/requirements.rs"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Preserve the completed value inventory and its authenticated selection conditions. Rebind each producer predicate only under conditions where every possible destination candidate has an agreeing alias and epoch. Prove each promoted predicate or required conclusion from independent established premises on every selection; do not enumerate actual combinations or combine incompatible branch contexts.",
+      "passages": [
+        "## Premise availability\n\nA premise must dominate its use and remain valid on every path to it. Acyclic\nlogical ordering alone does not establish availability.\n\n- An acyclic join may introduce a merge token only from matching valid tokens on\n  every predecessor. A fact from one arm does not survive the join.\n- Cyclic reconvergence requires checked invariant establishment and preservation,\n  not the acyclic merge rule.\n- Scalar block invariant arrival questions come from the semantic predicate\n  roster and every actual incoming edge.\n  Each question is the exact simultaneous successor substitution of the scoped\n  predicate. Every arrival must check before the destination predicate can\n  justify downstream obligations. Integer ranges use this same predicate rule.\n- Each successor applies its own argument-to-parameter substitution.\n- A partial operation establishes its result equation only on its normal\n  successor, after its safety obligation is discharged. That equation cannot\n  prove the operation that creates it.\n- A primitive read may introduce an equality between its copied SSA result and\n  an exact reaching stored SSA value. Every actual predecessor must supply that\n  same value; potentially aliasing writes, unknown call effects, missing stores,\n  and unproved cyclic arrivals prevent introduction. The store/read types and\n  dominance must check independently. Subsequent writes cannot change either\n  captured SSA value. This does not introduce symbolic store summaries or a\n  floating-point equality rule.\n\nThe scalar block-predicate rule generalizes range induction to matching-token\nmerges without introducing a union of path facts. Its prerequisites are\nexact predicate formation/scope, exhaustive arrival reconstruction, checked\narrival derivations, simultaneous substitution, and the existing cyclic cuts.\nNo branch-local identity becomes a destination premise. This revision does not\nclaim a proved universal composition theorem."
+      ],
+      "revision": "040c210f8b482bdc14c0e2ebd597f101d9f56696",
+      "blob": "5159dc678b42b8bb7737f0c60a0a20c966fcd6df"
+    }
+  ],
+  "context_fingerprint": "897ea95aa0bcc62c403d7af6cc0d23719c0d8b6853ab55369a7870665a918fb0",
+  "reinject_context": [
+    {
+      "contract": "wiki/spec/language/state_contracts.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/captured_predicates",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/captured_predicates.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/call_values.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits/scalars/predicates.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/operand_values.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/contextual_cleanup/requirements.rs"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Preserve the completed value inventory and its authenticated selection conditions. Rebind each producer predicate only under conditions where every possible destination candidate has an agreeing alias and epoch. Prove each promoted predicate or required conclusion from independent established premises on every selection; do not enumerate actual combinations or combine incompatible branch contexts.",
+      "passages": [
+        "## Mutation and subject identity\n\nFacts apply to their exact subjects and program points. Assignments first\n[capture their destination place](expressions.md#evaluation-schedule), including\nits selectors and bounds at that program point. They then evaluate the\nright-hand side and its effects, capture transferable evidence, and finally\ninvalidate overlapping destination facts and establish the new value at the\ncaptured place. Right-hand-side mutations invalidate their own overlapping facts\nwhen they occur; the captured selector is not a fact that the selector's live\nbinding still has its earlier value. Uninitialized storage\nhas no assumed zero. Copies transport facts about the captured value, not source\nexpressions to be reevaluated after mutation.\n\nA reference identifies live storage, not its former contents. Replacing a local\nreference binding changes that binding without redirecting aliases made from its\nprevious value. A write through the reference changes the referent, not the\nbinding. Stored reference leaves retain their captured origins until replacement\nor exposure invalidates that relation. Type or lifetime correspondence alone\ndoes not establish a returned reference's storage origin.\n\nCaller-visible mutation summaries include operand evaluation and callee writes.\nA complete empty summary preserves facts; an unknown summary proves no\nnon-interference. Fact invalidation uses storage footprints, while borrow\nauthorization uses the access route. Neither may-write summarie"
+      ],
+      "revision": "040c210f8b482bdc14c0e2ebd597f101d9f56696",
+      "blob": "3f0063b497dff2a77ef78b292b1f3315cf7b22d9"
+    },
+    {
+      "contract": "wiki/spec/terminal-psi/structural_access.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/captured_predicates",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/captured_predicates.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/call_values.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits/scalars/predicates.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/operand_values.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/contextual_cleanup/requirements.rs"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Preserve the completed value inventory and its authenticated selection conditions. Rebind each producer predicate only under conditions where every possible destination candidate has an agreeing alias and epoch. Prove each promoted predicate or required conclusion from independent established premises on every selection; do not enumerate actual combinations or combine incompatible branch contexts.",
+      "passages": [
+        "Before a write or mutating/consuming call invalidates current field facts, a\nlive exact equality between a scalar field and an immutable SSA value\nmay capture the affected scalar occurrences in those facts. The equality must\nmatch the canonical root, complete path and scalar type; it may come from a\nvalidated read, completed store or imported guarantee. Conditional equalities\ncannot supply unconditional substitutions. Correlations keep their whole\nconnective, and any remaining affected storage observation still invalidates\nthe fact. This preserves a saved value's proof without transferring it to a\nnew read. It adds neither an entry-origin claim for private crash checking nor\nan invariant for an unchecked cyclic arrival. Capture replaces facts rather\nthan enumerating combinations of old and new observations."
+      ],
+      "revision": "040c210f8b482bdc14c0e2ebd597f101d9f56696",
+      "blob": "6c00a87b9e24e32011efe09bc95ac2c2abd2ce88"
+    },
+    {
+      "contract": "wiki/spec/terminal-psi/fact_validity.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/captured_predicates",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/captured_predicates.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/call_values.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits/scalars/predicates.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow/operand_values.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/contextual_cleanup/requirements.rs"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Preserve the completed value inventory and its authenticated selection conditions. Rebind each producer predicate only under conditions where every possible destination candidate has an agreeing alias and epoch. Prove each promoted predicate or required conclusion from independent established premises on every selection; do not enumerate actual combinations or combine incompatible branch contexts.",
+      "passages": [
+        "## Premise availability\n\nA premise must dominate its use and remain valid on every path to it. Acyclic\nlogical ordering alone does not establish availability.\n\n- An acyclic join may introduce a merge token only from matching valid tokens on\n  every predecessor. A fact from one arm does not survive the join.\n- Cyclic reconvergence requires checked invariant establishment and preservation,\n  not the acyclic merge rule.\n- Scalar block invariant arrival questions come from the semantic predicate\n  roster and every actual incoming edge.\n  Each question is the exact simultaneous successor substitution of the scoped\n  predicate. Every arrival must check before the destination predicate can\n  justify downstream obligations. Integer ranges use this same predicate rule.\n- Each successor applies its own argument-to-parameter substitution.\n- A partial operation establishes its result equation only on its normal\n  successor, after its safety obligation is discharged. That equation cannot\n  prove the operation that creates it.\n- A primitive read may introduce an equality between its copied SSA result and\n  an exact reaching stored SSA value. Every actual predecessor must supply that\n  same value; potentially aliasing writes, unknown call effects, missing stores,\n  and unproved cyclic arrivals prevent introduction. The store/read types and\n  dominance must check independently. Subsequent writes cannot change either\n  captured SSA value. This does not introduce symbolic store summaries or a\n  floating-point equality rule.\n\nThe scalar block-predicate rule generalizes range induction to matching-token\nmerges without introducing a union of path facts. Its prerequisites are\nexact predicate formation/scope, exhaustive arrival reconstruction, checked\narrival derivations, simultaneous substitution, and the existing cyclic cuts.\nNo branch-local identity becomes a destination premise. This revision does not\nclaim a proved universal composition theorem."
+      ],
+      "revision": "040c210f8b482bdc14c0e2ebd597f101d9f56696",
+      "blob": "5159dc678b42b8bb7737f0c60a0a20c966fcd6df"
+    }
+  ],
+  "context_refresh": true,
+  "checks": [
+    {
+      "id": "context-only",
+      "kind": "build",
+      "command": [
+        "cargo",
+        "check",
+        "--locked",
+        "-p",
+        "typed-trees-to-checked-trees"
+      ],
+      "inputs": [
+        "Cargo.lock",
+        "Cargo.toml",
+        "omega-rust",
+        "rust-toolchain.toml",
+        "wiki/spec/language/state_contracts.md",
+        "wiki/spec/terminal-psi/fact_validity.md",
+        "wiki/spec/terminal-psi/structural_access.md"
+      ],
+      "artifacts": [],
+      "closure_reason": "Implementation context only; nine real programs and invalid controls establish acceptance.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 300
+    }
+  ],
+  "assessments": [],
+  "review_instruction": "Judge behavior against these passages; uncovered semantics need an explicit owner decision. Inspect the candidate diff and check evidence; passage identity alone is not semantic compliance.",
+  "prior_context_retained": false
+}

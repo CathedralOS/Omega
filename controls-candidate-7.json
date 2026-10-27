@@ -1,0 +1,108 @@
+[
+  {
+    "name": "correlated_pair",
+    "invalid": false,
+    "sha256": "8d8d2335d0814d84b47768e0b276afdc8a2f981eacbf74d9a273b8330117a1f5",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/symbolic-join/producer-7/omega",
+      "run",
+      "--both",
+      "build/symbolic-join/controls/correlated_pair/main.omg"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "name": "correlated_pair_invalid",
+    "invalid": true,
+    "sha256": "93028ac991d83c2cfe7f57771c112871684a9f878feefd51435b1585536a01f2",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/symbolic-join/producer-7/omega",
+      "--check",
+      "build/symbolic-join/controls/correlated_pair_invalid/main.omg"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `saved_observation_snapshot_through_local` with 1 diagnostic(s)\n  error: cannot prove requires contract for call same from probe: pair.observed == pair.expected (needs fact `observed == expected` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+  },
+  {
+    "name": "reverse_guarantee",
+    "invalid": false,
+    "sha256": "9441699f37b53595c68b125cef0e4ea6fe1187efb5684689e7f98f9958de64ab",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/symbolic-join/producer-7/omega",
+      "run",
+      "--both",
+      "build/symbolic-join/controls/reverse_guarantee/main.omg"
+    ],
+    "exit": 200,
+    "stdout": "",
+    "stderr": "native compile FAILED:\n  error: cannot compile admitted project: checked compilation failed for package `saved_observation_snapshot_through_local` with 1 diagnostic(s)\n  error: cannot prove requires contract for call same from probe: saved == value (needs fact `observed == expected` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+  },
+  {
+    "name": "uncorrelated_choices",
+    "invalid": true,
+    "sha256": "f7817603f2076661ec3539b5af1e6cf5a8aef2f15c5ef272089c59f05b2e7fe8",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/symbolic-join/producer-7/omega",
+      "--check",
+      "build/symbolic-join/controls/uncorrelated_choices/main.omg"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `saved_observation_snapshot_through_local` with 1 diagnostic(s)\n  error: cannot prove requires contract for call same from probe: saved == expected (needs fact `observed == expected` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+  },
+  {
+    "name": "stale_expected",
+    "invalid": true,
+    "sha256": "b6174191e346614331bd1b28410ffc886bdc9f6bb1d562717647b293cfe8af17",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/symbolic-join/producer-7/omega",
+      "--check",
+      "build/symbolic-join/controls/stale_expected/main.omg"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `saved_observation_snapshot_through_local` with 1 diagnostic(s)\n  error: cannot prove requires contract for call same from probe: saved == expected (needs fact `observed == expected` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+  },
+  {
+    "name": "unreadable_delivery",
+    "invalid": true,
+    "sha256": "78cd0f6ac910c5438827d59ec5d630f3ca598fa6c131ae877a7842312f665050",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/symbolic-join/producer-7/omega",
+      "--check",
+      "build/symbolic-join/controls/unreadable_delivery/main.omg"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `saved_observation_snapshot_through_local` with 3 diagnostic(s)\n  error: machine `invalid` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation\n  error: machine `invalid` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation\n  error: machine `invalid` state `entry` terminal expression expects `u64`, got `match expression`\n    in package `saved_observation_snapshot_through_local`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/symbolic-join/controls/unreadable_delivery/main.omg:4:5\n"
+  },
+  {
+    "name": "wrong_primitive_delivery",
+    "invalid": true,
+    "sha256": "8b4a91c8a07177705f8d2d38453bb17e87487fbca88f2bbd86bfd9b00d5cb189",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/symbolic-join/producer-7/omega",
+      "--check",
+      "build/symbolic-join/controls/wrong_primitive_delivery/main.omg"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `saved_observation_snapshot_through_local` with 1 diagnostic(s)\n  error: machine `invalid` state `entry` terminal expression expects `u64`, got `match expression`\n    in package `saved_observation_snapshot_through_local`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/symbolic-join/controls/wrong_primitive_delivery/main.omg:4:5\n"
+  },
+  {
+    "name": "wrong_reference_delivery",
+    "invalid": true,
+    "sha256": "0948d9d02c476ef6e1db7a0abbed408195bc58c98940b23c79c3d79c6d464294",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/symbolic-join/producer-7/omega",
+      "--check",
+      "build/symbolic-join/controls/wrong_reference_delivery/main.omg"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `saved_observation_snapshot_through_local` with 1 diagnostic(s)\n  error: machine `invalid` state `entry` terminal expression expects `&mut u64`, got `match expression`\n    in package `saved_observation_snapshot_through_local`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/symbolic-join/controls/wrong_reference_delivery/main.omg:4:5\n"
+  }
+]
