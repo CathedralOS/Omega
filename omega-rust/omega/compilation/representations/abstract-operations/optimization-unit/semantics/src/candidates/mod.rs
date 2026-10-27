@@ -242,7 +242,10 @@ pub(crate) fn set_node_effect_link(
 pub(crate) fn land_folded_nodes(
     output: &mut PsiOptimizationUnit,
     machine: semantic_vocabulary::MachineId,
-    folded: Vec<(optimization_unit::NodeLocation, optimization_unit::OptimizationNode)>,
+    folded: Vec<(
+        optimization_unit::NodeLocation,
+        optimization_unit::OptimizationNode,
+    )>,
 ) -> Result<(), OptimizationUnitValidationError> {
     let function = output
         .function_mut(machine)
@@ -257,6 +260,28 @@ pub(crate) fn land_folded_nodes(
             return Err(OptimizationUnitValidationError::CandidateLocationMissing);
         };
         *slot = node;
+    }
+    Ok(())
+}
+
+/// The sweep every landing ends with: run `per_node` on each node of
+/// `function`, rebuild the node's derived surfaces from the operation it now
+/// carries, and re-stamp the function-wide effect sequence. A family that
+/// landed whole nodes with no per-node edit passes `|_| Ok(())`.
+pub(crate) fn sweep_output_nodes(
+    function: &mut PsiOptimizationFunction,
+    mut per_node: impl FnMut(
+        &mut optimization_unit::OptimizationNode,
+    ) -> Result<(), OptimizationUnitValidationError>,
+) -> Result<(), OptimizationUnitValidationError> {
+    let mut effect = 0u64;
+    for block in &mut function.blocks {
+        let block_id = block.id;
+        for (node_index, node) in block.nodes.iter_mut().enumerate() {
+            per_node(node)?;
+            rebuild_node_metadata(node, block_id, node_index)?;
+            effect = set_node_effect_link(node, effect)?;
+        }
     }
     Ok(())
 }

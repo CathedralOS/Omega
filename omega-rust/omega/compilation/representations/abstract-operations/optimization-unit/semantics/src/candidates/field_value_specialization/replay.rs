@@ -29,8 +29,7 @@ use crate::candidates::state_specialization::cyclic_machines;
 use crate::candidates::structural_bindings::bound_place;
 use crate::candidates::{
     accept_region_rewrite, candidate_function, canonicalize_provenance, land_folded_nodes,
-    rebuild_node_metadata, receiver_custody_distinct, retirable_scalar_node, retire_node_custody,
-    set_node_effect_link,
+    receiver_custody_distinct, retirable_scalar_node, retire_node_custody, sweep_output_nodes,
 };
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use abstract_operations::AbstractOperation as O;
@@ -472,13 +471,7 @@ pub(super) fn validate(
                     retire_node_custody(block, index)?;
                 }
             }
-            let mut effect = 0u64;
-            for block in &mut output_function.blocks {
-                for (node_index, node) in block.nodes.iter_mut().enumerate() {
-                    rebuild_node_metadata(node, block.id, node_index)?;
-                    effect = set_node_effect_link(node, effect)?;
-                }
-            }
+            sweep_output_nodes(output_function, |_| Ok(()))?;
             Ok(())
         },
     )

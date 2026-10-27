@@ -9,8 +9,8 @@ use optimization_unit::{
 
 use super::operation_partition::independently_validated_dead_scalar_shape;
 use crate::candidates::{
-    accept_region_rewrite, candidate_block, candidate_function, rebuild_node_metadata,
-    receiver_custody_distinct, retirable_scalar_node, retire_node_custody, set_node_effect_link,
+    accept_region_rewrite, candidate_block, candidate_function, receiver_custody_distinct,
+    retirable_scalar_node, retire_node_custody, sweep_output_nodes,
 };
 
 pub(super) fn validate_dead_scalar_node_candidate(
@@ -112,13 +112,7 @@ pub(super) fn validate_dead_scalar_node_candidate(
                 .block_mut(patch.location.block)
                 .expect("candidate block exists");
             retire_node_custody(output_block, node_index)?;
-            let mut effect = 0u64;
-            for block in &mut output_function.blocks {
-                for (node_index, node) in block.nodes.iter_mut().enumerate() {
-                    rebuild_node_metadata(node, block.id, node_index)?;
-                    effect = set_node_effect_link(node, effect)?;
-                }
-            }
+            sweep_output_nodes(output_function, |_| Ok(()))?;
             Ok(())
         },
     )

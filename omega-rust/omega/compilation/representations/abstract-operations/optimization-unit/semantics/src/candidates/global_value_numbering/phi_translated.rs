@@ -3,12 +3,8 @@ use crate::candidates::accept_region_rewrite;
 use crate::candidates::global_value_numbering::ScalarCseProofClass;
 use crate::candidates::retire_node_custody;
 use crate::candidates::rewrite_accounting::common_subexpression::reconstruct_phi_translated_cse_accounting;
-use crate::candidates::rewrite_accounting::preserve_edge_custody;
 use crate::candidates::rewrite_accounting::substitutions::{
     rewrite_scalar_value_uses, rewrite_successor_operation,
-};
-use crate::unit_validation::derived_metadata::{
-    expected_definitions, expected_ownership, expected_uses,
 };
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use optimization_core::{
@@ -25,7 +21,7 @@ use super::dominance_reconstruction::independent_reachable_dominators;
 use super::expression_keys::{
     independent_compatible_policy_scalar_leader, independent_compatible_policy_scalar_redundant,
 };
-use crate::candidates::set_node_effect_link;
+use crate::candidates::sweep_output_nodes;
 
 /// Independently validate one obligation-free, proof-certified, or
 /// proof-certified compatible-policy scalar
@@ -363,18 +359,7 @@ pub(super) fn validate_phi_translated_scalar_common_subexpression_candidate(
                     return Err(OptimizationUnitValidationError::CandidateIncomingBindingMismatch);
                 }
             }
-            let mut effect = 0u64;
-            for block in &mut output_function.blocks {
-                for (node_index, node) in block.nodes.iter_mut().enumerate() {
-                    let node_index = u32::try_from(node_index)
-                        .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
-                    node.definitions = expected_definitions(&node.operation, block.id, node_index);
-                    node.uses = expected_uses(&node.operation, block.id, node_index);
-                    node.successors = preserve_edge_custody(node);
-                    node.ownership = expected_ownership(&node.operation);
-                    effect = set_node_effect_link(node, effect)?;
-                }
-            }
+            sweep_output_nodes(output_function, |_| Ok(()))?;
             Ok(())
         },
     )

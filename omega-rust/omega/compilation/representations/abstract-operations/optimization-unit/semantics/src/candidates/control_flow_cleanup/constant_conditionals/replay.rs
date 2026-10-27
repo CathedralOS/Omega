@@ -2,7 +2,7 @@
 use crate::candidates::sparse_conditional_constant_propagation::literal_boolean_fact;
 use crate::candidates::{
     accept_region_rewrite, candidate_block, candidate_function, canonicalize_provenance,
-    set_node_effect_link,
+    sweep_output_nodes,
 };
 use crate::candidates::{provenance_proven_unreachable_at, provenance_realized_at};
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
@@ -164,12 +164,7 @@ pub(super) fn validate(
             output_function
                 .blocks
                 .retain(|block| reachable.contains(&block.id));
-            let mut effect = 0u64;
-            for block in &mut output_function.blocks {
-                for node in &mut block.nodes {
-                    effect = set_node_effect_link(node, effect)?;
-                }
-            }
+            sweep_output_nodes(output_function, |_| Ok(()))?;
             Ok(())
         },
     )
