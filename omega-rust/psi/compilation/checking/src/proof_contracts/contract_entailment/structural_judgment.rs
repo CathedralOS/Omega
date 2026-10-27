@@ -721,8 +721,14 @@ impl<'program> StructuralJudge<'program> {
         if depth >= 32 {
             return StructuralJudgment::Unknown;
         }
-        if self.has_boolean_connective_meaning(expression)
-            && let Some(binary) = self.program.expression_table.binary_node(expression)
+        if let Some(binary) = self.program.expression_table.binary_node(expression)
+            && matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
+            && crate::has_builtin_decomposed_guard_meaning(
+                self.program,
+                scope.0,
+                Some(scope.1),
+                expression,
+            )
         {
             return StructuralJudgment::connective(
                 binary.operator,
@@ -1591,18 +1597,12 @@ impl<'program> StructuralJudge<'program> {
         value.is_closed_value().then_some(value)
     }
 
-    /// COMPUTE-MODE unfolding (N3): apply a single-state proof machine of
-    /// the case-arm shape to structural arguments. The desugared arm guard
-    /// is `subject == Data::Case` (membership lowers to that exact Binary at
-    /// parse/lowering time), so arm selection reads the guard directly: the
-    /// matched argument must RESOLVE to a constructor, the arm whose case
-    /// matches fires, and its value expression converts to a term under an
-    /// environment of callee params -> argument terms (payload bindings are
-    /// case-tagged member reads off the subject and resolve to the
-    /// constructor's field terms). Any name outside the environment aborts
-    /// the unfold -- callee-scope names must never leak into caller-scope
-    /// judgments. `None` = no unfold (never unsound; the application just
-    /// stays opaque).
+    /// Compute an admitted single-state value body under exact completed
+    /// operands. Case arms keep their constructor fast path. A non-case scalar
+    /// guard must be proved or refuted by the ordinary typed predicate judge
+    /// before its arm is selected; Unknown supplies no result. Callee locals
+    /// and selected computations retain the same declaration-bound environment.
+    /// No source initializer is replayed to reconstruct a caller snapshot.
     fn unfold_application(
         &self,
         target: SymbolHandle,
@@ -1743,52 +1743,72 @@ impl<'program> StructuralJudge<'program> {
             let fires = match transition.guard {
                 TransitionGuardNode::Always => true,
                 TransitionGuardNode::When(guard) => {
-                    let Some(comparison) = program.expression_table.binary_node(guard) else {
-                        return None;
-                    };
-                    if !matches!(
-                        comparison.operator,
-                        BinaryOperator::Equal | BinaryOperator::CaseMembership
-                    ) {
-                        return None;
-                    }
-                    let subject = super::structural_terms::structural_term(
-                        program,
-                        Some((machine, state, Default::default())),
-                        None,
-                        comparison.left,
-                        None,
-                    )?;
-                    let StructuralTerm::Variable(subject_name) = subject else {
-                        return None;
-                    };
-                    let (arm_data, arm_case) = super::structural_terms::case_guard_classifier(
-                        program,
-                        machine,
-                        Some(state),
-                        guard,
-                    )?;
-                    let position = environment
-                        .iter()
-                        .position(|(name, _)| name == &subject_name)?;
-                    let local_subject;
-                    let subject_term = if position < parameter_count {
-                        &environment[position].1
+                    if let Some((arm_data, arm_case)) =
+                        super::structural_terms::case_guard_classifier(
+                            program,
+                            machine,
+                            Some(state),
+                            guard,
+                        )
+                    {
+                        let Some(comparison) = program.expression_table.binary_node(guard) else {
+                            return None;
+                        };
+                        if !matches!(
+                            comparison.operator,
+                            BinaryOperator::Equal | BinaryOperator::CaseMembership
+                        ) {
+                            return None;
+                        }
+                        let subject = super::structural_terms::structural_term(
+                            program,
+                            Some((machine, state, Default::default())),
+                            None,
+                            comparison.left,
+                            None,
+                        )?;
+                        let StructuralTerm::Variable(subject_name) = subject else {
+                            return None;
+                        };
+                        let position = environment
+                            .iter()
+                            .position(|(name, _)| name == &subject_name)?;
+                        let local_subject;
+                        let subject_term = if position < parameter_count {
+                            &environment[position].1
+                        } else {
+                            local_subject =
+                                self.resolve_at(environment[position].1.clone(), depth + 1);
+                            &local_subject
+                        };
+                        let StructuralTerm::Constructor {
+                            data: got_data,
+                            case: got_case,
+                            ..
+                        } = subject_term
+                        else {
+                            // The matched argument is not (yet) a constructor:
+                            // arm selection is undecidable, no unfold.
+                            return None;
+                        };
+                        got_data == arm_data.name.as_str() && got_case == arm_case.name.as_str()
                     } else {
-                        local_subject = self.resolve_at(environment[position].1.clone(), depth + 1);
-                        &local_subject
-                    };
-                    let StructuralTerm::Constructor {
-                        data: got_data,
-                        case: got_case,
-                        ..
-                    } = subject_term
-                    else {
-                        // The matched argument is not (yet) a constructor:
-                        // arm selection is undecidable, no unfold.
-                        return None;
-                    };
-                    got_data == arm_data.name.as_str() && got_case == arm_case.name.as_str()
+                        // Preserve the case-arm fast path above: resolving its
+                        // already-completed constructor arguments again repeats
+                        // recursive unfolding. Non-case scalar guards use the
+                        // same captured environment and selected source meaning.
+                        // Unknown never chooses an arm or assumes the goal.
+                        match self.judge_predicate_in_scope(
+                            (machine, state, state.return_type),
+                            guard,
+                            &environment,
+                            depth + 1,
+                        ) {
+                            StructuralJudgment::Proven => true,
+                            StructuralJudgment::Refuted => false,
+                            StructuralJudgment::Unknown => return None,
+                        }
+                    }
                 }
             };
             if !fires {
