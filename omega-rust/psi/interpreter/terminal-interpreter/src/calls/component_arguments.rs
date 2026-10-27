@@ -186,6 +186,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 || self.reference_referents.keys().any(within_value)
                 || self.structural_element_view_fields.keys().any(within_value)
                 || self.structural_byte_storage.keys().any(within_value)
+                || self.empty_array_storage.rows.keys().any(within_value)
                 || self.structural_primitive_storage.keys().any(within_value)
                 || self
                     .structural_scalar_fields

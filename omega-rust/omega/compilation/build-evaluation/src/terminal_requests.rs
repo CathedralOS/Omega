@@ -13,7 +13,7 @@ use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease}
 use psi_compiler::{
     TerminalBuildRequestCall, TerminalBuildRequestOperation as Operation, TerminalBuildRequests,
 };
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult,
     TerminalImportAdapter, TerminalImportSignature, TerminalScalarValue, TerminalStructuralValue,
@@ -30,10 +30,10 @@ impl IssuedBuildRequest {
     }
 }
 
-pub struct TerminalBuildRequestHost<'context> {
-    calls: &'context [TerminalBuildRequestCall],
+pub struct TerminalBuildRequestHost {
+    calls: Arc<[TerminalBuildRequestCall]>,
     original: TerminalStructuralValue,
-    account: Option<&'context EvaluationInvocationAccount>,
+    account: Option<EvaluationInvocationAccount>,
     requests: Mutex<Vec<IssuedBuildRequest>>,
     log: Mutex<BuildLog>,
     original_log: Option<TerminalStructuralValue>,
@@ -57,13 +57,13 @@ impl BuildLog {
     }
 }
 
-impl<'context> TerminalBuildRequestHost<'context> {
+impl TerminalBuildRequestHost {
     pub fn new(
         artifact: terminal_codec::TerminalExecutionView<'_>,
-        requests: &'context TerminalBuildRequests,
+        requests: &TerminalBuildRequests,
         original: TerminalStructuralValue,
-        account: Option<&'context EvaluationInvocationAccount>,
-    ) -> Result<Self, String> {
+        account: Option<&EvaluationInvocationAccount>,
+    ) -> Result<Arc<Self>, String> {
         let calls = requests
             .calls_for(artifact)
             .ok_or("Build requests belong to another Terminal artifact")?;
@@ -72,22 +72,22 @@ impl<'context> TerminalBuildRequestHost<'context> {
         } else {
             None
         };
-        Ok(Self {
-            calls,
+        Ok(Arc::new(Self {
+            calls: Arc::clone(calls),
             original,
-            account,
+            account: account.cloned(),
             requests: Mutex::new(Vec::new()),
             log: Mutex::new(BuildLog::default()),
             original_log,
-        })
+        }))
     }
 
     pub fn adapter(
-        &self,
+        self: &Arc<Self>,
         signature: TerminalImportSignature,
-    ) -> TerminalBuildRequestAdapter<'_, 'context> {
+    ) -> TerminalBuildRequestAdapter {
         TerminalBuildRequestAdapter {
-            host: self,
+            host: Arc::clone(self),
             signature,
         }
     }
@@ -142,18 +142,18 @@ pub(crate) fn build_facet(
     Ok(log)
 }
 
-pub struct TerminalBuildRequestAdapter<'host, 'context> {
-    host: &'host TerminalBuildRequestHost<'context>,
+pub struct TerminalBuildRequestAdapter {
+    host: Arc<TerminalBuildRequestHost>,
     signature: TerminalImportSignature,
 }
 
-impl TerminalImportAdapter for TerminalBuildRequestAdapter<'_, '_> {
+impl TerminalImportAdapter for TerminalBuildRequestAdapter {
     fn implemented_signature(&self) -> TerminalImportSignature {
         self.signature.clone()
     }
 }
 
-impl TerminalEffectHandler for TerminalBuildRequestAdapter<'_, '_> {
+impl TerminalEffectHandler for TerminalBuildRequestAdapter {
     fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
         Err(TerminalEffectRejection::new(
             "Build requests require result-aware dispatch",
@@ -206,6 +206,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter<'_, '_> {
             let storage = self
                 .host
                 .account
+                .as_ref()
                 .map(|account| {
                     let storage = account.reserve_site(0, 1, count)?;
                     account.charge_build_log_bytes(count)?;
@@ -316,6 +317,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter<'_, '_> {
         let storage = self
             .host
             .account
+            .as_ref()
             .map(|account| account.reserve_site(0, 1, payload))
             .transpose()
             .map_err(|error| {

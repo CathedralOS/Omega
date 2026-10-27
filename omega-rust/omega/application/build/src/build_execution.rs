@@ -136,7 +136,7 @@ pub(crate) fn execute_build(
     mut queries: Option<&mut compiler::ProductQueries>,
 ) -> Result<Option<build_evaluation::ReturnedBuild>, CompileFailure> {
     let returned = if let Some(execution) = execution {
-        let mut host = execution.host()?;
+        let host = execution.host()?;
         let refuse = |reason| {
             vec![Diagnostic::error(format!(
                 "Terminal Build failed: {reason}"

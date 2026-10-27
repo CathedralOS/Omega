@@ -19,7 +19,10 @@ use crate::custody::{
 use crate::effects::results::TerminalEffectResult;
 use crate::effects::{TerminalEffect, TerminalEffectHandler, TerminalEffectRejection};
 use crate::errors::{TerminalInterpretError, malformed};
-use crate::execution::{OperationFlow, SuspendedCall, SuspendedCallResult, TerminalExecution};
+use crate::execution::{
+    OperationFlow, SuspendedCall, SuspendedCallResult, TerminalExecution, dispatched_operation,
+    operation_kind,
+};
 use crate::results::TerminalExecutionStatus;
 use crate::runtime_rows::RuntimeRows;
 use std::collections::{BTreeMap, BTreeSet};
@@ -53,16 +56,10 @@ impl<'artifact> TerminalExecution<'artifact> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::CallUnit {
-            callee,
-            arguments: ref scalar_argument_ids,
-            ref structural_arguments,
-            ref claim_transfers,
-            ..
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_call_unit")
-        };
+        dispatched_operation!(operation => CallUnit {
+            callee, arguments: ref scalar_argument_ids, ref structural_arguments,
+            ref claim_transfers, ..
+        });
         if !matches!(operation.result, terminal_psi::OperationResult::Unit) {
             return Err(malformed());
         }
@@ -86,16 +83,9 @@ impl<'artifact> TerminalExecution<'artifact> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::CallStructuralScalar {
-            callee,
-            ref arguments,
-            ref structural_arguments,
-            ref claim_transfers,
-            ..
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_call_structural_scalar")
-        };
+        dispatched_operation!(operation => CallStructuralScalar {
+            callee, ref arguments, ref structural_arguments, ref claim_transfers, ..
+        });
         let result = operation.result.scalar().ok_or(malformed())?;
         let (scalar_arguments, prepared_arguments) =
             self.resolve_call_arguments(callee, arguments, structural_arguments)?;
@@ -142,19 +132,10 @@ impl<'artifact> TerminalExecution<'artifact> {
         operation: &terminal_psi::Operation,
         program: &std::sync::Arc<crate::program::AdmittedTerminalProgram>,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::CallDynamic {
-            selector,
-            interface,
-            slot,
-            ref arguments,
-            ref family_actuals,
-            ref structural_arguments,
-            ref claim_transfers,
-            ..
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_call_dynamic")
-        };
+        dispatched_operation!(operation => CallDynamic {
+            selector, interface, slot, ref arguments, ref family_actuals, ref structural_arguments,
+            ref claim_transfers, ..
+        });
         let Some(crate::values::TerminalScalarValue::Integer {
             value: semantic_vocabulary::IntegerValue::Unsigned(table),
             ..
@@ -250,15 +231,9 @@ impl<'artifact> TerminalExecution<'artifact> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::CallStructural {
-            callee,
-            ref structural_arguments,
-            ref claim_transfers,
-            ..
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_call_structural")
-        };
+        dispatched_operation!(operation => CallStructural {
+            callee, ref structural_arguments, ref claim_transfers, ..
+        });
         let result = operation.result.structural().cloned().ok_or(malformed())?;
         let prepared_arguments =
             self.prepare_structural_call_arguments(callee, structural_arguments)?;
@@ -278,16 +253,9 @@ impl<'artifact> TerminalExecution<'artifact> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::CallStructuralWithScalarArguments {
-            callee,
-            ref arguments,
-            ref structural_arguments,
-            ref claim_transfers,
-            ..
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_call_structural_with_scalar_arguments")
-        };
+        dispatched_operation!(operation => CallStructuralWithScalarArguments {
+            callee, ref arguments, ref structural_arguments, ref claim_transfers, ..
+        });
         let result = operation.result.structural().cloned().ok_or(malformed())?;
         let (scalar_arguments, prepared_arguments) =
             self.resolve_call_arguments(callee, arguments, structural_arguments)?;
@@ -322,16 +290,10 @@ impl<'artifact> TerminalExecution<'artifact> {
             let pending = self.awaiting_effect.take().ok_or_else(malformed)?;
             return self.complete_boundary_effect(operation, handler, *pending);
         }
-        let OperationKind::BoundaryCall {
-            boundary,
-            arguments: ref scalar_argument_ids,
-            ref structural_arguments,
-            ref completion_receipts,
-            ..
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_boundary_call")
-        };
+        dispatched_operation!(operation => BoundaryCall {
+            boundary, arguments: ref scalar_argument_ids, ref structural_arguments,
+            ref completion_receipts, ..
+        });
         // Keep the admitted declaration owner independent of mutable result
         // storage; no declaration or program contents are copied for a call.
         let program = std::sync::Arc::clone(&self.program);
@@ -683,9 +645,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         handler: &mut impl TerminalEffectHandler,
         pending: &PendingBoundaryCall,
     ) -> Result<Option<TerminalExecutionStatus>, TerminalInterpretError> {
-        let OperationKind::BoundaryCall { boundary, .. } = &operation.kind else {
-            return Err(malformed());
-        };
+        operation_kind!(operation => BoundaryCall { boundary, .. });
         if pending.site.program != self.program.identity.semantic()
             || pending.site.machine != self.current_machine
             || pending.site.block != self.current
@@ -730,14 +690,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         handler: &mut impl TerminalEffectHandler,
         pending: PendingBoundaryCall,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::BoundaryCall {
-            boundary,
-            structural_arguments,
-            ..
-        } = &operation.kind
-        else {
-            return Err(malformed());
-        };
+        operation_kind!(operation => BoundaryCall { boundary, structural_arguments, .. });
         let PendingBoundaryCall {
             arguments: mut boundary_arguments,
             remaining_claims,
@@ -817,14 +770,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         operation: &terminal_psi::Operation,
         handler: &mut impl TerminalEffectHandler,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::PortWrite {
-            service,
-            port,
-            value,
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_port_write")
-        };
+        dispatched_operation!(operation => PortWrite { service, port, value });
         if !matches!(operation.result, terminal_psi::OperationResult::Unit) {
             return Err(malformed());
         }
@@ -849,14 +795,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         operation: &terminal_psi::Operation,
         program: &std::sync::Arc<crate::program::AdmittedTerminalProgram>,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::Call {
-            callee,
-            ref arguments,
-            ..
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_call")
-        };
+        dispatched_operation!(operation => Call { callee, ref arguments, .. });
         let arguments = arguments
             .iter()
             .map(|argument| self.scalar_value(*argument))

@@ -340,11 +340,26 @@ fn exercise_owned_and_borrowed_instances() {
             .is_err()
     );
     drop(restored);
+    let shared = TerminalProgram::retain(retained.artifact().retain_code());
+    assert!(std::ptr::eq(shared.entry().unwrap().result, &entry.result));
+    let mut retained_instance = shared
+        .instantiate(terminal_interpreter::TerminalInstantiation::default())
+        .expect("same-session code remains directly executable");
+    drop(shared);
     let before_load = terminal_codec::module_decode_count();
     let owned = TerminalProgram::load_envelope(&envelope).expect("owned external load");
     assert_eq!(terminal_codec::module_decode_count() - before_load, 1);
     drop(envelope);
     drop(retained);
+    let after_load = terminal_codec::module_decode_count();
+    assert_eq!(
+        retained_instance
+            .invoke(&mut TerminalFuelMeter::unbounded())
+            .unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit),
+        "retained execution must survive the original artifact owner's drop"
+    );
+    assert_eq!(terminal_codec::module_decode_count(), after_load);
     assert!(
         owned
             .instantiate(terminal_interpreter::TerminalInstantiation {

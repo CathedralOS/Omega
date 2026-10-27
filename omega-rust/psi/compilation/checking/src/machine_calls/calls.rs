@@ -95,7 +95,7 @@ pub use write_frames::{
     frame_paths_overlap, operand_call_plans, state_reference_parameter_binding_is_stable,
     storage_origin_types_match,
 };
-pub(crate) use write_frames::{CallFrameCaches, InvocationReferenceSubject};
+pub(crate) use write_frames::{CallFrameCaches, InvocationEntrySubject};
 pub(crate) use write_frames::{
     boundary_trait_signature, expression_has_calls, free_machine_entry_state,
     statement_value_expression_roots,

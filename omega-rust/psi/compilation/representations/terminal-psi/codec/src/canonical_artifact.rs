@@ -47,8 +47,8 @@ impl<'artifact> TerminalArtifactView<'artifact> {
 ///
 /// Construction establishes canonical sections and retains their semantic
 /// storage. Readers borrow that storage directly; there is no lazy decoding or
-/// replay state. `Clone` explicitly copies both bytes and semantic storage;
-/// in-process consumers should borrow a view instead.
+/// replay state. `Clone` copies byte sections and shares immutable semantics;
+/// execution consumers borrow a view or retain only the execution storage.
 #[derive(Clone)]
 #[must_use = "a canonical Terminal artifact owns the Psi-to-Omega handoff bytes"]
 pub struct CanonicalTerminalArtifact {
@@ -57,7 +57,7 @@ pub struct CanonicalTerminalArtifact {
     optimization: PsiOptimizationExecutionRecord,
     debug_bytes: Option<Vec<u8>>,
     manifest: TerminalArtifactManifest,
-    semantic_module: TerminalModule,
+    semantic_module: std::sync::Arc<TerminalModule>,
 }
 
 // Canonical bytes determine the retained module. Comparing or printing that
@@ -119,7 +119,7 @@ impl CanonicalTerminalArtifact {
             optimization,
             debug_bytes,
             manifest,
-            semantic_module,
+            semantic_module: std::sync::Arc::new(semantic_module),
         })
     }
 
@@ -220,9 +220,22 @@ impl CanonicalTerminalArtifact {
     }
 
     /// Transfer retained semantic storage to an execution owner without a
-    /// second byte load. All constructors retain this module before returning.
+    /// second byte load. A shared module is copied only when this caller asks
+    /// for independently owned mutable storage; execution uses `retain_code`.
     pub fn into_semantics(self) -> (TerminalModule, terminal_psi::TerminalPsiIdentity) {
-        (self.semantic_module, self.manifest.semantic())
+        (
+            std::sync::Arc::unwrap_or_clone(self.semantic_module),
+            self.manifest.semantic(),
+        )
+    }
+
+    /// Share immutable execution storage without copying code or byte sections.
+    /// The returned owner has no artifact-publication or installation authority.
+    pub fn retain_code(&self) -> crate::RetainedTerminalCode {
+        crate::RetainedTerminalCode::new(
+            std::sync::Arc::clone(&self.semantic_module),
+            self.manifest.semantic(),
+        )
     }
 
     /// The canonical semantic module these bytes decode to.

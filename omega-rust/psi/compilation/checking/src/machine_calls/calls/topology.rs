@@ -362,15 +362,7 @@ pub fn call_target_parameters(
     if let Some(slot) = program.dynamic_slot_by_symbol(target_state_symbol) {
         return Some(&slot.parameters);
     }
-    if target_state_symbol.is_valid()
-        && let Some(machine) = program.machine_by_symbol(target_state_symbol)
-    {
-        return program
-            .machine_states(machine)
-            .first()
-            .map(|entry| program.state_parameters(entry));
-    }
-    if let Some(state) = program.state_by_symbol(target_state_symbol) {
+    if let Some(state) = call_target_state(program, target_state_symbol) {
         return Some(program.state_parameters(state));
     }
 
@@ -444,11 +436,13 @@ pub fn machine_state_by_symbols(
     Some((machine, state))
 }
 
+/// Result carrier of the exact callable. A machine head and its entry share
+/// one body signature; slots and requirements retain their own declarations.
 pub fn call_target_return_type(
     program: &dyn crate::CheckingInput,
     target_state_symbol: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
-    if let Some(state) = program.state_by_symbol(target_state_symbol) {
+    if let Some(state) = call_target_state(program, target_state_symbol) {
         return Some(state.return_type);
     }
     if let Some(slot) = program.dynamic_slot_by_symbol(target_state_symbol) {

@@ -20,7 +20,6 @@ use object_file::{
 };
 
 use crate::dyld_linking::loader_mapping::{region, wide, word};
-use crate::isa::MachoIsa;
 
 /// An internal pointer reconstructed from its object relocation and symbol.
 #[derive(Clone, Copy)]
@@ -37,58 +36,24 @@ pub struct MachoImportPointer<'inputs> {
     pub symbol: &'inputs [u8],
 }
 
-/// Reconstruct fixup obligations for an AArch64 object and replay bytes.
-pub fn validate_macho_aarch64_object_fixups(
-    object: &ObjectPlan,
-    relocations: &RelocationPlan,
-    object_text_bytes: usize,
-    object_data_bytes: usize,
-    output: &image::EmittedImageOutput,
-) -> Result<(), Diagnostic> {
-    validate_macho_object_fixups(
-        object,
-        relocations,
-        object_text_bytes,
-        object_data_bytes,
-        output,
-        MachoIsa::Aarch64,
-    )
-}
-
-/// Reconstruct fixup obligations for an x86-64 object and replay bytes.
+/// Reconstruct fixup obligations from the object's own plan and replay bytes
+/// under the ABI its target names.
 ///
 /// Import slot placement follows referenced object symbols, not the bind
 /// stream or mutable thunk observations. Normalized locators keep their raw
 /// install name and symbol; diagnostic names are used only by the legacy
-/// bootstrap form.
-pub fn validate_macho_x86_64_object_fixups(
+/// bootstrap form. The object carries its target, so the ABI is read off it
+/// rather than supplied beside it, and a target off the two Mach-O diagonals is
+/// refused before any obligation is read.
+pub fn validate_macho_object_fixups(
     object: &ObjectPlan,
     relocations: &RelocationPlan,
     object_text_bytes: usize,
     object_data_bytes: usize,
     output: &image::EmittedImageOutput,
 ) -> Result<(), Diagnostic> {
-    validate_macho_object_fixups(
-        object,
-        relocations,
-        object_text_bytes,
-        object_data_bytes,
-        output,
-        MachoIsa::X86_64,
-    )
-}
-
-/// Reconstruct fixup obligations from the source-free object, then replay
-/// bytes under `isa`'s thunk contract.
-fn validate_macho_object_fixups(
-    object: &ObjectPlan,
-    relocations: &RelocationPlan,
-    object_text_bytes: usize,
-    object_data_bytes: usize,
-    output: &image::EmittedImageOutput,
-    isa: MachoIsa,
-) -> Result<(), Diagnostic> {
-    if object.target != isa.native_target() || relocations.target != object.target {
+    let isa = crate::isa::macho_isa_for(object.target)?;
+    if relocations.target != object.target {
         return Err(invalid());
     }
     let layout = output.final_image_layout;
@@ -209,11 +174,13 @@ fn validate_macho_object_fixups(
             symbol: symbol.as_ref(),
         })
         .collect();
-    validate_macho_aarch64_loader_fixups(
+    // The executable container's command order is PAGEZERO, TEXT, DATA.
+    validate_macho_loader_fixups_for_segment(
         &output.bytes,
         &output.final_data_bytes,
         &rebases,
         &imports,
+        2,
     )
 }
 
@@ -286,15 +253,10 @@ impl<'image> Stream<'image> {
 /// increasing image-added slot order and lie beyond every rebase slot. Callers
 /// reconstruct these from the object, not the untrusted opcode stream. Validate
 /// loader mapping separately to bind `final_data` to the actual file and VM map.
-pub fn validate_macho_aarch64_loader_fixups(
-    bytes: &[u8],
-    final_data: &[u8],
-    rebases: &[MachoRebasePointer],
-    imports: &[MachoImportPointer<'_>],
-) -> Result<(), Diagnostic> {
-    validate_macho_loader_fixups_for_segment(bytes, final_data, rebases, imports, 2)
-}
-
+/// The opcode language is ISA-independent - the ISA only picks the thunk
+/// encoding that wrote the slots - so this entry is named for the container it
+/// replays, and `expected_data_segment` is the command-order index the caller's
+/// container gives DATA.
 pub(crate) fn validate_macho_loader_fixups_for_segment(
     bytes: &[u8],
     final_data: &[u8],

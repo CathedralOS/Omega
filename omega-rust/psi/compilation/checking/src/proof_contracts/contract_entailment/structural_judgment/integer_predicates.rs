@@ -258,6 +258,26 @@ impl IntegerObservations<'_> {
 }
 
 impl StructuralJudge<'_> {
+    /// Refute this prefix from independently formed live premises alone.
+    /// A requested operation or its result never contributes to this query.
+    /// Incomplete projection or admission means unknown, not an impossible path.
+    pub(in crate::proof_contracts::contract_entailment) fn integer_premises_contradictory(
+        &self,
+    ) -> bool {
+        if !self.runtime_body_values || self.case_facts_only {
+            return false;
+        }
+        let Some(prepared) = self.prepare_integer_premises() else {
+            return false;
+        };
+        prepared.observations.engine.requires_unsatisfiable
+            || prepared
+                .observations
+                .engine
+                .lower_bound_queries()
+                .prove_at_least(&Polynomial::constant(BigInt::from_i64(-1)), &BigInt::zero())
+    }
+
     /// Ask about one completed operand, before introducing its cast result.
     /// The address ceiling remains the builtin symbolic model bound; the
     /// hosted producer's current Addr64 representation is not a premise.
@@ -514,6 +534,95 @@ impl StructuralJudge<'_> {
         )]])
     }
 
+    pub(in crate::proof_contracts::contract_entailment) fn prove_observed_integer_ordering_minimum(
+        &self,
+        left_reference: typed_trees::types::TypeReferenceHandle,
+        left: &StructuralTerm,
+        right_reference: typed_trees::types::TypeReferenceHandle,
+        right: &StructuralTerm,
+    ) -> Option<i64> {
+        let comparison = |operator| StructuralTerm::MathematicalBinary {
+            operator,
+            left: Box::new(StructuralTerm::IntegerEmbedding {
+                reference: left_reference,
+                value: Box::new(left.clone()),
+            }),
+            right: Box::new(StructuralTerm::IntegerEmbedding {
+                reference: right_reference,
+                value: Box::new(right.clone()),
+            }),
+        };
+        let greater = comparison(BinaryOperator::Greater);
+        let resolved_greater = self.resolve_at(greater.clone(), 1);
+        let greater_eq_judgment = self.judge_equation(
+            resolved_greater.clone(),
+            super::value_predicates::boolean_term(true),
+            1,
+        );
+        if matches!(greater_eq_judgment, StructuralJudgment::Proven) {
+            return Some(1);
+        }
+        let greater_or_equal = comparison(BinaryOperator::GreaterOrEqual);
+        let resolved_ge = self.resolve_at(greater_or_equal, 1);
+        let ge_eq_judgment = self.judge_equation(
+            resolved_ge.clone(),
+            super::value_predicates::boolean_term(true),
+            1,
+        );
+        let Some((observations, (_, left_poly, right_poly))) =
+            self.integer_predicate_observations(&greater)
+        else {
+            if matches!(greater_eq_judgment, StructuralJudgment::Unknown)
+                && self.proves_observed_integer_boolean(&resolved_greater, 1) == Some(true)
+            {
+                return Some(1);
+            }
+            if matches!(ge_eq_judgment, StructuralJudgment::Proven)
+                || (matches!(ge_eq_judgment, StructuralJudgment::Unknown)
+                    && self.proves_observed_integer_boolean(&resolved_ge, 1) == Some(true))
+            {
+                return Some(0);
+            }
+            return None;
+        };
+        let queries = observations.engine.lower_bound_queries();
+        if IntegerObservations::comparison_holds(
+            &queries,
+            BinaryOperator::Greater,
+            &left_poly,
+            &right_poly,
+        ) || (matches!(greater_eq_judgment, StructuralJudgment::Unknown)
+            && !IntegerObservations::comparison_holds(
+                &queries,
+                BinaryOperator::LessOrEqual,
+                &left_poly,
+                &right_poly,
+            )
+            && self.proves_observed_integer_boolean(&resolved_greater, 1) == Some(true))
+        {
+            Some(1)
+        } else if matches!(ge_eq_judgment, StructuralJudgment::Proven)
+            || IntegerObservations::comparison_holds(
+                &queries,
+                BinaryOperator::GreaterOrEqual,
+                &left_poly,
+                &right_poly,
+            )
+            || (matches!(ge_eq_judgment, StructuralJudgment::Unknown)
+                && !IntegerObservations::comparison_holds(
+                    &queries,
+                    BinaryOperator::Less,
+                    &left_poly,
+                    &right_poly,
+                )
+                && self.proves_observed_integer_boolean(&resolved_ge, 1) == Some(true))
+        {
+            Some(0)
+        } else {
+            None
+        }
+    }
+
     /// Prepare independently formed premises once, then fork their exact
     /// captured-value namespace for each goal. Goal operations and opaque
     /// registrations remain private to that fork; no requested truth enters
@@ -542,11 +651,15 @@ impl StructuralJudge<'_> {
         for (index, position) in unresolved.into_iter().enumerate() {
             // Shared false grants no negative fact. Preserve the original
             // goal-first sufficient proof when the goal registered operations.
-            proofs[position] =
-                match shared.as_ref().and_then(|values| values.get(index)).copied().flatten() {
-                    Some(proven) => proven,
-                    None => self.proves_observed_integer_predicate(&predicates[position]),
-                };
+            proofs[position] = match shared
+                .as_ref()
+                .and_then(|values| values.get(index))
+                .copied()
+                .flatten()
+            {
+                Some(proven) => proven,
+                None => self.proves_observed_integer_predicate(&predicates[position]),
+            };
         }
         proofs
     }
@@ -574,10 +687,8 @@ impl StructuralJudge<'_> {
         let queries_and_contradictory = || {
             prepared_queries.get_or_init(|| {
                 let queries = prepared.observations.engine.lower_bound_queries();
-                let contradictory = queries.prove_at_least(
-                    &Polynomial::constant(BigInt::from_i64(-1)),
-                    &BigInt::zero(),
-                );
+                let contradictory = queries
+                    .prove_at_least(&Polynomial::constant(BigInt::from_i64(-1)), &BigInt::zero());
                 (queries, contradictory)
             })
         };
@@ -808,7 +919,10 @@ impl StructuralJudge<'_> {
                 {
                     observations.atoms.truncate(before_atoms);
                     observations.carrier_bounds.truncate(before_bounds);
-                    observations.engine.parameter_atoms.truncate(before_param_atoms);
+                    observations
+                        .engine
+                        .parameter_atoms
+                        .truncate(before_param_atoms);
                 } else {
                     complete = false;
                 }

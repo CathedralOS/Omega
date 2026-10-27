@@ -582,14 +582,6 @@ defines the complete product bar.
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and joint SCC ranking across
     nested/sibling/ancestor/top-level edges without ambient parent entry facts).
-    Private arithmetic formation now uses every closed actual arrival rather
-    than duplicated helper bounds: the [nine-place subtraction row](samples/cli/facts/nested_machine_invocation/private_arithmetic/README.md)
-    executes through Terminal Psi and native code with fact-sensitive rejects.
-    Public/escaping helpers and changed storage retain their proof obligations;
-    private cyclic inference remains conservative.
-    [Lexical entry selection](samples/cli/facts/nested_machine_invocation/lexical_entry/README.md)
-    now preserves source helper signatures instead of selecting generated body
-    coordinates; qualified calls share source-certified namespace elaboration.
   - Update Terminal production, codecs/checking, both interpreters, native
     lowering, and WCSU together so runtime cycles remain constant-stack with all
     live backing accounted for.
@@ -905,7 +897,9 @@ narrows realization only.
     checks at dependency activation admission without inheriting the root's
     slots (keeping required-output path byte results refused).
   - Carry foreign-helper Product query fixtures through ordinary dependency discovery,
-    not only pre-admitted package contexts.
+    not only pre-admitted package contexts. The old direct-import fixture shape
+    is retired by explicit readiness; shared non-core interface admission before
+    the first Build needs the decision in [Q2](OWNER_QUESTIONS.md#q2-shared-interfaces-known-before-the-first-build-activation).
   - **BUILD-EVALUATES-ONCE / ONE-DRIVER-PER-STAGE:** evaluate `build.omg` once
     per compilation with no realized target observed, run Psi `00–07` once in
     `compiler.rs` to produce one canonical Terminal Psi artifact, and run Omega
@@ -1266,6 +1260,9 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     [the constrained shared-field witness](tests/omega/pass/layouts/runtime_indexed_restricted_field_read/README.md),
     and `borrows/runtime_indexed_{stored_reference_call,scalar_descriptor_call,reference_call_regions}`
     across Windows x86-64, macOS ARM64, Linux x86-64, and Linux AArch64.
+  - Carry live fixed-array subvalues through ordinary nested array constructor
+    results, including borrowed-row snapshots; the current scalar-array result
+    lowering admits literal/constant rows but refuses those runtime subvalues.
   - **GENERIC-FIXED-ARRAY-VIEWS:** carry ordinary generic fixed-array views from
     `&[T; Count]` to `&[T]` through the range protocol across all four target
     bodies, preserving symbolic extent and backing custody while rejecting wrong
@@ -1336,8 +1333,8 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     independently qualified descendants and tagged/qualified owned results)
     through stage 05 `retention/retained_borrow_custody.rs` and the selected
     provider.
-  - Bound native codec preparation and ordinary storage materialization for
-    nested zero-sized arrays without expanding every empty outer element.
+  - Qualify bounded [nested zero-leaf array storage](samples/cli/facts/nested_zero_leaf_array_storage/README.md)
+    on Windows and both Linux hosts with the authored runtime/rejection oracles.
   Acceptance: `samples/cli/facts/opaque_closed_carrier_exchange`,
   `samples/cli/facts/foreign_retained_shared_borrow`,
   `samples/cli/facts/foreign_retained_mutable_borrow`,

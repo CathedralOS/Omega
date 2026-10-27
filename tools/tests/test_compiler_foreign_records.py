@@ -1,5 +1,6 @@
 """Reject incomplete rows, stale producers and hidden cohort failures before credit."""
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -42,6 +43,61 @@ class OwnedForeignCohortTests(unittest.TestCase):
         for selection in ("", " , ", "unknown", "nested,unknown", "nested; echo wrong"):
             with self.subTest(selection=selection), self.assertRaises(ValueError):
                 foreign.select_cohorts(selection)
+
+    def test_fixture_selection_keeps_catalog_order_and_drops_unselected_cohorts(self):
+        inventories = {"first": (("pass/a", "pass/b"), ("fail/a",)),
+                       "second": (("pass/c",), ("fail/c",))}
+        self.assertIs(foreign.select_fixtures(None, inventories), inventories)
+        self.assertEqual(foreign.select_fixtures("fail/a,pass/b,pass/b", inventories),
+                         {"first": (("pass/b",), ("fail/a",))})
+        for selection in ("", " ", ",", "pass/a,", "pass/a,unknown", "pass/a; echo wrong", "../pass/a"):
+            with self.subTest(selection=selection), self.assertRaises(ValueError):
+                foreign.select_fixtures(selection, inventories)
+
+    def test_fixture_list_and_invalid_selectors_never_build(self):
+        positive, negative = foreign.POSITIVES[0], foreign.NEGATIVES[0]
+        with patch.object(pilot, "prepare_producer") as build, \
+             patch("sys.stdout", new_callable=io.StringIO) as output:
+            self.assertEqual(foreign.main(["--cohorts", "scalar-opaque", "--fixtures",
+                                           f"{negative},{positive}", "--list"]), 0)
+            self.assertEqual(json.loads(output.getvalue()), {
+                "scalar-opaque": dict(positive=[positive], negative=[negative])})
+            for selection in ("", "unknown", "pass/a; echo wrong"):
+                with self.subTest(selection=selection), self.assertRaises(ValueError):
+                    foreign.main(["--fixtures", selection])
+            build.assert_not_called()
+
+    def test_selected_corpus_scope_preserves_failures_without_running_full_rows(self):
+        for corpus_status in (0, 1):
+            with self.subTest(corpus_status=corpus_status), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                producer = Mock()
+                producer.record.return_value = dict(revision="a" * 40)
+                with patch.object(pilot, "ROOT", root), \
+                     patch.object(pilot, "command", return_value="a" * 40), \
+                     patch.object(pilot.corpus_gate, "host_target", return_value="linux_x86_64"), \
+                     patch.object(pilot, "prepare_producer", return_value=producer) as build, \
+                     patch.object(rows, "fixtures", return_value=(("positive",), ("negative",))), \
+                     patch.object(foreign, "prepare_provider", return_value=root / "provider/library") as provider, \
+                     patch.object(foreign, "provider_path", return_value=nullcontext()) as environment, \
+                     patch.object(pilot, "run_suite", return_value=corpus_status) as corpus, \
+                     patch.object(foreign, "owned_row") as full, \
+                     patch.object(foreign, "scalar_opaque") as scalar:
+                    status = foreign.main(["--cohorts", "nested", "--fixtures", "negative,positive"])
+                report = json.loads((root / "build/compiler-foreign-records/latest.json").read_text())
+                self.assertEqual(status, corpus_status)
+                self.assertEqual(report["scope"], "selected-corpus-fixtures")
+                self.assertEqual(report["passed"], corpus_status == 0)
+                self.assertEqual(report["cohorts"][0]["positive"], ["positive"])
+                self.assertEqual(report["cohorts"][0]["negative"], ["negative"])
+                self.assertEqual(report["cohorts"][0]["scope"], "selected-corpus-fixtures")
+                build.assert_called_once()
+                provider.assert_called_once()
+                environment.assert_called_once_with(root / "provider/library")
+                self.assertEqual(corpus.call_args.args[1:], (("positive",), ("negative",)))
+                self.assertIs(corpus.call_args.kwargs["producer"], producer)
+                full.assert_not_called()
+                scalar.assert_not_called()
 
     def test_missing_twin_and_changed_pin_refuse_discovery(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -2,6 +2,7 @@
 //! assumptions, and the introduction and elimination of conjunction,
 //! disjunction and implication.
 
+use super::dispatched_rule;
 use super::integer_math_normalization::propositions_match_under_integer_math_normalization;
 use super::{AcceptanceBuilder, AcceptedProofRule, ProofError, RuleScope};
 use crate::decide_primitive;
@@ -13,11 +14,8 @@ pub(super) fn check_primitive(
     proof: &ProofNode,
     acceptance: &mut AcceptanceBuilder,
 ) -> Result<(), ProofError> {
-    let ProofRule::Primitive(judgment) = &proof.rule else {
-        unreachable!("dispatched check_primitive")
-    };
+    dispatched_rule!(proof, acceptance, ProofRule::Primitive(judgment) => Primitive);
     let RuleScope { context, .. } = *scope;
-    acceptance.rules.insert(AcceptedProofRule::Primitive);
     decide_primitive(context, &proof.conclusion, *judgment).map_err(ProofError::PrimitiveJudgment)
 }
 
@@ -26,13 +24,10 @@ pub(super) fn check_semantic_axiom(
     proof: &ProofNode,
     acceptance: &mut AcceptanceBuilder,
 ) -> Result<(), ProofError> {
-    let ProofRule::SemanticAxiom { index } = &proof.rule else {
-        unreachable!("dispatched check_semantic_axiom")
-    };
+    dispatched_rule!(proof, acceptance, ProofRule::SemanticAxiom { index } => SemanticAxiom);
     let RuleScope {
         semantic_axioms, ..
     } = *scope;
-    acceptance.rules.insert(AcceptedProofRule::SemanticAxiom);
     let axiom = semantic_axioms
         .get(*index)
         .ok_or(ProofError::UnknownSemanticAxiom(*index))?;
@@ -48,11 +43,8 @@ pub(super) fn check_assumption(
     proof: &ProofNode,
     acceptance: &mut AcceptanceBuilder,
 ) -> Result<(), ProofError> {
-    let ProofRule::Assumption { index } = &proof.rule else {
-        unreachable!("dispatched check_assumption")
-    };
+    dispatched_rule!(proof, acceptance, ProofRule::Assumption { index } => Assumption);
     let RuleScope { assumptions, .. } = *scope;
-    acceptance.rules.insert(AcceptedProofRule::Assumption);
     let assumption = assumptions
         .get(*index)
         .ok_or(ProofError::UnknownAssumption(*index))?;
@@ -67,12 +59,7 @@ pub(super) fn check_conjunction_introduction(
     proof: &ProofNode,
     acceptance: &mut AcceptanceBuilder,
 ) -> Result<(), ProofError> {
-    let ProofRule::ConjunctionIntroduction(conjuncts) = &proof.rule else {
-        unreachable!("dispatched check_conjunction_introduction")
-    };
-    acceptance
-        .rules
-        .insert(AcceptedProofRule::ConjunctionIntroduction);
+    dispatched_rule!(proof, acceptance, ProofRule::ConjunctionIntroduction(conjuncts) => ConjunctionIntroduction);
     let Proposition::Conjunction(expected) = &proof.conclusion else {
         return Err(ProofError::RuleConclusionMismatch(
             "conjunction introduction",
@@ -93,16 +80,7 @@ pub(super) fn check_conjunction_elimination(
     proof: &ProofNode,
     acceptance: &mut AcceptanceBuilder,
 ) -> Result<(), ProofError> {
-    let ProofRule::ConjunctionElimination {
-        conjunction,
-        conjunct,
-    } = &proof.rule
-    else {
-        unreachable!("dispatched check_conjunction_elimination")
-    };
-    acceptance
-        .rules
-        .insert(AcceptedProofRule::ConjunctionElimination);
+    dispatched_rule!(proof, acceptance, ProofRule::ConjunctionElimination { conjunction, conjunct } => ConjunctionElimination);
     let Proposition::Conjunction(conjuncts) = &conjunction.conclusion else {
         return Err(ProofError::RulePremiseMismatch("conjunction elimination"));
     };
@@ -118,12 +96,7 @@ pub(super) fn check_disjunction_introduction(
     proof: &ProofNode,
     acceptance: &mut AcceptanceBuilder,
 ) -> Result<(), ProofError> {
-    let ProofRule::DisjunctionIntroduction { disjunct, index } = &proof.rule else {
-        unreachable!("dispatched check_disjunction_introduction")
-    };
-    acceptance
-        .rules
-        .insert(AcceptedProofRule::DisjunctionIntroduction);
+    dispatched_rule!(proof, acceptance, ProofRule::DisjunctionIntroduction { disjunct, index } => DisjunctionIntroduction);
     let Proposition::Disjunction(disjuncts) = &proof.conclusion else {
         return Err(ProofError::RuleConclusionMismatch(
             "disjunction introduction",
@@ -141,16 +114,7 @@ pub(super) fn check_disjunction_elimination(
     proof: &ProofNode,
     acceptance: &mut AcceptanceBuilder,
 ) -> Result<(), ProofError> {
-    let ProofRule::DisjunctionElimination {
-        disjunction,
-        branches,
-    } = &proof.rule
-    else {
-        unreachable!("dispatched check_disjunction_elimination")
-    };
-    acceptance
-        .rules
-        .insert(AcceptedProofRule::DisjunctionElimination);
+    dispatched_rule!(proof, acceptance, ProofRule::DisjunctionElimination { disjunction, branches } => DisjunctionElimination);
     let Proposition::Disjunction(disjuncts) = &disjunction.conclusion else {
         return Err(ProofError::RulePremiseMismatch("disjunction elimination"));
     };
@@ -169,12 +133,7 @@ pub(super) fn check_implication_introduction(
     proof: &ProofNode,
     acceptance: &mut AcceptanceBuilder,
 ) -> Result<(), ProofError> {
-    let ProofRule::ImplicationIntroduction { body } = &proof.rule else {
-        unreachable!("dispatched check_implication_introduction")
-    };
-    acceptance
-        .rules
-        .insert(AcceptedProofRule::ImplicationIntroduction);
+    dispatched_rule!(proof, acceptance, ProofRule::ImplicationIntroduction { body } => ImplicationIntroduction);
     let Proposition::Implication { conclusion, .. } = &proof.conclusion else {
         return Err(ProofError::RuleConclusionMismatch(
             "implication introduction",
@@ -189,16 +148,7 @@ pub(super) fn check_implication_elimination(
     proof: &ProofNode,
     acceptance: &mut AcceptanceBuilder,
 ) -> Result<(), ProofError> {
-    let ProofRule::ImplicationElimination {
-        implication,
-        premise,
-    } = &proof.rule
-    else {
-        unreachable!("dispatched check_implication_elimination")
-    };
-    acceptance
-        .rules
-        .insert(AcceptedProofRule::ImplicationElimination);
+    dispatched_rule!(proof, acceptance, ProofRule::ImplicationElimination { implication, premise } => ImplicationElimination);
     let Proposition::Implication {
         premise: required,
         conclusion,

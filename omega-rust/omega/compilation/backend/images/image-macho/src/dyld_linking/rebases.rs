@@ -17,7 +17,6 @@ const REBASE_OPCODE_DONE: u8 = 0x00;
 const REBASE_OPCODE_SET_TYPE_IMM: u8 = 0x10;
 const REBASE_OPCODE_SET_SEGMENT_AND_OFFSET_ULEB: u8 = 0x20;
 const REBASE_OPCODE_DO_REBASE_IMM_TIMES: u8 = 0x50;
-const DATA_SEGMENT_INDEX: u8 = 2;
 const POINTER_WIDTH: usize = 8;
 
 pub(crate) struct MachoRebaseInfo {
@@ -73,10 +72,6 @@ impl MachoRebaseInfo {
         }
         Ok(pointers)
     }
-}
-
-pub(crate) fn macho_rebase_info(image: &FinalImage) -> Result<MachoRebaseInfo, Diagnostic> {
-    macho_rebase_info_for_segment(image, DATA_SEGMENT_INDEX)
 }
 
 pub(crate) fn macho_rebase_info_for_segment(
@@ -172,7 +167,9 @@ pub(crate) fn macho_rebase_info_for_segment(
 
 #[cfg(test)]
 mod tests {
-    use super::macho_rebase_info;
+    use super::macho_rebase_info_for_segment;
+    /// PAGEZERO (0) and TEXT (1) precede DATA in an executable container.
+    const EXECUTABLE_DATA_SEGMENT: u8 = 2;
     use arena::Handle;
     use image::{
         FinalImage, FinalImageLayout, FinalImageRelocation, FinalImageSection, FinalImageSymbol,
@@ -214,7 +211,9 @@ mod tests {
         }
 
         assert_eq!(
-            macho_rebase_info(&image).expect("valid rebase sites").bytes,
+            macho_rebase_info_for_segment(&image, EXECUTABLE_DATA_SEGMENT)
+                .expect("valid rebase sites")
+                .bytes,
             vec![0x11, 0x22, 0x08, 0x51, 0x22, 0x90, 0x01, 0x51, 0x00]
         );
     }
@@ -251,7 +250,7 @@ mod tests {
                 addend: 0,
                 kind: RelocationKind::Absolute64,
             });
-        assert!(macho_rebase_info(&image).is_err());
+        assert!(macho_rebase_info_for_segment(&image, EXECUTABLE_DATA_SEGMENT).is_err());
 
         image
             .relocation_table
@@ -263,7 +262,7 @@ mod tests {
             .relocations
             .get_mut(relocation)
             .byte_width = 4;
-        assert!(macho_rebase_info(&image).is_err());
+        assert!(macho_rebase_info_for_segment(&image, EXECUTABLE_DATA_SEGMENT).is_err());
 
         image
             .relocation_table
@@ -275,7 +274,7 @@ mod tests {
             .relocations
             .get_mut(relocation)
             .offset = 1;
-        assert!(macho_rebase_info(&image).is_err());
+        assert!(macho_rebase_info_for_segment(&image, EXECUTABLE_DATA_SEGMENT).is_err());
     }
 
     #[test]
@@ -310,7 +309,8 @@ mod tests {
                 addend: 3,
                 kind: RelocationKind::Absolute64,
             });
-        let info = macho_rebase_info(&image).expect("valid internal pointer");
+        let info = macho_rebase_info_for_segment(&image, EXECUTABLE_DATA_SEGMENT)
+            .expect("valid internal pointer");
         let layout = FinalImageLayout {
             text_address: 0x1_0000_1000,
             data_address: 0x1_0000_4000,
@@ -359,7 +359,7 @@ mod tests {
                 addend: 0,
                 kind: RelocationKind::Absolute64,
             });
-        assert!(macho_rebase_info(&image).is_err());
+        assert!(macho_rebase_info_for_segment(&image, EXECUTABLE_DATA_SEGMENT).is_err());
 
         image
             .relocation_table
@@ -377,6 +377,6 @@ mod tests {
                 addend: 0,
                 kind: RelocationKind::Absolute64,
             });
-        assert!(macho_rebase_info(&image).is_err());
+        assert!(macho_rebase_info_for_segment(&image, EXECUTABLE_DATA_SEGMENT).is_err());
     }
 }

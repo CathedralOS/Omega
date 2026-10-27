@@ -52,11 +52,12 @@ pub(super) fn observe_statement<'program>(
         if path.contains(&entry.symbol) || !prefix_site_is_reachable(program, entry, observer) {
             continue;
         }
-        if !callee.body_is_present
-            || !callee.supply_mode.is_checked_body()
-            || callee.target_family_interface
-            || !transparent_body_is_observation_free(program, callee, classification)
-        {
+        if !body_can_be_observed(
+            program,
+            callee,
+            classification,
+            judge.requires_value_preservation(),
+        ) {
             return None;
         }
         let parameters = program.state_parameters(entry);
@@ -81,23 +82,37 @@ pub(super) fn observe_statement<'program>(
                 Some(site),
             )?
         };
+        let subjects = if judge.requires_value_preservation() {
+            let frames = judge.frame_resolver()?;
+            match site {
+                crate::CallSite::Expression { expression, .. } => {
+                    frames.expression_entry_reference_subjects(invocation, expression, parameters)
+                }
+                crate::CallSite::Statement(call) => {
+                    frames.statement_entry_reference_subjects(invocation, call, parameters)
+                }
+                _ => None,
+            }
+        } else {
+            None
+        }
+        .unwrap_or_default();
         for frame in frames {
             let arguments = frame.observed_arguments()?;
-            if arguments.len() != parameters.len() {
-                return None;
-            }
-            let incoming = parameters
-                .iter()
-                .zip(arguments)
-                .map(|(parameter, value)| (parameter.name.as_str().to_owned(), value))
-                .collect();
+            let (incoming, captured) = frame.judge.bind_invocation(
+                entry,
+                &arguments,
+                &subjects,
+                environment,
+                (invocation, state, state.return_type),
+            )?;
             if let Some(observer) = requirement.as_deref_mut() {
                 observer.entered_body(state.symbol, statement_index, expression, entry.symbol);
             }
             recognize_structural_state_leaves(
                 program,
                 theorem,
-                &frame.judge,
+                &captured,
                 classification,
                 diagnostics,
                 states,
@@ -116,4 +131,53 @@ pub(super) fn observe_statement<'program>(
         }
     }
     Some(())
+}
+
+/// Entering one executed prefix does not treat the callee as a repeatable
+/// mathematical function. Runtime visitors retain ordered storage effects;
+/// theorem and case-only traversal still require observation-free semantics.
+pub(super) fn body_can_be_observed(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    classification: &typed_trees::proof_only::ProofOnlyClassification,
+    runtime_prefix: bool,
+) -> bool {
+    if !machine.body_is_present
+        || !machine.supply_mode.is_checked_body()
+        || machine.target_family_interface
+    {
+        return false;
+    }
+    if runtime_prefix || classification.is_proof_machine(program, machine) {
+        return true;
+    }
+    let Some(entry) = program.machine_states(machine).first() else {
+        return false;
+    };
+    let eligible = |operational: &flow_effects::OperationalPlan,
+                    reaches: &flow_effects::ServiceReachInferencePlan| {
+        let result = crate::machine_calls::denotational_calls::checked_value_call_candidate(
+            program,
+            machine,
+            entry,
+            operational,
+            reaches,
+        );
+        if super::super::struct_trace()
+            && let Err(reason) = &result
+        {
+            eprintln!(
+                "STRUCT body opaque machine={} reason={reason:?}",
+                machine.name
+            );
+        }
+        result.is_ok()
+    };
+    if let Some(plans) = program.prepared_effect_plans() {
+        return eligible(&plans.operational, &plans.service_reaches);
+    }
+    let operational = crate::machine_calls::effect_inference::infer_operational_may(program);
+    let reaches =
+        crate::machine_calls::effect_inference::infer_service_reaches(program, &operational);
+    eligible(&operational, &reaches)
 }

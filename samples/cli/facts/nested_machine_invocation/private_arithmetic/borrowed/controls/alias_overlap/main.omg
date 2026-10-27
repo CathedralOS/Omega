@@ -1,0 +1,15 @@
+// Expected exit: 0
+data Storage { count: u64; touched: u64; canary: u64; }
+machine probe(storage: &mut Storage) -> u64 {
+ transition storage.count > 0 { true -> apply(storage) false -> (0) }
+ machine apply(storage: &mut Storage) -> u64 {
+  let alias: &mut Storage = storage; alias.count = 0;
+  storage.count - 1
+ }
+}
+machine main() crashes Trap {
+ let mut storage: Storage = Storage { count: 7, touched: 0, canary: 33 };
+ let result: u64 = probe(&mut storage);
+ transition result == 6 && storage.touched == 5 && storage.canary == 33 { true -> done() false -> bad() }
+ machine done() {} machine bad() crashes Trap { crash Trap; }
+}

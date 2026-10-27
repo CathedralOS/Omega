@@ -207,46 +207,6 @@ pub(crate) fn closed_integer_predicate_value(
     unfold(program, application.machine, &knowledge)?.decided()
 }
 
-/// A checked predicate observes one captured immutable frame. Its readable
-/// references are not mathematical carriers, so this does not relax the
-/// denotational carrier fence. It admits only body termification: source call
-/// formation and termination remain independent, and each nested value call
-/// still passes the ordinary exact mathematical-application candidate.
-pub(crate) fn framed_predicate_body_candidate(
-    program: &dyn crate::CheckingInput,
-    owner: symbols::SymbolHandle,
-    target: symbols::SymbolHandle,
-    selections: &[typed_trees::expression::StaticMachineArgument],
-    argument_count: usize,
-    frames: Option<&crate::CallFrameResolver<'_>>,
-) -> Result<(), &'static str> {
-    if !selections.is_empty() {
-        return Err("framed predicate body has unresolved static selections");
-    }
-    let position = exploration::admitted_predicate_machine(program, target, false)
-        .ok_or("application is not an independently admitted checked predicate")?;
-    let machine = &program.machines()[position];
-    let [state] = program.machine_states(machine) else {
-        return Err("framed predicate body is not one exact entry");
-    };
-    if !implication::admitted_activation_parameters(
-        program,
-        program.state_parameters(state),
-        argument_count,
-    ) {
-        return Err("framed predicate has unmatched actuals or unreadable formals");
-    }
-    if !crate::machine_calls::contract_dependencies::independent_application(
-        program, owner, target, selections,
-    ) {
-        return Err("framed predicate depends on the active declaration");
-    }
-    let plans = crate::machine_calls::calls::operand_call_plans(program, frames);
-    crate::machine_calls::denotational_calls::checked_value_call_candidate(
-        program, machine, state, &plans.0, &plans.1,
-    )
-}
-
 /// One exact caller actual or a checked mathematical integer bound.
 #[derive(Clone)]
 pub struct PredicateIntegerSubject {

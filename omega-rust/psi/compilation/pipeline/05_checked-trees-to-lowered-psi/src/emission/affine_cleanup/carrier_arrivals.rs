@@ -20,6 +20,57 @@ struct Arrival {
     sources: Vec<PlaceId>,
 }
 
+/// Build a lookup index of `owned_affine_type` for all places in the machine
+/// in a single linear pass over parameters, blocks, and local places.
+pub(super) fn build_owned_affine_types(
+    parameters: &[StructuralParameterDeclaration],
+    local_places: &[StructuralPlaceDeclaration],
+    blocks: &[Block],
+) -> std::collections::HashMap<PlaceId, Option<StructuralTypeId>> {
+    // State per PlaceId: None = seen invalid/multiple providers, Some(ty) = seen exactly one valid provider
+    let mut map: std::collections::HashMap<PlaceId, Option<StructuralTypeId>> =
+        std::collections::HashMap::new();
+    let mut record = |place: PlaceId, valid_type: Option<StructuralTypeId>| {
+        match map.entry(place) {
+            std::collections::hash_map::Entry::Vacant(vacant) => {
+                vacant.insert(valid_type);
+            }
+            std::collections::hash_map::Entry::Occupied(mut occupied) => {
+                *occupied.get_mut() = None;
+            }
+        }
+    };
+    for parameter in parameters
+        .iter()
+        .chain(blocks.iter().flat_map(|block| &block.structural_parameters))
+    {
+        record(
+            parameter.place,
+            (parameter.access == StructuralAccess::Owned
+                && parameter.multiplicity == StructuralMultiplicity::Affine)
+                .then_some(parameter.structural_type),
+        );
+    }
+    for operation in blocks.iter().flat_map(|block| &block.operations) {
+        if let Some(result) = operation.result.structural() {
+            record(
+                result.place,
+                (result.multiplicity == StructuralMultiplicity::Affine)
+                    .then_some(result.structural_type),
+            );
+        }
+    }
+    for local in local_places {
+        if let StructuralPlaceKind::TrivialAffineLocal {
+            structural_type, ..
+        } = local.kind
+        {
+            record(local.id, Some(structural_type));
+        }
+    }
+    map
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn inherit(
     managed: &mut Vec<PlaceId>,
@@ -30,6 +81,24 @@ pub(super) fn inherit(
     partial_transfers: &[PlaceId],
     scheduled: &[PlaceId],
 ) -> Result<(), LoweringError> {
+    let has_candidates = blocks.iter().any(|block| {
+        block.structural_parameters.iter().any(|parameter| {
+            parameter.access == StructuralAccess::Owned
+                && parameter.multiplicity == StructuralMultiplicity::Affine
+                && descriptor_type(types, parameter.structural_type)
+        })
+    });
+    if !has_candidates {
+        return Ok(());
+    }
+    let owned_affine_types = build_owned_affine_types(parameters, local_places, blocks);
+    let mut parameter_place_counts: std::collections::HashMap<PlaceId, usize> =
+        std::collections::HashMap::new();
+    for block in blocks {
+        for parameter in &block.structural_parameters {
+            *parameter_place_counts.entry(parameter.place).or_insert(0) += 1;
+        }
+    }
     let mut arrivals = Vec::new();
     for block in blocks {
         for (position, parameter) in block.structural_parameters.iter().enumerate() {
@@ -47,12 +116,7 @@ pub(super) fn inherit(
                 .iter()
                 .enumerate()
                 .any(|(index, parameter)| usize::try_from(parameter.position).ok() != Some(index))
-                || blocks
-                    .iter()
-                    .flat_map(|block| &block.structural_parameters)
-                    .filter(|other| other.place == parameter.place)
-                    .count()
-                    != 1
+                || parameter_place_counts.get(&parameter.place).copied() != Some(1)
             {
                 return unsupported("descriptor arrival has no unique positional binding");
             }
@@ -99,7 +163,7 @@ pub(super) fn inherit(
                         || !source.path.is_empty()
                         || partial_transfers.contains(&source.place)
                         || cleanup.iter().any(|action| action.place() == source.place)
-                        || owned_affine_type(parameters, local_places, blocks, source.place)
+                        || owned_affine_types.get(&source.place).copied().flatten()
                             != Some(parameter.structural_type)
                     {
                         complete = false;
@@ -167,47 +231,4 @@ fn descriptor_type(types: &[StructuralTypeDeclaration], identity: StructuralType
             declaration.shape,
             StructuralTypeShape::Reference { .. } | StructuralTypeShape::ElementView { .. }
         ) || declaration.shape.is_borrowed_byte_view())
-}
-
-/// Identify owned affine storage, not permission to discard it. Qualification
-/// changes neither multiplicity nor whether a whole move ends this home.
-/// Inheritance separately requires anchored disposal authority; the enclosing
-/// planner uses this query only to withdraw an already selected death after a
-/// move, without extending its disposal capability roster.
-pub(super) fn owned_affine_type(
-    parameters: &[StructuralParameterDeclaration],
-    local_places: &[StructuralPlaceDeclaration],
-    blocks: &[Block],
-    place: PlaceId,
-) -> Option<StructuralTypeId> {
-    let parameters = parameters
-        .iter()
-        .chain(blocks.iter().flat_map(|block| &block.structural_parameters))
-        .filter(|parameter| parameter.place == place)
-        .map(|parameter| {
-            (parameter.access == StructuralAccess::Owned
-                && parameter.multiplicity == StructuralMultiplicity::Affine)
-                .then_some(parameter.structural_type)
-        });
-    let results = blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .filter_map(|operation| operation.result.structural())
-        .filter(|result| result.place == place)
-        .map(|result| {
-            (result.multiplicity == StructuralMultiplicity::Affine)
-                .then_some(result.structural_type)
-        });
-    let locals = local_places
-        .iter()
-        .filter(|local| local.id == place)
-        .filter_map(|local| match local.kind {
-            StructuralPlaceKind::TrivialAffineLocal {
-                structural_type, ..
-            } => Some(Some(structural_type)),
-            _ => None,
-        });
-    let mut providers = parameters.chain(results).chain(locals);
-    let structural_type = providers.next()??;
-    providers.next().is_none().then_some(structural_type)
 }

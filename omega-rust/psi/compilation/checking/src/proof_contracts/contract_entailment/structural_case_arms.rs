@@ -1774,6 +1774,7 @@ fn recognize_structural_state_leaves_from<'a>(
                     target,
                     transition.source_target,
                     classification,
+                    requirement.is_some() && judge.requires_value_preservation(),
                 );
                 if let Some((target_state, argument_handles, call_expression)) = body_transfer
                     // An active theorem's recursive value stays an application.
@@ -1793,46 +1794,52 @@ fn recognize_structural_state_leaves_from<'a>(
                         continue;
                     }
                     let target_parameters = program.state_parameters(target_state);
-                    let target_frames = if let Some(expression) = call_expression {
-                        judge.normal_operation_entries(
-                            statement_index,
-                            expression,
+                    let target_frames =
+                        if let Some(expression) = call_expression {
+                            judge.normal_operation_entries(
+                            statement_index, expression,
                             super::structural_judgment::normal_returns::OperationOperandDemand::All,
+                            &branch_environment, (invocation, state, state.return_type),
+                        )?
+                        } else {
+                            judge.normal_argument_entries(
+                                argument_handles,
+                                target_parameters,
+                                &branch_environment,
+                                (invocation, state, state.return_type),
+                                None,
+                            )?
+                        };
+                    let subjects = if judge.requires_value_preservation() {
+                        let frames = judge.frame_resolver()?;
+                        if let Some(expression) = call_expression {
+                            frames.expression_entry_reference_subjects(
+                                invocation,
+                                expression,
+                                target_parameters,
+                            )
+                        } else {
+                            transition.source_target.and_then(|target| {
+                                frames.transition_entry_reference_subjects(
+                                    invocation,
+                                    target,
+                                    target_parameters,
+                                )
+                            })
+                        }
+                    } else {
+                        None
+                    }
+                    .unwrap_or_default();
+                    for frame in target_frames {
+                        let arguments = frame.observed_arguments()?;
+                        let (target_environment, captured) = frame.judge.bind_invocation(
+                            target_state,
+                            &arguments,
+                            &subjects,
                             &branch_environment,
                             (invocation, state, state.return_type),
-                        )?.into_iter().map(|entry| {
-                            let arguments = entry.observed_arguments()?;
-                            (arguments.len() == target_parameters.len()).then_some(())?;
-                            let environment = target_parameters.iter().zip(arguments)
-                                .map(|(parameter, value)| (parameter.name.as_str().to_owned(), value))
-                                .collect();
-                            Some((environment, entry.judge))
-                        }).collect::<Option<Vec<_>>>()?
-                    } else {
-                        if target_parameters.len() != argument_handles.len() {
-                            return None;
-                        }
-                        let mut frames = vec![(Vec::new(), judge.clone())];
-                        for (parameter, argument) in target_parameters.iter().zip(argument_handles)
-                        {
-                            let mut next = Vec::new();
-                            for (environment, captured) in frames {
-                                for outcome in captured.normal_return_paths(
-                                    *argument,
-                                    &branch_environment,
-                                    (invocation, state, parameter.type_reference),
-                                )? {
-                                    let mut environment = environment.clone();
-                                    environment
-                                        .push((parameter.name.as_str().to_owned(), outcome.value));
-                                    next.push((environment, outcome.judge));
-                                }
-                            }
-                            frames = next;
-                        }
-                        frames
-                    };
-                    for (target_environment, captured) in target_frames {
+                        )?;
                         if let Some(observer) = requirement.as_deref_mut() {
                             observer.entered_body(
                                 state.symbol,
@@ -1977,6 +1984,7 @@ fn terminal_body_transfer<'program>(
     target: &TransitionTargetNode,
     source_target: Option<typed_trees::statement::TransitionTargetHandle>,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
+    runtime_prefix: bool,
 ) -> Option<(
     &'program typed_trees::state::State,
     &'program [ExpressionHandle],
@@ -2038,54 +2046,8 @@ fn terminal_body_transfer<'program>(
         }
         _ => return None,
     };
-    (callee.body_is_present
-        && callee.supply_mode.is_checked_body()
-        && !callee.target_family_interface
-        && transparent_body_is_observation_free(program, callee, classification))
-    .then_some((entry, arguments, expression))
-}
-
-/// A proof may finish through an ordinary pure helper, including an empty
-/// Unit body with no proof-data parameters. Runtime classification alone does
-/// not make such a body opaque. Reuse denotational effect admission rather
-/// than recognizing a special empty-body or nested-declaration shape.
-fn transparent_body_is_observation_free(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    classification: &typed_trees::proof_only::ProofOnlyClassification,
-) -> bool {
-    if classification.is_proof_machine(program, machine) {
-        return true;
-    }
-    let Some(entry) = program.machine_states(machine).first() else {
-        return false;
-    };
-    let eligible = |operational: &flow_effects::OperationalPlan,
-                    reaches: &flow_effects::ServiceReachInferencePlan| {
-        let result = crate::machine_calls::denotational_calls::checked_value_call_candidate(
-            program,
-            machine,
-            entry,
-            operational,
-            reaches,
-        );
-        if super::struct_trace()
-            && let Err(reason) = &result
-        {
-            eprintln!(
-                "STRUCT body opaque machine={} reason={reason:?}",
-                machine.name
-            );
-        }
-        result.is_ok()
-    };
-    if let Some(plans) = program.prepared_effect_plans() {
-        return eligible(&plans.operational, &plans.service_reaches);
-    }
-    let operational = crate::machine_calls::effect_inference::infer_operational_may(program);
-    let reaches =
-        crate::machine_calls::effect_inference::infer_service_reaches(program, &operational);
-    eligible(&operational, &reaches)
+    call_entries::body_can_be_observed(program, callee, classification, runtime_prefix)
+        .then_some((entry, arguments, expression))
 }
 
 #[allow(clippy::too_many_arguments)]

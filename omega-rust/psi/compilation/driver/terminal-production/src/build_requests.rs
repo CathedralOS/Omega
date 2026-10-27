@@ -27,14 +27,14 @@ pub struct TerminalBuildRequestCall {
 #[derive(Debug, PartialEq, Eq)]
 pub struct TerminalBuildRequests {
     identity: terminal_codec::TerminalExecutionIdentity,
-    calls: Vec<TerminalBuildRequestCall>,
+    calls: std::sync::Arc<[TerminalBuildRequestCall]>,
 }
 
 impl TerminalBuildRequests {
     pub fn calls_for(
         &self,
         artifact: terminal_codec::TerminalExecutionView<'_>,
-    ) -> Option<&[TerminalBuildRequestCall]> {
+    ) -> Option<&std::sync::Arc<[TerminalBuildRequestCall]>> {
         (self.identity == artifact.custody_identity()).then_some(&self.calls)
     }
 
@@ -44,7 +44,7 @@ impl TerminalBuildRequests {
     ) -> Self {
         Self {
             identity: artifact.custody_identity(),
-            calls,
+            calls: calls.into(),
         }
     }
 }

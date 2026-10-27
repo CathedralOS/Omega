@@ -1,6 +1,50 @@
 //! Source guards for the application/compiler ownership boundary.
 
 #[test]
+fn readiness_retains_live_jobs_without_recursive_source_execution() {
+    let source = include_str!("build_execution/source_resolution/readiness.rs");
+    let scheduler = source
+        .split_once("fn drive_work(")
+        .unwrap()
+        .1
+        .split_once("fn build_request(")
+        .unwrap()
+        .0;
+    for recursive in [
+        "self.execute_source(",
+        "self.resolve_graph(",
+        "self.run_work(",
+        "self.drive_work(",
+    ] {
+        assert!(
+            !scheduler.contains(recursive),
+            "recursive dependency scheduling: {recursive}"
+        );
+    }
+    assert!(scheduler.contains("while let Some(work) = pending.pop()"));
+    assert!(scheduler.contains("Work::Run(build)"));
+    assert!(scheduler.contains("self.settle_graph(&graph)?"));
+    assert!(source.contains("activation: build_evaluation::TerminalBuildActivation"));
+}
+
+#[test]
+fn readiness_prepares_helper_products_without_recursive_dependency_calls() {
+    let source = include_str!("build_execution/source_resolution/readiness.rs");
+    let preparation = source
+        .split_once("fn prepare_product(")
+        .expect("helper Product entrance")
+        .1
+        .split_once("fn prepared_product(")
+        .expect("retained Product lookup")
+        .0;
+    assert!(!preparation.contains("self.prepare_product("));
+    assert!(preparation.contains("while let Some(current) = pending.last_mut()"));
+    assert!(preparation.contains("self.complete_product(current)?"));
+    assert!(source.contains(".with_complete_dependency_generated_sources(generated)"));
+    assert!(source.contains("*source == position && *scope == purpose"));
+}
+
+#[test]
 fn package_audit_owns_session_and_target_execution_in_build() {
     let mut application = include_str!("package_inspection.rs");
     for operation in [

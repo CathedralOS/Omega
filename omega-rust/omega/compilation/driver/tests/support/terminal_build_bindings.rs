@@ -69,6 +69,10 @@ fn exercise(
             let request_calls = requests.calls_for(artifact.view().into()).unwrap();
             let binding_calls = bindings.calls_for(artifact.view().into()).unwrap();
             let mut receiver = original.clone();
+            assert!(
+                host.clone().into_executed().is_err(),
+                "live adapters prevent consuming their shared binding host"
+            );
             if foreign {
                 receiver.opaque_identity += 1;
             }

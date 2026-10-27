@@ -50,8 +50,7 @@ enum FileStorage {
     },
 }
 
-pub struct BuildFilesystemRuntime<'scope> {
-    scope: &'scope BuildMachineFilesystemScope,
+pub struct BuildFilesystemRuntime {
     account: EvaluationInvocationAccount,
     descriptors: Vec<Option<OpenFile>>,
     effects: BuildFilesystemEffects,
@@ -66,18 +65,17 @@ impl BuildMachineFilesystemScope {
     pub fn begin_filesystem_runtime(
         &self,
         account: EvaluationInvocationAccount,
-    ) -> Result<BuildFilesystemRuntime<'_>, String> {
+    ) -> Result<BuildFilesystemRuntime, String> {
         if self.captured_source_view.is_none() {
             return Err("Terminal Build requires admitted captured Source storage".into());
         }
         // Build admission already established the write fence before consent.
-        // Borrow that exact scope instead of running admission a second time.
+        // Retain that exact scope instead of running admission a second time.
         let access = self.filesystem_access();
         if !self.is_private_snapshot_execution(&access) {
             return Err("Build Output is not owned by its private staging sponsor".into());
         }
         Ok(BuildFilesystemRuntime {
-            scope: self,
             account,
             descriptors: Vec::new(),
             effects: BuildFilesystemEffects {
@@ -95,9 +93,10 @@ impl BuildMachineFilesystemScope {
     }
 }
 
-impl BuildFilesystemRuntime<'_> {
+impl BuildFilesystemRuntime {
     pub fn named_input(&self, name: &[u8]) -> Result<FilesystemGrantRootIdentity, String> {
-        self.scope
+        self.effects
+            .scope
             .named_inputs
             .iter()
             .find(|input| input.name == name)
@@ -130,12 +129,14 @@ impl BuildFilesystemRuntime<'_> {
     ) -> Result<&source::SourceSnapshot, String> {
         if root == BUILD_SOURCE_ROOT_IDENTITY {
             return self
+                .effects
                 .scope
                 .captured_source_view
                 .as_ref()
                 .ok_or_else(|| "Source capture is absent".into());
         }
-        self.scope
+        self.effects
+            .scope
             .named_inputs
             .iter()
             .find(|input| input.root == root)
@@ -378,10 +379,12 @@ impl BuildFilesystemRuntime<'_> {
             .map_err(|_| "cannot retain Build descriptor")?;
         let retained_path = copy_bytes(path)?;
         let physical = self
+            .effects
             .scope
             .build_dir
             .join(std::str::from_utf8(path).map_err(|_| "Build path is not UTF-8")?);
         let sponsor = self
+            .effects
             .scope
             .sponsor
             .as_ref()
@@ -451,6 +454,7 @@ impl BuildFilesystemRuntime<'_> {
             return Err("BuildOutput write requires an output descriptor".into());
         };
         let sponsor = self
+            .effects
             .scope
             .sponsor
             .as_ref()
@@ -505,7 +509,8 @@ impl BuildFilesystemRuntime<'_> {
         }) = self.descriptors[slot].as_mut()
         {
             file.flush().map_err(|error| error.to_string())?;
-            self.scope
+            self.effects
+                .scope
                 .sponsor
                 .as_ref()
                 .ok_or("Output sponsor is absent")?

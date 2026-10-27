@@ -90,17 +90,22 @@ pub(crate) fn retain_operation_results<'a>(
     operations: impl Iterator<Item = &'a terminal_psi::Operation>,
     declarations: &mut Vec<StructuralPlaceDeclaration>,
 ) -> Result<(), crate::lowering_error::LoweringError> {
-    for declaration in operation_results(operations) {
-        if let Some(existing) = declarations
+    let mut index_by_id: std::collections::HashMap<semantic_vocabulary::PlaceId, usize> =
+        declarations
             .iter()
-            .find(|existing| existing.id == declaration.id)
-        {
-            if *existing != declaration {
+            .enumerate()
+            .map(|(index, existing)| (existing.id, index))
+            .collect();
+    for declaration in operation_results(operations) {
+        if let Some(&index) = index_by_id.get(&declaration.id) {
+            if declarations[index] != declaration {
                 return crate::lowering_error::unsupported(
                     "computed result conflicts with an existing place declaration",
                 );
             }
         } else {
+            let index = declarations.len();
+            index_by_id.insert(declaration.id, index);
             declarations.push(declaration);
         }
     }
@@ -114,6 +119,12 @@ pub(crate) fn retain_block_parameters<'a>(
     blocks: impl Iterator<Item = &'a terminal_psi::Block>,
     declarations: &mut Vec<StructuralPlaceDeclaration>,
 ) -> Result<(), crate::lowering_error::LoweringError> {
+    let mut index_by_id: std::collections::HashMap<semantic_vocabulary::PlaceId, usize> =
+        declarations
+            .iter()
+            .enumerate()
+            .map(|(index, existing)| (existing.id, index))
+            .collect();
     for block in blocks {
         for (position, parameter) in block.structural_parameters.iter().enumerate() {
             let position = u32::try_from(position).map_err(|_| {
@@ -133,16 +144,15 @@ pub(crate) fn retain_block_parameters<'a>(
                     position,
                 },
             };
-            if let Some(existing) = declarations
-                .iter()
-                .find(|existing| existing.id == declaration.id)
-            {
-                if *existing != declaration {
+            if let Some(&index) = index_by_id.get(&declaration.id) {
+                if declarations[index] != declaration {
                     return crate::lowering_error::unsupported(
                         "computed parameter conflicts with an existing place declaration",
                     );
                 }
             } else {
+                let index = declarations.len();
+                index_by_id.insert(declaration.id, index);
                 declarations.push(declaration);
             }
         }

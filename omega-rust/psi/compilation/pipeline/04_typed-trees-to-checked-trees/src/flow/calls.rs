@@ -707,15 +707,17 @@ fn append_call_parameter_domain_facts<'plans>(
 /// state contracts, the entry machine's contracts when the callable is an
 /// entry state, and the trait signature's contracts when the callable is a
 /// bodyless requirement. State and signature symbols are globally unique, so
-/// each source contributes at most once.
+/// each source contributes at most once. A machine head selects its exact
+/// entry contract without changing the invocation's source identity.
 fn collect_callable_contracts(
     program: &dyn ::validation::CheckingInput,
     target: SymbolHandle,
 ) -> Vec<&typed_trees::signature::SignatureContract> {
     let mut contracts = Vec::new();
+    let executable_target = validation::call_target_entry_symbol(program, target);
     for machine in program.machines() {
         for (position, state) in program.machine_states(machine).iter().enumerate() {
-            if state.symbol != target {
+            if state.symbol != executable_target {
                 continue;
             }
             contracts.extend(program.state_contracts(state));
@@ -743,7 +745,8 @@ fn collect_callable_contracts_indexed<'plans>(
     target: SymbolHandle,
 ) -> Vec<&'plans typed_trees::signature::SignatureContract> {
     let mut contracts = Vec::new();
-    if let Some((machine_index, state_index)) = build.state_location(program, target) {
+    let executable_target = validation::call_target_entry_symbol(program, target);
+    if let Some((machine_index, state_index)) = build.state_location(program, executable_target) {
         let machine = &program.machines()[machine_index];
         let state = &program.machine_states(machine)[state_index];
         contracts.extend(program.state_contracts(state));

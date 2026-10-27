@@ -7,14 +7,12 @@
 
 use crate::SourceResolver;
 use crate::error::SourceResolveError;
-use crate::git::executable::selection::{PrimaryGitSelection, resolver_package_controlled_roots};
+use crate::git::executable::selection::PrimaryGitSelection;
 use crate::limits::LocalSourceLimits;
-use crate::observations::resolved::{GitAcquisitionPin, ResolvedGitSource};
+use crate::observations::resolved::ResolvedGitSource;
 use crate::storage::RetainedStorageLane;
-use std::path::PathBuf;
 
 use super::request::GitSourceRequest;
-use super::workspace::GitWorkspaceProjectionError;
 
 mod acquisition;
 mod exact_revision;
@@ -29,8 +27,7 @@ mod tree_session;
 mod workspace_member;
 pub use tree_session::{GitWorkspaceCatalog, GitWorkspaceSession};
 
-use acquisition::resolve_git_source_from_retained_cache;
-use materialization::materialize_whole_git_source;
+use acquisition::resolve_whole_git_source_from_retained_lanes;
 use selection::GitRevisionSelection;
 
 pub use pinned_source::resolve_git_source_from_pin_in_lane;
@@ -56,42 +53,13 @@ pub fn resolve_git_source_in_lane(
     lane: &RetainedStorageLane,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedGitSource, SourceResolveError> {
-    let package_controlled_roots = resolver_package_controlled_roots(&[lane.path()])?;
-    resolve_git_source_in_lane_with_selected_roots(
+    resolve_whole_git_source_from_retained_lanes(
         primary_git,
-        &package_controlled_roots,
+        &[lane],
         request,
-        None,
-        lane,
         limits,
+        GitRevisionSelection::Ordinary(None),
     )
-}
-
-fn resolve_git_source_in_lane_with_selected_roots(
-    primary_git: &PrimaryGitSelection,
-    package_controlled_roots: &[PathBuf],
-    request: &GitSourceRequest,
-    pin: Option<&GitAcquisitionPin>,
-    lane: &RetainedStorageLane,
-    limits: LocalSourceLimits,
-) -> Result<ResolvedGitSource, SourceResolveError> {
-    lane.verify_path_identity()?;
-    let result = match resolve_git_source_from_retained_cache(
-        primary_git,
-        package_controlled_roots,
-        request,
-        lane.path(),
-        lane.directory(),
-        limits.compiler_bounded(),
-        GitRevisionSelection::Ordinary(pin),
-        materialize_whole_git_source,
-    ) {
-        Ok((source, ())) => Ok(source),
-        Err(GitWorkspaceProjectionError::Source(error)) => Err(error),
-        Err(GitWorkspaceProjectionError::Planner(never)) => match never {},
-    };
-    lane.verify_path_identity()?;
-    result
 }
 
 pub(crate) fn resolve_git_source(

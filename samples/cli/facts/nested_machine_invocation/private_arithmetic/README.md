@@ -70,3 +70,6 @@ Requirement evidence:
 The parent task remains open: product parser/resolver migration, linked
 applications, remaining invocation obligations and complete acceptance still
 need their own evidence. This row closes only private arithmetic formation.
+
+[Feasible arrivals](feasible/README.md) carries guarded upper bounds through
+compound-Boolean alternatives without treating an unresolved path as impossible.

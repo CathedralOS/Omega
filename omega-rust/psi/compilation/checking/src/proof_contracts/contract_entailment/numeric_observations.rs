@@ -727,32 +727,14 @@ impl Observations {
             let [left, right] = arguments else {
                 return None;
             };
-            let comparison = |operator| StructuralTerm::MathematicalBinary {
-                operator,
-                left: Box::new(StructuralTerm::IntegerEmbedding {
-                    reference: left_reference,
-                    value: Box::new(left.clone()),
-                }),
-                right: Box::new(StructuralTerm::IntegerEmbedding {
-                    reference: right_reference,
-                    value: Box::new(right.clone()),
-                }),
-            };
             // These predicates mention only the completed operands. The
             // subtraction's own result and formation never enter this judge.
-            if matches!(
-                judge.judge_observed_predicate(comparison(BinaryOperator::Greater), 0),
-                super::structural_judgment::StructuralJudgment::Proven
-            ) {
-                Some(1)
-            } else if matches!(
-                judge.judge_observed_predicate(comparison(BinaryOperator::GreaterOrEqual), 0),
-                super::structural_judgment::StructuralJudgment::Proven
-            ) {
-                Some(0)
-            } else {
-                None
-            }
+            judge.prove_observed_integer_ordering_minimum(
+                left_reference,
+                left,
+                right_reference,
+                right,
+            )
         })();
         let preserves_storage = program.machine(machine.symbol).is_some_and(|machine| {
             judge.frame_resolver().is_some_and(|frames| {

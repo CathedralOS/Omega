@@ -189,6 +189,13 @@ pub(super) trait StructuralPrefixVisitor {
             return;
         }
         guarantees.intake(&mut judge);
+        // Short-circuit guards can create numerically impossible alternatives
+        // even when their constructor hypotheses are consistent. Refute only
+        // from admitted prefix premises, before observing the requested value;
+        // failed goal formation must never become evidence of unreachability.
+        if judge.integer_premises_contradictory() {
+            return;
+        }
         let Some(state) = program.state_in_machine(machine, self.site().state) else {
             self.unresolved(machine);
             return;

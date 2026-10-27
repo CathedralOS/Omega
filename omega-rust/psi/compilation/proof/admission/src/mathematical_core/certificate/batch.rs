@@ -297,13 +297,12 @@ mod tests {
             function: constant,
             argument: zero,
         });
-        let certificate = MathematicalCertificate {
-            signature: vec![Declaration::definition(0, function_type, function)],
-            level_arity: 0,
-            context: Vec::new(),
+        let certificate = MathematicalCertificate::with_signature(
+            vec![Declaration::definition(0, function_type, function)],
+            Vec::new(),
             term,
-            expected: two,
-        };
+            two,
+        );
         (arena, certificate)
     }
 

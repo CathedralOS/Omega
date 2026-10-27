@@ -406,10 +406,6 @@ pub(crate) fn validate_import_thunk_footprints(
     Ok(())
 }
 
-pub(crate) fn macho_bind_info(thunks: &[MachoImportThunk]) -> Vec<u8> {
-    macho_bind_info_for_segment(thunks, 2).expect("executable DATA segment fits dyld immediate")
-}
-
 pub(crate) fn macho_bind_info_for_segment(
     thunks: &[MachoImportThunk],
     data_segment: u8,
@@ -504,46 +500,21 @@ fn write_u32_at(text: &mut [u8], offset: usize, value: u32) -> Result<(), Diagno
     Ok(())
 }
 
-/// Replay the exact thunk↔binding-slot pairing for an AArch64 image.
-pub fn validate_macho_aarch64_import_binding_pairing(
+/// Replay the exact thunk↔binding-slot pairing for `target`'s Mach-O ABI.
+///
+/// Every import thunk must decode to its ISA's canonical branch-to-slot
+/// sequence that loads its binding slot, and each exercised thunk must pair with
+/// exactly one placed binding slot naming the same symbol — and vice versa. A
+/// resolver-returned address or an unrecorded slot cannot substitute for this
+/// placed custody. The ABI is derived from `target`: the thunk encoding and the
+/// target cannot disagree, because only one of them is an input.
+pub fn validate_macho_import_binding_pairing(
     final_text_bytes: &[u8],
     executable_regions: &PlacedExecutableRegionInventory,
     data_regions: &PlacedDataRegionInventory,
+    target: target::NativeTarget,
 ) -> Result<(), Diagnostic> {
-    validate_macho_import_binding_pairing(
-        final_text_bytes,
-        executable_regions,
-        data_regions,
-        MachoIsa::Aarch64,
-    )
-}
-
-/// Replay the exact thunk↔binding-slot pairing for an x86-64 image.
-pub fn validate_macho_x86_64_import_binding_pairing(
-    final_text_bytes: &[u8],
-    executable_regions: &PlacedExecutableRegionInventory,
-    data_regions: &PlacedDataRegionInventory,
-) -> Result<(), Diagnostic> {
-    validate_macho_import_binding_pairing(
-        final_text_bytes,
-        executable_regions,
-        data_regions,
-        MachoIsa::X86_64,
-    )
-}
-
-/// Replay the exact thunk↔binding-slot pairing against the placed region
-/// inventories. Every import thunk must decode to its ISA's canonical
-/// branch-to-slot sequence that loads its binding slot, and each exercised
-/// thunk must pair with exactly one placed binding slot naming the same
-/// symbol — and vice versa. A resolver-returned address or an unrecorded slot
-/// cannot substitute for this placed custody.
-fn validate_macho_import_binding_pairing(
-    final_text_bytes: &[u8],
-    executable_regions: &PlacedExecutableRegionInventory,
-    data_regions: &PlacedDataRegionInventory,
-    isa: MachoIsa,
-) -> Result<(), Diagnostic> {
+    let isa = crate::isa::macho_isa_for(target)?;
     let thunks: Vec<_> = executable_regions
         .regions
         .iter()

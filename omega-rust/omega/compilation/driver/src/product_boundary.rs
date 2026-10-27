@@ -220,18 +220,14 @@ fn components_use_the_shared_product_sequence() {
     let component = include_str!("product_execution/component.rs");
     assert!(!component.contains("produce_retained_terminal_artifacts("));
     assert!(!component.contains("TerminalProductionRequest"));
-    assert!(component.contains("finish_terminal_application("));
+    assert!(component.contains("produced.prepare(request)"));
     assert!(component.contains("accepted_terminal_authority_permission_policy("));
     let (preparation, completion) = component
         .split_once("pub(crate) fn finish(")
         .expect("component preparation precedes completion");
     assert!(preparation.contains("component_calling_applications("));
     assert!(!completion.contains("component_calling_applications("));
-    let terminal = include_str!("terminal/terminal_artifact.rs");
-    let completion = terminal
-        .split_once("pub(crate) fn finish_terminal_application(")
-        .expect("retained application completion")
-        .1;
+    let completion = include_str!("../../native-production/src/application.rs");
     assert!(!completion.contains("program.typed"));
     assert!(!completion.contains("component_calling_applications("));
     assert!(!include_str!("lib.rs").contains("publish_checked_component"));
@@ -240,16 +236,14 @@ fn components_use_the_shared_product_sequence() {
 
 #[test]
 fn terminal_production_owns_the_build_provider_companion() {
-    let source = include_str!("terminal/terminal_artifact.rs");
-    let (production, completion) = source
-        .split_once("pub(crate) fn finish_terminal_application(")
-        .expect("source production precedes native completion");
-    assert!(production.contains("pub provider_proposals:"));
+    let production = include_str!("terminal/terminal_artifact.rs");
+    let completion = include_str!("../../native-production/src/application.rs");
+    assert!(completion.contains("pub provider_proposals:"));
     assert!(production.contains("provider_proposals: produce_target_provider_proposals("));
     assert!(production.contains("TargetProviderPublicationRequest"));
-    assert!(completion.contains("with_target_provider_proposals(produced.provider_proposals)"));
+    assert!(completion.contains("with_target_provider_proposals(self.provider_proposals)"));
     assert!(completion.contains("TerminalNativeProposalRequest<'_>"));
-    assert!(completion.contains("if produced.physical_entry_adapter"));
+    assert!(completion.contains("if self.physical_entry_adapter"));
     for forbidden in [
         "produce_target_provider_proposals(",
         "TargetProviderPublicationRequest",
@@ -263,6 +257,34 @@ fn terminal_production_owns_the_build_provider_companion() {
             !completion.contains(forbidden),
             "completion reopens {forbidden}"
         );
+    }
+}
+
+#[test]
+fn product_coordinator_has_no_native_stage_dependency() {
+    let manifest = include_str!("../Cargo.toml")
+        .split("[dev-dependencies]")
+        .next()
+        .expect("production manifest");
+    assert!(!manifest.contains("/pipeline/"));
+    for source in [
+        include_str!("terminal/terminal_artifact.rs"),
+        include_str!("product_execution/native_inputs.rs"),
+        include_str!("product_execution.rs"),
+        include_str!("product_execution/component.rs"),
+    ] {
+        for stage_operation in [
+            "terminal_psi_to_abstract_operations::",
+            "project_terminal_native_realization_proposal(",
+            "validate_package_terminal_authority_permission_custody(",
+            "terminal_authority_permission_policy_with_rows(",
+            "bind_physical_adapter(",
+        ] {
+            assert!(
+                !source.contains(stage_operation),
+                "coordinator owns {stage_operation}"
+            );
+        }
     }
 }
 

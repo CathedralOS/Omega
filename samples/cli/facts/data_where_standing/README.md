@@ -41,6 +41,9 @@ the same fact through all nine places when the default domain is an ordinary
 Boolean machine call. It also retains the complete constant destination
 judgment through materialization and index use.
 
+The [mutable-recast production](mutable_recast/README.md) carries the same fact
+through immediate exclusive views with complete two-way representation validity.
+
 ## Establishment and preservation
 
 - **Establishment:** construction and the checked borrowed write establish the

@@ -9,6 +9,7 @@ use typed_trees::types::TypeReferenceHandle;
 
 mod domain_premises;
 mod integer_predicates;
+mod invocation_entry;
 mod licenses;
 pub(super) mod normal_returns;
 mod returned_fields;
@@ -860,6 +861,20 @@ impl<'program> StructuralJudge<'program> {
         judge
     }
 
+    fn runtime_declaration_scope(
+        &self,
+    ) -> Option<(&'program Machine, &'program typed_trees::state::State)> {
+        if self.declaration_state.is_valid() {
+            crate::machine_calls::calls::machine_state_by_symbol(
+                self.program,
+                self.declaration_state,
+            )
+        } else {
+            let machine = self.program.machine(self.machine_symbol)?;
+            Some((machine, self.program.machine_states(machine).first()?))
+        }
+    }
+
     fn declaration_scope(
         &self,
     ) -> Option<(SymbolHandle, &[typed_trees::signature::StateParameter])> {
@@ -869,27 +884,15 @@ impl<'program> StructuralJudge<'program> {
         if !self.runtime_body_values {
             return Some((self.machine_symbol, &self.declaration_parameters));
         }
-        let Some(machine) = self.program.machine(self.machine_symbol) else {
+        let Some((machine, state)) = self.runtime_declaration_scope() else {
             return Some((self.machine_symbol, &self.declaration_parameters));
-        };
-        let state = if self.declaration_state.is_valid() {
-            self.program
-                .state_in_machine(machine, self.declaration_state)?
-        } else {
-            self.program.machine_states(machine).first()?
         };
         Some((machine.symbol, self.program.state_parameters(state)))
     }
 
     fn declaration_term(&self, expression: ExpressionHandle) -> Option<StructuralTerm> {
         if self.requires_value_preservation() {
-            let machine = self.program.machine(self.machine_symbol)?;
-            let state = if self.declaration_state.is_valid() {
-                self.program
-                    .state_in_machine(machine, self.declaration_state)?
-            } else {
-                self.program.machine_states(machine).first()?
-            };
+            let (machine, state) = self.runtime_declaration_scope()?;
             let mut environment = self
                 .program
                 .state_parameters(state)
@@ -1919,31 +1922,12 @@ impl<'program> StructuralJudge<'program> {
         // re-attempts every unfold nested inside it, once per arm and per
         // enclosing unfold, which grows exponentially with the term's depth.
         let parameter_count = environment.len();
+        // This is an admitted application body, not another runtime event.
+        // Nested calls still pass specification_application_candidate; both
+        // ordinary and normalized terminal values use that same admission.
+        let mut specification = self.clone();
+        specification.specification_terms = true;
 
-        // A framed predicate can contain a call-valued local or tail as well
-        // as a Named terminal target. Its readonly arguments remain captured
-        // observations, not mathematical carriers. Only this admitted body
-        // gets specification termification; nested helpers retain their exact
-        // mathematical-call fence. Prefix capture and closed computation keep
-        // their original modes and the active proof declaration is unchanged.
-        let specification_body = (self.runtime_body_values
-            && !self.require_closed_computation
-            && !self.specification_terms
-            && crate::proof_contracts::collection_predicates::framed_predicate_body_candidate(
-                program,
-                self.machine_symbol,
-                target,
-                selections,
-                arguments.len(),
-                self.frame_resolver(),
-            )
-            .is_ok())
-        .then(|| {
-            let mut body = self.clone();
-            body.specification_terms = true;
-            body
-        });
-        let body = specification_body.as_ref().unwrap_or(self);
         let mut environment = environment;
         let statements = program.statement_table.statements(state.statement_nodes);
         for (index, statement) in statements.iter().enumerate() {
@@ -1957,7 +1941,7 @@ impl<'program> StructuralJudge<'program> {
                 continue; // exhaustiveness carrier, not shape
             }
             if let Some(local) = statement.as_local_data() {
-                let term = body.callee_term(
+                let term = specification.callee_term(
                     local.initial_value,
                     &environment,
                     StaticObservations {
@@ -1985,7 +1969,7 @@ impl<'program> StructuralJudge<'program> {
             if let Some(expression) = statement.as_expression() {
                 return (index + 1 == statements.len())
                     .then(|| {
-                        body.callee_term(
+                        specification.callee_term(
                             *expression,
                             &environment,
                             StaticObservations {
@@ -2060,7 +2044,7 @@ impl<'program> StructuralJudge<'program> {
                         // recursive unfolding. Non-case scalar guards use the
                         // same captured environment and selected source meaning.
                         // Unknown never chooses an arm or assumes the goal.
-                        match body.judge_predicate_in_scope(
+                        match specification.judge_predicate_in_scope(
                             (machine, state, state.return_type),
                             guard,
                             &environment,
@@ -2077,7 +2061,7 @@ impl<'program> StructuralJudge<'program> {
                 continue;
             }
             return match program.statement_table.transition_target(transition.target) {
-                TransitionTargetNode::Value(value) => body.callee_term(
+                TransitionTargetNode::Value(value) => specification.callee_term(
                     *value,
                     &environment,
                     StaticObservations {
@@ -2121,7 +2105,7 @@ impl<'program> StructuralJudge<'program> {
                         .expression_handles(*arguments)
                         .iter()
                         .map(|argument| {
-                            body.callee_term(
+                            specification.callee_term(
                                 *argument,
                                 &environment,
                                 StaticObservations {
@@ -2212,9 +2196,10 @@ impl<'program> StructuralJudge<'program> {
             environment,
             StaticObservations {
                 machine_bindings: &[],
-                body_parameters: if scope
-                    .is_some_and(|(machine, _, _)| machine.symbol == self.machine_symbol)
-                {
+                body_parameters: if scope.is_some_and(|(machine, _, _)| {
+                    self.runtime_declaration_scope()
+                        .is_some_and(|(owner, _)| machine.symbol == owner.symbol)
+                }) {
                     self.body_type_parameters
                 } else {
                     &[]
@@ -2230,6 +2215,7 @@ impl<'program> StructuralJudge<'program> {
     /// the same current-storage observation environment for every operand.
     fn specification_call_candidate(
         &self,
+        lexical_owner: SymbolHandle,
         call: &typed_trees::expression::TableCallExpression,
     ) -> bool {
         if !self.specification_terms {
@@ -2238,7 +2224,7 @@ impl<'program> StructuralJudge<'program> {
         let candidate = specification_application_candidate(
             self.program,
             self.machine_symbol,
-            call.target_symbol,
+            super::structural_terms::structural_call_target(self.program, lexical_owner, call),
             &call.machine_arguments,
             self.frame_resolver(),
         );
@@ -2575,8 +2561,10 @@ impl<'program> StructuralJudge<'program> {
                         scope.map_or(self.machine_symbol, |(machine, _, _)| machine.symbol),
                         call,
                     )
-                    && !self.specification_call_candidate(call)
-                {
+                    && !self.specification_call_candidate(
+                        scope.map_or(self.machine_symbol, |(machine, _, _)| machine.symbol),
+                        call,
+                    ) {
                     Some("value-identity")
                 } else if call.receiver.is_valid()
                     && !super::structural_terms::static_call_receiver(

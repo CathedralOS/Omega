@@ -28,6 +28,7 @@ pub mod control_flow;
 pub mod declarations;
 pub mod evidence;
 pub mod lookup_indexes;
+pub mod machine_declarations;
 pub mod names;
 pub mod storage;
 pub mod type_system;
@@ -107,7 +108,7 @@ pub struct SymbolResolvedRoots {
     pub const_declarations: OrderedRootArena<crate::constant::ConstDeclaration>,
     pub data_definitions: OrderedRootArena<crate::data::DataDefinition>,
     pub domain_definitions: OrderedRootArena<crate::domain::DomainDefinition>,
-    pub machines: OrderedRootArena<crate::machine::Machine>,
+    pub machines: machine_declarations::MachineDeclarations,
     pub measures: OrderedRootArena<measure::MeasureDefinition>,
     pub operators: OrderedRootArena<operator::OperatorDefinition>,
     pub propositions: OrderedRootArena<proposition::PropositionDefinition>,
@@ -152,7 +153,7 @@ impl SymbolResolvedRoots {
             const_declarations: OrderedRootArena::default(),
             data_definitions,
             domain_definitions,
-            machines,
+            machines: machines.into(),
             measures: OrderedRootArena::default(),
             operators,
             propositions: OrderedRootArena::default(),
@@ -837,9 +838,7 @@ impl SymbolResolvedTrees {
 
     /// The machine declaration keyed `symbol`.
     pub fn machine(&self, symbol: symbols::SymbolHandle) -> Option<&crate::machine::Machine> {
-        self.machines
-            .iter()
-            .find(|machine| machine.symbol == symbol)
+        self.machines.by_symbol(symbol)
     }
 
     pub fn machine_invokes(
