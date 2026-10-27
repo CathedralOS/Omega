@@ -1,0 +1,208 @@
+{
+  "pr": 348,
+  "submitted_head": "e942f212745ae790034ca643d386db8bf87911f2",
+  "producer_revision": "b011da5f273a04a924bc79cfa9df3bef5bcd6674",
+  "qualification_revision": "f091b8a4bc456552f8dfeb90392365fdb21f29b9",
+  "fixed_base": "2c1fcc4c2f0ca0900e152e31b2f7142649f63f24",
+  "qualification_receipt": {
+    "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/qualification.records/05871dfdff51461c832946ca918c4517.json",
+    "sha256": "9722131eb70c09e795d1137ad43c37453c45219cdb7f42777d3d922fec242b1f"
+  },
+  "changes_after_capture": [
+    "tests/omega/corpus_both_linux_x86_64.txt",
+    "tests/omega/corpus_both_macos_arm64.txt",
+    "tests/omega/corpus_both_windows_x86_64.txt",
+    "tests/omega/corpus_native_linux_x86_64.txt",
+    "tests/omega/corpus_native_windows_x86_64.txt",
+    "tests/omega/corpus_outcomes.txt"
+  ],
+  "applicability": "Only corpus observations changed after the f091 capture. Compiler, library, samples, fixture sources, authored oracles and validator are unchanged. Historical observations retain their actual producer identities; no engine execution is relabeled.",
+  "producer_artifacts": "Frozen compiler executables are retained locally in lossless archives; not committed to this evidence branch. Digests, build profiles, exact source bundles and actual engine observations are included.",
+  "files": [
+    {
+      "evidence_path": "qualification/qualification.json.gz",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/qualification.json.gz",
+      "sha256": "ea6a542dc8feb7c00b8b4e81ee3eb344aa1a5cbc1c0a1a3ac0b869078d862146"
+    },
+    {
+      "evidence_path": "qualification/qualification-config.json",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/qualification-config.json",
+      "sha256": "723eca730da1c7529e7d000b498f6d5408a1739e725bd1be183ba28a08d3fccc"
+    },
+    {
+      "evidence_path": "qualification/qualification-context.json",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/qualification-context.json",
+      "sha256": "9931bf00811e1fc0bda44ad5ca29c4c2350495f06becab10e8305e44f747db53"
+    },
+    {
+      "evidence_path": "qualification/integrated-context.json",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/integrated-context.json",
+      "sha256": "15e31eb6b601164afb1e509384cd6d0b6e99e85f0cee1ecfa9e6a9532ef6df49"
+    },
+    {
+      "evidence_path": "qualification/qualification-run.log",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/qualification-run.log",
+      "sha256": "a58e5b94ba8ebc6350cdfc980bf86326f6a6f39ed9686733c5297b1aae6fe01b"
+    },
+    {
+      "evidence_path": "qualification/validate-integrated.py",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/validate-integrated.py",
+      "sha256": "1ad7072414bb1e0dce5ccf654b1a57b4f4fd8611c99b842f816c08e09e30df1a"
+    },
+    {
+      "evidence_path": "observations/integrated-acceptance.json",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/integrated-acceptance.json",
+      "sha256": "9a37382e63b5489d5b8b1586468c8991a1826f8983953426b92cad4aece94e91"
+    },
+    {
+      "evidence_path": "observations/golden-splice.json",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/golden-splice.json",
+      "sha256": "2a9628c1ab62c7e8e43324bf7ca543fc3ed0e0db8a6933c80ed22ec104779203"
+    },
+    {
+      "evidence_path": "observations/producer-integrated.json",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-integrated.json",
+      "sha256": "88b7d1a62be3c4d6cb180ba997a2c8061cbf7a8a1c85bfa17196b7cb4268f2e2"
+    },
+    {
+      "evidence_path": "observations/corpus-producer-integrated.json",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/corpus-producer-integrated.json",
+      "sha256": "42b29e107dbd9aa84228c400868cc59c04eb4792045046d8b6697758a825e66c"
+    },
+    {
+      "evidence_path": "observations/row-integrated.json",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/row-integrated.json",
+      "sha256": "33013cee4a33f181354eb7afdbdaa44b0b2ff553ff4a58239404d37fb39333c9"
+    },
+    {
+      "evidence_path": "observations/row-integrated.log",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/row-integrated.log",
+      "sha256": "ebe16b3f3dff7926fba6189d2c50bc951462b07d79d42ebdcd1d14fcfd61d0f3"
+    },
+    {
+      "evidence_path": "observations/pinned-controls.json",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/pinned-controls.json",
+      "sha256": "e186986721d9a949b54ad8b8a3938f9fb3369a6212d95d6fdc88a97348fb805e"
+    },
+    {
+      "evidence_path": "observations/pinned-controls-integrated.log",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/pinned-controls-integrated.log",
+      "sha256": "76c2664005b1016d6dfbf2f3c0c29f483b780f28a030be1cebe3eafb5a52effe"
+    },
+    {
+      "evidence_path": "observations/integrated.json",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/integrated.json",
+      "sha256": "2d6aaf9349c0294246c914602b4f0116701d933b7d74ac79acd39ae9cfe7edd8"
+    },
+    {
+      "evidence_path": "observations/bounded-stack-integrated.json",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/bounded-stack-integrated.json",
+      "sha256": "ee662cce4b6c56f2c203d5ca99967a4e8022228de722580e3c82e926a0179489"
+    },
+    {
+      "evidence_path": "observations/stack-report-integrated.txt",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/stack-report-integrated.txt",
+      "sha256": "69307876210f328e073dd211cd52a7b87f379fbb2c88f278ac8a7fcd77222f46"
+    },
+    {
+      "evidence_path": "observations/corpus-source-integrated.json",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/corpus-source-integrated.json",
+      "sha256": "683d096e37aa822aad263b186f8177d0d2d8c5c726c35bdbaca92aa3f5cb1878"
+    },
+    {
+      "evidence_path": "observations/corpus-both-integrated.json",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/corpus-both-integrated.json",
+      "sha256": "810ee29b88ef6ae850288f7b2b030e19cb526d5500f53f533f7af0d9e2b0733c"
+    },
+    {
+      "evidence_path": "observations/corpus-non-tail-corrections.json",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/corpus-non-tail-corrections.json",
+      "sha256": "fc8facead3ea1cb3bfe381e532811d1a43a9e898ed0ac1c50311216857d77ad4"
+    },
+    {
+      "evidence_path": "observations/accepted-source-integrated.json",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/accepted-source-integrated.json",
+      "sha256": "c8ee25e88a8aeb30646f40560bd586e19248a5422d36e2fceb55ee983afeca23"
+    },
+    {
+      "evidence_path": "observations/accepted-both-integrated.json",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/accepted-both-integrated.json",
+      "sha256": "ec8ae745227fb4bc22aaa08359e735711d2e538baa7ba0b2509d00903fbf9e9b"
+    },
+    {
+      "evidence_path": "observations/retired-non-tail-positive-oracles.json",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/retired-non-tail-positive-oracles.json",
+      "sha256": "b69d4e36287e47f2214440c6f645ceec7073b8bf94b88642f785461c05e86021"
+    },
+    {
+      "evidence_path": "historical/baseline.json",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/baseline.json",
+      "sha256": "e915dedf746aa92b96c3188ae38e7aaef4a51f9849c558cb7b7008ccd9135957"
+    },
+    {
+      "evidence_path": "historical/producer-baseline.json",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-baseline.json",
+      "sha256": "cc15020993f9ac9dbfbe17d7da5226815bb7250b30afd1f1e765d71dfa8f6f55"
+    },
+    {
+      "evidence_path": "historical/extra-scope-baseline.json",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/extra-scope-baseline.json",
+      "sha256": "10f3de2e5e96f5d360389ffadac2da83659f59f3dc6a7f11d9250065206f867c"
+    },
+    {
+      "evidence_path": "historical/producer-erasure-and-runtime.json",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-erasure-and-runtime.json",
+      "sha256": "528a40663cb2eaabad5cc84a90e757b7731051b61d9bc902f8666112265963b8"
+    },
+    {
+      "evidence_path": "historical/parser-attribution.json",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/parser-attribution.json",
+      "sha256": "c2103a7f05103c67b1dfa92858081d6c5a0266ed97603b71819e9e2931eb85d4"
+    },
+    {
+      "evidence_path": "historical/required-fact-test.log",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/required-fact-test.log",
+      "sha256": "df912477b7d7f05fc6b6b308b86167ad7068af1d06cca7078b9961f93c7324e1"
+    },
+    {
+      "evidence_path": "historical/retired-state-body-final.log",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/retired-state-body-final.log",
+      "sha256": "72060a06628831e1632552cd7a30761e1381c59abad6ad7159fbc70e12c2874d"
+    },
+    {
+      "evidence_path": "producer-builds/build-integrated.jsonl",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/build-integrated.jsonl",
+      "sha256": "c05f7e9f29c51df4bc500fdddd5ae40157bd6b728a12a5244431042338d31e38"
+    },
+    {
+      "evidence_path": "producer-builds/corpus-build-integrated.jsonl",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/corpus-build-integrated.jsonl",
+      "sha256": "94a9a1f28277d58abf062b82e2260b8f04e60ac4b4703a227e43fb9eef3145dc"
+    },
+    {
+      "evidence_path": "qualification/observation-receipt.json",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/qualification.records/05871dfdff51461c832946ca918c4517.json",
+      "sha256": "9722131eb70c09e795d1137ad43c37453c45219cdb7f42777d3d922fec242b1f"
+    },
+    {
+      "evidence_path": "qualification/validator-stdout.txt",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/qualification.records/05871dfdff51461c832946ca918c4517.stdout",
+      "sha256": "8049a4c5f3400d9d32f43478d6f4554321ac3250ef6882c98e54b2fe2b6d247b"
+    },
+    {
+      "evidence_path": "qualification/validator-stderr.txt",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/qualification.records/05871dfdff51461c832946ca918c4517.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "evidence_path": "source/b011da5f273a04a924bc79cfa9df3bef5bcd6674.bundle",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/corpus-source/b011da5f273a04a924bc79cfa9df3bef5bcd6674.bundle",
+      "sha256": "a616c98cd31cdaf88443292bdb6115a7cdc06e6110a0bcf7c74ee6d54ec65229"
+    },
+    {
+      "evidence_path": "source/f091b8a4bc456552f8dfeb90392365fdb21f29b9.bundle",
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/corpus-source/f091b8a4bc456552f8dfeb90392365fdb21f29b9.bundle",
+      "sha256": "761d06f4b115739408bafd21bd6f460ab013c9fb5092605a5a84db1dc7df7970"
+    }
+  ]
+}

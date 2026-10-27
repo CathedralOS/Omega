@@ -1,0 +1,142 @@
+{
+  "semantic_contracts": [
+    {
+      "contract": "wiki/spec/language/machines.md",
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment",
+        "omega-rust/psi/compilation/checking/src/machine_calls/call_cycles",
+        "omega-rust/psi/compilation/checking/src/machine_calls/terminal_transitions.rs",
+        "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs",
+        "omega-rust/psi/compilation/pipeline/03b_typed-trees-to-typed-trees/src/monomorphization/selection"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Retain exact invocation identity and explicit actuals when proof traversal follows checked observation-free helpers. Infer private requirements only from all authenticated arrivals, without lexical premises, self-justification, lost mutation invalidation or unaccounted callable uses.",
+      "passages": [
+        "Named machines may nest to arbitrary depth. There is one machine declaration\nkind: the source `state` declaration is retired, not an alias or a second kind\nof machine. Nesting restricts name visibility; it does not allocate data,\ncapture runtime bindings, retain an enclosing activation, or impose a stack\nlayout. Every nested declaration has its own signature, contract and identity.",
+        "Resolution checks visibility and elaborates declaration context before erasing\nlexical nesting into flat machine identities and explicit calls/transfers.\nSource ancestry remains available for identity, diagnostics and debug mapping,\nnot as an executable parent stack. Downstream representations may have ordinary\nbasic blocks and jumps; these are not a revived source `state` construct.",
+        "A machine invocation does not prescribe a physical call frame. Inlining,\ntail transfer, frame reuse and fusion must preserve observable contracts, loans,\ncleanup and composed storage bounds. Runtime recursive cycles retain the\nconstant-stack requirement in [termination](termination.md#calls-and-productive-loops).\nReplacing old state loops with frame-growing recursion is not an acceptable\nintermediate behavior or an optimization left for later."
+      ]
+    },
+    {
+      "contract": "wiki/spec/language/state_contracts.md",
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment",
+        "omega-rust/psi/compilation/checking/src/machine_calls/call_cycles",
+        "omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/contracts"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Retain exact invocation identity and explicit actuals when proof traversal follows checked observation-free helpers. Infer private requirements only from all authenticated arrivals, without lexical premises, self-justification, lost mutation invalidation or unaccounted callable uses.",
+      "passages": [
+        "Machine `requires` applies at every invocation, including terminal and recursive\ncalls. Every arrival establishes the target's requirements and declared domains\nunder actual argument substitution. Nesting does not assume the parent's entry\nrequirements again, import its return guarantees, or supply facts invalidated\nby mutation. Live caller facts can discharge a nested helper's requirements;\nbody inference must justify any inferred private requirements on every arrival,\nnot grant them from lexical ancestry. Every invocation retains both sides of\nits own contract. A recursive contract is not its own proof; induction follows\nthe well-founded obligations in [termination](termination.md).",
+        "Arrival substitution is simultaneous and identity-based. Scalar arguments retain\ntheir evaluation snapshots; facts about referenced storage must survive writes\nfrom later arguments. A same-named formal cannot alias an unrelated caller value.\nEvery reachable predecessor participates in a join. Unknown input cannot be\nomitted to preserve a convenient invariant. A minimum collection length is not\nan exact extent, and declaration initializers are not recurring loop invariants."
+      ]
+    },
+    {
+      "contract": "wiki/spec/proofs/contracts.md",
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment.rs",
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment",
+        "omega-rust/psi/compilation/checking/src/machine_calls/fact_only_citations.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Preserve the complete licensed proof-case frontier after an unknown opaque mathematical terminal application. Refuted observations still reject; runtime and content-custody judgments keep their dedicated observation obligations. Recursive guarantees need prior premises and checked strict descent.",
+      "passages": [
+        "An ordinary statement call cites a checked theorem. Establish its `requires`\nunder exact operand substitution before importing its `ensures`; erase the call\nif fact-only. Imports do not activate global rewrite rules. Diagnostics may\nsuggest lemmas, but the citation belongs\nin source.",
+        "A recursive citation may use the recursive contract only after the caller\nestablishes its premises for the recursive arguments and its exact edge proves\nstrict decrease under the component's well-founded ranking. Descent licenses\ninduction, not arbitrary preconditions; there is no recursive-component exemption\nfrom premise checking. The citation's own conclusions cannot establish its\npremises or license its own descent. This applies to resultless, discarded, and\nnested calls whenever their conclusions are used.\nMutual recursion requires a joint ranking; citation cycles cannot justify\nthemselves.",
+        "The same checked contract may serve\nruntime, compile-time, or proof use when its types and reach permit it. A fact-only\ninvocation emits no runtime call or work."
+      ]
+    },
+    {
+      "contract": "wiki/spec/terminal-psi/mathematical_values.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution",
+        "omega-rust/psi/compilation/representations/checked-trees/src/checked_trees/values/computations.rs"
+      ],
+      "classification": "missing_implementation",
+      "reason": "After independently checked fact-only citation erasure, storage geometry follows executable roots and their full dependencies, preserving source proof and custody records without manufacturing runtime representations for erased mathematical constructors.",
+      "passages": [
+        "These are proof-only denotations, not runtime values or source declaration\nsyntax. They support the [fact-validity rules](fact_validity.md)."
+      ]
+    },
+    {
+      "contract": "wiki/spec/language/termination.md",
+      "implementation": [
+        "tests/omega/fail/calls/runtime_recursive_unit_non_tail_rejected",
+        "tests/omega/fail/calls/runtime_recursive_unit_borrowed_non_tail_rejected"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Align two old positive fixtures with the already accepted tail-only runtime rule; preserve source operations as explicit non-tail rejection controls, with valid helper arithmetic formation. No new language restriction is authored.",
+      "passages": [
+        "Runtime recursive call cycles are tail-position only and lower to constant-stack\niteration. Ranking proves termination; tail position permits that lowering.\nRanked non-tail recursion is valid in proof/compile-time use and rejects runtime\nlowering. After recursive cycles lower to backedges, the runtime call graph is\nacyclic for activation-storage planning. This is context-sensitive eligibility\nof one machine construct, not a separate proof language."
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "nested-invocation-integrated-evidence",
+      "kind": "tests",
+      "command": [
+        "python3",
+        "build/nested-takeover/validate-integrated.py"
+      ],
+      "inputs": [
+        "omega-rust",
+        "source/library",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        ".config",
+        "tools",
+        "samples/cli/facts/nested_machine_invocation",
+        "tests/omega",
+        "build.omg"
+      ],
+      "artifacts": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/validate-integrated.py",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-integrated/omega.gz",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-integrated/corpus_runner",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-integrated.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/corpus-producer-integrated.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/row-integrated.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/pinned-controls.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/integrated.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/bounded-stack-integrated.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/stack-product-integrated/omega-program",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/stack-report-integrated.txt",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/corpus-source-integrated.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/corpus-both-integrated.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/corpus-non-tail-corrections.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/retired-non-tail-positive-oracles.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/required-fact-test.log",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/parser-attribution.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/build-integrated.jsonl",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/corpus-build-integrated.jsonl"
+      ],
+      "producer": {
+        "revision": "b011da5f273a04a924bc79cfa9df3bef5bcd6674",
+        "inputs": [
+          "omega-rust",
+          "source/library",
+          "Cargo.toml",
+          "Cargo.lock",
+          "rust-toolchain.toml"
+        ],
+        "executables": [
+          "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-integrated/corpus_runner"
+        ]
+      },
+      "closure_reason": "Validate immutable fresh integrated native/Terminal and source observations, exact producer/source/oracle identities, and explicit spec-based retirement of two invalid positive expectations. This validator consumes retained actual engine observations; it does not claim to execute those engines again. Only fixture corrections and prose changed after the b011 optimized producer.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 180
+    }
+  ],
+  "context": {
+    "host": "macOS ARM64",
+    "target": "macos_arm64",
+    "toolchain": "nightly-2026-09-04",
+    "parent": "NESTED-MACHINE-UNIFICATION",
+    "requirement": "Sound nested invocation requirements through all nine places, including ordered hoisted calls, exact static specialization correspondence and proof-only argument erasure."
+  }
+}

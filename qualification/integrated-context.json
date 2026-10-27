@@ -1,0 +1,178 @@
+{
+  "schema": "qualification-handoff-1",
+  "role": "continuation",
+  "candidate": "b011da5f273a04a924bc79cfa9df3bef5bcd6674",
+  "source_revision": "b011da5f273a04a924bc79cfa9df3bef5bcd6674",
+  "changed_paths": [],
+  "canonical_context": [
+    {
+      "contract": "wiki/spec/language/machines.md",
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment",
+        "omega-rust/psi/compilation/checking/src/machine_calls/call_cycles",
+        "omega-rust/psi/compilation/checking/src/machine_calls/terminal_transitions.rs",
+        "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs",
+        "omega-rust/psi/compilation/pipeline/03b_typed-trees-to-typed-trees/src/monomorphization/selection"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Retain exact invocation identity and explicit actuals when proof traversal follows checked observation-free helpers. Infer private requirements only from all authenticated arrivals, without lexical premises, self-justification, lost mutation invalidation or unaccounted callable uses.",
+      "passages": [
+        "Named machines may nest to arbitrary depth. There is one machine declaration\nkind: the source `state` declaration is retired, not an alias or a second kind\nof machine. Nesting restricts name visibility; it does not allocate data,\ncapture runtime bindings, retain an enclosing activation, or impose a stack\nlayout. Every nested declaration has its own signature, contract and identity.",
+        "Resolution checks visibility and elaborates declaration context before erasing\nlexical nesting into flat machine identities and explicit calls/transfers.\nSource ancestry remains available for identity, diagnostics and debug mapping,\nnot as an executable parent stack. Downstream representations may have ordinary\nbasic blocks and jumps; these are not a revived source `state` construct.",
+        "A machine invocation does not prescribe a physical call frame. Inlining,\ntail transfer, frame reuse and fusion must preserve observable contracts, loans,\ncleanup and composed storage bounds. Runtime recursive cycles retain the\nconstant-stack requirement in [termination](termination.md#calls-and-productive-loops).\nReplacing old state loops with frame-growing recursion is not an acceptable\nintermediate behavior or an optimization left for later."
+      ],
+      "revision": "b011da5f273a04a924bc79cfa9df3bef5bcd6674",
+      "blob": "83dad82ce0422177b1df9a3ff60e0c8c39222bca"
+    },
+    {
+      "contract": "wiki/spec/language/state_contracts.md",
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment",
+        "omega-rust/psi/compilation/checking/src/machine_calls/call_cycles",
+        "omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/contracts"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Retain exact invocation identity and explicit actuals when proof traversal follows checked observation-free helpers. Infer private requirements only from all authenticated arrivals, without lexical premises, self-justification, lost mutation invalidation or unaccounted callable uses.",
+      "passages": [
+        "Machine `requires` applies at every invocation, including terminal and recursive\ncalls. Every arrival establishes the target's requirements and declared domains\nunder actual argument substitution. Nesting does not assume the parent's entry\nrequirements again, import its return guarantees, or supply facts invalidated\nby mutation. Live caller facts can discharge a nested helper's requirements;\nbody inference must justify any inferred private requirements on every arrival,\nnot grant them from lexical ancestry. Every invocation retains both sides of\nits own contract. A recursive contract is not its own proof; induction follows\nthe well-founded obligations in [termination](termination.md).",
+        "Arrival substitution is simultaneous and identity-based. Scalar arguments retain\ntheir evaluation snapshots; facts about referenced storage must survive writes\nfrom later arguments. A same-named formal cannot alias an unrelated caller value.\nEvery reachable predecessor participates in a join. Unknown input cannot be\nomitted to preserve a convenient invariant. A minimum collection length is not\nan exact extent, and declaration initializers are not recurring loop invariants."
+      ],
+      "revision": "b011da5f273a04a924bc79cfa9df3bef5bcd6674",
+      "blob": "3f0063b497dff2a77ef78b292b1f3315cf7b22d9"
+    },
+    {
+      "contract": "wiki/spec/proofs/contracts.md",
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment.rs",
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment",
+        "omega-rust/psi/compilation/checking/src/machine_calls/fact_only_citations.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Preserve the complete licensed proof-case frontier after an unknown opaque mathematical terminal application. Refuted observations still reject; runtime and content-custody judgments keep their dedicated observation obligations. Recursive guarantees need prior premises and checked strict descent.",
+      "passages": [
+        "An ordinary statement call cites a checked theorem. Establish its `requires`\nunder exact operand substitution before importing its `ensures`; erase the call\nif fact-only. Imports do not activate global rewrite rules. Diagnostics may\nsuggest lemmas, but the citation belongs\nin source.",
+        "A recursive citation may use the recursive contract only after the caller\nestablishes its premises for the recursive arguments and its exact edge proves\nstrict decrease under the component's well-founded ranking. Descent licenses\ninduction, not arbitrary preconditions; there is no recursive-component exemption\nfrom premise checking. The citation's own conclusions cannot establish its\npremises or license its own descent. This applies to resultless, discarded, and\nnested calls whenever their conclusions are used.\nMutual recursion requires a joint ranking; citation cycles cannot justify\nthemselves.",
+        "The same checked contract may serve\nruntime, compile-time, or proof use when its types and reach permit it. A fact-only\ninvocation emits no runtime call or work."
+      ],
+      "revision": "b011da5f273a04a924bc79cfa9df3bef5bcd6674",
+      "blob": "0551b01c0d931150f979d6ea295d3bafd99629bf"
+    },
+    {
+      "contract": "wiki/spec/terminal-psi/mathematical_values.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution",
+        "omega-rust/psi/compilation/representations/checked-trees/src/checked_trees/values/computations.rs"
+      ],
+      "classification": "missing_implementation",
+      "reason": "After independently checked fact-only citation erasure, storage geometry follows executable roots and their full dependencies, preserving source proof and custody records without manufacturing runtime representations for erased mathematical constructors.",
+      "passages": [
+        "These are proof-only denotations, not runtime values or source declaration\nsyntax. They support the [fact-validity rules](fact_validity.md)."
+      ],
+      "revision": "b011da5f273a04a924bc79cfa9df3bef5bcd6674",
+      "blob": "fd8debfdb274bad3a33b4167d3c3fa5cec338982"
+    }
+  ],
+  "context_fingerprint": "629e16878e77727fb64c9270687467d996a8748e0cbf8275b95f04a2a2c0b774",
+  "reinject_context": [
+    {
+      "contract": "wiki/spec/language/machines.md",
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment",
+        "omega-rust/psi/compilation/checking/src/machine_calls/call_cycles",
+        "omega-rust/psi/compilation/checking/src/machine_calls/terminal_transitions.rs",
+        "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs",
+        "omega-rust/psi/compilation/pipeline/03b_typed-trees-to-typed-trees/src/monomorphization/selection"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Retain exact invocation identity and explicit actuals when proof traversal follows checked observation-free helpers. Infer private requirements only from all authenticated arrivals, without lexical premises, self-justification, lost mutation invalidation or unaccounted callable uses.",
+      "passages": [
+        "Named machines may nest to arbitrary depth. There is one machine declaration\nkind: the source `state` declaration is retired, not an alias or a second kind\nof machine. Nesting restricts name visibility; it does not allocate data,\ncapture runtime bindings, retain an enclosing activation, or impose a stack\nlayout. Every nested declaration has its own signature, contract and identity.",
+        "Resolution checks visibility and elaborates declaration context before erasing\nlexical nesting into flat machine identities and explicit calls/transfers.\nSource ancestry remains available for identity, diagnostics and debug mapping,\nnot as an executable parent stack. Downstream representations may have ordinary\nbasic blocks and jumps; these are not a revived source `state` construct.",
+        "A machine invocation does not prescribe a physical call frame. Inlining,\ntail transfer, frame reuse and fusion must preserve observable contracts, loans,\ncleanup and composed storage bounds. Runtime recursive cycles retain the\nconstant-stack requirement in [termination](termination.md#calls-and-productive-loops).\nReplacing old state loops with frame-growing recursion is not an acceptable\nintermediate behavior or an optimization left for later."
+      ],
+      "revision": "b011da5f273a04a924bc79cfa9df3bef5bcd6674",
+      "blob": "83dad82ce0422177b1df9a3ff60e0c8c39222bca"
+    },
+    {
+      "contract": "wiki/spec/language/state_contracts.md",
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment",
+        "omega-rust/psi/compilation/checking/src/machine_calls/call_cycles",
+        "omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/contracts"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Retain exact invocation identity and explicit actuals when proof traversal follows checked observation-free helpers. Infer private requirements only from all authenticated arrivals, without lexical premises, self-justification, lost mutation invalidation or unaccounted callable uses.",
+      "passages": [
+        "Machine `requires` applies at every invocation, including terminal and recursive\ncalls. Every arrival establishes the target's requirements and declared domains\nunder actual argument substitution. Nesting does not assume the parent's entry\nrequirements again, import its return guarantees, or supply facts invalidated\nby mutation. Live caller facts can discharge a nested helper's requirements;\nbody inference must justify any inferred private requirements on every arrival,\nnot grant them from lexical ancestry. Every invocation retains both sides of\nits own contract. A recursive contract is not its own proof; induction follows\nthe well-founded obligations in [termination](termination.md).",
+        "Arrival substitution is simultaneous and identity-based. Scalar arguments retain\ntheir evaluation snapshots; facts about referenced storage must survive writes\nfrom later arguments. A same-named formal cannot alias an unrelated caller value.\nEvery reachable predecessor participates in a join. Unknown input cannot be\nomitted to preserve a convenient invariant. A minimum collection length is not\nan exact extent, and declaration initializers are not recurring loop invariants."
+      ],
+      "revision": "b011da5f273a04a924bc79cfa9df3bef5bcd6674",
+      "blob": "3f0063b497dff2a77ef78b292b1f3315cf7b22d9"
+    },
+    {
+      "contract": "wiki/spec/proofs/contracts.md",
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment.rs",
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment",
+        "omega-rust/psi/compilation/checking/src/machine_calls/fact_only_citations.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Preserve the complete licensed proof-case frontier after an unknown opaque mathematical terminal application. Refuted observations still reject; runtime and content-custody judgments keep their dedicated observation obligations. Recursive guarantees need prior premises and checked strict descent.",
+      "passages": [
+        "An ordinary statement call cites a checked theorem. Establish its `requires`\nunder exact operand substitution before importing its `ensures`; erase the call\nif fact-only. Imports do not activate global rewrite rules. Diagnostics may\nsuggest lemmas, but the citation belongs\nin source.",
+        "A recursive citation may use the recursive contract only after the caller\nestablishes its premises for the recursive arguments and its exact edge proves\nstrict decrease under the component's well-founded ranking. Descent licenses\ninduction, not arbitrary preconditions; there is no recursive-component exemption\nfrom premise checking. The citation's own conclusions cannot establish its\npremises or license its own descent. This applies to resultless, discarded, and\nnested calls whenever their conclusions are used.\nMutual recursion requires a joint ranking; citation cycles cannot justify\nthemselves.",
+        "The same checked contract may serve\nruntime, compile-time, or proof use when its types and reach permit it. A fact-only\ninvocation emits no runtime call or work."
+      ],
+      "revision": "b011da5f273a04a924bc79cfa9df3bef5bcd6674",
+      "blob": "0551b01c0d931150f979d6ea295d3bafd99629bf"
+    },
+    {
+      "contract": "wiki/spec/terminal-psi/mathematical_values.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution",
+        "omega-rust/psi/compilation/representations/checked-trees/src/checked_trees/values/computations.rs"
+      ],
+      "classification": "missing_implementation",
+      "reason": "After independently checked fact-only citation erasure, storage geometry follows executable roots and their full dependencies, preserving source proof and custody records without manufacturing runtime representations for erased mathematical constructors.",
+      "passages": [
+        "These are proof-only denotations, not runtime values or source declaration\nsyntax. They support the [fact-validity rules](fact_validity.md)."
+      ],
+      "revision": "b011da5f273a04a924bc79cfa9df3bef5bcd6674",
+      "blob": "fd8debfdb274bad3a33b4167d3c3fa5cec338982"
+    }
+  ],
+  "context_refresh": true,
+  "checks": [
+    {
+      "id": "context-only",
+      "kind": "build",
+      "command": [
+        "cargo",
+        "check",
+        "--locked",
+        "-p",
+        "validation"
+      ],
+      "inputs": [
+        "Cargo.lock",
+        "Cargo.toml",
+        "omega-rust",
+        "rust-toolchain.toml",
+        "wiki/spec/language/machines.md",
+        "wiki/spec/language/state_contracts.md",
+        "wiki/spec/proofs/contracts.md",
+        "wiki/spec/terminal-psi/mathematical_values.md"
+      ],
+      "artifacts": [],
+      "closure_reason": "Context packet; the integrated draft baseline currently rejects Nat proofs and the frozen helper witness.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 300
+    }
+  ],
+  "assessments": [],
+  "review_instruction": "Judge behavior against these passages; uncovered semantics need an explicit owner decision. Inspect the candidate diff and check evidence; passage identity alone is not semantic compliance.",
+  "prior_context_retained": false
+}

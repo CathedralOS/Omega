@@ -1,0 +1,71 @@
+[
+  {
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-integrated/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/inferred_requirement/controls/public_contract/main.omg"
+    ],
+    "source_sha256": "b5c8542db93ebb5930987e1c033132231a7e02c1093cb97512c4b37aa1117c96",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-integrated/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/inferred_requirement/controls/public_contract_missing/main.omg"
+    ],
+    "source_sha256": "9238e06cff1b6605eb87454c89b4a9eb1ce5170fbd66b829357d34f9644d8d78",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `nested_local` with 1 diagnostic(s)\n  error: cannot prove requires contract for call same from public_value: selected == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+  },
+  {
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-integrated/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/inferred_requirement/controls/unrelated_selection/main.omg"
+    ],
+    "source_sha256": "87b87956935c3232826ee743aa71425145e9e2e25dc47184f9d26a0ed2a386c2",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-integrated/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/inferred_requirement/controls/escaping_selection/main.omg"
+    ],
+    "source_sha256": "dbc4ae07c753eb4c93751d3c15e422834ce1b8c0fc0bb32e796544d1aa8d5c1e",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `nested_local` with 1 diagnostic(s)\n  error: cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+  },
+  {
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-integrated/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/inferred_requirement/proof_only/main.omg"
+    ],
+    "source_sha256": "1a7b7558893233f3ee1d46acdf2259a16576b66883ad15010aacf2b9bea80340",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-integrated/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/inferred_requirement/proof_only/invalid/main.omg"
+    ],
+    "source_sha256": "7f99ec92f107384376ad0b751078b1c58bff676f2d04dd2b5b93c3fed8a60eaf",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `nested_machine_inferred_requirement_local` with 1 diagnostic(s)\n  error: cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+  }
+]

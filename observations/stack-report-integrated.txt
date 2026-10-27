@@ -1,0 +1,4 @@
+product: native artifact
+target: macos_arm64
+compiled 20 source file(s) from /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/ancestor_cycle/main.omg; wrote_output=true
+published native output to /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/stack-product-integrated/omega-program

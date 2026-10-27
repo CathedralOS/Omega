@@ -1,0 +1,18 @@
+samples/cli/facts/nested_machine_invocation/inferred_requirement/controls/public_contract_missing/main.omg 1 cannot compile admitted project: checked compilation failed for package `nested_local` with 1 diagnostic(s)
+  error: cannot prove requires contract for call same from public_value: selected == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+
+samples/cli/facts/nested_machine_invocation/inferred_requirement/controls/public_contract/main.omg 0 native exit 0
+interp exit: 0
+
+samples/cli/facts/nested_machine_invocation/inferred_requirement/controls/unrelated_selection/main.omg 0 native exit 0
+interp exit: 0
+
+samples/cli/facts/nested_machine_invocation/inferred_requirement/controls/escaping_selection/main.omg 1 cannot compile admitted project: checked compilation failed for package `nested_local` with 1 diagnostic(s)
+  error: cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+
+samples/cli/facts/nested_machine_invocation/inferred_requirement/proof_only/invalid/main.omg 1 cannot compile admitted project: checked compilation failed for package `nested_machine_inferred_requirement_local` with 1 diagnostic(s)
+  error: cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+
+samples/cli/facts/nested_machine_invocation/inferred_requirement/proof_only/main.omg 0 native exit 0
+interp exit: 0
+

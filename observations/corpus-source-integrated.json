@@ -1,0 +1,4370 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "b011da5f273a04a924bc79cfa9df3bef5bcd6674",
+  "dirty": false,
+  "leg": "checked",
+  "target": null,
+  "golden": "tests/omega/corpus_outcomes.txt",
+  "golden_reason_gaps": {
+    "rows": 1,
+    "of": 18818
+  },
+  "subset": true,
+  "filter": "acquired_generator_,nested_generated_dependency_dual_purpose,nested_machine,fact_only_proof_value_citation,recursive_unit_,facts/saved_case_predicate_,facts/saved_observation_snapshot_,facts/saved_byte_predicate_",
+  "shard": null,
+  "verdict": "regressed",
+  "exit_code": 3,
+  "counts": {
+    "fixtures": 169,
+    "by_status": {
+      "checked": 83,
+      "rejected": 86
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 2,
+    "lost_success_fixtures": [
+      "pass/calls/runtime_recursive_unit_borrowed_continuation_exit",
+      "pass/calls/runtime_recursive_unit_continuation_exit"
+    ],
+    "pinned_off_target": 2,
+    "pinned_off_target_fixtures": [
+      "pass/calls/runtime_recursive_unit_borrowed_continuation_exit",
+      "pass/calls/runtime_recursive_unit_continuation_exit"
+    ],
+    "by_verdict": {
+      "improved": 2,
+      "new": 65,
+      "regressed": 2,
+      "moved": 11,
+      "perf_faster": 4
+    }
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": {
+    "stamped": 104,
+    "legacy": 0,
+    "unknown_revisions": 1,
+    "oldest": {
+      "revision": "a92f16431042",
+      "commits_behind": 410
+    }
+  },
+  "perf_context": {
+    "golden": {
+      "cpus": 10,
+      "jobs": "2",
+      "load1_end": 8.21,
+      "load1_start": 7.27,
+      "machine": "arm64",
+      "platform": "darwin",
+      "schema": "omega-corpus-context-v1"
+    },
+    "current": {
+      "schema": "omega-corpus-context-v1",
+      "jobs": null,
+      "cpus": 10,
+      "platform": "darwin",
+      "machine": "arm64",
+      "load1_start": 2.28,
+      "load1_end": 11.31
+    },
+    "warnings": [
+      "the golden was recorded on a busy machine (pre-run load 7.27 on 10 cpus); fixtures only look faster now \u2014 treat perf_faster moves as noise"
+    ]
+  },
+  "observations": [
+    {
+      "fixture": "pass/build/acquired_generator_completed_output_set",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6988,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64",
+        "published": "files/companion.txt,files/generated.omg"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/build/nested_generated_dependency_dual_purpose",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3498,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/calls/nested_machine_continuation",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 14156,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/calls/recursive_unit_positive_requires_control_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 14524,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/calls/runtime_recursive_unit_borrowed_continuation_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 11926,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "exact arithmetic in machine `next` state `entry` call argument may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": {
+        "status": "checked",
+        "facts": {
+          "check-target": "macos_arm64"
+        }
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/calls/runtime_recursive_unit_continuation_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 12125,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "exact arithmetic in machine `next` state `entry` call argument may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": {
+        "status": "checked",
+        "facts": {
+          "check-target": "macos_arm64"
+        }
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3029,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2983,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2717,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2924,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3251,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3021,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2966,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3297,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2829,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/ancestor_cycle",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2494,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/attached_context",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2413,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/borrow_context",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2467,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/call_result",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2619,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/callable_context",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2495,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/const_context",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2296,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/const_name",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2792,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/copied_payload",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2688,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/field",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2575,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/generic_context",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2416,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/inferred_crash",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2675,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64",
+        "terminal-target.windows_x86_64": "trap",
+        "terminal-target.linux_x86_64": "trap",
+        "terminal-target.macos_arm64": "trap",
+        "terminal-target.linux_arm64": "trap",
+        "terminal-target-artifact": "unchanged",
+        "terminal-targets": "match"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/local",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2356,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/match_join",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2995,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/nominal_index",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2766,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/other_machine",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3065,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/other_state",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2849,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/parameter",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2799,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/ranked_callee",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2809,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/selected_helper",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2557,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/shadowing",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2298,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/target_body",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2896,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/unit_completion",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2785,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_call_result",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2698,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_const_name",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2855,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_field",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2530,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_local",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2756,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_match_join",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2502,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_other_machine",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2550,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_other_state",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2602,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_parameter",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2510,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_target_body",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2607,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_inferred_reference_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2465,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2792,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3219,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2833,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2485,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2734,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2779,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3209,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2834,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3068,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_relational_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2510,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_relational_return_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2781,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_saved_after_write_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2831,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_through_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2556,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_through_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2680,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_through_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2698,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_through_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2453,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_through_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3041,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_through_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2560,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_through_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2857,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_through_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2909,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_after_call_through_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2723,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2697,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2640,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3160,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2555,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2770,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2692,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2558,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2820,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2636,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/proofs/fact_only_proof_value_citation_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2521,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/proofs/nested_machine_induction",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2393,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/proofs/nested_machine_inferred_requirement",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2207,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/proofs/nested_machine_proof_erasure_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2509,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/proofs/nested_machine_public_contract_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2476,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/proofs/nested_machine_rank_forwarding",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2051,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/proofs/nested_machine_unrelated_selection_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2782,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/traits/public_nested_machine_contract_scopes",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2308,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/build/acquired_generator_output_final_check_refused",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1819,
+      "expected_satisfied": true,
+      "facts": {
+        "published": "none"
+      },
+      "diagnostics": [
+        "scalar constant `GENERATED` is invalid: const value `-1` does not fit `u32`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/calls/nested_machine_private_descendant",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 527,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "qualified call `hidden` has no resolved callable declaration"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/calls/nested_machine_runtime_capture",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 610,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `read` state `entry` uses `value`, which is not a declared local, parameter, field, or type in this state (check the spelling)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/calls/recursive_unit_zero_requires_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 12438,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call recurse from Main::main: 0 > 0 (needs fact `value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/control_flow/nested_machine_statement_after_declarations",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 199,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "tests/omega/fail/control_flow/nested_machine_statement_after_declarations/main.omg:1:38: executable statements cannot follow nested machine declarations"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_inferred_requirement_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2179,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_inferred_requirement_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2202,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call same from forward$specialized$3e1b7aec6f86087c$0: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call same from forward$specialized$084767401bf0eeb2$1: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_inferred_requirement_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1695,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_inferred_requirement_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2427,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_inferred_requirement_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2476,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_inferred_requirement_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2284,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_inferred_requirement_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2637,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_inferred_requirement_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2380,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_inferred_requirement_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2601,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/call_result",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 766,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `keep` state `entry` terminal expression expects `T`, got `bool`",
+        "machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/capture_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 953,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `inner` state `entry` uses `value`, which is not a declared local, parameter, field, or type in this state (check the spelling)",
+        "machine `inner$specialized$e968490059a8ab0c$0` state `entry` uses `value`, which is not a declared local, parameter, field, or type in this state (check the spelling)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/const_name",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 950,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `keep` state `entry` terminal expression expects `T`, got `bool`",
+        "machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/copied_payload",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1475,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `clear` receives `item` as both mutable and read-only"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/field",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 563,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `keep` state `entry` terminal expression expects `T`, got `bool`",
+        "machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/inferred_crash",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1709,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "call from `main` to `wrong` at statement 0 call 0 has an uncovered Abort crash route; publish a same-cause route whose guard covers this invocation",
+        "machine `wrong` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/local",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1323,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `keep` state `entry` terminal expression expects `T`, got `bool`",
+        "machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/match_join",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1098,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `keep` state `entry` terminal expression expects `T`, got `bool`",
+        "machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/nominal_index",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 75,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "indexed-domain selected constant has canonical type `named(name(OtherUnit))`, expected `named(name(Unit))`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/other_machine",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1109,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `keep` state `entry` terminal expression expects `T`, got `bool`",
+        "machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/other_state",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1066,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `keep` state `entry` terminal expression expects `T`, got `bool`",
+        "machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/parameter",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1028,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `keep` state `entry` terminal expression expects `T`, got `bool`",
+        "machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/ranked_callee",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1354,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "terminating machine step: cannot prove strict rank decrease on a recurrent arrival: the transition from `step` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step",
+        "machine call cycle: `step` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/retired_state",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 8,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "tests/omega/fail/facts/nested_machine_invocation/retired_state/main.omg:3:5: nested `state` declarations are retired; declare a nested `machine` with its own signature and contract"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/retired_state_after_body",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 7,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "tests/omega/fail/facts/nested_machine_invocation/retired_state_after_body/main.omg:3:5: nested `state` declarations are retired; declare a nested `machine` with its own signature and contract"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/retired_state_after_machine",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 6,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "tests/omega/fail/facts/nested_machine_invocation/retired_state_after_machine/main.omg:4:5: nested `state` declarations are retired; declare a nested `machine` with its own signature and contract"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/target_body",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 745,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `keep` state `entry` terminal expression expects `T`, got `bool`",
+        "machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/unit_completion",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 370,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `dispatch` state `entry`: `finish(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local",
+        "call to `entry` discards its non-unit `u64` result; consume the value or discard it explicitly with `_ = entry(...);`",
+        "machine `dispatch$specialized$2022ecce155df880$0` state `entry`: `entry(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_call_result",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2170,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_const_name",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2219,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_field",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2211,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call inspect from probe: ascii_only(holder.bytes[0..1]) && holder.bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_local",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2063,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_match_join",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1993,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_other_machine",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2108,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call inspect from observe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_other_state",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1903,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call inspect from observe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_parameter",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1883,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_target_body",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2337,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`",
+        "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`",
+        "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`",
+        "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_inferred_reference_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2169,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2259,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2196,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2114,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `holder.choice.amount`: captured source `holder.choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2095,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2398,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2255,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `quotient` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2196,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2376,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2073,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence",
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence",
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence",
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_relational_invalid_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2050,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call same from probe: saved == 3 (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_stale_before_call_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2400,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call same from main: saved == later (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_through_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2176,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_through_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2163,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_through_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2209,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from main: note.observed == items[0] && note.observed == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_through_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1993,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_through_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2042,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from probe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_through_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1947,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from read_kept at statement 3: result == items[0] && result == 7"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_through_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2039,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call check from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_through_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2047,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from hold: observed == items[0] && observed == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_through_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2046,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_uncovered_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2126,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from probe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_after_call_unknown_after_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2138,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from probe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_through_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2328,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_through_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2317,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_through_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2056,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from main: note.observed == items[0] && note.observed == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_through_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2210,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_through_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2532,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from probe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_through_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2197,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from read_kept at statement 3: result == items[0] && result == 7"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_through_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2370,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call check from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_through_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2119,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from hold: observed == items[0] && observed == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_through_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2207,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/fact_only_proof_value_citation_linear_resource",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2223,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "linear value `value::Node.token` reaches scope exit without being consumed or transferred in machine `reflexive` state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/fact_only_proof_value_citation_missing_premise",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1906,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call zero from main: constructor:81:package:44e1e8f7e4626a08868bba2883c6bfcf1c404f02446cedae98e74a3d2c9c29fe::Ordinal9:name:Step21:payload:name:previous107:constructor:81:package:44e1e8f7e4626a08868bba2883c6bfcf1c404f02446cedae98e74a3d2c9c29fe::Ordinal9:name:Zero == constructor:81:package:44e1e8f7e4626a08868bba2883c6bfcf1c404f02446cedae98e74a3d2c9c29fe::Ordinal9:name:Zero (needs fact `value == Ordinal` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/fact_only_proof_value_citation_mutable",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 511,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `reflexive` state `entry` parameter `value` mentions proof-only `Ordinal`, which has no runtime layout",
+        "mutable argument for state `entry` must be a named place"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/nested_machine_computed_rank_preserving",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 295,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "proof-only machine call cycle: `descend`, `forward` -- no complete structural ranking establishes strict descent on every cycle; exact arguments must preserve or descend from the ranking subject, and preserving edges must be acyclic; computed ranking: a computed closing argument is not proved smaller on every incoming path"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/nested_machine_escaping_selection_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1915,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/nested_machine_induction",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 366,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `copy_identity` ensures contract proof fact `copy_branch(value) == Branch` is disproved structurally: under the requires hypotheses the sides resolve to constructor forms that contradict the claim"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/nested_machine_inferred_requirement",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1475,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/nested_machine_proof_erasure_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1473,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/nested_machine_public_contract_missing_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1163,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call same from public_value: selected == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/nested_machine_rank_bypassed",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 301,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "proof-only machine call cycle: `descend`, `forward` -- no complete structural ranking establishes strict descent on every cycle; exact arguments must preserve or descend from the ranking subject, and preserving edges must be acyclic; computed ranking: a helper-only cycle can avoid every ranked entry",
+        "recursive proof machine `forward` needs a single structural measure: declare `terminates by <param>;` naming one proof-data parameter -- a cycle without a measure is an unproven termination claim (measured recursion, both strata)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/nested_machine_rank_forwarding",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 330,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "proof-only machine call cycle: `descend`, `forward` -- no complete structural ranking establishes strict descent on every cycle; exact arguments must preserve or descend from the ranking subject, and preserving edges must be acyclic; computed ranking: a computed closing argument is not proved smaller on every incoming path"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  ],
+  "fixtures": [
+    {
+      "fixture": "pass/build/nested_generated_dependency_dual_purpose",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> checked",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/build/nested_generated_dependency_dual_purpose",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 363,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "quoted byte literal has 41 source byte(s), but owned fixed byte array `[u8; 38]` requires exactly 38; fixed-array literal copying neither truncates nor pads"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "pass/build/nested_generated_dependency_dual_purpose",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 3498,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/calls/recursive_unit_positive_requires_control_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/calls/recursive_unit_positive_requires_control_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 14524,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/calls/runtime_recursive_unit_borrowed_continuation_exit",
+      "verdict": "regressed",
+      "reasons": [
+        "status checked -> rejected",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/calls/runtime_recursive_unit_borrowed_continuation_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 9104,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "pass/calls/runtime_recursive_unit_borrowed_continuation_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 11926,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "exact arithmetic in machine `next` state `entry` call argument may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/calls/runtime_recursive_unit_continuation_exit",
+      "verdict": "regressed",
+      "reasons": [
+        "status checked -> rejected",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/calls/runtime_recursive_unit_continuation_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 8817,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "pass/calls/runtime_recursive_unit_continuation_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 12125,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "exact arithmetic in machine `next` state `entry` call argument may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_call_result_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_inferred_requirement_call_result_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 3029,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_const_name_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_inferred_requirement_const_name_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2983,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_field_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_inferred_requirement_field_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2717,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_local_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_inferred_requirement_local_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2924,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_match_join_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_inferred_requirement_match_join_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 3251,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_other_machine_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_inferred_requirement_other_machine_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 3021,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_other_state_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_inferred_requirement_other_state_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2966,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_parameter_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_inferred_requirement_parameter_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 3297,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_target_body_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_inferred_requirement_target_body_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2829,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/ancestor_cycle",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_invocation/ancestor_cycle",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2494,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/attached_context",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_invocation/attached_context",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2413,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/borrow_context",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_invocation/borrow_context",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2467,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/call_result",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_invocation/call_result",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2619,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/callable_context",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_invocation/callable_context",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2495,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/const_context",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_invocation/const_context",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2296,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/const_name",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_invocation/const_name",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2792,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/copied_payload",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_invocation/copied_payload",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2688,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/field",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_invocation/field",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2575,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/generic_context",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_invocation/generic_context",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2416,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/inferred_crash",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_invocation/inferred_crash",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2675,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64",
+          "terminal-target.windows_x86_64": "trap",
+          "terminal-target.linux_x86_64": "trap",
+          "terminal-target.macos_arm64": "trap",
+          "terminal-target.linux_arm64": "trap",
+          "terminal-target-artifact": "unchanged",
+          "terminal-targets": "match"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/local",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_invocation/local",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2356,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/match_join",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_invocation/match_join",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2995,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/nominal_index",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_invocation/nominal_index",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2766,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/other_machine",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_invocation/other_machine",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 3065,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/other_state",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_invocation/other_state",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2849,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/parameter",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_invocation/parameter",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2799,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/ranked_callee",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_invocation/ranked_callee",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2809,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/selected_helper",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_invocation/selected_helper",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2557,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/shadowing",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_invocation/shadowing",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2298,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/target_body",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_invocation/target_body",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2896,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/unit_completion",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_invocation/unit_completion",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2785,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/proofs/fact_only_proof_value_citation_exit",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> checked",
+        "facts moved",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/proofs/fact_only_proof_value_citation_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 2166,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "linux_x86_64"
+        },
+        "diagnostics": [
+          "cannot retain constructed value storage shapes for state `entry` of machine `main`"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "linux_x86_64"
+          }
+        },
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "pass/proofs/fact_only_proof_value_citation_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2521,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/proofs/nested_machine_induction",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/proofs/nested_machine_induction",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2393,
+        "expected_satisfied": null,
+        "facts": {},
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/proofs/nested_machine_inferred_requirement",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/proofs/nested_machine_inferred_requirement",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2207,
+        "expected_satisfied": null,
+        "facts": {},
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/proofs/nested_machine_proof_erasure_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/proofs/nested_machine_proof_erasure_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2509,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/proofs/nested_machine_public_contract_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/proofs/nested_machine_public_contract_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2476,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/proofs/nested_machine_rank_forwarding",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/proofs/nested_machine_rank_forwarding",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2051,
+        "expected_satisfied": null,
+        "facts": {},
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/proofs/nested_machine_unrelated_selection_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/proofs/nested_machine_unrelated_selection_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2782,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/calls/nested_machine_private_descendant",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/calls/nested_machine_private_descendant",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 527,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "qualified call `hidden` has no resolved callable declaration"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/calls/nested_machine_runtime_capture",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/calls/nested_machine_runtime_capture",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 610,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "machine `read` state `entry` uses `value`, which is not a declared local, parameter, field, or type in this state (check the spelling)"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/control_flow/nested_machine_statement_after_declarations",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/control_flow/nested_machine_statement_after_declarations",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 199,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "tests/omega/fail/control_flow/nested_machine_statement_after_declarations/main.omg:1:38: executable statements cannot follow nested machine declarations"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/nested_machine_inferred_requirement_call_result_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/nested_machine_inferred_requirement_call_result_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2179,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/nested_machine_inferred_requirement_const_name_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/nested_machine_inferred_requirement_const_name_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2202,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+          "cannot prove requires contract for call same from forward$specialized$3e1b7aec6f86087c$0: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+          "cannot prove requires contract for call same from forward$specialized$084767401bf0eeb2$1: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/nested_machine_inferred_requirement_field_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/nested_machine_inferred_requirement_field_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1695,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/nested_machine_inferred_requirement_local_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/nested_machine_inferred_requirement_local_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2427,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/nested_machine_inferred_requirement_match_join_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/nested_machine_inferred_requirement_match_join_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2476,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/nested_machine_inferred_requirement_other_machine_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/nested_machine_inferred_requirement_other_machine_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2284,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/nested_machine_inferred_requirement_other_state_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/nested_machine_inferred_requirement_other_state_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2637,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/nested_machine_inferred_requirement_parameter_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/nested_machine_inferred_requirement_parameter_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2380,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/nested_machine_inferred_requirement_target_body_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/nested_machine_inferred_requirement_target_body_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2601,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+          "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+          "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+          "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/copied_payload",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/nested_machine_invocation/copied_payload",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1475,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "state `clear` receives `item` as both mutable and read-only"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/nominal_index",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/nested_machine_invocation/nominal_index",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 75,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "indexed-domain selected constant has canonical type `named(name(OtherUnit))`, expected `named(name(Unit))`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/ranked_callee",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/nested_machine_invocation/ranked_callee",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1354,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "terminating machine step: cannot prove strict rank decrease on a recurrent arrival: the transition from `step` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step",
+          "machine call cycle: `step` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/retired_state",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/nested_machine_invocation/retired_state",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 8,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "tests/omega/fail/facts/nested_machine_invocation/retired_state/main.omg:3:5: nested `state` declarations are retired; declare a nested `machine` with its own signature and contract"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/retired_state_after_body",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/nested_machine_invocation/retired_state_after_body",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 7,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "tests/omega/fail/facts/nested_machine_invocation/retired_state_after_body/main.omg:3:5: nested `state` declarations are retired; declare a nested `machine` with its own signature and contract"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/retired_state_after_machine",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/nested_machine_invocation/retired_state_after_machine",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 6,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "tests/omega/fail/facts/nested_machine_invocation/retired_state_after_machine/main.omg:4:5: nested `state` declarations are retired; declare a nested `machine` with its own signature and contract"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/unit_completion",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/nested_machine_invocation/unit_completion",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 370,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "machine `dispatch` state `entry`: `finish(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local",
+          "call to `entry` discards its non-unit `u64` result; consume the value or discard it explicitly with `_ = entry(...);`",
+          "machine `dispatch$specialized$2022ecce155df880$0` state `entry`: `entry(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_call_result",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/facts/saved_byte_predicate_through_call_result",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1640,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/facts/saved_byte_predicate_through_call_result",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2170,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_const_name",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/facts/saved_byte_predicate_through_const_name",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2769,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/facts/saved_byte_predicate_through_const_name",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2219,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_field",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/facts/saved_byte_predicate_through_field",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2749,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from probe: ascii_only(holder.bytes[0..1]) && holder.bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/facts/saved_byte_predicate_through_field",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2211,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from probe: ascii_only(holder.bytes[0..1]) && holder.bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_local",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/facts/saved_byte_predicate_through_local",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2761,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/facts/saved_byte_predicate_through_local",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2063,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_match_join",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/facts/saved_byte_predicate_through_match_join",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2740,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/facts/saved_byte_predicate_through_match_join",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1993,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_other_machine",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/facts/saved_byte_predicate_through_other_machine",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2776,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from observe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/facts/saved_byte_predicate_through_other_machine",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2108,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from observe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_other_state",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/facts/saved_byte_predicate_through_other_state",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1874,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `observe`"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/facts/saved_byte_predicate_through_other_state",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1903,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from observe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_parameter",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/facts/saved_byte_predicate_through_parameter",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2779,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/facts/saved_byte_predicate_through_parameter",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1883,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_target_body",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/facts/saved_byte_predicate_through_target_body",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2692,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/facts/saved_byte_predicate_through_target_body",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2337,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`",
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`",
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`",
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_const_name_rejected",
+      "verdict": "perf_faster",
+      "reasons": [
+        "17078ms -> 2196ms (>=2x faster)"
+      ],
+      "before": {
+        "fixture": "fail/facts/saved_case_predicate_through_const_name_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 17078,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+        ],
+        "regressed_from": null,
+        "recorded_at": "2f6555324361"
+      },
+      "after": {
+        "fixture": "fail/facts/saved_case_predicate_through_const_name_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2196,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_field_rejected",
+      "verdict": "perf_faster",
+      "reasons": [
+        "17076ms -> 2114ms (>=2x faster)"
+      ],
+      "before": {
+        "fixture": "fail/facts/saved_case_predicate_through_field_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 17076,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `holder.choice.amount`: captured source `holder.choice::Full.amount` has no live case evidence"
+        ],
+        "regressed_from": null,
+        "recorded_at": "2f6555324361"
+      },
+      "after": {
+        "fixture": "fail/facts/saved_case_predicate_through_field_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2114,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `holder.choice.amount`: captured source `holder.choice::Full.amount` has no live case evidence"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_match_join_rejected",
+      "verdict": "perf_faster",
+      "reasons": [
+        "16887ms -> 2398ms (>=2x faster)"
+      ],
+      "before": {
+        "fixture": "fail/facts/saved_case_predicate_through_match_join_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 16887,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+        ],
+        "regressed_from": null,
+        "recorded_at": "2f6555324361"
+      },
+      "after": {
+        "fixture": "fail/facts/saved_case_predicate_through_match_join_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2398,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_other_machine_rejected",
+      "verdict": "perf_faster",
+      "reasons": [
+        "16833ms -> 2255ms (>=2x faster)"
+      ],
+      "before": {
+        "fixture": "fail/facts/saved_case_predicate_through_other_machine_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 16833,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "machine `quotient` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+        ],
+        "regressed_from": null,
+        "recorded_at": "2f6555324361"
+      },
+      "after": {
+        "fixture": "fail/facts/saved_case_predicate_through_other_machine_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2255,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "machine `quotient` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/proofs/fact_only_proof_value_citation_linear_resource",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/proofs/fact_only_proof_value_citation_linear_resource",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2897,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "linear value `value::Node.token` reaches scope exit without being consumed or transferred"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/proofs/fact_only_proof_value_citation_linear_resource",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2223,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "linear value `value::Node.token` reaches scope exit without being consumed or transferred in machine `reflexive` state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/proofs/fact_only_proof_value_citation_missing_premise",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/proofs/fact_only_proof_value_citation_missing_premise",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2500,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call zero from main: constructor:81:package:6b6f67d4467813117f6ea99f24fafa84b18eb7e376cd0cf431446e1d331761c8::Ordinal9:name:Step21:payload:name:previous107:constructor:81:package:6b6f67d4467813117f6ea99f24fafa84b18eb7e376cd0cf431446e1d331761c8::Ordinal9:name:Zero == constructor:81:package:6b6f67d4467813117f6ea99f24fafa84b18eb7e376cd0cf431446e1d331761c8::Ordinal9:name:Zero (needs fact `value == Ordinal` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/proofs/fact_only_proof_value_citation_missing_premise",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1906,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call zero from main: constructor:81:package:44e1e8f7e4626a08868bba2883c6bfcf1c404f02446cedae98e74a3d2c9c29fe::Ordinal9:name:Step21:payload:name:previous107:constructor:81:package:44e1e8f7e4626a08868bba2883c6bfcf1c404f02446cedae98e74a3d2c9c29fe::Ordinal9:name:Zero == constructor:81:package:44e1e8f7e4626a08868bba2883c6bfcf1c404f02446cedae98e74a3d2c9c29fe::Ordinal9:name:Zero (needs fact `value == Ordinal` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/proofs/nested_machine_computed_rank_preserving",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/proofs/nested_machine_computed_rank_preserving",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 295,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "proof-only machine call cycle: `descend`, `forward` -- no complete structural ranking establishes strict descent on every cycle; exact arguments must preserve or descend from the ranking subject, and preserving edges must be acyclic; computed ranking: a computed closing argument is not proved smaller on every incoming path"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/proofs/nested_machine_escaping_selection_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/proofs/nested_machine_escaping_selection_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1915,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/proofs/nested_machine_induction",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/proofs/nested_machine_induction",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 366,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "machine `copy_identity` ensures contract proof fact `copy_branch(value) == Branch` is disproved structurally: under the requires hypotheses the sides resolve to constructor forms that contradict the claim"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/proofs/nested_machine_inferred_requirement",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/proofs/nested_machine_inferred_requirement",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1475,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/proofs/nested_machine_proof_erasure_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/proofs/nested_machine_proof_erasure_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1473,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/proofs/nested_machine_public_contract_missing_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/proofs/nested_machine_public_contract_missing_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1163,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call same from public_value: selected == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/proofs/nested_machine_rank_bypassed",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/proofs/nested_machine_rank_bypassed",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 301,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "proof-only machine call cycle: `descend`, `forward` -- no complete structural ranking establishes strict descent on every cycle; exact arguments must preserve or descend from the ranking subject, and preserving edges must be acyclic; computed ranking: a helper-only cycle can avoid every ranked entry",
+          "recursive proof machine `forward` needs a single structural measure: declare `terminates by <param>;` naming one proof-data parameter -- a cycle without a measure is an unproven termination claim (measured recursion, both strata)"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/proofs/nested_machine_rank_forwarding",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/proofs/nested_machine_rank_forwarding",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 330,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "proof-only machine call cycle: `descend`, `forward` -- no complete structural ranking establishes strict descent on every cycle; exact arguments must preserve or descend from the ranking subject, and preserving edges must be acyclic; computed ranking: a computed closing argument is not proved smaller on every incoming path"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    }
+  ]
+}

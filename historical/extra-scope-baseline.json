@@ -1,0 +1,88 @@
+{
+  "cli": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-erasure-and-runtime/omega",
+  "producer_sha256": "9e20123c483d73c01163e48381d81050cb3e7a390a671401694761fc179803ce",
+  "host": "macOS-15.5-arm64-arm-64bit",
+  "observations": [
+    {
+      "name": "numeric_private",
+      "source": "build/nested-takeover/runtime-inference/main.omg",
+      "source_sha256": "f4c7cf8a909b88b4699d20ba8d964b1ed02c7c21015be8a6a4144be7cb7b1f90",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-erasure-and-runtime/omega",
+        "run",
+        "--both",
+        "build/nested-takeover/runtime-inference/main.omg"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "native exit 0\ninterp exit: 0\n"
+    },
+    {
+      "name": "numeric_private_invalid",
+      "source": "build/nested-takeover/runtime-inference/invalid/main.omg",
+      "source_sha256": "ca2623b6acc88d5702f353563238ab2e213f68b379e4a951bad8d0ba875967ab",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-erasure-and-runtime/omega",
+        "--check",
+        "build/nested-takeover/runtime-inference/invalid/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `nested_local` with 1 diagnostic(s)\n  error: cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+    },
+    {
+      "name": "public_unknown_invalid",
+      "source": "build/nested-takeover/public-call-premise/invalid/main.omg",
+      "source_sha256": "9238e06cff1b6605eb87454c89b4a9eb1ce5170fbd66b829357d34f9644d8d78",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-erasure-and-runtime/omega",
+        "--check",
+        "build/nested-takeover/public-call-premise/invalid/main.omg"
+      ],
+      "exit": 0,
+      "stdout": "compiled 20 source file(s) from /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/public-call-premise/invalid/main.omg; wrote_output=false\n",
+      "stderr": ""
+    },
+    {
+      "name": "public_contract",
+      "source": "build/nested-takeover/public-call-premise/main.omg",
+      "source_sha256": "b5c8542db93ebb5930987e1c033132231a7e02c1093cb97512c4b37aa1117c96",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-erasure-and-runtime/omega",
+        "run",
+        "--both",
+        "build/nested-takeover/public-call-premise/main.omg"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "native exit 0\ninterp exit: 0\n"
+    },
+    {
+      "name": "unrelated_selection",
+      "source": "build/nested-takeover/unrelated-selection/main.omg",
+      "source_sha256": "87b87956935c3232826ee743aa71425145e9e2e25dc47184f9d26a0ed2a386c2",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-erasure-and-runtime/omega",
+        "run",
+        "--both",
+        "build/nested-takeover/unrelated-selection/main.omg"
+      ],
+      "exit": 200,
+      "stdout": "",
+      "stderr": "native compile FAILED:\n  error: cannot compile admitted project: checked compilation failed for package `nested_local` with 1 diagnostic(s)\n  error: cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+    },
+    {
+      "name": "escaping_helper_invalid",
+      "source": "build/nested-takeover/escaping-helper/invalid/main.omg",
+      "source_sha256": "dbc4ae07c753eb4c93751d3c15e422834ce1b8c0fc0bb32e796544d1aa8d5c1e",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-erasure-and-runtime/omega",
+        "--check",
+        "build/nested-takeover/escaping-helper/invalid/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `nested_local` with 1 diagnostic(s)\n  error: cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+    }
+  ]
+}

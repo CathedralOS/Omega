@@ -1,0 +1,245 @@
+[
+  {
+    "place": "local",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-integrated/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/inferred_requirement/local/main.omg"
+    ],
+    "source_sha256": "91a4432d4cf0574ac8b632f39185491abeed504aebc1fab3d67634b5b27a3ce7",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "local",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-integrated/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/inferred_requirement/local/invalid/main.omg"
+    ],
+    "source_sha256": "39df481a31d6657fc891d330d5734805f44fd9569695089c92f6b210f9f2f65c",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `nested_machine_inferred_requirement_local` with 1 diagnostic(s)\n  error: cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+  },
+  {
+    "place": "field",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-integrated/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/inferred_requirement/field/main.omg"
+    ],
+    "source_sha256": "8ba1867b0fdbe067db98f99968a8ddb0568c757e4ccb5cb745d1ddc8c02742bc",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "field",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-integrated/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/inferred_requirement/field/invalid/main.omg"
+    ],
+    "source_sha256": "d3d386971ef85b1f50cbc0acc26f1a42962f1d7865e4dbd1e0c7aa267a37d120",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `nested_machine_inferred_requirement_field` with 1 diagnostic(s)\n  error: cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+  },
+  {
+    "place": "parameter",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-integrated/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/inferred_requirement/parameter/main.omg"
+    ],
+    "source_sha256": "9c6b3c2459dff68b2aeb52c9883352cf39e05d0321d71968049828e4df29d178",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "parameter",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-integrated/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/inferred_requirement/parameter/invalid/main.omg"
+    ],
+    "source_sha256": "433e50d15b3c810c368b19f79c3a89bde7da45a79f2b038011ed49884d18ae24",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `nested_machine_inferred_requirement_parameter` with 1 diagnostic(s)\n  error: cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+  },
+  {
+    "place": "call_result",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-integrated/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/inferred_requirement/call_result/main.omg"
+    ],
+    "source_sha256": "9b9873ba4abdc9c947f7bf53608a21d8c658a212bcd699b943cfe6ceee4a5302",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "call_result",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-integrated/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/inferred_requirement/call_result/invalid/main.omg"
+    ],
+    "source_sha256": "1adbf961711d6853f4e690dc08f57a6868976f37257e9360f19013256fd6f130",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `nested_machine_inferred_requirement_call_result` with 1 diagnostic(s)\n  error: cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+  },
+  {
+    "place": "match_join",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-integrated/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/inferred_requirement/match_join/main.omg"
+    ],
+    "source_sha256": "4b17c62ef008ee5b681555b41a1d102498c66276ddfcf473bca9efb5b7a4b959",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "match_join",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-integrated/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/inferred_requirement/match_join/invalid/main.omg"
+    ],
+    "source_sha256": "5ca7676dcad2859f55fc813124bee99c8a68369efafe3838fced08e5a26edffc",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `nested_machine_inferred_requirement_match_join` with 1 diagnostic(s)\n  error: cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+  },
+  {
+    "place": "const_name",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-integrated/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/inferred_requirement/const_name/main.omg"
+    ],
+    "source_sha256": "d36d98410f263af6cc9af501e89d72afc25f090e3575008c4bd1d7db33b28a3b",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "const_name",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-integrated/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/inferred_requirement/const_name/invalid/main.omg"
+    ],
+    "source_sha256": "02f6367b7ab1dd39fd0d387238f32ed591c24c6d20d4be254842a4c133349c54",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `nested_machine_inferred_requirement_const_name` with 3 diagnostic(s)\n  error: cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n  error: cannot prove requires contract for call same from forward$specialized$3e1b7aec6f86087c$0: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n  error: cannot prove requires contract for call same from forward$specialized$084767401bf0eeb2$1: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+  },
+  {
+    "place": "other_state",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-integrated/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/inferred_requirement/other_state/main.omg"
+    ],
+    "source_sha256": "043e401c80322926879c1c0dae3f90aaf15acee438aeea84a3b2237689b4b8ee",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "other_state",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-integrated/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/inferred_requirement/other_state/invalid/main.omg"
+    ],
+    "source_sha256": "0c33bf0e766f430b4502d06dc8ee10c8cd2ebd118aae13b697f54bfc015eca62",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `nested_machine_inferred_requirement_other_state` with 1 diagnostic(s)\n  error: cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+  },
+  {
+    "place": "other_machine",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-integrated/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/inferred_requirement/other_machine/main.omg"
+    ],
+    "source_sha256": "56b56667a2a0966bc1f22895afb65ce76ff330e125c882fb671b3f41f1b6c68e",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "other_machine",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-integrated/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/inferred_requirement/other_machine/invalid/main.omg"
+    ],
+    "source_sha256": "7dc083323baff3aab790632ae0ac4edd33d90e931c8cd5fcd8d80d777ade639d",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `nested_machine_inferred_requirement_other_machine` with 1 diagnostic(s)\n  error: cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+  },
+  {
+    "place": "target_body",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-integrated/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/inferred_requirement/target_body/main.omg"
+    ],
+    "source_sha256": "c4fefb936dc0931f3bf4c9de066cb51e7c91340c9052c349012dce06b6ee805b",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "target_body",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/producer-integrated/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/inferred_requirement/target_body/invalid/main.omg"
+    ],
+    "source_sha256": "c3b8ea22624018518f8dc978b6a92cb2bf731e0cedc8ce2301e0dd51c621280c",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `nested_machine_inferred_requirement_target_body` with 4 diagnostic(s)\n  error: cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n  error: cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n  error: cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n  error: cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n"
+  }
+]

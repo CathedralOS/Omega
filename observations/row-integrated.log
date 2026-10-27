@@ -1,0 +1,41 @@
+field True 1 cannot compile admitted project: checked compilation failed for package `nested_machine_inferred_requirement_field` with 1 diagnostic(s)
+  error: cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+local True 1 cannot compile admitted project: checked compilation failed for package `nested_machine_inferred_requirement_local` with 1 diagnostic(s)
+  error: cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+field False 0 native exit 0
+interp exit: 0
+local False 0 native exit 0
+interp exit: 0
+parameter True 1 cannot compile admitted project: checked compilation failed for package `nested_machine_inferred_requirement_parameter` with 1 diagnostic(s)
+  error: cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+parameter False 0 native exit 0
+interp exit: 0
+call_result True 1 cannot compile admitted project: checked compilation failed for package `nested_machine_inferred_requirement_call_result` with 1 diagnostic(s)
+  error: cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+call_result False 0 native exit 0
+interp exit: 0
+match_join False 0 native exit 0
+interp exit: 0
+match_join True 1 cannot compile admitted project: checked compilation failed for package `nested_machine_inferred_requirement_match_join` with 1 diagnostic(s)
+  error: cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+const_name True 1 cannot compile admitted project: checked compilation failed for package `nested_machine_inferred_requirement_const_name` with 3 diagnostic(s)
+  error: cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+  error: cannot prove requires contract for call same from forward$specialized$3e1b7aec6f86087c$0: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+  error: cannot prove requires contract for call same from forward$specialized$084767401bf0eeb2$1: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+const_name False 0 native exit 0
+interp exit: 0
+other_state True 1 cannot compile admitted project: checked compilation failed for package `nested_machine_inferred_requirement_other_state` with 1 diagnostic(s)
+  error: cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+other_machine True 1 cannot compile admitted project: checked compilation failed for package `nested_machine_inferred_requirement_other_machine` with 1 diagnostic(s)
+  error: cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+other_state False 0 native exit 0
+interp exit: 0
+other_machine False 0 native exit 0
+interp exit: 0
+target_body False 0 native exit 0
+interp exit: 0
+target_body True 1 cannot compile admitted project: checked compilation failed for package `nested_machine_inferred_requirement_target_body` with 4 diagnostic(s)
+  error: cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+  error: cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+  error: cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+  error: cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`

@@ -1,0 +1,1 @@
+error: tests/omega/fail/facts/nested_machine_invocation/retired_state_after_body/main.omg:3:5: nested `state` declarations are retired; declare a nested `machine` with its own signature and contract

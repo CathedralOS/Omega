@@ -1,0 +1,21 @@
+{
+  "schema": "omega-qualification-summary-v1",
+  "state": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/qualification.json",
+  "revision": 2,
+  "base": "2c1fcc4c2f0ca0900e152e31b2f7142649f63f24",
+  "qualification_revision": "f091b8a4bc456552f8dfeb90392365fdb21f29b9",
+  "running": null,
+  "source_ref": "refs/qualification/65ec6cc7d1690a3cc70164a5/f091b8a4bc456552f8dfeb90392365fdb21f29b9",
+  "latest_run": {
+    "id": "05871dfdff51461c832946ca918c4517",
+    "check": "nested-invocation-integrated-evidence",
+    "revision": "f091b8a4bc456552f8dfeb90392365fdb21f29b9",
+    "exit": 0,
+    "invalidations": [],
+    "duration_seconds": 22.444500625,
+    "receipt": {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/nested-takeover/qualification.records/05871dfdff51461c832946ca918c4517.json",
+      "sha256": "9722131eb70c09e795d1137ad43c37453c45219cdb7f42777d3d922fec242b1f"
+    }
+  }
+}

@@ -1,0 +1,135 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "f091b8a4bc456552f8dfeb90392365fdb21f29b9",
+  "dirty": false,
+  "leg": "checked",
+  "target": null,
+  "golden": "tests/omega/corpus_outcomes.txt",
+  "golden_reason_gaps": {
+    "rows": 1,
+    "of": 18818
+  },
+  "subset": true,
+  "filter": "runtime_recursive_unit_non_tail_rejected,runtime_recursive_unit_borrowed_non_tail_rejected",
+  "shard": null,
+  "verdict": "moved",
+  "exit_code": 1,
+  "counts": {
+    "fixtures": 2,
+    "by_status": {
+      "rejected": 2
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {
+      "new": 2
+    }
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": {
+    "stamped": 0,
+    "legacy": 0,
+    "unknown_revisions": 0,
+    "oldest": null
+  },
+  "perf_context": {
+    "golden": {
+      "cpus": 10,
+      "jobs": "2",
+      "load1_end": 8.21,
+      "load1_start": 7.27,
+      "machine": "arm64",
+      "platform": "darwin",
+      "schema": "omega-corpus-context-v1"
+    },
+    "current": {
+      "schema": "omega-corpus-context-v1",
+      "jobs": null,
+      "cpus": 10,
+      "platform": "darwin",
+      "machine": "arm64",
+      "load1_start": 1.77,
+      "load1_end": 1.88
+    },
+    "warnings": []
+  },
+  "observations": [
+    {
+      "fixture": "fail/calls/runtime_recursive_unit_borrowed_non_tail_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 6407,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `visit`, `next` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/calls/runtime_recursive_unit_non_tail_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 6404,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `descend`, `next` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  ],
+  "fixtures": [
+    {
+      "fixture": "fail/calls/runtime_recursive_unit_borrowed_non_tail_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/calls/runtime_recursive_unit_borrowed_non_tail_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 6407,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "machine call cycle: `visit`, `next` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/calls/runtime_recursive_unit_non_tail_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/calls/runtime_recursive_unit_non_tail_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 6404,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "machine call cycle: `descend`, `next` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    }
+  ]
+}

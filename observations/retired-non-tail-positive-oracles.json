@@ -1,0 +1,22 @@
+[
+  {
+    "old": "tests/omega/pass/calls/runtime_recursive_unit_continuation_exit",
+    "new": "tests/omega/fail/calls/runtime_recursive_unit_non_tail_rejected",
+    "retired_runtime_oracles": {
+      "expected_native_exit.txt": "70\n",
+      "expected_stderr.txt": "",
+      "expected_stdout.txt": "321123\n"
+    },
+    "reason": "Accepted termination contract rejects non-tail runtime recursion; no language rule changed."
+  },
+  {
+    "old": "tests/omega/pass/calls/runtime_recursive_unit_borrowed_continuation_exit",
+    "new": "tests/omega/fail/calls/runtime_recursive_unit_borrowed_non_tail_rejected",
+    "retired_runtime_oracles": {
+      "expected_native_exit.txt": "70\n",
+      "expected_stderr.txt": "",
+      "expected_stdout.txt": "borrowed Unit frames: 42\n"
+    },
+    "reason": "Accepted termination contract rejects non-tail runtime recursion; no language rule changed."
+  }
+]

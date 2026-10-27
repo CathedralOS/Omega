@@ -1,0 +1,17 @@
+{
+  "source_records": 169,
+  "both_records": 83,
+  "retired_positive_keys": [
+    "pass/calls/runtime_recursive_unit_borrowed_continuation_exit",
+    "pass/calls/runtime_recursive_unit_continuation_exit"
+  ],
+  "changed": [
+    "tests/omega/corpus_both_windows_x86_64.txt",
+    "tests/omega/corpus_both_linux_x86_64.txt",
+    "tests/omega/corpus_native_windows_x86_64.txt",
+    "tests/omega/corpus_both_macos_arm64.txt",
+    "tests/omega/corpus_native_linux_x86_64.txt",
+    "tests/omega/corpus_outcomes.txt"
+  ],
+  "untouched_records_preserved": true
+}

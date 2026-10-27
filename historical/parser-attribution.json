@@ -1,0 +1,30 @@
+{
+  "base": "10c0906cde49d3e346d6b93fa5b50f5c4c062812",
+  "candidate": "25b48455ac1d038cf29ba8961eb1a097f9552744",
+  "unchanged_dependencies": true,
+  "same_failures": true,
+  "baseline": {
+    "parameters::generic_parameters_tests::conformance_and_value_binders_keep_distinct_admission": "assertion failed: parameters.type_parameters.is_empty()",
+    "tests::definitions_and_contracts::tail_self_call_rewrite_retains_the_authored_target_span": "tail self call should rewrite to a transition",
+    "tests::domains_and_transitions::explicit_domain_subject_rejects_runtime_parameter_shapes_and_duplicate_binders": "accepted domain u64::Positive(value) requires self > 0;",
+    "tests::expression_stack::iterative_prefixes_preserve_borrows_literal_folding_and_call_acknowledgements": "borrow",
+    "tests::items_and_selections::opposite_boolean_subject_arms_test_the_subject_once": "assertion `left == right` failed",
+    "tests::items_and_selections::single_attempt_compare_exchange_is_not_admitted_as_public_atomic_source": "assertion failed: !parsed.expressions.iter_expressions().any(|(_, expression)|",
+    "tests::items_and_selections::unrelated_or_nonpair_boolean_guards_keep_their_tests": "authored transition",
+    "tests::mathematical_definitions::parses_mathematical_let_with_relevant_and_erased_parameters": "unexpected type reference in test: ConstExpression(Handle { arena_index: 1, generation: 1 })",
+    "tests::type_constraints::fixed_array_equation_operands_use_the_type_grammars_rejections": "[Element; -1]",
+    "type_syntax::qualified_names::boolean_domain_indices_retain_literal_identity_and_span_in_qualifications_and_casts": "boolean literal retains the canonical named-atom syntax"
+  },
+  "candidate_failures": {
+    "parameters::generic_parameters_tests::conformance_and_value_binders_keep_distinct_admission": "assertion failed: parameters.type_parameters.is_empty()",
+    "tests::definitions_and_contracts::tail_self_call_rewrite_retains_the_authored_target_span": "tail self call should rewrite to a transition",
+    "tests::domains_and_transitions::explicit_domain_subject_rejects_runtime_parameter_shapes_and_duplicate_binders": "accepted domain u64::Positive(value) requires self > 0;",
+    "tests::expression_stack::iterative_prefixes_preserve_borrows_literal_folding_and_call_acknowledgements": "borrow",
+    "tests::items_and_selections::opposite_boolean_subject_arms_test_the_subject_once": "assertion `left == right` failed",
+    "tests::items_and_selections::single_attempt_compare_exchange_is_not_admitted_as_public_atomic_source": "assertion failed: !parsed.expressions.iter_expressions().any(|(_, expression)|",
+    "tests::items_and_selections::unrelated_or_nonpair_boolean_guards_keep_their_tests": "authored transition",
+    "tests::mathematical_definitions::parses_mathematical_let_with_relevant_and_erased_parameters": "unexpected type reference in test: ConstExpression(Handle { arena_index: 1, generation: 1 })",
+    "tests::type_constraints::fixed_array_equation_operands_use_the_type_grammars_rejections": "[Element; -1]",
+    "type_syntax::qualified_names::boolean_domain_indices_retain_literal_identity_and_span_in_qualifications_and_casts": "boolean literal retains the canonical named-atom syntax"
+  }
+}
