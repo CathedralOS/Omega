@@ -928,7 +928,10 @@ pub fn accepted_fixture_product_request(
     request.build.snapshot = snapshot;
     request.build.directory = Some(build_dir);
     Ok(compiler::PackageCompilationRequest {
-        occurrences: fixture_occurrences(prepared, request)?,
+        occurrences: fixture_occurrences(prepared, request)?
+            .into_iter()
+            .map(compiler::PackageSourceRequest::Execute)
+            .collect(),
         product,
         terminal_permissions: prepared.assumed_permissions.take(),
     })
@@ -938,7 +941,7 @@ pub fn produce_accepted_fixture(
     session: &mut compiler::CompilationSession,
     request: compiler::PackageCompilationRequest,
 ) -> Result<compiler::CompileReport, Vec<Diagnostic>> {
-    omega_build::compile_packages(session, vec![request])
+    omega_build::compile_packages(session, vec![request], &mut [])
         .pop()
         .expect("one fixture product")
         .map_err(|error| error.failure.into_diagnostics())
@@ -1126,8 +1129,15 @@ pub fn reviewed_repository_fixture_package_inputs(
         let occurrences =
             dependency_requests(graph, &package_inputs, authored_project_root, request)?;
         compiler::checked::run_on_compile_thread(|| {
-            let build = omega_build::prepare_package(&mut session, occurrences)
-                .map_err(|failure| failure.failure.into_diagnostics())?;
+            let build = omega_build::prepare_package(
+                &mut session,
+                occurrences
+                    .into_iter()
+                    .map(compiler::PackageSourceRequest::Execute)
+                    .collect(),
+                &mut [],
+            )
+            .map_err(|failure| failure.failure.into_diagnostics())?;
             session
                 .check_package_build(build)
                 .map_err(|failure| failure.into_diagnostics())
@@ -1362,8 +1372,15 @@ pub fn check_fixture_request(
     if request.target_name.is_some() && request.package_inputs.is_some() {
         let occurrences = fixture_occurrences(prepared, request)?;
         compiler::checked::run_on_compile_thread(|| {
-            let build = omega_build::prepare_package(&mut prepared.session, occurrences)
-                .map_err(|failure| failure.failure.into_diagnostics())?;
+            let build = omega_build::prepare_package(
+                &mut prepared.session,
+                occurrences
+                    .into_iter()
+                    .map(compiler::PackageSourceRequest::Execute)
+                    .collect(),
+                &mut [],
+            )
+            .map_err(|failure| failure.failure.into_diagnostics())?;
             prepared
                 .session
                 .check_package_build(build)
