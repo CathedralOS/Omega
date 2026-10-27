@@ -13,10 +13,13 @@
 //!
 //! This file also owns the helpers the sibling removal families reuse:
 //! `canonical_compare_operands` reads the emitted flag-publisher shape any
-//! compare — victim or shadow — must carry, `audit_stable_paths` is the
-//! backward operand-stability walk the shadow-based families run per
-//! published unit, and `compare_removal_steps` is the cone-audited
-//! measured-step contract both shadow-based families publish.
+//! compare — victim or shadow — must carry, `admit_shadowed_compare` is the
+//! cone-and-reaching-set admission both shadow-based families run — only
+//! their shadow agreement rule and measured-step term differ —
+//! `audit_stable_paths` is the backward operand-stability walk the
+//! shadow-based families run per published unit, and `compare_removal_steps`
+//! is the cone-audited measured-step contract both shadow-based families
+//! publish.
 use std::collections::BTreeSet;
 
 use optimization_core::OptimizationWorkBudget;
@@ -34,7 +37,9 @@ use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{
     block_instructions, edge_surface, member_position, terminator_successors,
 };
-use crate::rewrites::condition_state::{EventSite, instruction_at};
+use crate::rewrites::condition_state::{
+    EventSite, adjacency, backward_cone, entry_index, instruction_at, reaching_events,
+};
 
 pub(super) struct Admission<'source> {
     pub function: &'source SelectedFunction,
@@ -152,6 +157,141 @@ pub(super) fn audit_stable_paths<E: Copy>(
     Ok(())
 }
 
+/// The refusal surface one shadow-based compare family maps the shared
+/// admission walk's failures onto, so the walk never names another family's
+/// error type: its source, shape, constraint, use, overflow and budget
+/// refusals.
+pub(super) struct ShadowRefusals<E> {
+    pub source: E,
+    pub unsupported_instruction: E,
+    pub constraint: E,
+    pub unsupported_use: E,
+    pub overflow: E,
+    pub budget: E,
+}
+
+/// What one family's own canonical-shape read established for the victim
+/// compare: the operand registers every reaching-site rule compares against,
+/// and the family's own read of it — the strict family's flag-equivalent form
+/// is those registers alone, while the equivalent family keeps the
+/// subtraction sides its rule proves equal site by site.
+pub(super) struct ShadowVictim<V> {
+    pub registers: Vec<VirtualRegisterId>,
+    pub read: V,
+}
+
+/// One family's reaching-site agreement rule: whether a site is one the
+/// family accepts for the unit, recording the registers the backward operand
+/// audit must then hold stable.
+type ShadowAgreement<V> = fn(
+    &SelectedFunction,
+    &SelectedInstruction,
+    &ShadowVictim<V>,
+    &SelectedInstruction,
+    &mut BTreeSet<VirtualRegisterId>,
+) -> bool;
+
+/// The admission every compare removal that proves its published units
+/// carried by reaching shadow sites runs: locate the named compare, take the
+/// family's own read of its canonical flag-publisher shape, agree its
+/// constraint row, and resolve each published unit's reaching events to the
+/// sites the family's agreement rule accepts. A defined unit's accepted sites
+/// bound the backward operand audit over the registers the rule recorded as
+/// shared; a clobbered unit's sites must leave it unspecified. The cone, the
+/// reaching walk and the budget charge are what both shadow-based families
+/// share: each supplies its victim read, its agreement rule and its
+/// measured-step term, and nothing else differs.
+pub(super) fn admit_shadowed_compare<'source, E: Copy, V>(
+    source: &'source impl ValidatedSelectedAnalysis,
+    function_index: usize,
+    compare: SelectedInstructionId,
+    environment: &'source ValidatedTargetRegisterEnvironment,
+    budget: OptimizationWorkBudget,
+    refusals: ShadowRefusals<E>,
+    victim_read: impl FnOnce(&SelectedInstruction) -> Option<ShadowVictim<V>>,
+    agreement: ShadowAgreement<V>,
+    per_unit: impl FnOnce(&crate::rewrites::ConePropagation) -> Result<usize, E>,
+) -> Result<Admission<'source>, E> {
+    let (plan, function) =
+        crate::rewrites::plan_function(source, function_index, environment, || refusals.source)?;
+    let (block_index, compare_index) = member_position(function, compare).ok_or(refusals.source)?;
+    let block = &function.blocks[block_index];
+    let compare_instruction = &block.instructions[compare_index];
+    let victim = victim_read(compare_instruction).ok_or(refusals.unsupported_instruction)?;
+    let arity = compare_instruction.operands.len();
+    agree_compare_removal_row(
+        function,
+        compare,
+        compare_instruction,
+        arity,
+        environment,
+        || refusals.constraint,
+        || refusals.unsupported_instruction,
+    )?;
+    // The flag walk crosses block boundaries: the adjacency, the entry whose
+    // unseeded condition state bounds every path, and the cone of blocks whose
+    // entry sets can feed the reaching events are what both families consult.
+    let (successors, predecessors) = adjacency(function);
+    let entry = entry_index(function).ok_or(refusals.source)?;
+    let cone = backward_cone(&predecessors, block_index);
+    let units: BTreeSet<RegisterUnitId> = compare_instruction
+        .implicit_defs
+        .iter()
+        .chain(compare_instruction.clobbers.iter())
+        .copied()
+        .collect();
+    for &unit in &units {
+        let defined = compare_instruction.implicit_defs.contains(&unit);
+        let sites = reaching_events(
+            function,
+            entry,
+            &successors,
+            &cone,
+            block_index,
+            compare_index,
+            unit,
+        )
+        .map_err(|_| refusals.unsupported_use)?;
+        let mut unit_sites = BTreeSet::new();
+        let mut audited = BTreeSet::new();
+        for site in sites {
+            let event = instruction_at(function, site);
+            if defined {
+                if !event.implicit_defs.contains(&unit)
+                    || event.clobbers.contains(&unit)
+                    || !agreement(function, compare_instruction, &victim, event, &mut audited)
+                {
+                    return Err(refusals.unsupported_use);
+                }
+                unit_sites.insert(site);
+            } else if !event.clobbers.contains(&unit) || event.implicit_defs.contains(&unit) {
+                return Err(refusals.unsupported_use);
+            }
+        }
+        if defined {
+            audit_stable_paths(
+                function,
+                &predecessors,
+                block_index,
+                compare_index,
+                &unit_sites,
+                &audited,
+                refusals.unsupported_use,
+            )?;
+        }
+    }
+    let steps = compare_removal_steps(plan, function, &successors, units.len(), per_unit, || {
+        refusals.overflow
+    })?;
+    crate::rewrites::charge_steps(steps, budget, || refusals.overflow, || refusals.budget)?;
+    Ok(Admission {
+        function,
+        block_index,
+        block: block.id,
+        compare_index,
+    })
+}
+
 /// The cone-audited step contract the backward-walk compare removals
 /// publish: the cone-propagation bases, the shadow-transport rows between
 /// successor edges, the removal audit at the function scan, edge count, and
@@ -264,30 +404,9 @@ pub(super) fn admit<'source>(
     // canonical position, no implicit uses the removal would silently drop,
     // and a nonempty published surface — a compare defining no condition
     // state at all is malformed, not dead.
-    let arity = compare_operand_arity(compare_instruction.kind)
-        .ok_or(DeadCompareError::UnsupportedInstruction)?;
-    if compare_instruction.operands.len() != arity
-        || !compare_instruction.implicit_uses.is_empty()
-        || compare_instruction
-            .implicit_defs
-            .iter()
-            .chain(compare_instruction.clobbers.iter())
-            .next()
-            .is_none()
-        || compare_instruction
-            .operands
-            .iter()
-            .enumerate()
-            .any(|(position, operand)| {
-                operand.operand != position as u16
-                    || operand.access != RegisterOperandAccess::Use
-                    || operand.fixed_view.is_some()
-                    || operand.tied_to.is_some()
-                    || operand.early_clobber
-            })
-    {
-        return Err(DeadCompareError::UnsupportedInstruction);
-    }
+    let arity = canonical_compare_operands(compare_instruction)
+        .ok_or(DeadCompareError::UnsupportedInstruction)?
+        .len();
     agree_compare_removal_row(
         function,
         compare,
