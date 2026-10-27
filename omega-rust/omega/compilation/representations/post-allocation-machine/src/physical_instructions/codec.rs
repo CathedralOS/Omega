@@ -51,7 +51,7 @@ pub(crate) fn decode_terminal_post_allocation_machine_plan(
         ));
     }
     let identity = PostAllocationMachineIdentity::from_bytes(cursor::array(&mut cursor)?);
-    let plan = v3::decode_content(&mut cursor, identity, true, true, true)?;
+    let plan = v3::decode_content(&mut cursor, identity)?;
     if cursor.remaining() != 0 {
         return Err(PostAllocationMachineDecodeError::TrailingBytes);
     }
