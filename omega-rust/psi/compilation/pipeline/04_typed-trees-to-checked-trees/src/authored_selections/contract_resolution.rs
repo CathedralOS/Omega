@@ -142,16 +142,33 @@ fn checked_spelled_operator_resolution(
     node: &ExpressionNode,
     owner_index: Option<&validation::expression_owners::OwnerEnvironmentIndex>,
 ) -> Option<CheckedContractOperatorResolution> {
-    let ExpressionNode::Binary(binary) = node else {
-        return None;
+    // Proof-static operators have no executable use event. Their exact checked
+    // contract owner supplies the same operand types for binary, indexed and
+    // range forms; an indexed member must not depend on a runtime origin merely
+    // to retain the declaration whose formation checking already admitted.
+    let (spelling, operands) = match node {
+        ExpressionNode::Binary(binary) => (
+            typed_trees::operator::binary_operator_spelling(binary.operator)?,
+            vec![binary.left, binary.right],
+        ),
+        ExpressionNode::Indexed(indexed) => {
+            match program.expression_table.expression(indexed.index) {
+                ExpressionNode::Range(range) => (
+                    language_core::OperatorSpelling::Range,
+                    vec![indexed.collection, range.start, range.end],
+                ),
+                _ => (
+                    language_core::OperatorSpelling::Index,
+                    vec![indexed.collection, indexed.index],
+                ),
+            }
+        }
+        _ => return None,
     };
-    let Some(spelling) = typed_trees::operator::binary_operator_spelling(binary.operator) else {
-        return None;
-    };
-    let operand_types = [
-        checked_operand_type(program, facts, expression, binary.left, owner_index),
-        checked_operand_type(program, facts, expression, binary.right, owner_index),
-    ];
+    let operand_types = operands
+        .into_iter()
+        .map(|operand| checked_operand_type(program, facts, expression, operand, owner_index))
+        .collect::<Vec<_>>();
     if operand_types.iter().all(Option::is_none) {
         return None;
     }

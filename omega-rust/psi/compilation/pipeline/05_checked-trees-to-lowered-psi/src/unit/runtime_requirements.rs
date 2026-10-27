@@ -239,18 +239,16 @@ impl RuntimeRequirementTerms<'_> {
                 self.structural_types,
             ),
             CheckedScalarExpression::StructuralSequenceLength { root, path } => {
-                let path = checked_trees::CheckedScalarReadProjection::static_path(path).ok_or(
-                    LoweringError::Unsupported("runtime contract extent cannot discard selectors"),
-                )?;
                 let position = root.parameter().ok_or(LoweringError::Unsupported(
                     "runtime sequence extent requires a structural formal",
                 ))?;
                 lower_sequence_extent_term(
                     identities,
                     position,
-                    &path,
+                    path,
                     self.parameters,
                     self.structural_types,
+                    &mut |identities, selector| self.scalar(identities, selector),
                 )
             }
             CheckedScalarExpression::IntegerLiteral { literal } => {

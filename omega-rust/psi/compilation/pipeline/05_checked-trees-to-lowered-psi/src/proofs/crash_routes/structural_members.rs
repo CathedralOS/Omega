@@ -114,9 +114,13 @@ fn structural_observation_path<'declaration>(
 pub(crate) fn lower_sequence_extent_term(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     parameter_position: u32,
-    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    path: &[checked_trees::CheckedScalarReadProjection],
     parameters: &[StructuralParameterDeclaration],
     structural_types: &[StructuralTypeDeclaration],
+    lower_selector: &mut impl FnMut(
+        &mut terminal_psi::TerminalIdentityTableBuilder,
+        &checked_trees::CheckedScalarExpression,
+    ) -> Result<ScalarTerm, LoweringError>,
 ) -> Result<ScalarTerm, LoweringError> {
     let parameter = parameters
         .iter()
@@ -130,14 +134,13 @@ pub(crate) fn lower_sequence_extent_term(
     // Inline coordinates and executable crossings come from one declaration
     // walk. An extent behind a reference is an observation at that exact
     // descriptor, not an inline field or an inferred capacity.
-    let selected = structural_observation_path(
+    let (carrier, mut observation) = lower_checked_observation_path(
         identities,
-        parameter.structural_type,
-        parameter.access,
+        parameter,
         path,
         structural_types,
+        lower_selector,
     )?;
-    let carrier = selected.field_type()?;
     let carrier = match carrier {
         terminal_psi::StructuralFieldType::Structural(identity) => {
             let declaration = terminal_psi::find_structural_type(structural_types, identity)
@@ -177,14 +180,18 @@ pub(crate) fn lower_sequence_extent_term(
     .ok_or(LoweringError::Unsupported(
         "sequence extent is not an integer",
     ))?;
-    if let Some(path) = selected.canonical {
+    let canonical = observation
+        .iter()
+        .map(|projection| match projection {
+            semantic_vocabulary::ScalarReadProjection::Static(segment) => Some(segment.clone()),
+            _ => None,
+        })
+        .collect::<Option<Vec<_>>>();
+    if let Some(path) = canonical {
         return Ok(ScalarTerm::view_extent(parameter.place, path, integer));
     }
-    let mut path = selected.observation.ok_or(LoweringError::Unsupported(
-        "sequence extent has no exact descriptor observation path",
-    ))?;
-    path.push(semantic_vocabulary::ScalarReadProjection::Extent);
-    ScalarTerm::structural_read(parameter.place, path, ScalarType::Integer(integer))
+    observation.push(semantic_vocabulary::ScalarReadProjection::Extent);
+    ScalarTerm::structural_read(parameter.place, observation, ScalarType::Integer(integer))
         .map_err(LoweringError::InvalidCrashPredicate)
 }
 
@@ -234,100 +241,13 @@ pub(crate) fn lower_structural_indexed_term(
         .collect::<Vec<_>>();
     projections.push(CheckedScalarReadProjection::RuntimeIndex((**index).clone()));
     projections.extend_from_slice(element_path);
-    let mut terminal_path = Vec::new();
-    let mut selected = StructuralFieldType::Structural(parameter.structural_type);
-    let mut cursor = 0;
-    while cursor < projections.len() {
-        if matches!(&projections[cursor], CheckedScalarReadProjection::Static(_)) {
-            let mut static_path = Vec::new();
-            while let Some(CheckedScalarReadProjection::Static(segment)) = projections.get(cursor) {
-                static_path.push(segment.clone());
-                cursor += 1;
-            }
-            let StructuralFieldType::Structural(structural_type) = selected else {
-                return unsupported("indexed contract member follows a scalar leaf");
-            };
-            let observation = structural_observation_path(
-                identities,
-                structural_type,
-                parameter.access,
-                &static_path,
-                structural_types,
-            )?;
-            selected = observation.field_type()?;
-            terminal_path.extend(observation.observation.ok_or(LoweringError::Unsupported(
-                "indexed contract member has no retained observation path",
-            ))?);
-            continue;
-        }
-        let CheckedScalarReadProjection::RuntimeIndex(selector) = &projections[cursor] else {
-            unreachable!();
-        };
-        let selector = lower_selector(identities, &selector.expression)?;
-        if !matches!(selector.scalar_type(), ScalarType::Integer(integer) if !integer.is_address())
-        {
-            return unsupported("indexed contract selector is not a fixed integer");
-        }
-        let byte_carrier = match &selected {
-            StructuralFieldType::Structural(identity) => {
-                let declaration = terminal_psi::find_structural_type(structural_types, *identity)
-                    .ok_or(LoweringError::Unsupported(
-                    "indexed contract collection type is absent",
-                ))?;
-                match &declaration.shape {
-                    StructuralTypeShape::FixedArray { element, .. }
-                    | StructuralTypeShape::ElementView { element, .. } => {
-                        selected = StructuralFieldType::Structural(*element);
-                        None
-                    }
-                    StructuralTypeShape::ByteSequence(carrier) => Some(*carrier),
-                    _ => return unsupported("indexed contract receiver is not a collection"),
-                }
-            }
-            field => Some(
-                field
-                    .byte_sequence_carrier()
-                    .ok_or(LoweringError::Unsupported(
-                        "indexed contract receiver is not a collection",
-                    ))?,
-            ),
-        };
-        if let Some(carrier) = byte_carrier {
-            if matches!(
-                carrier,
-                terminal_psi::ByteSequenceCarrier::BorrowedView {
-                    access: Some(terminal_psi::StructuralAccess::WriteOnlyBorrow),
-                } | terminal_psi::ByteSequenceCarrier::BoundedView {
-                    access: Some(terminal_psi::StructuralAccess::WriteOnlyBorrow),
-                    ..
-                }
-            ) {
-                return unsupported("indexed contract byte observation requires readable access");
-            }
-            selected =
-                StructuralFieldType::Scalar(crate::emission::scalar_types::terminal_scalar_type(
-                    checked_trees::types::PrimitiveType::U8,
-                )?);
-        }
-        let fixed = match &selector {
-            ScalarTerm::Integer {
-                value: semantic_vocabulary::IntegerValue::Unsigned(value),
-                ..
-            } => u64::try_from(*value).ok(),
-            ScalarTerm::Integer {
-                value: semantic_vocabulary::IntegerValue::Signed(value),
-                ..
-            } => u64::try_from(*value).ok(),
-            _ => None,
-        };
-        terminal_path.push(match fixed {
-            Some(index) => {
-                ScalarReadProjection::Static(CanonicalStructuralPathSegment::FixedIndex(index))
-            }
-            None => ScalarReadProjection::Index(Box::new(selector)),
-        });
-        cursor += 1;
-    }
+    let (_, terminal_path) = lower_checked_observation_path(
+        identities,
+        parameter,
+        &projections,
+        structural_types,
+        lower_selector,
+    )?;
     let actual = terminal_semantics::structural_read_scalar_type(
         structural_types.iter(),
         parameter.structural_type,
@@ -363,6 +283,176 @@ pub(crate) fn lower_structural_indexed_term(
     term.validate()
         .map_err(LoweringError::InvalidCrashPredicate)?;
     Ok(term)
+}
+
+/// Checked selectors keep their exact scalar namespace alongside the declared
+/// observation walk. Scalar leaves and descriptor metadata share this owner;
+/// neither may replace a selected descriptor by its unindexed container.
+fn lower_checked_observation_path(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    parameter: &StructuralParameterDeclaration,
+    projections: &[checked_trees::CheckedScalarReadProjection],
+    structural_types: &[StructuralTypeDeclaration],
+    lower_selector: &mut impl FnMut(
+        &mut terminal_psi::TerminalIdentityTableBuilder,
+        &checked_trees::CheckedScalarExpression,
+    ) -> Result<ScalarTerm, LoweringError>,
+) -> Result<
+    (
+        StructuralFieldType,
+        Vec<semantic_vocabulary::ScalarReadProjection>,
+    ),
+    LoweringError,
+> {
+    use checked_trees::CheckedScalarReadProjection;
+    use semantic_vocabulary::ScalarReadProjection;
+    if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
+        return unsupported("contract observation requires readable access");
+    }
+    let mut terminal_path = Vec::new();
+    let mut selected = StructuralFieldType::Structural(parameter.structural_type);
+    if projections.is_empty() {
+        let observation = structural_observation_path(
+            identities,
+            parameter.structural_type,
+            parameter.access,
+            &[],
+            structural_types,
+        )?;
+        selected = observation.field_type()?;
+        terminal_path.extend(observation.observation.ok_or(LoweringError::Unsupported(
+            "contract observation has no retained empty path",
+        ))?);
+    }
+    let mut cursor = 0;
+    while cursor < projections.len() {
+        if matches!(&projections[cursor], CheckedScalarReadProjection::Static(_)) {
+            let mut static_path = Vec::new();
+            while let Some(CheckedScalarReadProjection::Static(segment)) = projections.get(cursor) {
+                static_path.push(segment.clone());
+                cursor += 1;
+            }
+            let StructuralFieldType::Structural(structural_type) = selected else {
+                return unsupported("indexed contract member follows a scalar leaf");
+            };
+            let observation = structural_observation_path(
+                identities,
+                structural_type,
+                parameter.access,
+                &static_path,
+                structural_types,
+            )?;
+            selected = observation.field_type()?;
+            terminal_path.extend(observation.observation.ok_or(LoweringError::Unsupported(
+                "indexed contract member has no retained observation path",
+            ))?);
+            continue;
+        }
+        let CheckedScalarReadProjection::RuntimeIndex(selector) = &projections[cursor] else {
+            unreachable!();
+        };
+        if let StructuralFieldType::Structural(identity) = selected {
+            let observation = structural_observation_path(
+                identities,
+                identity,
+                parameter.access,
+                &[],
+                structural_types,
+            )?;
+            selected = observation.field_type()?;
+            terminal_path.extend(observation.observation.ok_or(LoweringError::Unsupported(
+                "contract collection has no retained observation path",
+            ))?);
+        }
+        let selector = lower_selector(identities, &selector.expression)?;
+        if !matches!(selector.scalar_type(), ScalarType::Integer(integer) if !integer.is_address())
+        {
+            return unsupported("indexed contract selector is not a fixed integer");
+        }
+        let fixed = match &selector {
+            ScalarTerm::Integer {
+                value: semantic_vocabulary::IntegerValue::Unsigned(value),
+                ..
+            } => Some(u64::try_from(*value).map_err(|_| {
+                LoweringError::Unsupported("indexed contract selector is outside the count range")
+            })?),
+            ScalarTerm::Integer {
+                value: semantic_vocabulary::IntegerValue::Signed(value),
+                ..
+            } => Some(u64::try_from(*value).map_err(|_| {
+                LoweringError::Unsupported("indexed contract selector is outside the count range")
+            })?),
+            _ => None,
+        };
+        let byte_carrier = match &selected {
+            StructuralFieldType::Structural(identity) => {
+                let declaration = terminal_psi::find_structural_type(structural_types, *identity)
+                    .ok_or(LoweringError::Unsupported(
+                    "indexed contract collection type is absent",
+                ))?;
+                match &declaration.shape {
+                    StructuralTypeShape::FixedArray { element, .. } => {
+                        let element = match fixed {
+                            Some(index) => indexed_element_type(&declaration.shape, index)?,
+                            None => *element,
+                        };
+                        selected = StructuralFieldType::Structural(element);
+                        None
+                    }
+                    StructuralTypeShape::ElementView { element, access } => {
+                        if *access == Some(terminal_psi::StructuralAccess::WriteOnlyBorrow) {
+                            return unsupported(
+                                "indexed contract view observation requires readable access",
+                            );
+                        }
+                        selected = StructuralFieldType::Structural(*element);
+                        None
+                    }
+                    StructuralTypeShape::ByteSequence(carrier) => Some(*carrier),
+                    _ => return unsupported("indexed contract receiver is not a collection"),
+                }
+            }
+            field => Some(
+                field
+                    .byte_sequence_carrier()
+                    .ok_or(LoweringError::Unsupported(
+                        "indexed contract receiver is not a collection",
+                    ))?,
+            ),
+        };
+        if let Some(carrier) = byte_carrier {
+            if matches!((carrier, fixed),
+                (terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity }
+                | terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. }, Some(index))
+                    if index >= capacity
+            ) {
+                return unsupported("indexed contract byte index exceeds its storage capacity");
+            }
+            if matches!(
+                carrier,
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(terminal_psi::StructuralAccess::WriteOnlyBorrow),
+                } | terminal_psi::ByteSequenceCarrier::BoundedView {
+                    access: Some(terminal_psi::StructuralAccess::WriteOnlyBorrow),
+                    ..
+                }
+            ) {
+                return unsupported("indexed contract byte observation requires readable access");
+            }
+            selected =
+                StructuralFieldType::Scalar(crate::emission::scalar_types::terminal_scalar_type(
+                    checked_trees::types::PrimitiveType::U8,
+                )?);
+        }
+        terminal_path.push(match fixed {
+            Some(index) => {
+                ScalarReadProjection::Static(CanonicalStructuralPathSegment::FixedIndex(index))
+            }
+            None => ScalarReadProjection::Index(Box::new(selector)),
+        });
+        cursor += 1;
+    }
+    Ok((selected, terminal_path))
 }
 
 pub(crate) fn lower_structural_member_term(

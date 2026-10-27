@@ -19,6 +19,8 @@ pub(super) struct StorageExposureRecord {
     pub(super) paths: Vec<String>,
 }
 
+mod completed_cells;
+
 use super::StructuralJudge;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
@@ -29,7 +31,7 @@ use typed_trees::types::TypeReferenceHandle;
 type StorageScope<'scope> = Option<(&'scope Machine, &'scope State)>;
 
 /// A canonical place with live selectors replaced by completed value identities.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct CapturedStorageCoordinate {
     root: facts::PlaceRoot,
     segments: Vec<CapturedStorageSegment>,
@@ -101,7 +103,7 @@ impl CapturedStorageCoordinate {
     }
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum CapturedStorageSegment {
     Place(facts::PlaceSegment),
     Index(super::StructuralTerm),
@@ -728,14 +730,28 @@ impl StructuralJudge<'_> {
         let Some(value) = self.owned_argument_observation(reference, &value) else {
             return;
         };
-        self.retain_storage_value(
-            CapturedStorageCoordinate {
-                root: facts::PlaceRoot::Symbol(symbol),
-                segments: Vec::new(),
-            },
-            value,
-            false,
-        );
+        let coordinate = CapturedStorageCoordinate {
+            root: facts::PlaceRoot::Symbol(symbol),
+            segments: Vec::new(),
+        };
+        self.retain_storage_value(coordinate.clone(), value.clone(), false);
+        if self
+            .frame_resolver()
+            .is_some_and(|frames| !frames.value_is_reference_free(reference))
+        {
+            std::sync::Arc::make_mut(&mut self.stored_values).retain_mut(|stored| {
+                if stored.coordinate.root == coordinate.root
+                    && !stored.coordinate.segments.is_empty()
+                {
+                    stored.current = None;
+                    stored.completed_read = None;
+                    stored.entry.is_some()
+                } else {
+                    true
+                }
+            });
+            self.retain_completed_storage_cells(coordinate, reference, value);
+        }
     }
 
     /// Rejoin a normalized content projection to the completed read of that
@@ -936,8 +952,73 @@ impl StructuralJudge<'_> {
         destination: CapturedStoreDestination,
         value: super::StructuralTerm,
     ) -> Option<()> {
+        // Capture newly established projection demands while this exact
+        // pre-store whole observation is still current. No RHS-retired value
+        // or detached Entry may supply a new cell.
+        if let Some(destination) = destination.coordinate.as_ref()
+            && let Some(root) = destination.root.as_symbol()
+            && let Some(reference) = crate::declaration_type_reference(self.program, root)
+            && crate::reference_shell(self.program, reference).is_none()
+            && let Some(value) = self
+                .stored_values
+                .iter()
+                .find(|stored| {
+                    stored.coordinate.root == destination.root
+                        && stored.coordinate.segments.is_empty()
+                })
+                .and_then(|stored| stored.current.clone())
+        {
+            self.retain_completed_storage_cells(
+                CapturedStorageCoordinate {
+                    root: destination.root,
+                    segments: Vec::new(),
+                },
+                reference,
+                value,
+            );
+        }
+        // Exact-store capture admits one complete footprint and one stable
+        // destination after RHS effects. Opaque/alias writes cannot restore cells.
+        let previous = std::sync::Arc::clone(&self.stored_values);
         self.observe_storage_effects(state, destination.frame.complete_paths())?;
         if let Some(coordinate) = destination.coordinate {
+            let cells = previous
+                .iter()
+                .filter_map(|stored| {
+                    if stored.coordinate.root != coordinate.root
+                        || !self.inline_coordinates_disjoint(&stored.coordinate, &coordinate)
+                    {
+                        return None;
+                    }
+                    let root_type = crate::declaration_type_reference(
+                        self.program,
+                        stored.coordinate.root.as_symbol()?,
+                    )?;
+                    if crate::reference_shell(self.program, root_type).is_some() {
+                        return None;
+                    }
+                    let frames = self.frame_resolver()?;
+                    if !stored
+                        .coordinate
+                        .has_stable_backing(self.program, state, frames)
+                    {
+                        return None;
+                    }
+                    let reference = stored
+                        .coordinate
+                        .segments
+                        .iter()
+                        .try_fold(root_type, |reference, segment| {
+                            segment.projected_type(self.program, reference)
+                        })?;
+                    Some((
+                        stored.coordinate.clone(),
+                        reference,
+                        stored.current.clone()?,
+                    ))
+                })
+                .collect::<Vec<_>>();
+            self.retain_storage_cells(cells);
             let value = if self
                 .frame_resolver()
                 .is_some_and(|frames| frames.value_is_reference_free(destination.stored_type))
