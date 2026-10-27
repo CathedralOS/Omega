@@ -73,6 +73,7 @@ impl<'program> StructuralJudge<'program> {
         // to reevaluate a caller expression through new callee bindings.
         self.normal_results = std::sync::Arc::new(Vec::new());
         self.premise_facts.clear();
+        std::sync::Arc::make_mut(&mut self.body_invocations).push(entry.symbol);
         self.declaration_state = entry.symbol;
         let (callee, _) = self.runtime_declaration_scope()?;
         self.body_type_parameters = self.program.machine_type_parameters(callee);
@@ -98,6 +99,7 @@ impl<'program> StructuralJudge<'program> {
             return Some(self);
         }
         self.leave_storage_scope(caller, state, subjects, writes)?;
+        self.body_invocations = std::sync::Arc::clone(&caller.body_invocations);
         self.declaration_state = caller.declaration_state;
         self.body_type_parameters = caller.body_type_parameters;
         self.normal_results = std::sync::Arc::clone(&caller.normal_results);

@@ -7,7 +7,7 @@
 //! prevent an independently surviving path from proving its call premises,
 //! and excluding it supplies no crash permission or denotational admission.
 
-mod call_entries;
+pub(super) mod call_entries;
 
 use super::call_requirements::establish_citation;
 use super::structural_prefix::StructuralPrefixVisitor;
@@ -964,7 +964,7 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn recognize_structural_state_leaves<'a>(
+pub(super) fn recognize_structural_state_leaves<'a>(
     program: &'a dyn crate::CheckingInput,
     machine: &Machine,
     judge: &StructuralJudge<'a>,
