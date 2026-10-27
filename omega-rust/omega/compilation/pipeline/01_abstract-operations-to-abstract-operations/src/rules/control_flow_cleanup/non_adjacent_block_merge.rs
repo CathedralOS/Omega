@@ -17,7 +17,9 @@ use crate::analyses::block_dominates;
 use crate::rules::control_flow_cleanup::block_merge_substitutions::merge_substitutions;
 use crate::rules::control_flow_cleanup::descriptor_telescope_free;
 use crate::rules::control_flow_cleanup::merge_boundary_ownership::merge_boundary_ownership_is_identity;
-use crate::rules::control_flow_cleanup::{provenance_realized_at, record_node_provenance};
+use crate::rules::control_flow_cleanup::{
+    provenance_realized_at, record_node_provenance, terminal_jump,
+};
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 psi_rule_contract!(
@@ -51,31 +53,18 @@ psi_rule_impl!(NonAdjacentBlockMergeRule, |unit, analyses| {
             .map(|(_, rows)| rows.as_slice())
             .unwrap_or_default();
         for (predecessor_position, predecessor) in function.blocks.iter().enumerate() {
-            let Some((predecessor_index, predecessor_node)) =
-                predecessor.nodes.iter().enumerate().last()
-            else {
-                continue;
-            };
-            let O::Jump {
-                structural_bindings: _,
-                psi_edge: incoming_edge,
-                target: target_id,
-                bindings,
-                cleanup_actions,
-            } = &predecessor_node.operation
-            else {
+            let Some(jump) = terminal_jump(function, predecessor) else {
                 continue;
             };
             let Some((target_position, target)) = function
                 .blocks
                 .iter()
                 .enumerate()
-                .find(|(_, block)| block.id == *target_id)
+                .find(|(_, block)| block.id == jump.target)
             else {
                 continue;
             };
-            if !cleanup_actions.is_empty()
-                || target.id == function.entry
+            if target.id == function.entry
                 || target_position == predecessor_position.saturating_add(1)
                 || !non_adjacent_merge_target_is_nonempty(target)
                 || !block_dominates(machine_dominators, predecessor.id, target.id)
@@ -85,11 +74,7 @@ psi_rule_impl!(NonAdjacentBlockMergeRule, |unit, analyses| {
                     .count()
                     != 1
                 || !merge_boundary_ownership_is_identity(
-                    unit,
-                    function,
-                    frontiers,
-                    *incoming_edge,
-                    target.id,
+                    unit, function, frontiers, jump.edge, target.id,
                 )
             {
                 continue;
@@ -97,23 +82,15 @@ psi_rule_impl!(NonAdjacentBlockMergeRule, |unit, analyses| {
             let Some(substitutions) = merge_substitutions(
                 function.machine,
                 target,
-                bindings,
+                jump.bindings,
                 machine_dominators,
                 use_definitions,
             ) else {
                 continue;
             };
-            let predecessor_location = NodeLocation {
-                machine: function.machine,
-                block: predecessor.id,
-                node: u32::try_from(predecessor_index).expect("optimization node index fits u32"),
-            };
-            let Some((affected_blocks, provenance)) = non_adjacent_merge_accounting(
-                function,
-                predecessor_location,
-                target.id,
-                &substitutions,
-            ) else {
+            let Some((affected_blocks, provenance)) =
+                non_adjacent_merge_accounting(function, jump.location, target.id, &substitutions)
+            else {
                 continue;
             };
             candidates.push(
@@ -125,8 +102,8 @@ psi_rule_impl!(NonAdjacentBlockMergeRule, |unit, analyses| {
                     provenance,
                     -2,
                     NonAdjacentBlockMergeRewrite {
-                        predecessor: predecessor_location,
-                        incoming_edge: *incoming_edge,
+                        predecessor: jump.location,
+                        incoming_edge: jump.edge,
                         target: target.id,
                     },
                 )
