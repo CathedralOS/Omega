@@ -78,8 +78,8 @@ class Reader:
 
 def decode(payload: bytes) -> Observation:
     reader = Reader(payload)
-    assert reader.bytes(8) == b"OMGPAR14"
-    assert reader.u64() == 14
+    assert reader.bytes(8) == b"OMGPAR15"
+    assert reader.u64() == 15
     accepted = reader.byte() == 1
     diagnostic = reader.byte()
     diagnostic_span = (reader.u64(), reader.u64(), reader.u64())

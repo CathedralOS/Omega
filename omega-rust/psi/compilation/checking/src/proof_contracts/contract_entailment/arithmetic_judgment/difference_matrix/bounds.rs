@@ -49,10 +49,6 @@ impl DifferenceBounds {
     }
 
     /// Stored cells deliberately do not supply a virtual zero diagonal.
-    pub(super) fn stored_bound(&self, from: &str, to: &str) -> Option<&BigInt> {
-        self.stored_bound_indices(self.position(from)?, self.position(to)?)
-    }
-
     pub(super) fn stored_bound_indices(&self, from: usize, to: usize) -> Option<&BigInt> {
         let row = &self.rows[from];
         row.binary_search_by_key(&to, |(destination, _)| *destination)

@@ -129,7 +129,7 @@ impl<'program> Engine<'program> {
     }
 
     /// Components communicate through zero without materializing every pair.
-    /// Use the same query for indexed incremental updates and named callers.
+    /// Stored paths stay inside actual nonzero components.
     pub(super) fn matrix_bound(&self, from: &str, to: &str) -> Option<BigInt> {
         if from == to {
             return Some(BigInt::zero());
@@ -152,36 +152,14 @@ impl<'program> Engine<'program> {
         Some(through_zero.add(self.matrix.stored_bound_indices(zero, to)?))
     }
 
-    /// Matrix writes are additive. A consistent retained matrix is already
-    /// transitively closed, so one stronger seed needs only paths containing
-    /// that edge once. An inconsistent graph retains the original closure and
-    /// its order-dependent values; speculative updates never enter that route.
+    /// Reclose the actual nonzero components, sharing their zero endpoint.
+    /// Through-zero query bounds are virtual: feeding them back as stored
+    /// edges turns independent carrier intervals into a complete graph. The
+    /// ordinary seed/close route preserves that factorization, exact BigInt
+    /// comparisons and the existing contradiction/iteration rules together.
     pub(super) fn refresh_difference_bounds(&mut self) {
-        if self.requires_unsatisfiable {
-            self.seed_matrix();
-            self.close_matrix();
-            return;
-        }
-        let mut original = None;
-        for (from, to, bound) in self.difference_seeds() {
-            if self
-                .matrix
-                .stored_bound(&from, &to)
-                .is_some_and(|previous| previous >= &bound)
-            {
-                continue;
-            }
-            // Clone only once, before this refresh's first changed seed. A
-            // later edge can close a positive cycle through earlier new edges.
-            // Restoring only that edge's input would change old-route history.
-            let original_matrix = original.get_or_insert_with(|| self.matrix.clone());
-            if !self.strengthen_closed_difference(&from, &to, bound) {
-                self.matrix = std::mem::take(original_matrix);
-                self.seed_matrix();
-                self.close_matrix();
-                return;
-            }
-        }
+        self.seed_matrix();
+        self.close_matrix();
     }
 
     fn difference_seeds(&self) -> Vec<(String, String, BigInt)> {
@@ -213,63 +191,10 @@ impl<'program> Engine<'program> {
         seeds
     }
 
-    fn seed_matrix(&mut self) -> bool {
-        let mut changed = false;
+    fn seed_matrix(&mut self) {
         for (from, to, bound) in self.difference_seeds() {
-            changed |= self.record_difference(&from, &to, bound);
+            self.record_difference(&from, &to, bound);
         }
-        changed
-    }
-
-    /// Extend a closed consistent max-plus graph by u - v >= bound. A new
-    /// edge can occur at most once on an improving path when the old reverse
-    /// path plus this edge is nonpositive. Capture both old frontiers before
-    /// writing, including virtual zero diagonals for previously unseen vertices.
-    fn strengthen_closed_difference(&mut self, from: &str, to: &str, bound: BigInt) -> bool {
-        if self
-            .matrix_bound(to, from)
-            .is_some_and(|reverse| reverse.add(&bound) > BigInt::zero())
-        {
-            // Do not set unsatisfiable here: the original seed/close route owns
-            // historical diagonal handling and inconsistent graph behavior.
-            return false;
-        }
-        if from == to {
-            // Nonpositive diagonal seeds cannot improve paths, but still retain
-            // the original vertex and stored diagonal inventory.
-            self.record_difference(from, to, bound);
-            return true;
-        }
-        // Capture the old lexical vertex inventory before introducing either
-        // endpoint. Stable indices never determine semantic iteration order.
-        let atoms = self.matrix.lexical_indices().to_vec();
-        let from = self.matrix.intern(from);
-        let to = self.matrix.intern(to);
-        let mut incoming = vec![(from, BigInt::zero())];
-        let mut outgoing = vec![(to, BigInt::zero())];
-        for atom in atoms {
-            if atom != from
-                && let Some(value) = self.matrix_bound_indices(atom, from)
-            {
-                incoming.push((atom, value));
-            }
-            if atom != to
-                && let Some(value) = self.matrix_bound_indices(to, atom)
-            {
-                outgoing.push((atom, value));
-            }
-        }
-        self.matrix.record_indices(from, to, bound.clone());
-        for (source, prefix) in incoming {
-            let through_edge = prefix.add(&bound);
-            for (destination, suffix) in &outgoing {
-                if source != *destination {
-                    self.matrix
-                        .record_indices(source, *destination, through_edge.add(suffix));
-                }
-            }
-        }
-        true
     }
 
     fn record_difference(&mut self, from: &str, to: &str, bound: BigInt) -> bool {
@@ -417,3 +342,6 @@ impl<'program> Engine<'program> {
         current
     }
 }
+
+#[cfg(test)]
+mod tests;

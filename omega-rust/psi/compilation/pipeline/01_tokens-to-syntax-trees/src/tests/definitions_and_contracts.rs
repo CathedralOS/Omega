@@ -83,10 +83,7 @@ fn parses_domain_definition_surface() {
             &source[span.span.start..span.span.end]
         })
         .collect::<Vec<_>>();
-    assert_eq!(
-        source_slices,
-        ["player in Player::Valid", "player.health > 0"]
-    );
+    assert_eq!(source_slices, ["self in Player::Valid", "self.health > 0"]);
 }
 
 #[test]
