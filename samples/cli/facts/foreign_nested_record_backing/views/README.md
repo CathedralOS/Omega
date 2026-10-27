@@ -18,6 +18,20 @@ passes `Wrapper<Cell>` through ordinary mutable calls, consumes the same predica
 and checks the original backing after retiring its view. It protects the shared
 call-publication path independently of foreign registration.
 
+The logical-subject migration now covers `ResidentValue` in all nine places,
+their pins and both focused controls: its three predicate references use `self`
+without changing the bound, excluded value, runtime operations or loan twins.
+At main `e92e8dfe666f5a858ce22b338075e5aee0b8167c`, the old binders stopped all
+20 source fixtures at the retirement diagnostic, including the intended rejects.
+With the renamed sources, that same optimized producer records ten checked
+positives, ten intended rejects, ten corpus native/Terminal zero agreements and
+ten public zero agreements on macOS ARM64. Public products pass canonical
+Terminal inspection. Receipts `2c13682be12743269fdea422e93071a2`,
+`ef91ddd173434e0bbafc1eda3f8959ec` and `c2115d65d72743708b2f0c7c44e69b62`
+retain the producer, matching-host C fixture, replay locks and raw observations.
+Other-host execution is not claimed by this migration. The broader
+**DOMAIN-DEFAULT-PREDICATE-UNIFICATION** acceptance remains on the task board.
+
 Optimized producer `1d92ab9b09e` executes all nine qualified view places and that
 composition control with native/Terminal zero agreement on macOS ARM64. All ten
 intended source rejects hold; the scoped corpus observes ten checked positives,
