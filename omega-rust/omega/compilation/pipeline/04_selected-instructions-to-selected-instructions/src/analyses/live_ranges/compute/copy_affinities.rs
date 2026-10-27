@@ -10,7 +10,18 @@ pub(super) fn derive(
     selected: &SelectedFunction,
 ) -> Result<Vec<CopyAffinity>, LiveRangeError> {
     let mut rows = Vec::new();
-    for block in &selected.blocks {
+    for (block_index, block) in selected.blocks.iter().enumerate() {
+        if let Some((block_affinities, has_malformed_copy)) =
+            selected.blocks.block_copy_affinities(block_index)
+        {
+            if has_malformed_copy {
+                return Err(LiveRangeError::FunctionMismatch {
+                    function: function_index,
+                });
+            }
+            rows.extend_from_slice(block_affinities);
+            continue;
+        }
         for instruction in &block.instructions {
             if instruction.kind != SelectedInstructionKind::CopyI64 {
                 continue;
@@ -35,6 +46,8 @@ pub(super) fn derive(
     // recovery inserts copies (fixed-view copies, live-range splits) with
     // fresh identities after every existing instruction, so a block's
     // stream order and its identity order can differ.
-    rows.sort_unstable();
+    if rows.windows(2).any(|w| w[0] > w[1]) {
+        rows.sort_unstable();
+    }
     Ok(rows)
 }

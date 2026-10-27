@@ -979,7 +979,9 @@ impl<'program> StructuralJudge<'program> {
                 expression,
             )
         {
+            let pre_binary_judge = self.clone();
             let evaluate_right = binary.operator == BinaryOperator::And;
+            let mut short_circuit_steps_pure = true;
             let mut outcomes = Vec::new();
             for left in self.evaluate_normal_paths(
                 binary.left,
@@ -1017,11 +1019,85 @@ impl<'program> StructuralJudge<'program> {
                             outcomes.push(right.at_expression(expression, demand));
                         }
                     } else {
+                        if !selected.has_no_new_effects_or_guarantees_since(&left.judge)
+                            || !selected.has_no_new_non_boolean_facts_since(&left.judge)
+                        {
+                            short_circuit_steps_pure = false;
+                        }
                         outcomes.push(
                             NormalReturnPath::observed(boolean_term(truth), selected)
                                 .at_expression(expression, demand),
                         );
                     }
+                }
+            }
+            if outcomes.len() > 1
+                && (matches!(demand, NormalValueDemand::Location)
+                    || matches!(
+                        demand,
+                        NormalValueDemand::Observe(obs)
+                            if !obs.iter().any(|&observed| {
+                                crate::expression_owners::expression_contains(
+                                    program,
+                                    expression,
+                                    observed,
+                                )
+                            })
+                    ))
+                && outcomes.iter().all(|path| {
+                    path.judge
+                        .has_no_new_effects_or_guarantees_since(&pre_binary_judge)
+                })
+            {
+                let judge_refs: Vec<&Self> = outcomes.iter().map(|path| &path.judge).collect();
+                let rejoined = pre_binary_judge.rejoin_pure_outcomes(&judge_refs, Some(expression));
+                return Some(vec![
+                    NormalReturnPath::unobserved(rejoined).at_expression(expression, demand),
+                ]);
+            }
+            let short_circuit_value = boolean_term(!evaluate_right);
+            if short_circuit_steps_pure && outcomes.len() > 1 {
+                let sc_indices: Vec<usize> = outcomes
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(idx, path)| {
+                        (path.observation == NormalValueObservation::Observed
+                            && path.value == short_circuit_value
+                            && path
+                                .judge
+                                .has_no_new_effects_or_guarantees_since(&pre_binary_judge))
+                        .then_some(idx)
+                    })
+                    .collect();
+                let can_merge_sc = sc_indices.len() >= 2
+                    && sc_indices.iter().all(|&idx| {
+                        outcomes[idx]
+                            .judge
+                            .has_no_new_non_boolean_facts_since(&pre_binary_judge)
+                    });
+                if can_merge_sc {
+                    let sc_judges: Vec<&Self> = sc_indices
+                        .iter()
+                        .map(|&idx| &outcomes[idx].judge)
+                        .collect();
+                    let rejoined_sc =
+                        pre_binary_judge.rejoin_pure_outcomes(&sc_judges, Some(expression));
+                    let mut merged_sc = Some(
+                        NormalReturnPath::observed(short_circuit_value, rejoined_sc)
+                            .at_expression(expression, demand),
+                    );
+                    let first_sc = sc_indices[0];
+                    let mut merged_outcomes = Vec::with_capacity(outcomes.len() - sc_indices.len() + 1);
+                    for (idx, outcome) in outcomes.into_iter().enumerate() {
+                        if idx == first_sc {
+                            if let Some(merged) = merged_sc.take() {
+                                merged_outcomes.push(merged);
+                            }
+                        } else if !sc_indices.contains(&idx) {
+                            merged_outcomes.push(outcome);
+                        }
+                    }
+                    outcomes = merged_outcomes;
                 }
             }
             return Some(outcomes);
@@ -1304,6 +1380,11 @@ impl<'program> StructuralJudge<'program> {
             })
             .collect::<Vec<_>>();
         let receiver_write_sequence = self.storage_write_sequence;
+        let pre_call_judge = if matches!(node, ExpressionNode::Call(_)) {
+            Some(self.clone())
+        } else {
+            None
+        };
         let contexts = self.evaluate_normal_operands(
             &operands,
             environment,
@@ -1317,7 +1398,7 @@ impl<'program> StructuralJudge<'program> {
                 None
             },
         )?;
-        contexts
+        let mut outcomes: Vec<NormalReturnPath<'program>> = contexts
             .into_iter()
             .map(|(mut judge, inputs)| {
                 let call_inputs = if let Some(call) = program.expression_table.call_node(expression)
@@ -1549,6 +1630,22 @@ impl<'program> StructuralJudge<'program> {
                         right.observed_value()?.clone(),
                     )?;
                 }
+                if let ExpressionNode::Unary(_) = node {
+                    let [(_, operand)] = inputs.as_slice() else {
+                        return None;
+                    };
+                    if let Some(negated) =
+                        super::super::structural_terms::logical_not_term_in_scope(
+                            program,
+                            Some(scope),
+                            None,
+                            expression,
+                            operand.observed_value()?.clone(),
+                        )
+                    {
+                        value = negated;
+                    }
+                }
                 if let ExpressionNode::Indexed(indexed) = node
                     && program.expression_table.range_node(indexed.index).is_none()
                 {
@@ -1641,8 +1738,67 @@ impl<'program> StructuralJudge<'program> {
                     NormalReturnPath::observed(value, judge).at_expression(expression, demand),
                 ))
             })
-            .collect::<Option<Vec<_>>>()
-            .map(|paths| paths.into_iter().flatten().collect())
+            .collect::<Option<Vec<_>>>()?
+            .into_iter()
+            .flatten()
+            .collect();
+        if outcomes.len() > 1
+            && let Some(pre_call_judge) = &pre_call_judge
+            && outcomes.iter().all(|path| {
+                path.judge
+                    .has_no_new_effects_or_guarantees_since(pre_call_judge)
+            })
+        {
+            if outcomes
+                .iter()
+                .all(|path| path.observation == NormalValueObservation::NotObserved)
+            {
+                let judge_refs: Vec<&Self> = outcomes.iter().map(|path| &path.judge).collect();
+                let rejoined = pre_call_judge.rejoin_pure_outcomes(&judge_refs, Some(expression));
+                return Some(vec![
+                    NormalReturnPath::unobserved(rejoined).at_expression(expression, demand),
+                ]);
+            }
+            if let StructuralTerm::CapturedValue {
+                expression: expr,
+                callable,
+                result_type,
+                ..
+            } = outcomes[0].value
+                && expr == expression
+                && program.primitive_type_reference(result_type).is_some()
+                && outcomes.iter().all(|path| {
+                    path.observation == NormalValueObservation::Observed
+                        && matches!(
+                            path.value,
+                            StructuralTerm::CapturedValue {
+                                expression: other_expr,
+                                callable: other_callable,
+                                result_type: other_type,
+                                ..
+                            } if other_expr == expr
+                                && other_callable == callable
+                                && other_type == result_type
+                        )
+                })
+            {
+                let judge_refs: Vec<&Self> = outcomes.iter().map(|path| &path.judge).collect();
+                let mut rejoined =
+                    pre_call_judge.rejoin_pure_outcomes(&judge_refs, Some(expression));
+                rejoined.capture_sequence += 1;
+                let captured = StructuralTerm::CapturedValue {
+                    expression,
+                    callable,
+                    occurrence: rejoined.capture_sequence,
+                    result_type,
+                };
+                return Some(vec![
+                    NormalReturnPath::observed(captured, rejoined)
+                        .at_expression(expression, demand),
+                ]);
+            }
+        }
+        Some(outcomes)
     }
 
     /// Operand completion retains the actual contextual carrier. Receiving

@@ -7,7 +7,8 @@
 
 use super::citations::{CitationFacts, machine_requires_facts};
 use super::structural_case_arms::{
-    recognize_structural_case_arms, recognize_structural_state_prefix, structural_arm_judge,
+    recognize_structural_case_arms, recognize_structural_state_prefix,
+    recognize_structural_state_prefixes, structural_arm_judge,
 };
 use super::structural_judgment::{StructuralJudge, StructuralTerm};
 use symbols::SymbolHandle;
@@ -194,6 +195,38 @@ pub(super) fn observe_runtime_state_prefix(
         visitor,
     )?;
     diagnostics.is_empty().then_some(())
+}
+
+pub(super) fn observe_runtime_state_prefixes(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    visitors: &mut [&mut dyn StructuralPrefixVisitor],
+) -> Vec<bool> {
+    let Some(entry) = program.machine_states(machine).first() else {
+        return vec![false; visitors.len()];
+    };
+    let mut requires = if state.symbol == entry.symbol {
+        machine_requires_facts(program, machine)
+    } else {
+        Vec::new()
+    };
+    requires.extend(
+        crate::proof_contracts::proof_facts::contract_expression_facts(
+            program,
+            program.state_contracts(state).iter(),
+            typed_trees::signature::SignatureContractKind::Requires,
+        ),
+    );
+    let judge = StructuralJudge::from_runtime_state_requires(program, machine, state, &requires);
+    recognize_structural_state_prefixes(
+        program,
+        machine,
+        state,
+        &judge,
+        &crate::proof_only_classification(program),
+        visitors,
+    )
 }
 
 /// An acyclic invocation retains every incoming substitution and guard. Start

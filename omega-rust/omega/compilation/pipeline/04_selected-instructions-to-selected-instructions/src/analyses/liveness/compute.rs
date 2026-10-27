@@ -105,6 +105,15 @@ pub(crate) fn compute_function_units_filtered(
     needed_blocks: &[bool],
 ) -> Result<UnitFunctionLiveness, LivenessError> {
     let flow = flow::FunctionFlow::compute_units_filtered(function_index, function, unit_filter)?;
+    let mut filter_mask = 0u64;
+    let mut can_use_mask = true;
+    for &u in unit_filter {
+        if (u.0 as usize) < 64 {
+            filter_mask |= 1u64 << u.0;
+        } else {
+            can_use_mask = false;
+        }
+    }
     let blocks = function
         .blocks
         .iter()
@@ -117,43 +126,79 @@ pub(crate) fn compute_function_units_filtered(
                 };
             }
             let state = &flow.blocks[index];
-            let has_local_unit_use = function
-                .blocks
-                .block_implicit_units_and_fixed_views(index)
-                .is_some_and(|(units, _)| units.iter().any(|u| unit_filter.contains(u)));
+            let mask_info = function.blocks.block_unit_masks(index);
+            let block_use_mask =
+                can_use_mask && mask_info.is_some_and(|(_, _, _, _, has_high)| !has_high);
+            let has_local_unit_use = if block_use_mask {
+                let (implicit_mask, _, _, _, _) = mask_info.unwrap();
+                (implicit_mask & filter_mask) != 0
+            } else {
+                function
+                    .blocks
+                    .block_implicit_units_and_fixed_views(index)
+                    .is_some_and(|(units, _)| units.iter().any(|u| unit_filter.contains(u)))
+            };
             if state.unit_exit.is_empty() && !has_local_unit_use {
                 return UnitBlockLiveness {
                     unit_live_in: Vec::new(),
                     instructions: Vec::new(),
                 };
             }
-            let mut live = state.unit_exit.clone();
             let mut instructions = Vec::with_capacity(block.instructions.len() + 1);
-            for instruction in block_instructions(block).rev() {
-                let unit_live_out = sorted(&live);
-                for killed in instruction
-                    .implicit_defs
-                    .iter()
-                    .chain(&instruction.clobbers)
-                {
-                    if unit_filter.contains(killed) {
-                        live.remove(killed);
+            if block_use_mask {
+                let mut live_mask = state.unit_exit_mask;
+                for instruction in block_instructions(block).rev() {
+                    let unit_live_out = flow::mask_to_units(live_mask);
+                    for killed in instruction
+                        .implicit_defs
+                        .iter()
+                        .chain(&instruction.clobbers)
+                    {
+                        let bit = 1u64 << killed.0;
+                        if (filter_mask & bit) != 0 {
+                            live_mask &= !bit;
+                        }
                     }
-                }
-                for used in &instruction.implicit_uses {
-                    if unit_filter.contains(used) {
-                        live.insert(*used);
+                    for used in &instruction.implicit_uses {
+                        let bit = 1u64 << used.0;
+                        if (filter_mask & bit) != 0 {
+                            live_mask |= bit;
+                        }
                     }
+                    instructions.push(UnitInstructionLiveness {
+                        instruction: instruction.id,
+                        unit_live_in: flow::mask_to_units(live_mask),
+                        unit_live_out,
+                    });
                 }
-                instructions.push(UnitInstructionLiveness {
-                    instruction: instruction.id,
-                    unit_live_in: sorted(&live),
-                    unit_live_out,
-                });
+            } else {
+                let mut live: BTreeSet<_> = state.unit_exit.iter().copied().collect();
+                for instruction in block_instructions(block).rev() {
+                    let unit_live_out = sorted(&live);
+                    for killed in instruction
+                        .implicit_defs
+                        .iter()
+                        .chain(&instruction.clobbers)
+                    {
+                        if unit_filter.contains(killed) {
+                            live.remove(killed);
+                        }
+                    }
+                    for used in &instruction.implicit_uses {
+                        if unit_filter.contains(used) {
+                            live.insert(*used);
+                        }
+                    }
+                    instructions.push(UnitInstructionLiveness {
+                        instruction: instruction.id,
+                        unit_live_in: sorted(&live),
+                        unit_live_out,
+                    });
+                }
             }
             instructions.reverse();
             UnitBlockLiveness {
-                unit_live_in: sorted(&state.unit_entry),
+                unit_live_in: state.unit_entry.clone(),
                 instructions,
             }
         })
@@ -506,8 +551,8 @@ fn materialize_block(
     let state = &flow.blocks[block_index];
     let instructions = if materialize_instruction_live_sets {
         let mut current_virtual_live = state.virtual_exit.clone();
-        let mut unit_live = state.unit_exit.clone();
-        let mut current_unit_live = sorted(&unit_live);
+        let mut unit_live: BTreeSet<_> = state.unit_exit.iter().copied().collect();
+        let mut current_unit_live = state.unit_exit.clone();
         let mut instructions = Vec::with_capacity(block.instructions.len() + 1);
         for instruction in block_instructions(block).rev() {
             let virtual_live_out = current_virtual_live.clone();
@@ -595,7 +640,7 @@ fn materialize_block(
                 psi_edge: successor.psi_edge,
                 target: successor.block,
                 virtual_live,
-                unit_live: sorted(&flow.blocks[edge.target].unit_entry),
+                unit_live: flow.blocks[edge.target].unit_entry.clone(),
             })
         })
         .collect::<Result<Vec<_>, LivenessError>>()?;
@@ -604,8 +649,8 @@ fn materialize_block(
         source_block: block.source_block(),
         virtual_live_in: state.virtual_entry.clone(),
         virtual_live_out: state.virtual_exit.clone(),
-        unit_live_in: sorted(&state.unit_entry),
-        unit_live_out: sorted(&state.unit_exit),
+        unit_live_in: state.unit_entry.clone(),
+        unit_live_out: state.unit_exit.clone(),
         instructions,
         successors,
     })

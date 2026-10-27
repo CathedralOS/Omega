@@ -660,6 +660,23 @@ pub struct CheckingMemos {
             >,
         >,
     >,
+    /// Declaration-level returned field projections per callee machine symbol.
+    pub(crate) returned_field_projections: Mutex<
+        symbols::SymbolMap<
+            Arc<
+                Vec<(
+                    Vec<facts::PlaceSegment>,
+                    crate::proof_contracts::contract_entailment::structural_judgment::StructuralTerm,
+                )>,
+            >,
+        >,
+    >,
+    pub(crate) declared_float_field_bounds: Mutex<
+        symbols::SymbolKeyMap<
+            typed_trees::types::TypeReferenceHandle,
+            Vec<crate::DeclaredFloatFieldBound>,
+        >,
+    >,
 }
 
 impl CheckingMemos {
@@ -699,6 +716,7 @@ impl CheckingMemos {
             nominal_cleanup_machine_index: self.nominal_cleanup_machine_index,
             contract_occurrences: self.contract_occurrences,
             bound_maps: self.bound_maps,
+            declared_float_field_bounds: self.declared_float_field_bounds,
             ..Self::default()
         }
     }
@@ -728,6 +746,12 @@ impl CheckingMemos {
             nominal_cleanup_machine_index: self.nominal_cleanup_machine_index.clone(),
             contract_occurrences: self.contract_occurrences.clone(),
             bound_maps: self.bound_maps.clone(),
+            declared_float_field_bounds: Mutex::new(
+                self.declared_float_field_bounds
+                    .lock()
+                    .map(|guard| guard.clone())
+                    .unwrap_or_default(),
+            ),
             ..Self::default()
         }
     }

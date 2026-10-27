@@ -13,7 +13,7 @@
 /// Exclusive exposures recorded for one judge. Opaque means the frame did not
 /// name places, so every invalidated binding stays retired. A path list lets a
 /// reference-free field read survive a loan of a different field.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, PartialEq, Eq)]
 pub(super) struct StorageExposureRecord {
     pub(super) opaque: bool,
     pub(super) paths: Vec<String>,
@@ -188,12 +188,12 @@ fn content_storage_segments(
 /// One evaluated place keeps its detached entry snapshot beside its live value.
 /// Writes retire only the latter. An entry value is captured by an actual read
 /// before that parameter is invalidated, never reconstructed from an initializer.
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub(super) struct CapturedStorageValue {
-    coordinate: CapturedStorageCoordinate,
-    entry: Option<super::StructuralTerm>,
-    current: Option<super::StructuralTerm>,
-    completed_read: Option<(ExpressionHandle, usize)>,
+    pub(super) coordinate: CapturedStorageCoordinate,
+    pub(super) entry: Option<super::StructuralTerm>,
+    pub(super) current: Option<super::StructuralTerm>,
+    pub(super) completed_read: Option<(ExpressionHandle, usize)>,
 }
 
 /// One authenticated store destination, frozen before replacement evaluation.

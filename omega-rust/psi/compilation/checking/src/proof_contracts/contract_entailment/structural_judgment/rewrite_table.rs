@@ -43,6 +43,10 @@ impl RewriteTable {
     pub(super) fn iter(&self) -> impl Iterator<Item = &(StructuralTerm, StructuralTerm)> {
         self.entries.iter()
     }
+
+    pub(super) fn entries(&self) -> &[(StructuralTerm, StructuralTerm)] {
+        &self.entries
+    }
 }
 
 fn string_key(text: &str) -> u64 {
