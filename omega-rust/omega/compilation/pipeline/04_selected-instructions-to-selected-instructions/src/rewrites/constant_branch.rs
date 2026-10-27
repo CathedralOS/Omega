@@ -177,5 +177,3 @@ pub enum ConstantBranchError {
 }
 
 failed_display!(ConstantBranchError, "invalid constant branch fold");
-
-impl std::error::Error for ConstantBranchError {}

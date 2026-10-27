@@ -132,5 +132,3 @@ pub enum AddressFoldError {
 }
 
 failed_display!(AddressFoldError, "invalid address fold");
-
-impl std::error::Error for AddressFoldError {}

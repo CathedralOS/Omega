@@ -130,5 +130,3 @@ failed_display!(
     RedundantExtensionError,
     "invalid redundant-extension removal"
 );
-
-impl std::error::Error for RedundantExtensionError {}

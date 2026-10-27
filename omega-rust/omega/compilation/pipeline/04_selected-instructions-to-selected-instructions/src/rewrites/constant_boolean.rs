@@ -174,5 +174,3 @@ pub enum ConstantBooleanError {
 }
 
 failed_display!(ConstantBooleanError, "invalid constant boolean fold");
-
-impl std::error::Error for ConstantBooleanError {}

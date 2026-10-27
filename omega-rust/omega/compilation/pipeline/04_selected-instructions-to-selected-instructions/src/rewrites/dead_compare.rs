@@ -157,5 +157,3 @@ pub enum DeadCompareError {
 }
 
 failed_display!(DeadCompareError, "invalid dead-compare removal");
-
-impl std::error::Error for DeadCompareError {}

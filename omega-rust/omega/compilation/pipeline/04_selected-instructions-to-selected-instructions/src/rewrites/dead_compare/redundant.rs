@@ -140,5 +140,3 @@ pub enum RedundantCompareError {
 }
 
 failed_display!(RedundantCompareError, "invalid redundant-compare removal");
-
-impl std::error::Error for RedundantCompareError {}

@@ -147,5 +147,3 @@ pub enum EquivalentCompareError {
 }
 
 failed_display!(EquivalentCompareError, "invalid equivalent-compare removal");
-
-impl std::error::Error for EquivalentCompareError {}

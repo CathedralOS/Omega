@@ -128,8 +128,6 @@ pub enum CopyRemovalError {
 
 failed_display!(CopyRemovalError, "invalid copy removal");
 
-impl std::error::Error for CopyRemovalError {}
-
 /// The removal's measured scan: the shared rewrite scan, then per
 /// this function's body instructions, terminator edges and their binding
 /// surfaces, and each roster length — the audit's whole walk.

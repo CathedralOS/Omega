@@ -209,5 +209,3 @@ pub enum CopiedCallOperandError {
 }
 
 failed_display!(CopiedCallOperandError, "invalid copied call operand fold");
-
-impl std::error::Error for CopiedCallOperandError {}

@@ -127,5 +127,3 @@ pub enum LivenessError {
 }
 
 failed_display!(LivenessError, "Terminal selected liveness failed");
-
-impl std::error::Error for LivenessError {}
