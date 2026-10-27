@@ -63,6 +63,9 @@ impl PsiOptimizationRule for UnreachablePrivateMachinePruneRule {
             PsiRewriteCandidate::new_unreachable_private_machines(
                 unit.identity,
                 Self::contract(),
+                // The pre-roster constructor injected an empty affected-blocks list for this
+                // rule; the pruned machines travel in the rewrite payload. Keep that value.
+                Vec::new(),
                 provenance,
                 -i64::try_from(machines.len()).unwrap_or(i64::MAX),
                 UnreachablePrivateMachinesRewrite { machines: custody },
