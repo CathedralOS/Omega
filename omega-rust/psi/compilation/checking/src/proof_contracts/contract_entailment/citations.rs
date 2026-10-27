@@ -93,7 +93,12 @@ pub(super) fn can_establish_citation(
     let Some(entry) = program.machine_states(callee).first() else {
         return false;
     };
-    let resultless_entry = !entry.return_type.is_valid();
+    let resultless_entry = matches!(
+        program
+            .type_reference_table
+            .type_reference(entry.return_type),
+        typed_trees::types::TypeReferenceNode::Unit
+    );
     if (runtime_invocation && (self_citation || target.has_static_selection))
         || (!runtime_invocation
             && ((self_citation && !resultless_entry)
@@ -563,10 +568,14 @@ pub(crate) fn instantiate_citation(
     };
     let self_citation = std::ptr::eq(callee, machine);
     let runtime_invocation = judge.is_some_and(StructuralJudge::has_runtime_body_values);
-    let resultless_entry = program
-        .machine_states(callee)
-        .first()
-        .is_some_and(|entry| !entry.return_type.is_valid());
+    let resultless_entry = program.machine_states(callee).first().is_some_and(|entry| {
+        matches!(
+            program
+                .type_reference_table
+                .type_reference(entry.return_type),
+            typed_trees::types::TypeReferenceNode::Unit
+        )
+    });
     // A self-citation is an induction hypothesis only in a structurally
     // refined arm and only for a resultless theorem. The recursion validator
     // independently proves strict descent on that exact StatementNode::Call.

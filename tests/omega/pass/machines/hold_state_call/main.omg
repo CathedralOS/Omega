@@ -16,7 +16,7 @@ requires remaining <= 9
         true -> hold(main, remaining)
         false -> remaining
     }
-    state hold(main: &mut Main, pending: u32)
+    machine hold(main: &mut Main, pending: u32) -> u32
     requires pending <= 9
     {
         transition pending > 0 {

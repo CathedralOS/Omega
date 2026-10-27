@@ -27,7 +27,7 @@ machine main() crashes Trap {
     holder.bytes[1] = 250;
     transition { _ -> tally(&mut holder, 2, 1) }
 
-    state tally(holder: &mut Holder, index: u64, slot: u64) requires index < 4, slot < 2 {
+    machine tally(holder: &mut Holder, index: u64, slot: u64) requires index < 4, slot < 2 {
         // Field of a field, `+`: 5 -> 6.
         holder.counts.values[index] = holder.counts.values[index] + 1;
         // Through a typed local, `-`: 6 -> 4.
@@ -42,6 +42,6 @@ machine main() crashes Trap {
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

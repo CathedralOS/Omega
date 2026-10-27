@@ -53,6 +53,6 @@ machine main() reaches Console crashes Trap {
     let pure: u64 = pure_observer();
     let fixed: u64 = note_observer();
     transition margin == 0 && pure == 37 && fixed == 37 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

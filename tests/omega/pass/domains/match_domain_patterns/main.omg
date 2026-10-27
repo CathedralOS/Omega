@@ -32,7 +32,7 @@ machine Main::main(main: &mut Main) {
         _ -> other()
     }
 
-    state alive() { }
-    state dead() { }
-    state other() { }
+    machine alive() { }
+    machine dead() { }
+    machine other() { }
 }

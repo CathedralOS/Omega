@@ -22,8 +22,8 @@ machine Main::main(main: &mut Main) reaches Beeper + Console {
     main.v = 0 - 42;
     main.m = Beeper::beep(main.v);
     transition main.m == 42 { true -> good(main) _ -> bad(main, 71) }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

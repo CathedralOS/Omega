@@ -11,7 +11,7 @@ terminates by at -> Nat::Descending in 0..=7;
         true -> done(b)
         _ -> swap(b, at)
     }
-    state swap(b: &mut Box<T>, at: u64)
+    machine swap(b: &mut Box<T>, at: u64) -> u64
         requires at >= 1
         requires at < 8
     {
@@ -19,7 +19,7 @@ terminates by at -> Nat::Descending in 0..=7;
         b.items[0] = tmp;
         transition { _ -> walk(b, at - 1) }
     }
-    state done(b: &mut Box<T>) -> u64 {
+    machine done(b: &mut Box<T>) -> u64 {
         transition { _ -> (0) }
     }
 }

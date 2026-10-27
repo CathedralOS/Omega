@@ -14,7 +14,7 @@ machine main() crashes Trap {
         true -> write(&mut cells)
         false -> bad()
     }
-    state write(cells: &mut Cells) requires cells.untouched <= 8 {
+    machine write(cells: &mut Cells) requires cells.untouched <= 8 {
         let completed: bool = both(replace(&mut cells.first, 3), replace(&mut cells.second, 9));
         bounded(cells.untouched);
         transition completed && cells.first == 3 && cells.second == 9 {
@@ -22,6 +22,6 @@ machine main() crashes Trap {
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

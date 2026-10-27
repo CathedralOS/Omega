@@ -61,28 +61,28 @@ machine RegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResul
         _ -> reject()
     }
 
-    state select_catalog(signature: BoundarySignature) -> BoundaryPlanResult {
+    machine select_catalog(signature: BoundarySignature) -> BoundaryPlanResult {
         transition signature.callback_demand_count == 0 {
             true -> check_root(signature, signature.parameters[0])
             _ -> select_two_demands(signature)
         }
     }
 
-    state select_two_demands(signature: BoundarySignature) -> BoundaryPlanResult {
+    machine select_two_demands(signature: BoundarySignature) -> BoundaryPlanResult {
         transition signature.callback_demand_count == 2 {
             true -> check_root(signature, signature.parameters[0])
             _ -> reject()
         }
     }
 
-    state check_root(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+    machine check_root(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
         transition root < 256 {
             true -> build(signature, root)
             _ -> reject()
         }
     }
 
-    state build(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+    machine build(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
         let mut output: BoundaryEntryPlan;
         output.call.convention = CallingConvention::MicrosoftX64;
         output.call.parameter_count = 1;
@@ -108,7 +108,7 @@ machine RegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResul
         }
     }
 
-    state bind_callback(
+    machine bind_callback(
         signature: BoundarySignature,
         output: BoundaryEntryPlan
     ) -> BoundaryPlanResult {
@@ -122,11 +122,11 @@ machine RegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResul
         BoundaryPlanResult::Accepted { plan: bound }
     }
 
-    state accept(output: BoundaryEntryPlan) -> BoundaryPlanResult {
+    machine accept(output: BoundaryEntryPlan) -> BoundaryPlanResult {
         BoundaryPlanResult::Accepted { plan: output }
     }
 
-    state reject() -> BoundaryPlanResult {
+    machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection { reason: "invalid callback catalog" },
         }

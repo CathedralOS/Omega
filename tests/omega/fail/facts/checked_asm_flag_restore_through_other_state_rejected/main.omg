@@ -10,7 +10,7 @@ machine main() reaches MachineControl crashes Trap {
             pushfq saved;
     }
     transition { _ -> carried(saved) }
-    state carried(saved: u64) requires (saved & 64u64) == 64u64 {
+    machine carried(saved: u64) requires (saved & 64u64) == 64u64 {
         asm where clobbers r10, r15 {
             entry:
                 popfq 0;
@@ -22,6 +22,6 @@ machine main() reaches MachineControl crashes Trap {
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

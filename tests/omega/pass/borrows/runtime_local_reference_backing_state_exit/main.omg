@@ -14,25 +14,25 @@ machine projected() crashes Trap {
         true -> bounded(alias)
         false -> bad()
     }
-    state bounded(value: &Context) requires value.count < 6 {
+    machine bounded(value: &Context) requires value.count < 6 {
         transition { _ -> observed(value) }
     }
-    state observed(value: &Context) {
+    machine observed(value: &Context) {
         transition value.count == 5 { true -> done() false -> bad() }
     }
-    state done() { }
-    state bad() { crash Trap; }
+    machine done() { }
+    machine bad() { crash Trap; }
 }
 
 machine returned() crashes Trap {
     let record: Context = make();
     let alias: &Context = &record;
     transition { _ -> observe(alias) }
-    state observe(value: &Context) {
+    machine observe(value: &Context) {
         transition value.count == 5 { true -> done() false -> bad() }
     }
-    state done() { }
-    state bad() { crash Trap; }
+    machine done() { }
+    machine bad() { crash Trap; }
 }
 
 machine main() crashes Trap {

@@ -8,7 +8,7 @@ crashes Trap {
         true -> (true)
         false -> stopped()
     }
-    state stopped() { crash Trap; }
+    machine stopped() -> bool { crash Trap; }
 }
 
 // A skipped call cannot make the hypotheses contradictory and prove this law.

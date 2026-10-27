@@ -88,7 +88,7 @@ machine Main::main(main: &mut Main) reaches FilesystemContentRead + FilesystemCo
             | (widen_u8_to_u32(main.buffer[23]) << 24));
     main.rc = PosixFilesystemHost::hard_link("/tmp/omega_ino_a.txt", "/tmp/omega_ino_link.txt");
     transition main.rc == 0 { true -> statlink(main) _ -> fail(main) }
-    state statlink(main: &mut Main) {
+    machine statlink(main: &mut Main) {
         main.rc = PosixFilesystemHost::read_metadata("/tmp/omega_ino_link.txt", &mut main.buffer);
         main.ino_link = narrow_u64_to_i64_wrapping(
             widen_u8_to_u64(main.buffer[8])
@@ -104,19 +104,19 @@ machine Main::main(main: &mut Main) reaches FilesystemContentRead + FilesystemCo
         main.discard = PosixFilesystemHost::remove("/tmp/omega_ino_b.txt");
         transition main.uid_a == main.uid_b { true -> checkgid(main) _ -> fail(main) }
     }
-    state checkgid(main: &mut Main) {
+    machine checkgid(main: &mut Main) {
         transition main.gid_a == main.gid_b { true -> checkinodiff(main) _ -> fail(main) }
     }
-    state checkinodiff(main: &mut Main) {
+    machine checkinodiff(main: &mut Main) {
         // two distinct files have distinct inodes
         transition main.ino_a == main.ino_b { true -> fail(main) _ -> checkinoeq(main) }
     }
-    state checkinoeq(main: &mut Main) {
+    machine checkinoeq(main: &mut Main) {
         // a hard link shares the original's inode
         transition main.ino_a == main.ino_link { true -> good(main) _ -> fail(main) }
     }
-    state good(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "PASS: uid/gid consistent; distinct files distinct ino; hard link shares ino\n"); }
-    state fail(main: &mut Main) {
+    machine good(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "PASS: uid/gid consistent; distinct files distinct ino; hard link shares ino\n"); }
+    machine fail(main: &mut Main) {
         main.n = PosixFilesystemHost::write(1, "FAIL: ino/uid/gid\n");
         crash Trap;
     }

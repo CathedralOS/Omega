@@ -27,7 +27,7 @@ machine probe() -> u64 {
     transition {
         _ -> step(make_quartet())
     }
-    state step(q: Quartet) -> u64 {
+    machine step(q: Quartet) -> u64 {
         let total: u64 = q.first + q.second + q.third + q.fourth;
         total - 100
     }
@@ -38,6 +38,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

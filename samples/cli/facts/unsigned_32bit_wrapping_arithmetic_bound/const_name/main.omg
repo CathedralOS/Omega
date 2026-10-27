@@ -22,10 +22,10 @@ machine exercise() -> u32 crashes Trap {
         true -> step(sum)
         _ -> bad()
     }
-    state step(s: u32) -> u32 {
+    machine step(s: u32) -> u32 {
         verify_sum(s)
     }
-    state bad() { crash Trap; }
+    machine bad() -> u32 { crash Trap; }
 }
 
 machine main() crashes Trap {
@@ -34,6 +34,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

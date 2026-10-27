@@ -203,7 +203,7 @@ reaches ExtentPartition
         RetiredSlot::Held { storage } -> truncated(strategy, buffer, storage, retained)
     }
 
-    state direct(strategy: Bump, buffer: Extent in Granted & Vacant, retained: RetiredSlot) -> Recomposed {
+    machine direct(strategy: Bump, buffer: Extent in Granted & Vacant, retained: RetiredSlot) -> Recomposed {
         let whole: Extent in Granted & Vacant = ExtentPartition::merge(Split {
             taken: buffer,
             rest: strategy.tail,
@@ -215,7 +215,7 @@ reaches ExtentPartition
 
     // A held suffix sits directly above the live buffer, so it folds first; the
     // retired older allocation sits below the buffer and folds last.
-    state truncated(strategy: Bump, buffer: Extent in Granted & Vacant, freed: Extent in Granted & Vacant, retained: RetiredSlot) -> Recomposed {
+    machine truncated(strategy: Bump, buffer: Extent in Granted & Vacant, freed: Extent in Granted & Vacant, retained: RetiredSlot) -> Recomposed {
         let joined: Bump = reset(strategy, buffer, freed);
         let restored: Bump = reset_retired(joined, retained);
         Recomposed { backing: restored.tail }
@@ -252,7 +252,7 @@ reaches ExtentPartition
         }
     }
 
-    state reserve(strategy: Bump, buffer: Extent in Granted & Vacant, capacity: u64, freed: RetiredSlot) -> Growth {
+    machine reserve(strategy: Bump, buffer: Extent in Granted & Vacant, capacity: u64, freed: RetiredSlot) -> Growth {
         let mut active: Bump = strategy;
         let attempt: Attempt = try_allocate(&mut active, capacity);
         transition attempt {
@@ -271,7 +271,7 @@ reaches ExtentPartition
     // The old buffer leaves the container only once its own truncation suffix is
     // folded back into it: buffer ++ freed is the allocation the growth
     // replaces, and that coalesced range stays retired below the new buffer.
-    state retire(active: Bump, buffer: Extent in Granted & Vacant, allocation: Extent in Granted & Vacant, freed: RetiredSlot) -> Growth {
+    machine retire(active: Bump, buffer: Extent in Granted & Vacant, allocation: Extent in Granted & Vacant, freed: RetiredSlot) -> Growth {
         transition freed {
             RetiredSlot::Empty -> Growth::Grown {
                 vec: BumpVec {
@@ -285,7 +285,7 @@ reaches ExtentPartition
         }
     }
 
-    state coalesce(active: Bump, buffer: Extent in Granted & Vacant, allocation: Extent in Granted & Vacant, storage: Extent in Granted & Vacant) -> Growth {
+    machine coalesce(active: Bump, buffer: Extent in Granted & Vacant, allocation: Extent in Granted & Vacant, storage: Extent in Granted & Vacant) -> Growth {
         let merged: Extent in Granted & Vacant = ExtentPartition::merge(Split {
             taken: buffer,
             rest: storage,
@@ -336,7 +336,7 @@ reaches ExtentPartition
         }
     }
 
-    state truncate(strategy: Bump, buffer: Extent in Granted & Vacant, kept: u64, retained: RetiredSlot) -> Truncation {
+    machine truncate(strategy: Bump, buffer: Extent in Granted & Vacant, kept: u64, retained: RetiredSlot) -> Truncation {
         let parts: VacantExtentParts = split_vacant_extent(buffer, kept);
         let shrunk: Extent in Granted & Vacant = parts.taken;
         let freed: Extent in Granted & Vacant = parts.rest;
@@ -378,7 +378,7 @@ reaches ExtentPartition
         RetiredSlot::Held { storage } -> restore(strategy, storage)
     }
 
-    state restore(strategy: Bump, storage: Extent in Granted & Vacant) -> Bump {
+    machine restore(strategy: Bump, storage: Extent in Granted & Vacant) -> Bump {
         let whole: Extent in Granted & Vacant = ExtentPartition::merge(Split {
             taken: storage,
             rest: strategy.tail,

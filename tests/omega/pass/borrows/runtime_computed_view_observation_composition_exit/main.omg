@@ -28,5 +28,5 @@ machine main() crashes Trap {
         && words.len == 2 && words[0] == 123 && count == 2 {
         true -> done() _ -> bad()
     }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }

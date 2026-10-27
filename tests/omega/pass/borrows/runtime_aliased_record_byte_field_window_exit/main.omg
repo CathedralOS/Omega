@@ -12,6 +12,6 @@ machine main() crashes Trap {
     let pair: Pair = Pair { left: View { bytes: &mut left[..] }, right: View { bytes: &mut right[..] } };
     let count: u64 = observe(&pair);
     transition count == 2 && left[0] == 7 && right[0] == 8 && right[1] == 9 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

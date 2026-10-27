@@ -21,14 +21,14 @@ crashes Trap
 {
     transition { _ -> value(typer, syntax, values, 0) }
 
-    state value(typer: &Typer, syntax: &SyntaxTrees, values: JoinedValues, offset: u64 in Trapping) -> u64 in Trapping {
+    machine value(typer: &Typer, syntax: &SyntaxTrees, values: JoinedValues, offset: u64 in Trapping) -> u64 in Trapping {
         transition offset < values.count {
             true -> candidate(typer, syntax, values, offset)
             _ -> found(0)
         }
     }
 
-    state candidate(typer: &Typer, syntax: &SyntaxTrees, values: JoinedValues, offset: u64 in Trapping) -> u64 in Trapping {
+    machine candidate(typer: &Typer, syntax: &SyntaxTrees, values: JoinedValues, offset: u64 in Trapping) -> u64 in Trapping {
         let handle: u64 in Trapping = SyntaxTrees::joined_value(syntax, values, offset);
         let value_type: u64 in Trapping = Typing::expression_type(&typer.output, handle);
         let unlanded: bool = Typer::unlanded(typer, value_type);
@@ -39,7 +39,7 @@ crashes Trap
         }
     }
 
-    state found(handle: u64 in Trapping) -> u64 in Trapping {
+    machine found(handle: u64 in Trapping) -> u64 in Trapping {
         handle
     }
 }
@@ -50,14 +50,14 @@ crashes Trap
 {
     transition { _ -> value(typer, syntax, values, result_type, 0) }
 
-    state value(typer: &mut Typer, syntax: &SyntaxTrees, values: JoinedValues, result_type: u64 in Trapping, offset: u64 in Trapping) {
+    machine value(typer: &mut Typer, syntax: &SyntaxTrees, values: JoinedValues, result_type: u64 in Trapping, offset: u64 in Trapping) {
         transition offset < values.count && typer.output.accepted {
             true -> admission(typer, syntax, values, result_type, offset)
             _ -> done()
         }
     }
 
-    state admission(typer: &mut Typer, syntax: &SyntaxTrees, values: JoinedValues, result_type: u64 in Trapping, offset: u64 in Trapping) {
+    machine admission(typer: &mut Typer, syntax: &SyntaxTrees, values: JoinedValues, result_type: u64 in Trapping, offset: u64 in Trapping) {
         let handle: u64 in Trapping = SyntaxTrees::joined_value(syntax, values, offset);
         let admission: Admission = Typer::admission(typer, syntax, result_type, handle);
         transition admission {
@@ -67,7 +67,7 @@ crashes Trap
         }
     }
 
-    state landed(
+    machine landed(
         typer: &mut Typer,
         syntax: &SyntaxTrees,
         values: JoinedValues,
@@ -79,7 +79,7 @@ crashes Trap
         transition { _ -> value(typer, syntax, values, result_type, offset + 1) }
     }
 
-    state incompatible(typer: &mut Typer, syntax: &SyntaxTrees, handle: u64 in Trapping, admission: Admission) {
+    machine incompatible(typer: &mut Typer, syntax: &SyntaxTrees, handle: u64 in Trapping, admission: Admission) {
         let value: Expression = SyntaxTrees::expression(syntax, handle);
         transition admission {
             Admission::OutOfRange -> rejected(typer, value, TypeDiagnosticCode::LiteralOutOfRange)
@@ -88,11 +88,11 @@ crashes Trap
         }
     }
 
-    state rejected(typer: &mut Typer, value: Expression, code: TypeDiagnosticCode) {
+    machine rejected(typer: &mut Typer, value: Expression, code: TypeDiagnosticCode) {
         Typing::reject(&mut typer.output, code, value.source_span);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // The unlanded type values of no fixed type share: an anonymous choice for
@@ -111,14 +111,14 @@ crashes Trap
     let choice: u64 in Trapping = TypeTable::intern(&mut typer.output.types, choice_row);
     transition { _ -> value(typer, syntax, values, choice, 0, 0) }
 
-    state value(typer: &mut Typer, syntax: &SyntaxTrees, values: JoinedValues, choice: u64 in Trapping, shape: u64 in Trapping, offset: u64 in Trapping) -> UnlandedJoin {
+    machine value(typer: &mut Typer, syntax: &SyntaxTrees, values: JoinedValues, choice: u64 in Trapping, shape: u64 in Trapping, offset: u64 in Trapping) -> UnlandedJoin {
         transition offset < values.count {
             true -> candidate(typer, syntax, values, choice, shape, offset)
             _ -> finished(typer, syntax, values, shape)
         }
     }
 
-    state candidate(typer: &mut Typer, syntax: &SyntaxTrees, values: JoinedValues, choice: u64 in Trapping, shape: u64 in Trapping, offset: u64 in Trapping) -> UnlandedJoin {
+    machine candidate(typer: &mut Typer, syntax: &SyntaxTrees, values: JoinedValues, choice: u64 in Trapping, shape: u64 in Trapping, offset: u64 in Trapping) -> UnlandedJoin {
         let handle: u64 in Trapping = SyntaxTrees::joined_value(syntax, values, offset);
         let value_type: u64 in Trapping = Typing::expression_type(&typer.output, handle);
         let row: TypeRow = TypeTable::row(&typer.output.types, value_type);
@@ -129,7 +129,7 @@ crashes Trap
         }
     }
 
-    state differing(
+    machine differing(
         typer: &mut Typer,
         syntax: &SyntaxTrees,
         values: JoinedValues,
@@ -145,7 +145,7 @@ crashes Trap
         }
     }
 
-    state finished(typer: &mut Typer, syntax: &SyntaxTrees, values: JoinedValues, shape: u64 in Trapping) -> UnlandedJoin {
+    machine finished(typer: &mut Typer, syntax: &SyntaxTrees, values: JoinedValues, shape: u64 in Trapping) -> UnlandedJoin {
         let first: u64 in Trapping = SyntaxTrees::joined_value(syntax, values, 0);
         let first_type: u64 in Trapping = Typing::expression_type(&typer.output, first);
         transition shape > 0 {
@@ -154,11 +154,11 @@ crashes Trap
         }
     }
 
-    state joined(handle: u64 in Trapping) -> UnlandedJoin {
+    machine joined(handle: u64 in Trapping) -> UnlandedJoin {
         UnlandedJoin { joined: handle, mismatch: 0 }
     }
 
-    state mismatched(handle: u64 in Trapping) -> UnlandedJoin {
+    machine mismatched(handle: u64 in Trapping) -> UnlandedJoin {
         UnlandedJoin { joined: 0, mismatch: handle + 1 }
     }
 }
@@ -174,7 +174,7 @@ machine Typer::scalar_or_array(row: TypeRow, handle: u64 in Trapping, choice: u6
         _ -> shaped(0)
     }
 
-    state shaped(shape: u64 in Trapping) -> u64 in Trapping {
+    machine shaped(shape: u64 in Trapping) -> u64 in Trapping {
         shape
     }
 }

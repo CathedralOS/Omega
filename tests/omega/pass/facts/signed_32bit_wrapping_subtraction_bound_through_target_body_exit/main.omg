@@ -20,10 +20,10 @@ linux_x86_64 machine exercise(lhs: i32 in Wrapping, rhs: i32 in Wrapping) -> i32
         true -> step(diff)
         _ -> bad()
     }
-    state step(d: i32) -> i32 {
+    machine step(d: i32) -> i32 {
         verify_diff(d)
     }
-    state bad() { crash Trap; }
+    machine bad() -> i32 { crash Trap; }
 }
 
 linux_arm64 machine exercise(lhs: i32 in Wrapping, rhs: i32 in Wrapping) -> i32 crashes Trap {
@@ -33,10 +33,10 @@ linux_arm64 machine exercise(lhs: i32 in Wrapping, rhs: i32 in Wrapping) -> i32 
         true -> step(diff)
         _ -> bad()
     }
-    state step(d: i32) -> i32 {
+    machine step(d: i32) -> i32 {
         verify_diff(d)
     }
-    state bad() { crash Trap; }
+    machine bad() -> i32 { crash Trap; }
 }
 
 macos_arm64 machine exercise(lhs: i32 in Wrapping, rhs: i32 in Wrapping) -> i32 crashes Trap {
@@ -46,10 +46,10 @@ macos_arm64 machine exercise(lhs: i32 in Wrapping, rhs: i32 in Wrapping) -> i32 
         true -> step(diff)
         _ -> bad()
     }
-    state step(d: i32) -> i32 {
+    machine step(d: i32) -> i32 {
         verify_diff(d)
     }
-    state bad() { crash Trap; }
+    machine bad() -> i32 { crash Trap; }
 }
 
 windows_x86_64 machine exercise(lhs: i32 in Wrapping, rhs: i32 in Wrapping) -> i32 crashes Trap {
@@ -59,10 +59,10 @@ windows_x86_64 machine exercise(lhs: i32 in Wrapping, rhs: i32 in Wrapping) -> i
         true -> step(diff)
         _ -> bad()
     }
-    state step(d: i32) -> i32 {
+    machine step(d: i32) -> i32 {
         verify_diff(d)
     }
-    state bad() { crash Trap; }
+    machine bad() -> i32 { crash Trap; }
 }
 
 machine main() crashes Trap {
@@ -71,6 +71,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

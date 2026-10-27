@@ -27,7 +27,7 @@ machine Main::run(main: &mut Main, s: Shape) reaches Console {
         Shape::Circle { r } -> emit(main, r * 7)
         Shape::Boxed { inner } -> emit(main, inner.x)
     }
-    state emit(main: &mut Main, v: i32 in Wrapping) {
+    machine emit(main: &mut Main, v: i32 in Wrapping) {
         Console::exit_process(v as i32);
     }
 }

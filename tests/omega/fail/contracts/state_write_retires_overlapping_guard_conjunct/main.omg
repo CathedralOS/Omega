@@ -23,13 +23,13 @@ machine Main::main(main: &mut Main) {
         true -> first(main)
         _ -> done()
     }
-    state first(main: &mut Main) {
+    machine first(main: &mut Main) {
         let value: i32 = Stack::pop(&mut main.b);
         transition { _ -> second(main) }
     }
-    state second(main: &mut Main) {
+    machine second(main: &mut Main) {
         let value: i32 = Stack::pop(&mut main.b);
         transition { _ -> done() }
     }
-    state done() {}
+    machine done() {}
 }

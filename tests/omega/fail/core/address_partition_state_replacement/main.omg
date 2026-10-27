@@ -22,7 +22,7 @@ ensures Owned::content(old(&whole)) == separate(
     let replacement: Region in Owned = Region { base: whole.base, length: length };
     drop(whole);
     transition { _ -> partition(replacement, length, ceiling) }
-    state partition(whole: Region in Owned, length: u64, ceiling: addr) -> Pieces
+    machine partition(whole: Region in Owned, length: u64, ceiling: addr) -> Pieces
     requires length <= whole.length && embed(whole.base) + embed(whole.length) <= embed(ceiling)
     {
     let left: Region in Owned = Region { base: whole.base, length: length };
@@ -40,6 +40,6 @@ machine main() crashes Trap {
     drop(left);
     drop(right);
     transition correct { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

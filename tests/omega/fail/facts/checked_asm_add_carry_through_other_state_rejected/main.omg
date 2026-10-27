@@ -12,10 +12,10 @@ machine main() crashes Trap {
   nop
  }
  transition { _ -> next(snapshot ^ 1u64) }
- state next(carried: u64) requires (carried & 2261u64) == 85u64 {
+ machine next(carried: u64) requires (carried & 2261u64) == 85u64 {
   asm { observed requires (carried & 2261u64) == 85u64: nop }
   transition (carried & 2261u64) == 85u64 { true -> done() false -> bad() }
  }
- state done() {}
- state bad() { crash Trap; }
+ machine done() {}
+ machine bad() { crash Trap; }
 }

@@ -5,13 +5,13 @@ data Main { rows: [Row; 2]; }
 machine take(value: &u8) -> u8 { value }
 machine verify(value: &u8) crashes Trap {
     transition value == 1 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine verify_expected(expected: u8, value: &u8) crashes Trap {
     transition value == expected { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine verify_projection(expected: u8, row: u64, main: &Main, column: u64) crashes Trap
 requires row < 2, column < 3
@@ -23,7 +23,7 @@ machine inspect(row: u64, main: &Main, column: u64) -> u8 crashes Trap {
         true -> selected(row, main, column)
         _ -> 0
     }
-    state selected(row: u64, main: &Main, column: u64) -> u8 {
+    machine selected(row: u64, main: &Main, column: u64) -> u8 {
         let selected_value: &u8 = &main.rows[row].cells[column].value;
         let got: u8 = take(selected_value);
         verify_projection(got, row, main, column);
@@ -74,8 +74,8 @@ machine Main::main(main: &mut Main) crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

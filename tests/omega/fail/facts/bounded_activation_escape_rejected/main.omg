@@ -4,6 +4,6 @@ machine escape() -> ActivationClaim crashes Trap {
         ActivationClaimAttempt::Established { claim } -> (claim)
         ActivationClaimAttempt::Rejected -> bad()
     }
-    state bad() -> ActivationClaim { crash Trap; }
+    machine bad() -> ActivationClaim { crash Trap; }
 }
 machine main() crashes Trap { let claim: ActivationClaim = escape(); ActivationClaim::release(claim); }

@@ -19,14 +19,14 @@ machine exercise(lhs: u32 in Wrapping, rhs: u32 in Wrapping, flag: bool) -> u32 
         true -> step(sum, flag)
         _ -> bad()
     }
-    state step(s: u32, f: bool) -> u32 {
+    machine step(s: u32, f: bool) -> u32 {
         let joined: u32 = match f {
             true -> s,
             false -> s,
         };
         verify_sum(joined)
     }
-    state bad() { crash Trap; }
+    machine bad() -> u32 { crash Trap; }
 }
 
 machine main() crashes Trap {
@@ -35,6 +35,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

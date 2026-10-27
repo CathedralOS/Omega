@@ -3,7 +3,7 @@ data Node { value: u64; }
 data Values { first: Node; second: Node; third: Node; }
 machine rotate<'storage>(values: &'storage Values, once: bool, twice: bool) -> &'storage Node {
     transition { _ -> repeat(&values.first, &values.second, &values.third, once, twice) }
-    state repeat(first: &'storage Node, second: &'storage Node, third: &'storage Node, once: bool, twice: bool) -> &'storage Node {
+    machine repeat(first: &'storage Node, second: &'storage Node, third: &'storage Node, once: bool, twice: bool) -> &'storage Node {
         transition once {
             true -> repeat(second, third, first, twice, false)
             false -> first
@@ -12,7 +12,7 @@ machine rotate<'storage>(values: &'storage Values, once: bool, twice: bool) -> &
 }
 machine rotate_mutable<'storage>(values: &'storage mut Values, once: bool, twice: bool) -> &'storage mut Node {
     transition { _ -> repeat(&mut values.first, &mut values.second, &mut values.third, once, twice) }
-    state repeat(first: &'storage mut Node, second: &'storage mut Node, third: &'storage mut Node, once: bool, twice: bool) -> &'storage mut Node {
+    machine repeat(first: &'storage mut Node, second: &'storage mut Node, third: &'storage mut Node, once: bool, twice: bool) -> &'storage mut Node {
         transition once {
             true -> repeat(second, third, first, twice, false)
             false -> first
@@ -34,6 +34,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

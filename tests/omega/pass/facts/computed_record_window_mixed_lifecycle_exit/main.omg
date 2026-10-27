@@ -38,12 +38,12 @@ machine consume<'samples>(samples: &'samples mut [f64; 4], which: i64, direct: b
         true -> write(selected)
         false -> done()
     }
-    state write(selected: &'samples mut [f64])
+    machine write(selected: &'samples mut [f64])
     requires selected.len == 2 {
         let leading: Held = hold(selected);
         write_pair(leading.values);
     }
-    state done() {}
+    machine done() {}
 }
 machine exercise(which: i64, direct: bool, carry: bool) crashes Trap {
     let mut samples: [f64; 4] = [9.0, 9.0, 9.0, 9.0];
@@ -54,8 +54,8 @@ machine exercise(which: i64, direct: bool, carry: bool) crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine main() crashes Trap {
     exercise(0, true, true);

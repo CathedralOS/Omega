@@ -4,7 +4,7 @@ data Row { tag: i32 in Wrapping; data: [i32 in Wrapping; 2]; }
 machine main() crashes Trap {
     let mut grid: [[i32 in Wrapping; 4]; 3];
     transition { _ -> grid_rmw(&mut grid, 1, 2) }
-    state grid_rmw(grid: &mut [[i32 in Wrapping; 4]; 3], i: u64, j: u64)
+    machine grid_rmw(grid: &mut [[i32 in Wrapping; 4]; 3], i: u64, j: u64)
     requires i <= 2
     requires j <= 3 {
         grid[1][2] = 40;
@@ -15,11 +15,11 @@ machine main() crashes Trap {
             false -> bad()
         }
     }
-    state prepare_rows() {
+    machine prepare_rows() {
         let mut rows: [Row; 3];
         transition { _ -> member_rmw(&mut rows, 2, 1) }
     }
-    state member_rmw(rows: &mut [Row; 3], i: u64, rj: u64)
+    machine member_rmw(rows: &mut [Row; 3], i: u64, rj: u64)
     requires i <= 2
     requires rj <= 1 {
         rows[2].data[1] = 41;
@@ -31,6 +31,6 @@ machine main() crashes Trap {
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

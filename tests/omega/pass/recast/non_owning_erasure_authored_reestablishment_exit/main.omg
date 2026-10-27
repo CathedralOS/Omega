@@ -11,6 +11,6 @@ machine main() crashes Trap {
     let mut holder: Holder = Holder { slot: issue(0) };
     update(&write holder);
     transition holder.slot.value == 73 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

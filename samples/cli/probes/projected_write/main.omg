@@ -23,11 +23,11 @@ machine Cell::replace(cell: &write Cell, value: i64) {
 machine forward(pair: &mut Pair, value: i64) {
     transition { _ -> relay(&write pair.right, value) }
 
-    state relay(cell: &write Cell, value: i64) {
+    machine relay(cell: &write Cell, value: i64) {
         transition { _ -> store(&write cell, value) }
     }
 
-    state store(cell: &write Cell, value: i64) {
+    machine store(cell: &write Cell, value: i64) {
         Cell::replace(&write cell, value);
     }
 }
@@ -43,8 +43,8 @@ machine Main::main(main: &mut Main) crashes Trap {
         _ -> bad()
     }
 
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

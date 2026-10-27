@@ -15,27 +15,27 @@ public machine Geometry::valid(geometry: &Geometry) -> bool {
         true -> element(geometry, 0)
         false -> no()
     }
-    state element(geometry: &Geometry, index: i32) {
+    machine element(geometry: &Geometry, index: i32) -> bool {
         transition index >= 0 && index < 4 { true -> check(geometry, index) false -> yes() }
     }
-    state check(geometry: &Geometry, index: i32) {
+    machine check(geometry: &Geometry, index: i32) -> bool {
         transition geometry.positions[index] >= -2.0 && geometry.positions[index] <= 2.0 && geometry.weights[index] >= -2.0 && geometry.weights[index] <= 2.0 {
             true -> element(geometry, index + 1)
             false -> no()
         }
     }
-    state yes() -> bool { true }
-    state no() -> bool { false }
+    machine yes() -> bool { true }
+    machine no() -> bool { false }
 }
 public machine Pattern::power(geometry: &Geometry, direction: f64) -> f64 {
     transition { _ -> element(geometry, direction, 0, 0.0, 0.0) }
-    state element(geometry: &Geometry, direction: f64, index: i32, real: f64, imaginary: f64) {
+    machine element(geometry: &Geometry, direction: f64, index: i32, real: f64, imaginary: f64) -> f64 {
         transition index >= 0 && index < 4 {
             true -> add(geometry, direction, index, real, imaginary)
             false -> done(real, imaginary)
         }
     }
-    state add(geometry: &Geometry, direction: f64, index: i32, real: f64, imaginary: f64) {
+    machine add(geometry: &Geometry, direction: f64, index: i32, real: f64, imaginary: f64) -> f64 {
         let phase: f64 = 6.283185307179586 * geometry.positions[index] * (direction - geometry.steering);
         let cosine: f64 = Phasor::cosine(phase);
         let sine: f64 = Phasor::sine(phase);
@@ -43,7 +43,7 @@ public machine Pattern::power(geometry: &Geometry, direction: f64) -> f64 {
         let next_imaginary: f64 = imaginary + geometry.weights[index] * sine;
         transition { _ -> element(geometry, direction, index + 1, next_real, next_imaginary) }
     }
-    state done(real: f64, imaginary: f64) -> f64 {
+    machine done(real: f64, imaginary: f64) -> f64 {
         real * real + imaginary * imaginary
     }
 }
@@ -52,17 +52,17 @@ public machine Geometry::amplitude(geometry: &Geometry) -> f64 {
 }
 public machine Geometry::duplicates(geometry: &Geometry) -> i32 {
     transition { _ -> pair(geometry, 0, 1, 0) }
-    state pair(geometry: &Geometry, left: i32, right: i32, count: i32) {
+    machine pair(geometry: &Geometry, left: i32, right: i32, count: i32) -> i32 {
         transition left >= 0 && left < 3 { true -> right_guard(geometry, left, right, count) false -> done(count) }
     }
-    state right_guard(geometry: &Geometry, left: i32, right: i32, count: i32) {
+    machine right_guard(geometry: &Geometry, left: i32, right: i32, count: i32) -> i32 {
         transition right >= 0 && right < 4 { true -> compare(geometry, left, right, count) false -> pair(geometry, left + 1, left + 2, count) }
     }
-    state compare(geometry: &Geometry, left: i32, right: i32, count: i32) {
+    machine compare(geometry: &Geometry, left: i32, right: i32, count: i32) -> i32 {
         transition geometry.positions[left] == geometry.positions[right] {
             true -> pair(geometry, left, right + 1, count % 7 + 1)
             false -> pair(geometry, left, right + 1, count)
         }
     }
-    state done(count: i32) -> i32 { count }
+    machine done(count: i32) -> i32 { count }
 }

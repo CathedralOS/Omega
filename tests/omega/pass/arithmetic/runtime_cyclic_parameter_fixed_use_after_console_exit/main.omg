@@ -2,7 +2,7 @@ use omega_language_std::console;
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> digits(main, 100) }
-    state digits(main: &mut Main, value: i64 in Wrapping) {
+    machine digits(main: &mut Main, value: i64 in Wrapping) {
         Console::write_byte(48);
         let next: i64 in Wrapping = value / 10;
         transition next > 0 {
@@ -10,7 +10,7 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> done(main)
         }
     }
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::write_byte(10);
         Console::exit_process(70);
     }

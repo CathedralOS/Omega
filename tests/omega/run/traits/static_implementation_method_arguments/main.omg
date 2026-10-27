@@ -18,8 +18,8 @@ machine verify<const Expected: i32>() crashes Trap {
     let mut destination: Observation;
     Selected::fill<Expected>(&mut destination);
     transition observed == Expected && destination.value == Expected { true -> done() false -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }
 machine main() crashes Trap {
     verify<2>();
@@ -27,6 +27,6 @@ machine main() crashes Trap {
     let first: i32 = keep_value<i32>(2);
     let second: u64 = keep_value<u64>(4u64);
     transition first == 2 && second == 4u64 { true -> done() false -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

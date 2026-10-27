@@ -32,7 +32,7 @@ satisfies CallingPolicy::plan {
  true -> build(signature, p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, result)
  _ -> reject()
  }
- state build(signature: BoundarySignature, p0: u64, p1: u64, p2: u64, p3: u64, p4: u64, p5: u64, p6: u64, p7: u64, p8: u64, p9: u64, p10: u64, p11: u64, result: u64) -> BoundaryPlanResult
+ machine build(signature: BoundarySignature, p0: u64, p1: u64, p2: u64, p3: u64, p4: u64, p5: u64, p6: u64, p7: u64, p8: u64, p9: u64, p10: u64, p11: u64, result: u64) -> BoundaryPlanResult
  requires p0 < 256 && p1 < 256 && p2 < 256 && p3 < 256 && p4 < 256 && p5 < 256 && p6 < 256 && p7 < 256 && p8 < 256 && p9 < 256 && p10 < 256 && p11 < 256 && result < 256 && signature.parameter_count <= 12 && signature.parameter_count == signature.native_parameter_count && signature.callback_demand_count <= 1 && signature.callback_binder_count <= 1; {
  let mut output: BoundaryEntryPlan = User32Policy::initial(signature.parameter_count);
  output.call.parameters[0] = User32Policy::word(signature.shapes[p0].byte_size, signature.shapes[p0].alignment, MachineRegister::X86Rcx);
@@ -49,24 +49,24 @@ satisfies CallingPolicy::plan {
  output.call.parameters[11] = User32Policy::stack_word(signature.shapes[p11].byte_size, signature.shapes[p11].alignment, 88);
  transition signature.has_result { true -> with_result(signature, output, result) _ -> callbacks(signature, output) }
  }
- state with_result(signature: BoundarySignature, output: BoundaryEntryPlan, result: u64) -> BoundaryPlanResult requires result < 256; {
+ machine with_result(signature: BoundarySignature, output: BoundaryEntryPlan, result: u64) -> BoundaryPlanResult requires result < 256; {
  let mut bound: BoundaryEntryPlan = output;
  bound.call.has_result = true;
  bound.call.result = User32Policy::word(signature.shapes[result].byte_size, signature.shapes[result].alignment, MachineRegister::X86Rax);
  transition { _ -> callbacks(signature, bound) }
  }
- state callbacks(signature: BoundarySignature, output: BoundaryEntryPlan) -> BoundaryPlanResult {
+ machine callbacks(signature: BoundarySignature, output: BoundaryEntryPlan) -> BoundaryPlanResult {
  transition signature.callback_demand_count == 1 && signature.callback_binder_count == 1 { true -> bind_callback(signature, output) _ -> accept(output) }
  }
- state bind_callback(signature: BoundarySignature, output: BoundaryEntryPlan) -> BoundaryPlanResult {
+ machine bind_callback(signature: BoundarySignature, output: BoundaryEntryPlan) -> BoundaryPlanResult {
  let mut bound: BoundaryEntryPlan = output;
  bound.call.callback_materialization_count = 1;
  bound.call.callback_materializations[0].binder = signature.callback_binders[0].binder;
  bound.call.callback_materializations[0].destination = signature.callback_demands[0].destination;
  transition { _ -> accept(bound) }
  }
- state accept(output: BoundaryEntryPlan) -> BoundaryPlanResult { BoundaryPlanResult::Accepted { plan: output } }
- state reject() -> BoundaryPlanResult { BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "invalid user32 telescope" } } }
+ machine accept(output: BoundaryEntryPlan) -> BoundaryPlanResult { BoundaryPlanResult::Accepted { plan: output } }
+ machine reject() -> BoundaryPlanResult { BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "invalid user32 telescope" } } }
 }
 machine User32Policy::stack_word(bytes: u64, alignment: u64, offset: u64) -> ValuePlacement {
  let mut placement: ValuePlacement;
@@ -272,7 +272,7 @@ reaches ModuleApi {
   true -> done(capacity)
   _ -> (ReleaseOutcome::Retained { capacity: capacity })
  }
- state done(capacity: Registration in Registration::Available) -> ReleaseOutcome {
+ machine done(capacity: Registration in Registration::Available) -> ReleaseOutcome {
   let occurrence: u64 = capacity.occurrence;
   let mut retired: Registration in Registration::Held = capacity;
   // Keep the valid qualified carrier until cleanup consumes its owned claim.
@@ -331,7 +331,7 @@ reaches ClassApi + ModuleApi {
   true -> registered(capacity, atom as u64)
   _ -> (Outcome::Rejected { capacity: capacity })
  }
- state registered(capacity: Registration in Registration::Available, atom: u64) -> Outcome
+ machine registered(capacity: Registration in Registration::Available, atom: u64) -> Outcome
  requires atom != 0 {
   Outcome::Registered { registration: Registration::activate(capacity, atom) }
  }
@@ -344,7 +344,7 @@ reaches ClassApi {
   true -> removed(registration)
   _ -> (Removal::Retained { registration: registration })
  }
- state removed(registration: Registration in Registration::Installed) -> Removal {
+ machine removed(registration: Registration in Registration::Installed) -> Removal {
   Removal::Removed { capacity: Registration::vacate(registration) }
  }
 }
@@ -356,12 +356,12 @@ reaches ContextApi {
   true -> nccreate(window)
   _ -> other(window, message)
  }
- state nccreate(window: u64) -> i64 {
+ machine nccreate(window: u64) -> i64 {
   let previous: i64 = ContextApi::set_context(window, -21, 77);
   let context: i64 = ContextApi::get_context(window, -21);
   transition context == 77 { true -> 1 _ -> 0 }
  }
- state other(window: u64, message: u32) -> i64 {
+ machine other(window: u64, message: u32) -> i64 {
   transition message == 32769u32 {
    true -> (ContextApi::get_context(window, -21))
    _ -> 0
@@ -397,8 +397,8 @@ invokes Console;
   true -> acquired(main, module)
   _ -> acquire_failed()
  }
- state acquire_failed() { Console::exit_process(77); }
- state acquired(main: &mut Main, module: u64)
+ machine acquire_failed() { Console::exit_process(77); }
+ machine acquired(main: &mut Main, module: u64)
  requires module != 0 {
  let capacity: Registration in Registration::Available = Registration::acquire(module);
  let outcome: Outcome = Registrar::register<Handler::call>(&main.name, capacity, -1);
@@ -407,7 +407,7 @@ invokes Console;
   Outcome::Rejected { capacity } -> retry(main, capacity)
  }
  }
- state retry(main: &mut Main, capacity: Registration in Registration::Available) {
+ machine retry(main: &mut Main, capacity: Registration in Registration::Available) {
   main.name[0] = 82;
   let outcome: Outcome = Registrar::register<Handler::call>(&main.name, capacity, 0);
   transition outcome {
@@ -415,14 +415,14 @@ invokes Console;
    Outcome::Rejected { capacity } -> failed(main, capacity, 73)
   }
  }
- state create(main: &mut Main, registration: Registration in Registration::Installed, repeats: u32) {
+ machine create(main: &mut Main, registration: Registration in Registration::Installed, repeats: u32) {
   let window: u64 = ClassApi::create(0, registration.atom, &main.name, 0, 0, 0, 64, 64, 0, 0, registration.module, 0);
   transition window != 0 {
    true -> dispatch(main, registration, window, repeats)
    _ -> release(main, registration, 71, 0)
   }
  }
- state dispatch(main: &mut Main, registration: Registration in Registration::Installed, window: u64, repeats: u32) {
+ machine dispatch(main: &mut Main, registration: Registration in Registration::Installed, window: u64, repeats: u32) {
   let synchronous: i64 = ContextApi::get_context(window, -21);
   let old: i64 = ContextApi::set_context(window, -21, 88);
   main.message[0] = window;
@@ -439,20 +439,20 @@ invokes Console;
    _ -> release(main, registration, 72, 0)
   }
  }
- state release(main: &mut Main, registration: Registration in Registration::Installed, exit: i32, repeats: u32) {
+ machine release(main: &mut Main, registration: Registration in Registration::Installed, exit: i32, repeats: u32) {
   let removal: Removal = Registrar::unregister(registration);
   transition removal {
    Removal::Removed { capacity } -> released(main, capacity, exit, repeats)
    Removal::Retained { registration } -> retained(main, registration)
   }
  }
- state released(main: &mut Main, capacity: Registration in Registration::Available, exit: i32, repeats: u32) {
+ machine released(main: &mut Main, capacity: Registration in Registration::Available, exit: i32, repeats: u32) {
   transition repeats != 0 {
    true -> replace(main, capacity)
    _ -> failed(main, capacity, exit)
   }
  }
- state replace(main: &mut Main, capacity: Registration in Registration::Available) {
+ machine replace(main: &mut Main, capacity: Registration in Registration::Available) {
   main.name[11] = 81;
   let outcome: Outcome = Registrar::register<Handler::call>(&main.name, capacity, 0);
   transition outcome {
@@ -460,28 +460,28 @@ invokes Console;
    Outcome::Rejected { capacity } -> failed(main, capacity, 74)
   }
  }
- state retained(main: &mut Main, registration: Registration in Registration::Installed) {
+ machine retained(main: &mut Main, registration: Registration in Registration::Installed) {
   Console::exit_process(75);
   transition true { true -> retained(main, registration) }
  }
- state unexpected_registration(main: &mut Main, registration: Registration in Registration::Installed) {
+ machine unexpected_registration(main: &mut Main, registration: Registration in Registration::Installed) {
   transition true { true -> release(main, registration, 76, 0) }
  }
- state failed(main: &mut Main, capacity: Registration in Registration::Available, exit: i32) {
+ machine failed(main: &mut Main, capacity: Registration in Registration::Available, exit: i32) {
   let release: ReleaseOutcome = Registration::release(capacity);
   transition release {
    ReleaseOutcome::Released { occurrence } -> verify_release(occurrence, exit)
    ReleaseOutcome::Retained { capacity } -> release_failed(capacity)
   }
  }
- state verify_release(occurrence: u64, exit: i32) {
+ machine verify_release(occurrence: u64, exit: i32) {
   transition occurrence == 17 { true -> exited(exit) _ -> exited(79) }
  }
- state release_failed(capacity: Registration in Registration::Available) {
+ machine release_failed(capacity: Registration in Registration::Available) {
   Console::exit_process(78);
   transition true { true -> release_failed(capacity) }
  }
- state exited(exit: i32) {
+ machine exited(exit: i32) {
   Console::exit_process(exit);
  }
 }

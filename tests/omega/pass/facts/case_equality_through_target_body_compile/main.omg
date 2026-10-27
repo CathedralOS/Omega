@@ -11,10 +11,10 @@ linux_x86_64 machine Main::main(main: &mut Main) {
         Interval::Point { lo, hi } -> take(lo, hi, main)
         Interval::Empty -> done()
     }
-    state take(lo: u64, hi: u64, main: &mut Main) {
+    machine take(lo: u64, hi: u64, main: &mut Main) {
         main.width = hi - lo;
     }
-    state done() { }
+    machine done() { }
 }
 
 linux_arm64 machine Main::main(main: &mut Main) {
@@ -22,10 +22,10 @@ linux_arm64 machine Main::main(main: &mut Main) {
         Interval::Point { lo, hi } -> take(lo, hi, main)
         Interval::Empty -> done()
     }
-    state take(lo: u64, hi: u64, main: &mut Main) {
+    machine take(lo: u64, hi: u64, main: &mut Main) {
         main.width = hi - lo;
     }
-    state done() { }
+    machine done() { }
 }
 
 macos_arm64 machine Main::main(main: &mut Main) {
@@ -33,10 +33,10 @@ macos_arm64 machine Main::main(main: &mut Main) {
         Interval::Point { lo, hi } -> take(lo, hi, main)
         Interval::Empty -> done()
     }
-    state take(lo: u64, hi: u64, main: &mut Main) {
+    machine take(lo: u64, hi: u64, main: &mut Main) {
         main.width = hi - lo;
     }
-    state done() { }
+    machine done() { }
 }
 
 windows_x86_64 machine Main::main(main: &mut Main) {
@@ -44,8 +44,8 @@ windows_x86_64 machine Main::main(main: &mut Main) {
         Interval::Point { lo, hi } -> take(lo, hi, main)
         Interval::Empty -> done()
     }
-    state take(lo: u64, hi: u64, main: &mut Main) {
+    machine take(lo: u64, hi: u64, main: &mut Main) {
         main.width = hi - lo;
     }
-    state done() { }
+    machine done() { }
 }

@@ -16,7 +16,7 @@ ensures result == input
 {
     let held: i32 = input;
     transition { _ -> last(held) }
-    state last(carried: i32) {
+    machine last(carried: i32) -> i32 {
         carried
     }
 }
@@ -27,7 +27,7 @@ ensures result == input
     let a: i32 = input;
     let b: i32 = a;
     transition { _ -> last(b) }
-    state last(carried: i32) {
+    machine last(carried: i32) -> i32 {
         carried
     }
 }

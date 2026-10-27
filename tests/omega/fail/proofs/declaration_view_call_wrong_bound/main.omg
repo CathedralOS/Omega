@@ -13,8 +13,8 @@ requires addr::Bound == 18446744073709551616
 {
     let observed: u64 = consume(&counter as &Counter);
     transition observed == 0 { true -> done(counter) _ -> wrong() }
-    state done(counter: Counter in One) -> u64 { counter.value }
-    state wrong() -> u64 { crash Trap; }
+    machine done(counter: Counter in One) -> u64 { counter.value }
+    machine wrong() -> u64 { crash Trap; }
 }
 
 machine main() crashes Trap
@@ -23,8 +23,8 @@ requires addr::Bound == 18446744073709551616
     let result: u64 = visit(Counter { value: 1 });
     let nested: u64 = visit_nested(Bundle { counter: Counter { value: 1 } });
     transition result == 1 && nested == 1 { true -> done() _ -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }
 
 // Both retained views observe the same original field, including after the
@@ -35,6 +35,6 @@ requires bundle.counter.value >= 1 && addr::Bound == 18446744073709551616
     let narrowed: &Counter in Nonnegative = &bundle.counter as &Counter in Nonnegative;
     let observed: u64 = consume(narrowed as &Counter);
     transition observed == 0 { true -> done(bundle) _ -> wrong() }
-    state done(bundle: Bundle) -> u64 { bundle.counter.value }
-    state wrong() -> u64 { crash Trap; }
+    machine done(bundle: Bundle) -> u64 { bundle.counter.value }
+    machine wrong() -> u64 { crash Trap; }
 }

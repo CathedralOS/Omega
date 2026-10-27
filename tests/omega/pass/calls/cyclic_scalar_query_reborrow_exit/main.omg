@@ -18,14 +18,14 @@ machine Tally::at_least(tally: &Tally, seen: u64 in Saturating) -> bool {
 machine Tally::first_reaching(tally: &Tally, start: u64 in Saturating) -> u64 in Saturating {
     transition { _ -> scan(tally, start) }
 
-    state scan(tally: &Tally, at: u64 in Saturating) -> u64 in Saturating {
+    machine scan(tally: &Tally, at: u64 in Saturating) -> u64 in Saturating {
         transition Tally::at_least(tally, at) {
             true -> (at)
             false -> step(tally, at)
         }
     }
 
-    state step(tally: &Tally, at: u64 in Saturating) -> u64 in Saturating {
+    machine step(tally: &Tally, at: u64 in Saturating) -> u64 in Saturating {
         transition { _ -> scan(tally, at + 1) }
     }
 }
@@ -43,11 +43,11 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> missed(main)
     }
 
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state missed(main: &mut Main) {
+    machine missed(main: &mut Main) {
         Console::exit_process(71);
     }
 }

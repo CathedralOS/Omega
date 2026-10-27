@@ -12,7 +12,7 @@ machine copy(buffer: &mut [u8; 32] in Ascii, bytes: &[u8] in Ascii, start: u64)
 requires start <= 32; bytes.len <= 32 - start
 {
     transition { _ -> copying(buffer, bytes, start, 0) }
-    state copying(buffer: &mut [u8; 32] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    machine copying(buffer: &mut [u8; 32] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
     requires start <= 32; index <= 32
     {
         transition index < bytes.len && start + index < 32 {
@@ -26,7 +26,7 @@ requires start <= 32; bytes.len <= 32 - start
         buffer[start + index] = bytes[index];
         transition { _ -> copying(buffer, bytes, start, index + 1) }
     }
-    state done() {}
+    machine done() {}
 }
 
 domain [u8; 4]::Ascii(bytes) requires ascii_only(bytes);
@@ -48,7 +48,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> normal(main)
     }
 
-    state high(main: &mut Main) {
+    machine high(main: &mut Main) {
         copy(&mut main.message.storage, "ALERT ", 0);
         copy(&mut main.message.storage, &main.label, 6);
         main.message.used = 10;
@@ -56,7 +56,7 @@ machine Main::main(main: &mut Main) reaches Console {
         transition live(&main.message) == "ALERT temp" { true -> ok(main) _ -> bad(main) }
     }
 
-    state normal(main: &mut Main) {
+    machine normal(main: &mut Main) {
         copy(&mut main.message.storage, "ok ", 0);
         copy(&mut main.message.storage, &main.label, 3);
         main.message.used = 7;
@@ -64,13 +64,13 @@ machine Main::main(main: &mut Main) reaches Console {
         transition live(&main.message) == "ok temp" { true -> ok(main) _ -> bad(main) }
     }
 
-    state ok(main: &mut Main) {
+    machine ok(main: &mut Main) {
         Console::write_line("PASS: reading 95 built and verified the ALERT message (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(70);
     }
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::write_line("FAIL: the concatenated message did not match (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

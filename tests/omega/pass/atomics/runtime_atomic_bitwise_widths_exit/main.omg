@@ -18,27 +18,27 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> and32(main)
         false -> bad(main)
     }
-    state and32(main: &mut Main) {
+    machine and32(main: &mut Main) {
         let prior: u32 = main.cell32.fetch_and(4294967287, ReceivePublish);
         transition prior == 2147483663 {
             true -> xor32(main)
             false -> bad(main)
         }
     }
-    state xor32(main: &mut Main) {
+    machine xor32(main: &mut Main) {
         let prior: u32 = main.cell32.fetch_xor(3, ReceivePublish);
         transition prior == 2147483655 {
             true -> check32(main)
             false -> bad(main)
         }
     }
-    state check32(main: &mut Main) {
+    machine check32(main: &mut Main) {
         transition main.cell32 == 2147483652 {
             true -> or64(main)
             false -> bad(main)
         }
     }
-    state or64(main: &mut Main) {
+    machine or64(main: &mut Main) {
         main.cell64.store(4611686018427387914, GlobalOrder);
         let prior: u64 = main.cell64.fetch_or(5, ReceivePublish);
         transition prior == 4611686018427387914 {
@@ -46,28 +46,28 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad(main)
         }
     }
-    state and64(main: &mut Main) {
+    machine and64(main: &mut Main) {
         let prior: u64 = main.cell64.fetch_and(9223372036854775799, ReceivePublish);
         transition prior == 4611686018427387919 {
             true -> xor64(main)
             false -> bad(main)
         }
     }
-    state xor64(main: &mut Main) {
+    machine xor64(main: &mut Main) {
         let prior: u64 = main.cell64.fetch_xor(3, ReceivePublish);
         transition prior == 4611686018427387911 {
             true -> check64(main)
             false -> bad(main)
         }
     }
-    state check64(main: &mut Main) {
+    machine check64(main: &mut Main) {
         transition main.cell64 == 4611686018427387908 {
             true -> good(main)
             false -> bad(main)
         }
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(71); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

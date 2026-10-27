@@ -13,10 +13,10 @@ machine Main::main(main: &mut Main) {
         Lookup::Found { value } -> good(main, value)
         Lookup::Missing -> bad(main)
     }
-    state good(main: &mut Main, value: u64) {
+    machine good(main: &mut Main, value: u64) {
         main.hits = main.hits + (value as i32 in Wrapping);
     }
-    state bad(main: &mut Main) { }
+    machine bad(main: &mut Main) { }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -9,42 +9,42 @@ machine number(value: f64) crashes Trap {
         true -> negative(&mut bytes, value)
         _ -> positive(&mut bytes, value)
     }
-    state negative(bytes: &mut [u8; 21], value: f64) {
+    machine negative(bytes: &mut [u8; 21], value: f64) {
         bytes[0] = 45;
         let scaled: i64 in Saturating = I64::from_f64((0.0 - value) * 1000000.0 + 0.5);
         transition { _ -> digits(bytes, scaled as i64 in Wrapping, 20) }
     }
-    state positive(bytes: &mut [u8; 21], value: f64) {
+    machine positive(bytes: &mut [u8; 21], value: f64) {
         let scaled: i64 in Saturating = I64::from_f64(value * 1000000.0 + 0.5);
         transition { _ -> digits(bytes, scaled as i64 in Wrapping, 20) }
     }
-    state digits(bytes: &mut [u8; 21],
+    machine digits(bytes: &mut [u8; 21],
                  remaining: i64 in Wrapping, position: i32 in Wrapping) {
         transition position > 0 && position < 21 {
             true -> separator(bytes, remaining, position)
             _ -> emit(bytes)
         }
     }
-    state separator(bytes: &mut [u8; 21],
+    machine separator(bytes: &mut [u8; 21],
                     remaining: i64 in Wrapping, position: i32 in Wrapping) {
         transition position == 14 {
             true -> digits(bytes, remaining, position - 1)
             _ -> store(bytes, remaining, position)
         }
     }
-    state store(bytes: &mut [u8; 21],
+    machine store(bytes: &mut [u8; 21],
                 remaining: i64 in Wrapping, position: i32 in Wrapping) {
         let digit: i32 = narrow_i64_to_i32_trapping((remaining % 10 + 48) as i64);
         bytes[position] = narrow_i32_to_u8_trapping(digit);
         transition { _ -> digits(bytes, remaining / 10, position - 1) }
     }
-    state emit(bytes: &[u8; 21]) {
+    machine emit(bytes: &[u8; 21]) {
  transition bytes[0] == 43 && bytes[13] == 52 && bytes[14] == 46 && bytes[20] == 48 {
  true -> done()
  _ -> bad()
  }
  }
- state done() { }
- state bad() { crash Trap; }
+ machine done() { }
+ machine bad() { crash Trap; }
 }
 machine main() crashes Trap { number(4.0); }

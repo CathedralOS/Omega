@@ -36,7 +36,7 @@ machine Main::bytes(main: &mut Main, path: &[u8]) {
         true -> Main::measure(&mut main.seen, path[0..main.k])
         false -> skipped(main)
     }
-    state skipped(main: &mut Main) { main.seen = 0; }
+    machine skipped(main: &mut Main) { main.seen = 0; }
 }
 
 machine Main::domained(main: &mut Main, path: &[u8] in Path) {
@@ -44,7 +44,7 @@ machine Main::domained(main: &mut Main, path: &[u8] in Path) {
         true -> Main::measure(&mut main.seen, path[0..main.k])
         false -> skipped(main)
     }
-    state skipped(main: &mut Main) { main.seen = 0; }
+    machine skipped(main: &mut Main) { main.seen = 0; }
 }
 
 machine Main::elements(seen: &mut u64, items: &[i32], lo: u64, hi: u64) {
@@ -52,7 +52,7 @@ machine Main::elements(seen: &mut u64, items: &[i32], lo: u64, hi: u64) {
         true -> Main::count(seen, items[lo..hi])
         false -> skipped(seen)
     }
-    state skipped(seen: &mut u64) { seen = 0; }
+    machine skipped(seen: &mut u64) { seen = 0; }
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -69,20 +69,20 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> check_domained(main, domained_seen, elements_seen)
         false -> fail(main, 71)
     }
-    state check_domained(main: &mut Main, domained_seen: u64, elements_seen: u64) {
+    machine check_domained(main: &mut Main, domained_seen: u64, elements_seen: u64) {
         transition domained_seen == 3 {
             true -> check_elements(main, elements_seen)
             false -> fail(main, 72)
         }
     }
-    state check_elements(main: &mut Main, elements_seen: u64) {
+    machine check_elements(main: &mut Main, elements_seen: u64) {
         transition elements_seen == 2 {
             true -> done(main)
             false -> fail(main, 73)
         }
     }
-    state done(main: &mut Main) { Console::exit_process(70); }
-    state fail(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine done(main: &mut Main) { Console::exit_process(70); }
+    machine fail(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

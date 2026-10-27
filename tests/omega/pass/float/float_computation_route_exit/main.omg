@@ -22,8 +22,8 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> authored(main)
         false -> wrong(main)
     }
-    state authored(main: &mut Main) { Console::exit_process(1); }
-    state wrong(main: &mut Main) { Console::exit_process(2); }
+    machine authored(main: &mut Main) { Console::exit_process(1); }
+    machine wrong(main: &mut Main) { Console::exit_process(2); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

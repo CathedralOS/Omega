@@ -104,8 +104,8 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         true -> matched(main)
         false -> mismatched(main)
     }
-    state matched(main: &mut Main) { Console::exit_process(70); }
-    state mismatched(main: &mut Main) { Console::exit_process(71); }
+    machine matched(main: &mut Main) { Console::exit_process(70); }
+    machine mismatched(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

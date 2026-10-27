@@ -62,6 +62,6 @@ machine Main::main(main: &mut Main) reaches
     let mut sel_alloc: u64 = ObjectiveC::register_selector("alloc");
     let mut r: u64 = ObjectiveC::send_scalar(cls, sel_resp, sel_alloc);
     transition r == 1 { true -> good(main) _ -> bad(main) }
-    state good(main: &mut Main) { Console::exit_process(8); }
-    state bad(main: &mut Main)  { Console::exit_process(1); }
+    machine good(main: &mut Main) { Console::exit_process(8); }
+    machine bad(main: &mut Main)  { Console::exit_process(1); }
 }

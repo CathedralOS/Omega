@@ -122,8 +122,8 @@ machine verify(settled: bool) crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine settle_array(receipts: [Receipt; 2]) -> i32 {

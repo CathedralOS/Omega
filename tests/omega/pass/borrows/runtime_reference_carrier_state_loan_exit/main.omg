@@ -10,11 +10,11 @@ machine make<'storage>(source: &'storage Cell) -> Envelope<'storage> {
 machine exercise<'storage>(source: &'storage Cell) -> u64 crashes Trap {
     let mut envelope: Envelope<'storage> = make(source);
     transition { _ -> write(&mut envelope) }
-    state write(envelope: &mut Envelope<'storage>) -> u64 {
+    machine write(envelope: &mut Envelope<'storage>) -> u64 {
         envelope.marker = 17;
         transition { _ -> inspect(envelope) }
     }
-    state inspect(envelope: &Envelope<'storage>) -> u64 {
+    machine inspect(envelope: &Envelope<'storage>) -> u64 {
         transition envelope.marker == 17 {
             true -> (envelope.held.target.value)
             _ -> (0)
@@ -29,6 +29,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

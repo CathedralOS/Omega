@@ -2,7 +2,7 @@
 // Descriptor compatibility does not confer write authority.
 machine change(values: &[u8; 4]) {
     transition { _ -> write(&mut values) }
-    state write(values: &mut [u8]) {}
+    machine write(values: &mut [u8]) {}
 }
 machine main() {
     let values: [u8; 4] = [51, 52, 53, 54];

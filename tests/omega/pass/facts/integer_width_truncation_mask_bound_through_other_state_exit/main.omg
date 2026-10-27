@@ -4,7 +4,7 @@
 machine exercise(val: u64) -> u64 {
     let masked: u64 = val & 255u64;
     transition { _ -> step(masked) }
-    state step(m: u64) -> u64 requires m <= 255u64 {
+    machine step(m: u64) -> u64 requires m <= 255u64 {
         let diff: u64 = 255u64 - m;
         diff
     }
@@ -16,6 +16,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -9,7 +9,7 @@ machine cycle(buffer: &mut Buffer) -> i32 {
     buffer.input[1] = 66;
     transition { _ -> step(buffer, 65, true) }
 
-    state step(buffer: &mut Buffer, first: u8, repeat: bool) -> i32 {
+    machine step(buffer: &mut Buffer, first: u8, repeat: bool) -> i32 {
         buffer.input[0] = first;
         let command: &[u8] = buffer.input[0..2];
         let exact_length: bool = command.len == 2;

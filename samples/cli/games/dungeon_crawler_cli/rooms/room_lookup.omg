@@ -20,7 +20,7 @@ ensures
     }
 
 
-    state find_room_at(rooms: &[Room],
+    machine find_room_at(rooms: &[Room],
         room_count: u64,
         cell: CellId,
         out_room: &mut Room,
@@ -40,7 +40,7 @@ ensures
         }
     }
 
-    state apply_room(room: Room,
+    machine apply_room(room: Room,
         out_room: &mut Room) {
         out_room.cell = room.cell;
         out_room.depth = room.depth;
@@ -74,10 +74,10 @@ machine RoomLookup::find_room_mut(level: &mut Level,
     }
 
 
-    state find_room_mut_at(rooms: &mut [Room],
+    machine find_room_mut_at(rooms: &mut [Room],
         room_count: u64,
         cell: CellId,
-        index: u64 in Wrapping)
+        index: u64 in Wrapping) -> &mut Room
     requires index < 16
     {
         let found: bool = rooms[index].cell == cell;

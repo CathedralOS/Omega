@@ -5,8 +5,8 @@ machine write(items: &[i32]) {
         true -> store(output)
         false -> done()
     }
-    state store(output: &mut [i32]) requires output.len > 0 {
+    machine store(output: &mut [i32]) requires output.len > 0 {
         output[0] = 23;
     }
-    state done() {}
+    machine done() {}
 }

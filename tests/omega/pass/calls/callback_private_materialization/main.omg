@@ -153,8 +153,8 @@ invokes Console;
         true -> done()
         _ -> failed()
     }
-    state done() { Console::exit_process(0); }
-    state failed() { Console::exit_process(71); }
+    machine done() { Console::exit_process(0); }
+    machine failed() { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

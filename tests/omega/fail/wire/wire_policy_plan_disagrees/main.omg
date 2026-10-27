@@ -38,7 +38,7 @@ terminates by fuel;
     compact_binary.index = 0;
     transition { _ -> fill(compact_binary, schema, fuel) }
 
-    state fill(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64)
+    machine fill(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64) -> Plan
     requires fuel >= 1 && fuel <= 96
     {
         transition fuel > 1 && compact_binary.index < 32 && compact_binary.index < schema.field_count {
@@ -46,7 +46,7 @@ terminates by fuel;
             _ -> done(compact_binary, schema)
         }
     }
-    state put_wrong(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64)
+    machine put_wrong(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64) -> Plan
     requires fuel >= 1 && fuel <= 96
     {
         compact_binary.tag = narrow_i64_to_u64_wrapping(schema.fields[compact_binary.index].number);
@@ -55,7 +55,7 @@ terminates by fuel;
         compact_binary.index = compact_binary.index + 1;
         transition fuel > 1 { true -> fill(compact_binary, schema, fuel - 1) _ -> done(compact_binary, schema) }
     }
-    state done(compact_binary: &mut CompactBinary, schema: Schema) -> Plan {
+    machine done(compact_binary: &mut CompactBinary, schema: Schema) -> Plan {
         Plan {
             fields: compact_binary.plans,
             entry_count: schema.field_count,

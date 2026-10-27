@@ -9,7 +9,7 @@ data Main { value: Leaf; }
 // Reading through it must still observe the caller's original storage.
 machine exercise(input: Outer) -> i32 {
     transition { _ -> finish(input.selected) }
-    state finish(value: View) -> i32 {
+    machine finish(value: View) -> i32 {
         value.body.value
     }
 }
@@ -22,7 +22,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 0)
         _ -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

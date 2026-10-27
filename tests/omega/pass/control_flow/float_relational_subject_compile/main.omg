@@ -13,6 +13,6 @@ machine Main::main(main: &mut Main) {
         _ -> low(main)
     }
 
-    state enough(main: &mut Main) { main.answer = 70; }
-    state low(main: &mut Main) { main.answer = 71; }
+    machine enough(main: &mut Main) { main.answer = 70; }
+    machine low(main: &mut Main) { main.answer = 71; }
 }

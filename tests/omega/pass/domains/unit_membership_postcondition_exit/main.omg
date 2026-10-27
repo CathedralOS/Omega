@@ -56,33 +56,33 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         _ -> bad_name(main)
     }
 
-    state bad_name(main: &mut Main) {
+    machine bad_name(main: &mut Main) {
         Console::exit_process(71);
     }
 
-    state check_label(main: &mut Main) {
+    machine check_label(main: &mut Main) {
         transition Buffer16::equal(&main.label, "[Alpha]") {
             true -> check_count(main)
             _ -> bad_label(main)
         }
     }
 
-    state bad_label(main: &mut Main) {
+    machine bad_label(main: &mut Main) {
         Console::exit_process(72);
     }
 
-    state check_count(main: &mut Main) {
+    machine check_count(main: &mut Main) {
         transition main.count == 4 {
             true -> good(main)
             _ -> bad_count(main)
         }
     }
 
-    state bad_count(main: &mut Main) {
+    machine bad_count(main: &mut Main) {
         Console::exit_process(73);
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
 }
@@ -95,8 +95,8 @@ machine Buffer16::view(buffer: &Buffer16) -> &[u8] in Utf8 crashes Trap {
         true -> checked(bytes)
         false -> bad()
     }
-    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
-    state bad() { crash Trap; }
+    machine checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    machine bad() -> &[u8] in Utf8 { crash Trap; }
 }
 machine Buffer16::equal(buffer: &Buffer16, expected: &[u8]) -> bool crashes Trap {
     let bytes: &[u8] in Utf8 = Buffer16::view(buffer);
@@ -106,7 +106,7 @@ machine Buffer16::equal(buffer: &Buffer16, expected: &[u8]) -> bool crashes Trap
 machine Buffer16::copy(storage: &mut [u8; 16], bytes: &[u8], start: u64)
 requires start <= 16; bytes.len <= 16 - start {
     transition { _ -> copying(storage, bytes, start, 0) }
-    state copying(storage: &mut [u8; 16], bytes: &[u8], start: u64, index: u64)
+    machine copying(storage: &mut [u8; 16], bytes: &[u8], start: u64, index: u64)
     requires start <= 16; index <= 16 {
         transition index < bytes.len && start + index < 16 {
             true -> writing(storage, bytes, start, index)
@@ -118,14 +118,14 @@ requires start <= 16; bytes.len <= 16 - start {
         storage[start + index] = bytes[index];
         transition { _ -> copying(storage, bytes, start, index + 1) }
     }
-    state done() {}
+    machine done() {}
 }
 machine Buffer16::join(left: &[u8], right: &[u8]) -> Buffer16 crashes Trap {
     transition left.len <= 16 && right.len <= 16 - left.len {
         true -> joining(left, right)
         false -> bad()
     }
-    state joining(left: &[u8], right: &[u8]) -> Buffer16
+    machine joining(left: &[u8], right: &[u8]) -> Buffer16
     requires left.len <= 16; right.len <= 16 - left.len {
         let mut storage: [u8; 16];
         Buffer16::copy(&mut storage, left, 0);
@@ -136,9 +136,9 @@ machine Buffer16::join(left: &[u8], right: &[u8]) -> Buffer16 crashes Trap {
             false -> bad()
         }
     }
-    state checked(storage: [u8; 16] in Utf8, total: u64) -> Buffer16
+    machine checked(storage: [u8; 16] in Utf8, total: u64) -> Buffer16
     requires total <= 16 { Buffer16 { storage: storage, used: total } }
-    state bad() { crash Trap; }
+    machine bad() -> Buffer16 { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

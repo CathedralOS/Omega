@@ -6,6 +6,6 @@ machine main() reaches Console {
     let mut row: u64 = issue(0);
     row = 7;
     transition row { 7 -> done() _ -> wrong() }
-    state done() { Console::exit_process(0); }
-    state wrong() { Console::exit_process(71); }
+    machine done() { Console::exit_process(0); }
+    machine wrong() { Console::exit_process(71); }
 }

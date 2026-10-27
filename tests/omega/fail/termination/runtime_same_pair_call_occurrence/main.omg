@@ -4,27 +4,27 @@ terminates by remaining;
 crashes Trap
 {
     transition remaining > 0 { true -> step(remaining, limit) false -> base(limit) }
-    state step(remaining: u64, limit: u64) requires remaining > 0 {
+    machine step(remaining: u64, limit: u64) requires remaining > 0 {
         second(remaining, limit);
         transition { _ -> second(remaining, limit) }
     }
-    state base(limit: u64) {
+    machine base(limit: u64) {
         transition limit <= 10 { true -> done() false -> bad() }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine second(remaining: u64, limit: u64)
 terminates by remaining;
 crashes Trap
 {
     transition remaining > 0 { true -> step(remaining, limit) false -> base(limit) }
-    state step(remaining: u64, limit: u64) requires remaining > 0 {
+    machine step(remaining: u64, limit: u64) requires remaining > 0 {
         transition { _ -> first(remaining - 1, limit) }
     }
-    state base(limit: u64) {
+    machine base(limit: u64) {
         transition limit <= 10 { true -> done() false -> bad() }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

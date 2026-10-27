@@ -29,7 +29,7 @@ requires from >= 0 && from < 6 && to >= 0 && to < 6
         true -> obstacle(scene, from, to, radius, 0, clearance * 1000)
         false -> -1
     }
-    state obstacle(scene: &fixtures::Scene, from: i32 in Wrapping, to: i32 in Wrapping,
+    machine obstacle(scene: &fixtures::Scene, from: i32 in Wrapping, to: i32 in Wrapping,
                    radius: i64 in Wrapping, index: i32 in Wrapping,
                    clearance: i64 in Wrapping) -> i64 in Wrapping
     requires from >= 0 && from < 6 && to >= 0 && to < 6
@@ -39,7 +39,7 @@ requires from >= 0 && from < 6 && to >= 0 && to < 6
             false -> clearance
         }
     }
-    state measure(scene: &fixtures::Scene, from: i32 in Wrapping, to: i32 in Wrapping,
+    machine measure(scene: &fixtures::Scene, from: i32 in Wrapping, to: i32 in Wrapping,
                   radius: i64 in Wrapping, index: i32 in Wrapping,
                   clearance: i64 in Wrapping) -> i64 in Wrapping
     requires from >= 0 && from < 6 && to >= 0 && to < 6 && index >= 0 && index < 2
@@ -60,14 +60,14 @@ public machine build(planner: &mut Planner, scene: &fixtures::Scene, radius: i64
     planner.route_count = 0; planner.clearance = 30000; planner.witness = 0;
     planner.distances[0] = 0;
     transition { _ -> row(planner, scene, radius, 0) }
-    state row(planner: &mut Planner, scene: &fixtures::Scene, radius: i64 in Wrapping,
+    machine row(planner: &mut Planner, scene: &fixtures::Scene, radius: i64 in Wrapping,
               from: i32 in Wrapping) {
         transition from >= 0 && from < 6 {
             true -> column(planner, scene, radius, from, 0)
             false -> done()
         }
     }
-    state column(planner: &mut Planner, scene: &fixtures::Scene, radius: i64 in Wrapping,
+    machine column(planner: &mut Planner, scene: &fixtures::Scene, radius: i64 in Wrapping,
                  from: i32 in Wrapping, to: i32 in Wrapping)
     requires from >= 0 && from < 6
     {
@@ -76,7 +76,7 @@ public machine build(planner: &mut Planner, scene: &fixtures::Scene, radius: i64
             false -> row(planner, scene, radius, from + 1)
         }
     }
-    state fill(planner: &mut Planner, scene: &fixtures::Scene, radius: i64 in Wrapping,
+    machine fill(planner: &mut Planner, scene: &fixtures::Scene, radius: i64 in Wrapping,
                from: i32 in Wrapping, to: i32 in Wrapping)
     requires from >= 0 && from < 6 && to >= 0 && to < 6
     {
@@ -89,7 +89,7 @@ public machine build(planner: &mut Planner, scene: &fixtures::Scene, radius: i64
             false -> column(planner, scene, radius, from, to + 1)
         }
     }
-    state store(planner: &mut Planner, scene: &fixtures::Scene, radius: i64 in Wrapping,
+    machine store(planner: &mut Planner, scene: &fixtures::Scene, radius: i64 in Wrapping,
                 from: i32 in Wrapping, to: i32 in Wrapping, position: i32 in Wrapping,
                 clearance: i64 in Wrapping, weight: i64 in Wrapping)
     requires from >= 0 && from < 6 && to >= 0 && to < 6 && position >= 0 && position < 36
@@ -97,20 +97,20 @@ public machine build(planner: &mut Planner, scene: &fixtures::Scene, radius: i64
         planner.weights[position] = weight; planner.clearances[position] = clearance;
         transition { _ -> column(planner, scene, radius, from, to + 1) }
     }
-    state done() { }
+    machine done() { }
 }
 // Dijkstra owns its whole fixed graph. -1 is an explicit unreachable distance,
 // independent of zero handles; every published parent is a node ordinal.
 public machine solve(planner: &mut Planner) -> bool {
     transition { _ -> scan(planner, 0, -1, 1000000) }
-    state scan(planner: &mut Planner, index: i32 in Wrapping,
+    machine scan(planner: &mut Planner, index: i32 in Wrapping,
                best: i32 in Wrapping, cost: i64 in Wrapping) -> bool {
         transition index >= 0 && index < 6 {
             true -> consider(planner, index, best, cost)
             false -> select(planner, best)
         }
     }
-    state consider(planner: &mut Planner, index: i32 in Wrapping,
+    machine consider(planner: &mut Planner, index: i32 in Wrapping,
                    best: i32 in Wrapping, cost: i64 in Wrapping) -> bool
     requires index >= 0 && index < 6
     {
@@ -120,13 +120,13 @@ public machine solve(planner: &mut Planner) -> bool {
             false -> scan(planner, index + 1, best, cost)
         }
     }
-    state select(planner: &mut Planner, best: i32 in Wrapping) -> bool {
+    machine select(planner: &mut Planner, best: i32 in Wrapping) -> bool {
         transition best >= 0 && best < 6 {
             true -> settle(planner, best)
             false -> false
         }
     }
-    state settle(planner: &mut Planner, best: i32 in Wrapping) -> bool
+    machine settle(planner: &mut Planner, best: i32 in Wrapping) -> bool
     requires best >= 0 && best < 6
     {
         planner.settled[best] = true;
@@ -136,7 +136,7 @@ public machine solve(planner: &mut Planner) -> bool {
             false -> relax(planner, best, 0)
         }
     }
-    state relax(planner: &mut Planner, best: i32 in Wrapping, next: i32 in Wrapping) -> bool
+    machine relax(planner: &mut Planner, best: i32 in Wrapping, next: i32 in Wrapping) -> bool
     requires best >= 0 && best < 6
     {
         transition next >= 0 && next < 6 {
@@ -144,7 +144,7 @@ public machine solve(planner: &mut Planner) -> bool {
             false -> scan(planner, 0, -1, 1000000)
         }
     }
-    state read_edge(planner: &mut Planner, best: i32 in Wrapping, next: i32 in Wrapping,
+    machine read_edge(planner: &mut Planner, best: i32 in Wrapping, next: i32 in Wrapping,
                     position: i32 in Wrapping) -> bool
     requires best >= 0 && best < 6 && next >= 0 && next < 6 && position >= 0 && position < 36
     {
@@ -156,20 +156,20 @@ public machine solve(planner: &mut Planner) -> bool {
             false -> relax(planner, best, next + 1)
         }
     }
-    state improve(planner: &mut Planner, best: i32 in Wrapping, next: i32 in Wrapping,
+    machine improve(planner: &mut Planner, best: i32 in Wrapping, next: i32 in Wrapping,
                   candidate: i64 in Wrapping) -> bool
     requires best >= 0 && best < 6 && next >= 0 && next < 6
     {
         planner.distances[next] = candidate; planner.parents[next] = best;
         transition { _ -> relax(planner, best, next + 1) }
     }
-    state trace(planner: &mut Planner, node: i32 in Wrapping, count: i32 in Wrapping) -> bool {
+    machine trace(planner: &mut Planner, node: i32 in Wrapping, count: i32 in Wrapping) -> bool {
         transition node >= 0 && node < 6 && count >= 0 && count < 6 {
             true -> append(planner, node, count)
             false -> false
         }
     }
-    state append(planner: &mut Planner, node: i32 in Wrapping, count: i32 in Wrapping) -> bool
+    machine append(planner: &mut Planner, node: i32 in Wrapping, count: i32 in Wrapping) -> bool
     requires node >= 0 && node < 6 && count >= 0 && count < 6
     {
         planner.route[count] = node; planner.route_count = count + 1;
@@ -179,7 +179,7 @@ public machine solve(planner: &mut Planner) -> bool {
             false -> parent(planner, node, count, previous)
         }
     }
-    state parent(planner: &mut Planner, node: i32 in Wrapping, count: i32 in Wrapping,
+    machine parent(planner: &mut Planner, node: i32 in Wrapping, count: i32 in Wrapping,
                  previous: i32 in Wrapping) -> bool
     requires node >= 0 && node < 6 && count >= 0 && count < 6
     {
@@ -188,7 +188,7 @@ public machine solve(planner: &mut Planner) -> bool {
             false -> false
         }
     }
-    state clearance(planner: &mut Planner, position: i32 in Wrapping,
+    machine clearance(planner: &mut Planner, position: i32 in Wrapping,
                     previous: i32 in Wrapping, count: i32 in Wrapping) -> bool
     requires position >= 0 && position < 36
     {

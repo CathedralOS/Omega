@@ -61,5 +61,5 @@ machine Main::main(main: &mut Main) {
     let view: &mut RawView = &mut main.bytes[0] as &mut RawView;
     let leaf: &mut i64 = &mut view.value.value;
     transition { _ -> write(leaf) }
-    state write(destination: &mut i64) { forward(destination, 128); }
+    machine write(destination: &mut i64) { forward(destination, 128); }
 }

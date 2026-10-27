@@ -11,23 +11,23 @@ machine digit(code: u64 in Wrapping, divisor: u64 in Wrapping) -> i32 in Saturat
         true -> divide(code, divisor)
         false -> undefined()
     }
-    state divide(code: u64 in Wrapping, divisor: u64 in Wrapping) -> i32 in Saturating {
+    machine divide(code: u64 in Wrapping, divisor: u64 in Wrapping) -> i32 in Saturating {
         ((code / divisor) % 10) as i32 in Saturating
     }
-    state undefined() -> i32 in Saturating { 0 }
+    machine undefined() -> i32 in Saturating { 0 }
 }
 
 public machine solve(plan: &Plan, certificate: &mut Certificate) {
     certificate.feasible = 0;
     certificate.ties = 0;
     transition { _ -> enumerate(plan, certificate, 0) }
-    state enumerate(plan: &Plan, certificate: &mut Certificate, code: u64) {
+    machine enumerate(plan: &Plan, certificate: &mut Certificate, code: u64) {
         transition code < 10000 {
             true -> candidate(plan, certificate, code)
             false -> done()
         }
     }
-    state candidate(plan: &Plan, certificate: &mut Certificate, code: u64) {
+    machine candidate(plan: &Plan, certificate: &mut Certificate, code: u64) {
         let mut travel: Travel;
         travel.heights[0] = digit(code as u64 in Wrapping, 1000);
         travel.heights[1] = digit(code as u64 in Wrapping, 100);
@@ -39,14 +39,14 @@ public machine solve(plan: &Plan, certificate: &mut Certificate) {
             false -> next(plan, certificate, code)
         }
     }
-    state feasible(plan: &Plan, certificate: &mut Certificate, code: u64, travel: &Travel) {
+    machine feasible(plan: &Plan, certificate: &mut Certificate, code: u64, travel: &Travel) {
         certificate.feasible = certificate.feasible + 1;
         transition certificate.ties == 0 || travel.cost < certificate.best.cost {
             true -> better(plan, certificate, code, travel)
             false -> compare(plan, certificate, code, travel)
         }
     }
-    state better(plan: &Plan, certificate: &mut Certificate, code: u64, travel: &Travel) {
+    machine better(plan: &Plan, certificate: &mut Certificate, code: u64, travel: &Travel) {
         certificate.ties = 1;
         certificate.code = code;
         certificate.best.cost = travel.cost;
@@ -56,34 +56,34 @@ public machine solve(plan: &Plan, certificate: &mut Certificate) {
         certificate.best.heights[3] = travel.heights[3];
         transition { _ -> next(plan, certificate, code) }
     }
-    state compare(plan: &Plan, certificate: &mut Certificate, code: u64, travel: &Travel) {
+    machine compare(plan: &Plan, certificate: &mut Certificate, code: u64, travel: &Travel) {
         transition travel.cost == certificate.best.cost {
             true -> tied(plan, certificate, code)
             false -> next(plan, certificate, code)
         }
     }
-    state tied(plan: &Plan, certificate: &mut Certificate, code: u64) {
+    machine tied(plan: &Plan, certificate: &mut Certificate, code: u64) {
         certificate.ties = certificate.ties + 1;
         transition { _ -> next(plan, certificate, code) }
     }
-    state next(plan: &Plan, certificate: &mut Certificate, code: u64) {
+    machine next(plan: &Plan, certificate: &mut Certificate, code: u64) {
         transition code < 10000 {
             true -> enumerate(plan, certificate, code + 1)
             false -> done()
         }
     }
-    state done() { }
+    machine done() { }
 }
 
 machine evaluate(plan: &Plan, travel: &mut Travel) -> bool {
     transition { _ -> admit(plan, travel, 0, plan.start, 0) }
-    state admit(plan: &Plan, travel: &mut Travel, index: u64, previous: i32 in Saturating, cost: i32 in Saturating) -> bool {
+    machine admit(plan: &Plan, travel: &mut Travel, index: u64, previous: i32 in Saturating, cost: i32 in Saturating) -> bool {
         transition index < 4 {
             true -> span(plan, travel, index, previous, cost)
             false -> finish(plan, travel, cost)
         }
     }
-    state span(plan: &Plan, travel: &mut Travel, index: u64, previous: i32 in Saturating, cost: i32 in Saturating) -> bool {
+    machine span(plan: &Plan, travel: &mut Travel, index: u64, previous: i32 in Saturating, cost: i32 in Saturating) -> bool {
         let height: i32 in Saturating = travel.heights[index];
         let inside: bool = plan.floors[index] <= height && height <= plan.ceilings[index];
         let step: i32 in Saturating = difference(height, previous);
@@ -92,7 +92,7 @@ machine evaluate(plan: &Plan, travel: &mut Travel) -> bool {
             false -> false
         }
     }
-    state finish(plan: &Plan, travel: &mut Travel, cost: i32 in Saturating) -> bool {
+    machine finish(plan: &Plan, travel: &mut Travel, cost: i32 in Saturating) -> bool {
         travel.cost = cost;
         travel.heights[3] == plan.end
     }
@@ -103,5 +103,5 @@ machine difference(a: i32 in Saturating, b: i32 in Saturating) -> i32 in Saturat
         true -> result(a - b)
         false -> result(b - a)
     }
-    state result(value: i32 in Saturating) -> i32 in Saturating { value }
+    machine result(value: i32 in Saturating) -> i32 in Saturating { value }
 }

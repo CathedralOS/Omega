@@ -57,6 +57,6 @@ machine main() crashes Trap {
         && captured[1] == 99 {
         true -> done() _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

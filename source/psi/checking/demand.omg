@@ -33,32 +33,32 @@ crashes Trap
 {
     transition { _ -> round(checker, syntax, resolution, typing, item) }
 
-    state round(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem) {
+    machine round(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem) {
         transition { _ -> next(checker, syntax, resolution, typing, item, 0, false) }
     }
 
-    state next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, changed: bool) {
+    machine next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, changed: bool) {
         transition offset < item.state_count {
             true -> member_state(checker, syntax, resolution, typing, item, offset, changed)
             _ -> settled(checker, syntax, resolution, typing, item, changed)
         }
     }
 
-    state member_state(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, changed: bool) {
+    machine member_state(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, changed: bool) {
         let body: StateItem = SyntaxTrees::state_item(syntax, item.first_state + offset);
         let read: bool = Checker::demand_statements(checker, syntax, resolution, typing, item, offset, body);
         let related: bool = Checker::demand_siblings(checker, syntax, resolution, typing, offset);
         transition { _ -> next(checker, syntax, resolution, typing, item, offset + 1, changed || read || related) }
     }
 
-    state settled(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, changed: bool) {
+    machine settled(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, changed: bool) {
         transition changed {
             true -> round(checker, syntax, resolution, typing, item)
             _ -> done()
         }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // A member path below a parameter in a range: whether the expression names
@@ -86,7 +86,7 @@ crashes Trap
     transition { _ -> walk(syntax, resolution, typing, handle, first_parameter, parameter_count, none, 0) }
 
     // Steps collect outermost first and are reversed at the root.
-    state walk(
+    machine walk(
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
         typing: &Typing,
@@ -105,7 +105,7 @@ crashes Trap
         }
     }
 
-    state member(
+    machine member(
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
         typing: &Typing,
@@ -125,7 +125,7 @@ crashes Trap
         }
     }
 
-    state stepped(
+    machine stepped(
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
         typing: &Typing,
@@ -142,7 +142,7 @@ crashes Trap
         }
     }
 
-    state extended(
+    machine extended(
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
         typing: &Typing,
@@ -157,7 +157,7 @@ crashes Trap
         transition { _ -> walk(syntax, resolution, typing, expression.left, first_parameter, parameter_count, longer, count + 1) }
     }
 
-    state borrowed(
+    machine borrowed(
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
         typing: &Typing,
@@ -175,7 +175,7 @@ crashes Trap
         }
     }
 
-    state root(resolution: &NameResolution, current: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping) -> MemberChain {
+    machine root(resolution: &NameResolution, current: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping) -> MemberChain {
         let binding: ValueBinding = NameResolution::value_binding(resolution, current);
         transition binding {
             ValueBinding::Parameter { parameter } -> parameter(first_parameter, parameter_count, path, count, parameter)
@@ -183,20 +183,20 @@ crashes Trap
         }
     }
 
-    state parameter(first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping, parameter: u64 in Trapping) -> MemberChain {
+    machine parameter(first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping, parameter: u64 in Trapping) -> MemberChain {
         transition parameter >= first_parameter && parameter - first_parameter < parameter_count {
             true -> rooted(path, count, parameter - first_parameter)
             _ -> unrooted(path)
         }
     }
 
-    state rooted(path: ArrivalPath, count: u64 in Trapping, offset: u64 in Trapping) -> MemberChain {
+    machine rooted(path: ArrivalPath, count: u64 in Trapping, offset: u64 in Trapping) -> MemberChain {
         let mut ordered: ArrivalPath = ArrivalPath::reversed(path, count);
         ordered.parameter = offset;
         MemberChain { rooted: true, path: ordered }
     }
 
-    state unrooted(path: ArrivalPath) -> MemberChain {
+    machine unrooted(path: ArrivalPath) -> MemberChain {
         MemberChain { rooted: false, path: path }
     }
 }
@@ -211,25 +211,25 @@ crashes Trap
         _ -> overlong(prefix)
     }
 
-    state next(path: ArrivalPath, suffix: ArrivalPath, index: u64 in Trapping) -> ArrivalPath {
+    machine next(path: ArrivalPath, suffix: ArrivalPath, index: u64 in Trapping) -> ArrivalPath {
         transition index < suffix.depth && index < 4 {
             true -> step(path, suffix, index)
             _ -> finished(path)
         }
     }
 
-    state step(path: ArrivalPath, suffix: ArrivalPath, index: u64 in Trapping) -> ArrivalPath {
+    machine step(path: ArrivalPath, suffix: ArrivalPath, index: u64 in Trapping) -> ArrivalPath {
         let taken: ArrivalStep = ArrivalPath::step(suffix, index);
         let mut longer: ArrivalPath = ArrivalPath::with_step(path, path.depth, taken);
         longer.depth = path.depth + 1;
         transition { _ -> next(longer, suffix, index + 1) }
     }
 
-    state finished(path: ArrivalPath) -> ArrivalPath {
+    machine finished(path: ArrivalPath) -> ArrivalPath {
         path
     }
 
-    state overlong(prefix: ArrivalPath) -> ArrivalPath {
+    machine overlong(prefix: ArrivalPath) -> ArrivalPath {
         let mut none: ArrivalPath = prefix;
         none.depth = 0;
         none
@@ -242,21 +242,21 @@ crashes Trap
 {
     transition { _ -> next(checker, syntax, resolution, typing, item, offset, body, 0, false) }
 
-    state next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, index: u64 in Trapping, changed: bool) -> bool {
+    machine next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, index: u64 in Trapping, changed: bool) -> bool {
         transition index < body.statement_count {
             true -> statement(checker, syntax, resolution, typing, item, offset, body, index, changed)
             _ -> finished(changed)
         }
     }
 
-    state statement(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, index: u64 in Trapping, changed: bool) -> bool {
+    machine statement(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, index: u64 in Trapping, changed: bool) -> bool {
         let statement: Statement = SyntaxTrees::statement(syntax, body.first_statement + index);
         let valued: bool = Checker::demand_valued(checker, syntax, resolution, typing, item, offset, body, statement);
         let arms: bool = Checker::demand_arms(checker, syntax, resolution, typing, item, offset, body, statement);
         transition { _ -> next(checker, syntax, resolution, typing, item, offset, body, index + 1, changed || valued || arms) }
     }
 
-    state finished(changed: bool) -> bool {
+    machine finished(changed: bool) -> bool {
         changed
     }
 }
@@ -269,31 +269,31 @@ crashes Trap
     let evaluated: bool = statement.has_value && statement.kind != StatementKind::Crash;
     transition { _ -> value(checker, syntax, resolution, typing, item, offset, body, statement, assigned, evaluated) }
 
-    state value(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, statement: Statement, assigned: bool, evaluated: bool) -> bool {
+    machine value(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, statement: Statement, assigned: bool, evaluated: bool) -> bool {
         transition evaluated || assigned {
             true -> valued(checker, syntax, resolution, typing, item, offset, body, statement, assigned)
             _ -> target(checker, syntax, resolution, typing, item, offset, body, statement, assigned, false)
         }
     }
 
-    state valued(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, statement: Statement, assigned: bool) -> bool {
+    machine valued(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, statement: Statement, assigned: bool) -> bool {
         let grew: bool = Checker::demand_tree(checker, syntax, resolution, typing, item, offset, body, statement.value);
         transition { _ -> target(checker, syntax, resolution, typing, item, offset, body, statement, assigned, grew) }
     }
 
-    state target(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, statement: Statement, assigned: bool, changed: bool) -> bool {
+    machine target(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, statement: Statement, assigned: bool, changed: bool) -> bool {
         transition assigned {
             true -> targeted(checker, syntax, resolution, typing, item, offset, body, statement, changed)
             _ -> finished(changed)
         }
     }
 
-    state targeted(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, statement: Statement, changed: bool) -> bool {
+    machine targeted(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, statement: Statement, changed: bool) -> bool {
         let grew: bool = Checker::demand_tree(checker, syntax, resolution, typing, item, offset, body, statement.target);
         changed || grew
     }
 
-    state finished(changed: bool) -> bool {
+    machine finished(changed: bool) -> bool {
         changed
     }
 }
@@ -307,14 +307,14 @@ crashes Trap
         _ -> finished(false)
     }
 
-    state next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, statement: Statement, index: u64 in Trapping, changed: bool) -> bool {
+    machine next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, statement: Statement, index: u64 in Trapping, changed: bool) -> bool {
         transition index < statement.arm_count {
             true -> arm(checker, syntax, resolution, typing, item, offset, body, statement, index, changed)
             _ -> finished(changed)
         }
     }
 
-    state arm(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, statement: Statement, index: u64 in Trapping, changed: bool) -> bool {
+    machine arm(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, statement: Statement, index: u64 in Trapping, changed: bool) -> bool {
         let arm: TransitionArm = SyntaxTrees::arm(syntax, statement.first_arm + index);
         transition arm.kind == ArmPatternKind::Guard {
             true -> guarded(checker, syntax, resolution, typing, item, offset, body, statement, index, changed, arm)
@@ -322,37 +322,37 @@ crashes Trap
         }
     }
 
-    state guarded(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, statement: Statement, index: u64 in Trapping, changed: bool, arm: TransitionArm) -> bool {
+    machine guarded(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, statement: Statement, index: u64 in Trapping, changed: bool, arm: TransitionArm) -> bool {
         let grew: bool = Checker::demand_tree(checker, syntax, resolution, typing, item, offset, body, arm.pattern);
         transition { _ -> clause(checker, syntax, resolution, typing, item, offset, body, statement, index, changed || grew, arm) }
     }
 
     // An arm's `if` guard reads as its pattern does.
-    state clause(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, statement: Statement, index: u64 in Trapping, changed: bool, arm: TransitionArm) -> bool {
+    machine clause(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, statement: Statement, index: u64 in Trapping, changed: bool, arm: TransitionArm) -> bool {
         transition arm.has_guard {
             true -> clause_demanded(checker, syntax, resolution, typing, item, offset, body, statement, index, changed, arm)
             _ -> targeted(checker, syntax, resolution, typing, item, offset, body, statement, index, changed, arm)
         }
     }
 
-    state clause_demanded(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, statement: Statement, index: u64 in Trapping, changed: bool, arm: TransitionArm) -> bool {
+    machine clause_demanded(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, statement: Statement, index: u64 in Trapping, changed: bool, arm: TransitionArm) -> bool {
         let grew: bool = Checker::demand_tree(checker, syntax, resolution, typing, item, offset, body, arm.guard);
         transition { _ -> targeted(checker, syntax, resolution, typing, item, offset, body, statement, index, changed || grew, arm) }
     }
 
-    state targeted(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, statement: Statement, index: u64 in Trapping, changed: bool, arm: TransitionArm) -> bool {
+    machine targeted(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, statement: Statement, index: u64 in Trapping, changed: bool, arm: TransitionArm) -> bool {
         transition arm.target_kind != ArmTargetKind::Unit {
             true -> target(checker, syntax, resolution, typing, item, offset, body, statement, index, changed, arm)
             _ -> next(checker, syntax, resolution, typing, item, offset, body, statement, index + 1, changed)
         }
     }
 
-    state target(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, statement: Statement, index: u64 in Trapping, changed: bool, arm: TransitionArm) -> bool {
+    machine target(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, statement: Statement, index: u64 in Trapping, changed: bool, arm: TransitionArm) -> bool {
         let grew: bool = Checker::demand_tree(checker, syntax, resolution, typing, item, offset, body, arm.target);
         transition { _ -> next(checker, syntax, resolution, typing, item, offset, body, statement, index + 1, changed || grew) }
     }
 
-    state finished(changed: bool) -> bool {
+    machine finished(changed: bool) -> bool {
         changed
     }
 }
@@ -364,19 +364,19 @@ crashes Trap
     let tree: Expression = SyntaxTrees::expression(syntax, root);
     transition { _ -> next(checker, syntax, resolution, typing, item, offset, body, root, tree.first_row, false) }
 
-    state next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, root: u64 in Trapping, handle: u64 in Trapping, changed: bool) -> bool {
+    machine next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, root: u64 in Trapping, handle: u64 in Trapping, changed: bool) -> bool {
         transition handle <= root {
             true -> node(checker, syntax, resolution, typing, item, offset, body, root, handle, changed)
             _ -> finished(changed)
         }
     }
 
-    state node(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, root: u64 in Trapping, handle: u64 in Trapping, changed: bool) -> bool {
+    machine node(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, root: u64 in Trapping, handle: u64 in Trapping, changed: bool) -> bool {
         let grew: bool = Checker::demand_node(checker, syntax, resolution, typing, item, offset, body, handle);
         transition { _ -> next(checker, syntax, resolution, typing, item, offset, body, root, handle + 1, changed || grew) }
     }
 
-    state finished(changed: bool) -> bool {
+    machine finished(changed: bool) -> bool {
         changed
     }
 }
@@ -397,7 +397,7 @@ crashes Trap
         _ -> unchanged()
     }
 
-    state read(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, body: StateItem, handle: u64 in Trapping) -> bool {
+    machine read(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, body: StateItem, handle: u64 in Trapping) -> bool {
         let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
         let carrier: BuiltinType = Checker::carrier(typing, type_handle);
         let integer: bool = Checker::has_subject(carrier);
@@ -408,13 +408,13 @@ crashes Trap
         }
     }
 
-    state demanded(checker: &mut Checker, offset: u64 in Trapping, path: ArrivalPath) -> bool {
+    machine demanded(checker: &mut Checker, offset: u64 in Trapping, path: ArrivalPath) -> bool {
         let added: bool = Checker::add_arrival_path(checker, offset, path);
         added
     }
 
     // Indexing a slice reads its length, as the bounds check does.
-    state indexed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, body: StateItem, expression: Expression) -> bool {
+    machine indexed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, body: StateItem, expression: Expression) -> bool {
         let collection: TypeRow = Checker::collection_row(typing, expression.left);
         let chain: MemberChain = Checker::member_chain(syntax, resolution, typing, expression.left, body.first_parameter, body.parameter_count);
         let empty: ArrivalStep = ArrivalStep { length: false, field: 0, type_handle: 0 };
@@ -427,12 +427,12 @@ crashes Trap
         }
     }
 
-    state sliced(checker: &mut Checker, offset: u64 in Trapping, rooted: bool, path: ArrivalPath) -> bool {
+    machine sliced(checker: &mut Checker, offset: u64 in Trapping, rooted: bool, path: ArrivalPath) -> bool {
         let added: bool = Checker::add_rooted(checker, offset, rooted, path);
         added
     }
 
-    state called(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, expression: Expression, selection: Selection) -> bool {
+    machine called(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, expression: Expression, selection: Selection) -> bool {
         transition selection {
             Selection::State { handle } -> jump(checker, syntax, resolution, typing, item, offset, body, expression, handle)
             Selection::Machine { handle } -> callee(checker, syntax, resolution, typing, offset, body, expression, selection)
@@ -441,25 +441,25 @@ crashes Trap
         }
     }
 
-    state jump(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, expression: Expression, target_state: u64 in Trapping) -> bool {
+    machine jump(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, body: StateItem, expression: Expression, target_state: u64 in Trapping) -> bool {
         transition target_state >= item.first_state && target_state - item.first_state < item.state_count {
             true -> passed(checker, syntax, resolution, typing, offset, body, expression, target_state - item.first_state)
             _ -> unchanged()
         }
     }
 
-    state passed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, body: StateItem, expression: Expression, target: u64 in Trapping) -> bool {
+    machine passed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, body: StateItem, expression: Expression, target: u64 in Trapping) -> bool {
         let grew: bool = Checker::demand_successor(checker, syntax, resolution, typing, offset, body, expression, target);
         grew
     }
 
-    state callee(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, body: StateItem, expression: Expression, selection: Selection) -> bool {
+    machine callee(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, body: StateItem, expression: Expression, selection: Selection) -> bool {
         let clauses: CallClauses = Checker::call_clauses(syntax, resolution, selection);
         let grew: bool = Checker::demand_callee(checker, syntax, resolution, typing, offset, body, expression, clauses);
         grew
     }
 
-    state unchanged() -> bool {
+    machine unchanged() -> bool {
         false
     }
 }
@@ -472,7 +472,7 @@ crashes Trap
     let count: u64 in Trapping = Checker::path_count(checker, target);
     transition { _ -> next(checker, syntax, resolution, typing, offset, body, expression, target, count, 0, false) }
 
-    state next(
+    machine next(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -491,7 +491,7 @@ crashes Trap
         }
     }
 
-    state path(
+    machine path(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -511,7 +511,7 @@ crashes Trap
         }
     }
 
-    state argument(
+    machine argument(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -532,7 +532,7 @@ crashes Trap
         transition { _ -> next(checker, syntax, resolution, typing, offset, body, expression, target, count, index + 1, changed || added) }
     }
 
-    state finished(changed: bool) -> bool {
+    machine finished(changed: bool) -> bool {
         changed
     }
 }
@@ -545,14 +545,14 @@ crashes Trap
 {
     transition { _ -> clause(checker, syntax, resolution, typing, offset, body, expression, clauses, 0, false) }
 
-    state clause(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, body: StateItem, expression: Expression, clauses: CallClauses, index: u64 in Trapping, changed: bool) -> bool {
+    machine clause(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, body: StateItem, expression: Expression, clauses: CallClauses, index: u64 in Trapping, changed: bool) -> bool {
         transition index < clauses.clause_count {
             true -> requirement(checker, syntax, resolution, typing, offset, body, expression, clauses, index, changed)
             _ -> finished(changed)
         }
     }
 
-    state requirement(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, body: StateItem, expression: Expression, clauses: CallClauses, index: u64 in Trapping, changed: bool) -> bool {
+    machine requirement(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, body: StateItem, expression: Expression, clauses: CallClauses, index: u64 in Trapping, changed: bool) -> bool {
         let clause: Clause = SyntaxTrees::clause(syntax, clauses.first_clause + index);
         transition clause.kind == ClauseKind::Requires && clause.has_expression {
             true -> fact(checker, syntax, resolution, typing, offset, body, expression, clauses, index, changed, clause.expression)
@@ -560,12 +560,12 @@ crashes Trap
         }
     }
 
-    state fact(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, body: StateItem, expression: Expression, clauses: CallClauses, index: u64 in Trapping, changed: bool, root: u64 in Trapping) -> bool {
+    machine fact(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, body: StateItem, expression: Expression, clauses: CallClauses, index: u64 in Trapping, changed: bool, root: u64 in Trapping) -> bool {
         let tree: Expression = SyntaxTrees::expression(syntax, root);
         transition { _ -> node(checker, syntax, resolution, typing, offset, body, expression, clauses, index, changed, root, tree.first_row) }
     }
 
-    state node(
+    machine node(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -585,7 +585,7 @@ crashes Trap
         }
     }
 
-    state read(
+    machine read(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -608,7 +608,7 @@ crashes Trap
         }
     }
 
-    state lent(
+    machine lent(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -630,7 +630,7 @@ crashes Trap
         transition { _ -> node(checker, syntax, resolution, typing, offset, body, expression, clauses, index, changed || added, root, handle + 1) }
     }
 
-    state finished(changed: bool) -> bool {
+    machine finished(changed: bool) -> bool {
         changed
     }
 }
@@ -645,12 +645,12 @@ crashes Trap
         _ -> unchanged()
     }
 
-    state added(checker: &mut Checker, offset: u64 in Trapping, path: ArrivalPath) -> bool {
+    machine added(checker: &mut Checker, offset: u64 in Trapping, path: ArrivalPath) -> bool {
         let grew: bool = Checker::add_arrival_path(checker, offset, path);
         grew
     }
 
-    state unchanged() -> bool {
+    machine unchanged() -> bool {
         false
     }
 }
@@ -662,7 +662,7 @@ crashes Trap
 {
     transition { _ -> next(checker, syntax, resolution, typing, offset, 0, false) }
 
-    state next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, index: u64 in Trapping, changed: bool) -> bool {
+    machine next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, index: u64 in Trapping, changed: bool) -> bool {
         let count: u64 in Trapping = Checker::path_count(checker, offset);
         transition index < count && index < 40 {
             true -> path(checker, syntax, resolution, typing, offset, index, changed)
@@ -670,7 +670,7 @@ crashes Trap
         }
     }
 
-    state path(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, index: u64 in Trapping, changed: bool) -> bool {
+    machine path(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, index: u64 in Trapping, changed: bool) -> bool {
         let path: ArrivalPath = Checker::arrival_path(checker, offset, index);
         transition path.depth > 0 && path.depth <= 4 {
             true -> last(checker, syntax, resolution, typing, offset, index, changed, path)
@@ -678,7 +678,7 @@ crashes Trap
         }
     }
 
-    state last(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, index: u64 in Trapping, changed: bool, path: ArrivalPath) -> bool {
+    machine last(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, index: u64 in Trapping, changed: bool, path: ArrivalPath) -> bool {
         let step: ArrivalStep = ArrivalPath::step(path, path.depth - 1);
         transition step.length {
             true -> next(checker, syntax, resolution, typing, offset, index + 1, changed)
@@ -686,12 +686,12 @@ crashes Trap
         }
     }
 
-    state related(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, index: u64 in Trapping, changed: bool, path: ArrivalPath, field: u64 in Trapping) -> bool {
+    machine related(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, index: u64 in Trapping, changed: bool, path: ArrivalPath, field: u64 in Trapping) -> bool {
         let added: bool = Checker::demand_field_relatives(checker, syntax, resolution, typing, offset, path, field);
         transition { _ -> next(checker, syntax, resolution, typing, offset, index + 1, changed || added) }
     }
 
-    state finished(changed: bool) -> bool {
+    machine finished(changed: bool) -> bool {
         changed
     }
 }
@@ -703,14 +703,14 @@ crashes Trap
 {
     transition { _ -> owner(checker, syntax, resolution, typing, offset, path, field, 0) }
 
-    state owner(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, path: ArrivalPath, field: u64 in Trapping, index: u64 in Trapping) -> bool {
+    machine owner(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, path: ArrivalPath, field: u64 in Trapping, index: u64 in Trapping) -> bool {
         transition index < syntax.data_count {
             true -> declaration(checker, syntax, resolution, typing, offset, path, field, index)
             _ -> finished(false)
         }
     }
 
-    state declaration(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, path: ArrivalPath, field: u64 in Trapping, index: u64 in Trapping) -> bool {
+    machine declaration(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, path: ArrivalPath, field: u64 in Trapping, index: u64 in Trapping) -> bool {
         let item: DataItem = SyntaxTrees::data_item(syntax, index);
         transition field >= item.first_field && field - item.first_field < item.field_count {
             true -> clause(checker, syntax, resolution, typing, offset, path, field, item, 0, false)
@@ -718,14 +718,14 @@ crashes Trap
         }
     }
 
-    state clause(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, path: ArrivalPath, field: u64 in Trapping, item: DataItem, index: u64 in Trapping, changed: bool) -> bool {
+    machine clause(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, path: ArrivalPath, field: u64 in Trapping, item: DataItem, index: u64 in Trapping, changed: bool) -> bool {
         transition index < item.clause_count {
             true -> fact(checker, syntax, resolution, typing, offset, path, field, item, index, changed)
             _ -> finished(changed)
         }
     }
 
-    state fact(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, path: ArrivalPath, field: u64 in Trapping, item: DataItem, index: u64 in Trapping, changed: bool) -> bool {
+    machine fact(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, path: ArrivalPath, field: u64 in Trapping, item: DataItem, index: u64 in Trapping, changed: bool) -> bool {
         let clause: Clause = SyntaxTrees::clause(syntax, item.first_clause + index);
         transition clause.kind == ClauseKind::Where && clause.has_expression {
             true -> mentioned(checker, syntax, resolution, typing, offset, path, field, item, index, changed, clause.expression)
@@ -733,7 +733,7 @@ crashes Trap
         }
     }
 
-    state mentioned(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, path: ArrivalPath, field: u64 in Trapping, item: DataItem, index: u64 in Trapping, changed: bool, root: u64 in Trapping) -> bool {
+    machine mentioned(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, path: ArrivalPath, field: u64 in Trapping, item: DataItem, index: u64 in Trapping, changed: bool, root: u64 in Trapping) -> bool {
         let named: bool = Checker::mentions_field(syntax, resolution, root, field);
         transition named {
             true -> relatives(checker, syntax, resolution, typing, offset, path, field, item, index, changed, root)
@@ -741,12 +741,12 @@ crashes Trap
         }
     }
 
-    state relatives(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, path: ArrivalPath, field: u64 in Trapping, item: DataItem, index: u64 in Trapping, changed: bool, root: u64 in Trapping) -> bool {
+    machine relatives(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, path: ArrivalPath, field: u64 in Trapping, item: DataItem, index: u64 in Trapping, changed: bool, root: u64 in Trapping) -> bool {
         let tree: Expression = SyntaxTrees::expression(syntax, root);
         transition { _ -> node(checker, syntax, resolution, typing, offset, path, field, item, index, changed, root, tree.first_row) }
     }
 
-    state node(
+    machine node(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -766,7 +766,7 @@ crashes Trap
         }
     }
 
-    state named(
+    machine named(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -787,7 +787,7 @@ crashes Trap
         }
     }
 
-    state sibling(
+    machine sibling(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -810,7 +810,7 @@ crashes Trap
         transition { _ -> node(checker, syntax, resolution, typing, offset, path, field, item, index, changed || added, root, handle + 1) }
     }
 
-    state finished(changed: bool) -> bool {
+    machine finished(changed: bool) -> bool {
         changed
     }
 }

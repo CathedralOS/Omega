@@ -21,12 +21,12 @@ machine transform(inventory: Inventory) -> Inventory {
         true -> increment(inventory)
         false -> preserve(inventory)
     }
-    state increment(inventory: Inventory) -> Inventory {
+    machine increment(inventory: Inventory) -> Inventory {
         let slots: i32 = inventory.slots;
         drop(inventory);
         Inventory { slots: ((slots as i32 in Wrapping) + 1) as i32 }
     }
-    state preserve(inventory: Inventory) -> Inventory { inventory }
+    machine preserve(inventory: Inventory) -> Inventory { inventory }
 }
 
 machine repair(inventory: &mut Inventory) -> i32 {
@@ -47,8 +47,8 @@ machine Main::main(main: &mut Main) {
         true -> pass(main)
         _ -> fail(main)
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -7,7 +7,7 @@ machine replace(destination: &write i32, value: i32) {
 }
 machine forward(destination: &write i32, value: i32) {
     transition { _ -> write_value(&write destination, value) }
-    state write_value(destination: &write i32, value: i32) {
+    machine write_value(destination: &write i32, value: i32) {
         replace(&write destination, value);
     }
 }
@@ -23,6 +23,6 @@ machine Main::main(main: &mut Main) {
         true -> good()
         _ -> bad()
     }
-    state good() { }
-    state bad() { crash Trap; }
+    machine good() { }
+    machine bad() { crash Trap; }
 }

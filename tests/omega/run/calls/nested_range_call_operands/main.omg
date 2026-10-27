@@ -14,11 +14,11 @@ machine mark(counter: &mut Counter, digit: u64) requires digit <= 2 {
   true -> append(counter, digit)
   false -> overflow(counter)
  }
- state append(counter: &mut Counter, digit: u64)
+ machine append(counter: &mut Counter, digit: u64)
  requires counter.value < 10 && digit <= 2 {
   counter.value = counter.value * 10 + digit;
  }
- state overflow(counter: &mut Counter) { counter.value = 99; }
+ machine overflow(counter: &mut Counter) { counter.value = 99; }
 }
 machine start(counter: &mut Counter) -> u64 ensures result == 1 {
  mark(counter, 1);
@@ -33,7 +33,7 @@ machine change(cells: &mut [Cell]) -> Optional<u64> {
   true -> write(cells)
   false -> Optional::Some { value: 0 }
  }
- state write(cells: &mut [Cell]) -> Optional<u64> requires cells.len > 0 {
+ machine write(cells: &mut [Cell]) -> Optional<u64> requires cells.len > 0 {
   cells[0].value = 77;
   Optional::Some { value: cells.len }
  }
@@ -55,14 +55,14 @@ machine main() crashes Trap {
  let empty: bool = count_is(change(&mut cells[1..1]), 0);
  let restored: bool = empty && cells[1].value == 99;
  transition observed && restored { true -> boxed(bytes) false -> wrong() }
- state boxed(bytes: [u8; 3]) {
+ machine boxed(bytes: [u8; 3]) {
  let result: ResultBox = ResultBox { value: measure("abc", &bytes[..2]) };
  transition result.value {
   Optional::Some { value } -> check(value)
   Optional::None -> wrong()
  }
  }
- state check(value: u64) { transition value == 2 { true -> done() false -> wrong() } }
- state done() {}
- state wrong() { crash Trap; }
+ machine check(value: u64) { transition value == 2 { true -> done() false -> wrong() } }
+ machine done() {}
+ machine wrong() { crash Trap; }
 }

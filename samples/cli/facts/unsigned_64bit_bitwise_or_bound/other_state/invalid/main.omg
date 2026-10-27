@@ -16,7 +16,7 @@ requires base >= 16 && base <= 64
     transition {
         _ -> step(base)
     }
-    state step(b: u64) -> u64
+    machine step(b: u64) -> u64
     requires b >= 16 && b <= 64
     {
         let combined: u64 = b | 32u64;
@@ -33,6 +33,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

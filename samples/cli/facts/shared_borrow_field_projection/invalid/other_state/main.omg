@@ -9,7 +9,7 @@ machine evaluate() -> u64 {
     let window: Window = Window { used: 40 };
     let view: &Window = &window;
     transition { _ -> compute(view) }
-    state compute(v: &Window) -> u64 {
+    machine compute(v: &Window) -> u64 {
         let child_view: &Window = v;
         let used: u64 = child_view.used;
         let diff: u64 = 90u64 - used;
@@ -23,6 +23,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

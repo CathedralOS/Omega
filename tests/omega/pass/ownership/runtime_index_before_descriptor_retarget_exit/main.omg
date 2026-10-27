@@ -23,6 +23,6 @@ machine main() reaches Console {
         true -> done()
         false -> wrong()
     }
-    state done() { Console::exit_process(0); }
-    state wrong() { Console::exit_process(71); }
+    machine done() { Console::exit_process(0); }
+    machine wrong() { Console::exit_process(71); }
 }

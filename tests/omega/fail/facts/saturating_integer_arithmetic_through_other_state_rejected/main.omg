@@ -5,7 +5,7 @@ machine compute(val: u64) -> u64
     requires val >= 10u64 && val <= 101u64
 {
     transition { _ -> perform(val) }
-    state perform(c: u64)
+    machine perform(c: u64) -> u64
         requires c >= 10u64 && c <= 101u64
     {
         let headroom: u64 = 100u64 - c;

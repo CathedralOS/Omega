@@ -7,19 +7,19 @@ public machine parse(bytes: &[u8; 32], count: u64, model: &mut Chronology) -> bo
         true -> ending(bytes, count, model, &mut digits)
         false -> false
     }
-    state ending(bytes: &[u8; 32], count: u64, model: &mut Chronology, digits: &mut Digits) -> bool {
+    machine ending(bytes: &[u8; 32], count: u64, model: &mut Chronology, digits: &mut Digits) -> bool {
         transition count == 19 || bytes[19] == 10 {
             true -> digit(bytes, model, digits, 0)
             false -> false
         }
     }
-    state digit(bytes: &[u8; 32], model: &mut Chronology, digits: &mut Digits, index: i32 in Wrapping) -> bool {
+    machine digit(bytes: &[u8; 32], model: &mut Chronology, digits: &mut Digits, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 19 {
             true -> read(bytes, model, digits, index)
             false -> intervals(model, digits)
         }
     }
-    state read(bytes: &[u8; 32], model: &mut Chronology, digits: &mut Digits, index: i32 in Wrapping) -> bool
+    machine read(bytes: &[u8; 32], model: &mut Chronology, digits: &mut Digits, index: i32 in Wrapping) -> bool
     requires index >= 0
     requires index < 19
     {
@@ -29,7 +29,7 @@ public machine parse(bytes: &[u8; 32], count: u64, model: &mut Chronology) -> bo
             false -> false
         }
     }
-    state store(bytes: &[u8; 32], model: &mut Chronology, digits: &mut Digits, index: i32 in Wrapping, byte: u8) -> bool
+    machine store(bytes: &[u8; 32], model: &mut Chronology, digits: &mut Digits, index: i32 in Wrapping, byte: u8) -> bool
     requires index >= 0
     requires index < 19
     {
@@ -37,7 +37,7 @@ public machine parse(bytes: &[u8; 32], count: u64, model: &mut Chronology) -> bo
         digits.values[index] = (value - 48) as i32;
         transition { _ -> digit(bytes, model, digits, index + 1) }
     }
-    state intervals(model: &mut Chronology, digits: &Digits) -> bool {
+    machine intervals(model: &mut Chronology, digits: &Digits) -> bool {
         model.lower = [digits.values[0],digits.values[2],digits.values[4]];
         model.upper = [digits.values[1],digits.values[3],digits.values[5]];
         model.source = [digits.values[7],digits.values[10],digits.values[13],digits.values[16]];
@@ -49,13 +49,13 @@ public machine parse(bytes: &[u8; 32], count: u64, model: &mut Chronology) -> bo
             false -> false
         }
     }
-    state edge(model: &mut Chronology, count: i32 in Wrapping, index: i32 in Wrapping) -> bool {
+    machine edge(model: &mut Chronology, count: i32 in Wrapping, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 4 && index < count {
             true -> endpoints(model, count, index)
             false -> true
         }
     }
-    state endpoints(model: &mut Chronology, count: i32 in Wrapping, index: i32 in Wrapping) -> bool
+    machine endpoints(model: &mut Chronology, count: i32 in Wrapping, index: i32 in Wrapping) -> bool
     requires index >= 0
     requires index < 4
     {
@@ -64,7 +64,7 @@ public machine parse(bytes: &[u8; 32], count: u64, model: &mut Chronology) -> bo
             false -> false
         }
     }
-    state enable(model: &mut Chronology, count: i32 in Wrapping, index: i32 in Wrapping) -> bool
+    machine enable(model: &mut Chronology, count: i32 in Wrapping, index: i32 in Wrapping) -> bool
     requires index >= 0
     requires index < 4
     {

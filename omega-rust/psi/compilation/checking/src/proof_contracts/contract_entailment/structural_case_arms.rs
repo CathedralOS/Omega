@@ -7,6 +7,8 @@
 //! prevent an independently surviving path from proving its call premises,
 //! and excluding it supplies no crash permission or denotational admission.
 
+mod call_entries;
+
 use super::call_requirements::establish_citation;
 use super::structural_prefix::StructuralPrefixVisitor;
 use crate::proof_contracts::contract_entailment::citations::{
@@ -430,8 +432,10 @@ fn local_symbol_is_never_branched_on_in_remaining_prefix(
                     return false;
                 }
                 if transition.target.is_valid()
-                    && let typed_trees::statement::TransitionTargetNode::Value(target) =
-                        program.tables.statement_table.transition_target(transition.target)
+                    && let typed_trees::statement::TransitionTargetNode::Value(target) = program
+                        .tables
+                        .statement_table
+                        .transition_target(transition.target)
                     && mentions_local(*target)
                 {
                     return false;
@@ -1006,6 +1010,11 @@ fn recognize_structural_state_leaves_from<'a>(
     if !state.symbol.is_valid() || (start_index == 0 && path.contains(&state.symbol)) {
         return None;
     }
+    // The theorem being established remains `machine` while transparent
+    // proof calls enter other bodies. Expression and effect lookup belongs
+    // to the exact body owner, not to the theorem's lexical namespace.
+    let (invocation, _) =
+        crate::machine_calls::calls::machine_state_by_symbol(program, state.symbol)?;
     if requirement
         .as_deref()
         .is_some_and(StructuralPrefixVisitor::is_complete)
@@ -1074,7 +1083,7 @@ fn recognize_structural_state_leaves_from<'a>(
             {
                 requirement.visit(
                     program,
-                    machine,
+                    invocation,
                     judge,
                     &environment,
                     &case_hypotheses,
@@ -1084,6 +1093,31 @@ fn recognize_structural_state_leaves_from<'a>(
                 // Nothing after this call can establish its entry premises.
                 // Other incoming paths are still visited by the parent.
                 return Some(Vec::new());
+            }
+            if !matches!(statement, StatementNode::Transition(_)) && requirement.is_some() {
+                // This observes callee entry before the statement completes or
+                // imports its guarantees. Hoisted calls and authored locals own
+                // the same ordered operation entries as terminal calls.
+                call_entries::observe_statement(
+                    program,
+                    machine,
+                    invocation,
+                    judge,
+                    classification,
+                    diagnostics,
+                    states,
+                    state,
+                    statement_index,
+                    parameter_names,
+                    &environment,
+                    &case_hypotheses,
+                    &case_equations,
+                    &pending_citations,
+                    path,
+                    fresh,
+                    requirement,
+                    &established_guarantees,
+                )?;
             }
             // Statement calls and their operands own separate write frames.
             // Retire affected storage without discarding unrelated captures.
@@ -1100,8 +1134,8 @@ fn recognize_structural_state_leaves_from<'a>(
                 let mut writes = Vec::new();
                 let mut complete = true;
                 for frame in [
-                    frames.may_write_frame(machine, call),
-                    frames.statement_value_write_frame(machine, statement),
+                    frames.may_write_frame(invocation, call),
+                    frames.statement_value_write_frame(invocation, statement),
                 ] {
                     match frame.into_complete_paths() {
                         Some(paths) => writes.extend(paths),
@@ -1141,7 +1175,7 @@ fn recognize_structural_state_leaves_from<'a>(
                             expected
                                 .as_ref()
                                 .and_then(|types| types.get(position))
-                                .map(|expected| (machine, state, *expected)),
+                                .map(|expected| (invocation, state, *expected)),
                             *argument,
                             &environment,
                             0,
@@ -1170,35 +1204,37 @@ fn recognize_structural_state_leaves_from<'a>(
             }
             match statement {
                 StatementNode::LocalData(local) if !saw_transition => {
-                    let mut outcomes = phase_profile::scope("05.d.7.3b.1.cap.2d.local_init", || {
-                        if local.initial_value.is_valid() {
-                            judge
-                                .normal_return_paths(
-                                    local.initial_value,
-                                    &environment,
-                                    (machine, state, local.type_reference),
-                                )
-                                .map(|outcomes| {
-                                    outcomes
-                                        .into_iter()
-                                        .map(|outcome| (Some(outcome.value), outcome.judge))
-                                        .collect::<Vec<_>>()
-                                })
-                        } else {
-                            // Zero storage has no expression to execute. Retain
-                            // the preceding path even when its contents have no
-                            // established mathematical value. Only the ordinary
-                            // zero-value owner may contribute equations; omission
-                            // must not establish a gated domain or invent a value.
-                            Some(vec![(
-                                super::structural_terms::zero_value_structural_term(
-                                    program,
-                                    local.type_reference,
-                                ),
-                                judge.clone(),
-                            )])
-                        }
-                    })?;
+                    let mut outcomes =
+                        phase_profile::scope("05.d.7.3b.1.cap.2d.local_init", || {
+                            if local.initial_value.is_valid() {
+                                judge
+                                    .normal_return_paths(
+                                        local.initial_value,
+                                        &environment,
+                                        (invocation, state, local.type_reference),
+                                    )
+                                    .map(|outcomes| {
+                                        outcomes
+                                            .into_iter()
+                                            .map(|outcome| (Some(outcome.value), outcome.judge))
+                                            .collect::<Vec<_>>()
+                                    })
+                            } else {
+                                // Zero storage has no expression to execute. Retain
+                                // the preceding path even when its contents have no
+                                // established mathematical value. Only the ordinary
+                                // zero-value owner may contribute equations; omission
+                                // must not establish a gated domain or invent a value.
+                                Some(vec![(
+                                    super::structural_terms::zero_value_structural_term(
+                                        program,
+                                        local.type_reference,
+                                    ),
+                                    judge.clone(),
+                                )])
+                            }
+                        })?;
+
                     if outcomes.len() > 1
                         && outcomes.iter().all(|(_, outcome_judge)| {
                             outcome_judge.has_no_new_effects_or_guarantees_since(&judge)
@@ -1223,8 +1259,10 @@ fn recognize_structural_state_leaves_from<'a>(
                                 }),
                             );
                         if dead_local {
-                            let judge_refs: Vec<_> =
-                                outcomes.iter().map(|(_, outcome_judge)| outcome_judge).collect();
+                            let judge_refs: Vec<_> = outcomes
+                                .iter()
+                                .map(|(_, outcome_judge)| outcome_judge)
+                                .collect();
                             let rejoined =
                                 judge.rejoin_pure_outcomes(&judge_refs, Some(local.initial_value));
                             outcomes = vec![(None, rejoined)];
@@ -1249,8 +1287,10 @@ fn recognize_structural_state_leaves_from<'a>(
                                 }),
                             )
                         {
-                            let judge_refs: Vec<_> =
-                                outcomes.iter().map(|(_, outcome_judge)| outcome_judge).collect();
+                            let judge_refs: Vec<_> = outcomes
+                                .iter()
+                                .map(|(_, outcome_judge)| outcome_judge)
+                                .collect();
                             let mut rejoined =
                                 judge.rejoin_pure_outcomes(&judge_refs, Some(local.initial_value));
                             rejoined.capture_sequence += 1;
@@ -1274,7 +1314,7 @@ fn recognize_structural_state_leaves_from<'a>(
                             stage_citation_argument_terms(
                                 program,
                                 &outcome_judge,
-                                machine,
+                                invocation,
                                 state,
                                 &environment,
                                 &target,
@@ -1322,7 +1362,7 @@ fn recognize_structural_state_leaves_from<'a>(
                         judge.normal_assignment_paths(
                             statement,
                             &environment,
-                            (machine, state, state.return_type),
+                            (invocation, state, state.return_type),
                         )
                     })?;
                     let mut leaves = Vec::new();
@@ -1351,79 +1391,57 @@ fn recognize_structural_state_leaves_from<'a>(
                     return Some(leaves);
                 }
                 StatementNode::Expression(expression) if !saw_transition => {
-                    let is_tail = execution_position + 1 == execution.len();
-                    let result_type = if is_tail {
-                        state.return_type
-                    } else {
-                        crate::expression_result_type_reference(
+                    // A terminal expression and an authored terminal arm have
+                    // one result/transfer operation, including Unit completion.
+                    // Normal-return evaluation alone would hide calls from
+                    // prefix observers in deeper declarations.
+                    if execution_position + 1 == execution.len() {
+                        saw_transition = true;
+                        transitions.push((
+                            statement_index,
+                            TerminalArm {
+                                guard: TransitionGuardNode::Always,
+                                exit: TransitionExit::Ordinary,
+                                target: TransitionTargetNode::Value(*expression),
+                                source_target: None,
+                            },
+                        ));
+                        continue;
+                    }
+                    let result_type = crate::expression_result_type_reference(
+                        program,
+                        invocation,
+                        state,
+                        *expression,
+                    )
+                    .unwrap_or_default();
+                    let outcomes = judge.normal_completion_paths(
+                        *expression,
+                        &environment,
+                        (invocation, state, result_type),
+                    )?;
+                    let mut leaves = Vec::new();
+                    for completed in outcomes {
+                        leaves.extend(recognize_structural_state_leaves_from(
                             program,
                             machine,
+                            &completed,
+                            classification,
+                            diagnostics,
+                            states,
                             state,
-                            *expression,
-                        )
-                        .unwrap_or_default()
-                    };
-                    if !is_tail
-                        || matches!(
-                            program
-                                .type_reference_table
-                                .type_reference(state.return_type),
-                            typed_trees::types::TypeReferenceNode::Unit
-                        )
-                    {
-                        let outcomes = judge.normal_completion_paths(
-                            *expression,
-                            &environment,
-                            (machine, state, result_type),
-                        )?;
-                        let mut leaves = Vec::new();
-                        for completed in outcomes {
-                            leaves.extend(recognize_structural_state_leaves_from(
-                                program,
-                                machine,
-                                &completed,
-                                classification,
-                                diagnostics,
-                                states,
-                                state,
-                                parameter_names,
-                                environment.clone(),
-                                case_hypotheses.clone(),
-                                case_equations.clone(),
-                                pending_citations.clone(),
-                                collect_citations,
-                                path,
-                                fresh,
-                                requirement,
-                                established_guarantees.clone(),
-                                next_statement,
-                            )?);
-                        }
-                        return Some(leaves);
-                    }
-                    let outcomes = phase_profile::scope("05.d.7.3b.1.cap.2d.expr", || {
-                        judge.normal_return_paths(
-                            *expression,
-                            &environment,
-                            (machine, state, result_type),
-                        )
-                    })?;
-                    let mut leaves = Vec::new();
-                    for outcome in outcomes {
-                        if requirement.is_none() {
-                            leaves.push(finalize_structural_case_arm(
-                                program,
-                                machine,
-                                &outcome.judge,
-                                classification,
-                                diagnostics,
-                                parameter_names,
-                                case_hypotheses.clone(),
-                                case_equations.clone(),
-                                pending_citations.clone(),
-                                outcome.value,
-                            ));
-                        }
+                            parameter_names,
+                            environment.clone(),
+                            case_hypotheses.clone(),
+                            case_equations.clone(),
+                            pending_citations.clone(),
+                            collect_citations,
+                            path,
+                            fresh,
+                            requirement,
+                            established_guarantees.clone(),
+                            next_statement,
+                        )?);
                     }
                     return Some(leaves);
                 }
@@ -1439,7 +1457,7 @@ fn recognize_structural_state_leaves_from<'a>(
                     stage_citation_argument_terms(
                         program,
                         judge,
-                        machine,
+                        invocation,
                         state,
                         &environment,
                         &target,
@@ -1466,7 +1484,18 @@ fn recognize_structural_state_leaves_from<'a>(
                     {
                         return None;
                     }
-                    transitions.push((statement_index, transition));
+                    transitions.push((
+                        statement_index,
+                        TerminalArm {
+                            guard: transition.guard,
+                            exit: transition.exit,
+                            target: program
+                                .statement_table
+                                .transition_target(transition.target)
+                                .clone(),
+                            source_target: Some(transition.target),
+                        },
+                    ));
                 }
                 // Assertions have their own checked obligations; ignoring an
                 // assertion here cannot introduce its conclusion as a premise.
@@ -1487,7 +1516,7 @@ fn recognize_structural_state_leaves_from<'a>(
             {
                 requirement.visit(
                     program,
-                    machine,
+                    invocation,
                     judge,
                     &environment,
                     &case_hypotheses,
@@ -1539,7 +1568,7 @@ fn recognize_structural_state_leaves_from<'a>(
                     // guards and preceding operands can establish its premises.
                     requirement.visit(
                         program,
-                        machine,
+                        invocation,
                         &incoming,
                         &environment,
                         &case_hypotheses,
@@ -1559,16 +1588,16 @@ fn recognize_structural_state_leaves_from<'a>(
                 };
                 let guard_preserves_values = judge
                     .frame_resolver()
-                    .and_then(|frames| frames.expression_may_write_paths(machine, guard))
+                    .and_then(|frames| frames.expression_may_write_paths(invocation, guard))
                     .is_some_and(|paths| paths.is_empty());
                 if incoming.requires_value_preservation() && !guard_preserves_values {
                     return None;
                 }
                 let (subject_expression, constructor) =
-                    guard_observation(program, machine, state, guard, fresh)?;
+                    guard_observation(program, invocation, state, guard, fresh)?;
                 let raw_subject = structural_term(
                     program,
-                    Some((machine, state, Default::default())),
+                    Some((invocation, state, Default::default())),
                     None,
                     subject_expression,
                     None,
@@ -1581,7 +1610,7 @@ fn recognize_structural_state_leaves_from<'a>(
                 );
                 let subject_type = crate::expression_result_type_reference(
                     program,
-                    machine,
+                    invocation,
                     state,
                     subject_expression,
                 )
@@ -1589,7 +1618,7 @@ fn recognize_structural_state_leaves_from<'a>(
                 for mut outcome in observed.normal_return_paths(
                     subject_expression,
                     &environment,
-                    (machine, state, subject_type),
+                    (invocation, state, subject_type),
                 )? {
                     let subject = outcome.value;
                     let mut branch_environment = environment.clone();
@@ -1638,7 +1667,7 @@ fn recognize_structural_state_leaves_from<'a>(
                     if let Some((definition, variant)) =
                         super::structural_terms::case_guard_classifier(
                             program,
-                            machine,
+                            invocation,
                             Some(state),
                             guard,
                         )
@@ -1655,7 +1684,7 @@ fn recognize_structural_state_leaves_from<'a>(
                             variant,
                             &constructor,
                             subject_type,
-                            machine,
+                            invocation,
                             state,
                             &environment,
                         );
@@ -1700,7 +1729,7 @@ fn recognize_structural_state_leaves_from<'a>(
                 {
                     requirement.visit(
                         program,
-                        machine,
+                        invocation,
                         judge,
                         &branch_environment,
                         &branch_hypotheses,
@@ -1719,101 +1748,126 @@ fn recognize_structural_state_leaves_from<'a>(
                 if matches!(transition.exit, TransitionExit::Crash(_)) {
                     continue;
                 }
-                match program.statement_table.transition_target(transition.target) {
-                    TransitionTargetNode::Value(value) => {
-                        if requirement.is_some() {
-                            continue;
-                        }
-                        for outcome in judge.normal_return_paths(
-                            *value,
-                            &branch_environment,
-                            (machine, state, state.return_type),
-                        )? {
-                            leaves.push(finalize_structural_case_arm(
-                                program,
-                                machine,
-                                &outcome.judge,
-                                classification,
-                                diagnostics,
-                                parameter_names,
-                                branch_hypotheses.clone(),
-                                branch_equations.clone(),
-                                pending_citations.clone(),
-                                outcome.value,
-                            ));
-                        }
+                let target = &transition.target;
+                let body_transfer = terminal_body_transfer(
+                    program,
+                    invocation,
+                    state,
+                    target,
+                    transition.source_target,
+                    classification,
+                );
+                if let Some((target_state, argument_handles, call_expression)) = body_transfer
+                    // An active theorem's recursive value stays an application.
+                    // Its separately checked ranking licenses the IH; unfolding
+                    // the body again would either loop or assume its result.
+                    && !(call_expression.is_some() && path.contains(&target_state.symbol))
+                {
+                    if requirement.as_deref().is_some_and(|observer| {
+                        observer.site().state == state.symbol
+                            || !prefix_site_is_reachable(program, target_state, observer)
+                    }) {
+                        // A jump leaves this state invocation; a cycle back
+                        // is a new arrival, not execution of its later arm.
+                        // Other states are traversed only when they can
+                        // reach the queried occurrence. Each recurrent
+                        // arrival separately owes its state contract.
+                        continue;
                     }
-                    TransitionTargetNode::Named { arguments, .. } => {
-                        let target_state =
-                            crate::machine_calls::calls::named_transition_target_state(
-                                program,
-                                machine,
-                                state,
-                                transition.target,
-                            )?;
-                        if requirement.as_deref().is_some_and(|observer| {
-                            observer.site().state == state.symbol
-                                || !crate::machine_calls::calls::named_state_may_reach(
-                                    program,
-                                    machine,
-                                    target_state,
-                                    observer.site().state,
-                                )
-                        }) {
-                            // A jump leaves this state invocation; a cycle back
-                            // is a new arrival, not execution of its later arm.
-                            // Other states are traversed only when they can
-                            // reach the queried occurrence. Each recurrent
-                            // arrival separately owes its state contract.
-                            continue;
-                        }
-                        let target_parameters = program.state_parameters(target_state);
-                        let argument_handles =
-                            program.statement_table.expression_handles(*arguments);
+                    let target_parameters = program.state_parameters(target_state);
+                    let target_frames = if let Some(expression) = call_expression {
+                        judge.normal_operation_entries(
+                            statement_index,
+                            expression,
+                            super::structural_judgment::normal_returns::OperationOperandDemand::All,
+                            &branch_environment,
+                            (invocation, state, state.return_type),
+                        )?.into_iter().map(|entry| {
+                            let arguments = entry.observed_arguments()?;
+                            (arguments.len() == target_parameters.len()).then_some(())?;
+                            let environment = target_parameters.iter().zip(arguments)
+                                .map(|(parameter, value)| (parameter.name.as_str().to_owned(), value))
+                                .collect();
+                            Some((environment, entry.judge))
+                        }).collect::<Option<Vec<_>>>()?
+                    } else {
                         if target_parameters.len() != argument_handles.len() {
                             return None;
                         }
-                        let mut target_frames = vec![(Vec::new(), judge.clone())];
+                        let mut frames = vec![(Vec::new(), judge.clone())];
                         for (parameter, argument) in target_parameters.iter().zip(argument_handles)
                         {
                             let mut next = Vec::new();
-                            for (target_environment, captured) in target_frames {
+                            for (environment, captured) in frames {
                                 for outcome in captured.normal_return_paths(
                                     *argument,
                                     &branch_environment,
-                                    (machine, state, parameter.type_reference),
+                                    (invocation, state, parameter.type_reference),
                                 )? {
-                                    let mut target_environment = target_environment.clone();
-                                    target_environment
+                                    let mut environment = environment.clone();
+                                    environment
                                         .push((parameter.name.as_str().to_owned(), outcome.value));
-                                    next.push((target_environment, outcome.judge));
+                                    next.push((environment, outcome.judge));
                                 }
                             }
-                            target_frames = next;
+                            frames = next;
                         }
-                        for (target_environment, captured) in target_frames {
-                            leaves.extend(recognize_structural_state_leaves(
-                                program,
-                                machine,
-                                &captured,
-                                classification,
-                                diagnostics,
-                                states,
-                                target_state,
-                                parameter_names,
-                                target_environment,
-                                branch_hypotheses.clone(),
-                                branch_equations.clone(),
-                                pending_citations.clone(),
-                                true,
-                                path,
-                                fresh,
-                                requirement,
-                                established_guarantees.clone(),
-                            )?);
+                        frames
+                    };
+                    for (target_environment, captured) in target_frames {
+                        if let Some(observer) = requirement.as_deref_mut() {
+                            observer.entered_body(
+                                state.symbol,
+                                statement_index,
+                                call_expression,
+                                target_state.symbol,
+                            );
                         }
+                        leaves.extend(recognize_structural_state_leaves(
+                            program,
+                            machine,
+                            &captured,
+                            classification,
+                            diagnostics,
+                            states,
+                            target_state,
+                            parameter_names,
+                            target_environment,
+                            branch_hypotheses.clone(),
+                            branch_equations.clone(),
+                            pending_citations.clone(),
+                            true,
+                            path,
+                            fresh,
+                            requirement,
+                            established_guarantees.clone(),
+                        )?);
                     }
-                    _ => return None,
+                } else {
+                    let TransitionTargetNode::Value(value) = target else {
+                        return None;
+                    };
+                    if requirement.is_some() {
+                        continue;
+                    }
+                    for outcome in judge.normal_return_paths(
+                        *value,
+                        &branch_environment,
+                        (invocation, state, state.return_type),
+                    )? {
+                        leaves.push(finalize_structural_case_arm(
+                            program,
+                            machine,
+                            &outcome.judge,
+                            classification,
+                            diagnostics,
+                            parameter_names,
+                            branch_hypotheses.clone(),
+                            branch_equations.clone(),
+                            pending_citations.clone(),
+                            outcome.value,
+                        ));
+                    }
                 }
             }
             if requirement.as_deref().is_some_and(|observer| {
@@ -1833,6 +1887,187 @@ fn recognize_structural_state_leaves_from<'a>(
         path.pop();
     }
     result
+}
+
+/// Reachability is over exact call identities, not membership in the root
+/// machine's former state list. This is only a pruning query: the path walker
+/// still checks each entered body and substitutes every actual argument.
+pub(super) fn prefix_site_is_reachable(
+    program: &dyn crate::CheckingInput,
+    source: &typed_trees::state::State,
+    observer: &dyn StructuralPrefixVisitor,
+) -> bool {
+    let mut pending = vec![source.symbol];
+    let mut visited = Vec::new();
+    while let Some(symbol) = pending.pop() {
+        if visited.contains(&symbol) {
+            continue;
+        }
+        visited.push(symbol);
+        let Some((owner, state)) =
+            crate::machine_calls::calls::machine_state_by_symbol(program, symbol)
+        else {
+            return true;
+        };
+        if observer.stops_at_machine(owner.symbol) {
+            continue;
+        }
+        if symbol == observer.site().state {
+            return true;
+        }
+        for (index, _) in program
+            .statement_table
+            .indexed_statements(state.statement_nodes)
+        {
+            for site in crate::machine_calls::calls::collect_call_sites_in_statement(
+                program, owner, state, index,
+            ) {
+                let selected = site.target_symbol(program);
+                let Some((_, destination)) =
+                    crate::machine_calls::calls::machine_state_by_symbol(program, selected)
+                        .or_else(|| {
+                            crate::machine_calls::calls::find_machine_head(program, selected)
+                        })
+                else {
+                    // Unknown dispatch cannot justify pruning a source path.
+                    return true;
+                };
+                pending.push(destination.symbol);
+            }
+        }
+    }
+    false
+}
+
+/// Local execution view: no synthetic source statement or arena identity is
+/// created when a body's final expression supplies its completion operation.
+struct TerminalArm {
+    guard: TransitionGuardNode,
+    exit: TransitionExit,
+    target: TransitionTargetNode,
+    source_target: Option<typed_trees::statement::TransitionTargetHandle>,
+}
+
+/// Terminal source calls and internal control edges have different encodings,
+/// but an admitted checked body supplies the same proof path. Resolve the exact
+/// selected declaration, then capture expression-call actuals through the normal
+/// ordered entry owner. No completed result or callee guarantee is assumed.
+fn terminal_body_transfer<'program>(
+    program: &'program dyn crate::CheckingInput,
+    invocation: &Machine,
+    state: &typed_trees::state::State,
+    target: &TransitionTargetNode,
+    source_target: Option<typed_trees::statement::TransitionTargetHandle>,
+    classification: &typed_trees::proof_only::ProofOnlyClassification,
+) -> Option<(
+    &'program typed_trees::state::State,
+    &'program [ExpressionHandle],
+    Option<ExpressionHandle>,
+)> {
+    let (callee, entry, arguments, expression) = match target {
+        TransitionTargetNode::Named {
+            path, arguments, ..
+        } => {
+            if let Some(source_target) = source_target
+                && let Some(entry) = crate::machine_calls::calls::named_transition_target_state(
+                    program,
+                    invocation,
+                    state,
+                    source_target,
+                )
+            {
+                return Some((
+                    program.state_by_symbol(entry.symbol)?,
+                    program.statement_table.expression_handles(*arguments),
+                    None,
+                ));
+            }
+            let (callee, entry) =
+                crate::machine_calls::calls::find_machine_head(program, path.symbol)?;
+            (
+                callee,
+                entry,
+                program.statement_table.expression_handles(*arguments),
+                None,
+            )
+        }
+        TransitionTargetNode::Value(expression) => {
+            let ExpressionNode::Call(call) = program.expression_table.expression(*expression)
+            else {
+                return None;
+            };
+            let super::specification_calls::SelectedCallContract::Concrete(callee, entry) =
+                super::specification_calls::selected_call_contract(
+                    program,
+                    invocation.symbol,
+                    call,
+                )?
+            else {
+                return None;
+            };
+            (
+                callee,
+                entry,
+                crate::call_site_argument_expressions(
+                    program,
+                    &crate::CallSite::Expression {
+                        expression: *expression,
+                        call,
+                    },
+                ),
+                Some(*expression),
+            )
+        }
+        _ => return None,
+    };
+    (callee.body_is_present
+        && callee.supply_mode.is_checked_body()
+        && !callee.target_family_interface
+        && transparent_body_is_observation_free(program, callee, classification))
+    .then_some((entry, arguments, expression))
+}
+
+/// A proof may finish through an ordinary pure helper, including an empty
+/// Unit body with no proof-data parameters. Runtime classification alone does
+/// not make such a body opaque. Reuse denotational effect admission rather
+/// than recognizing a special empty-body or nested-declaration shape.
+fn transparent_body_is_observation_free(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    classification: &typed_trees::proof_only::ProofOnlyClassification,
+) -> bool {
+    if classification.is_proof_machine(program, machine) {
+        return true;
+    }
+    let Some(entry) = program.machine_states(machine).first() else {
+        return false;
+    };
+    let eligible = |operational: &flow_effects::OperationalPlan,
+                    reaches: &flow_effects::ServiceReachInferencePlan| {
+        let result = crate::machine_calls::denotational_calls::checked_value_call_candidate(
+            program,
+            machine,
+            entry,
+            operational,
+            reaches,
+        );
+        if super::struct_trace()
+            && let Err(reason) = &result
+        {
+            eprintln!(
+                "STRUCT body opaque machine={} reason={reason:?}",
+                machine.name
+            );
+        }
+        result.is_ok()
+    };
+    if let Some(plans) = program.prepared_effect_plans() {
+        return eligible(&plans.operational, &plans.service_reaches);
+    }
+    let operational = crate::machine_calls::effect_inference::infer_operational_may(program);
+    let reaches =
+        crate::machine_calls::effect_inference::infer_service_reaches(program, &operational);
+    eligible(&operational, &reaches)
 }
 
 #[allow(clippy::too_many_arguments)]

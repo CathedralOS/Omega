@@ -30,18 +30,18 @@ public machine analyze(study: &mut Study) -> i32 {
         true -> 3
         _ -> replication(study, a, b, c, d)
     }
-    state replication(study: &mut Study, a: i32 in Wrapping, b: i32 in Wrapping,
+    machine replication(study: &mut Study, a: i32 in Wrapping, b: i32 in Wrapping,
                       c: i32 in Wrapping, d: i32 in Wrapping) -> i32 {
         transition a == 2 && b == 2 && c == 2 && d == 2 {
             true -> calculate(study)
             _ -> single_repeat(a, b, c, d)
         }
     }
-    state single_repeat(a: i32 in Wrapping, b: i32 in Wrapping,
+    machine single_repeat(a: i32 in Wrapping, b: i32 in Wrapping,
                         c: i32 in Wrapping, d: i32 in Wrapping) -> i32 {
         transition a == 1 && b == 1 && c == 1 && d == 1 { true -> 5 _ -> 4 }
     }
-    state calculate(study: &mut Study) -> i32 {
+    machine calculate(study: &mut Study) -> i32 {
         let a: i32 in Wrapping = study.values[0] + study.values[1];
         let b: i32 in Wrapping = study.values[2] + study.values[3];
         let c: i32 in Wrapping = study.values[4] + study.values[5];

@@ -24,7 +24,7 @@ invokes WindowsFilesystemHost;
         IoResult::Error { kind } -> (EmptyResult::Error { kind: kind })
         IoResult::Ok { count } -> count(count)
     }
-    state count(count: u64) -> EmptyResult {
+    machine count(count: u64) -> EmptyResult {
         transition count == 0 { true -> EmptyResult::Empty false -> EmptyResult::NonEmpty }
     }
 }
@@ -42,7 +42,7 @@ invokes WindowsFilesystemHost;
         WindowsDirectoryEntryResult::End -> DirEntryResult::End
         WindowsDirectoryEntryResult::Entry { entry } -> selected(entry)
     }
-    state selected(record: WindowsDirectoryEntry) -> DirEntryResult {
+    machine selected(record: WindowsDirectoryEntry) -> DirEntryResult {
         transition record.name_len > 0 && record.name_len <= 256 {
             true -> (DirEntryResult::Ok { entry: DirEntry {
                 name: record.name,

@@ -4,13 +4,13 @@ machine main() crashes Trap {
         ActivationClaimAttempt::Established { claim } -> live(claim)
         ActivationClaimAttempt::Rejected -> bad()
     }
-    state live(claim: ActivationClaim) {
+    machine live(claim: ActivationClaim) {
         let mut owner: ActivationClaim = claim;
         let bytes: &mut [u8] = ActivationClaim::bytes(&mut owner);
         ActivationClaim::release(owner);
         let length: u64 = bytes.len;
         transition length == 3 { true -> done() false -> bad() }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

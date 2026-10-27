@@ -36,15 +36,15 @@ machine Main::push(main: &mut Main, value: i32 in Wrapping) {
         true -> push0(main, value)
         _ -> try_push1(main, new_sp, value)
     }
-    state push0(main: &mut Main, value: i32 in Wrapping) { main.vm.stack[0] = value; }
-    state try_push1(main: &mut Main, new_sp: i32 in Wrapping, value: i32 in Wrapping) {
+    machine push0(main: &mut Main, value: i32 in Wrapping) { main.vm.stack[0] = value; }
+    machine try_push1(main: &mut Main, new_sp: i32 in Wrapping, value: i32 in Wrapping) {
         transition new_sp == 1 {
             true -> push1(main, value)
             _ -> push2(main, value)
         }
     }
-    state push1(main: &mut Main, value: i32 in Wrapping) { main.vm.stack[1] = value; }
-    state push2(main: &mut Main, value: i32 in Wrapping) { main.vm.stack[2] = value; }
+    machine push1(main: &mut Main, value: i32 in Wrapping) { main.vm.stack[1] = value; }
+    machine push2(main: &mut Main, value: i32 in Wrapping) { main.vm.stack[2] = value; }
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -56,15 +56,15 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> check0(main)
         _ -> bad(main)
     }
-    state check0(main: &mut Main) {
+    machine check0(main: &mut Main) {
         transition main.vm.stack[0] == 3 {
             true -> good(main)
             _ -> bad0(main)
         }
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(71); }
-    state bad0(main: &mut Main) { Console::exit_process(72); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
+    machine bad0(main: &mut Main) { Console::exit_process(72); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

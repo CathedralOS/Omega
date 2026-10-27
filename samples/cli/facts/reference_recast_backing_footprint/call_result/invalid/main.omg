@@ -14,6 +14,6 @@ machine probe() -> bool {
 machine main() crashes Trap {
     let accepted: bool = probe();
     transition accepted { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

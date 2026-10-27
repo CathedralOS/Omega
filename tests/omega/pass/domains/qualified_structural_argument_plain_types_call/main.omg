@@ -7,6 +7,6 @@ machine main() crashes Trap {
     let outer: Outer = Outer { inner: inner, header: 10 };
     let seen: u64 = inspect(outer);
     transition seen == 10 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

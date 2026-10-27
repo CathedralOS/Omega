@@ -8,6 +8,6 @@ end requires eax == 4294967295:
  mov output, eax
  }
  transition output == 4294967295 { true -> done() false -> bad() }
- state done() {}
- state bad() { crash Trap; }
+ machine done() {}
+ machine bad() { crash Trap; }
 }

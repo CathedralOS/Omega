@@ -8,8 +8,8 @@ machine Pair::drop(pair: &mut Pair) {
 }
 machine observe(receipt: &Receipt, expected: u64) crashes Trap {
     transition receipt.code == expected { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine main() crashes Trap {
     let mut counter: Counter = Counter { value: 0 };
@@ -20,6 +20,6 @@ machine main() crashes Trap {
         first: Receipt { code: 17 }, second: Receipt { code: 23 }, counter: &mut counter
     }.first, 17);
     transition counter.value == 2 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

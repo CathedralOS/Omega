@@ -3,5 +3,5 @@ machine main() crashes Trap {
  let mut snapshot:u64=99;
  asm {entry:jmp done; skipped:pushfq snapshot; done:nop}
  transition snapshot==99u64 {true ->done() false->bad()}
- state done(){} state bad(){crash Trap;}
+ machine done(){} machine bad(){crash Trap;}
 }

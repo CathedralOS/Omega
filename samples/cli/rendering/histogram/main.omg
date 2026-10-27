@@ -51,14 +51,14 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     // Walk the samples; the loop counter `k` is bounded by the array length.
-    state tally_loop(main: &mut Main) {
+    machine tally_loop(main: &mut Main) {
         transition main.k < 8 {
             true -> load_sample(main)
             _ -> done(main)
         }
     }
 
-    state load_sample(main: &mut Main) {
+    machine load_sample(main: &mut Main) {
         main.v = main.samples[main.k];
         transition {
             _ -> bounded_tally(main)
@@ -66,28 +66,28 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     // Admit the histogram index only where it is provably in range.
-    state bounded_tally(main: &mut Main) {
+    machine bounded_tally(main: &mut Main) {
         transition main.v < 4 {
             true -> bump(main)
             _ -> advance(main)
         }
     }
 
-    state bump(main: &mut Main) {
+    machine bump(main: &mut Main) {
         main.histogram[main.v] = main.histogram[main.v] + 1;
         transition {
             _ -> advance(main)
         }
     }
 
-    state advance(main: &mut Main) {
+    machine advance(main: &mut Main) {
         main.k = main.k + 1;
         transition {
             _ -> tally_loop(main)
         }
     }
 
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         main.result = main.histogram[2];
         Console::write_line("result: the count for category 2, 4 for this dataset (the exit code)");
         Console::write_line("[press Enter to close]");

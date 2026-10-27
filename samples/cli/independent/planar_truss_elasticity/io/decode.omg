@@ -4,15 +4,15 @@ use omega::language::core::float_operations;
 public machine decode(input: &Input, truss: &mut Truss) {
     truss.valid = false;
     transition input.count >= 2 && input.tokens[0] >= 2 && input.tokens[0] <= 8 && input.tokens[1] >= 0 && input.tokens[1] <= 16 { true -> dimensions(input, truss) false -> done() }
-    state dimensions(input: &Input, truss: &mut Truss) {
+    machine dimensions(input: &Input, truss: &mut Truss) {
         truss.nodes = input.tokens[0] as u64;
         truss.bars = input.tokens[1] as u64;
         transition input.count == 2 + 6 * truss.nodes + 3 * truss.bars { true -> nodes(input, truss, 0) false -> done() }
     }
-    state nodes(input: &Input, truss: &mut Truss, node: u64) {
+    machine nodes(input: &Input, truss: &mut Truss, node: u64) {
         transition node < truss.nodes && node < 8 { true -> node_read(input, truss, node) false -> bars(input, truss, 0) }
     }
-    state node_read(input: &Input, truss: &mut Truss, node: u64) requires node < 8 {
+    machine node_read(input: &Input, truss: &mut Truss, node: u64) requires node < 8 {
         let offset: u64 = 2 + 6 * node;
         transition input.tokens[offset + 2] >= 0 && input.tokens[offset + 2] <= 1 && input.tokens[offset + 3] >= 0 && input.tokens[offset + 3] <= 1
             && input.tokens[offset] >= -1000 && input.tokens[offset] <= 1000 && input.tokens[offset + 1] >= -1000 && input.tokens[offset + 1] <= 1000
@@ -20,7 +20,7 @@ public machine decode(input: &Input, truss: &mut Truss) {
             true -> node_store(input, truss, node, offset) false -> done()
         }
     }
-    state node_store(input: &Input, truss: &mut Truss, node: u64, offset: u64) requires node < 8 requires offset <= 44 {
+    machine node_store(input: &Input, truss: &mut Truss, node: u64, offset: u64) requires node < 8 requires offset <= 44 {
         truss.coordinates[2 * node] = input.tokens[offset] as f64;
         truss.coordinates[2 * node + 1] = input.tokens[offset + 1] as f64;
         truss.fixed[2 * node] = input.tokens[offset + 2] == 1;
@@ -29,10 +29,10 @@ public machine decode(input: &Input, truss: &mut Truss) {
         truss.loads[2 * node + 1] = input.tokens[offset + 5] as f64;
         transition { _ -> nodes(input, truss, node + 1) }
     }
-    state bars(input: &Input, truss: &mut Truss, bar: u64) {
+    machine bars(input: &Input, truss: &mut Truss, bar: u64) {
         transition bar < truss.bars && bar < 16 && truss.nodes <= 8 { true -> bar_read(input, truss, bar) false -> finish(truss) }
     }
-    state bar_read(input: &Input, truss: &mut Truss, bar: u64) requires bar < 16 requires truss.nodes <= 8 {
+    machine bar_read(input: &Input, truss: &mut Truss, bar: u64) requires bar < 16 requires truss.nodes <= 8 {
         let offset: u64 = 2 + 6 * truss.nodes + 3 * bar;
         transition input.tokens[offset] >= 0 && input.tokens[offset] < (truss.nodes as i32)
             && input.tokens[offset + 1] >= 0 && input.tokens[offset + 1] < (truss.nodes as i32)
@@ -40,7 +40,7 @@ public machine decode(input: &Input, truss: &mut Truss) {
             true -> bar_store(input, truss, bar, offset) false -> done()
         }
     }
-    state bar_store(input: &Input, truss: &mut Truss, bar: u64, offset: u64) requires bar < 16 requires offset <= 95 {
+    machine bar_store(input: &Input, truss: &mut Truss, bar: u64, offset: u64) requires bar < 16 requires offset <= 95 {
         let first: i32 = input.tokens[offset];
         let second: i32 = input.tokens[offset + 1];
         transition first >= 0 && first < 8 && second >= 0 && second < 8 {
@@ -48,13 +48,13 @@ public machine decode(input: &Input, truss: &mut Truss) {
             false -> done()
         }
     }
-    state endpoints_store(input: &Input, truss: &mut Truss, bar: u64, offset: u64, first: i32, second: i32)
+    machine endpoints_store(input: &Input, truss: &mut Truss, bar: u64, offset: u64, first: i32, second: i32)
     requires bar < 16 requires offset <= 95 requires first >= 0 requires first < 8 requires second >= 0 requires second < 8 {
         truss.first[bar] = first as u64;
         truss.second[bar] = second as u64;
         truss.rigidity[bar] = input.tokens[offset + 2] as f64;
         transition { _ -> bars(input, truss, bar + 1) }
     }
-    state finish(truss: &mut Truss) { truss.valid = true; }
-    state done() {}
+    machine finish(truss: &mut Truss) { truss.valid = true; }
+    machine done() {}
 }

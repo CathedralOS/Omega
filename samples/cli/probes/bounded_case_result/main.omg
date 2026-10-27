@@ -16,13 +16,13 @@ machine leading(text: &[u8; 2] in Utf8) -> Leading {
     transition {
         _ -> inspect(text)
     }
-    state inspect(text: &[u8; 2] in Utf8) -> Leading {
+    machine inspect(text: &[u8; 2] in Utf8) -> Leading {
         transition 0 < text.len {
             true -> read(text)
             _ -> (Leading::Empty)
         }
     }
-    state read(text: &[u8; 2] in Utf8) -> Leading {
+    machine read(text: &[u8; 2] in Utf8) -> Leading {
         let byte: u8 = text[0];
         transition {
             _ -> (Leading::Byte { value: byte as u64 })
@@ -37,8 +37,8 @@ machine Main::main(main: &mut Main) {
         Leading::Byte { value } -> seen(value)
         _ -> miss()
     }
-    state seen(value: u64) { }
-    state miss() { }
+    machine seen(value: u64) { }
+    machine miss() { }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

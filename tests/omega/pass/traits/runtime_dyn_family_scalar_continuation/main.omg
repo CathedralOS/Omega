@@ -17,8 +17,8 @@ machine Main::main(main: &mut Main) crashes Trap {
     let first: bool = compare(selected, &main.item, 16, 17);
     let second: bool = compare(selected, &main.item, 32, 17);
     transition first && second { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -9,31 +9,31 @@ blocks;
 crashes Trap
 {
     transition { _ -> scan(0, 0) }
-    state scan(value: i64 in Saturating, digits: u64 in Saturating) -> Token {
+    machine scan(value: i64 in Saturating, digits: u64 in Saturating) -> Token {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> finish(value, digits)
             ByteRead::Byte { value as byte } -> classify(value, digits, byte)
         }
     }
-    state classify(value: i64 in Saturating, digits: u64 in Saturating, byte: i32) -> Token {
+    machine classify(value: i64 in Saturating, digits: u64 in Saturating, byte: i32) -> Token {
         transition {
             byte == 32 || byte == 10 || byte == 13 || byte == 9 -> space(value, digits)
             byte >= 48 && byte <= 57 && digits < 9 -> append(value, digits, byte)
             _ -> (Token { value: 0, valid: false })
         }
     }
-    state space(value: i64 in Saturating, digits: u64 in Saturating) -> Token {
+    machine space(value: i64 in Saturating, digits: u64 in Saturating) -> Token {
         transition digits > 0 {
             true -> (Token { value: value, valid: true })
             false -> scan(value, digits)
         }
     }
-    state append(value: i64 in Saturating, digits: u64 in Saturating, byte: i32) -> Token {
+    machine append(value: i64 in Saturating, digits: u64 in Saturating, byte: i32) -> Token {
         let digit: i64 in Saturating = (byte as i64 in Saturating) - 48;
         transition { _ -> scan(value * 10 + digit, digits + 1) }
     }
-    state finish(value: i64 in Saturating, digits: u64 in Saturating) -> Token {
+    machine finish(value: i64 in Saturating, digits: u64 in Saturating) -> Token {
         Token { value: value, valid: digits > 0 }
     }
 }
@@ -46,14 +46,14 @@ blocks;
 crashes Trap
 {
     transition { _ -> scan() }
-    state scan() -> bool {
+    machine scan() -> bool {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> (true)
             ByteRead::Byte { value } -> whitespace(value)
         }
     }
-    state whitespace(value: i32) -> bool {
+    machine whitespace(value: i32) -> bool {
         transition value == 32 || value == 10 || value == 13 || value == 9 {
             true -> scan()
             false -> (false)

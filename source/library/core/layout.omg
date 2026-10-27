@@ -327,7 +327,7 @@ requires fuel >= 1 && fuel <= 128
 {
     transition { _ -> seek(plan, key, access, 0, fuel) }
 
-    state seek(
+    machine seek(
         plan: AccessPlan,
         key: u64,
         access: FieldAccess,
@@ -342,7 +342,7 @@ requires fuel >= 1 && fuel <= 128
         }
     }
 
-    state inspect(
+    machine inspect(
         plan: AccessPlan,
         key: u64,
         access: FieldAccess,
@@ -358,7 +358,7 @@ requires fuel >= 1 && fuel <= 128
         }
     }
 
-    state replace(
+    machine replace(
         plan: AccessPlan,
         key: u64,
         access: FieldAccess,
@@ -371,7 +371,7 @@ requires fuel >= 1 && fuel <= 128
         updated
     }
 
-    state advance(
+    machine advance(
         plan: AccessPlan,
         key: u64,
         access: FieldAccess,
@@ -386,7 +386,7 @@ requires fuel >= 1 && fuel <= 128
         }
     }
 
-    state invalid(
+    machine invalid(
         plan: AccessPlan,
         key: u64,
         access: FieldAccess
@@ -400,7 +400,7 @@ requires fuel >= 1 && fuel <= 128
         }
     }
 
-    state grow_invalid(
+    machine grow_invalid(
         plan: AccessPlan,
         field_count: u64
     ) -> AccessPlan

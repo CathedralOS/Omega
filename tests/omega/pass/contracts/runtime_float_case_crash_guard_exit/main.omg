@@ -7,7 +7,7 @@ crashes Trap reading.value < 0.0 {
         true -> invalid()
         false -> reading.value
     }
-    state invalid() -> f64 { crash Trap; }
+    machine invalid() -> f64 { crash Trap; }
 }
 // Identical payload spellings retain the declaring case through patterns.
 data Alternative { case First(value: f64); case Second(marker: u64, value: f64); }
@@ -28,6 +28,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

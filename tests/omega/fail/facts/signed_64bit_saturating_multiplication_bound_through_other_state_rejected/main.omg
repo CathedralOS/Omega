@@ -17,7 +17,7 @@ machine compute_other_state(lhs: i64, rhs: i64) -> i64
     let sat: i64 in Saturating = a * b;
     let prod: i64 = sat as i64;
     transition { _ -> step(prod) }
-    state step(d: i64) -> i64 {
+    machine step(d: i64) -> i64 {
         verify_prod(d)
     }
 }
@@ -32,6 +32,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

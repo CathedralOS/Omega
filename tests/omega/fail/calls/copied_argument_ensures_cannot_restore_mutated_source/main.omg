@@ -24,11 +24,11 @@ machine Main::main(main: &mut Main) {
         true -> capture(main)
         false -> done()
     }
-    state capture(main: &mut Main)
+    machine capture(main: &mut Main)
     requires ascii_only(main.line) {
         let captured: bool = saved_ascii(main.line, Main::replace(main));
         // The postcondition describes the captured value, not this newer text.
         take_ascii(main.line);
     }
-    state done() {}
+    machine done() {}
 }

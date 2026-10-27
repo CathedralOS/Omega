@@ -15,6 +15,6 @@ machine call_mark(selected: dyn ReadContract) -> u64 { ReadContract::read(select
 machine main() crashes Trap {
     let value: u64 = call_mark(Selected as dyn ReadContract);
     transition value == MARK_VALUE { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

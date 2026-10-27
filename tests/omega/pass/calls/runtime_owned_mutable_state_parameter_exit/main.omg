@@ -11,12 +11,12 @@ data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let amount: Amount = Amount { value: 1 };
     transition { _ -> arrived(amount) }
-    state arrived(mut amount: Amount) {
+    machine arrived(mut amount: Amount) {
         reset(&write amount);
         replace(&mut amount);
         transition { _ -> finished(amount) }
     }
-    state finished(amount: Amount) {
+    machine finished(amount: Amount) {
         let observed: i32 = consume(amount);
         Console::exit_process(observed);
     }

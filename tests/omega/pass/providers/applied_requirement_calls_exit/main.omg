@@ -39,15 +39,15 @@ machine Main::main(main: &mut Main) reaches Child + Parent crashes Trap {
         true -> later(cell)
         _ -> bad()
     }
-    state later(cell: i32) {
+    machine later(cell: i32) {
         let again: i32 = Parent<u64>::read();
         transition again == 37 && cell == 5 {
             true -> done()
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

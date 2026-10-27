@@ -89,10 +89,10 @@ fn explicit_domain_subject_rejects_runtime_parameter_shapes_and_duplicate_binder
 }
 
 #[test]
-fn rejects_exit_contract_clauses_on_explicit_states() {
+fn accepts_exit_contract_clauses_on_nested_machines() {
     let source = r#"
         machine walk() {
-            state done()
+            machine done()
             ensures
                 true
             {
@@ -100,16 +100,7 @@ fn rejects_exit_contract_clauses_on_explicit_states() {
         }
     "#;
 
-    let error = super::parse_source_error(
-        source,
-        "tokenize should succeed",
-        "states admit arrival requires rather than exit contracts",
-    );
-    assert!(
-        error
-            .message
-            .contains("state signatures admit only arrival `requires`")
-    );
+    super::parse_source(source, "nested machines have ordinary exit contracts");
 }
 
 #[test]
@@ -665,7 +656,7 @@ fn parses_data_destructure_transition_guard_as_subject_member_guard() {
                 _ -> done()
             }
 
-            state done() {}
+            machine done() {}
         }
         "#;
 
@@ -923,7 +914,7 @@ fn parses_asm_jmp_block_as_transition_statement() {
                 jmp other()
             }
 
-            state other() {}
+            machine other() {}
         }
         "#;
 

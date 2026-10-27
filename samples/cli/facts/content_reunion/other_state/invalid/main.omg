@@ -84,7 +84,7 @@ ensures result in Owned,
     Owned::content(old(&whole)) == Owned::content(&result)
 {
     transition { _ -> complete(whole, requested) }
-    state complete(whole: Region in Owned, requested: u64) -> Region
+    machine complete(whole: Region in Owned, requested: u64) -> Region
     requires whole.base == 10 && whole.length == 48 && requested <= whole.length
     {
         let parts: Parts = partition(issue(), requested);
@@ -111,6 +111,6 @@ machine main() crashes Trap {
     let interior: bool = exercise(16);
     let full: bool = exercise(48);
     transition empty && interior && full { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

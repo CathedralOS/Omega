@@ -28,37 +28,37 @@ machine Main::main(main: &mut Main) reaches Console {
         Pick::First { v } -> first(main, v)
         Pick::Second { .. } -> wrong_arm(main)
     }
-    state first(main: &mut Main, v: i32) {
+    machine first(main: &mut Main, v: i32) {
         transition main.calls {
             1 -> first_payload(main, v)
             2 -> exit_two(main)
             _ -> exit_three(main)
         }
     }
-    state first_payload(main: &mut Main, v: i32) {
+    machine first_payload(main: &mut Main, v: i32) {
         transition v == 10 { true -> again(main) _ -> wrong_payload(main) }
     }
-    state again(main: &mut Main) {
+    machine again(main: &mut Main) {
         transition Main::pick(main, true) {
             Pick::First { .. } -> wrong_arm(main)
             Pick::Second { v } -> second(main, v)
         }
     }
-    state second(main: &mut Main, v: i32) {
+    machine second(main: &mut Main, v: i32) {
         transition main.calls {
             2 -> second_payload(main, v)
             3 -> exit_two(main)
             _ -> exit_three(main)
         }
     }
-    state second_payload(main: &mut Main, v: i32) {
+    machine second_payload(main: &mut Main, v: i32) {
         transition v == 20 { true -> good(main) _ -> wrong_payload(main) }
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state exit_two(main: &mut Main) { Console::exit_process(2); }
-    state exit_three(main: &mut Main) { Console::exit_process(3); }
-    state wrong_payload(main: &mut Main) { Console::exit_process(4); }
-    state wrong_arm(main: &mut Main) { Console::exit_process(71); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine exit_two(main: &mut Main) { Console::exit_process(2); }
+    machine exit_three(main: &mut Main) { Console::exit_process(3); }
+    machine wrong_payload(main: &mut Main) { Console::exit_process(4); }
+    machine wrong_arm(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

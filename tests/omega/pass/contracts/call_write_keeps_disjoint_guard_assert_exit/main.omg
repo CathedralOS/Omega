@@ -35,7 +35,7 @@ machine Main::main(main: &mut Main) crashes Trap {
         true -> both(main)
         _ -> failed()
     }
-    state both(main: &mut Main) {
+    machine both(main: &mut Main) {
         let first: i32 = Stack::pop(&mut main.a);
         let second: i32 = Stack::pop(&mut main.b);
         main.a.count = 1;
@@ -46,7 +46,7 @@ machine Main::main(main: &mut Main) crashes Trap {
             _ -> failed()
         }
     }
-    state apart(left: &mut Stack, right: &mut Stack) {
+    machine apart(left: &mut Stack, right: &mut Stack) {
         let first: i32 = Stack::pop(left);
         let second: i32 = Stack::pop(right);
         transition first == 7 && second == 5 {
@@ -54,8 +54,8 @@ machine Main::main(main: &mut Main) crashes Trap {
             _ -> failed()
         }
     }
-    state passed() {}
-    state failed() { crash Trap; }
+    machine passed() {}
+    machine failed() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

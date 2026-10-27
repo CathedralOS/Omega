@@ -10,6 +10,6 @@ machine main() crashes Trap {
     storage.value = 74;
     let result: u32 = forward(selected);
     transition result == 73 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

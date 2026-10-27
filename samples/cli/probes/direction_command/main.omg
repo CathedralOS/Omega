@@ -29,41 +29,41 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> try_south(main)
     }
 
-    state try_south(main: &mut Main) {
+    machine try_south(main: &mut Main) {
         transition main.command[0] == 115 { true -> go_south(main) _ -> try_east(main) }
     }
-    state try_east(main: &mut Main) {
+    machine try_east(main: &mut Main) {
         transition main.command[0] == 101 { true -> go_east(main) _ -> try_west(main) }
     }
-    state try_west(main: &mut Main) {
+    machine try_west(main: &mut Main) {
         transition main.command[0] == 119 { true -> go_west(main) _ -> unknown(main) }
     }
 
-    state go_north(main: &mut Main) {
+    machine go_north(main: &mut Main) {
         Console::write_line("PASS: first byte 'n' classified as north (exit 1)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(1);
     }
-    state go_south(main: &mut Main) {
+    machine go_south(main: &mut Main) {
         Console::write_line("FAIL: classified as south -- expected north for \"north\" (exit 2)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(2);
     }
-    state go_east(main: &mut Main) {
+    machine go_east(main: &mut Main) {
         Console::write_line("FAIL: classified as east -- expected north for \"north\" (exit 3)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(3);
     }
-    state go_west(main: &mut Main) {
+    machine go_west(main: &mut Main) {
         Console::write_line("FAIL: classified as west -- expected north for \"north\" (exit 4)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(4);
     }
-    state unknown(main: &mut Main) {
+    machine unknown(main: &mut Main) {
         Console::write_line("FAIL: first byte matched no direction -- expected 'n' (exit 0)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

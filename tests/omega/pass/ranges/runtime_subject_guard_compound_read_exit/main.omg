@@ -16,11 +16,11 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> selected(main)
         false -> failed(main)
     }
-    state selected(main: &mut Main) {
+    machine selected(main: &mut Main) {
         let selected: i32 = main.values[main.row * 2 + main.column];
         Console::exit_process(selected);
     }
-    state failed(main: &mut Main) { Console::exit_process(1); }
+    machine failed(main: &mut Main) { Console::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

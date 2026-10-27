@@ -10,7 +10,7 @@ terminates;
 terminates by remaining in 0..=cells.len;
 {
     transition remaining > 0 { true -> inspect(cells, remaining) false -> (true) }
-    state inspect(cells: &[i32], remaining: u64) -> bool
+    machine inspect(cells: &[i32], remaining: u64) -> bool
     requires remaining > 0 && remaining <= cells.len
     {
         let index: u64 = remaining - 1;
@@ -75,6 +75,6 @@ machine main() crashes Trap {
     let mut context: Main;
     let observed: i32 = Main::main(&mut context);
     transition observed == 31 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

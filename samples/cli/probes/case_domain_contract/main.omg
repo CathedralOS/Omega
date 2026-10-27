@@ -50,5 +50,5 @@ machine main() {
         true -> done()
         _ -> done()
     }
-    state done() {}
+    machine done() {}
 }

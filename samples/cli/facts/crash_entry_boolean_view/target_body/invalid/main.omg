@@ -3,7 +3,7 @@ machine maybe_clear(value: bool) -> bool
 crashes Trap value == false
 {
     transition value == false { true -> bad() false -> (value) }
-    state bad() { crash Trap; }
+    machine bad() -> bool { crash Trap; }
 }
 public data Byte where value >= 0 && value <= 1 { value: u8; }
 windows_x86_64 machine forward(value: bool) -> bool
@@ -36,5 +36,5 @@ machine main() crashes Trap {
     let byte: Byte = Byte { value: 1 };
     let observed: bool = read_flag(&byte);
     transition observed == true { true -> done() false -> bad() }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }

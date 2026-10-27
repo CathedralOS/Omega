@@ -15,7 +15,7 @@ machine Main::main(main: &mut Main) {
         _ -> miss(main)
     }
 
-    state seed(main: &mut Main) {
+    machine seed(main: &mut Main) {
         let grown: u64 = Main::bump(4);
         transition grown {
             5 -> done(main)
@@ -23,6 +23,6 @@ machine Main::main(main: &mut Main) {
         }
     }
 
-    state done(main: &mut Main) { main.answer = 70; }
-    state miss(main: &mut Main) { main.answer = 71; }
+    machine done(main: &mut Main) { main.answer = 70; }
+    machine miss(main: &mut Main) { main.answer = 71; }
 }

@@ -14,7 +14,7 @@ machine dispatched(value: u32) -> u64 {
         Choice::Full { value } -> lent(&mut frame, value)
         Choice::Empty -> (frame.prefix)
     }
-    state lent(frame: &mut Frame, value: u32) -> u64 {
+    machine lent(frame: &mut Frame, value: u32) -> u64 {
         frame.item = Choice::Empty;
         transition value == 7 { true -> (frame.prefix) _ -> (0) }
     }
@@ -28,8 +28,8 @@ machine guarded(flag: bool) -> u64 {
         true -> kept(&mut frame)
         _ -> dropped()
     }
-    state kept(frame: &mut Frame) -> u64 { frame.prefix }
-    state dropped() -> u64 { 1 }
+    machine kept(frame: &mut Frame) -> u64 { frame.prefix }
+    machine dropped() -> u64 { 1 }
 }
 
 machine returned(flag: bool) -> u64 {
@@ -49,6 +49,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

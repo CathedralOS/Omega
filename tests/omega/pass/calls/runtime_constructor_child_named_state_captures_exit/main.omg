@@ -17,15 +17,15 @@ machine exercise(initial: i32, replacement: i32) crashes Trap {
         replaced: Holder::replace(&mut holder, replacement)
     }, initial) }
 
-    state selected(captured: Pair, wanted: i32)
+    machine selected(captured: Pair, wanted: i32)
     requires captured.first == captured.second {
         transition captured.first == wanted && captured.second == wanted && captured.replaced {
             true -> done()
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine Main::main(main: &mut Main) crashes Trap {

@@ -24,7 +24,7 @@ machine copy_room(source: Room, destination: &mut Room) {
         _ -> apply(source, destination)
     }
 
-    state apply(room: Room, out_room: &mut Room) {
+    machine apply(room: Room, out_room: &mut Room) {
         out_room.cell = room.cell;
         let out_exits: &mut [Exit] = &mut out_room.exits[..];
         let room_exits: &[Exit] = &room.exits[..];
@@ -50,6 +50,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -11,7 +11,7 @@ machine walk(countdown: Countdown, ceiling: u64)
 terminates by countdown -> Countdown::Remaining in 0..=ceiling;
 -> u64 {
     transition { _ -> iterate(ceiling, countdown) }
-    state iterate(limit: u64, pending: Countdown)
+    machine iterate(limit: u64, pending: Countdown) -> u64
         requires 5 <= limit && limit <= 10
     {
         transition pending.remaining > 0 {

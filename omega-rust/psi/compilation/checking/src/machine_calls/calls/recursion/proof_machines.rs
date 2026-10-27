@@ -136,53 +136,27 @@ fn expression_names_measure(
 /// cited decrease and contract normalization: an earlier call may use the
 /// resulting IH to establish its own premises, so its guarantees cannot also
 /// be the reason that induction is licensed.
+/// `machine` is the origin of the current proof invocation; `state` owns the
+/// exact recursive operand, possibly inside an explicitly invoked helper.
+/// Every return to that origin must descend under the complete component.
 pub(crate) fn proof_call_has_structural_descent(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &typed_trees::state::State,
     before: usize,
-    call: &typed_trees::expression::TableCallExpression,
+    expression: ExpressionHandle,
 ) -> bool {
     let Some(entry) = program.machine_states(machine).first() else {
         return false;
     };
-    if call.target_symbol != entry.symbol || call.receiver.is_valid() {
-        return false;
-    }
-    let Some(subjects) = typed_trees::ranking::resolve_machine_witness_subjects(program, machine)
-    else {
+    let Some(call) = program.expression_table.call_node(expression) else {
         return false;
     };
-    let [subject] = subjects.as_slice() else {
-        return false;
-    };
-    let Some(measure) = program.expression_table.name_path_node(*subject) else {
-        return false;
-    };
-    if !measure.symbol.is_valid() {
-        return false;
-    }
-    let parameters = program.state_parameters(entry);
-    let Some(position) =
-        typed_trees::signature::state_parameter_position(parameters, measure.symbol)
-    else {
-        return false;
-    };
-    let arguments = program.expression_table.expression_handles(call.arguments);
-    if arguments.len() != parameters.len() {
-        return false;
-    }
-    arguments.get(position).is_some_and(|argument| {
-        strict_subterm_of_measure(program, state, before, *argument, measure.symbol)
-            || substate_parameter_descends(
-                program,
-                machine,
-                state,
-                before,
-                *argument,
-                measure.symbol,
-            )
-    })
+    call.target_symbol == entry.symbol
+        && !call.receiver.is_valid()
+        && crate::machine_calls::call_cycles::structural_return_descends(
+            program, machine, state, before, expression,
+        )
 }
 
 pub(crate) fn validate_proof_machine_recursion(

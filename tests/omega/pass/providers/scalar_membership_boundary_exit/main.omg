@@ -13,8 +13,8 @@ machine Main::main(main: &mut Main) reaches Gate crashes Trap {
     let direct: u32 = Gate::accept(&main.prefix, 128);
     let field: u32 = Gate::accept(&main.prefix, main.value);
     transition direct == 128 && field == 128 { true -> done() false -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }
 
 ProviderGateImplementation satisfies Gate {

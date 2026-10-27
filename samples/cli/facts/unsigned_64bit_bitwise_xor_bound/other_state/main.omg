@@ -24,13 +24,13 @@ machine main() crashes Trap {
         true -> step(xored)
         _ -> bad()
     }
-    state step(forwarded: u64) {
+    machine step(forwarded: u64) {
         let check: i32 = verify_xored(forwarded);
         transition check == 0 {
             true -> done()
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

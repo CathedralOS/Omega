@@ -23,7 +23,7 @@ machine pass_through(x: i32) -> i32
 requires 0 <= x && x <= 1000
 {
     transition { _ -> hop(x) }
-    state hop(x: i32)
+    machine hop(x: i32) -> i32
     requires 0 <= x && x <= 1000
     { transition { _ -> (x) } }
 }
@@ -33,19 +33,19 @@ machine cos_via_terminal(x: f64) -> f64 {
 machine Main::main(main: &mut Main) reaches Console {
     let d: i32 = dbl(35);
     transition d == 70 { true -> a(main) _ -> bad_d(main) }
-    state a(main: &mut Main) {
+    machine a(main: &mut Main) {
         let p: i32 = pass_through(41);
         transition p == 41 { true -> b(main) _ -> bad_p(main) }
     }
-    state b(main: &mut Main) {
+    machine b(main: &mut Main) {
         // cos(1) = 0.540302305868...
         let c: f64 = cos_via_terminal(1.0);
         transition c > 0.54030230586 && c < 0.54030230587 { true -> good(main) _ -> bad_c(main) }
     }
-    state good(main: &mut Main)  { Console::exit_process(70); }
-    state bad_d(main: &mut Main) { Console::exit_process(72); }
-    state bad_p(main: &mut Main) { Console::exit_process(73); }
-    state bad_c(main: &mut Main) { Console::exit_process(74); }
+    machine good(main: &mut Main)  { Console::exit_process(70); }
+    machine bad_d(main: &mut Main) { Console::exit_process(72); }
+    machine bad_p(main: &mut Main) { Console::exit_process(73); }
+    machine bad_c(main: &mut Main) { Console::exit_process(74); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

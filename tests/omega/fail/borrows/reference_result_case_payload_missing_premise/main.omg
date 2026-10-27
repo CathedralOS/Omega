@@ -17,6 +17,6 @@ machine main() reaches Console {
     let observed: &Choice = relay(&choice);
     let okay: bool = has_value(observed.payload.target, 11);
     transition okay { true -> done() _ -> wrong() }
-    state done() { Console::exit_process(0); }
-    state wrong() { Console::exit_process(85); }
+    machine done() { Console::exit_process(0); }
+    machine wrong() { Console::exit_process(85); }
 }

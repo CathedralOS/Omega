@@ -44,7 +44,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad(main)
     }
 
-    state inspect(main: &mut Main, read: &[Wide]) {
+    machine inspect(main: &mut Main, read: &[Wide]) {
     transition read[0].unsigned_value == 7
         && !read[0].active
         && read[1].unsigned_value == 11
@@ -54,7 +54,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     }
 
-    state mutate(main: &mut Main) {
+    machine mutate(main: &mut Main) {
     let write: &mut [Exact] = &mut main.source as &mut [Exact];
     transition write.len > 1 {
         true -> write_values(main, write)
@@ -62,7 +62,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     }
 
-    state write_values(main: &mut Main, write: &mut [Exact]) {
+    machine write_values(main: &mut Main, write: &mut [Exact]) {
     write[1].unsigned_value = 99;
     write[0].active = true;
     transition write[0].unsigned_value == 7
@@ -76,7 +76,7 @@ machine Main::main(main: &mut Main) reaches Console {
 
     // `write` holds `main.source` exclusively until `write_values` ends, so
     // the receiver observes the stores only after that edge.
-    state verify(main: &mut Main) {
+    machine verify(main: &mut Main) {
     transition main.source[0].signed_value == 7
         && main.source[0].enabled
         && main.source[1].signed_value == 99
@@ -86,8 +86,8 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     }
 
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(71); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -6,7 +6,7 @@ machine select(value: f64) -> f64 {
         true -> bounded(value)
         _ -> 0.0
     }
-    state bounded(value: f64) -> f64
+    machine bounded(value: f64) -> f64
         requires value >= 0.0 && value <= 1.0
     {
         value

@@ -173,7 +173,7 @@ fn rejects_duplicate_package_and_workspace_rows() {
 fn rejects_role_calls_outside_the_direct_root_entry_shape() {
     for source in [
         r#"machine helper(builder: &mut Build) { Build::package(builder, "hidden"); } machine build(builder: &mut Build) {}"#,
-        r#"machine build(builder: &mut Build) { state later(builder: &mut Build) { Build::package(builder, "nested"); } }"#,
+        r#"machine build(builder: &mut Build) { machine later(builder: &mut Build) { Build::package(builder, "nested"); } }"#,
         r#"machine build(builder: &mut Build) { consume(Build::package(builder, "expression")); }"#,
     ] {
         assert_eq!(
@@ -327,7 +327,7 @@ fn artifact_only_rejects_wrong_receiver_arguments_and_indirect_shapes() {
             BuildDeclarationError::UnsupportedArtifactOnlyShape,
         ),
         (
-            r#"machine build(builder: &mut Build) { Build::application(builder, "app"); state later(builder: &mut Build) { Build::artifact_only(builder); } }"#,
+            r#"machine build(builder: &mut Build) { Build::application(builder, "app"); machine later(builder: &mut Build) { Build::artifact_only(builder); } }"#,
             BuildDeclarationError::UnsupportedArtifactOnlyShape,
         ),
     ] {

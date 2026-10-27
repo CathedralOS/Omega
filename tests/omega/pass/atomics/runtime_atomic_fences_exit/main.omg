@@ -18,7 +18,7 @@ machine main() crashes Trap {
         true -> finish(&cell)
         false -> bad()
     }
-    state finish(cell: &Cell) {
+    machine finish(cell: &Cell) {
         Atomic::fence(FenceOrdering::ReceivePublish);
         let prior: u32 in Wrapping = cell.value.fetch_add(1, NoOrdering);
         let updated_atomic_observed: u32 = cell.value.load(NoOrdering);
@@ -28,6 +28,6 @@ machine main() crashes Trap {
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

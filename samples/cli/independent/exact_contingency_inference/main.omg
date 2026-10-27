@@ -13,29 +13,29 @@ machine Main::main(main: &mut Main) reaches Console {
         LineReadResult::EndOfInput { count } -> end(main, count)
         _ -> malformed(main)
     }
-    state command(main: &mut Main, count: u64) {
+    machine command(main: &mut Main, count: u64) {
         transition count == 2 && main.input[0] == 33 && main.input[1] == 10 {
             true -> control(main)
             false -> line(main, count)
         }
     }
-    state control(main: &mut Main) { frozen_numerical_control(); }
-    state line(main: &mut Main, count: u64) {
+    machine control(main: &mut Main) { frozen_numerical_control(); }
+    machine line(main: &mut Main, count: u64) {
         transition count == 18 && main.input[17] == 10 {
             true -> parse(main, 0)
             false -> malformed(main)
         }
     }
-    state end(main: &mut Main, count: u64) {
+    machine end(main: &mut Main, count: u64) {
         transition count == 17 { true -> parse(main, 0) false -> malformed(main) }
     }
-    state parse(main: &mut Main, position: u64) {
+    machine parse(main: &mut Main, position: u64) {
         transition position < 17 {
             true -> character(main, position)
             false -> calculate(main)
         }
     }
-    state character(main: &mut Main, position: u64)
+    machine character(main: &mut Main, position: u64)
     requires position < 17 {
         let byte: u8 = main.input[position];
         transition byte >= 48 && byte <= 57 {
@@ -43,12 +43,12 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> malformed(main)
         }
     }
-    state store(main: &mut Main, position: u64, byte: u8)
+    machine store(main: &mut Main, position: u64, byte: u8)
     requires position < 17 {
         main.digits[position] = (byte as u64 in Wrapping) - 48;
         transition { _ -> parse(main, position + 1) }
     }
-    state calculate(main: &mut Main) {
+    machine calculate(main: &mut Main) {
         let model: Model = Model {
             rows: [main.digits[0], main.digits[1]],
             columns: [main.digits[2], main.digits[3], main.digits[4]],
@@ -64,15 +64,15 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> invariant(main)
         }
     }
-    state success(main: &mut Main, result: Inference) {
+    machine success(main: &mut Main, result: Inference) {
         report(&result);
         Console::exit_process(0);
     }
-    state malformed(main: &mut Main) { Console::write_line("ERROR malformed_record"); Console::exit_process(64); }
-    state margins(main: &mut Main) { Console::write_line("ERROR invalid_margins_or_mask"); Console::exit_process(65); }
-    state impossible(main: &mut Main) { Console::write_line("ERROR impossible_support"); Console::exit_process(66); }
-    state observation(main: &mut Main) { Console::write_line("ERROR invalid_observation"); Console::exit_process(67); }
-    state invariant(main: &mut Main) { Console::write_line("ERROR arithmetic_invariant"); Console::exit_process(70); }
+    machine malformed(main: &mut Main) { Console::write_line("ERROR malformed_record"); Console::exit_process(64); }
+    machine margins(main: &mut Main) { Console::write_line("ERROR invalid_margins_or_mask"); Console::exit_process(65); }
+    machine impossible(main: &mut Main) { Console::write_line("ERROR impossible_support"); Console::exit_process(66); }
+    machine observation(main: &mut Main) { Console::write_line("ERROR invalid_observation"); Console::exit_process(67); }
+    machine invariant(main: &mut Main) { Console::write_line("ERROR arithmetic_invariant"); Console::exit_process(70); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

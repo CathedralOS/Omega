@@ -10,14 +10,14 @@ machine Main::main(main: &mut Main) {
         _ -> miss(main)
     }
 
-    state spin(main: &mut Main, count: u64) {
+    machine spin(main: &mut Main, count: u64) {
         transition count == 0 {
             true -> done(main)
             _ -> again(main, count)
         }
     }
 
-    state again(main: &mut Main, count: u64)
+    machine again(main: &mut Main, count: u64)
     requires count >= 1
     {
         transition 1 {
@@ -26,6 +26,6 @@ machine Main::main(main: &mut Main) {
         }
     }
 
-    state done(main: &mut Main) { main.answer = 70; }
-    state miss(main: &mut Main) { main.answer = 71; }
+    machine done(main: &mut Main) { main.answer = 70; }
+    machine miss(main: &mut Main) { main.answer = 71; }
 }

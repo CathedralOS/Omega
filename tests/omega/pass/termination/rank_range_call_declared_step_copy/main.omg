@@ -18,7 +18,7 @@ terminates by remaining in 0..=9;
         true -> pair(main, remaining, remaining - stride, stride)
         false -> remaining
     }
-    state pair(main: &mut Main, left: u32, right: u32, step: u32)
+    machine pair(main: &mut Main, left: u32, right: u32, step: u32) -> u32
         requires 0 <= left && left <= 9 && 0 <= right && right <= 9 && 1 <= step && step <= 5
     {
         transition left > 0 {

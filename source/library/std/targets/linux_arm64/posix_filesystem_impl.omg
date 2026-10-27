@@ -112,7 +112,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
         _ -> (-36)
     }
 
-    state settle(outcome: i32) -> i32 {
+    machine settle(outcome: i32) -> i32 {
         outcome
     }
 }
@@ -129,7 +129,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
         _ -> (-36)
     }
 
-    state settle(outcome: i32) -> i32 {
+    machine settle(outcome: i32) -> i32 {
         outcome
     }
 }
@@ -146,7 +146,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
         _ -> (-36)
     }
 
-    state settle(outcome: i32) -> i32 {
+    machine settle(outcome: i32) -> i32 {
         outcome
     }
 }
@@ -201,7 +201,7 @@ reaches FilesystemNamespaceMutation
         _ -> (-36)
     }
 
-    state settle(outcome: i32) -> i32 {
+    machine settle(outcome: i32) -> i32 {
         outcome
     }
 }
@@ -226,7 +226,7 @@ reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
         _ -> (-36)
     }
 
-    state settle(outcome: i32) -> i32 {
+    machine settle(outcome: i32) -> i32 {
         outcome
     }
 }
@@ -243,7 +243,7 @@ reaches FilesystemNamespaceMutation
         _ -> (-36)
     }
 
-    state settle(outcome: i32) -> i32 {
+    machine settle(outcome: i32) -> i32 {
         outcome
     }
 }
@@ -260,7 +260,7 @@ reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
         _ -> (-36)
     }
 
-    state settle(outcome: i32) -> i32 {
+    machine settle(outcome: i32) -> i32 {
         outcome
     }
 }
@@ -277,7 +277,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
         _ -> (-36)
     }
 
-    state settle(outcome: i32) -> i32 {
+    machine settle(outcome: i32) -> i32 {
         outcome
     }
 }
@@ -294,7 +294,7 @@ reaches FilesystemNamespaceMutation
         _ -> (-36)
     }
 
-    state settle(outcome: i32) -> i32 {
+    machine settle(outcome: i32) -> i32 {
         outcome
     }
 }
@@ -311,7 +311,7 @@ reaches FilesystemMetadataMutation
         _ -> (-36)
     }
 
-    state settle(outcome: i32) -> i32 {
+    machine settle(outcome: i32) -> i32 {
         outcome
     }
 }
@@ -338,7 +338,7 @@ reaches FilesystemNamespaceMutation
         _ -> (-36)
     }
 
-    state settle(outcome: i32) -> i32 {
+    machine settle(outcome: i32) -> i32 {
         outcome
     }
 }
@@ -357,7 +357,7 @@ reaches FilesystemNamespaceMutation
         _ -> (-36)
     }
 
-    state settle(outcome: i32) -> i32 {
+    machine settle(outcome: i32) -> i32 {
         outcome
     }
 }
@@ -376,7 +376,7 @@ reaches FilesystemNamespaceMutation
         _ -> (-36)
     }
 
-    state settle(outcome: i32) -> i32 {
+    machine settle(outcome: i32) -> i32 {
         outcome
     }
 }
@@ -388,7 +388,7 @@ reaches FilesystemMetadataQuery
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
     transition fits { true -> transfer(terminated, buffer, count) _ -> -36 }
-    state transfer(terminated: [u8; 4096], buffer: &mut [u8], count: u64) -> i64 {
+    machine transfer(terminated: [u8; 4096], buffer: &mut [u8], count: u64) -> i64 {
         // readlinkat's bufsiz is a signed int, not an arbitrary staging limit.
         let capacity: u64 = min_u64(min_u64(count, buffer.len), 2147483647);
         PosixFilesystemLinuxSyscalls::readlinkat(-100, &terminated, &mut buffer[0..capacity])
@@ -416,7 +416,7 @@ reaches FilesystemNamespaceMutation
         _ -> (-36)
     }
 
-    state settle(outcome: i32) -> i32 {
+    machine settle(outcome: i32) -> i32 {
         outcome
     }
 }
@@ -433,7 +433,7 @@ reaches FilesystemNamespaceMutation
         _ -> (-36)
     }
 
-    state settle(outcome: i32) -> i32 {
+    machine settle(outcome: i32) -> i32 {
         outcome
     }
 }
@@ -450,7 +450,7 @@ linux_arm64 machine PosixFilesystemNativeProvider::read_file_metadata(fd: i32, b
 reaches FilesystemMetadataQuery
 {
     transition buffer.len >= 128 { true -> query(fd, buffer) _ -> -22 }
-    state query(fd: i32, buffer: &mut [u8]) -> i32 requires buffer.len >= 128; {
+    machine query(fd: i32, buffer: &mut [u8]) -> i32 requires buffer.len >= 128; {
         PosixFilesystemLinux::fstat(fd, &mut buffer[0])
     }
 }
@@ -467,14 +467,14 @@ linux_arm64 machine PosixFilesystemNativeProvider::read_metadata_at(directory_de
 reaches FilesystemMetadataQuery
 {
     transition buffer.len >= 128 { true -> prepare(directory_descriptor, name, buffer, flags) _ -> -22 }
-    state prepare(directory_descriptor: i32, name: &[u8], buffer: &mut [u8], flags: i32) -> i32
+    machine prepare(directory_descriptor: i32, name: &[u8], buffer: &mut [u8], flags: i32) -> i32
     requires buffer.len >= 128;
     {
         let mut terminated: [u8; 4096];
         let fits: bool = posix_terminated_path(name, &mut terminated);
         transition fits { true -> query(directory_descriptor, terminated, buffer, flags) _ -> -36 }
     }
-    state query(directory_descriptor: i32, terminated: [u8; 4096], buffer: &mut [u8], flags: i32) -> i32
+    machine query(directory_descriptor: i32, terminated: [u8; 4096], buffer: &mut [u8], flags: i32) -> i32
     requires buffer.len >= 128;
     {
         PosixFilesystemLinux::newfstatat(directory_descriptor, &terminated[0], &mut buffer[0], flags)
@@ -494,7 +494,7 @@ linux_arm64 machine PosixFilesystemNativeProvider::set_file_times(fd: i32, times
 reaches FilesystemMetadataMutation
 {
     transition times.len >= 32 { true -> update(fd, times) _ -> -22 }
-    state update(fd: i32, times: &[u8]) -> i32 requires times.len >= 32; {
+    machine update(fd: i32, times: &[u8]) -> i32 requires times.len >= 32; {
         // The raw syscall copies bytes from user storage, without a libc object.
         PosixFilesystemLinux::utimensat(fd, 0, &times[0], 0)
     }
@@ -544,7 +544,7 @@ reaches FilesystemMetadataMutation
         _ -> (-36)
     }
 
-    state settle(outcome: i32) -> i32 {
+    machine settle(outcome: i32) -> i32 {
         outcome
     }
 }
@@ -561,7 +561,7 @@ reaches FilesystemMetadataMutation
         _ -> (-36)
     }
 
-    state settle(outcome: i32) -> i32 {
+    machine settle(outcome: i32) -> i32 {
         outcome
     }
 }

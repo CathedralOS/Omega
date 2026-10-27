@@ -32,7 +32,7 @@ satisfies TokenMint::wrap
 {
     let held: Token = token;
     transition { _ -> finish(held, marker) }
-    state finish(held: Token, marker: u64) -> Packet {
+    machine finish(held: Token, marker: u64) -> Packet {
         Packet { token: held, marker: marker }
     }
 }
@@ -44,7 +44,7 @@ machine Main::main(main: &mut Main) reaches Console, TokenMint {
     let direct: Token = TokenMint::issue(11);
     let packet: Packet = TokenMint::wrap(direct, 19);
     transition { _ -> check(main, packet) }
-    state check(main: &mut Main, packet: Packet) {
+    machine check(main: &mut Main, packet: Packet) {
         let later: Token = TokenMint::issue(17);
         let correct: bool = packet.token.value == 11
             && packet.marker == 19
@@ -56,8 +56,8 @@ machine Main::main(main: &mut Main) reaches Console, TokenMint {
             _ -> bad(main)
         }
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(72); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(72); }
 }
 
 TokenMintProviderTokenMintImplementation satisfies TokenMint {

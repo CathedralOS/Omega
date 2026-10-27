@@ -12,6 +12,6 @@ machine main() crashes Trap {
     let seed: Seed = NAMED;
     let answer: u64 = read(&make_token(&seed));
     transition answer == 7 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

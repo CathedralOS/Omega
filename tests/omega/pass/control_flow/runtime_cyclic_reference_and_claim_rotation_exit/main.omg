@@ -53,14 +53,14 @@ terminates by remaining -> Nat::Descending;
         true -> step(first, second, remaining)
         false -> done()
     }
-    state step(current: &mut Cell, other: &mut Cell, left: u32) {
+    machine step(current: &mut Cell, other: &mut Cell, left: u32) {
         current.value = left;
         transition left > 0 {
             true -> rotate_references(other, current, left - 1)
             false -> done()
         }
     }
-    state done() {}
+    machine done() {}
 }
 
 machine rotate_claims(first: Token, second: Token, remaining: u32) -> u32
@@ -71,7 +71,7 @@ terminates by remaining -> Nat::Descending;
         true -> rotate_claims(second, returned, remaining - 1)
         false -> done(returned, second)
     }
-    state done(current: Token, other: Token) -> u32 {
+    machine done(current: Token, other: Token) -> u32 {
         let value: u32 = consume(current);
         let ignored: u32 = consume(other);
         value
@@ -90,7 +90,7 @@ terminates by remaining -> Nat::Descending;
         true -> rotate_envelopes(second, returned, remaining - 1)
         false -> done(returned, second)
     }
-    state done(current: Envelope, other: Envelope) -> u32 {
+    machine done(current: Envelope, other: Envelope) -> u32 {
         let borrowed: u32 = current.borrowed.value;
         let spare: u32 = current.spare.value;
         let value: u32 = consume(current.token);
@@ -135,8 +135,8 @@ machine Main::main(context: &mut Main) reaches Selection crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

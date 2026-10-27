@@ -50,7 +50,7 @@ machine RoomEvents::apply_event(
     }
 
 
-    state reward_event(
+    machine reward_event(
         room_events: &mut RoomEvents,
         depth: u32 in Wrapping,
         random: &mut RandomState,
@@ -63,19 +63,19 @@ machine RoomEvents::apply_event(
         }
     }
 
-    state no_event(event: &mut RoomEvent) {
+    machine no_event(event: &mut RoomEvent) {
         event.kind = RoomEventKind::Nothing;
         event.consumed = true;
         event.reward.kind = RewardKind::None;
     }
 
-    state fountain(event: &mut RoomEvent) {
+    machine fountain(event: &mut RoomEvent) {
         event.kind = RoomEventKind::FountainOfLife;
         event.consumed = false;
         event.reward.kind = RewardKind::None;
     }
 
-    state treasure(
+    machine treasure(
         room_events: &mut RoomEvents,
         depth: u32 in Wrapping,
         random: &mut RandomState,
@@ -86,7 +86,7 @@ machine RoomEvents::apply_event(
         RewardTables::roll_room_treasure(&mut room_events.rewards, depth, random, &mut event.reward);
     }
 
-    state gold_cache(
+    machine gold_cache(
         room_events: &mut RoomEvents,
         depth: u32 in Wrapping,
         random: &mut RandomState,
@@ -97,7 +97,7 @@ machine RoomEvents::apply_event(
         RewardTables::roll_gold_cache(&mut room_events.rewards, depth, random, &mut event.reward);
     }
 
-    state enemy(
+    machine enemy(
         room_events: &mut RoomEvents,
         depth: u32 in Wrapping,
         random: &mut RandomState,

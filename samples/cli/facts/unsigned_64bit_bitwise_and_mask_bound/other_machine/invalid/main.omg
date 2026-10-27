@@ -27,11 +27,11 @@ machine exercise(raw: u64) -> u64 crashes Trap {
         true -> step(masked)
         _ -> bad()
     }
-    state step(m: u64) -> u64 {
+    machine step(m: u64) -> u64 {
         let relayed: u64 = Relay::forward(m);
         verify_masked(relayed)
     }
-    state bad() { crash Trap; }
+    machine bad() -> u64 { crash Trap; }
 }
 
 machine main() crashes Trap {
@@ -40,6 +40,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

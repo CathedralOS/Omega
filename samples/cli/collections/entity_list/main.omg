@@ -36,10 +36,10 @@ machine Main::main(main: &mut Main) reaches Console {
     main.i = 0;
     transition { _ -> damage_loop(main) }
 
-    state damage_loop(main: &mut Main) {
+    machine damage_loop(main: &mut Main) {
         transition main.i < 4 { true -> damage_one(main) _ -> sum_start(main) }
     }
-    state damage_one(main: &mut Main) {
+    machine damage_one(main: &mut Main) {
         main.scratch = main.monsters[main.i].hp; // direct indexed read into a scalar
         main.scratch = main.scratch - 10;        // arithmetic on the scalar field
         main.monsters[main.i].hp = main.scratch; // direct indexed write-back
@@ -47,22 +47,22 @@ machine Main::main(main: &mut Main) reaches Console {
         transition { _ -> damage_loop(main) }
     }
 
-    state sum_start(main: &mut Main) {
+    machine sum_start(main: &mut Main) {
         main.i = 0;
         main.total = 0;
         transition { _ -> sum_loop(main) }
     }
-    state sum_loop(main: &mut Main) {
+    machine sum_loop(main: &mut Main) {
         transition main.i < 4 { true -> sum_one(main) _ -> done(main) }
     }
-    state sum_one(main: &mut Main) {
+    machine sum_one(main: &mut Main) {
         main.scratch = main.monsters[main.i].hp;
         main.total = main.total + main.scratch;
         main.i = main.i + 1;
         transition { _ -> sum_loop(main) }
     }
 
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::write_line("result: total remaining HP is the exit code (35)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

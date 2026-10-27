@@ -14,11 +14,11 @@ machine selected_width(selection: dyn Family) -> u32 { Family::row<64>(selection
 
 machine forward(selected: dyn Family) -> u32 {
     transition { _ -> nested(selected) }
-    state nested(selected: dyn Family) -> u32 { selected_width(selected) }
+    machine nested(selected: dyn Family) -> u32 { selected_width(selected) }
 }
 machine main() crashes Trap {
     let observed: u32 = forward(Selected as dyn Family);
     transition observed == 16 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

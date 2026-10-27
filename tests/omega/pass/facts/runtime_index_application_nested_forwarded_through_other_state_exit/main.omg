@@ -21,7 +21,7 @@ requires value < Observed
 
 machine probe(input:u32)->Observation requires input>=9 && input<=10 {
  transition { _ -> construct(input) }
- state construct(limit:u32)->Observation requires limit>=9 && limit<=10 {
+ machine construct(limit:u32)->Observation requires limit>=9 && limit<=10 {
  let mut indexed:Index<limit> = forward<limit>(8);
  preserve(limit,&mut indexed);
  Observation{payload:observe<limit>(indexed.value),limit:indexed.Limit}
@@ -31,6 +31,6 @@ machine main() crashes Trap {
  let first:Observation=probe(9);
  let second:Observation=probe(10);
  transition first.payload==8 && first.limit==9 && second.payload==8 && second.limit==10 { true->done() _->bad() }
- state done(){}
- state bad(){crash Trap;}
+ machine done(){}
+ machine bad(){crash Trap;}
 }

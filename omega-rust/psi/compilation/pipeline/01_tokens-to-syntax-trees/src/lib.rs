@@ -21,7 +21,7 @@
 //!
 //! - `declarations` dispatches one top-level item to the form that owns it.
 //! - `bodies` reads a machine or trait-default body.
-//! - `contracts` reads the contract clauses on machines, signatures and states.
+//! - `contracts` reads the contract clauses on machines and signatures.
 //! - `parameters` reads parameter lists and return parameters.
 //! - `expressions` reads the precedence grammar.
 //! - `type_syntax` reads one type reference.

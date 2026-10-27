@@ -7,7 +7,7 @@ terminates by remaining in 0..=4;
         true -> forward(remaining)
         false -> 0
     }
-    state forward(count: u64) -> u64
+    machine forward(count: u64) -> u64
     requires count > 0 && count <= 4;
     {
         transition { _ -> walk(count - 1) }
@@ -23,7 +23,7 @@ terminates by remaining in 0..=4;
         true -> forward(remaining)
         false -> 0
     }
-    state forward(count: u64) -> u64
+    machine forward(count: u64) -> u64
     requires count > 0 && count <= 4;
     {
         let next: u64 = count - 1;
@@ -40,7 +40,7 @@ terminates by remaining in 0..=4;
         true -> forward(remaining - 1)
         false -> 0
     }
-    state forward(count: u64) -> u64
+    machine forward(count: u64) -> u64
     requires count < 4;
     {
         transition { _ -> walk_arrival(count) }
@@ -57,8 +57,8 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine walk_signed(remaining: i32) -> i32
@@ -70,7 +70,7 @@ terminates by remaining -> Nat::Descending in 0..=4;
         true -> forward(remaining)
         false -> remaining
     }
-    state forward(count: i32) -> i32
+    machine forward(count: i32) -> i32
     requires count > 0 && count <= 4;
     {
         transition { _ -> walk_signed(count - 1) }

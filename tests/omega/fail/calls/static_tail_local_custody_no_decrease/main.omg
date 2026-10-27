@@ -8,7 +8,7 @@ terminates by remaining;
         true -> finish(counter)
         _ -> Counter::odd(remaining, counter)
     }
-    state finish(counter: &mut Counter) -> u64 {
+    machine finish(counter: &mut Counter) -> u64 {
         counter.value = 70;
         counter.value
     }
@@ -21,7 +21,7 @@ terminates by remaining;
         true -> finish(counter)
         _ -> Counter::even(counter, remaining)
     }
-    state finish(counter: &mut Counter) -> u64 {
+    machine finish(counter: &mut Counter) -> u64 {
         counter.value = 71;
         counter.value
     }

@@ -15,19 +15,19 @@ public machine absolute(value: i32 in Saturating) -> i32 in Saturating {
 }
 public machine selected(mask: i32 in Saturating, group: i32 in Saturating) -> bool {
     transition { _ -> power(mask, group, 1, 1) }
-    state power(mask: i32 in Saturating, group: i32 in Saturating, index: i32 in Saturating, weight: i32 in Saturating) -> bool {
+    machine power(mask: i32 in Saturating, group: i32 in Saturating, index: i32 in Saturating, weight: i32 in Saturating) -> bool {
         transition index < group && index < 8 {
             true -> power(mask, group, index + 1, weight * 2)
             _ -> divide_guard(mask, weight)
         }
     }
-    state divide_guard(mask: i32 in Saturating, weight: i32 in Saturating) -> bool {
+    machine divide_guard(mask: i32 in Saturating, weight: i32 in Saturating) -> bool {
         transition weight > 0 {
             true -> divide(mask, weight)
             _ -> (false)
         }
     }
-    state divide(mask: i32 in Saturating, weight: i32 in Saturating) -> bool
+    machine divide(mask: i32 in Saturating, weight: i32 in Saturating) -> bool
     requires weight > 0
     { (mask / weight) % 2 == 1 }
 }
@@ -35,19 +35,19 @@ public machine Allocation::solve(result: &mut Allocation, data: &Dataset) {
     result.score = 10000;
     result.total_error = 10000;
     transition { _ -> candidate(result, data, 1) }
-    state candidate(result: &mut Allocation, data: &Dataset, mask: i32 in Saturating) {
+    machine candidate(result: &mut Allocation, data: &Dataset, mask: i32 in Saturating) {
         transition mask < 256 {
             true -> rows(result, data, mask, 0, 0, 0, 0)
             _ -> done(result)
         }
     }
-    state rows(result: &mut Allocation, data: &Dataset, mask: i32 in Saturating, index: i32 in Saturating, first: i32 in Saturating, second: i32 in Saturating, third: i32 in Saturating) {
+    machine rows(result: &mut Allocation, data: &Dataset, mask: i32 in Saturating, index: i32 in Saturating, first: i32 in Saturating, second: i32 in Saturating, third: i32 in Saturating) {
         transition index < data.count && index >= 0 && index < 16 {
             true -> read(result, data, mask, index, first, second, third)
             _ -> evaluate(result, data, mask, first, second, third)
         }
     }
-    state read(result: &mut Allocation, data: &Dataset, mask: i32 in Saturating, index: i32 in Saturating, first: i32 in Saturating, second: i32 in Saturating, third: i32 in Saturating)
+    machine read(result: &mut Allocation, data: &Dataset, mask: i32 in Saturating, index: i32 in Saturating, first: i32 in Saturating, second: i32 in Saturating, third: i32 in Saturating)
     requires index >= 0 && index < 16
     {
         let included: bool = selected(mask, data.records[index].group);
@@ -56,7 +56,7 @@ public machine Allocation::solve(result: &mut Allocation, data: &Dataset) {
             _ -> rows(result, data, mask, index + 1, first, second, third)
         }
     }
-    state stratum(result: &mut Allocation, data: &Dataset, mask: i32 in Saturating, index: i32 in Saturating, first: i32 in Saturating, second: i32 in Saturating, third: i32 in Saturating)
+    machine stratum(result: &mut Allocation, data: &Dataset, mask: i32 in Saturating, index: i32 in Saturating, first: i32 in Saturating, second: i32 in Saturating, third: i32 in Saturating)
     requires index >= 0 && index < 16
     {
         transition data.records[index].stratum {
@@ -65,14 +65,14 @@ public machine Allocation::solve(result: &mut Allocation, data: &Dataset) {
             _ -> rows(result, data, mask, index + 1, first, second, third + 1)
         }
     }
-    state evaluate(result: &mut Allocation, data: &Dataset, mask: i32 in Saturating, first: i32 in Saturating, second: i32 in Saturating, third: i32 in Saturating) {
+    machine evaluate(result: &mut Allocation, data: &Dataset, mask: i32 in Saturating, first: i32 in Saturating, second: i32 in Saturating, third: i32 in Saturating) {
         let count: i32 in Saturating = first + second + third;
         transition count > 0 && count < data.count {
             true -> score(result, data, mask, first, second, third, count)
             _ -> candidate(result, data, mask + 1)
         }
     }
-    state score(result: &mut Allocation, data: &Dataset, mask: i32 in Saturating, first: i32 in Saturating, second: i32 in Saturating, third: i32 in Saturating, count: i32 in Saturating) {
+    machine score(result: &mut Allocation, data: &Dataset, mask: i32 in Saturating, first: i32 in Saturating, second: i32 in Saturating, third: i32 in Saturating, count: i32 in Saturating) {
         let error: i32 in Saturating = absolute(data.denominator * first - data.numerator * data.totals[0]) + absolute(data.denominator * second - data.numerator * data.totals[1]) + absolute(data.denominator * third - data.numerator * data.totals[2]);
         let total: i32 in Saturating = absolute(data.denominator * count - data.numerator * data.count);
         transition error < result.score || (error == result.score && total < result.total_error) {
@@ -80,7 +80,7 @@ public machine Allocation::solve(result: &mut Allocation, data: &Dataset) {
             _ -> candidate(result, data, mask + 1)
         }
     }
-    state retain(result: &mut Allocation, data: &Dataset, mask: i32 in Saturating, first: i32 in Saturating, second: i32 in Saturating, third: i32 in Saturating, count: i32 in Saturating, error: i32 in Saturating, total: i32 in Saturating) {
+    machine retain(result: &mut Allocation, data: &Dataset, mask: i32 in Saturating, first: i32 in Saturating, second: i32 in Saturating, third: i32 in Saturating, count: i32 in Saturating, error: i32 in Saturating, total: i32 in Saturating) {
         result.mask = mask;
         result.counts[0] = first;
         result.counts[1] = second;
@@ -91,5 +91,5 @@ public machine Allocation::solve(result: &mut Allocation, data: &Dataset) {
         result.found = true;
         transition { _ -> candidate(result, data, mask + 1) }
     }
-    state done(result: &mut Allocation) { }
+    machine done(result: &mut Allocation) { }
 }

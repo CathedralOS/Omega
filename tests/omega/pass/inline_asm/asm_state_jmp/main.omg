@@ -6,6 +6,6 @@ machine Main::main(main: &mut Main) {
     asm {
         jmp other()
     }
-    state other() {
+    machine other() {
     }
 }

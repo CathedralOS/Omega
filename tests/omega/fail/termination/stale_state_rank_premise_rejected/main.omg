@@ -11,7 +11,7 @@ requires remaining <= 9
         true -> hold(1, remaining)
         false -> remaining
     }
-    state hold(mut step: u32, pending: u32)
+    machine hold(mut step: u32, pending: u32) -> u32
     requires step == 1 && pending > 0 && pending <= 9
     {
         step = 0;

@@ -15,8 +15,8 @@ machine observe(counter: &mut Counter, kind: Kind) {
         Kind::First -> first(counter)
         Kind::Second -> second(counter)
     }
-    state first(counter: &mut Counter) { counter.observed = 1; }
-    state second(counter: &mut Counter) { counter.observed = 2; }
+    machine first(counter: &mut Counter) { counter.observed = 1; }
+    machine second(counter: &mut Counter) { counter.observed = 2; }
 }
 
 machine value(kind: Kind) -> u64 in Wrapping {
@@ -25,13 +25,13 @@ machine value(kind: Kind) -> u64 in Wrapping {
 
 machine Counter::count(counter: &mut Counter) {
     transition { _ -> scan(counter, 0) }
-    state scan(counter: &mut Counter, position: u64) {
+    machine scan(counter: &mut Counter, position: u64) {
         transition position < 4 {
             true -> step(counter, position)
             false -> done()
         }
     }
-    state step(counter: &mut Counter, position: u64) {
+    machine step(counter: &mut Counter, position: u64) {
         observe(counter, Kind::First);
         counter.total = counter.total + value(Kind::First);
         let kind: Kind = choose(position);
@@ -39,7 +39,7 @@ machine Counter::count(counter: &mut Counter) {
         counter.total = counter.total + value(kind);
         transition { _ -> scan(counter, position + 1) }
     }
-    state done() {}
+    machine done() {}
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -48,7 +48,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 70)
         false -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

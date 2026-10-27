@@ -19,5 +19,5 @@ machine main() crashes Trap {
     let left_result: u64 = joined(true);
     let right_result: u64 = joined(false);
     transition left_result == 2 && right_result == 2 { true -> done() _ -> bad() }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }

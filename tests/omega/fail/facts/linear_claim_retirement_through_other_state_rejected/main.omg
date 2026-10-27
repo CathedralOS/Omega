@@ -14,7 +14,7 @@ machine retire(token: Token) -> u64 {
 machine probe() -> u64 {
     let token: Token = Token { value: 42 };
     transition { _ -> next(token) }
-    state next(received: Token) -> u64 {
+    machine next(received: Token) -> u64 {
         let first: u64 = retire(received);
         retire(received)
     }
@@ -25,6 +25,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

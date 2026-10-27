@@ -248,14 +248,14 @@ pub use crate::declarations::selection_authority::{
     DeclarationSelectionAuthority, validate_authored_declaration_selections,
 };
 pub use crate::machine_calls::call_cycles::{
-    RankRelevance, RuntimeRankBodyWitness, RuntimeRankComponents, ValidatedProofRankingRelation,
-    ValidatedProofRecursiveCallSite, ValidatedProofRecursiveComponent, ValidatedProofRecursiveEdge,
-    ValidatedProofRecursiveMember, ValidatedProofRecursiveTransitionLane,
-    ValidatedRuntimeNaturalComponent, ValidatedRuntimeNaturalEdge, ValidatedRuntimeNaturalState,
-    activation_target_state_index, internal_state_index, machine_call_dependency_symbols,
-    prepare_runtime_rank_components, rank_relevance, retain_runtime_rank_component,
-    retained_internal_rank_nonincrease, retained_runtime_natural_components,
-    retained_runtime_recursive_components,
+    RankRelevance, RuntimeRankBodyWitness, RuntimeRankComponents, ValidatedProofCallComponent,
+    ValidatedProofRankInterval, ValidatedProofRankingRelation, ValidatedProofRecursiveCallSite,
+    ValidatedProofRecursiveComponent, ValidatedProofRecursiveEdge, ValidatedProofRecursiveMember,
+    ValidatedProofRecursiveTransitionLane, ValidatedRuntimeNaturalComponent,
+    ValidatedRuntimeNaturalEdge, ValidatedRuntimeNaturalState, activation_target_state_index,
+    internal_state_index, machine_call_dependency_symbols, prepare_runtime_rank_components,
+    rank_relevance, retain_runtime_rank_component, retained_internal_rank_nonincrease,
+    retained_runtime_natural_components, retained_runtime_recursive_components,
 };
 pub use crate::machine_calls::calls::{
     AssignmentStorageOrigins, AssignmentWriteTarget, CallFrameResolver, CallWriteOrigins,

@@ -13,10 +13,10 @@ machine Main::main(context: &mut Main) reaches Console {
         true -> clamped(context)
         _ -> check_wrapping(context, result as u8)
     }
-    state check_wrapping(context: &mut Main, result: u8) {
+    machine check_wrapping(context: &mut Main, result: u8) {
         transition result == 16 { true -> wrapped(context) _ -> bad(context) }
     }
-    state clamped(context: &mut Main) {
+    machine clamped(context: &mut Main) {
         // The largest count must not turn a signed scale factor negative.
         let value: i8 in Saturating = 1;
         let count: u64 = 7;
@@ -26,41 +26,41 @@ machine Main::main(context: &mut Main) reaches Console {
             _ -> bad(context)
         }
     }
-    state positive_expression(context: &mut Main, value: i8 in Saturating, count: u64)
+    machine positive_expression(context: &mut Main, value: i8 in Saturating, count: u64)
     requires count <= 7;
     {
         // Clamp at the operation, without a destination's landing policy.
         transition (value << count) == 127 { true -> negative(context, count) _ -> bad(context) }
     }
-    state negative(context: &mut Main, count: u64)
+    machine negative(context: &mut Main, count: u64)
     requires count <= 7;
     {
         let value: i8 in Saturating = -1;
         let result: i8 in Saturating = value << count;
         transition result == -128 { true -> right_shift(context, count) _ -> bad(context) }
     }
-    state right_shift(context: &mut Main, count: u64)
+    machine right_shift(context: &mut Main, count: u64)
     requires count <= 7;
     {
         let value: i8 in Saturating = -128;
         let result: i8 in Saturating = value >> count;
         transition result == -1 { true -> zero_count(context) _ -> bad(context) }
     }
-    state zero_count(context: &mut Main) {
+    machine zero_count(context: &mut Main) {
         let value: i8 in Saturating = -128;
         let count: u64 = 0;
         let result: i8 in Saturating = value << count;
         transition result == -128 { true -> zero_value(context) _ -> bad(context) }
     }
-    state zero_value(context: &mut Main) {
+    machine zero_value(context: &mut Main) {
         let value: i8 in Saturating = 0;
         let count: u64 = 7;
         let result: i8 in Saturating = value << count;
         transition result == 0 { true -> done(context) _ -> bad(context) }
     }
-    state done(context: &mut Main) { Console::exit_process(70); }
-    state wrapped(context: &mut Main) { Console::exit_process(72); }
-    state bad(context: &mut Main) { Console::exit_process(71); }
+    machine done(context: &mut Main) { Console::exit_process(70); }
+    machine wrapped(context: &mut Main) { Console::exit_process(72); }
+    machine bad(context: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

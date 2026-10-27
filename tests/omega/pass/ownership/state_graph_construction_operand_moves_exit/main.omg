@@ -17,7 +17,7 @@ machine main() crashes Trap {
     let carried: Token = Token { code: first };
     transition { _ -> holding(carried) }
 
-    state holding(held: Token) {
+    machine holding(held: Token) {
         let total: i32 = settle(Pair { left: held, right: Token { code: 4 } });
         transition total == 7 {
             true -> done()
@@ -25,6 +25,6 @@ machine main() crashes Trap {
         }
     }
 
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

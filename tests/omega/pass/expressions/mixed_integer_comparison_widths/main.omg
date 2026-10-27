@@ -4,8 +4,8 @@ machine Main::main(main: &mut Main) reaches Console {
     main.small = 44;
     main.big = 300;
     transition main.small == main.big { true -> hit(main) _ -> miss(main) }
-    state hit(main: &mut Main) { Console::exit_process(1); }
-    state miss(main: &mut Main) { Console::exit_process(2); }
+    machine hit(main: &mut Main) { Console::exit_process(1); }
+    machine miss(main: &mut Main) { Console::exit_process(2); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

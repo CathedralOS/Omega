@@ -7,7 +7,7 @@ machine TextBuffer::copy(buffer: &mut [u8; 128] in Ascii, bytes: &[u8] in Ascii,
 requires start <= 128; bytes.len <= 128 - start
 {
     transition { _ -> copying(buffer, bytes, start, 0) }
-    state copying(buffer: &mut [u8; 128] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    machine copying(buffer: &mut [u8; 128] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
     requires start <= 128; index <= 128
     {
         transition index < bytes.len && start + index < 128 {
@@ -21,7 +21,7 @@ requires start <= 128; bytes.len <= 128 - start
         buffer[start + index] = bytes[index];
         transition { _ -> copying(buffer, bytes, start, index + 1) }
     }
-    state done() {}
+    machine done() {}
 }
 
 machine TextBuffer::set(buffer: &mut TextBuffer, bytes: &[u8] in Ascii)
@@ -48,7 +48,7 @@ machine ExitCommand::copy(buffer: &mut [u8; 8] in Ascii, bytes: &[u8] in Ascii, 
 requires start <= 8; bytes.len <= 8 - start
 {
     transition { _ -> copying(buffer, bytes, start, 0) }
-    state copying(buffer: &mut [u8; 8] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    machine copying(buffer: &mut [u8; 8] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
     requires start <= 8; index <= 8
     {
         transition index < bytes.len && start + index < 8 {
@@ -62,7 +62,7 @@ requires start <= 8; bytes.len <= 8 - start
         buffer[start + index] = bytes[index];
         transition { _ -> copying(buffer, bytes, start, index + 1) }
     }
-    state done() {}
+    machine done() {}
 }
 
 machine ExitCommand::set(buffer: &mut ExitCommand, bytes: &[u8] in Ascii)
@@ -83,7 +83,7 @@ machine RoomLabel::copy(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, s
 requires start <= 16; bytes.len <= 16 - start
 {
     transition { _ -> copying(buffer, bytes, start, 0) }
-    state copying(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    machine copying(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
     requires start <= 16; index <= 16
     {
         transition index < bytes.len && start + index < 16 {
@@ -97,7 +97,7 @@ requires start <= 16; bytes.len <= 16 - start
         buffer[start + index] = bytes[index];
         transition { _ -> copying(buffer, bytes, start, index + 1) }
     }
-    state done() {}
+    machine done() {}
 }
 
 machine RoomLabel::set(buffer: &mut RoomLabel, bytes: &[u8] in Ascii)
@@ -118,7 +118,7 @@ machine EnemyName::copy(buffer: &mut [u8; 24] in Ascii, bytes: &[u8] in Ascii, s
 requires start <= 24; bytes.len <= 24 - start
 {
     transition { _ -> copying(buffer, bytes, start, 0) }
-    state copying(buffer: &mut [u8; 24] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    machine copying(buffer: &mut [u8; 24] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
     requires start <= 24; index <= 24
     {
         transition index < bytes.len && start + index < 24 {
@@ -132,7 +132,7 @@ requires start <= 24; bytes.len <= 24 - start
         buffer[start + index] = bytes[index];
         transition { _ -> copying(buffer, bytes, start, index + 1) }
     }
-    state done() {}
+    machine done() {}
 }
 
 machine EnemyName::set(buffer: &mut EnemyName, bytes: &[u8] in Ascii)
@@ -152,7 +152,7 @@ machine RoomDescription::copy(buffer: &mut [u8; 64] in Ascii, bytes: &[u8] in As
 requires start <= 64; bytes.len <= 64 - start
 {
     transition { _ -> copying(buffer, bytes, start, 0) }
-    state copying(buffer: &mut [u8; 64] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    machine copying(buffer: &mut [u8; 64] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
     requires start <= 64; index <= 64
     {
         transition index < bytes.len && start + index < 64 {
@@ -166,7 +166,7 @@ requires start <= 64; bytes.len <= 64 - start
         buffer[start + index] = bytes[index];
         transition { _ -> copying(buffer, bytes, start, index + 1) }
     }
-    state done() {}
+    machine done() {}
 }
 
 machine RoomDescription::set(buffer: &mut RoomDescription, bytes: &[u8] in Ascii)

@@ -8,14 +8,14 @@ machine producer(source: u64) -> u64 in Small crashes Trap {
         true -> checked(source)
         _ -> bad()
     }
-    state checked(source: u64 in Small) -> u64 in Small { source }
-    state bad() -> u64 in Small { crash Trap; }
+    machine checked(source: u64 in Small) -> u64 in Small { source }
+    machine bad() -> u64 in Small { crash Trap; }
 }
 
 data Main { value: u64; }
 machine Main::main(main: &mut Main) crashes Trap {
     let observed: u64 in Small = producer(2);
     transition observed == 2 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

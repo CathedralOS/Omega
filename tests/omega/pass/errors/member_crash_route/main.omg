@@ -14,10 +14,10 @@ crashes Trap
         true -> scalar_fail()
         _ -> scalar_succeed()
     }
-    state scalar_fail() -> bool {
+    machine scalar_fail() -> bool {
         crash Trap;
     }
-    state scalar_succeed() -> bool { false }
+    machine scalar_succeed() -> bool { false }
 }
 machine member_guarded(flags: CrashFlags) -> bool
 requires true == true
@@ -29,10 +29,10 @@ crashes Trap
         true -> member_fail()
         _ -> member_succeed()
     }
-    state member_fail() -> bool {
+    machine member_fail() -> bool {
         crash Trap;
     }
-    state member_succeed() -> bool { false }
+    machine member_succeed() -> bool { false }
 }
 
 data Main {}

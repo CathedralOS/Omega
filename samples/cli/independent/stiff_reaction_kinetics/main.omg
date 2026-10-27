@@ -12,17 +12,17 @@ data Main { input: Input; problem: Problem; solution: Solution; }
 machine Main::main(main: &mut Main) reaches Console {
     block Input::read(&mut main.input);
     transition valid(&main.input) { true -> prepare(main) false -> invalid(main) }
-    state prepare(main: &mut Main) {
+    machine prepare(main: &mut Main) {
         main.problem = problem(&main.input);
         transition physical(&main.problem.initial) && main.problem.initial.a + main.problem.initial.b + main.problem.initial.c <= 1000000.0 && main.problem.end <= 1000000.0 && main.problem.absolute > 0.0 && main.problem.relative > 0.0 && main.problem.relative <= 1.0 {
             true -> solve(main) false -> invalid(main)
         }
     }
-    state solve(main: &mut Main) {
+    machine solve(main: &mut Main) {
         main.solution = integrate(&main.problem);
         transition main.solution.success { true -> report(main) false -> exhausted(main) }
     }
-    state report(main: &mut Main) {
+    machine report(main: &mut Main) {
         Console::write_line("stiff_reaction_kinetics units=1e-12");
         scaled(main.solution.time); Console::write(" ");
         scaled(main.solution.value.a); Console::write(" ");
@@ -32,8 +32,8 @@ machine Main::main(main: &mut Main) reaches Console {
         integer64(narrow_u64_to_i64_saturating(main.solution.accepted)); Console::write(" ");
         integer64(narrow_u64_to_i64_saturating(main.solution.rejected)); Console::write_line("");
     }
-    state invalid(main: &mut Main) { Console::write_line("INVALID reaction input"); Console::exit_process(2); }
-    state exhausted(main: &mut Main) { Console::write_line("EXHAUSTED integration convergence"); Console::exit_process(3); }
+    machine invalid(main: &mut Main) { Console::write_line("INVALID reaction input"); Console::exit_process(2); }
+    machine exhausted(main: &mut Main) { Console::write_line("EXHAUSTED integration convergence"); Console::exit_process(3); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

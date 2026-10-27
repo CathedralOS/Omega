@@ -7,7 +7,7 @@ machine count(remaining: u32) terminates by remaining; -> u32 {
         true -> count(remaining - 1)
         false -> finish()
     }
-    state finish() -> u32 {
+    machine finish() -> u32 {
         Scalar::observe(7);
         Value::value()
     }

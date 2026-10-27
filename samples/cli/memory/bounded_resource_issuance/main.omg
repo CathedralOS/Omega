@@ -25,7 +25,7 @@ machine acquire(input: i32) -> Acquisition {
         true -> opened(input)
         false -> Acquisition::Error
     }
-    state opened(input: i32) -> Acquisition requires input >= 0 {
+    machine opened(input: i32) -> Acquisition requires input >= 0 {
         Acquisition::Ok { resource: issue(input) }
     }
 }
@@ -37,11 +37,11 @@ machine main() crashes Trap {
         Acquisition::Ok { resource } -> owned(resource)
         _ -> wrong()
     }
-    state owned(resource: Resource in Open) {
+    machine owned(resource: Resource in Open) {
         let observed: u64 = inspect(&resource);
         release(resource);
         transition observed == 1 { true -> done() false -> wrong() }
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

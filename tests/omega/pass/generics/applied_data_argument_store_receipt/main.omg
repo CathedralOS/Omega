@@ -25,7 +25,7 @@ machine concrete(item: Holder<Foo>, spare: Holder<Foo>, last: Holder<Foo>, neste
         true -> (same<Holder<Foo>>(last))
         false -> finish(same<Holder<Foo>>(last))
     }
-    state finish(value: Holder<Foo>) -> Holder<Foo> { value }
+    machine finish(value: Holder<Foo>) -> Holder<Foo> { value }
 }
 machine rigid<Input, Output>(source: Holder<Input>, nested: Holder<Box<Output>>, target: &mut Holder<Input>, flag: bool) -> Output {
     let got: Input = source.value;
@@ -35,6 +35,6 @@ machine rigid<Input, Output>(source: Holder<Input>, nested: Holder<Box<Output>>,
         true -> (inner.content)
         false -> finish(inner.content)
     }
-    state finish(value: Output) -> Output { same<Output>(value) }
+    machine finish(value: Output) -> Output { same<Output>(value) }
 }
 machine main() {}

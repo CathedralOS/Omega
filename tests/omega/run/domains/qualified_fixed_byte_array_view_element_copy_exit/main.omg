@@ -8,11 +8,11 @@ machine copy_name(items: &[Item], output: &mut Output)
 requires items.len == 2
 {
     transition { _ -> select(items, output) }
-    state select(items: &[Item], output: &mut Output) requires items.len == 2 {
+    machine select(items: &[Item], output: &mut Output) requires items.len == 2 {
         let item: Item = items[1];
         transition { _ -> snapshot(item, output) }
     }
-    state snapshot(item: Item, output: &mut Output) { output.name = item.name; }
+    machine snapshot(item: Item, output: &mut Output) { output.name = item.name; }
 }
 machine length(items: &[Item]) -> u64 { items.len }
 machine main() crashes Trap {
@@ -33,5 +33,5 @@ machine main() crashes Trap {
         && size_of<Name>() == 16 && empty_length == 0 {
         true -> {} _ -> bad()
     }
-    state bad() { crash Trap; }
+    machine bad() { crash Trap; }
 }

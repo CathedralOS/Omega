@@ -28,21 +28,21 @@ data Holder {
 machine Holder::refresh(holder: &mut Holder) {
     transition { _ -> scan(holder, 0) }
 
-    state scan(holder: &mut Holder, position: u64) {
+    machine scan(holder: &mut Holder, position: u64) {
         transition position < 4 {
             true -> step(holder, position)
             false -> done(holder)
         }
     }
 
-    state step(holder: &mut Holder, position: u64) {
+    machine step(holder: &mut Holder, position: u64) {
         let mut scratch: Cell = Cell::blanked(position);
         Cell::copy_from(&mut scratch, &holder.cells[position]);
         Cell::copy_from(&mut holder.cells[position], &scratch);
         transition { _ -> scan(holder, position + 1) }
     }
 
-    state done(holder: &mut Holder) { }
+    machine done(holder: &mut Holder) { }
 }
 
 data Main {
@@ -62,11 +62,11 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> missed(main)
     }
 
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state missed(main: &mut Main) {
+    machine missed(main: &mut Main) {
         Console::exit_process(71);
     }
 }

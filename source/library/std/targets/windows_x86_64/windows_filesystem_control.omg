@@ -68,7 +68,7 @@ windows_x86_64 machine WindowsFilesystemNativeProvider::close_handle(handle: u64
         _ -> (0)
     }
 
-    state failed() -> i32 {
+    machine failed() -> i32 {
         transition { _ -> (WindowsFilesystemNativeProvider::failure_i32()) }
     }
 }
@@ -170,11 +170,11 @@ reaches FilesystemMetadataQuery {
     let mut write_time: u64 = 0;
     let succeeded: i32 = block WindowsFilesystemIo::c_get_file_time(raw_handle, 0, &mut access_time, &mut write_time);
     transition succeeded == 0 { true -> failed() _ -> value(access_time, write_time) }
-    state failed() -> WindowsFileTimeResult {
+    machine failed() -> WindowsFileTimeResult {
         let code: u32 = WindowsFilesystemIo::c_get_last_error();
         WindowsFileTimeResult::Error { code: code }
     }
-    state value(access_time: u64, write_time: u64) -> WindowsFileTimeResult {
+    machine value(access_time: u64, write_time: u64) -> WindowsFileTimeResult {
         WindowsFileTimeResult::Value { access_time: access_time, write_time: write_time }
     }
 }

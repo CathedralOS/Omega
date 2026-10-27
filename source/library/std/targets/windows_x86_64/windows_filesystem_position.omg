@@ -18,24 +18,24 @@ reaches FilesystemContentRead {
         true -> pin(handle, buffer, count, offset)
         false -> (-87)
     }
-    state pin(handle: u64, buffer: &mut [u8], count: u64, offset: i64) -> i64 {
+    machine pin(handle: u64, buffer: &mut [u8], count: u64, offset: i64) -> i64 {
         let pinned: WindowsPinnedAccessResult = block windows_positioned_pin(handle);
         transition pinned {
             WindowsPinnedAccessResult::Error { code } -> (windows_positioned_error(code))
             WindowsPinnedAccessResult::Value { handle, access } -> access(handle, access, buffer, count, offset)
         }
     }
-    state access(handle: u64, granted: u32, buffer: &mut [u8], count: u64, offset: i64) -> i64 {
+    machine access(handle: u64, granted: u32, buffer: &mut [u8], count: u64, offset: i64) -> i64 {
         transition (granted & 1048577) == 1048577 {
             true -> reopen(handle, buffer, count, offset)
             false -> denied(handle)
         }
     }
-    state denied(handle: u64) -> i64 {
+    machine denied(handle: u64) -> i64 {
         let released: i32 = block WindowsFilesystemNativeProvider::close_handle(handle);
         -5
     }
-    state reopen(handle: u64, buffer: &mut [u8], count: u64, offset: i64) -> i64 {
+    machine reopen(handle: u64, buffer: &mut [u8], count: u64, offset: i64) -> i64 {
         let raw: i64 = block WindowsFilesystemPositionIo::reopen_read(narrow_u64_to_i64_wrapping(handle), 1048577, 7, 0);
         let opened: WindowsPositionedFile = block windows_positioned_reopened(handle, raw);
         transition opened {
@@ -43,14 +43,14 @@ reaches FilesystemContentRead {
             WindowsPositionedFile::Handle { value } -> position(value, buffer, count, offset)
         }
     }
-    state position(handle: u64, buffer: &mut [u8], count: u64, offset: i64) -> i64 {
+    machine position(handle: u64, buffer: &mut [u8], count: u64, offset: i64) -> i64 {
         let positioned: i64 = block WindowsFilesystemNativeProvider::set_file_pointer(handle, offset, 0);
         transition positioned == offset {
             true -> transfer(handle, buffer, count)
             false -> (block windows_positioned_seek_failed(handle, positioned))
         }
     }
-    state transfer(handle: u64, buffer: &mut [u8], count: u64) -> i64 {
+    machine transfer(handle: u64, buffer: &mut [u8], count: u64) -> i64 {
         let result: i64 = block WindowsFilesystemNativeProvider::read_file(handle, buffer, count);
         let released: i32 = block WindowsFilesystemNativeProvider::close_handle(handle);
         windows_transfer_completion(result, released)
@@ -64,24 +64,24 @@ reaches FilesystemContentWrite {
         true -> pin(handle, bytes, offset)
         false -> (-87)
     }
-    state pin(handle: u64, bytes: &[u8], offset: i64) -> i64 {
+    machine pin(handle: u64, bytes: &[u8], offset: i64) -> i64 {
         let pinned: WindowsPinnedAccessResult = block windows_positioned_pin(handle);
         transition pinned {
             WindowsPinnedAccessResult::Error { code } -> (windows_positioned_error(code))
             WindowsPinnedAccessResult::Value { handle, access } -> access(handle, access, bytes, offset)
         }
     }
-    state access(handle: u64, granted: u32, bytes: &[u8], offset: i64) -> i64 {
+    machine access(handle: u64, granted: u32, bytes: &[u8], offset: i64) -> i64 {
         transition (granted & 1048578) == 1048578 {
             true -> reopen(handle, bytes, offset)
             false -> denied(handle)
         }
     }
-    state denied(handle: u64) -> i64 {
+    machine denied(handle: u64) -> i64 {
         let released: i32 = block WindowsFilesystemNativeProvider::close_handle(handle);
         -5
     }
-    state reopen(handle: u64, bytes: &[u8], offset: i64) -> i64 {
+    machine reopen(handle: u64, bytes: &[u8], offset: i64) -> i64 {
         let raw: i64 = block WindowsFilesystemPositionIo::reopen_write(narrow_u64_to_i64_wrapping(handle), 1048578, 7, 0);
         let opened: WindowsPositionedFile = block windows_positioned_reopened(handle, raw);
         transition opened {
@@ -89,14 +89,14 @@ reaches FilesystemContentWrite {
             WindowsPositionedFile::Handle { value } -> position(value, bytes, offset)
         }
     }
-    state position(handle: u64, bytes: &[u8], offset: i64) -> i64 {
+    machine position(handle: u64, bytes: &[u8], offset: i64) -> i64 {
         let positioned: i64 = block WindowsFilesystemNativeProvider::set_file_pointer(handle, offset, 0);
         transition positioned == offset {
             true -> transfer(handle, bytes)
             false -> (block windows_positioned_seek_failed(handle, positioned))
         }
     }
-    state transfer(handle: u64, bytes: &[u8]) -> i64 {
+    machine transfer(handle: u64, bytes: &[u8]) -> i64 {
         let result: i64 = block WindowsFilesystemNativeProvider::write_file(handle, bytes);
         let released: i32 = block WindowsFilesystemNativeProvider::close_handle(handle);
         windows_transfer_completion(result, released)

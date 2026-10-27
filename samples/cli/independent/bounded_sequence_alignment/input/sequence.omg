@@ -18,48 +18,48 @@ crashes Trap
 {
     sequence.length = 0;
     transition { _ -> next(sequence) }
-    state next(sequence: &mut Sequence) -> i32 {
+    machine next(sequence: &mut Sequence) -> i32 {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> end(sequence)
             ByteRead::Byte { value } -> byte(sequence, value)
         }
     }
-    state byte(sequence: &mut Sequence, value: i32) -> i32 {
+    machine byte(sequence: &mut Sequence, value: i32) -> i32 {
         transition value == 10 {
             true -> finish(sequence)
             false -> normalize(sequence, value)
         }
     }
-    state normalize(sequence: &mut Sequence, value: i32) -> i32 {
+    machine normalize(sequence: &mut Sequence, value: i32) -> i32 {
         transition value >= 97 && value <= 122 {
             true -> alphabet(sequence, value - 32)
             false -> alphabet(sequence, value)
         }
     }
-    state alphabet(sequence: &mut Sequence, value: i32) -> i32 {
+    machine alphabet(sequence: &mut Sequence, value: i32) -> i32 {
         transition value == 65 || value == 67 || value == 71 || value == 84 || value == 78 {
             true -> capacity(sequence, value)
             false -> (2)
         }
     }
-    state capacity(sequence: &mut Sequence, value: i32) -> i32 {
+    machine capacity(sequence: &mut Sequence, value: i32) -> i32 {
         transition sequence.length >= 0 && sequence.length < 16 && value >= 0 && value <= 255 {
             true -> store(sequence, value)
             false -> (3)
         }
     }
-    state store(sequence: &mut Sequence, value: i32) -> i32
+    machine store(sequence: &mut Sequence, value: i32) -> i32
     requires sequence.length >= 0 && sequence.length < 16, value >= 0 && value <= 255
     {
         sequence.bases[sequence.length] = value as u8;
         sequence.length = sequence.length + 1;
         transition { _ -> next(sequence) }
     }
-    state finish(sequence: &mut Sequence) -> i32 {
+    machine finish(sequence: &mut Sequence) -> i32 {
         transition sequence.length == 0 { true -> (1) false -> (0) }
     }
-    state end(sequence: &mut Sequence) -> i32 {
+    machine end(sequence: &mut Sequence) -> i32 {
         transition sequence.length == 0 { true -> (4) false -> (0) }
     }
 }

@@ -41,7 +41,7 @@ reaches ResourceProfileSupply
         PlacementOutcome::Ready { view } -> check(view)
         PlacementOutcome::Rejected { returned, reason } -> false
     }
-    state check(view: &mut Placed<WordPlacement, Words>) -> bool {
+    machine check(view: &mut Placed<WordPlacement, Words>) -> bool {
         let first: u64 = placed_read(&view.entries[0]);
         let second: u64 = placed_read(&view.entries[1]);
         transition first == 17 && second == 41 {
@@ -49,7 +49,7 @@ reaches ResourceProfileSupply
             _ -> false
         }
     }
-    state write(view: &mut Placed<WordPlacement, Words>, next: u64) -> bool
+    machine write(view: &mut Placed<WordPlacement, Words>, next: u64) -> bool
     requires next <= 1
     {
         transition next < 1 {
@@ -57,13 +57,13 @@ reaches ResourceProfileSupply
             _ -> verify(view)
         }
     }
-    state store(view: &mut Placed<WordPlacement, Words>, next: u64) -> bool
+    machine store(view: &mut Placed<WordPlacement, Words>, next: u64) -> bool
     requires next < 1
     {
         placed_write(&mut view.entries[next + 1], 73u64);
         transition { _ -> write(view, next + 1) }
     }
-    state verify(view: &mut Placed<WordPlacement, Words>) -> bool {
+    machine verify(view: &mut Placed<WordPlacement, Words>) -> bool {
         let first: u64 = placed_read(&view.entries[0]);
         let second: u64 = placed_read(&view.entries[1]);
         first == 17 && second == 73
@@ -101,14 +101,14 @@ reaches ResourceProfileSupply crashes Trap
         true -> verify(retained)
         _ -> fail(retained)
     }
-    state verify(storage: Extent in Granted & Vacant) -> Extent in Granted & Vacant {
+    machine verify(storage: Extent in Granted & Vacant) -> Extent in Granted & Vacant {
         let observed: bool = observe_existing(&storage);
         transition observed {
             true -> (storage)
             _ -> fail(storage)
         }
     }
-    state fail(storage: Extent in Granted & Vacant) -> Extent in Granted & Vacant { crash Trap; }
+    machine fail(storage: Extent in Granted & Vacant) -> Extent in Granted & Vacant { crash Trap; }
 }
 
 machine observe_existing(storage: &Extent in Granted & Vacant) -> bool
@@ -118,7 +118,7 @@ reaches ResourceProfileSupply
         PlacementOutcome::Ready { view } -> check(view)
         PlacementOutcome::Rejected { returned, reason } -> false
     }
-    state check(view: &Placed<WordPlacement, Words>) -> bool {
+    machine check(view: &Placed<WordPlacement, Words>) -> bool {
         let first: u64 = placed_read(&view.entries[0]);
         let second: u64 = placed_read(&view.entries[1]);
         first == 17 && second == 73

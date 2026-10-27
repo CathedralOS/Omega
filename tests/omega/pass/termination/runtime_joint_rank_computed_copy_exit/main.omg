@@ -10,7 +10,7 @@ requires remaining <= 9;
 terminates by remaining;
 -> u32 {
     transition { _ -> pair(main, remaining, remaining + 0) }
-    state pair(main: &mut Main, left: u32, right: u32)
+    machine pair(main: &mut Main, left: u32, right: u32) -> u32
     requires left <= 9 && right <= 9;
     {
         transition left > 0 {
@@ -38,6 +38,6 @@ machine program() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

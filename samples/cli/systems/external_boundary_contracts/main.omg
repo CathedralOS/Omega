@@ -30,7 +30,7 @@ machine Main::main(main: &mut Main) crashes Trap {
     let first: i32 = absolute(local);
     let second: i32 = ordinary(-39);
     transition true { true -> verify(first, second, -37) }
-    state verify(first: i32, second: i32, value: i32)
+    machine verify(first: i32, second: i32, value: i32)
         requires value > -2147483648 {
         let third: i32 = exported(value);
         transition first == 41 && second == 39 && third == 37 {
@@ -38,8 +38,8 @@ machine Main::main(main: &mut Main) crashes Trap {
             false -> wrong()
         }
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

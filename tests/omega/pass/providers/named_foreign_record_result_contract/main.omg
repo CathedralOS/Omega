@@ -55,7 +55,7 @@ reaches ForeignReports {
     let mut output: Output = Output { value: &record };
     let status: Status = ForeignReports::read(&table, &mut output);
     transition { _ -> retain(image as Extent, storage as Extent, status) }
-    state retain(image: Extent, storage: Extent, status: Status) {
+    machine retain(image: Extent, storage: Extent, status: Status) {
         transition { _ -> retain(image, storage, status) }
     }
 }

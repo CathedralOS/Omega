@@ -16,8 +16,8 @@ machine main() {
         true -> bad()
         _ -> then(v)
     }
-    state then(v: u64) {
+    machine then(v: u64) {
         check(v);
     }
-    state bad() {}
+    machine bad() {}
 }

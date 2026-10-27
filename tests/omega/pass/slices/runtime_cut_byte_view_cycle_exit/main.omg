@@ -5,23 +5,23 @@ use omega_language_std::console;
 data Main { bytes: [u8; 4]; }
 machine sum(bytes: &[u8]) -> i32 in Wrapping {
     transition { _ -> scan(bytes, 0) }
-    state scan(bytes: &[u8], total: i32 in Wrapping) -> i32 in Wrapping {
+    machine scan(bytes: &[u8], total: i32 in Wrapping) -> i32 in Wrapping {
         transition bytes.len > 0 {
             true -> observe(bytes[0], bytes[1..], total)
             false -> (total)
         }
     }
-    state observe(head: u8, tail: &[u8], total: i32 in Wrapping) -> i32 in Wrapping {
+    machine observe(head: u8, tail: &[u8], total: i32 in Wrapping) -> i32 in Wrapping {
         transition { _ -> relay(tail, total + (head as i32 in Wrapping)) }
     }
-    state relay(tail: &[u8], total: i32 in Wrapping) -> i32 in Wrapping {
+    machine relay(tail: &[u8], total: i32 in Wrapping) -> i32 in Wrapping {
         transition { _ -> scan(tail, total) }
     }
 }
 // Compose retained local cuts before transporting another cut around a cycle.
 machine chained(bytes: &[u8]) -> i32 in Wrapping {
     transition { _ -> scan(bytes, 0) }
-    state scan(bytes: &[u8], total: i32 in Wrapping) -> i32 in Wrapping {
+    machine scan(bytes: &[u8], total: i32 in Wrapping) -> i32 in Wrapping {
         let first: &[u8] = bytes[0..];
         let second: &[u8] = first[0..];
         transition second.len > 0 {
@@ -29,7 +29,7 @@ machine chained(bytes: &[u8]) -> i32 in Wrapping {
             false -> (total)
         }
     }
-    state observe(head: u8, tail: &[u8], total: i32 in Wrapping) -> i32 in Wrapping {
+    machine observe(head: u8, tail: &[u8], total: i32 in Wrapping) -> i32 in Wrapping {
         transition { _ -> scan(tail, total + (head as i32 in Wrapping)) }
     }
 }
@@ -45,8 +45,8 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> good(main)
         false -> bad(main)
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(71); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

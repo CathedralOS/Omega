@@ -59,9 +59,12 @@ fn eof_reports_expected_identifier() {
 }
 
 #[test]
-fn machine_item_error_lists_expected_members() {
+fn retired_state_declaration_names_its_replacement() {
     let message = parse_error_message("machine main { state ready() {} let value: i32; }");
-    assert_eq!(message, "expected `state`, found keyword `let`");
+    assert_eq!(
+        message,
+        "nested `state` declarations are retired; declare a nested `machine` with its own signature and contract"
+    );
 }
 
 #[test]

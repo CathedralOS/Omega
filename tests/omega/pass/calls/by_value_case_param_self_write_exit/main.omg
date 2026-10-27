@@ -30,13 +30,13 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> report(main, 70)
         _ -> not_fifty(main)
     }
-    state not_fifty(main: &mut Main) {
+    machine not_fifty(main: &mut Main) {
         transition main.register.balance == 0 {
             true -> report(main, 80)
             _ -> report(main, 81)
         }
     }
-    state report(main: &mut Main, code: i32 in Wrapping) {
+    machine report(main: &mut Main, code: i32 in Wrapping) {
         Console::exit_process(code as i32);
     }
 }
@@ -46,10 +46,10 @@ machine Main::apply(main: &mut Main, event: Event) {
         Event::Insert { cents } -> add_balance(main, cents)
         _ -> idle()
     }
-    state add_balance(main: &mut Main, cents: i32 in Wrapping) {
+    machine add_balance(main: &mut Main, cents: i32 in Wrapping) {
         main.register.balance = main.register.balance + cents;
     }
-    state idle() {
+    machine idle() {
     }
 }
 

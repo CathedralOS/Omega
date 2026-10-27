@@ -31,19 +31,19 @@ machine Main::main(main: &mut Main) reaches Console {
     main.bag = Bag { count: 2 };
 
     transition main.bag.pts[1].x == 0 { true -> check_inner(main) _ -> bad(main) }
-    state check_inner(main: &mut Main) {
+    machine check_inner(main: &mut Main) {
         transition main.bag.inner.code == 0 { true -> check_flag(main) _ -> bad(main) }
     }
-    state check_flag(main: &mut Main) {
+    machine check_flag(main: &mut Main) {
         transition main.bag.inner.flag == false { true -> check_tail(main) _ -> bad(main) }
     }
-    state check_tail(main: &mut Main) {
+    machine check_tail(main: &mut Main) {
         transition main.bag.tail == 0 { true -> good(main) _ -> bad(main) }
     }
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::exit_process(71);
     }
 }

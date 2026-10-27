@@ -23,7 +23,7 @@ crashes Trap
         ByteRead::Eof -> ByteRead::Eof
         ByteRead::Byte { value } -> capacity(reader, value)
     }
-    state capacity(reader: &mut InputReader, value: i32) -> ByteRead
+    machine capacity(reader: &mut InputReader, value: i32) -> ByteRead
     requires value >= 0 && value <= 255
     {
         transition reader.remaining > 0 {
@@ -31,13 +31,13 @@ crashes Trap
             _ -> limit(reader)
         }
     }
-    state consume(reader: &mut InputReader, value: i32) -> ByteRead
+    machine consume(reader: &mut InputReader, value: i32) -> ByteRead
     requires value >= 0 && value <= 255
     {
         reader.remaining = reader.remaining - 1;
         ByteRead::Byte { value: value }
     }
-    state limit(reader: &mut InputReader) -> ByteRead {
+    machine limit(reader: &mut InputReader) -> ByteRead {
         reader.exhausted = true;
         ByteRead::Eof
     }
@@ -48,33 +48,33 @@ blocks;
 crashes Trap
 {
     transition { _ -> skip(reader) }
-    state skip(reader: &mut InputReader) -> Token {
+    machine skip(reader: &mut InputReader) -> Token {
         let byte: ByteRead = block next_byte(reader);
         transition byte {
             ByteRead::Eof -> Token::End
             ByteRead::Byte { value } -> first(reader, value)
         }
     }
-    state first(reader: &mut InputReader, byte: i32) -> Token {
+    machine first(reader: &mut InputReader, byte: i32) -> Token {
         transition byte == 32 || byte == 9 || byte == 10 || byte == 13 {
             true -> skip(reader)
             _ -> sign(reader, byte)
         }
     }
-    state sign(reader: &mut InputReader, byte: i32) -> Token {
+    machine sign(reader: &mut InputReader, byte: i32) -> Token {
         transition byte == 45 {
             true -> next(reader, 0, 0, true)
             _ -> digit(reader, byte, 0, 0, false)
         }
     }
-    state digit(reader: &mut InputReader, byte: i32, magnitude: i32 in Wrapping,
+    machine digit(reader: &mut InputReader, byte: i32, magnitude: i32 in Wrapping,
                 digits: i32 in Wrapping, negative: bool) -> Token {
         transition byte >= 48 && byte <= 57 && digits < 4 {
             true -> accumulate(reader, byte, magnitude, digits, negative)
             _ -> Token::Invalid
         }
     }
-    state accumulate(reader: &mut InputReader, byte: i32, magnitude: i32 in Wrapping,
+    machine accumulate(reader: &mut InputReader, byte: i32, magnitude: i32 in Wrapping,
                      digits: i32 in Wrapping, negative: bool) -> Token {
         let updated: i32 in Wrapping = magnitude * 10 + (byte as i32 in Wrapping) - 48;
         transition updated <= 1000 {
@@ -82,7 +82,7 @@ crashes Trap
             _ -> Token::Invalid
         }
     }
-    state next(reader: &mut InputReader, magnitude: i32 in Wrapping,
+    machine next(reader: &mut InputReader, magnitude: i32 in Wrapping,
                digits: i32 in Wrapping, negative: bool) -> Token {
         let byte: ByteRead = block next_byte(reader);
         transition byte {
@@ -90,20 +90,20 @@ crashes Trap
             ByteRead::Byte { value } -> delimiter(reader, value, magnitude, digits, negative)
         }
     }
-    state delimiter(reader: &mut InputReader, byte: i32, magnitude: i32 in Wrapping,
+    machine delimiter(reader: &mut InputReader, byte: i32, magnitude: i32 in Wrapping,
                     digits: i32 in Wrapping, negative: bool) -> Token {
         transition byte == 32 || byte == 9 || byte == 10 || byte == 13 {
             true -> finish(magnitude, digits, negative)
             _ -> digit(reader, byte, magnitude, digits, negative)
         }
     }
-    state finish(magnitude: i32 in Wrapping, digits: i32 in Wrapping, negative: bool) -> Token {
+    machine finish(magnitude: i32 in Wrapping, digits: i32 in Wrapping, negative: bool) -> Token {
         transition digits > 0 {
             true -> signed_value(magnitude, negative)
             _ -> Token::Invalid
         }
     }
-    state signed_value(magnitude: i32 in Wrapping, negative: bool) -> Token {
+    machine signed_value(magnitude: i32 in Wrapping, negative: bool) -> Token {
         transition negative {
             true -> Token::Number { value: (0 - magnitude) as i32 }
             _ -> Token::Number { value: magnitude as i32 }
@@ -116,7 +116,7 @@ blocks;
 crashes Trap
 {
     transition { _ -> scan(reader, chromatogram, 0) }
-    state scan(reader: &mut InputReader, chromatogram: &mut Chromatogram,
+    machine scan(reader: &mut InputReader, chromatogram: &mut Chromatogram,
                position: i32 in Wrapping) -> bool {
         let item: Token = block token(reader);
         transition item {
@@ -125,45 +125,45 @@ crashes Trap
             _ -> false
         }
     }
-    state validate(reader: &mut InputReader, chromatogram: &mut Chromatogram,
+    machine validate(reader: &mut InputReader, chromatogram: &mut Chromatogram,
                    position: i32 in Wrapping, value: i32) -> bool {
         transition position >= 0 && position < 15 && (position >= 10 || value >= 0) {
             true -> select(reader, chromatogram, position, F64::from_i32(value))
             _ -> false
         }
     }
-    state select(reader: &mut InputReader, chromatogram: &mut Chromatogram,
+    machine select(reader: &mut InputReader, chromatogram: &mut Chromatogram,
                  position: i32 in Wrapping, value: f64) -> bool {
         transition position >= 0 && position < 5 {
             true -> a(reader, chromatogram, position, value)
             _ -> select_b(reader, chromatogram, position, value, position - 5)
         }
     }
-    state a(reader: &mut InputReader, chromatogram: &mut Chromatogram,
+    machine a(reader: &mut InputReader, chromatogram: &mut Chromatogram,
             position: i32 in Wrapping, value: f64) -> bool {
         chromatogram.profile_a[position] = value;
         transition { _ -> scan(reader, chromatogram, position + 1) }
     }
-    state select_b(reader: &mut InputReader, chromatogram: &mut Chromatogram,
+    machine select_b(reader: &mut InputReader, chromatogram: &mut Chromatogram,
                    position: i32 in Wrapping, value: f64, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 5 {
             true -> b(reader, chromatogram, position, value, index)
             _ -> select_y(reader, chromatogram, position, value, position - 10)
         }
     }
-    state b(reader: &mut InputReader, chromatogram: &mut Chromatogram,
+    machine b(reader: &mut InputReader, chromatogram: &mut Chromatogram,
             position: i32 in Wrapping, value: f64, index: i32 in Wrapping) -> bool {
         chromatogram.profile_b[index] = value;
         transition { _ -> scan(reader, chromatogram, position + 1) }
     }
-    state select_y(reader: &mut InputReader, chromatogram: &mut Chromatogram,
+    machine select_y(reader: &mut InputReader, chromatogram: &mut Chromatogram,
                    position: i32 in Wrapping, value: f64, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 5 {
             true -> y(reader, chromatogram, position, value, index)
             _ -> false
         }
     }
-    state y(reader: &mut InputReader, chromatogram: &mut Chromatogram,
+    machine y(reader: &mut InputReader, chromatogram: &mut Chromatogram,
             position: i32 in Wrapping, value: f64, index: i32 in Wrapping) -> bool {
         chromatogram.observed[index] = value;
         transition { _ -> scan(reader, chromatogram, position + 1) }

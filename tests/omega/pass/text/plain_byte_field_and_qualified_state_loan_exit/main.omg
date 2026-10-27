@@ -30,7 +30,7 @@ machine Main::main(main: &mut Main) reaches Console {
     let last: u8 = Main::last_tag(main);
     transition { _ -> check(main, &mut text, first, last) }
 
-    state check(main: &mut Main, text: &mut [u8; 4] in Utf8, first: u8, last: u8) {
+    machine check(main: &mut Main, text: &mut [u8; 4] in Utf8, first: u8, last: u8) {
         transition first == 71 && last == 69 && text[0] == 103 && text[3] == 101
             && main.packet.size == 4 {
             true -> finish(main, 70)
@@ -38,7 +38,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 machine Main::last_tag(main: &Main) -> u8 {

@@ -22,11 +22,11 @@ machine exercise(base: i8) -> i8 crashes Trap {
         true -> step(combined)
         _ -> bad()
     }
-    state step(c: i8) -> i8 {
+    machine step(c: i8) -> i8 {
         let carrier: OrCarrier = OrCarrier { val: c };
         verify_combined(carrier.val)
     }
-    state bad() { crash Trap; }
+    machine bad() -> i8 { crash Trap; }
 }
 
 machine main() crashes Trap {
@@ -35,6 +35,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

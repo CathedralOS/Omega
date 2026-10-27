@@ -8,7 +8,7 @@ requires lhs >= 20 && lhs <= 30 && rhs >= 15 && rhs <= 26
     transition {
         _ -> step(lhs, rhs)
     }
-    state step(l: u16, r: u16) -> u16
+    machine step(l: u16, r: u16) -> u16
     requires l >= 20 && l <= 30 && r >= 15 && r <= 26
     {
         let prod: u16 = l * r;
@@ -27,6 +27,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

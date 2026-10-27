@@ -30,5 +30,5 @@ machine Main::main(main: &mut Main) {
         true -> write_invalid(view, 1)
         _ -> done(main)
     }
-    state done(main: &mut Main) { }
+    machine done(main: &mut Main) { }
 }

@@ -40,7 +40,7 @@ public machine ArrivalPath::step(path: ArrivalPath, index: u64 in Trapping) -> A
         _ -> chosen(path.step3)
     }
 
-    state chosen(step: ArrivalStep) -> ArrivalStep {
+    machine chosen(step: ArrivalStep) -> ArrivalStep {
         step
     }
 }
@@ -54,14 +54,14 @@ crashes Trap
     ordered.depth = count;
     transition { _ -> swap(ordered, 0, count) }
 
-    state swap(path: ArrivalPath, low: u64 in Trapping, count: u64 in Trapping) -> ArrivalPath {
+    machine swap(path: ArrivalPath, low: u64 in Trapping, count: u64 in Trapping) -> ArrivalPath {
         transition low * 2 + 1 < count {
             true -> swapped(path, low, count)
             _ -> finished(path)
         }
     }
 
-    state swapped(path: ArrivalPath, low: u64 in Trapping, count: u64 in Trapping) -> ArrivalPath {
+    machine swapped(path: ArrivalPath, low: u64 in Trapping, count: u64 in Trapping) -> ArrivalPath {
         let high: u64 in Trapping = count - 1 - low;
         transition low < 4 && high < 4 {
             true -> exchanged(path, low, high, count)
@@ -69,7 +69,7 @@ crashes Trap
         }
     }
 
-    state exchanged(path: ArrivalPath, low: u64 in Trapping, high: u64 in Trapping, count: u64 in Trapping) -> ArrivalPath {
+    machine exchanged(path: ArrivalPath, low: u64 in Trapping, high: u64 in Trapping, count: u64 in Trapping) -> ArrivalPath {
         let lower: ArrivalStep = ArrivalPath::step(path, low);
         let higher: ArrivalStep = ArrivalPath::step(path, high);
         let moved: ArrivalPath = ArrivalPath::with_step(path, low, higher);
@@ -77,7 +77,7 @@ crashes Trap
         transition { _ -> swap(result, low + 1, count) }
     }
 
-    state finished(path: ArrivalPath) -> ArrivalPath {
+    machine finished(path: ArrivalPath) -> ArrivalPath {
         path
     }
 }
@@ -91,19 +91,19 @@ public machine ArrivalPath::with_step(path: ArrivalPath, index: u64 in Trapping,
         _ -> fourth(path, step)
     }
 
-    state first(path: ArrivalPath, step: ArrivalStep) -> ArrivalPath {
+    machine first(path: ArrivalPath, step: ArrivalStep) -> ArrivalPath {
         ArrivalPath { parameter: path.parameter, depth: path.depth, step0: step, step1: path.step1, step2: path.step2, step3: path.step3 }
     }
 
-    state second(path: ArrivalPath, step: ArrivalStep) -> ArrivalPath {
+    machine second(path: ArrivalPath, step: ArrivalStep) -> ArrivalPath {
         ArrivalPath { parameter: path.parameter, depth: path.depth, step0: path.step0, step1: step, step2: path.step2, step3: path.step3 }
     }
 
-    state third(path: ArrivalPath, step: ArrivalStep) -> ArrivalPath {
+    machine third(path: ArrivalPath, step: ArrivalStep) -> ArrivalPath {
         ArrivalPath { parameter: path.parameter, depth: path.depth, step0: path.step0, step1: path.step1, step2: step, step3: path.step3 }
     }
 
-    state fourth(path: ArrivalPath, step: ArrivalStep) -> ArrivalPath {
+    machine fourth(path: ArrivalPath, step: ArrivalStep) -> ArrivalPath {
         ArrivalPath { parameter: path.parameter, depth: path.depth, step0: path.step0, step1: path.step1, step2: path.step2, step3: step }
     }
 }
@@ -116,13 +116,13 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(checker: &Checker, offset: u64 in Trapping) -> u64 in Trapping
+    machine read(checker: &Checker, offset: u64 in Trapping) -> u64 in Trapping
     requires offset < 128
     {
         checker.path_counts[offset] as u64 in Trapping
     }
 
-    state invalid() -> u64 in Trapping {
+    machine invalid() -> u64 in Trapping {
         crash Trap;
     }
 }
@@ -135,13 +135,13 @@ crashes Trap
         _ -> invalid()
     }
 
-    state write(checker: &mut Checker, offset: u64 in Trapping, count: u64 in Trapping)
+    machine write(checker: &mut Checker, offset: u64 in Trapping, count: u64 in Trapping)
     requires offset < 128
     {
         checker.path_counts[offset] = count as u64;
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -154,20 +154,20 @@ crashes Trap
         _ -> invalid()
     }
 
-    state slot(checker: &Checker, slot: u64 in Trapping) -> ArrivalPath {
+    machine slot(checker: &Checker, slot: u64 in Trapping) -> ArrivalPath {
         transition slot < 5120 {
             true -> read(checker, slot)
             _ -> invalid()
         }
     }
 
-    state read(checker: &Checker, slot: u64 in Trapping) -> ArrivalPath
+    machine read(checker: &Checker, slot: u64 in Trapping) -> ArrivalPath
     requires slot < 5120
     {
         checker.paths[slot]
     }
 
-    state invalid() -> ArrivalPath {
+    machine invalid() -> ArrivalPath {
         crash Trap;
     }
 }
@@ -180,20 +180,20 @@ crashes Trap
         _ -> invalid()
     }
 
-    state slot(checker: &mut Checker, slot: u64 in Trapping, path: ArrivalPath) {
+    machine slot(checker: &mut Checker, slot: u64 in Trapping, path: ArrivalPath) {
         transition slot < 5120 {
             true -> write(checker, slot, path)
             _ -> invalid()
         }
     }
 
-    state write(checker: &mut Checker, slot: u64 in Trapping, path: ArrivalPath)
+    machine write(checker: &mut Checker, slot: u64 in Trapping, path: ArrivalPath)
     requires slot < 5120
     {
         checker.paths[slot] = path;
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -211,14 +211,14 @@ crashes Trap
     // Collect steps upward from `current`, deepest last: the step at
     // `count` from the bottom is written at index `count` and reversed at
     // the end.
-    state climb(checker: &Checker, outer: u64 in Trapping, current: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping) -> ArrivalPath {
+    machine climb(checker: &Checker, outer: u64 in Trapping, current: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping) -> ArrivalPath {
         transition current == outer && count > 0 {
             true -> reversed(path, count)
             _ -> step(checker, outer, current, path, count)
         }
     }
 
-    state step(checker: &Checker, outer: u64 in Trapping, current: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping) -> ArrivalPath {
+    machine step(checker: &Checker, outer: u64 in Trapping, current: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping) -> ArrivalPath {
         let place: Place = Checker::place_at(checker, current - 1);
         let projection: bool = place.kind == PlaceKind::Field || place.kind == PlaceKind::Length;
         transition projection && place.parent > 0 && count < 4 {
@@ -227,18 +227,18 @@ crashes Trap
         }
     }
 
-    state recorded(checker: &Checker, outer: u64 in Trapping, place: Place, path: ArrivalPath, count: u64 in Trapping) -> ArrivalPath {
+    machine recorded(checker: &Checker, outer: u64 in Trapping, place: Place, path: ArrivalPath, count: u64 in Trapping) -> ArrivalPath {
         let step: ArrivalStep = ArrivalStep { length: place.kind == PlaceKind::Length, field: place.handle, type_handle: place.type_handle };
         let extended: ArrivalPath = ArrivalPath::with_step(path, count, step);
         transition { _ -> climb(checker, outer, place.parent, extended, count + 1) }
     }
 
-    state reversed(path: ArrivalPath, count: u64 in Trapping) -> ArrivalPath {
+    machine reversed(path: ArrivalPath, count: u64 in Trapping) -> ArrivalPath {
         let ordered: ArrivalPath = ArrivalPath::reversed(path, count);
         ordered
     }
 
-    state outside(path: ArrivalPath) -> ArrivalPath {
+    machine outside(path: ArrivalPath) -> ArrivalPath {
         let mut none: ArrivalPath = path;
         none.depth = 0;
         none
@@ -252,14 +252,14 @@ machine Checker::same_path(first: ArrivalPath, second: ArrivalPath) -> bool {
         _ -> no()
     }
 
-    state steps(first: ArrivalPath, second: ArrivalPath, index: u64 in Trapping) -> bool {
+    machine steps(first: ArrivalPath, second: ArrivalPath, index: u64 in Trapping) -> bool {
         transition index < first.depth && index < 4 {
             true -> step(first, second, index)
             _ -> yes()
         }
     }
 
-    state step(first: ArrivalPath, second: ArrivalPath, index: u64 in Trapping) -> bool {
+    machine step(first: ArrivalPath, second: ArrivalPath, index: u64 in Trapping) -> bool {
         let left: ArrivalStep = ArrivalPath::step(first, index);
         let right: ArrivalStep = ArrivalPath::step(second, index);
         transition left.length == right.length && left.field == right.field {
@@ -268,11 +268,11 @@ machine Checker::same_path(first: ArrivalPath, second: ArrivalPath) -> bool {
         }
     }
 
-    state yes() -> bool {
+    machine yes() -> bool {
         true
     }
 
-    state no() -> bool {
+    machine no() -> bool {
         false
     }
 }
@@ -285,14 +285,14 @@ crashes Trap
     let count: u64 in Trapping = Checker::path_count(checker, offset);
     transition { _ -> search(checker, offset, path, count, 0) }
 
-    state search(checker: &Checker, offset: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
+    machine search(checker: &Checker, offset: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
         transition index < count && index < 40 {
             true -> compare(checker, offset, path, count, index)
             _ -> found(40)
         }
     }
 
-    state compare(checker: &Checker, offset: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
+    machine compare(checker: &Checker, offset: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
         let existing: ArrivalPath = Checker::arrival_path(checker, offset, index);
         let same: bool = Checker::same_path(existing, path);
         transition same {
@@ -301,7 +301,7 @@ crashes Trap
         }
     }
 
-    state found(index: u64 in Trapping) -> u64 in Trapping {
+    machine found(index: u64 in Trapping) -> u64 in Trapping {
         index
     }
 }
@@ -318,13 +318,13 @@ crashes Trap
         _ -> unchanged()
     }
 
-    state appended(checker: &mut Checker, offset: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping) -> bool {
+    machine appended(checker: &mut Checker, offset: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping) -> bool {
         Checker::store_arrival_path(checker, offset, count, path);
         Checker::set_path_count(checker, offset, count + 1);
         true
     }
 
-    state unchanged() -> bool {
+    machine unchanged() -> bool {
         false
     }
 }
@@ -337,14 +337,14 @@ crashes Trap
     let count: u64 in Trapping = Checker::path_count(checker, offset);
     transition { _ -> next(checker, typing, offset, first_parameter, count, 0, true) }
 
-    state next(checker: &mut Checker, typing: &Typing, offset: u64 in Trapping, first_parameter: u64 in Trapping, count: u64 in Trapping, index: u64 in Trapping, matched: bool) -> bool {
+    machine next(checker: &mut Checker, typing: &Typing, offset: u64 in Trapping, first_parameter: u64 in Trapping, count: u64 in Trapping, index: u64 in Trapping, matched: bool) -> bool {
         transition index < count && index < 40 {
             true -> path(checker, typing, offset, first_parameter, count, index, matched)
             _ -> finished(matched)
         }
     }
 
-    state path(checker: &mut Checker, typing: &Typing, offset: u64 in Trapping, first_parameter: u64 in Trapping, count: u64 in Trapping, index: u64 in Trapping, matched: bool) -> bool {
+    machine path(checker: &mut Checker, typing: &Typing, offset: u64 in Trapping, first_parameter: u64 in Trapping, count: u64 in Trapping, index: u64 in Trapping, matched: bool) -> bool {
         let path: ArrivalPath = Checker::arrival_path(checker, offset, index);
         let expected: u64 in Trapping = checker.subject_count as u64 in Trapping;
         let root: u64 in Trapping = Checker::find_place(checker, PlaceKind::Parameter, first_parameter + path.parameter, 0);
@@ -354,7 +354,7 @@ crashes Trap
         transition { _ -> next(checker, typing, offset, first_parameter, count, index + 1, matched && numbered) }
     }
 
-    state finished(matched: bool) -> bool {
+    machine finished(matched: bool) -> bool {
         matched
     }
 }
@@ -366,21 +366,21 @@ crashes Trap
 {
     transition { _ -> step(checker, typing, root, path, 0) }
 
-    state step(checker: &mut Checker, typing: &Typing, current: u64 in Trapping, path: ArrivalPath, index: u64 in Trapping) -> u64 in Trapping {
+    machine step(checker: &mut Checker, typing: &Typing, current: u64 in Trapping, path: ArrivalPath, index: u64 in Trapping) -> u64 in Trapping {
         transition current > 0 && index < path.depth && index < 4 {
             true -> entered(checker, typing, current, path, index)
             _ -> finished(current)
         }
     }
 
-    state entered(checker: &mut Checker, typing: &Typing, current: u64 in Trapping, path: ArrivalPath, index: u64 in Trapping) -> u64 in Trapping {
+    machine entered(checker: &mut Checker, typing: &Typing, current: u64 in Trapping, path: ArrivalPath, index: u64 in Trapping) -> u64 in Trapping {
         let projection: ArrivalStep = ArrivalPath::step(path, index);
         let kind: PlaceKind = Checker::step_kind(projection.length);
         let place: u64 in Trapping = Checker::place(checker, typing, kind, projection.field, current, projection.type_handle);
         transition { _ -> step(checker, typing, place, path, index + 1) }
     }
 
-    state finished(current: u64 in Trapping) -> u64 in Trapping {
+    machine finished(current: u64 in Trapping) -> u64 in Trapping {
         current
     }
 }
@@ -391,7 +391,7 @@ machine Checker::step_kind(length: bool) -> PlaceKind {
         _ -> chosen(PlaceKind::Field)
     }
 
-    state chosen(kind: PlaceKind) -> PlaceKind {
+    machine chosen(kind: PlaceKind) -> PlaceKind {
         kind
     }
 }
@@ -405,12 +405,12 @@ crashes Trap
         _ -> absent()
     }
 
-    state entry(checker: &Checker, place: u64 in Trapping) -> Place {
+    machine entry(checker: &Checker, place: u64 in Trapping) -> Place {
         let entry: Place = Checker::place_at(checker, place - 1);
         entry
     }
 
-    state absent() -> Place {
+    machine absent() -> Place {
         Place { kind: PlaceKind::Parameter, handle: 0, parent: 0, type_handle: 0, subject: 0 }
     }
 }
@@ -432,7 +432,7 @@ crashes Trap
 {
     transition { _ -> clear(checker, syntax, typing, expression, item, offset, first_subject, 0) }
 
-    state clear(
+    machine clear(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         typing: &Typing,
@@ -448,7 +448,7 @@ crashes Trap
         }
     }
 
-    state cleared(
+    machine cleared(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         typing: &Typing,
@@ -463,7 +463,7 @@ crashes Trap
         transition { _ -> clear(checker, syntax, typing, expression, item, offset, first_subject, slot + 1) }
     }
 
-    state parameter(
+    machine parameter(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         typing: &Typing,
@@ -479,7 +479,7 @@ crashes Trap
         }
     }
 
-    state argument(
+    machine argument(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         typing: &Typing,
@@ -498,7 +498,7 @@ crashes Trap
     }
 
     // Fields a construction wrote below the argument become its places.
-    state settled(
+    machine settled(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         typing: &Typing,
@@ -514,7 +514,7 @@ crashes Trap
     }
 
     // Each subject place of the body below the argument's place.
-    state place(
+    machine place(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         typing: &Typing,
@@ -532,7 +532,7 @@ crashes Trap
         }
     }
 
-    state below(
+    machine below(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         typing: &Typing,
@@ -552,7 +552,7 @@ crashes Trap
         }
     }
 
-    state projected(
+    machine projected(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         typing: &Typing,
@@ -573,7 +573,7 @@ crashes Trap
         }
     }
 
-    state stored(
+    machine stored(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         typing: &Typing,
@@ -591,7 +591,7 @@ crashes Trap
         transition { _ -> place(checker, syntax, typing, expression, item, offset, first_subject, index, root, candidate + 1) }
     }
 
-    state counted(checker: &mut Checker, offset: u64 in Trapping, first_subject: u64 in Trapping) -> u64 in Trapping {
+    machine counted(checker: &mut Checker, offset: u64 in Trapping, first_subject: u64 in Trapping) -> u64 in Trapping {
         let paths: u64 in Trapping = Checker::path_count(checker, offset);
         let count: u64 in Trapping = first_subject + paths;
         transition count <= 64 {
@@ -600,7 +600,7 @@ crashes Trap
         }
     }
 
-    state total(count: u64 in Trapping) -> u64 in Trapping {
+    machine total(count: u64 in Trapping) -> u64 in Trapping {
         count
     }
 }

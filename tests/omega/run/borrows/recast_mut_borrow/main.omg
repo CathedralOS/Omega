@@ -15,7 +15,7 @@ machine Main::main(main: &mut Main) reaches Console {
     let borrowed: &mut Desc = &mut main.buf[0] as &mut Desc;
     transition { _ -> done(main) }
 
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::exit_process(0);
     }
 }

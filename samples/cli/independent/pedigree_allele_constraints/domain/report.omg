@@ -6,26 +6,26 @@ public machine number(value: i32 in Wrapping) reaches Console
 invokes Console;
 {
     transition { _ -> leading(value, 10000) }
-    state leading(value: i32 in Wrapping, divisor: i32 in Wrapping) {
+    machine leading(value: i32 in Wrapping, divisor: i32 in Wrapping) {
         transition divisor > 1 && value < divisor {
             true -> leading(value, divisor / 10)
             _ -> digit(value, divisor)
         }
     }
-    state digit(value: i32 in Wrapping, divisor: i32 in Wrapping) {
+    machine digit(value: i32 in Wrapping, divisor: i32 in Wrapping) {
         transition divisor > 0 {
             true -> emit_digit(value, divisor)
             _ -> done()
         }
     }
-    state emit_digit(value: i32 in Wrapping, divisor: i32 in Wrapping) {
+    machine emit_digit(value: i32 in Wrapping, divisor: i32 in Wrapping) {
         Console::write_byte((48 + value / divisor) as i32);
         transition divisor > 1 {
             true -> digit(value % divisor, divisor / 10)
             _ -> done()
         }
     }
-    state done() { }
+    machine done() { }
 }
 
 public machine emit(pedigree: &Pedigree, result: &Inference) reaches Console
@@ -38,14 +38,14 @@ invokes Console;
         true -> marginal(pedigree, result, 0)
         _ -> witness(pedigree, result, 0)
     }
-    state marginal(pedigree: &Pedigree, result: &Inference,
+    machine marginal(pedigree: &Pedigree, result: &Inference,
                    position: i32 in Wrapping) {
         transition position >= 0 && position < pedigree.count * 3 && position < 18 {
             true -> probability(pedigree, result, position)
             _ -> done()
         }
     }
-    state probability(pedigree: &Pedigree, result: &Inference,
+    machine probability(pedigree: &Pedigree, result: &Inference,
                       position: i32 in Wrapping) {
         let weight: i32 in Wrapping = result.marginals[position] as i32 in Wrapping;
         transition weight > 0 {
@@ -53,7 +53,7 @@ invokes Console;
             _ -> marginal(pedigree, result, position + 1)
         }
     }
-    state possible(pedigree: &Pedigree, result: &Inference,
+    machine possible(pedigree: &Pedigree, result: &Inference,
                    position: i32 in Wrapping, weight: i32 in Wrapping) {
         Console::write("POSSIBLE "); number(position / 3 + 1); Console::write(" ");
         let genotype: i32 in Wrapping = position % 3;
@@ -62,14 +62,14 @@ invokes Console;
         number(result.mass); Console::write_line("");
         transition { _ -> marginal(pedigree, result, position + 1) }
     }
-    state witness(pedigree: &Pedigree, result: &Inference,
+    machine witness(pedigree: &Pedigree, result: &Inference,
                   person: i32 in Wrapping) {
         transition person >= 0 && person < pedigree.count && person < 6 {
             true -> constraint(pedigree, result, person)
             _ -> done()
         }
     }
-    state constraint(pedigree: &Pedigree, result: &Inference,
+    machine constraint(pedigree: &Pedigree, result: &Inference,
                      person: i32 in Wrapping) {
         let active: i32 = result.active[person];
         transition active == 1 {
@@ -77,17 +77,17 @@ invokes Console;
             _ -> witness(pedigree, result, person + 1)
         }
     }
-    state retained(pedigree: &Pedigree, result: &Inference,
+    machine retained(pedigree: &Pedigree, result: &Inference,
                    person: i32 in Wrapping) {
         Console::write("CORE "); number(person + 1); Console::write_line("");
         transition { _ -> witness(pedigree, result, person + 1) }
     }
-    state done() { }
+    machine done() { }
 }
 
 machine label(genotype: i32 in Wrapping) reaches Console {
     transition genotype { 0 -> aa() 1 -> ab() _ -> bb() }
-    state aa() { Console::write("AA"); }
-    state ab() { Console::write("AB"); }
-    state bb() { Console::write("BB"); }
+    machine aa() { Console::write("AA"); }
+    machine ab() { Console::write("AB"); }
+    machine bb() { Console::write("BB"); }
 }

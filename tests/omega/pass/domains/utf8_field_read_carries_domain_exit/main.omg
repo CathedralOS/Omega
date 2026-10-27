@@ -21,11 +21,11 @@ machine Main::check(main: &Main, text: &[u8] in Utf8) reaches Console {
         _ -> bad(main)
     }
 
-    state good(main: &Main) {
+    machine good(main: &Main) {
         Console::exit_process(70);
     }
 
-    state bad(main: &Main) {
+    machine bad(main: &Main) {
         Console::exit_process(71);
     }
 }

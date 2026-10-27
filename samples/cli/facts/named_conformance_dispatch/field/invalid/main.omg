@@ -44,6 +44,6 @@ machine main() blocks; crashes Trap {
     let operands: Operands = Operands { left: 20, right: 22 };
     let result: i32 = block probe(operands);
     transition result == 42 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

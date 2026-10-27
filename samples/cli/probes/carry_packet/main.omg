@@ -41,12 +41,12 @@ machine carry_packet() {
         Packet::Empty -> done(71)
     }
 
-    state judge(count: i32, priority: u8) {
+    machine judge(count: i32, priority: u8) {
         transition count == 3 && priority == 2 {
             true -> done(70)
             _ -> done(72)
         }
     }
 
-    state done(code: i32) {}
+    machine done(code: i32) {}
 }

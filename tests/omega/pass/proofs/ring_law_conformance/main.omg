@@ -41,9 +41,9 @@ ensures
         Peano::Zero -> base()
         Peano::Succ { pred } -> step(pred, b, c)
     }
-    state base() {
+    machine base() {
     }
-    state step(pred: Peano, b: Peano, c: Peano) {
+    machine step(pred: Peano, b: Peano, c: Peano) {
         plus_assoc(pred, b, c);
     }
 }

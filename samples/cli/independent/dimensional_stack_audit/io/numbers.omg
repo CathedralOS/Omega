@@ -10,45 +10,45 @@ crashes Trap
     input.value = 0;
     input.valid = false;
     transition { _ -> scan(input, 0, false, false) }
-    state scan(input: &mut Input, digits: u32, negative: bool, started: bool) {
+    machine scan(input: &mut Input, digits: u32, negative: bool, started: bool) {
         let byte: ByteRead = block Console::read_byte();
         transition byte {
             ByteRead::Eof -> finish(input, digits, negative)
             ByteRead::Byte { value } -> classify(input, digits, negative, started, value)
         }
     }
-    state classify(input: &mut Input, digits: u32, negative: bool, started: bool, byte: i32) {
+    machine classify(input: &mut Input, digits: u32, negative: bool, started: bool, byte: i32) {
         transition byte == 10 {
             true -> finish(input, digits, negative)
             false -> sign(input, digits, negative, started, byte)
         }
     }
-    state sign(input: &mut Input, digits: u32, negative: bool, started: bool, byte: i32) {
+    machine sign(input: &mut Input, digits: u32, negative: bool, started: bool, byte: i32) {
         transition byte == 45 && started == false {
             true -> scan(input, digits, true, true)
             false -> digit(input, digits, negative, byte)
         }
     }
-    state digit(input: &mut Input, digits: u32, negative: bool, byte: i32) {
+    machine digit(input: &mut Input, digits: u32, negative: bool, byte: i32) {
         transition byte >= 48 && byte <= 57 && digits < 5 {
             true -> append(input, digits, negative, byte)
             false -> done()
         }
     }
-    state append(input: &mut Input, digits: u32, negative: bool, byte: i32)
+    machine append(input: &mut Input, digits: u32, negative: bool, byte: i32)
     requires digits < 5 {
         input.value = input.value * 10 + (byte as i32 in Saturating) - 48;
         transition { _ -> scan(input, digits + 1, negative, true) }
     }
-    state finish(input: &mut Input, digits: u32, negative: bool) {
+    machine finish(input: &mut Input, digits: u32, negative: bool) {
         transition digits > 0 { true -> signed(input, negative) false -> done() }
     }
-    state signed(input: &mut Input, negative: bool) {
+    machine signed(input: &mut Input, negative: bool) {
         input.valid = true;
         transition negative { true -> negate(input) false -> done() }
     }
-    state negate(input: &mut Input) { input.value = 0 - input.value; }
-    state done() { }
+    machine negate(input: &mut Input) { input.value = 0 - input.value; }
+    machine done() { }
 }
 // Decimal rendering uses byte output, avoiding any invented UTF-8 obligations.
 public machine write_integer(value: i32 in Saturating) reaches Console
@@ -58,18 +58,18 @@ invokes Console;
         true -> minimum()
         false -> sign(value)
     }
-    state minimum() { Console::write_line("-2147483648"); }
-    state sign(value: i32 in Saturating) {
+    machine minimum() { Console::write_line("-2147483648"); }
+    machine sign(value: i32 in Saturating) {
         transition value < 0 { true -> negative(value) false -> positive(value) }
     }
-    state negative(value: i32 in Saturating) {
+    machine negative(value: i32 in Saturating) {
         Console::write_byte(45);
         transition { _ -> positive(0 - value) }
     }
-    state positive(value: i32 in Saturating) {
+    machine positive(value: i32 in Saturating) {
         transition { _ -> digit(value, 1000000000, false) }
     }
-    state digit(value: i32 in Saturating, divisor: i32 in Saturating, started: bool)
+    machine digit(value: i32 in Saturating, divisor: i32 in Saturating, started: bool)
     requires divisor > 0 {
         let character: i32 in Saturating = value / divisor;
         transition character > 0 || started || divisor == 1 {
@@ -77,13 +77,13 @@ invokes Console;
             false -> next(value, divisor, false)
         }
     }
-    state emit(value: i32 in Saturating, divisor: i32 in Saturating, character: i32 in Saturating)
+    machine emit(value: i32 in Saturating, divisor: i32 in Saturating, character: i32 in Saturating)
     requires divisor > 0 {
         Console::write_byte((character + 48) as i32);
         transition { _ -> next(value % divisor, divisor, true) }
     }
-    state next(value: i32 in Saturating, divisor: i32 in Saturating, started: bool) {
+    machine next(value: i32 in Saturating, divisor: i32 in Saturating, started: bool) {
         transition divisor >= 10 { true -> digit(value, divisor / 10, started) false -> newline() }
     }
-    state newline() { Console::write_byte(10); }
+    machine newline() { Console::write_byte(10); }
 }

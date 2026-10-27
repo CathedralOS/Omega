@@ -25,11 +25,11 @@ machine Main::number(main: &mut Main, value: f64) reaches Console {
     let converted: i32 in Saturating = I32::from_f64(value);
     let integer: i32 = converted as i32;
     transition { _ -> digits(main, integer, 1000000000) }
-    state digits(main: &mut Main, integer: i32, divisor: i32) {
+    machine digits(main: &mut Main, integer: i32, divisor: i32) {
         Console::write_byte(48 + (integer / divisor) % 10);
         transition divisor >= 10 { true -> digits(main, integer, divisor / 10) false -> done() }
     }
-    state done() { }
+    machine done() { }
 }
 machine Main::main(main: &mut Main) reaches Console {
     Console::write_line("antenna_array_pattern scalar far-field u=-1:0.25:1; powers in millionths");
@@ -38,56 +38,56 @@ machine Main::main(main: &mut Main) reaches Console {
         ByteRead::Eof -> suite(main)
         ByteRead::Byte { value } -> select(main, value)
     }
-    state select(main: &mut Main, value: i32) {
+    machine select(main: &mut Main, value: i32) {
         transition value {
             10 -> blank_suite(main)
             97 -> selected_suite(main)
             _ -> select_digit(main, value)
         }
     }
-    state select_digit(main: &mut Main, value: i32) {
+    machine select_digit(main: &mut Main, value: i32) {
         transition value >= 48 && value <= 54 { true -> selected(main, value - 48) false -> invalid_input(main) }
     }
-    state selected(main: &mut Main, selection: i32) {
+    machine selected(main: &mut Main, selection: i32) {
         main.selection = selection;
         main.all = false;
         transition { _ -> tail(main) }
     }
-    state selected_suite(main: &mut Main) {
+    machine selected_suite(main: &mut Main) {
         main.selection = 0; main.all = true;
         transition { _ -> tail(main) }
     }
-    state tail(main: &mut Main) {
+    machine tail(main: &mut Main) {
         let tail: ByteRead = block Console::read_byte();
         transition tail {
             ByteRead::Eof -> load(main)
             ByteRead::Byte { value } -> tail_check(main, value)
         }
     }
-    state tail_check(main: &mut Main, value: i32) {
+    machine tail_check(main: &mut Main, value: i32) {
         transition value == 10 { true -> after_line(main) false -> invalid_input(main) }
     }
-    state blank_suite(main: &mut Main) {
+    machine blank_suite(main: &mut Main) {
         main.selection = 0; main.all = true;
         transition { _ -> after_line(main) }
     }
-    state after_line(main: &mut Main) {
+    machine after_line(main: &mut Main) {
         let remaining: ByteRead = block Console::read_byte();
         transition remaining {
             ByteRead::Eof -> load(main)
             ByteRead::Byte { value } -> invalid_input(main)
         }
     }
-    state suite(main: &mut Main) {
+    machine suite(main: &mut Main) {
         main.selection = 0; main.all = true;
         transition { _ -> load(main) }
     }
-    state load(main: &mut Main) {
+    machine load(main: &mut Main) {
         Fixtures::load(&mut main.geometry, main.selection);
         let valid: bool = Geometry::valid(&main.geometry);
         transition valid { true -> prepare(main) false -> invalid_geometry(main) }
     }
-    state prepare(main: &mut Main) {
+    machine prepare(main: &mut Main) {
         main.amplitude = Geometry::amplitude(&main.geometry);
         main.sample = 0;
         main.symmetry = 0.0;
@@ -99,10 +99,10 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("");
         transition { _ -> sample_guard(main) }
     }
-    state sample_guard(main: &mut Main) {
+    machine sample_guard(main: &mut Main) {
         transition main.sample >= 0 && main.sample < 9 { true -> calculate(main) false -> symmetry_guard(main, 0) }
     }
-    state calculate(main: &mut Main) {
+    machine calculate(main: &mut Main) {
         let ordinal: f64 = F64::from_i32(main.sample);
         let direction: f64 = -1.0 + ordinal * 0.25;
         main.power = Pattern::power(&main.geometry, direction);
@@ -110,11 +110,11 @@ machine Main::main(main: &mut Main) reaches Console {
         main.normalized = 0.0;
         transition main.amplitude > 0.0 { true -> normalize(main) false -> verify(main) }
     }
-    state normalize(main: &mut Main) {
+    machine normalize(main: &mut Main) {
         main.normalized = main.power / (main.amplitude * main.amplitude);
         transition { _ -> verify(main) }
     }
-    state verify(main: &mut Main) {
+    machine verify(main: &mut Main) {
         let expected_power: f64 = Expected::power(main.selection, main.sample);
         let expected_normalized: f64 = Expected::normalized(main.selection, main.sample);
         let power_error: f64 = abs_f64(main.power - expected_power);
@@ -124,11 +124,11 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> numerical_failure(main)
         }
     }
-    state numerical_failure(main: &mut Main) {
+    machine numerical_failure(main: &mut Main) {
         Console::write_line("ERROR numeric: frozen raw or normalized tolerance exceeded");
         Console::exit_process(66);
     }
-    state report(main: &mut Main) {
+    machine report(main: &mut Main) {
         Console::write("sample "); Console::write_byte(48 + main.sample % 10);
         Console::write(" power ");
         let mut displayed_power: f64 = main.power * 1000000.0;
@@ -138,38 +138,38 @@ machine Main::main(main: &mut Main) reaches Console {
         Main::number(main, displayed_normalized);
         transition main.power < 0.0000000001 { true -> null(main) false -> nonnull(main) }
     }
-    state null(main: &mut Main) { Console::write_line(" null 1"); transition { _ -> next_sample(main) } }
-    state nonnull(main: &mut Main) { Console::write_line(" null 0"); transition { _ -> next_sample(main) } }
-    state next_sample(main: &mut Main) {
+    machine null(main: &mut Main) { Console::write_line(" null 1"); transition { _ -> next_sample(main) } }
+    machine nonnull(main: &mut Main) { Console::write_line(" null 0"); transition { _ -> next_sample(main) } }
+    machine next_sample(main: &mut Main) {
         main.sample = main.sample % 9 + 1;
         transition { _ -> sample_guard(main) }
     }
-    state symmetry_guard(main: &mut Main, index: i32) {
+    machine symmetry_guard(main: &mut Main, index: i32) {
         transition index >= 0 && index < 4 { true -> symmetry_pair(main, index) false -> diagnostic(main) }
     }
-    state symmetry_pair(main: &mut Main, index: i32) {
+    machine symmetry_pair(main: &mut Main, index: i32) {
         let difference: f64 = abs_f64(main.powers[index] - main.powers[8 - index]);
         main.symmetry = max_f64(main.symmetry, difference);
         transition { _ -> symmetry_guard(main, index + 1) }
     }
-    state diagnostic(main: &mut Main) {
+    machine diagnostic(main: &mut Main) {
         Console::write("symmetry ");
         let mut displayed_symmetry: f64 = main.symmetry * 1000000.0;
         Main::number(main, displayed_symmetry);
         Console::write_line("");
         transition main.all && main.selection < 4 { true -> next_case(main) false -> complete(main) }
     }
-    state next_case(main: &mut Main) {
+    machine next_case(main: &mut Main) {
         main.selection = main.selection % 5 + 1;
         transition { _ -> load(main) }
     }
-    state complete(main: &mut Main) {
+    machine complete(main: &mut Main) {
         Console::write_line("antenna_array_pattern complete"); Console::exit_process(0);
     }
-    state invalid_input(main: &mut Main) {
+    machine invalid_input(main: &mut Main) {
         Console::write_line("ERROR input: expected one selector 0..6, a, newline or EOF"); Console::exit_process(64);
     }
-    state invalid_geometry(main: &mut Main) {
+    machine invalid_geometry(main: &mut Main) {
         Console::write_line("ERROR geometry: position outside [-2,2] or weight outside [-2,2]"); Console::exit_process(65);
     }
 }

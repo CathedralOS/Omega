@@ -59,7 +59,7 @@ machine PlayerSystem::grant_xp(
     }
 
 
-    state level_up(
+    machine level_up(
         player_system: &mut PlayerSystem,
         player: &mut Player
     ) {
@@ -86,7 +86,7 @@ machine PlayerName::copy(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, 
 requires start <= 16; bytes.len <= 16 - start
 {
     transition { _ -> copying(buffer, bytes, start, 0) }
-    state copying(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    machine copying(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
     requires start <= 16; index <= 16
     {
         transition index < bytes.len && start + index < 16 {
@@ -100,7 +100,7 @@ requires start <= 16; bytes.len <= 16 - start
         buffer[start + index] = bytes[index];
         transition { _ -> copying(buffer, bytes, start, index + 1) }
     }
-    state done() {}
+    machine done() {}
 }
 
 machine PlayerName::set(buffer: &mut PlayerName, bytes: &[u8] in Ascii)

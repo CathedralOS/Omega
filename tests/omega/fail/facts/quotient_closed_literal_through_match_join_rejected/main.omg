@@ -66,6 +66,6 @@ machine main() crashes Trap {
     let left: EquivalenceClass = Representative { value: 11 } as EquivalenceClass;
     let right: EquivalenceClass = Representative { value: 17 } as EquivalenceClass;
     transition observe(left, right, true) == 3 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

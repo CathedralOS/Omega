@@ -92,11 +92,11 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> bad(main)
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::exit_process(71);
     }
 }
@@ -129,7 +129,7 @@ terminates by fuel;
 {
     transition { _ -> fill(compact_binary, schema, fuel, 0) }
 
-    state fill(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64, index: u64 in Wrapping)
+    machine fill(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64, index: u64 in Wrapping) -> Plan
     requires 1 <= fuel
     requires fuel <= 128 {
         transition fuel > 1 && index < 32 && index < schema.field_count {
@@ -137,14 +137,14 @@ terminates by fuel;
             _ -> done(compact_binary, schema)
         }
     }
-    state place(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64, index: u64 in Wrapping)
+    machine place(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64, index: u64 in Wrapping) -> Plan
     requires 1 <= fuel
     requires fuel <= 128 {
         compact_binary.tag = narrow_i64_to_u64_wrapping(schema.fields[index].number);
         compact_binary.plans[index] = field_plan(&schema.fields[index].kind, compact_binary.tag);
         transition fuel > 1 { true -> fill(compact_binary, schema, fuel - 1, index + 1) _ -> done(compact_binary, schema) }
     }
-    state done(compact_binary: &mut CompactBinary, schema: Schema) -> Plan {
+    machine done(compact_binary: &mut CompactBinary, schema: Schema) -> Plan {
         Plan {
             fields: compact_binary.plans,
             entry_count: schema.field_count,
@@ -162,8 +162,8 @@ machine field_plan(kind: &FieldKind, tag: u64) -> FieldPlan {
         FieldKind::Nested -> blob(tag)
         FieldKind::Repeated -> blob(tag)
     }
-    state varint(tag: u64) -> FieldPlan { FieldPlan::Varint { tag: tag } }
-    state blob(tag: u64) -> FieldPlan { FieldPlan::LengthPrefixed { tag: tag } }
+    machine varint(tag: u64) -> FieldPlan { FieldPlan::Varint { tag: tag } }
+    machine blob(tag: u64) -> FieldPlan { FieldPlan::LengthPrefixed { tag: tag } }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

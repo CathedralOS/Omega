@@ -15,7 +15,7 @@ requires val >= 100i8 && val <= 104i8 && shift == 2u32
     transition {
         _ -> step(val >> shift)
     }
-    state step(shifted: i8) -> i32
+    machine step(shifted: i8) -> i32
     requires shifted >= 25i8 && shifted <= 25i8
     {
         verify_shifted(shifted)
@@ -31,6 +31,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

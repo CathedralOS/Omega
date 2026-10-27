@@ -7,7 +7,7 @@ machine advance(window: &mut Window, consumed: u64) -> bool {
         true -> valid(window, consumed)
         false -> false
     }
-    state valid(window: &mut Window, consumed: u64) -> bool
+    machine valid(window: &mut Window, consumed: u64) -> bool
     requires consumed <= window.values.len {
         window.values = &mut window.values[consumed..];
         true
@@ -21,7 +21,7 @@ machine read(values: &[Cell]) -> u32 {
         true -> present(values)
         false -> 0
     }
-    state present(values: &[Cell]) -> u32 requires values.len == 1 { values[0].value }
+    machine present(values: &[Cell]) -> u32 requires values.len == 1 { values[0].value }
 }
 machine main() crashes Trap {
     let mut cells: [Cell; 2] = [Cell { value: 7 }, Cell { value: 11 }];
@@ -35,6 +35,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

@@ -17,13 +17,13 @@ crashes Trap reading.value < 0.0 {
         true -> finish(reading)
         false -> ping(reading, count - 1)
     }
-    state finish(reading: &Reading) -> f64 {
+    machine finish(reading: &Reading) -> f64 {
         transition reading.value < 0.0 {
             true -> invalid()
             false -> reading.value
         }
     }
-    state invalid() -> f64 { crash Trap; }
+    machine invalid() -> f64 { crash Trap; }
 }
 
 machine main() crashes Trap {
@@ -33,6 +33,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

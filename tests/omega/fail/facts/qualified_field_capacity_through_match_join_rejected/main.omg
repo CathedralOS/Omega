@@ -30,8 +30,8 @@ machine choose(tail: Tail in Tracked & Partitionable, select: bool) -> Tail in T
 ensures result.length == tail.length
 {
     transition select { true -> left(tail) _ -> right(tail) }
-    state left(tail: Tail in Tracked & Partitionable) -> Tail in Tracked & Partitionable { tail }
-    state right(tail: Tail in Tracked & Partitionable) -> Tail in Tracked & Partitionable { tail }
+    machine left(tail: Tail in Tracked & Partitionable) -> Tail in Tracked & Partitionable { tail }
+    machine right(tail: Tail in Tracked & Partitionable) -> Tail in Tracked & Partitionable { tail }
 }
 machine allocate(strategy: Strategy, length: u64, select: bool) -> Issued
 requires length <= strategy.remaining
@@ -52,6 +52,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

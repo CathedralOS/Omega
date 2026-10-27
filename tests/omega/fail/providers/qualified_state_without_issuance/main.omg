@@ -9,5 +9,5 @@ data Main {}
 machine Main::main(context: &mut Main) {
     let root: Root = Root { value: 42 };
     transition { _ -> consume(root) }
-    state consume(root: Root in Granted) { drop(root); }
+    machine consume(root: Root in Granted) { drop(root); }
 }

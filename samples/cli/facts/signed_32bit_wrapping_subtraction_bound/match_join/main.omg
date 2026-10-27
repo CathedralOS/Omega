@@ -20,14 +20,14 @@ machine exercise(lhs: i32 in Wrapping, rhs: i32 in Wrapping, flag: bool) -> i32 
         true -> step(diff, flag)
         _ -> bad()
     }
-    state step(d: i32, f: bool) -> i32 {
+    machine step(d: i32, f: bool) -> i32 {
         let joined: i32 = match f {
             true -> d,
             false -> d,
         };
         verify_diff(joined)
     }
-    state bad() { crash Trap; }
+    machine bad() -> i32 { crash Trap; }
 }
 
 machine main() crashes Trap {
@@ -36,6 +36,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

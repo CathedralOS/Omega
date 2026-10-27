@@ -11,7 +11,7 @@ machine reused(value: i32 in Wrapping) -> i32 in Wrapping {
 }
 machine shared(value: u64 in Saturating) -> u64 in Saturating {
     transition value > 0 { true -> calculate(value) _ -> 0 }
-    state calculate(value: u64 in Saturating) -> u64 in Saturating {
+    machine calculate(value: u64 in Saturating) -> u64 in Saturating {
         let product: u64 in Saturating = value * value;
         let quotient: u64 in Saturating = value / value;
         product + quotient + value
@@ -49,8 +49,8 @@ machine Main::main(context: &mut Main) reaches Console {
         true -> good(context)
         _ -> wrong(context)
     }
-    state good(context: &mut Main) { Console::exit_process(0); }
-    state wrong(context: &mut Main) { Console::exit_process(71); }
+    machine good(context: &mut Main) { Console::exit_process(0); }
+    machine wrong(context: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

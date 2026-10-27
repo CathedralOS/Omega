@@ -13,6 +13,6 @@ machine main() crashes Trap {
     let joined: &u32 in Controlled = match choice { true -> selected false -> other };
     let result: u32 = consume(joined);
     transition result == 73 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

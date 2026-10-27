@@ -11,7 +11,7 @@ data Outer { inner: Inner; }
 machine inspect(outer: &Outer) {
     Inner::inspect(&outer.inner);
     transition { _ -> finish(outer) }
-    state finish(forwarded: &Outer) {
+    machine finish(forwarded: &Outer) {
         Inner::inspect(&forwarded.inner);
     }
 }

@@ -25,7 +25,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad(main, 78)
     }
 
-    state negative(main: &mut Main) {
+    machine negative(main: &mut Main) {
         let c2: f32 in Finite & Saturating = (main.negative_maximum * main.two) as f32 in Saturating;
         main.clamped = c2;
         transition main.clamped == main.negative_maximum {
@@ -34,14 +34,14 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state nested(main: &mut Main) {
+    machine nested(main: &mut Main) {
         transition main.maximum * main.two == main.maximum {
             true -> divide_zero(main)
             _ -> bad(main, 80)
         }
     }
 
-    state divide_zero(main: &mut Main) {
+    machine divide_zero(main: &mut Main) {
         let r: f32 in Saturating = (main.maximum / main.zero) as f32 in Saturating;
         main.result = r;
         transition main.result > main.maximum {
@@ -50,7 +50,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state invalid(main: &mut Main) {
+    machine invalid(main: &mut Main) {
         let r2: f32 in Saturating = (main.zero / main.zero) as f32 in Saturating;
         main.result = r2;
         transition main.result != main.result {
@@ -59,8 +59,8 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state good(main: &mut Main) { Console::exit_process(77); }
-    state bad(main: &mut Main, code2: i32) { Console::exit_process(code2); }
+    machine good(main: &mut Main) { Console::exit_process(77); }
+    machine bad(main: &mut Main, code2: i32) { Console::exit_process(code2); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

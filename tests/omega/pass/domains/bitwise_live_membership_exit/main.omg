@@ -31,7 +31,7 @@ machine nested(value: u32 in Nested) -> u32 { value as u32 }
 machine retain(value: u32 in Issued) -> u32 { nested(value) }
 machine arrival(options: &Options, value: u32 in Flags) -> u32 {
     transition { _ -> observed(options, value) }
-    state observed(options: &Options, value: u32 in Flags) -> u32 {
+    machine observed(options: &Options, value: u32 in Flags) -> u32 {
         accept(value)
     }
 }
@@ -59,6 +59,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

@@ -48,7 +48,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> report(main, constant, linear_power, quadratic_power)
         false -> Console::exit_process(1)
     }
-    state report(main: &mut Main, constant: i64 in Wrapping, linear_power: i64 in Wrapping,
+    machine report(main: &mut Main, constant: i64 in Wrapping, linear_power: i64 in Wrapping,
                  quadratic_power: i64 in Wrapping) {
         show(main, constant);
         Console::write(" ");
@@ -65,32 +65,32 @@ machine show(main: &mut Main, value: i64 in Wrapping) reaches Console {
         true -> hundreds(main, value / 100, value)
         false -> Console::exit_process(1)
     }
-    state hundreds(main: &mut Main, digit: i64 in Wrapping, value: i64 in Wrapping) {
+    machine hundreds(main: &mut Main, digit: i64 in Wrapping, value: i64 in Wrapping) {
         transition digit > 0 {
             true -> emit(main, digit, value, 100)
             false -> tens(main, (value / 10) % 10, value)
         }
     }
-    state tens(main: &mut Main, digit: i64 in Wrapping, value: i64 in Wrapping) {
+    machine tens(main: &mut Main, digit: i64 in Wrapping, value: i64 in Wrapping) {
         transition value >= 10 {
             true -> emit(main, digit, value, 10)
             false -> ones(main, value)
         }
     }
-    state emit(main: &mut Main, digit: i64 in Wrapping, value: i64 in Wrapping, place: i64 in Wrapping)
+    machine emit(main: &mut Main, digit: i64 in Wrapping, value: i64 in Wrapping, place: i64 in Wrapping)
     requires digit >= 0 && digit <= 9
     {
         Console::write_byte(digit as i32 + 48);
         transition place == 100 { true -> tens(main, (value / 10) % 10, value) _ -> ones(main, value) }
     }
-    state ones(main: &mut Main, value: i64 in Wrapping) {
+    machine ones(main: &mut Main, value: i64 in Wrapping) {
         let digit: i64 in Wrapping = value % 10;
         transition digit >= 0 && digit <= 9 {
             true -> finish(main, digit)
             false -> Console::exit_process(1)
         }
     }
-    state finish(main: &mut Main, digit: i64 in Wrapping)
+    machine finish(main: &mut Main, digit: i64 in Wrapping)
     requires digit >= 0 && digit <= 9
     {
         Console::write_byte(digit as i32 + 48);

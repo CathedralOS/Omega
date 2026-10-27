@@ -30,13 +30,13 @@ terminates;
 terminates by actors -> Slice::Length;
 requires Rooms >= 1 && actors.len == commands.len {
     transition actors.len > 0 { true -> head(actors, commands) _ -> done() }
-    state head(actors: &mut [Actor<Rooms>], commands: &[Command])
+    machine head(actors: &mut [Actor<Rooms>], commands: &[Command])
     requires Rooms >= 1 && actors.len > 0 && actors.len == commands.len {
         let changed: Actor<Rooms> = turn<Rooms>(actors[0]);
         actors[0] = consume<Rooms>(changed, commands[0].direction);
         transition { _ -> advance(&mut actors[1..], commands[1..]) }
     }
-    state done() {}
+    machine done() {}
 }
 machine tick<const Capacity: u64, const Rooms: u64>(actors: &mut Actors<Capacity, Rooms>, commands: &Commands<Capacity>)
 terminates;
@@ -54,8 +54,8 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> passed()
         _ -> failed()
     }
-    state passed() { Console::exit_process(0); }
-    state failed() { Console::exit_process(1); }
+    machine passed() { Console::exit_process(0); }
+    machine failed() { Console::exit_process(1); }
 }
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Console {

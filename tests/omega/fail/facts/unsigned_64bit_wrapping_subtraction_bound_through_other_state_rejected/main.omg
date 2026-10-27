@@ -11,7 +11,7 @@ requires lhs >= 80u64 && lhs <= 121u64 && rhs >= 20u64 && rhs <= 40u64
     transition {
         _ -> step(diff_wrap as u64)
     }
-    state step(diff: u64) -> i32
+    machine step(diff: u64) -> i32
     requires diff >= 40u64 && diff <= 101u64
     {
         let headroom: u64 = 100u64 - diff;
@@ -29,6 +29,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

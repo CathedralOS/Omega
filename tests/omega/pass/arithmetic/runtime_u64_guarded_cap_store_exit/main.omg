@@ -10,12 +10,12 @@ machine Main::main(context: &mut Main) reaches Console
     let mut values: Values;
     values.raw = 42;
     transition values.raw <= 9223372036854775807 { true -> store(context, &mut values) _ -> bad(context) }
-    state store(context: &mut Main, values: &mut Values)
+    machine store(context: &mut Main, values: &mut Values)
     {
         values.capped = values.raw;
         Console::exit_process(70);
     }
-    state bad(context: &mut Main)
+    machine bad(context: &mut Main)
     { Console::exit_process(71); }
 }
 

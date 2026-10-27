@@ -12,6 +12,6 @@ machine Main::main(main: &mut Main) {
     main.b = 1;
     transition main.b * 20 + main.a >= 0 && main.b * 20 + main.a < 200 { true -> put(main) _ -> done(main) }
 
-    state put(main: &mut Main) { main.grid[main.b * 20 + main.a] = 7; }
-    state done(main: &mut Main) {}
+    machine put(main: &mut Main) { main.grid[main.b * 20 + main.a] = 7; }
+    machine done(main: &mut Main) {}
 }

@@ -15,26 +15,26 @@ machine Main::main(main: &mut Main) reaches Console {
     // A `&mut` projected loan binds the subtree under its root for the
     // target block's duration: `loan` writes and reads the `main.inner`
     // storage exclusively while the ambient receiver is bound too.
-    state next(main: &mut Main, loan: &mut Inner) {
+    machine next(main: &mut Main, loan: &mut Inner) {
         loan.tag = 9;
         transition loan.tag == 9 { true -> done(main) _ -> bad(main) }
     }
 
     // The loan's name died at the edge: `done` reads the same storage
     // through the receiver root and must observe the loan's write.
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         transition main.inner.tag == 9 { true -> ok(main) _ -> stale(main) }
     }
 
-    state ok(main: &mut Main) {
+    machine ok(main: &mut Main) {
         Console::exit_process(0);
     }
 
-    state stale(main: &mut Main) {
+    machine stale(main: &mut Main) {
         Console::exit_process(2);
     }
 
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::exit_process(1);
     }
 }

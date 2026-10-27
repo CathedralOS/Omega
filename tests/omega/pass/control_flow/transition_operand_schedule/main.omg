@@ -20,7 +20,7 @@ machine checked_transfer() {
     let mut flag: bool = false;
     flag = true;
     transition { _ -> done(false && clear(&mut flag), flag) }
-    state done(ignored: bool, current: bool) requires current {}
+    machine done(ignored: bool, current: bool) requires current {}
 }
 
 machine demand(flag: bool) -> bool requires flag { true }

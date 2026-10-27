@@ -23,6 +23,6 @@ machine through(choice: u64) -> bool {
 }
 machine main() crashes Trap {
     transition through(0) && through(1) && through(2) { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

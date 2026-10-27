@@ -36,8 +36,8 @@ machine Main::main<'activation>(main: &'activation mut Main) reaches Reading cra
     let value: &'activation i32 = &main.session.value.value.value;
     let saved: i32 = observed(value);
     transition direct == 37 && saved == 37 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The root owns ordinary local storage and supplies its borrow explicitly.

@@ -8,12 +8,12 @@ data Main { }
 machine identity(value: [u8; 6] in Utf8) -> [u8; 6] in Utf8 { value }
 machine forward(value: [u8; 6] in Utf8) -> [u8; 6] in Utf8 {
     transition { _ -> arrived(value) }
-    state arrived(value: [u8; 6] in Utf8) -> [u8; 6] in Utf8 { value }
+    machine arrived(value: [u8; 6] in Utf8) -> [u8; 6] in Utf8 { value }
 }
 
 machine matches_text(value: [u8; 6] in Utf8, shared: &[u8] in Utf8) -> bool {
     transition { _ -> arrived(value, shared) }
-    state arrived(value: [u8; 6] in Utf8, shared: &[u8] in Utf8) -> bool {
+    machine arrived(value: [u8; 6] in Utf8, shared: &[u8] in Utf8) -> bool {
         value == "éGate" && shared == "éGate" && value.len == 6 && shared.len == 6
     }
 }
@@ -23,7 +23,7 @@ machine independent(mut first: [u8; 4] in Ascii, second: [u8; 4] in Ascii) -> bo
         true -> rewrite(first, second)
         _ -> false
     }
-    state rewrite(mut first: [u8; 4] in Ascii, second: [u8; 4] in Ascii) -> bool
+    machine rewrite(mut first: [u8; 4] in Ascii, second: [u8; 4] in Ascii) -> bool
     requires first.len == 4 && second.len == 4;
     {
         first[0] = 65;
@@ -41,7 +41,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 70)
         false -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

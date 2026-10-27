@@ -18,8 +18,8 @@ linux_x86_64 machine rmw(grid: &mut [[i32 in Wrapping; 4]; 3], rows: &mut [Row; 
     rows[ri].data[rj] = rows[ri].data[rj] + 1;
     let rows_got: i32 in Wrapping = rows[2].data[1] + rows[2].tag;
     transition grid_got == 42 && rows_got == 49 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
     }
 
 linux_arm64 machine rmw(grid: &mut [[i32 in Wrapping; 4]; 3], rows: &mut [Row; 3],
@@ -37,8 +37,8 @@ linux_arm64 machine rmw(grid: &mut [[i32 in Wrapping; 4]; 3], rows: &mut [Row; 3
     rows[ri].data[rj] = rows[ri].data[rj] + 1;
     let rows_got: i32 in Wrapping = rows[2].data[1] + rows[2].tag;
     transition grid_got == 42 && rows_got == 49 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
     }
 
 macos_arm64 machine rmw(grid: &mut [[i32 in Wrapping; 4]; 3], rows: &mut [Row; 3],
@@ -56,8 +56,8 @@ macos_arm64 machine rmw(grid: &mut [[i32 in Wrapping; 4]; 3], rows: &mut [Row; 3
     rows[ri].data[rj] = rows[ri].data[rj] + 1;
     let rows_got: i32 in Wrapping = rows[2].data[1] + rows[2].tag;
     transition grid_got == 42 && rows_got == 49 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
     }
 
 windows_x86_64 machine rmw(grid: &mut [[i32 in Wrapping; 4]; 3], rows: &mut [Row; 3],
@@ -75,8 +75,8 @@ windows_x86_64 machine rmw(grid: &mut [[i32 in Wrapping; 4]; 3], rows: &mut [Row
     rows[ri].data[rj] = rows[ri].data[rj] + 1;
     let rows_got: i32 in Wrapping = rows[2].data[1] + rows[2].tag;
     transition grid_got == 42 && rows_got == 49 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
     }
 
 machine main() crashes Trap {

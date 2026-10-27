@@ -16,10 +16,10 @@ machine Main::main(main: &mut Main) {
         Command::Lit { amount } -> apply(main, amount)
         Command::Off -> bad(main)
     }
-    state apply(main: &mut Main, amount: i32 in Ten) {
+    machine apply(main: &mut Main, amount: i32 in Ten) {
         main.hits = main.hits + (scale(amount) as i32 in Wrapping);
     }
-    state bad(main: &mut Main) { }
+    machine bad(main: &mut Main) { }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

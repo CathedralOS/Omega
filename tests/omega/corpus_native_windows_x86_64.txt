@@ -874,8 +874,6 @@ pass/calls/runtime_qualified_owned_result_argument_exit built 2671ms exit:0 @5f6
 pass/calls/runtime_qualified_record_call_results_reused_exit built 2693ms exit:0 @5f668826adf3+wt
 pass/calls/runtime_qualified_tail_recursion_exit built 7072ms exit:70 @5f668826adf3+wt
 pass/calls/runtime_qualified_terminal_result_exit built 2596ms exit:0 @5f668826adf3+wt
-pass/calls/runtime_recursive_unit_borrowed_continuation_exit built 7391ms exit:70 stdout:match stderr:match @5f668826adf3+wt
-pass/calls/runtime_recursive_unit_continuation_exit built 7589ms exit:70 stdout:match stderr:match @5f668826adf3+wt
 pass/calls/runtime_reference_returned_slice_element_write_exit built 8139ms exit:181 @5f668826adf3+wt
 pass/calls/runtime_referenced_local_outlives_sibling_guard_call_exit built 7497ms exit:70 @5f668826adf3+wt
 pass/calls/runtime_same_type_second_receiver_mutation_exit built 7363ms exit:70 @5f668826adf3+wt

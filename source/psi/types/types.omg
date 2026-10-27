@@ -231,11 +231,11 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(typing: &Typing, row: u64 in Trapping) -> u64 in Trapping {
+    machine read(typing: &Typing, row: u64 in Trapping) -> u64 in Trapping {
         typing.reference_types[row] as u64 in Trapping
     }
 
-    state invalid() -> u64 in Trapping {
+    machine invalid() -> u64 in Trapping {
         crash Trap;
     }
 }
@@ -248,11 +248,11 @@ crashes Trap
         _ -> invalid()
     }
 
-    state write(typing: &mut Typing, row: u64 in Trapping, handle: u64 in Trapping) {
+    machine write(typing: &mut Typing, row: u64 in Trapping, handle: u64 in Trapping) {
         typing.reference_types[row] = handle as u64;
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -265,11 +265,11 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(typing: &Typing, index: u64 in Trapping) -> u64 in Trapping {
+    machine read(typing: &Typing, index: u64 in Trapping) -> u64 in Trapping {
         typing.expression_types[index] as u64 in Trapping
     }
 
-    state invalid() -> u64 in Trapping {
+    machine invalid() -> u64 in Trapping {
         crash Trap;
     }
 }
@@ -282,11 +282,11 @@ crashes Trap
         _ -> invalid()
     }
 
-    state write(typing: &mut Typing, index: u64 in Trapping, handle: u64 in Trapping) {
+    machine write(typing: &mut Typing, index: u64 in Trapping, handle: u64 in Trapping) {
         typing.expression_types[index] = handle as u64;
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -299,11 +299,11 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(typing: &Typing, index: u64 in Trapping) -> Selection {
+    machine read(typing: &Typing, index: u64 in Trapping) -> Selection {
         typing.selections[index]
     }
 
-    state invalid() -> Selection {
+    machine invalid() -> Selection {
         crash Trap;
     }
 }
@@ -316,11 +316,11 @@ crashes Trap
         _ -> invalid()
     }
 
-    state write(typing: &mut Typing, index: u64 in Trapping, selection: Selection) {
+    machine write(typing: &mut Typing, index: u64 in Trapping, selection: Selection) {
         typing.selections[index] = selection;
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -333,11 +333,11 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(typing: &Typing, index: u64 in Trapping) -> Adaptation {
+    machine read(typing: &Typing, index: u64 in Trapping) -> Adaptation {
         typing.adaptations[index]
     }
 
-    state invalid() -> Adaptation {
+    machine invalid() -> Adaptation {
         crash Trap;
     }
 }
@@ -350,11 +350,11 @@ crashes Trap
         _ -> invalid()
     }
 
-    state write(typing: &mut Typing, index: u64 in Trapping, adaptation: Adaptation) {
+    machine write(typing: &mut Typing, index: u64 in Trapping, adaptation: Adaptation) {
         typing.adaptations[index] = adaptation;
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -367,11 +367,11 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(typing: &Typing, index: u64 in Trapping) -> ExactInteger {
+    machine read(typing: &Typing, index: u64 in Trapping) -> ExactInteger {
         typing.values[index]
     }
 
-    state invalid() -> ExactInteger {
+    machine invalid() -> ExactInteger {
         crash Trap;
     }
 }
@@ -395,12 +395,12 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(typing: &Typing, index: u64 in Trapping) -> u64 in Trapping {
+    machine read(typing: &Typing, index: u64 in Trapping) -> u64 in Trapping {
         let stored: u64 = typing.rosters[index];
         stored as u64 in Trapping
     }
 
-    state invalid() -> u64 in Trapping {
+    machine invalid() -> u64 in Trapping {
         crash Trap;
     }
 }
@@ -413,11 +413,11 @@ crashes Trap
         _ -> invalid()
     }
 
-    state write(typing: &mut Typing, index: u64 in Trapping, roster: u64 in Trapping) {
+    machine write(typing: &mut Typing, index: u64 in Trapping, roster: u64 in Trapping) {
         typing.rosters[index] = roster as u64;
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -431,7 +431,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(typing: &Typing, index: u64 in Trapping) -> u64 in Trapping {
+    machine read(typing: &Typing, index: u64 in Trapping) -> u64 in Trapping {
         let stored: u64 = typing.denominators[index];
         transition stored > 1 {
             true -> fraction(stored)
@@ -439,15 +439,15 @@ crashes Trap
         }
     }
 
-    state fraction(stored: u64) -> u64 in Trapping {
+    machine fraction(stored: u64) -> u64 in Trapping {
         stored as u64 in Trapping
     }
 
-    state integral() -> u64 in Trapping {
+    machine integral() -> u64 in Trapping {
         1
     }
 
-    state invalid() -> u64 in Trapping {
+    machine invalid() -> u64 in Trapping {
         crash Trap;
     }
 }
@@ -460,12 +460,12 @@ crashes Trap
         _ -> invalid()
     }
 
-    state write(typing: &mut Typing, index: u64 in Trapping, value: Rational) {
+    machine write(typing: &mut Typing, index: u64 in Trapping, value: Rational) {
         typing.values[index] = value.numerator;
         typing.denominators[index] = value.denominator as u64;
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -478,12 +478,12 @@ crashes Trap
         _ -> invalid()
     }
 
-    state write(typing: &mut Typing, index: u64 in Trapping, value: ExactInteger) {
+    machine write(typing: &mut Typing, index: u64 in Trapping, value: ExactInteger) {
         typing.values[index] = value;
         typing.denominators[index] = 0;
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -496,11 +496,11 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(typing: &Typing, field: u64 in Trapping) -> MemberTarget {
+    machine read(typing: &Typing, field: u64 in Trapping) -> MemberTarget {
         typing.construct_targets[field]
     }
 
-    state invalid() -> MemberTarget {
+    machine invalid() -> MemberTarget {
         crash Trap;
     }
 }
@@ -513,11 +513,11 @@ crashes Trap
         _ -> invalid()
     }
 
-    state write(typing: &mut Typing, field: u64 in Trapping, target: MemberTarget) {
+    machine write(typing: &mut Typing, field: u64 in Trapping, target: MemberTarget) {
         typing.construct_targets[field] = target;
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -530,11 +530,11 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(typing: &Typing, field: u64 in Trapping) -> MemberTarget {
+    machine read(typing: &Typing, field: u64 in Trapping) -> MemberTarget {
         typing.binder_members[field]
     }
 
-    state invalid() -> MemberTarget {
+    machine invalid() -> MemberTarget {
         crash Trap;
     }
 }
@@ -547,11 +547,11 @@ crashes Trap
         _ -> invalid()
     }
 
-    state write(typing: &mut Typing, field: u64 in Trapping, target: MemberTarget) {
+    machine write(typing: &mut Typing, field: u64 in Trapping, target: MemberTarget) {
         typing.binder_members[field] = target;
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -564,11 +564,11 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(typing: &Typing, field: u64 in Trapping) -> u64 in Trapping {
+    machine read(typing: &Typing, field: u64 in Trapping) -> u64 in Trapping {
         typing.binder_types[field] as u64 in Trapping
     }
 
-    state invalid() -> u64 in Trapping {
+    machine invalid() -> u64 in Trapping {
         crash Trap;
     }
 }
@@ -581,11 +581,11 @@ crashes Trap
         _ -> invalid()
     }
 
-    state write(typing: &mut Typing, field: u64 in Trapping, handle: u64 in Trapping) {
+    machine write(typing: &mut Typing, field: u64 in Trapping, handle: u64 in Trapping) {
         typing.binder_types[field] = handle as u64;
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -614,11 +614,11 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(table: &TypeTable, handle: u64 in Trapping) -> TypeRow {
+    machine read(table: &TypeTable, handle: u64 in Trapping) -> TypeRow {
         table.rows[handle]
     }
 
-    state invalid() -> TypeRow {
+    machine invalid() -> TypeRow {
         crash Trap;
     }
 }
@@ -631,11 +631,11 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(table: &TypeTable, index: u64 in Trapping) -> u64 in Trapping {
+    machine read(table: &TypeTable, index: u64 in Trapping) -> u64 in Trapping {
         table.arguments[index] as u64 in Trapping
     }
 
-    state invalid() -> u64 in Trapping {
+    machine invalid() -> u64 in Trapping {
         crash Trap;
     }
 }
@@ -650,13 +650,13 @@ crashes Trap
         _ -> full()
     }
 
-    state push(table: &mut TypeTable, argument: u64 in Trapping) -> bool {
+    machine push(table: &mut TypeTable, argument: u64 in Trapping) -> bool {
         table.arguments[table.argument_count] = argument as u64;
         table.argument_count = table.argument_count + 1;
         true
     }
 
-    state full() -> bool {
+    machine full() -> bool {
         false
     }
 }
@@ -669,14 +669,14 @@ crashes Trap
 {
     transition { _ -> scan(table, row, 1) }
 
-    state scan(table: &mut TypeTable, row: TypeRow, index: u64 in Trapping) -> u64 in Trapping {
+    machine scan(table: &mut TypeTable, row: TypeRow, index: u64 in Trapping) -> u64 in Trapping {
         transition index < table.row_count {
             true -> compare(table, row, index)
             _ -> append(table, row)
         }
     }
 
-    state compare(table: &mut TypeTable, row: TypeRow, index: u64 in Trapping) -> u64 in Trapping {
+    machine compare(table: &mut TypeTable, row: TypeRow, index: u64 in Trapping) -> u64 in Trapping {
         let existing: TypeRow = TypeTable::row(table, index);
         let same: bool = TypeTable::same_row(table, existing, row);
         transition same {
@@ -687,39 +687,39 @@ crashes Trap
 
     // The tentative run ends the argument table, so releasing it moves the
     // count back to where the run starts.
-    state found(table: &mut TypeTable, row: TypeRow, index: u64 in Trapping) -> u64 in Trapping {
+    machine found(table: &mut TypeTable, row: TypeRow, index: u64 in Trapping) -> u64 in Trapping {
         transition row.argument_count > 0 && row.first_argument <= table.argument_count {
             true -> release(table, row.first_argument, index)
             _ -> result(index)
         }
     }
 
-    state release(table: &mut TypeTable, first_argument: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping
+    machine release(table: &mut TypeTable, first_argument: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping
     requires first_argument <= 4096
     {
         table.argument_count = first_argument as u64;
         transition { _ -> result(index) }
     }
 
-    state append(table: &mut TypeTable, row: TypeRow) -> u64 in Trapping {
+    machine append(table: &mut TypeTable, row: TypeRow) -> u64 in Trapping {
         transition table.row_count < 8192 {
             true -> store(table, row)
             _ -> full()
         }
     }
 
-    state store(table: &mut TypeTable, row: TypeRow) -> u64 in Trapping {
+    machine store(table: &mut TypeTable, row: TypeRow) -> u64 in Trapping {
         let handle: u64 in Trapping = table.row_count as u64 in Trapping;
         table.rows[handle] = row;
         table.row_count = table.row_count + 1;
         transition { _ -> result(handle) }
     }
 
-    state result(handle: u64 in Trapping) -> u64 in Trapping {
+    machine result(handle: u64 in Trapping) -> u64 in Trapping {
         handle
     }
 
-    state full() -> u64 in Trapping {
+    machine full() -> u64 in Trapping {
         0
     }
 }
@@ -741,14 +741,14 @@ crashes Trap
         _ -> different()
     }
 
-    state arguments(table: &TypeTable, left: TypeRow, right: TypeRow, offset: u64 in Trapping) -> bool {
+    machine arguments(table: &TypeTable, left: TypeRow, right: TypeRow, offset: u64 in Trapping) -> bool {
         transition offset < left.argument_count {
             true -> argument(table, left, right, offset)
             _ -> same()
         }
     }
 
-    state argument(table: &TypeTable, left: TypeRow, right: TypeRow, offset: u64 in Trapping) -> bool {
+    machine argument(table: &TypeTable, left: TypeRow, right: TypeRow, offset: u64 in Trapping) -> bool {
         let left_argument: u64 in Trapping = TypeTable::argument(table, left.first_argument + offset);
         let right_argument: u64 in Trapping = TypeTable::argument(table, right.first_argument + offset);
         transition left_argument == right_argument {
@@ -757,11 +757,11 @@ crashes Trap
         }
     }
 
-    state same() -> bool {
+    machine same() -> bool {
         true
     }
 
-    state different() -> bool {
+    machine different() -> bool {
         false
     }
 }
@@ -788,7 +788,7 @@ crashes Trap
         _ -> result(handle)
     }
 
-    state inner(typing: &Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
+    machine inner(typing: &Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
         let row: TypeRow = TypeTable::row(&typing.types, handle);
         transition row.kind == TypeKind::Reference && depth < 16 {
             true -> inner(typing, row.inner, depth + 1)
@@ -796,7 +796,7 @@ crashes Trap
         }
     }
 
-    state result(handle: u64 in Trapping) -> u64 in Trapping {
+    machine result(handle: u64 in Trapping) -> u64 in Trapping {
         handle
     }
 }
@@ -809,7 +809,7 @@ crashes Trap
         _ -> rows(table, left, right)
     }
 
-    state referents(table: &TypeTable, left: TypeRow, right: TypeRow) -> bool {
+    machine referents(table: &TypeTable, left: TypeRow, right: TypeRow) -> bool {
         let left_referent: TypeRow = TypeTable::row(table, left.inner);
         let right_referent: TypeRow = TypeTable::row(table, right.inner);
         transition left.access == right.access {
@@ -818,14 +818,14 @@ crashes Trap
         }
     }
 
-    state rows(table: &TypeTable, left: TypeRow, right: TypeRow) -> bool {
+    machine rows(table: &TypeTable, left: TypeRow, right: TypeRow) -> bool {
         let left_carrier: TypeRow = TypeRow::carrier(left);
         let right_carrier: TypeRow = TypeRow::carrier(right);
         let same: bool = TypeTable::same_row(table, left_carrier, right_carrier);
         same
     }
 
-    state different() -> bool {
+    machine different() -> bool {
         false
     }
 }
@@ -840,12 +840,12 @@ crashes Trap
         _ -> own(row)
     }
 
-    state referent(table: &TypeTable, inner: u64 in Trapping) -> TypeRow {
+    machine referent(table: &TypeTable, inner: u64 in Trapping) -> TypeRow {
         let referent_row: TypeRow = TypeTable::row(table, inner);
         referent_row
     }
 
-    state own(row: TypeRow) -> TypeRow {
+    machine own(row: TypeRow) -> TypeRow {
         row
     }
 }
@@ -859,7 +859,7 @@ public machine TypeTable::carrier_width(row: TypeRow) -> u64 in Trapping {
         _ -> width(0)
     }
 
-    state builtin(builtin: BuiltinType) -> u64 in Trapping {
+    machine builtin(builtin: BuiltinType) -> u64 in Trapping {
         transition builtin {
             BuiltinType::Bool -> width(1)
             BuiltinType::U8 -> width(1)
@@ -876,7 +876,7 @@ public machine TypeTable::carrier_width(row: TypeRow) -> u64 in Trapping {
         }
     }
 
-    state width(bytes: u64 in Trapping) -> u64 in Trapping {
+    machine width(bytes: u64 in Trapping) -> u64 in Trapping {
         bytes
     }
 }

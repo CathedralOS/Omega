@@ -18,86 +18,86 @@ crashes Trap
 {
     transition { _ -> next_machine(typer, sources, syntax, resolution, 0) }
 
-    state next_machine(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
+    machine next_machine(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
         transition index < syntax.machine_count && typer.output.accepted {
             true -> machine(typer, sources, syntax, resolution, index)
             _ -> next_data(typer, sources, syntax, resolution, 0)
         }
     }
 
-    state machine(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
+    machine machine(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
         let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
         Typer::type_clause_facts(typer, sources, syntax, resolution, item.first_clause, item.clause_count, ClauseKind::Requires);
         Typer::type_clause_facts(typer, sources, syntax, resolution, item.first_clause, item.clause_count, ClauseKind::Ensures);
         transition { _ -> next_contract(typer, sources, syntax, resolution, index, item, 0) }
     }
 
-    state next_contract(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+    machine next_contract(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
         transition offset < item.contract_count && typer.output.accepted {
             true -> contract_facts(typer, sources, syntax, resolution, index, item, offset)
             _ -> next_state(typer, sources, syntax, resolution, index, item, 0)
         }
     }
 
-    state contract_facts(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+    machine contract_facts(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
         let written: Contract = SyntaxTrees::contract(syntax, item.first_contract + offset);
         Typer::type_clause_facts(typer, sources, syntax, resolution, written.first_clause, written.clause_count, ClauseKind::Requires);
         transition { _ -> next_contract(typer, sources, syntax, resolution, index, item, offset + 1) }
     }
 
-    state next_state(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+    machine next_state(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
         transition offset < item.state_count && typer.output.accepted {
             true -> state_facts(typer, sources, syntax, resolution, index, item, offset)
             _ -> next_machine(typer, sources, syntax, resolution, index + 1)
         }
     }
 
-    state state_facts(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+    machine state_facts(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
         let state_item: StateItem = SyntaxTrees::state_item(syntax, item.first_state + offset);
         Typer::type_clause_facts(typer, sources, syntax, resolution, state_item.first_clause, state_item.clause_count, ClauseKind::Requires);
         transition { _ -> next_state(typer, sources, syntax, resolution, index, item, offset + 1) }
     }
 
-    state next_data(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
+    machine next_data(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
         transition index < syntax.data_count && typer.output.accepted {
             true -> data(typer, sources, syntax, resolution, index)
             _ -> next_domain(typer, sources, syntax, resolution, 0)
         }
     }
 
-    state next_domain(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
+    machine next_domain(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
         transition index < syntax.domain_count && typer.output.accepted {
             true -> domain(typer, sources, syntax, resolution, index)
             _ -> done()
         }
     }
 
-    state domain(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
+    machine domain(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
         let item: DomainItem = SyntaxTrees::domain_item(syntax, index);
         Typer::type_clause_facts(typer, sources, syntax, resolution, item.first_clause, item.clause_count, ClauseKind::Requires);
         transition { _ -> next_domain(typer, sources, syntax, resolution, index + 1) }
     }
 
-    state data(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
+    machine data(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
         let item: DataItem = SyntaxTrees::data_item(syntax, index);
         Typer::type_clause_facts(typer, sources, syntax, resolution, item.first_clause, item.clause_count, ClauseKind::Where);
         transition { _ -> next_case(typer, sources, syntax, resolution, index, item, 0) }
     }
 
-    state next_case(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) {
+    machine next_case(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) {
         transition offset < item.case_count && typer.output.accepted {
             true -> case_facts(typer, sources, syntax, resolution, index, item, offset)
             _ -> next_data(typer, sources, syntax, resolution, index + 1)
         }
     }
 
-    state case_facts(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) {
+    machine case_facts(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) {
         let declared: DataCase = SyntaxTrees::data_case(syntax, item.first_case + offset);
         Typer::type_clause_facts(typer, sources, syntax, resolution, declared.first_clause, declared.clause_count, ClauseKind::Where);
         transition { _ -> next_case(typer, sources, syntax, resolution, index, item, offset + 1) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // The facts of `kind` in a clause run, each a Boolean.
@@ -114,14 +114,14 @@ crashes Trap
 {
     transition { _ -> next(typer, sources, syntax, resolution, first_clause, first_clause + clause_count, kind) }
 
-    state next(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, end: u64 in Trapping, kind: ClauseKind) {
+    machine next(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, end: u64 in Trapping, kind: ClauseKind) {
         transition index < end && typer.output.accepted {
             true -> clause(typer, sources, syntax, resolution, index, end, kind)
             _ -> done()
         }
     }
 
-    state clause(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, end: u64 in Trapping, kind: ClauseKind) {
+    machine clause(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, end: u64 in Trapping, kind: ClauseKind) {
         let clause: Clause = SyntaxTrees::clause(syntax, index);
         transition clause.kind == kind && clause.has_expression {
             true -> fact(typer, sources, syntax, resolution, index, end, kind, clause.expression)
@@ -129,7 +129,7 @@ crashes Trap
         }
     }
 
-    state fact(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, end: u64 in Trapping, kind: ClauseKind, root: u64 in Trapping) {
+    machine fact(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, end: u64 in Trapping, kind: ClauseKind, root: u64 in Trapping) {
         Typer::type_tree(typer, sources, syntax, resolution, root);
         let fact_type: u64 in Trapping = Typing::expression_type(&typer.output, root);
         transition !typer.output.accepted || fact_type == typer.output.boolean {
@@ -138,10 +138,10 @@ crashes Trap
         }
     }
 
-    state not_boolean(typer: &mut Typer, syntax: &SyntaxTrees, root: u64 in Trapping) {
+    machine not_boolean(typer: &mut Typer, syntax: &SyntaxTrees, root: u64 in Trapping) {
         let expression: Expression = SyntaxTrees::expression(syntax, root);
         Typing::reject(&mut typer.output, TypeDiagnosticCode::NotBoolean, expression.source_span);
     }
 
-    state done() {}
+    machine done() {}
 }

@@ -9,7 +9,7 @@ machine select<'input>(bytes: &'input [u8], start: u64, length: u64)
         true -> sized(bytes, start, length)
         false -> Optional::None
     }
-    state sized(bytes: &'input [u8], start: u64, length: u64)
+    machine sized(bytes: &'input [u8], start: u64, length: u64)
         -> Optional<Window<'input>>
     requires start <= bytes.len {
         transition length <= bytes.len - start {
@@ -17,7 +17,7 @@ machine select<'input>(bytes: &'input [u8], start: u64, length: u64)
             false -> Optional::None
         }
     }
-    state capture(bytes: &'input [u8], start: u64, length: u64)
+    machine capture(bytes: &'input [u8], start: u64, length: u64)
         -> Optional<Window<'input>>
     requires start <= bytes.len && length <= bytes.len - start {
         let window: &[u8] = &bytes[start..start + length];
@@ -33,13 +33,13 @@ machine inspect(found: Optional<Window>, length: u64, first: u8, last: u8) -> bo
         Optional::Some { value } -> sized(value, length, first, last)
         Optional::None -> false
     }
-    state sized(window: Window, length: u64, first: u8, last: u8) -> bool {
+    machine sized(window: Window, length: u64, first: u8, last: u8) -> bool {
         transition window.bytes.len == length && length > 0 {
             true -> contents(window, length, first, last)
             false -> false
         }
     }
-    state contents(window: Window, length: u64, first: u8, last: u8) -> bool
+    machine contents(window: Window, length: u64, first: u8, last: u8) -> bool
     requires window.bytes.len == length && length > 0 {
         window.bytes[0] == first && window.bytes[length - 1] == last
     }
@@ -59,7 +59,7 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }
 

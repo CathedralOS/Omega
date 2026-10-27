@@ -7,7 +7,7 @@ requires remaining <= 9 && limits.ceiling <= 4 && scratch <= limits.ceiling;
 terminates by remaining in 0..=9;
 {
     transition { _ -> step(limits, remaining, scratch) }
-    state step(limits: &mut Limits, current: u32, saved: u32) -> u32
+    machine step(limits: &mut Limits, current: u32, saved: u32) -> u32
     requires current <= 9 && limits.ceiling <= 4 && saved <= limits.ceiling;
     {
         limits.observed = 1;
@@ -35,6 +35,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

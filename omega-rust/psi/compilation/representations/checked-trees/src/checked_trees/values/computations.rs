@@ -248,6 +248,20 @@ impl CheckedScalarComputationPlans {
         })
     }
 
+    /// Root records retain statement ownership and roles beside their nodes.
+    pub fn root_records_for_state(
+        &self,
+        state: SymbolHandle,
+    ) -> Vec<&CheckedScalarComputationRoot> {
+        self.with_state_roots(state, |handles| {
+            handles
+                .iter()
+                .map(|handle| self.roots.get(*handle))
+                .filter(|root| root.state == state)
+                .collect()
+        })
+    }
+
     /// Root handles of computations owned by `state`, in arena order.
     pub fn roots_for_state(&self, state: SymbolHandle) -> Vec<CheckedScalarComputationHandle> {
         self.with_state_roots(state, |handles| {

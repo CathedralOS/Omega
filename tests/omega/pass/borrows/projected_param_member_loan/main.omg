@@ -12,15 +12,15 @@ machine Main::main(main: &mut Main) reaches Console {
     main.inner.tag = 9;
     transition true { _ -> next(main, &main.inner) }
 
-    state next(main: &mut Main, loan: &Inner) {
+    machine next(main: &mut Main, loan: &Inner) {
         transition loan.tag == 9 { true -> done(main) _ -> bad(main) }
     }
 
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::exit_process(0);
     }
 
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::exit_process(1);
     }
 }

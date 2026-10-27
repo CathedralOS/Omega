@@ -10,8 +10,8 @@ machine Main::main(context: &mut Main) reaches Flow crashes Trap {
     let token: Token = Flow::forward(Token { value: 7 });
     let value: i32 = consume(token);
     transition value == 7 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 ProviderFlowImplementation satisfies Flow {

@@ -24,12 +24,12 @@ crashes Trap
         _ -> full()
     }
 
-    state store(stack: &mut Stack, value: u64) {
+    machine store(stack: &mut Stack, value: u64) {
         stack.items[stack.depth] = value;
         stack.depth = stack.depth + 1;
     }
 
-    state full() {
+    machine full() {
         crash Trap;
     }
 }
@@ -42,12 +42,12 @@ crashes Trap
         _ -> empty()
     }
 
-    state write(stack: &mut Stack, value: u64) {
+    machine write(stack: &mut Stack, value: u64) {
         let top: u64 = stack.depth - 1;
         stack.items[top] = value;
     }
 
-    state empty() {
+    machine empty() {
         crash Trap;
     }
 }
@@ -60,12 +60,12 @@ crashes Trap
         _ -> empty()
     }
 
-    state read(stack: &Stack) -> u64 {
+    machine read(stack: &Stack) -> u64 {
         let top: u64 = stack.depth - 1;
         stack.items[top]
     }
 
-    state empty() -> u64 {
+    machine empty() -> u64 {
         crash Trap;
     }
 }
@@ -82,8 +82,8 @@ crashes Trap
         _ -> bad(main)
     }
 
-    state ok(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(71); }
+    machine ok(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -2,7 +2,7 @@
 domain [u16; 4]::Terminated(value) requires value[3] == 0;
 machine corrupt(value: &mut [u16; 4] in Terminated, fail: bool) -> u64 {
     transition fail { true -> broken(value) false -> 0 }
-    state broken(value: &mut [u16; 4] in Terminated) -> u64 {
+    machine broken(value: &mut [u16; 4] in Terminated) -> u64 {
         value[3] = 1;
         transition value[0] == 0 { true -> 0 false -> 3 }
     }

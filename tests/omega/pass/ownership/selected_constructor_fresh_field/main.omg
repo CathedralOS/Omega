@@ -29,8 +29,8 @@ machine two_live() crashes Trap {
     drop(second_left);
     drop(second_right);
     transition correct { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine exercise(selected: bool) crashes Trap {
     let pair: Pair = choose(Holder { token: Token { value: 17 } }, selected);
@@ -42,7 +42,7 @@ machine exercise(selected: bool) crashes Trap {
     drop(left);
     drop(right);
     transition correct { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine main() crashes Trap { exercise(true); exercise(false); two_live(); }

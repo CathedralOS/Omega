@@ -4,5 +4,5 @@ data Cell { count: i64; }
 
 machine forward(cell: &Cell) -> i64 {
     transition { _ -> finish(cell) }
-    state finish(cell: &mut Cell) { 7i64 }
+    machine finish(cell: &mut Cell) -> i64 { 7i64 }
 }

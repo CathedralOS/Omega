@@ -22,7 +22,7 @@ machine update(take_first:bool,cells:&mut [Cell;2],cursor:&mut Cursor)->u32 in W
   true -> apply(&mut cells[select(cursor)],cursor)
   false -> apply(&mut cells[1],cursor)
  }
- state apply(cell:&mut Cell,cursor:&Cursor)->u32 in Wrapping {
+ machine apply(cell:&mut Cell,cursor:&Cursor)->u32 in Wrapping {
   observe(mark(cell,5),cell,cursor)
  }
 }
@@ -32,5 +32,5 @@ machine main() crashes Trap {
  let first:u32 in Wrapping=update(cursor.calls==0,&mut cells,&mut cursor);
  let second:u32 in Wrapping=update(cursor.calls==0,&mut cells,&mut cursor);
  transition first==1321 && second==881 && cells[0].value==12 && cells[1].value==8 && cursor.calls==1 && cursor.position==1 {true->done() _->bad()}
- state done(){} state bad(){crash Trap;}
+ machine done(){} machine bad(){crash Trap;}
 }

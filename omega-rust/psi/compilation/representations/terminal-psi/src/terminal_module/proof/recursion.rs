@@ -7,6 +7,8 @@ use semantic_vocabulary::ContractId;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TerminalProofRankingRelation {
     StructuralSubterm,
+    /// Empty paths preserve the rank; their induced graph must be acyclic.
+    StructuralSubtermCycles,
 }
 
 /// One proof-only callable participating in a recursive component. Its
@@ -62,8 +64,9 @@ pub enum TerminalProofRecursiveCallSite {
     },
 }
 
-/// One exact internal edge and its strict declaration-identity path. Repeated
-/// calls between the same member pair remain separate rows.
+/// One exact internal edge and its declaration-identity path. An empty path
+/// is allowed only by StructuralSubtermCycles and represents rank preservation.
+/// Repeated calls between the same member pair remain separate rows.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TerminalProofRecursiveEdge {
     pub caller: ContractId,

@@ -21,7 +21,7 @@ data Output where limit <= 8 {
 machine classify(output: &mut Output) {
     transition { _ -> load(output, Kind::Next) }
 
-    state load(output: &mut Output, kind: Kind) {
+    machine load(output: &mut Output, kind: Kind) {
         output.count = output.count + 1;
         transition kind {
             Kind::Next -> dispatch(output, Kind::Stop)
@@ -29,14 +29,14 @@ machine classify(output: &mut Output) {
         }
     }
 
-    state dispatch(output: &mut Output, kind: Kind) {
+    machine dispatch(output: &mut Output, kind: Kind) {
         transition kind {
             Kind::Next -> load(output, kind)
             _ -> done(output)
         }
     }
 
-    state done(output: &mut Output) {}
+    machine done(output: &mut Output) {}
 }
 
 data Main {

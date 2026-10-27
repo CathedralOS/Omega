@@ -31,10 +31,10 @@ machine Main::main(main: &mut Main) reaches Console {
     main.k = 1;
     transition { _ -> outer(main) }
 
-    state outer(main: &mut Main) {
+    machine outer(main: &mut Main) {
         transition main.k <= 9 { true -> compute_sq(main) _ -> finish(main) }
     }
-    state compute_sq(main: &mut Main) {
+    machine compute_sq(main: &mut Main) {
         main.sq = main.k * main.k;
         main.place = 100;
         main.p = 0;
@@ -42,18 +42,18 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     // `place` reaches 0 only after the third digit; the guard states that
     // nonzero divisor for `digit_div`'s Wrapping division.
-    state itoa_loop(main: &mut Main) {
+    machine itoa_loop(main: &mut Main) {
         transition main.p < 3 && main.place != 0 { true -> digit_div(main) _ -> print_row(main) }
     }
-    state digit_div(main: &mut Main) {
+    machine digit_div(main: &mut Main) {
         main.d = main.sq / main.place;
         transition { _ -> digit_mod(main) }
     }
-    state digit_mod(main: &mut Main) {
+    machine digit_mod(main: &mut Main) {
         main.d = main.d % 10;
         transition { _ -> digit_write(main) }
     }
-    state digit_write(main: &mut Main) {
+    machine digit_write(main: &mut Main) {
         main.ch = main.d + 48;
         main.byte = narrow_u32_to_u8_wrapping(main.ch as u32) as u8 in Wrapping;
         main.out[main.p] = main.byte as u8;
@@ -61,13 +61,13 @@ machine Main::main(main: &mut Main) reaches Console {
         main.p = main.p + 1;
         transition { _ -> itoa_loop(main) }
     }
-    state print_row(main: &mut Main) {
+    machine print_row(main: &mut Main) {
         Console::write_line(main.out);
         main.k = main.k + 1;
         transition { _ -> outer(main) }
     }
 
-    state finish(main: &mut Main) {
+    machine finish(main: &mut Main) {
         Console::write_line("PASS: 9 squares printed, ending at 081 (exit 0)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

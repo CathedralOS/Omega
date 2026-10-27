@@ -16,7 +16,7 @@ requires
         true -> finish(REMAINING - 2)
         false -> REMAINING
     }
-    state finish(value: u64) -> u64 { value }
+    machine finish(value: u64) -> u64 { value }
 }
 
 data Main {
@@ -29,8 +29,8 @@ machine Main::main(main: &mut Main) crashes Trap {
         true -> pass(main)
         _ -> fail(main)
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { crash Trap; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

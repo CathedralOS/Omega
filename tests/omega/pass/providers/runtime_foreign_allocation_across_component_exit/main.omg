@@ -20,6 +20,6 @@ machine main() reaches RawAllocation, NativeRelease, NativeBytes crashes Trap {
         true -> release(pointer)
         _ -> failed()
     }
-    state release(pointer: addr) { NativeRelease::release(pointer); }
-    state failed() { crash Trap; }
+    machine release(pointer: addr) { NativeRelease::release(pointer); }
+    machine failed() { crash Trap; }
 }

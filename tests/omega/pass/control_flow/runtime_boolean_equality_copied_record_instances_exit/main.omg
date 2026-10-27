@@ -29,35 +29,35 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> false_literal(main)
         false -> bad(main)
     }
-    state false_literal(main: &mut Main) {
+    machine false_literal(main: &mut Main) {
         main.flag = false;
         transition main.flag == inspect_array([11, 29], &mut main.calls) {
             false -> true_copy(main)
             true -> bad(main)
         }
     }
-    state true_copy(main: &mut Main) {
+    machine true_copy(main: &mut Main) {
         main.flag = true;
         transition main.flag == inspect_copy(main.packet, &mut main.calls) {
             true -> false_copy(main)
             false -> bad(main)
         }
     }
-    state false_copy(main: &mut Main) {
+    machine false_copy(main: &mut Main) {
         main.flag = false;
         transition main.flag == inspect_copy(main.packet, &mut main.calls) {
             false -> verify(main)
             true -> bad(main)
         }
     }
-    state verify(main: &mut Main) {
+    machine verify(main: &mut Main) {
         transition main.calls == 4 && main.packet.value && main.packet.stamp == 40 {
             true -> good(main)
             false -> bad(main)
         }
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(71); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

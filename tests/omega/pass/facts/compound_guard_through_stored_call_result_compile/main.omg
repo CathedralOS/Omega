@@ -15,10 +15,10 @@ machine Main::main(main: &mut Main) {
         true -> put(main)
         _ -> done(main)
     }
-    state put(main: &mut Main) {
+    machine put(main: &mut Main) {
         main.saved = coordinate(main.a);
         main.grid[main.b * 20 + main.saved] = 7;
         main.hits = 1;
     }
-    state done(main: &mut Main) { main.hits = -1; }
+    machine done(main: &mut Main) { main.hits = -1; }
 }

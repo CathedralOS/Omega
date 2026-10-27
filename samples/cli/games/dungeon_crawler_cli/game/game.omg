@@ -32,7 +32,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
     }
 
 
-    state enter_room(game: &mut Game) {
+    machine enter_room(game: &mut Game) {
         let cell: CellId = game.dungeon.current_cell;
         Dungeon::enter_room(cell);
         TextBuffer::set(&mut game.output, "");
@@ -51,14 +51,14 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         }
     }
 
-    state prompt(game: &mut Game) {
+    machine prompt(game: &mut Game) {
         transition game.dungeon.player.health == 0 {
             true -> game_over(game)
             false -> read_command(game)
         }
     }
 
-    state read_command(game: &mut Game) {
+    machine read_command(game: &mut Game) {
         GameView::render_prompt();
         transition block Console::read_line(&mut game.input) {
             LineReadResult::LineComplete { count } -> received_command(game, count)
@@ -68,14 +68,14 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         }
     }
 
-    state received_command(game: &mut Game, count: u64) {
+    machine received_command(game: &mut Game, count: u64) {
         transition count <= 256 && count <= game.input.len {
             true -> bounded_command(game, count)
             false -> invalid_command(game)
         }
     }
 
-    state bounded_command(game: &mut Game, count: u64) requires count <= 256 {
+    machine bounded_command(game: &mut Game, count: u64) requires count <= 256 {
         transition count > 0 {
             true -> inspect_line_end(game, count)
             false -> finished(game)
@@ -86,7 +86,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
     // written byte sits at `count - 1`. The guard's first conjunct always
     // holds under the contract; it bounds that computed index for the read and
     // admits it as the shorter length into the next state's contract.
-    state inspect_line_end(game: &mut Game, count: u64) requires count > 0 requires count <= 256 {
+    machine inspect_line_end(game: &mut Game, count: u64) requires count > 0 requires count <= 256 {
         let last_index: u64 = count - 1;
         transition last_index <= 255 && game.input[last_index] == 10 {
             true -> without_line_feed(game, last_index)
@@ -94,14 +94,14 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         }
     }
 
-    state without_line_feed(game: &mut Game, count: u64) requires count <= 255 {
+    machine without_line_feed(game: &mut Game, count: u64) requires count <= 255 {
         transition count > 0 {
             true -> inspect_carriage_return(game, count)
             false -> finished(game)
         }
     }
 
-    state inspect_carriage_return(game: &mut Game, count: u64) requires count > 0 requires count <= 255 {
+    machine inspect_carriage_return(game: &mut Game, count: u64) requires count > 0 requires count <= 255 {
         let last_index: u64 = count - 1;
         transition last_index <= 254 && game.input[last_index] == 13 {
             true -> without_carriage_return(game, last_index)
@@ -109,13 +109,13 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         }
     }
 
-    state without_carriage_return(game: &mut Game, count: u64) requires count <= 254 {
+    machine without_carriage_return(game: &mut Game, count: u64) requires count <= 254 {
         transition {
             _ -> dispatch_command(game, count)
         }
     }
 
-    state dispatch_command(game: &mut Game, count: u64) requires count <= 256 {
+    machine dispatch_command(game: &mut Game, count: u64) requires count <= 256 {
         // ASCII commands compare against only the written prefix.
         let command: &[u8] = game.input[0..count];
 
@@ -152,7 +152,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         }
     }
 
-    state look(game: &mut Game) {
+    machine look(game: &mut Game) {
         GameView::render_look(
             &mut game.view,
             game.dungeon.level,
@@ -169,7 +169,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         }
     }
 
-    state exits(game: &mut Game) {
+    machine exits(game: &mut Game) {
         GameView::render_exits(
             &mut game.view,
             game.dungeon.level,
@@ -183,7 +183,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         }
     }
 
-    state inventory(game: &mut Game) {
+    machine inventory(game: &mut Game) {
         GameView::render_inventory(&mut game.view, game.dungeon.player, &mut game.output);
 
         transition {
@@ -191,7 +191,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         }
     }
 
-    state character(game: &mut Game) {
+    machine character(game: &mut Game) {
         GameView::render_character(&mut game.view, game.dungeon.player, &mut game.output);
 
         transition {
@@ -199,7 +199,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         }
     }
 
-    state use_event(game: &mut Game) {
+    machine use_event(game: &mut Game) {
         let cell: CellId = game.dungeon.current_cell;
         Dungeon::use_event(&mut game.dungeon, cell, &mut game.output);
         GameView::render_line(&game.output);
@@ -209,7 +209,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         }
     }
 
-    state fight(game: &mut Game) {
+    machine fight(game: &mut Game) {
         let cell: CellId = game.dungeon.current_cell;
         Dungeon::fight(&mut game.dungeon, cell, &mut game.output);
         GameView::render_line(&game.output);
@@ -220,7 +220,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         }
     }
 
-    state attempt_move(game: &mut Game) {
+    machine attempt_move(game: &mut Game) {
         let destination: CellId = game.dungeon.navigation.destination;
 
         transition Dungeon::can_travel_to(destination) {
@@ -229,7 +229,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         }
     }
 
-    state move_player(game: &mut Game) {
+    machine move_player(game: &mut Game) {
         let destination: CellId = game.dungeon.navigation.destination;
         Dungeon::move_to(&mut game.dungeon, destination);
 
@@ -238,7 +238,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         }
     }
 
-    state move_r00(game: &mut Game) {
+    machine move_r00(game: &mut Game) {
         Dungeon::move_to(&mut game.dungeon, CellId::R00);
 
         transition {
@@ -246,7 +246,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         }
     }
 
-    state move_r01(game: &mut Game) {
+    machine move_r01(game: &mut Game) {
         Dungeon::move_to(&mut game.dungeon, CellId::R01);
 
         transition {
@@ -254,7 +254,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         }
     }
 
-    state move_r02(game: &mut Game) {
+    machine move_r02(game: &mut Game) {
         Dungeon::move_to(&mut game.dungeon, CellId::R02);
 
         transition {
@@ -262,7 +262,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         }
     }
 
-    state move_r03(game: &mut Game) {
+    machine move_r03(game: &mut Game) {
         Dungeon::move_to(&mut game.dungeon, CellId::R03);
 
         transition {
@@ -270,7 +270,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         }
     }
 
-    state move_r04(game: &mut Game) {
+    machine move_r04(game: &mut Game) {
         Dungeon::move_to(&mut game.dungeon, CellId::R04);
 
         transition {
@@ -278,7 +278,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         }
     }
 
-    state move_r05(game: &mut Game) {
+    machine move_r05(game: &mut Game) {
         Dungeon::move_to(&mut game.dungeon, CellId::R05);
 
         transition {
@@ -286,7 +286,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         }
     }
 
-    state move_r06(game: &mut Game) {
+    machine move_r06(game: &mut Game) {
         Dungeon::move_to(&mut game.dungeon, CellId::R06);
 
         transition {
@@ -294,7 +294,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         }
     }
 
-    state move_r07(game: &mut Game) {
+    machine move_r07(game: &mut Game) {
         Dungeon::move_to(&mut game.dungeon, CellId::R07);
 
         transition {
@@ -302,7 +302,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         }
     }
 
-    state blocked_by_enemy(game: &mut Game) {
+    machine blocked_by_enemy(game: &mut Game) {
         TextBuffer::set(&mut game.output, "[Blocked] A hostile presence bars the deeper path. Fight or fall back.");
         GameView::render_line(&game.output);
 
@@ -311,7 +311,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         }
     }
 
-    state invalid_command(game: &mut Game) {
+    machine invalid_command(game: &mut Game) {
         GameView::render_invalid_command();
 
         transition {
@@ -319,7 +319,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         }
     }
 
-    state game_over(game: &mut Game) {
+    machine game_over(game: &mut Game) {
         Dungeon::game_over(&mut game.dungeon);
         GameView::render_game_over();
 
@@ -328,7 +328,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         }
     }
 
-    state finished(game: &mut Game) {
+    machine finished(game: &mut Game) {
         Console::write_line("the crawl has ended -- goodbye (exit 0)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut game.pause);

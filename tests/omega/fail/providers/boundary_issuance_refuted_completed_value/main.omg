@@ -20,7 +20,7 @@ Called satisfies Issuer {
 Later satisfies Issuer {
     machine issue() -> Token {
         transition { _ -> finish() }
-        state finish() -> Token { Token { value: 8 } }
+        machine finish() -> Token { Token { value: 8 } }
     }
 }
 data Attached {}

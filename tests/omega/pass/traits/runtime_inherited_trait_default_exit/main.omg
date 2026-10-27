@@ -98,11 +98,11 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> refused(main)
     }
 
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state refused(main: &mut Main) {
+    machine refused(main: &mut Main) {
         Console::exit_process(71);
     }
 }

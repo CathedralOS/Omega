@@ -17,6 +17,6 @@ machine main() crashes Trap {
     transition first_room == 59 && second_room == 30 && third_room == 20 && remaining == 20 {
         true -> done() _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

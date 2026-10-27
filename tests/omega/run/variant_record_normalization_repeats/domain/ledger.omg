@@ -12,7 +12,7 @@ public data Ledger {
 }
 public machine source_mask(source: u64 in Wrapping) -> u64 in Wrapping {
     transition { _ -> double(source, 0, 1) }
-    state double(source: u64 in Wrapping, index: u64 in Wrapping, value: u64 in Wrapping) -> u64 in Wrapping {
+    machine double(source: u64 in Wrapping, index: u64 in Wrapping, value: u64 in Wrapping) -> u64 in Wrapping {
         transition index < source && index < 8 {
             true -> double(source, index + 1, value * 2)
             _ -> value
@@ -21,13 +21,13 @@ public machine source_mask(source: u64 in Wrapping) -> u64 in Wrapping {
 }
 public machine Ledger::add(ledger: &mut Ledger, variant: &Variant) -> u64 in Wrapping {
     transition { _ -> search(ledger, variant, 0) }
-    state search(ledger: &mut Ledger, variant: &Variant, index: u64 in Wrapping) -> u64 in Wrapping {
+    machine search(ledger: &mut Ledger, variant: &Variant, index: u64 in Wrapping) -> u64 in Wrapping {
         transition index < ledger.count && index < 32 {
             true -> compare(ledger, variant, index)
             _ -> capacity(ledger, variant)
         }
     }
-    state compare(ledger: &mut Ledger, variant: &Variant, index: u64 in Wrapping) -> u64 in Wrapping {
+    machine compare(ledger: &mut Ledger, variant: &Variant, index: u64 in Wrapping) -> u64 in Wrapping {
         let previous: Variant = ledger.variants[index];
         let same: bool = Sequence::equal(&previous.inserted, &variant.inserted);
         transition previous.contig == variant.contig && previous.position == variant.position
@@ -36,7 +36,7 @@ public machine Ledger::add(ledger: &mut Ledger, variant: &Variant) -> u64 in Wra
             _ -> search(ledger, variant, index + 1)
         }
     }
-    state merge(ledger: &mut Ledger, variant: &Variant, index: u64 in Wrapping) -> u64 in Wrapping {
+    machine merge(ledger: &mut Ledger, variant: &Variant, index: u64 in Wrapping) -> u64 in Wrapping {
         let previous: Variant = ledger.variants[index];
         let mut combined: Variant = previous;
         combined.provenance = previous.provenance | variant.provenance;
@@ -44,19 +44,19 @@ public machine Ledger::add(ledger: &mut Ledger, variant: &Variant) -> u64 in Wra
         ledger.merged = ledger.merged + 1;
         (1)
     }
-    state capacity(ledger: &mut Ledger, variant: &Variant) -> u64 in Wrapping {
+    machine capacity(ledger: &mut Ledger, variant: &Variant) -> u64 in Wrapping {
         transition ledger.count < 32 {
             true -> conflicts(ledger, variant, 0)
             _ -> 2
         }
     }
-    state conflicts(ledger: &mut Ledger, variant: &Variant, index: u64 in Wrapping) -> u64 in Wrapping {
+    machine conflicts(ledger: &mut Ledger, variant: &Variant, index: u64 in Wrapping) -> u64 in Wrapping {
         transition index < ledger.count && index < 32 {
             true -> overlap(ledger, variant, index)
             _ -> store(ledger, variant)
         }
     }
-    state overlap(ledger: &mut Ledger, variant: &Variant, index: u64 in Wrapping) -> u64 in Wrapping {
+    machine overlap(ledger: &mut Ledger, variant: &Variant, index: u64 in Wrapping) -> u64 in Wrapping {
         let previous: Variant = ledger.variants[index];
         transition previous.contig == variant.contig
             && previous.position <= variant.position + variant.removed
@@ -65,18 +65,18 @@ public machine Ledger::add(ledger: &mut Ledger, variant: &Variant) -> u64 in Wra
             _ -> conflicts(ledger, variant, index + 1)
         }
     }
-    state conflict(ledger: &mut Ledger, variant: &Variant, index: u64 in Wrapping) -> u64 in Wrapping {
+    machine conflict(ledger: &mut Ledger, variant: &Variant, index: u64 in Wrapping) -> u64 in Wrapping {
         ledger.conflicts = ledger.conflicts + 1;
         transition { _ -> conflicts(ledger, variant, index + 1) }
     }
-    state store(ledger: &mut Ledger, variant: &Variant) -> u64 in Wrapping {
+    machine store(ledger: &mut Ledger, variant: &Variant) -> u64 in Wrapping {
         let index: u64 in Wrapping = ledger.count;
         transition index < 32 {
             true -> write(ledger, variant, index)
             _ -> 2
         }
     }
-    state write(ledger: &mut Ledger, variant: &Variant, index: u64 in Wrapping) -> u64 in Wrapping {
+    machine write(ledger: &mut Ledger, variant: &Variant, index: u64 in Wrapping) -> u64 in Wrapping {
         ledger.variants[index] = Variant {
             contig: variant.contig, position: variant.position, removed: variant.removed,
             inserted: variant.inserted, provenance: variant.provenance

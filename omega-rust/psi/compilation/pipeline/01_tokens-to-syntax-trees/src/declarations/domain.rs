@@ -489,18 +489,27 @@ pub(super) fn parse_cleanup_selection<'tokens, 'source>(
     }
     let input = input.take_contextual("dropped")?.take_contextual("by")?;
     let (path, input) = parse_authored_route(input)?;
-    let (application, input) = match crate::expressions::parse_postfix::try_parse_static_symbol_application(syntax_trees, input)? {
-        Some((application, input)) => (Some(application), input),
-        None if input.at_punctuation(PunctuationKind::Less) => {
-            return Err(input.error_here("dropped by requires a complete static machine application"));
-        }
-        None => (None, input),
-    };
-    Ok((Some(syntax_trees::expression::StaticMachineArgument {
-        type_reference: Default::default(),
-        path: path.into_boxed_slice(),
-        application,
-        const_literal: None,
-        evidence_projection: None,
-    }), input))
+    let (application, input) =
+        match crate::expressions::parse_postfix::try_parse_static_symbol_application(
+            syntax_trees,
+            input,
+        )? {
+            Some((application, input)) => (Some(application), input),
+            None if input.at_punctuation(PunctuationKind::Less) => {
+                return Err(
+                    input.error_here("dropped by requires a complete static machine application")
+                );
+            }
+            None => (None, input),
+        };
+    Ok((
+        Some(syntax_trees::expression::StaticMachineArgument {
+            type_reference: Default::default(),
+            path: path.into_boxed_slice(),
+            application,
+            const_literal: None,
+            evidence_projection: None,
+        }),
+        input,
+    ))
 }

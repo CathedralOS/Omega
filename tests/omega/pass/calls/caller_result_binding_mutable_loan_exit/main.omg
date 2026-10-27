@@ -30,14 +30,14 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> bad(main)
     }
     // Carry the Console-bearing receiver to good/bad even without a direct read.
-    state check_key(main: &mut Main, found: Item) {
+    machine check_key(main: &mut Main, found: Item) {
         transition found.key == 2 {
             true -> good(main)
             false -> bad(main)
         }
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(71); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

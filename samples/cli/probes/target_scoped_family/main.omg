@@ -19,8 +19,8 @@ machine Main::main(main: &mut Main) {
         (true) -> good(main, picked)
         _ -> bad(main)
     }
-    state good(main: &mut Main, kept: i32) { let value: i32 = kept; }
-    state bad(main: &mut Main) { let value: i32 = 0; }
+    machine good(main: &mut Main, kept: i32) { let value: i32 = kept; }
+    machine bad(main: &mut Main) { let value: i32 = 0; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

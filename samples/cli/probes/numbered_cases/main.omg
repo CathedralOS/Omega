@@ -28,17 +28,17 @@ machine Main::main(main: &mut Main) {
         Lookup::Found { value } -> have(main, value)
         Lookup::Missing -> miss(main)
     }
-    state have(main: &mut Main, value: u64) {
+    machine have(main: &mut Main, value: u64) {
         transition value == 41 {
             true -> pass(main)
             _ -> fail(main)
         }
     }
-    state miss(main: &mut Main) {
+    machine miss(main: &mut Main) {
         transition { _ -> fail(main) }
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

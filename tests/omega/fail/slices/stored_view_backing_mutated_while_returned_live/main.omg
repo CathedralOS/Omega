@@ -13,7 +13,7 @@ machine observe(values: &[Cell]) -> bool {
         true -> inspect(values)
         false -> false
     }
-    state inspect(values: &[Cell]) -> bool requires values.len == 1 {
+    machine inspect(values: &[Cell]) -> bool requires values.len == 1 {
         values[0].value == 7 && values[0].tag == 17
     }
 }

@@ -31,7 +31,7 @@ machine Main::main(main: &mut Main) reaches Console {
 
     transition { _ -> hero_attacks(main) }
 
-    state hero_attacks(main: &mut Main) {
+    machine hero_attacks(main: &mut Main) {
         main.monster.hp = (main.monster.hp - main.hero.attack) % 101;
         transition main.monster.hp <= 0 {
             true -> hero_wins(main)
@@ -39,7 +39,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state monster_attacks(main: &mut Main) {
+    machine monster_attacks(main: &mut Main) {
         main.hero.hp = (main.hero.hp - main.monster.attack) % 101;
         transition main.hero.hp <= 0 {
             true -> monster_wins(main)
@@ -47,13 +47,13 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state hero_wins(main: &mut Main) {
+    machine hero_wins(main: &mut Main) {
         Console::write_line("PASS: the hero out-damaged the monster and won (exit 1)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(1);
     }
-    state monster_wins(main: &mut Main) {
+    machine monster_wins(main: &mut Main) {
         Console::write_line("result: the monster won this fight (exit 2)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

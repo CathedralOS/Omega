@@ -26,11 +26,11 @@ machine Game::main(game: &mut Game) reaches Console {
         _ -> done(game)
     }
 
-    state received(game: &mut Game, count: u64) {
+    machine received(game: &mut Game, count: u64) {
         game.count = count;
         transition { _ -> done(game) }
     }
-    state done(game: &mut Game) { Console::exit_process(0); }
+    machine done(game: &mut Game) { Console::exit_process(0); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

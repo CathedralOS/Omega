@@ -17,67 +17,67 @@ machine Application::main(application: &mut Application) reaches Console crashes
         true -> configure(application, metabolites.value, reactions.value, biomass.value)
         _ -> invalid(application)
     }
-    state invalid(application: &mut Application) {
+    machine invalid(application: &mut Application) {
         Console::write_line("ERROR input"); Console::exit_process(10);
     }
-    state configure(application: &mut Application, metabolites: i64 in Wrapping, reactions: i64 in Wrapping, biomass: i64 in Wrapping) {
+    machine configure(application: &mut Application, metabolites: i64 in Wrapping, reactions: i64 in Wrapping, biomass: i64 in Wrapping) {
         application.solver.metabolites = narrow_i64_to_i32_wrapping((metabolites / 1000000000) as i64) as i32 in Wrapping;
         application.solver.reactions = narrow_i64_to_i32_wrapping((reactions / 1000000000) as i64) as i32 in Wrapping;
         application.solver.biomass = narrow_i64_to_i32_wrapping((biomass / 1000000000) as i64) as i32 in Wrapping;
         transition { _ -> matrix_row(application, 0, 0) }
     }
-    state matrix_row(application: &mut Application, row: i32 in Wrapping, column: i32 in Wrapping) {
+    machine matrix_row(application: &mut Application, row: i32 in Wrapping, column: i32 in Wrapping) {
         transition row < application.solver.metabolites { true -> matrix_column(application, row, column) _ -> bound(application, 0) }
     }
-    state matrix_column(application: &mut Application, row: i32 in Wrapping, column: i32 in Wrapping) {
+    machine matrix_column(application: &mut Application, row: i32 in Wrapping, column: i32 in Wrapping) {
         transition column < application.solver.reactions { true -> coefficient(application, row, column) _ -> matrix_row(application, row + 1, 0) }
     }
-    state coefficient(application: &mut Application, row: i32 in Wrapping, column: i32 in Wrapping) {
+    machine coefficient(application: &mut Application, row: i32 in Wrapping, column: i32 in Wrapping) {
         let value: Number = block number(&mut application.reader);
         transition value.valid && value.value >= -3000000000 && value.value <= 3000000000 && value.value % 1000000000 == 0 {
             true -> coefficient_store(application, row, column, value.value) _ -> invalid(application)
         }
     }
-    state coefficient_store(application: &mut Application, row: i32 in Wrapping, column: i32 in Wrapping, value: i64 in Wrapping) {
+    machine coefficient_store(application: &mut Application, row: i32 in Wrapping, column: i32 in Wrapping, value: i64 in Wrapping) {
         write_matrix(&mut application.solver.matrix, row * 6 + column, value / 1000000000);
         transition { _ -> matrix_row(application, row, column + 1) }
     }
-    state bound(application: &mut Application, index: i32 in Wrapping) {
+    machine bound(application: &mut Application, index: i32 in Wrapping) {
         transition index < application.solver.reactions { true -> bounds(application, index) _ -> finish(application) }
     }
-    state bounds(application: &mut Application, index: i32 in Wrapping) {
+    machine bounds(application: &mut Application, index: i32 in Wrapping) {
         let lower: Number = block number(&mut application.reader);
         let upper: Number = block number(&mut application.reader);
         transition lower.valid && upper.valid && lower.value >= 0 && lower.value <= upper.value && upper.value <= 10000000000 {
             true -> bound_store(application, index, lower.value, upper.value) _ -> invalid(application)
         }
     }
-    state bound_store(application: &mut Application, index: i32 in Wrapping, lower: i64 in Wrapping, upper: i64 in Wrapping) {
+    machine bound_store(application: &mut Application, index: i32 in Wrapping, lower: i64 in Wrapping, upper: i64 in Wrapping) {
         write_six(&mut application.solver.lower, index, lower);
         write_six(&mut application.solver.upper, index, upper);
         transition { _ -> bound(application, index + 1) }
     }
-    state finish(application: &mut Application) {
+    machine finish(application: &mut Application) {
         let complete: bool = block ended(&mut application.reader);
         transition complete { true -> optimize(application) _ -> invalid(application) }
     }
-    state optimize(application: &mut Application) {
+    machine optimize(application: &mut Application) {
         solve(&mut application.solver);
         transition application.solver.found { true -> optimal(application) _ -> infeasible(application) }
     }
-    state infeasible(application: &mut Application) {
+    machine infeasible(application: &mut Application) {
         Console::write_line("INFEASIBLE"); Console::exit_process(11);
     }
-    state optimal(application: &mut Application) {
+    machine optimal(application: &mut Application) {
         Console::write_line("OPTIMAL");
         let numerator: i64 in Wrapping = read_six(&application.solver.best, application.solver.biomass);
         rational(&mut application.reader, "objective_pico=", numerator, application.solver.best_denominator);
         transition { _ -> flux(application, 0) }
     }
-    state flux(application: &mut Application, index: i32 in Wrapping) {
+    machine flux(application: &mut Application, index: i32 in Wrapping) {
         transition index < application.solver.reactions { true -> reaction_report(application, index) _ -> residual(application, 0, 0, 0) }
     }
-    state reaction_report(application: &mut Application, index: i32 in Wrapping) {
+    machine reaction_report(application: &mut Application, index: i32 in Wrapping) {
         let numerator: i64 in Wrapping = read_six(&application.solver.best, index);
         let minimum: i64 in Wrapping = read_six(&application.solver.minima, index);
         let minimum_denominator: i64 in Wrapping = read_six(&application.solver.minimum_denominators, index);
@@ -88,22 +88,22 @@ machine Application::main(application: &mut Application) reaches Console crashes
         rational(&mut application.reader, "maximum_pico=", maximum, maximum_denominator);
         transition { _ -> flux(application, index + 1) }
     }
-    state residual(application: &mut Application, row: i32 in Wrapping, column: i32 in Wrapping, sum: i64 in Wrapping) {
+    machine residual(application: &mut Application, row: i32 in Wrapping, column: i32 in Wrapping, sum: i64 in Wrapping) {
         transition row < application.solver.metabolites { true -> residual_column(application, row, column, sum) _ -> done(application) }
     }
-    state residual_column(application: &mut Application, row: i32 in Wrapping, column: i32 in Wrapping, sum: i64 in Wrapping) {
+    machine residual_column(application: &mut Application, row: i32 in Wrapping, column: i32 in Wrapping, sum: i64 in Wrapping) {
         transition column < application.solver.reactions { true -> residual_added(application, row, column, sum) _ -> residual_emit(application, row, sum) }
     }
-    state residual_added(application: &mut Application, row: i32 in Wrapping, column: i32 in Wrapping, sum: i64 in Wrapping) {
+    machine residual_added(application: &mut Application, row: i32 in Wrapping, column: i32 in Wrapping, sum: i64 in Wrapping) {
         let coefficient: i64 in Wrapping = read_matrix(&application.solver.matrix, row * 6 + column);
         let value: i64 in Wrapping = read_six(&application.solver.best, column);
         transition { _ -> residual(application, row, column + 1, sum + coefficient * value) }
     }
-    state residual_emit(application: &mut Application, row: i32 in Wrapping, sum: i64 in Wrapping) {
+    machine residual_emit(application: &mut Application, row: i32 in Wrapping, sum: i64 in Wrapping) {
         rational(&mut application.reader, "residual_pico=", sum, application.solver.best_denominator);
         transition { _ -> residual(application, row + 1, 0, 0) }
     }
-    state done(application: &mut Application) { Console::exit_process(0); }
+    machine done(application: &mut Application) { Console::exit_process(0); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

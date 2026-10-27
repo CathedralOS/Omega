@@ -43,7 +43,7 @@ machine main() crashes Trap {
         true -> inspect(number_window, cell_window)
         false -> bad()
     }
-    state inspect(numbers: &[i32], cells: &[Cell])
+    machine inspect(numbers: &[i32], cells: &[Cell])
     requires numbers.len > 1 && cells.len > 1 {
         let scalar_locator: dyn Locate<i32> = Scalars as dyn Locate<i32>;
         let field_locator: dyn Locate<Cell> = Fields as dyn Locate<Cell>;
@@ -60,6 +60,6 @@ machine main() crashes Trap {
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

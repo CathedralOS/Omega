@@ -22,7 +22,7 @@ machine dispatch(m: Msg) -> i32 {
         Msg::Move { dx, dy } -> combine(dx, dy)
     }
 
-    state combine(dx: i32 in Step, dy: i32 in Step) -> i32 {
+    machine combine(dx: i32 in Step, dy: i32 in Step) -> i32 {
         let left: i32 = nudge(dx);
         let right: i32 = clamp(dy) as i32;
         let sum: i32 = left + right;

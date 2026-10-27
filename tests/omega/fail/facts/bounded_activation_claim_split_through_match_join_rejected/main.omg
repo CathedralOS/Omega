@@ -11,29 +11,29 @@ machine main() crashes Trap {
         ActivationClaimAttempt::Established { claim } -> divide(claim)
         ActivationClaimAttempt::Rejected -> bad()
     }
-    state divide(claim: ActivationClaim) {
+    machine divide(claim: ActivationClaim) {
         transition ActivationClaim::split<16>(claim, 4) {
             ActivationClaimSplit::Covered { lower, upper } -> merge_children(lower, upper)
             ActivationClaimSplit::Rejected { claim } -> return_rejected(claim)
         }
     }
-    state return_rejected(claim: ActivationClaim) {
+    machine return_rejected(claim: ActivationClaim) {
         ActivationClaim::release(claim);
         crash Trap;
     }
-    state merge_children(lower: ActivationClaim, upper: ActivationClaim) {
+    machine merge_children(lower: ActivationClaim, upper: ActivationClaim) {
         transition ActivationClaim::merge(lower, upper) {
             ActivationClaimMerge::Covered { claim } -> restored(claim)
             ActivationClaimMerge::Rejected { lower, upper } -> merge_rejected(lower, upper)
         }
     }
-    state merge_rejected(lower: ActivationClaim, upper: ActivationClaim) {
+    machine merge_rejected(lower: ActivationClaim, upper: ActivationClaim) {
         ActivationClaim::release(upper);
         ActivationClaim::release(lower);
         crash Trap;
     }
-    state restored(claim: ActivationClaim) {
+    machine restored(claim: ActivationClaim) {
         ActivationClaim::release(claim);
     }
-    state bad() { crash Trap; }
+    machine bad() { crash Trap; }
 }

@@ -8,8 +8,8 @@ machine put(chunk: &mut [u8; 4], index: u64) {
         true -> write(chunk, index)
         _ -> done()
     }
-    state write(chunk: &mut [u8; 4], index: u64) requires index < 4 { chunk[index] = 7; }
-    state done() { }
+    machine write(chunk: &mut [u8; 4], index: u64) requires index < 4 { chunk[index] = 7; }
+    machine done() { }
 }
 machine fill(chunk: &mut [u8; 4], index: u64, limit: u64)
 terminates by (index, limit) -> Nat::BoundedDistance;
@@ -19,7 +19,7 @@ terminates by (index, limit) -> Nat::BoundedDistance;
         true -> fill(chunk, index + 1, limit)
         _ -> done()
     }
-    state done() { }
+    machine done() { }
 }
 machine main() crashes Trap {
     let mut chunk: [u8; 4];
@@ -29,6 +29,6 @@ machine main() crashes Trap {
         true -> good()
         false -> bad()
     }
-    state good() {}
-    state bad() { crash Trap; }
+    machine good() {}
+    machine bad() { crash Trap; }
 }

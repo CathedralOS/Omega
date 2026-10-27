@@ -11,6 +11,6 @@ const NAMED: Bonus = Bonus { value: 1 };
 machine main() crashes Trap {
     let accepted: bool = consume(NAMED);
     transition accepted { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

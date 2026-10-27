@@ -81,7 +81,7 @@ machine write_read(bytes: &mut [u8]) -> u8 {
         true -> access(bytes)
         false -> (0u8)
     }
-    state access(bytes: &mut [u8]) -> u8
+    machine access(bytes: &mut [u8]) -> u8
     requires bytes.len >= 3 {
         bytes[2] = 37u8;
         bytes[2]
@@ -94,11 +94,11 @@ machine main() reaches Console crashes Trap {
         ActivationClaimAttempt::Established { claim } -> established(claim)
         ActivationClaimAttempt::Rejected -> bad()
     }
-    state established(claim: ActivationClaim) {
+    machine established(claim: ActivationClaim) {
         let room: Room = Room { count: 10 };
         transition { _ -> cleanup_done(claim) }
     }
-    state cleanup_done(claim: ActivationClaim) {
+    machine cleanup_done(claim: ActivationClaim) {
         let mut live: ActivationClaim = claim;
         let bytes: &mut [u8] = ActivationClaim::bytes(&mut live);
         let length: u64 = bytes.len;
@@ -109,18 +109,18 @@ machine main() reaches Console crashes Trap {
             false -> bad()
         }
     }
-    state over_bound() {
+    machine over_bound() {
         transition Activation::try_claim<8>(9) {
             ActivationClaimAttempt::Rejected -> done()
             ActivationClaimAttempt::Established { claim } -> unexpectedly_established(claim)
         }
     }
-    state unexpectedly_established(claim: ActivationClaim) {
+    machine unexpectedly_established(claim: ActivationClaim) {
         ActivationClaim::release(claim);
         crash Trap;
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 ConsoleNativeProviderConsoleImplementation satisfies Console { Console::write_byte = ConsoleNativeProvider::write_byte; }

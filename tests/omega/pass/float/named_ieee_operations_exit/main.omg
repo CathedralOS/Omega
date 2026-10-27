@@ -38,7 +38,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> fail(main, 71)
     }
 
-    state negate_value64(main: &mut Main) {
+    machine negate_value64(main: &mut Main) {
         let negated64: f64 = F64::negate(main.two64);
         let sum64: f64 = negated64 + main.two64;
         transition sum64 == 0.0 {
@@ -47,7 +47,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state negate_zero64(main: &mut Main) {
+    machine negate_zero64(main: &mut Main) {
         let negative_zero64: f64 = F64::negate(main.zero64);
         let reciprocal64: f64 = main.one64 / negative_zero64;
         transition reciprocal64 < 0.0 {
@@ -56,7 +56,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state minimum_nan_first64(main: &mut Main) {
+    machine minimum_nan_first64(main: &mut Main) {
         let nan64: f64 = main.zero64 / main.zero64;
         let minimum64: f64 = F64::minimum(nan64, main.one64);
         transition minimum64 == 1.0 {
@@ -65,7 +65,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state minimum_nan_second64(main: &mut Main) {
+    machine minimum_nan_second64(main: &mut Main) {
         let nan64: f64 = main.zero64 / main.zero64;
         let minimum64: f64 = F64::minimum(main.one64, nan64);
         transition minimum64 != minimum64 {
@@ -74,7 +74,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state minimum_zeros64(main: &mut Main) {
+    machine minimum_zeros64(main: &mut Main) {
         let negative_zero64: f64 = F64::negate(main.zero64);
         let minimum64: f64 = F64::minimum(main.zero64, negative_zero64);
         let reciprocal64: f64 = main.one64 / minimum64;
@@ -84,7 +84,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state minimum_ordered64(main: &mut Main) {
+    machine minimum_ordered64(main: &mut Main) {
         let minimum64: f64 = F64::minimum(main.two64, main.one64);
         transition minimum64 == 1.0 {
             true -> maximum_nan_first64(main)
@@ -92,7 +92,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state maximum_nan_first64(main: &mut Main) {
+    machine maximum_nan_first64(main: &mut Main) {
         let nan64: f64 = main.zero64 / main.zero64;
         let maximum64: f64 = F64::maximum(nan64, main.one64);
         transition maximum64 == 1.0 {
@@ -101,7 +101,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state maximum_nan_second64(main: &mut Main) {
+    machine maximum_nan_second64(main: &mut Main) {
         let nan64: f64 = main.zero64 / main.zero64;
         let maximum64: f64 = F64::maximum(main.one64, nan64);
         transition maximum64 != maximum64 {
@@ -110,7 +110,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state maximum_zeros64(main: &mut Main) {
+    machine maximum_zeros64(main: &mut Main) {
         let negative_zero64: f64 = F64::negate(main.zero64);
         let maximum64: f64 = F64::maximum(negative_zero64, main.zero64);
         let reciprocal64: f64 = main.one64 / maximum64;
@@ -120,7 +120,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state maximum_zeros_second64(main: &mut Main) {
+    machine maximum_zeros_second64(main: &mut Main) {
         let negative_zero64: f64 = F64::negate(main.zero64);
         let maximum64: f64 = F64::maximum(main.zero64, negative_zero64);
         let reciprocal64: f64 = main.one64 / maximum64;
@@ -130,7 +130,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state maximum_ordered64(main: &mut Main) {
+    machine maximum_ordered64(main: &mut Main) {
         let maximum64: f64 = F64::maximum(main.one64, main.two64);
         transition maximum64 == 2.0 {
             true -> square_root64(main)
@@ -138,7 +138,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state square_root64(main: &mut Main) {
+    machine square_root64(main: &mut Main) {
         let root64: f64 = F64::square_root(main.two64);
         transition root64 == 1.4142135623730951454746218587388284504413604736328125 {
             true -> square_root_negative64(main)
@@ -146,7 +146,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state square_root_negative64(main: &mut Main) {
+    machine square_root_negative64(main: &mut Main) {
         let negative_one64: f64 = F64::negate(main.one64);
         let root64: f64 = F64::square_root(negative_one64);
         transition root64 != root64 {
@@ -155,7 +155,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state negate32(main: &mut Main) {
+    machine negate32(main: &mut Main) {
         let negated32: f32 = F32::negate(main.two32);
         let sum32: f32 = negated32 + main.two32;
         transition sum32 == 0.0f32 {
@@ -164,7 +164,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state negate_zero32(main: &mut Main) {
+    machine negate_zero32(main: &mut Main) {
         let negative_zero32: f32 = F32::negate(main.zero32);
         let reciprocal32: f32 = main.one32 / negative_zero32;
         transition reciprocal32 < 0.0f32 {
@@ -173,7 +173,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state minimum_nan_first32(main: &mut Main) {
+    machine minimum_nan_first32(main: &mut Main) {
         let nan32: f32 = main.zero32 / main.zero32;
         let minimum32: f32 = F32::minimum(nan32, main.one32);
         transition minimum32 == 1.0f32 {
@@ -182,7 +182,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state minimum_nan_second32(main: &mut Main) {
+    machine minimum_nan_second32(main: &mut Main) {
         let nan32: f32 = main.zero32 / main.zero32;
         let minimum32: f32 = F32::minimum(main.one32, nan32);
         transition minimum32 != minimum32 {
@@ -191,7 +191,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state minimum_zeros32(main: &mut Main) {
+    machine minimum_zeros32(main: &mut Main) {
         let negative_zero32: f32 = F32::negate(main.zero32);
         let minimum32: f32 = F32::minimum(main.zero32, negative_zero32);
         let reciprocal32: f32 = main.one32 / minimum32;
@@ -201,7 +201,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state maximum_nan_first32(main: &mut Main) {
+    machine maximum_nan_first32(main: &mut Main) {
         let nan32: f32 = main.zero32 / main.zero32;
         let maximum32: f32 = F32::maximum(nan32, main.one32);
         transition maximum32 == 1.0f32 {
@@ -210,7 +210,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state maximum_zeros32(main: &mut Main) {
+    machine maximum_zeros32(main: &mut Main) {
         let negative_zero32: f32 = F32::negate(main.zero32);
         let maximum32: f32 = F32::maximum(main.zero32, negative_zero32);
         let reciprocal32: f32 = main.one32 / maximum32;
@@ -220,7 +220,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state maximum_ordered32(main: &mut Main) {
+    machine maximum_ordered32(main: &mut Main) {
         let maximum32: f32 = F32::maximum(main.one32, main.two32);
         transition maximum32 == 2.0f32 {
             true -> square_root32(main)
@@ -228,7 +228,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state square_root32(main: &mut Main) {
+    machine square_root32(main: &mut Main) {
         let root32: f32 = F32::square_root(main.two32);
         transition root32 == 1.41421353816986083984375f32 {
             true -> pass(main)
@@ -236,8 +236,8 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state pass(main: &mut Main) { Console::exit_process(70); }
-    state fail(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine pass(main: &mut Main) { Console::exit_process(70); }
+    machine fail(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

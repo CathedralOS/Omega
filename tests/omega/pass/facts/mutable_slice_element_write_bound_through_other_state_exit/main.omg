@@ -14,7 +14,7 @@ machine mutate_other_state(bytes: &mut [u64]) -> u64
     requires bytes.len >= 2;
 {
     transition { _ -> active(bytes) }
-    state active(view: &mut [u64]) -> u64
+    machine active(view: &mut [u64]) -> u64
         requires view.len >= 2;
     {
         view[1] = 45u64;
@@ -34,6 +34,6 @@ machine main() crashes Trap {
         true -> pass()
         _ -> fail()
     }
-    state pass() {}
-    state fail() { crash Trap; }
+    machine pass() {}
+    machine fail() { crash Trap; }
 }

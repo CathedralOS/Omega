@@ -15,7 +15,7 @@ machine constructed_read(value: &Outer) -> u64 {
 }
 machine transitioned_read(value: &Outer) -> u64 {
     transition { _ -> observe(&value.inner.value) }
-    state observe(value: &u64) -> u64 { value }
+    machine observe(value: &u64) -> u64 { value }
 }
 machine selected_read(value: &Outer, first: bool) -> u64 {
     transition first {
@@ -25,7 +25,7 @@ machine selected_read(value: &Outer, first: bool) -> u64 {
 }
 machine constructed_arguments(value: &Outer) -> bool {
     transition { _ -> observe(hold(&value.inner.value), hold(&value.inner.value)) }
-    state observe(first: ReadHolder, second: ReadHolder) -> bool {
+    machine observe(first: ReadHolder, second: ReadHolder) -> bool {
         first.value == 1u64 && second.value == 1u64
     }
 }
@@ -54,17 +54,17 @@ machine exercise(external: &mut u64) -> u8 {
         true -> checked(external)
         false -> invalid()
     }
-    state checked(external: &u64) -> u8 {
+    machine checked(external: &u64) -> u8 {
     transition external < 2u64 {
         true -> read(external)
         false -> invalid()
     }
     }
-    state read(external: &u64) -> u8 requires external < 2u64 {
+    machine read(external: &u64) -> u8 requires external < 2u64 {
         let values: [u8; 2] = [11, 42];
         values[external]
     }
-    state invalid() -> u8 { 0 }
+    machine invalid() -> u8 { 0 }
 }
 
 machine main() crashes Trap {
@@ -76,6 +76,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

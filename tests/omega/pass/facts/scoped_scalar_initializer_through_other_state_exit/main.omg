@@ -7,13 +7,13 @@ machine verify(observed: u64 in BelowIndex<4>, flag: bool) crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine exercise(flag: bool) crashes Trap {
     let scoped: u64 in BelowIndex<4> = 3;
     transition { _ -> arrived(scoped, flag) }
-    state arrived(observed: u64 in BelowIndex<4>, flag: bool) {
+    machine arrived(observed: u64 in BelowIndex<4>, flag: bool) {
         verify(observed, flag)
     }
 }

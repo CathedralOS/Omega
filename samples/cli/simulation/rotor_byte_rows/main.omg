@@ -45,12 +45,12 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> fail(main)
     }
 
-    state pass(main: &mut Main) {
+    machine pass(main: &mut Main) {
         Console::write_line("16");
         Console::exit_process(0);
     }
 
-    state fail(main: &mut Main) {
+    machine fail(main: &mut Main) {
         Console::write_line("FAIL");
         Console::exit_process(1);
     }

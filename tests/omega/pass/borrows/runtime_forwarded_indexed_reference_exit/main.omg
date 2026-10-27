@@ -33,7 +33,7 @@ machine main() crashes Trap {
         true -> other(&mut grid)
         _ -> bad()
     }
-    state other(grid: &mut Grid) {
+    machine other(grid: &mut Grid) {
         update(grid, false);
         transition grid.rows[0].slots[0].cell.value == 70
             && grid.rows[1].slots[2].cell.value == 70
@@ -42,6 +42,6 @@ machine main() crashes Trap {
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

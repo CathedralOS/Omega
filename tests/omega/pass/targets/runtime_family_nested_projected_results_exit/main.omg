@@ -32,6 +32,6 @@ machine main() crashes Trap {
     let first: u64 = consume(holder.value.receipts[0]);
     let second: u64 = consume(holder.value.receipts[1]);
     transition first == 12 && second == 30 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

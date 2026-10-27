@@ -582,11 +582,16 @@ defines the complete product bar.
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and joint SCC ranking across
     nested/sibling/ancestor/top-level edges without ambient parent entry facts).
+    Infer arithmetic-formation obligations inside private helpers from every
+    actual arrival too (for example `value - 1` under a predecessor
+    `value > 1` guard), instead of requiring duplicated helper annotations.
   - Update Terminal production, codecs/checking, both interpreters, native
     lowering, and WCSU together so runtime cycles remain constant-stack with all
     live backing accounted for.
   - Migrate affected bundled/product Omega source, samples, and fixtures and
     delete the retired `state` parser/declaration/dispatch paths.
+    The Omega-written parser/resolver and linked application repositories still
+    need the corresponding declaration-model migration.
   Acceptance: source-to-Terminal/native execution agreement (`omega run --both`)
   for three-level nesting, ordinary helper call with continuation,
   sibling/ancestor terminal cycles, generic enclosing declaration context and

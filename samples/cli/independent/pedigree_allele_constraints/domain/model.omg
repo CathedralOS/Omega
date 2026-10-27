@@ -12,13 +12,13 @@ public machine valid(pedigree: &Pedigree) -> bool {
         true -> person(pedigree, 0)
         _ -> false
     }
-    state person(pedigree: &Pedigree, index: i32 in Wrapping) -> bool {
+    machine person(pedigree: &Pedigree, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < pedigree.count && index < 6 {
             true -> inspect(pedigree, index)
             _ -> true
         }
     }
-    state inspect(pedigree: &Pedigree, index: i32 in Wrapping) -> bool {
+    machine inspect(pedigree: &Pedigree, index: i32 in Wrapping) -> bool {
         let father: i32 = pedigree.father[index];
         let mother: i32 = pedigree.mother[index];
         let observed: i32 = pedigree.observed[index];

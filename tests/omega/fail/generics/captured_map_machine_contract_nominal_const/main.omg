@@ -19,5 +19,5 @@ machine main() blocks; crashes Trap {
  let second: i32 = block choose<Sized<4, fixed<3>>>();
  let third: i32 = block forward<chosen>();
  transition first == 83 && second == 83 && third == 83 { true -> done() _ -> bad() }
- state done() {} state bad() { crash Trap; }
+ machine done() {} machine bad() { crash Trap; }
 }

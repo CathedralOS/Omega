@@ -7,7 +7,7 @@ machine region_sum(seed: u64 in Trapping, first: bool) -> u64 in Trapping {
         true -> lower(seed)
         _ -> upper(seed)
     }
-    state lower(seed: u64 in Trapping) -> u64 in Trapping {
+    machine lower(seed: u64 in Trapping) -> u64 in Trapping {
         let amount1: u64 in Trapping = seed + 1;
         let doubled1: u64 in Trapping = amount1 + amount1;
         let amount2: u64 in Trapping = seed + 2;
@@ -74,7 +74,7 @@ machine region_sum(seed: u64 in Trapping, first: bool) -> u64 in Trapping {
         let doubled32: u64 in Trapping = amount32 + amount32;
         doubled1 + doubled2 + doubled3 + doubled4 + doubled5 + doubled6 + doubled7 + doubled8 + doubled9 + doubled10 + doubled11 + doubled12 + doubled13 + doubled14 + doubled15 + doubled16 + doubled17 + doubled18 + doubled19 + doubled20 + doubled21 + doubled22 + doubled23 + doubled24 + doubled25 + doubled26 + doubled27 + doubled28 + doubled29 + doubled30 + doubled31 + doubled32
     }
-    state upper(seed: u64 in Trapping) -> u64 in Trapping {
+    machine upper(seed: u64 in Trapping) -> u64 in Trapping {
         let amount1: u64 in Trapping = seed + 33;
         let doubled1: u64 in Trapping = amount1 + amount1;
         let amount2: u64 in Trapping = seed + 34;
@@ -149,8 +149,8 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> good(main)
         _ -> bad(main)
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(71); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

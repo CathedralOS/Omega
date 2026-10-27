@@ -24,8 +24,8 @@ machine Main::main(main: &mut Main) crashes Trap {
     decoder = Forwarded as dyn Payload;
     let second: bool = read(decoder, packet);
     transition first && second { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

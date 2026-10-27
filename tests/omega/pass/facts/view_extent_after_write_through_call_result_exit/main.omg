@@ -16,6 +16,6 @@ machine main() crashes Trap {
     bytes[1020] = 73;
     preserve_suffix(&mut bytes[..]);
     transition bytes[0] == 41 && bytes[1020] == 73 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

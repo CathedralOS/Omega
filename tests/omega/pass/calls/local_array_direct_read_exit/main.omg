@@ -8,11 +8,11 @@ machine stamp(bytes: &mut [u8]) {
         true -> write(bytes)
         _ -> skip()
     }
-    state write(bytes: &mut [u8]) {
+    machine write(bytes: &mut [u8]) {
         bytes[0] = 70;
         bytes[3] = 5;
     }
-    state skip() {}
+    machine skip() {}
 }
 
 data Main { }
@@ -26,8 +26,8 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> done()
         _ -> failed()
     }
-    state done() { Console::exit_process(70); }
-    state failed() { Console::exit_process(71); }
+    machine done() { Console::exit_process(70); }
+    machine failed() { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -4,7 +4,7 @@ machine capture(buffer: &[u8; 32], offset: &mut u32) -> u32 {
         true -> read(buffer, offset)
         _ -> 0
     }
-    state read(buffer: &[u8; 32], offset: &mut u32) -> u32 {
+    machine read(buffer: &[u8; 32], offset: &mut u32) -> u32 {
         offset = 32;
         let descriptor: &Desc = &buffer[offset] as &Desc;
         (descriptor.kind)

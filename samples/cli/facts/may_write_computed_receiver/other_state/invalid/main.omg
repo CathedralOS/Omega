@@ -58,7 +58,7 @@ machine main() crashes Trap {
     let selected: &mut Placed<CellPlacement, Cell> = choose(chosen_view, other_view, false);
     selected.held.write(&mut selected.held, 9);
     transition { _ -> read(items, other.held, chosen.held) }
-    state read(items: [u8; 4], index: u64, chosen: u64)
+    machine read(items: [u8; 4], index: u64, chosen: u64)
     requires index < 4
     {
         transition chosen == 9 && items[index] == 7 {
@@ -66,6 +66,6 @@ machine main() crashes Trap {
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

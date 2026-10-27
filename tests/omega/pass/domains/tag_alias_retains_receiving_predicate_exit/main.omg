@@ -9,6 +9,6 @@ machine main() crashes Trap {
     write(&mut cell);
     let observed: u32 = cell.value as u32;
     transition observed == 73 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

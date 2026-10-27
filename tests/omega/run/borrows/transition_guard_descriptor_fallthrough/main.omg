@@ -24,9 +24,9 @@ machine main() reaches Console {
         _ -> checked(true, (buffer.values[0] in Choice::Some)
                 && (buffer.values[0].payload.target in Cell::Held)
                 && has_value(buffer.values[0].payload.target, 73)) }
-    state checked(replaced: bool, observed: bool) {
+    machine checked(replaced: bool, observed: bool) {
         transition replaced && observed { true -> done() _ -> wrong() }
     }
-    state done() { Console::exit_process(0); }
-    state wrong() { Console::exit_process(81); }
+    machine done() { Console::exit_process(0); }
+    machine wrong() { Console::exit_process(81); }
 }

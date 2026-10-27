@@ -6,7 +6,7 @@ requires position < windows.len {
 }
 machine read(values: &[Cell]) -> u32 {
     transition values.len > 0 { true -> first(values) false -> 0 }
-    state first(values: &[Cell]) -> u32 requires values.len > 0 { values[0].value }
+    machine first(values: &[Cell]) -> u32 requires values.len > 0 { values[0].value }
 }
 machine invalid(position: u64) -> u32 requires position < 2 {
     let mut original: [Cell; 1] = [Cell { value: 7 }];

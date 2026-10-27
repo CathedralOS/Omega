@@ -18,34 +18,34 @@ machine Main::main(context: &mut Main) reaches Console {
         true -> solve(context)
         _ -> invalid(context)
     }
-    state solve(context: &mut Main) {
+    machine solve(context: &mut Main) {
         Allocation::solve(&mut context.allocation, &context.data);
         transition context.allocation.found {
             true -> audit(context)
             _ -> infeasible(context)
         }
     }
-    state audit(context: &mut Main) {
+    machine audit(context: &mut Main) {
         Audit::check(&mut context.audit, &context.data, &context.allocation);
         transition context.audit.valid {
             true -> output(context)
             _ -> corrupt(context)
         }
     }
-    state corrupt(context: &mut Main) {
+    machine corrupt(context: &mut Main) {
         Console::write_line("ERROR audit_failed");
         Console::exit_process(66);
     }
-    state output(context: &mut Main) {
+    machine output(context: &mut Main) {
         report(&context.data, &context.allocation, &context.audit);
         Console::write("leakage "); number(context.audit.leakage); Console::write_line("");
         Console::exit_process(0);
     }
-    state invalid(context: &mut Main) {
+    machine invalid(context: &mut Main) {
         Console::write_line("ERROR invalid_input");
         Console::exit_process(64);
     }
-    state infeasible(context: &mut Main) {
+    machine infeasible(context: &mut Main) {
         Console::write_line("ERROR indivisible_single_group");
         Console::exit_process(65);
     }

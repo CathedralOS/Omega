@@ -38,7 +38,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> fail(main, 71)
     }
 
-    state low(main: &mut Main) {
+    machine low(main: &mut Main) {
         let low: i32 in Saturating = I32::from_f64(main.negative_huge);
         let low_value: i32 = low as i32;
         transition low_value == -2147483648 {
@@ -47,7 +47,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state nan(main: &mut Main) {
+    machine nan(main: &mut Main) {
         let nan: f64 = main.zero / main.zero;
         let converted_nan: i32 in Saturating = I32::from_f64(nan);
         let nan_value: i32 = converted_nan as i32;
@@ -57,7 +57,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state guard(main: &mut Main) {
+    machine guard(main: &mut Main) {
         let converted_fraction: i32 in Saturating = I32::from_f64(main.fraction);
         transition converted_fraction as i32 == -7 {
             true -> nested(main)
@@ -65,7 +65,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state nested(main: &mut Main) {
+    machine nested(main: &mut Main) {
         let converted_fahrenheit: i32 in Saturating = I32::from_f64(main.celsius * 1.8 + 32.0);
         let mut fahrenheit: i32 = converted_fahrenheit as i32;
         transition fahrenheit == 68 {
@@ -74,7 +74,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state unsigned_high(main: &mut Main) {
+    machine unsigned_high(main: &mut Main) {
         let converted_high: u8 in Saturating = U8::from_f64(main.above_byte);
         let mut byte_high: u8 = converted_high as u8;
         transition byte_high == 255 {
@@ -83,7 +83,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state unsigned_low(main: &mut Main) {
+    machine unsigned_low(main: &mut Main) {
         let converted_low: u8 in Saturating = U8::from_f64(main.below_byte);
         let byte_low: u8 = converted_low as u8;
         transition byte_low == 0 {
@@ -92,7 +92,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state short_low(main: &mut Main) {
+    machine short_low(main: &mut Main) {
         let converted_low: i16 in Saturating = I16::from_f32(main.below_short);
         let mut short_low: i16 = converted_low as i16;
         transition short_low == -32768 {
@@ -101,8 +101,8 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state fail(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine fail(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

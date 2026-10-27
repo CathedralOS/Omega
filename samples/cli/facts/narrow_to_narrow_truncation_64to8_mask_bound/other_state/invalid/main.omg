@@ -4,7 +4,7 @@
 machine exercise(x: u64) -> u64 {
     let truncated: u64 = (x & 32u64) as u8 as u64;
     transition { _ -> step(truncated) }
-    state step(t: u64) -> u64 requires t <= 32u64 {
+    machine step(t: u64) -> u64 requires t <= 32u64 {
         let diff: u64 = 31u64 - t;
         diff
     }
@@ -16,6 +16,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

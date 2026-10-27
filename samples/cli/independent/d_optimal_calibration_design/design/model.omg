@@ -26,13 +26,13 @@ public data Design {
 machine polynomial_determinant<const Count: u64>(degree: i64 in Wrapping,
     moments: &[i64 in Wrapping; Count]) -> i64 in Wrapping {
     transition degree == 1 { true -> linear(moments) _ -> quadratic(moments) }
-    state linear(moments: &[i64 in Wrapping; Count]) {
+    machine linear(moments: &[i64 in Wrapping; Count]) -> i64 in Wrapping {
         transition Count >= 3 {
             true -> (moments[0]*moments[2]-moments[1]*moments[1])
             _ -> (0)
         }
     }
-    state quadratic(moments: &[i64 in Wrapping; Count]) {
+    machine quadratic(moments: &[i64 in Wrapping; Count]) -> i64 in Wrapping {
         transition Count >= 5 {
             true -> (moments[0]*(moments[2]*moments[4]-moments[3]*moments[3])
                 -moments[1]*(moments[1]*moments[4]-moments[2]*moments[3])
@@ -51,36 +51,36 @@ public machine solve(design: &mut Design) {
     design.determinant = -1;
     design.key = -1;
     transition { _ -> mask(design, 1) }
-    state mask(design: &mut Design, mask: i64 in Wrapping) {
+    machine mask(design: &mut Design, mask: i64 in Wrapping) {
         transition mask < 4096 { true -> clear(design, mask) _ -> finish(design) }
     }
-    state clear(design: &mut Design, mask: i64 in Wrapping) {
+    machine clear(design: &mut Design, mask: i64 in Wrapping) {
         design.moments[0] = 0; design.moments[1] = 0;
         design.moments[2] = 0; design.moments[3] = 0; design.moments[4] = 0;
         transition { _ -> scan(design, mask, mask, 0, 0, 0) }
     }
-    state scan(design: &mut Design, mask: i64 in Wrapping, remaining: i64 in Wrapping,
+    machine scan(design: &mut Design, mask: i64 in Wrapping, remaining: i64 in Wrapping,
                index: i64 in Wrapping, count: i64 in Wrapping, key: i64 in Wrapping) {
         transition index < design.count {
             true -> candidate(design, mask, remaining, index, count, key)
             _ -> eligible(design, mask, remaining, count, key)
         }
     }
-    state candidate(design: &mut Design, mask: i64 in Wrapping, remaining: i64 in Wrapping,
+    machine candidate(design: &mut Design, mask: i64 in Wrapping, remaining: i64 in Wrapping,
                     index: i64 in Wrapping, count: i64 in Wrapping, key: i64 in Wrapping) {
         transition index >= 0 && index < 12 {
             true -> include(design, mask, remaining, index, count, key)
             _ -> finish(design)
         }
     }
-    state include(design: &mut Design, mask: i64 in Wrapping, remaining: i64 in Wrapping,
+    machine include(design: &mut Design, mask: i64 in Wrapping, remaining: i64 in Wrapping,
                   index: i64 in Wrapping, count: i64 in Wrapping, key: i64 in Wrapping) {
         transition remaining % 2 == 1 {
             true -> accumulate(design, mask, remaining, index, count, key)
             _ -> scan(design, mask, remaining/2, index+1, count, key*2)
         }
     }
-    state accumulate(design: &mut Design, mask: i64 in Wrapping, remaining: i64 in Wrapping,
+    machine accumulate(design: &mut Design, mask: i64 in Wrapping, remaining: i64 in Wrapping,
                      index: i64 in Wrapping, count: i64 in Wrapping, key: i64 in Wrapping) {
         let x: i64 in Wrapping = design.settings[index];
         let w: i64 in Wrapping = design.precisions[index];
@@ -91,37 +91,37 @@ public machine solve(design: &mut Design) {
         design.moments[4] = design.moments[4]+w*x*x*x*x;
         transition { _ -> scan(design, mask, remaining/2, index+1, count+1, key*2+1) }
     }
-    state eligible(design: &mut Design, mask: i64 in Wrapping, remaining: i64 in Wrapping,
+    machine eligible(design: &mut Design, mask: i64 in Wrapping, remaining: i64 in Wrapping,
                    count: i64 in Wrapping, key: i64 in Wrapping) {
         transition remaining == 0 && count == design.size {
             true -> compare(design, mask, key)
             _ -> mask(design, mask+1)
         }
     }
-    state compare(design: &mut Design, mask: i64 in Wrapping, key: i64 in Wrapping) {
+    machine compare(design: &mut Design, mask: i64 in Wrapping, key: i64 in Wrapping) {
         let value: i64 in Wrapping = determinant(design);
         transition value > design.determinant || (value == design.determinant && key > design.key) {
             true -> retain(design, mask, key, value)
             _ -> mask(design, mask+1)
         }
     }
-    state retain(design: &mut Design, mask: i64 in Wrapping, key: i64 in Wrapping, value: i64 in Wrapping) {
+    machine retain(design: &mut Design, mask: i64 in Wrapping, key: i64 in Wrapping, value: i64 in Wrapping) {
         design.determinant = value; design.key = key;
         design.best[0] = design.moments[0]; design.best[1] = design.moments[1];
         design.best[2] = design.moments[2]; design.best[3] = design.moments[3]; design.best[4] = design.moments[4];
         transition { _ -> selection(design, mask, mask, 0) }
     }
-    state selection(design: &mut Design, mask: i64 in Wrapping, remaining: i64 in Wrapping, index: i64 in Wrapping) {
+    machine selection(design: &mut Design, mask: i64 in Wrapping, remaining: i64 in Wrapping, index: i64 in Wrapping) {
         transition index >= 0 && index < 12 {
             true -> store(design, mask, remaining, index)
             _ -> mask(design, mask+1)
         }
     }
-    state store(design: &mut Design, mask: i64 in Wrapping, remaining: i64 in Wrapping, index: i64 in Wrapping) {
+    machine store(design: &mut Design, mask: i64 in Wrapping, remaining: i64 in Wrapping, index: i64 in Wrapping) {
         design.selected[index] = remaining % 2;
         transition { _ -> selection(design, mask, remaining/2, index+1) }
     }
-    state finish(design: &mut Design) {
+    machine finish(design: &mut Design) {
         let a: i64 in Wrapping = design.best[0];
         let b: i64 in Wrapping = design.best[1];
         let c: i64 in Wrapping = design.best[2];
@@ -132,12 +132,12 @@ public machine solve(design: &mut Design) {
         design.information[6] = c; design.information[7] = d; design.information[8] = e;
         transition design.degree == 1 { true -> linear(design, a, b, c) _ -> quadratic(design, a, b, c, d, e) }
     }
-    state linear(design: &mut Design, a: i64 in Wrapping, b: i64 in Wrapping, c: i64 in Wrapping) {
+    machine linear(design: &mut Design, a: i64 in Wrapping, b: i64 in Wrapping, c: i64 in Wrapping) {
         design.covariance[0] = c; design.covariance[1] = 0-b;
         design.covariance[3] = 0-b; design.covariance[4] = a;
         transition { _ -> prediction(design, 0) }
     }
-    state quadratic(design: &mut Design, a: i64 in Wrapping, b: i64 in Wrapping, c: i64 in Wrapping,
+    machine quadratic(design: &mut Design, a: i64 in Wrapping, b: i64 in Wrapping, c: i64 in Wrapping,
                     d: i64 in Wrapping, e: i64 in Wrapping) {
         design.covariance[0] = c*e-d*d; design.covariance[1] = c*d-b*e;
         design.covariance[2] = b*d-c*c; design.covariance[3] = c*d-b*e;
@@ -146,21 +146,21 @@ public machine solve(design: &mut Design) {
         design.covariance[8] = a*c-b*b;
         transition { _ -> prediction(design, 0) }
     }
-    state prediction(design: &mut Design, index: i64 in Wrapping) {
+    machine prediction(design: &mut Design, index: i64 in Wrapping) {
         transition index >= 0 && index < 3 { true -> variance(design, index) _ -> done() }
     }
-    state variance(design: &mut Design, index: i64 in Wrapping) {
+    machine variance(design: &mut Design, index: i64 in Wrapping) {
         let x: i64 in Wrapping = design.predictions[index];
         let base: i64 in Wrapping = design.covariance[0]+2*x*design.covariance[1]+x*x*design.covariance[4];
         transition design.degree == 1 { true -> linear_variance(design, index, base) _ -> quadratic_variance(design, index, x, base) }
     }
-    state linear_variance(design: &mut Design, index: i64 in Wrapping, value: i64 in Wrapping) {
+    machine linear_variance(design: &mut Design, index: i64 in Wrapping, value: i64 in Wrapping) {
         design.variances[index] = value;
         transition { _ -> prediction(design, index+1) }
     }
-    state quadratic_variance(design: &mut Design, index: i64 in Wrapping, x: i64 in Wrapping, value: i64 in Wrapping) {
+    machine quadratic_variance(design: &mut Design, index: i64 in Wrapping, x: i64 in Wrapping, value: i64 in Wrapping) {
         design.variances[index] = value+2*x*x*design.covariance[2]+2*x*x*x*design.covariance[5]+x*x*x*x*design.covariance[8];
         transition { _ -> prediction(design, index+1) }
     }
-    state done() { }
+    machine done() { }
 }

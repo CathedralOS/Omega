@@ -111,17 +111,17 @@ pub fn captured_numeric_observations(
     {
         return observations.clone();
     }
-    let statement_count = program.statement_table.statements(state.statement_nodes).len();
+    let statement_count = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .len();
     if let Some(memos) = memos
         && !in_transition_target
         && !demand.scalar_values
         && statement_index <= statement_count
     {
         let batch = collect_state_numeric_observations_batch(program, machine, state, demand);
-        let result = batch
-            .get(statement_index)
-            .cloned()
-            .unwrap_or_default();
+        let result = batch.get(statement_index).cloned().unwrap_or_default();
         if let Ok(mut completed) = memos.completed_numeric_observations.lock() {
             for (index, observations) in batch.into_iter().enumerate() {
                 completed.insert(
@@ -280,21 +280,15 @@ fn collect_state_numeric_observations_batch(
                 _ => None,
             };
             if let Some(delivered) = delivered {
-                CopiedIntegerValue::visit_delivered_values(
-                    program,
-                    delivered,
-                    &mut |expression| {
-                        if crate::expression_result_type_reference(
-                            program, machine, state, expression,
-                        )
+                CopiedIntegerValue::visit_delivered_values(program, delivered, &mut |expression| {
+                    if crate::expression_result_type_reference(program, machine, state, expression)
                         .and_then(|reference| program.primitive_type_reference(reference))
                         .is_some_and(|primitive| primitive.is_fixed_integer())
-                            && !statement_results[index].contains(&expression)
-                        {
-                            statement_results[index].push(expression);
-                        }
-                    },
-                );
+                        && !statement_results[index].contains(&expression)
+                    {
+                        statement_results[index].push(expression);
+                    }
+                });
             }
         }
     }
@@ -889,7 +883,10 @@ impl StructuralPrefixVisitor for Observations {
             .filter(|expression| expression.is_valid())
             .collect();
         if roots.len() > 1
-            && !matches!(statement, typed_trees::statement::StatementNode::Transition(_))
+            && !matches!(
+                statement,
+                typed_trees::statement::StatementNode::Transition(_)
+            )
             && judge.frame_resolver().is_some_and(|frames| {
                 roots.iter().all(|&root| {
                     frames

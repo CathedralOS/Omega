@@ -10,6 +10,6 @@ machine main() crashes Trap {
     value = 1i32;
     let skipped: bool = false && pair(read(&value), replace(&mut value));
     transition matched && !skipped && value == 1i32 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

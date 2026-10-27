@@ -3,5 +3,5 @@ machine size() -> u32 in Saturating { ((4294967295 as u32 in Saturating) + (1 as
 machine main() crashes Trap {
  let slots: [u8; size()];
  transition slots.len == 1 { true -> done() _ -> bad() }
- state done() { } state bad() { crash Trap; }
+ machine done() { } machine bad() { crash Trap; }
 }

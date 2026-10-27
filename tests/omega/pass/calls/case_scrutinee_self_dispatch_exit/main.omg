@@ -35,10 +35,10 @@ machine Response::get_result_address(response: &Response, position: u64) -> u64 
         Response::Query { response } -> at_query(response, position)
         _ -> (0)
     }
-    state at(response: &ListResponse, position: u64) -> u64 {
+    machine at(response: &ListResponse, position: u64) -> u64 {
         ListResponse::get_result_address(response, position)
     }
-    state at_query(response: &QueryResponse, position: u64) -> u64 {
+    machine at_query(response: &QueryResponse, position: u64) -> u64 {
         QueryResponse::get_result_address(response, position)
     }
 }
@@ -53,7 +53,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> done(main)
     }
 
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::exit_process(0);
     }
 }

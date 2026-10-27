@@ -20,19 +20,19 @@ linux_x86_64 machine open_gate() -> i32 { 7 }
 windows_x86_64 machine open_gate() -> i32 { 7 }
 macos_arm64 machine close_gate(ticket: i32) -> i32 {
     transition ticket == 7 { true -> accepted() _ -> refused() }
-    state accepted() -> i32 { 70 }
-    state refused() -> i32 { 71 }
+    machine accepted() -> i32 { 70 }
+    machine refused() -> i32 { 71 }
 }
 
 linux_x86_64 machine close_gate(ticket: i32) -> i32 {
     transition ticket == 7 { true -> accepted() _ -> refused() }
-    state accepted() -> i32 { 70 }
-    state refused() -> i32 { 71 }
+    machine accepted() -> i32 { 70 }
+    machine refused() -> i32 { 71 }
 }
 windows_x86_64 machine close_gate(ticket: i32) -> i32 {
     transition ticket == 7 { true -> accepted() _ -> refused() }
-    state accepted() -> i32 { 70 }
-    state refused() -> i32 { 71 }
+    machine accepted() -> i32 { 70 }
+    machine refused() -> i32 { 71 }
 }
 
 data Main { ticket: i32; code: i32; }
@@ -40,8 +40,8 @@ machine Main::main(main: &mut Main) reaches Gate + Console {
     main.ticket = Gate::open();
     main.code = Gate::close(main.ticket);
     transition main.code == 70 { true -> good() _ -> bad() }
-    state good() { Console::exit_process(70); }
-    state bad() { Console::exit_process(72); }
+    machine good() { Console::exit_process(70); }
+    machine bad() { Console::exit_process(72); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

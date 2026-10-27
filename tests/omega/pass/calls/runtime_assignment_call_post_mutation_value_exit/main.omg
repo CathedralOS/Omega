@@ -39,9 +39,9 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
 
-    state exit_post(main: &mut Main) { Console::exit_process(70); }
-    state exit_stale(main: &mut Main) { Console::exit_process(2); }
-    state exit_other(main: &mut Main) { Console::exit_process(77); }
+    machine exit_post(main: &mut Main) { Console::exit_process(70); }
+    machine exit_stale(main: &mut Main) { Console::exit_process(2); }
+    machine exit_other(main: &mut Main) { Console::exit_process(77); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

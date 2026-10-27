@@ -36,7 +36,7 @@ machine Main::main(main: &mut Main) reaches Console {
 
     transition { _ -> done(main) }
 
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::write_line("result: the parsed value, 25 for this text (the exit code)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

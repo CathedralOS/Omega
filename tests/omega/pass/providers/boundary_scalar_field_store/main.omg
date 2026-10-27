@@ -38,7 +38,7 @@ data Main {
 
 machine Main::main(main: &mut Main) reaches Echo, Console, RecordSource {
     transition { _ -> store(main) }
-    state store(main: &mut Main) {
+    machine store(main: &mut Main) {
         main.stored = Echo::echo(41);
         main.seed = 19;
         main.result = RecordSource::receive(main.seed);
@@ -50,10 +50,10 @@ machine Main::main(main: &mut Main) reaches Echo, Console, RecordSource {
             _ -> fail(main)
         }
     }
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::exit_process(70);
     }
-    state fail(main: &mut Main) {
+    machine fail(main: &mut Main) {
         Console::exit_process(71);
     }
 }

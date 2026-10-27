@@ -24,13 +24,13 @@ machine main() crashes Trap {
         true -> later()
         false -> wrong()
     }
-    state later() {
+    machine later() {
         let through_local: Optional<u64> = measure("abcdefg");
         transition count_is(through_local, 7) {
             true -> done()
             false -> wrong()
         }
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

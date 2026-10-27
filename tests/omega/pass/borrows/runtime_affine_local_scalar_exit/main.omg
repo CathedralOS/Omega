@@ -10,7 +10,7 @@ machine choose(accepted: bool) -> bool {
         true -> observe(token)
         false -> (false)
     }
-    state observe(token: Token) -> bool {
+    machine observe(token: Token) -> bool {
         let comparison: Token = make();
         token.value == comparison.value
     }
@@ -22,7 +22,7 @@ machine Main::main(context: &mut Main) reaches Console {
         true -> finish(context, 42)
         false -> finish(context, 1)
     }
-    state finish(context: &mut Main, code: i32) { Console::exit_process(code); }
+    machine finish(context: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

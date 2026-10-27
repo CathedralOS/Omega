@@ -17,8 +17,8 @@ machine exercise(choice: bool) crashes Trap {
     let stale: i32 = raw.reference;
     let observed: i32 = qualified.reference;
     transition observed == 42 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine main() crashes Trap {

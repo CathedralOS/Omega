@@ -6,16 +6,16 @@ machine computed(context: &mut Context) crashes Trap {
   Choice::Empty -> bad()
   Choice::Value { value } -> save(context, value as i32 in Wrapping)
  }
- state save(context: &mut Context, value: i32 in Wrapping) { context.first = value as i32; context.choice = Choice::Value { value: value as i32 }; }
- state bad() { crash Trap; }
+ machine save(context: &mut Context, value: i32 in Wrapping) { context.first = value as i32; context.choice = Choice::Value { value: value as i32 }; }
+ machine bad() { crash Trap; }
 }
 machine parameter(context: &mut Context, choice: Choice) crashes Trap {
  transition choice {
   Choice::Value { value } -> save(context, (value as i32 in Saturating) as i32 in Wrapping)
   Choice::Empty -> bad()
  }
- state save(context: &mut Context, value: i32 in Wrapping) { context.second = value as i32; context.choice = Choice::Value { value: value as i32 }; }
- state bad() { crash Trap; }
+ machine save(context: &mut Context, value: i32 in Wrapping) { context.second = value as i32; context.choice = Choice::Value { value: value as i32 }; }
+ machine bad() { crash Trap; }
 }
 machine local(context: &mut Context) crashes Trap {
  let choice: Choice = produce(9);
@@ -23,25 +23,25 @@ machine local(context: &mut Context) crashes Trap {
   Choice::Empty -> bad()
   Choice::Value { value } -> save(context, value as i32 in Wrapping)
  }
- state save(context: &mut Context, value: i32 in Wrapping) { context.third = value as i32; context.choice = Choice::Value { value: value as i32 }; }
- state bad() { crash Trap; }
+ machine save(context: &mut Context, value: i32 in Wrapping) { context.third = value as i32; context.choice = Choice::Value { value: value as i32 }; }
+ machine bad() { crash Trap; }
 }
 machine main(context: &mut Context) crashes Trap {
  computed(context);
  parameter(context, Choice::Value { value: 8 });
  local(context);
  transition context.first == -7 && context.second == 8 && context.third == 9 { true -> field(context) _ -> bad() }
- state field(context: &Context) {
+ machine field(context: &Context) {
  transition context.choice {
   Choice::Value { value } -> verify(value as i32 in Wrapping)
   Choice::Empty -> bad()
  }
  }
- state verify(value: i32 in Wrapping) {
+ machine verify(value: i32 in Wrapping) {
   transition value == 9 { true -> done() _ -> bad() }
  }
- state done() {}
- state bad() { crash Trap; }
+ machine done() {}
+ machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

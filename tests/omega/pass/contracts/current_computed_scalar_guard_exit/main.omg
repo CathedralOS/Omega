@@ -17,7 +17,7 @@ machine local_width(buffer: &Buffer, point: u32, offset: u64) -> u64 {
         true -> selected(width, offset)
         false -> 0
     }
-    state selected(width: u64, offset: u64) -> u64
+    machine selected(width: u64, offset: u64) -> u64
     requires offset <= 256, width <= 256 - offset { width }
 }
 
@@ -28,7 +28,7 @@ machine field_width(buffer: &Buffer, point: u32, offset: u64) -> u64 {
         true -> selected(width.value, offset)
         false -> 0
     }
-    state selected(width: u64, offset: u64) -> u64
+    machine selected(width: u64, offset: u64) -> u64
     requires offset <= 256, width <= 256 - offset { width }
 }
 
@@ -38,7 +38,7 @@ machine returned_width(buffer: &Buffer, point: u32, offset: u64) -> u64 {
         true -> selected(width, offset)
         false -> 0
     }
-    state selected(width: u64, offset: u64) -> u64
+    machine selected(width: u64, offset: u64) -> u64
     requires offset <= 256, width <= 256 - offset { width }
 }
 
@@ -51,7 +51,7 @@ machine copied_width(buffer: &Buffer, point: u32, offset: u64) -> u64 {
         true -> selected(width, offset)
         false -> 0
     }
-    state selected(width: u64, offset: u64) -> u64
+    machine selected(width: u64, offset: u64) -> u64
     requires offset <= 256, width <= 256 - offset { width }
 }
 
@@ -77,8 +77,8 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> good()
         false -> bad()
     }
-    state good() { Console::exit_process(70); }
-    state bad() { Console::exit_process(71); }
+    machine good() { Console::exit_process(70); }
+    machine bad() { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

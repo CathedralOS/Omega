@@ -31,33 +31,33 @@ crashes Trap
 {
     transition { _ -> next_machine(checker, syntax, resolution, 0) }
 
-    state next_machine(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
+    machine next_machine(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
         transition index < syntax.machine_count && checker.output.diagnostic_count < 64 {
             true -> machine(checker, syntax, resolution, index)
             _ -> done()
         }
     }
 
-    state machine(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
+    machine machine(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
         Checks::open_machine(&mut checker.output);
         let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
         transition { _ -> next_clause(checker, syntax, resolution, index, item, 0) }
     }
 
-    state next_clause(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+    machine next_clause(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
         transition offset < item.clause_count && checker.output.machine_accepted {
             true -> clause(checker, syntax, resolution, index, item, offset)
             _ -> supplied(checker, syntax, resolution, index)
         }
     }
 
-    state supplied(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
+    machine supplied(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
         Checker::check_supplied_calls(checker, syntax, resolution, index);
         Checker::check_progress(checker, syntax, resolution, index);
         transition { _ -> next_machine(checker, syntax, resolution, index + 1) }
     }
 
-    state clause(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+    machine clause(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
         let handle: u64 in Trapping = item.first_clause + offset;
         let clause: Clause = SyntaxTrees::clause(syntax, handle);
         transition clause.kind {
@@ -67,7 +67,7 @@ crashes Trap
         }
     }
 
-    state satisfies(
+    machine satisfies(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -82,7 +82,7 @@ crashes Trap
         transition { _ -> next_clause(checker, syntax, resolution, index, item, offset + 1) }
     }
 
-    state terminates(
+    machine terminates(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -97,12 +97,12 @@ crashes Trap
         }
     }
 
-    state unranked(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, source_span: SourceSpan) {
+    machine unranked(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, source_span: SourceSpan) {
         Checks::reject(&mut checker.output, CheckDiagnosticCode::UnsupportedCheck, source_span);
         transition { _ -> next_machine(checker, syntax, resolution, index + 1) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // A body promising termination must have settled as terminating
@@ -120,12 +120,12 @@ crashes Trap
         _ -> done()
     }
 
-    state unproven(checker: &mut Checker, syntax: &SyntaxTrees, promise: u64 in Trapping) {
+    machine unproven(checker: &mut Checker, syntax: &SyntaxTrees, promise: u64 in Trapping) {
         let clause: Clause = SyntaxTrees::clause(syntax, promise);
         Checks::reject(&mut checker.output, CheckDiagnosticCode::ProgressUnproven, clause.source_span);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Refine the static machine arguments of each call machine `caller` makes.
@@ -134,14 +134,14 @@ crashes Trap
 {
     transition { _ -> next(checker, syntax, resolution, caller, 0) }
 
-    state next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, caller: u64 in Trapping, index: u64 in Trapping) {
+    machine next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, caller: u64 in Trapping, index: u64 in Trapping) {
         transition index < checker.supplied_count && index < 1024 && checker.output.machine_accepted {
             true -> entry(checker, syntax, resolution, caller, index)
             _ -> done()
         }
     }
 
-    state entry(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, caller: u64 in Trapping, index: u64 in Trapping)
+    machine entry(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, caller: u64 in Trapping, index: u64 in Trapping)
     requires index < 1024
     {
         let supplied: SuppliedCall = checker.supplied[index];
@@ -151,14 +151,14 @@ crashes Trap
         }
     }
 
-    state call(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, caller: u64 in Trapping, index: u64 in Trapping, supplied: SuppliedCall) {
+    machine call(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, caller: u64 in Trapping, index: u64 in Trapping, supplied: SuppliedCall) {
         let call: u64 in Trapping = supplied.call as u64 in Trapping;
         let callee: u64 in Trapping = supplied.callee as u64 in Trapping;
         Checker::refine_static_arguments(checker, syntax, resolution, call, callee);
         transition { _ -> next(checker, syntax, resolution, caller, index + 1) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Each of machine `callee`'s machine binders takes, in order, the next of
@@ -174,14 +174,14 @@ crashes Trap
         _ -> done()
     }
 
-    state binder(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, applied: Expression, item: MachineItem, offset: u64 in Trapping, position: u64 in Trapping) {
+    machine binder(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, applied: Expression, item: MachineItem, offset: u64 in Trapping, position: u64 in Trapping) {
         transition offset < item.generic_parameter_count {
             true -> kind(checker, syntax, resolution, applied, item, offset, position)
             _ -> done()
         }
     }
 
-    state kind(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, applied: Expression, item: MachineItem, offset: u64 in Trapping, position: u64 in Trapping) {
+    machine kind(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, applied: Expression, item: MachineItem, offset: u64 in Trapping, position: u64 in Trapping) {
         let generic: GenericParameter = SyntaxTrees::generic_parameter(syntax, item.first_generic_parameter + offset);
         transition generic.kind == GenericParameterKind::Machine {
             true -> seek(checker, syntax, resolution, applied, item, offset, position)
@@ -189,14 +189,14 @@ crashes Trap
         }
     }
 
-    state seek(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, applied: Expression, item: MachineItem, offset: u64 in Trapping, position: u64 in Trapping) {
+    machine seek(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, applied: Expression, item: MachineItem, offset: u64 in Trapping, position: u64 in Trapping) {
         transition position < applied.count {
             true -> candidate(checker, syntax, resolution, applied, item, offset, position)
             _ -> done()
         }
     }
 
-    state candidate(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, applied: Expression, item: MachineItem, offset: u64 in Trapping, position: u64 in Trapping) {
+    machine candidate(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, applied: Expression, item: MachineItem, offset: u64 in Trapping, position: u64 in Trapping) {
         let row: u64 in Trapping = SyntaxTrees::type_argument(syntax, applied.first + position);
         let argument: MachineArgument = NameResolution::machine_argument(syntax, resolution, row);
         transition argument {
@@ -205,7 +205,7 @@ crashes Trap
         }
     }
 
-    state refine(
+    machine refine(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -222,7 +222,7 @@ crashes Trap
         transition { _ -> binder(checker, syntax, resolution, applied, item, offset + 1, position + 1) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Whether a static machine argument refines its binder's contract: no
@@ -243,7 +243,7 @@ crashes Trap
         _ -> done()
     }
 
-    state contracted(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, handle: u64 in Trapping, argument: MachineArgument, source_span: SourceSpan) {
+    machine contracted(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, handle: u64 in Trapping, argument: MachineArgument, source_span: SourceSpan) {
         let written: Contract = SyntaxTrees::contract(syntax, handle);
         let allowed: CrashRoutes = Checker::declared_causes(syntax, written.first_clause, written.clause_count);
         transition argument {
@@ -253,7 +253,7 @@ crashes Trap
         }
     }
 
-    state declared(checker: &mut Checker, syntax: &SyntaxTrees, machine: u64 in Trapping, allowed: CrashRoutes, source_span: SourceSpan) {
+    machine declared(checker: &mut Checker, syntax: &SyntaxTrees, machine: u64 in Trapping, allowed: CrashRoutes, source_span: SourceSpan) {
         let item: MachineItem = SyntaxTrees::machine_item(syntax, machine);
         let premises: bool = Checker::declares(syntax, item.first_clause, item.clause_count, ClauseKind::Requires);
         let own: CrashRoutes = Checks::routes(&checker.output, machine);
@@ -265,7 +265,7 @@ crashes Trap
         }
     }
 
-    state forwarded(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, parameter: u64 in Trapping, allowed: CrashRoutes, source_span: SourceSpan) {
+    machine forwarded(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, parameter: u64 in Trapping, allowed: CrashRoutes, source_span: SourceSpan) {
         let selection: Selection = Selection::Binder { parameter: parameter };
         let clauses: CallClauses = Checker::call_clauses(syntax, resolution, selection);
         let premises: bool = Checker::declares(syntax, clauses.first_clause, clauses.clause_count, ClauseKind::Requires);
@@ -276,22 +276,22 @@ crashes Trap
         }
     }
 
-    state routes(checker: &mut Checker, trap: bool, abort: bool, allowed: CrashRoutes, source_span: SourceSpan) {
+    machine routes(checker: &mut Checker, trap: bool, abort: bool, allowed: CrashRoutes, source_span: SourceSpan) {
         transition (trap && !allowed.declares_trap) || (abort && !allowed.declares_abort) {
             true -> undeclared(checker, source_span)
             _ -> done()
         }
     }
 
-    state unrelated(checker: &mut Checker, source_span: SourceSpan) {
+    machine unrelated(checker: &mut Checker, source_span: SourceSpan) {
         Checks::reject(&mut checker.output, CheckDiagnosticCode::UnsupportedFact, source_span);
     }
 
-    state undeclared(checker: &mut Checker, source_span: SourceSpan) {
+    machine undeclared(checker: &mut Checker, source_span: SourceSpan) {
         Checks::reject(&mut checker.output, CheckDiagnosticCode::CrashNotDeclared, source_span);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Whether satisfier `machine` refines `binding`'s requirement: no contract
@@ -312,7 +312,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    state required(
+    machine required(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         machine: u64 in Trapping,
@@ -330,11 +330,11 @@ crashes Trap
         }
     }
 
-    state unrelated(checker: &mut Checker, source_span: SourceSpan) {
+    machine unrelated(checker: &mut Checker, source_span: SourceSpan) {
         Checks::reject(&mut checker.output, CheckDiagnosticCode::UnsupportedFact, source_span);
     }
 
-    state routes(checker: &mut Checker, machine: u64 in Trapping, clause: Clause, handle: u64 in Trapping) {
+    machine routes(checker: &mut Checker, machine: u64 in Trapping, clause: Clause, handle: u64 in Trapping) {
         let own: CrashRoutes = Checks::routes(&checker.output, machine);
         let owed: CrashRoutes = Checks::routes(&checker.output, handle);
         let trap: bool = Checker::published(own.inferred, own.trap, own.declares_trap);
@@ -347,13 +347,13 @@ crashes Trap
         }
     }
 
-    state undeclared(checker: &mut Checker, source_span: SourceSpan) {
+    machine undeclared(checker: &mut Checker, source_span: SourceSpan) {
         Checks::reject(&mut checker.output, CheckDiagnosticCode::CrashNotDeclared, source_span);
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 
-    state done() {}
+    machine done() {}
 }

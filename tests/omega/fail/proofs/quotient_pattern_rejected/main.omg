@@ -47,6 +47,6 @@ machine expose_pattern(value: EquivalenceClass) {
         _ -> done()
     }
 
-    state done() {
+    machine done() {
     }
 }

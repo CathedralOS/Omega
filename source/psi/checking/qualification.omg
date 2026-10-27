@@ -36,23 +36,23 @@ crashes Trap
         _ -> own(row)
     }
 
-    state referent(typing: &Typing, inner: u64 in Trapping) -> u64 in Trapping {
+    machine referent(typing: &Typing, inner: u64 in Trapping) -> u64 in Trapping {
         let inner_row: TypeRow = TypeTable::row(&typing.types, inner);
         transition { _ -> own(inner_row) }
     }
 
-    state own(row: TypeRow) -> u64 in Trapping {
+    machine own(row: TypeRow) -> u64 in Trapping {
         transition row.domain == DomainBinding::Declared {
             true -> declared(row.domain_item)
             _ -> none()
         }
     }
 
-    state declared(domain: u64 in Trapping) -> u64 in Trapping {
+    machine declared(domain: u64 in Trapping) -> u64 in Trapping {
         domain + 1
     }
 
-    state none() -> u64 in Trapping {
+    machine none() -> u64 in Trapping {
         0
     }
 }
@@ -80,7 +80,7 @@ crashes Trap
     // establishes its own result, which still meets the predicates
     // (wiki/spec/language/domains.md: each `established by` entry is an
     // authorized origin).
-    state routed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: DomainItem, subject: Value, proving: bool) -> bool {
+    machine routed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: DomainItem, subject: Value, proving: bool) -> bool {
         let origin: bool = Checker::routes_to(resolution, item, checker.machine);
         transition checker.minting && origin {
             true -> predicates(checker, syntax, resolution, typing, item, subject, proving)
@@ -88,7 +88,7 @@ crashes Trap
         }
     }
 
-    state predicates(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: DomainItem, subject: Value, proving: bool) -> bool {
+    machine predicates(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: DomainItem, subject: Value, proving: bool) -> bool {
         let subjecting: bool = checker.subjecting;
         let previous: Value = checker.subject;
         checker.subjecting = true;
@@ -99,7 +99,7 @@ crashes Trap
         held
     }
 
-    state unestablished() -> bool {
+    machine unestablished() -> bool {
         false
     }
 }
@@ -114,7 +114,7 @@ crashes Trap
         _ -> answer(false)
     }
 
-    state answer(result: bool) -> bool {
+    machine answer(result: bool) -> bool {
         result
     }
 }
@@ -126,14 +126,14 @@ crashes Trap
 {
     transition { _ -> next(resolution, item, machine, 0) }
 
-    state next(resolution: &NameResolution, item: DomainItem, machine: u64 in Trapping, offset: u64 in Trapping) -> bool {
+    machine next(resolution: &NameResolution, item: DomainItem, machine: u64 in Trapping, offset: u64 in Trapping) -> bool {
         transition offset < item.route_count {
             true -> route(resolution, item, machine, offset)
             _ -> answer(false)
         }
     }
 
-    state route(resolution: &NameResolution, item: DomainItem, machine: u64 in Trapping, offset: u64 in Trapping) -> bool {
+    machine route(resolution: &NameResolution, item: DomainItem, machine: u64 in Trapping, offset: u64 in Trapping) -> bool {
         let binding: PathBinding = NameResolution::path_binding_at(resolution, item.first_route + offset);
         transition binding {
             PathBinding::Machine { handle } -> named(resolution, item, machine, offset, handle)
@@ -141,14 +141,14 @@ crashes Trap
         }
     }
 
-    state named(resolution: &NameResolution, item: DomainItem, machine: u64 in Trapping, offset: u64 in Trapping, handle: u64 in Trapping) -> bool {
+    machine named(resolution: &NameResolution, item: DomainItem, machine: u64 in Trapping, offset: u64 in Trapping, handle: u64 in Trapping) -> bool {
         transition handle == machine {
             true -> answer(true)
             _ -> next(resolution, item, machine, offset + 1)
         }
     }
 
-    state answer(found: bool) -> bool {
+    machine answer(found: bool) -> bool {
         found
     }
 }
@@ -178,7 +178,7 @@ crashes Trap
         _ -> undecided(checker, tree, proving)
     }
 
-    state declared(
+    machine declared(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -197,7 +197,7 @@ crashes Trap
         }
     }
 
-    state valued(
+    machine valued(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -216,23 +216,23 @@ crashes Trap
         decided
     }
 
-    state undecided(checker: &mut Checker, tree: Expression, proving: bool) -> bool {
+    machine undecided(checker: &mut Checker, tree: Expression, proving: bool) -> bool {
         transition proving {
             true -> unsupported(checker, tree)
             _ -> held()
         }
     }
 
-    state unsupported(checker: &mut Checker, tree: Expression) -> bool {
+    machine unsupported(checker: &mut Checker, tree: Expression) -> bool {
         Checks::reject(&mut checker.output, CheckDiagnosticCode::UnsupportedFact, tree.source_span);
         transition { _ -> refused() }
     }
 
-    state held() -> bool {
+    machine held() -> bool {
         true
     }
 
-    state refused() -> bool {
+    machine refused() -> bool {
         false
     }
 }
@@ -256,7 +256,7 @@ crashes Trap
         _ -> done()
     }
 
-    state qualified(
+    machine qualified(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -279,7 +279,7 @@ crashes Trap
 
     // A quoted literal's byte predicates are decided from its octets'
     // roster (wiki/spec/terminal-psi/structural_access.md).
-    state decided(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, domain: u64 in Trapping, value: Value, source_span: SourceSpan, literal: bool, roster: u64 in Trapping) {
+    machine decided(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, domain: u64 in Trapping, value: Value, source_span: SourceSpan, literal: bool, roster: u64 in Trapping) {
         let previous_literal: bool = checker.subject_literal;
         let previous_roster: u64 in Trapping = checker.subject_roster;
         checker.subject_literal = literal;
@@ -293,11 +293,11 @@ crashes Trap
         }
     }
 
-    state unproven(checker: &mut Checker, source_span: SourceSpan) {
+    machine unproven(checker: &mut Checker, source_span: SourceSpan) {
         Checks::reject(&mut checker.output, CheckDiagnosticCode::DomainUnproven, source_span);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // A value of type `type_handle` satisfies the predicates of the declared
@@ -311,11 +311,11 @@ crashes Trap
         _ -> done()
     }
 
-    state assumed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, domain: u64 in Trapping, value: Value) {
+    machine assumed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, domain: u64 in Trapping, value: Value) {
         let held: bool = Checker::decide_domain(checker, syntax, resolution, typing, domain, value, false);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Each argument of a call or jump meets its formal's qualification, the
@@ -334,7 +334,7 @@ crashes Trap
     let count: u64 in Trapping = Checker::operand_count(call);
     transition { _ -> next(checker, syntax, resolution, typing, call, first_parameter, parameter_count, count, 0) }
 
-    state next(
+    machine next(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -351,7 +351,7 @@ crashes Trap
         }
     }
 
-    state argument(
+    machine argument(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
@@ -371,7 +371,7 @@ crashes Trap
         transition { _ -> next(checker, syntax, resolution, typing, call, first_parameter, parameter_count, count, offset + 1) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // A call's arguments meet its callee's formals: a machine's, or a machine
@@ -396,14 +396,14 @@ crashes Trap
 {
     transition { _ -> next(checker, syntax, resolution, typing, first_parameter, parameter_count, 0) }
 
-    state next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, offset: u64 in Trapping) {
+    machine next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, offset: u64 in Trapping) {
         transition offset < parameter_count {
             true -> formal(checker, syntax, resolution, typing, first_parameter, parameter_count, offset)
             _ -> done()
         }
     }
 
-    state formal(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, offset: u64 in Trapping) {
+    machine formal(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, offset: u64 in Trapping) {
         let parameter: Parameter = SyntaxTrees::parameter(syntax, first_parameter + offset);
         let type_handle: u64 in Trapping = Typing::reference_type(typing, parameter.type_reference);
         let place: u64 in Trapping = Checker::find_place(checker, PlaceKind::Parameter, first_parameter + offset, 0);
@@ -412,7 +412,7 @@ crashes Trap
         transition { _ -> next(checker, syntax, resolution, typing, first_parameter, parameter_count, offset + 1) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // A returned value meets the machine's declared result type.
@@ -426,7 +426,7 @@ crashes Trap
     }
 
     // The machine's own result: its routes may mint it.
-    state declared(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, expression: u64 in Trapping, value: Value, source_span: SourceSpan) {
+    machine declared(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, expression: u64 in Trapping, value: Value, source_span: SourceSpan) {
         let destination: u64 in Trapping = Typing::reference_type(typing, item.return_type);
         let minting: bool = checker.minting;
         checker.minting = true;
@@ -434,7 +434,7 @@ crashes Trap
         checker.minting = minting;
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // A store meets its target's qualification in the checking walk.
@@ -456,9 +456,9 @@ crashes Trap
         _ -> done()
     }
 
-    state stored(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, destination: u64 in Trapping, expression: u64 in Trapping, value: Value, source_span: SourceSpan) {
+    machine stored(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, destination: u64 in Trapping, expression: u64 in Trapping, value: Value, source_span: SourceSpan) {
         Checker::require_qualification(checker, syntax, resolution, typing, destination, expression, value, source_span);
     }
 
-    state done() {}
+    machine done() {}
 }

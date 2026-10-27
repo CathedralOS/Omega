@@ -31,22 +31,22 @@ machine Main::main(main: &mut Main) reaches FilesystemContentRead + FilesystemCo
     main.cap = 64;
     main.fd = PosixFilesystemHost::create("/tmp/omega_crud.txt", main.mode);
     transition main.fd >= 0 { true -> wrote(main) _ -> fail(main) }
-    state wrote(main: &mut Main) {
+    machine wrote(main: &mut Main) {
         main.n = PosixFilesystemHost::write(main.fd, "omega end to end\n");
         main.discard = PosixFilesystemHost::close(main.fd);
         main.fd = PosixFilesystemHost::open("/tmp/omega_crud.txt", main.read_flags);
         transition main.fd >= 0 { true -> rd(main) _ -> fail(main) }
     }
-    state rd(main: &mut Main) {
+    machine rd(main: &mut Main) {
         main.rn = PosixFilesystemHost::read(main.fd, &mut main.buffer, main.cap);
         main.discard = PosixFilesystemHost::close(main.fd);
         transition main.rn == 17 { true -> good(main) _ -> fail(main) }
     }
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         main.n = PosixFilesystemHost::write(1, "PASS: native fs CRUD round-trip (create+write+read 17B+close+remove)\n");
         main.discard = PosixFilesystemHost::remove("/tmp/omega_crud.txt");
     }
-    state fail(main: &mut Main) {
+    machine fail(main: &mut Main) {
         main.n = PosixFilesystemHost::write(1, "FAIL\n");
         main.discard = PosixFilesystemHost::remove("/tmp/omega_crud.txt");
     }

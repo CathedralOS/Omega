@@ -7,7 +7,7 @@ machine replace(mut bytes: [u8; 4] in Ascii) -> [u8; 4] in Ascii {
 }
 machine later(bytes: [u8; 4] in Ascii, sibling: [u8; 4] in Ascii) -> bool {
     transition { _ -> editing(bytes, sibling) }
-    state editing(mut bytes: [u8; 4] in Ascii, sibling: [u8; 4] in Ascii) -> bool {
+    machine editing(mut bytes: [u8; 4] in Ascii, sibling: [u8; 4] in Ascii) -> bool {
         bytes[0] = 66u8;
         bytes == "Bate" && sibling == "gate"
     }
@@ -21,6 +21,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

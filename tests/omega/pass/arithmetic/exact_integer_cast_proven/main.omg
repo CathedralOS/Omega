@@ -18,7 +18,7 @@ machine guard_narrow(value: i32) -> u8 {
         _ -> (0)
     }
 
-    state upper_bound(value: i32) -> u8 {
+    machine upper_bound(value: i32) -> u8 {
         transition value <= 255 {
             true -> (value as u8)
             _ -> (0)

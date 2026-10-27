@@ -9,6 +9,6 @@ requires index < 3
 }
 machine main() crashes Trap {
     transition read_local(1) == 8 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

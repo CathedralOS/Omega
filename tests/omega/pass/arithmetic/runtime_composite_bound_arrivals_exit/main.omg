@@ -8,7 +8,7 @@ machine advance(cursor: &mut Cursor, length: u64) {
         true -> inspect(cursor, length)
         false -> done()
     }
-    state inspect(cursor: &mut Cursor, length: u64) {
+    machine inspect(cursor: &mut Cursor, length: u64) {
         let start: u64 = cursor.offset;
         let limit: u64 = cursor.available;
         let copied_limit: u64 = limit;
@@ -17,10 +17,10 @@ machine advance(cursor: &mut Cursor, length: u64) {
             false -> done()
         }
     }
-    state commit(destination: &mut Cursor, start: u64, length: u64) {
+    machine commit(destination: &mut Cursor, start: u64, length: u64) {
         destination.offset = start + length;
     }
-    state done() {}
+    machine done() {}
 }
 
 machine header(bytes: &[u8], name_offset: u64) -> u8 {
@@ -28,7 +28,7 @@ machine header(bytes: &[u8], name_offset: u64) -> u8 {
         true -> read(bytes)
         false -> (0)
     }
-    state read(delivered: &[u8]) -> u8 { delivered[16] }
+    machine read(delivered: &[u8]) -> u8 { delivered[16] }
 }
 
 machine window(cursor: &mut Cursor, length: u64) -> u64 {
@@ -36,7 +36,7 @@ machine window(cursor: &mut Cursor, length: u64) -> u64 {
         true -> inspect(cursor, length)
         false -> (0)
     }
-    state inspect(cursor: &mut Cursor, length: u64) -> u64 {
+    machine inspect(cursor: &mut Cursor, length: u64) -> u64 {
         let start: u64 = cursor.offset;
         let limit: u64 = cursor.available;
         transition length <= limit - start {
@@ -44,7 +44,7 @@ machine window(cursor: &mut Cursor, length: u64) -> u64 {
             false -> (0)
         }
     }
-    state commit(destination: &mut Cursor, start: u64, length: u64) -> u64 {
+    machine commit(destination: &mut Cursor, start: u64, length: u64) -> u64 {
         destination.offset = start + length;
         let selected: &[u8] = &destination.bytes[start..destination.offset];
         selected.len
@@ -56,7 +56,7 @@ machine before_name(bytes: &[u8], name_offset: u64) -> u8 {
         true -> read(bytes, name_offset)
         false -> (0)
     }
-    state read(delivered: &[u8], offset: u64) -> u8 { delivered[offset - 1] }
+    machine read(delivered: &[u8], offset: u64) -> u8 { delivered[offset - 1] }
 }
 
 machine main() crashes Trap {
@@ -66,15 +66,15 @@ machine main() crashes Trap {
         true -> second(&mut cursor)
         false -> wrong()
     }
-    state second(cursor: &mut Cursor) {
+    machine second(cursor: &mut Cursor) {
         advance(cursor, 6);
         transition cursor.offset == 12 { true -> rejected(cursor) false -> wrong() }
     }
-    state rejected(cursor: &mut Cursor) {
+    machine rejected(cursor: &mut Cursor) {
         advance(cursor, 1);
         transition cursor.offset == 12 { true -> indexes() false -> wrong() }
     }
-    state indexes() {
+    machine indexes() {
         let bytes: [u8; 24] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24];
         let first: u8 = header(&bytes, 21);
         let second: u8 = before_name(&bytes, 21);
@@ -84,6 +84,6 @@ machine main() crashes Trap {
         let tail: u64 = window(&mut context, 6);
         transition first == 17 && second == 21 && empty == 0 && width == 4 && tail == 6 && context.offset == 12 { true -> done() false -> wrong() }
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

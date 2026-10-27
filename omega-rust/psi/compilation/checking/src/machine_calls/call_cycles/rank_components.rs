@@ -4,7 +4,7 @@
 //! component judgment, then retains its decision beside the same witnesses. Progress and executable
 //! rank projection read the retained rows without rebuilding the source proof.
 
-use super::{TopLevelSymbols, build_machine_call_graph, runtime_ranking};
+use super::{build_machine_call_graph, runtime_ranking};
 use crate::machine_calls::graph_components::strongly_connected_components;
 use checked_trees::{
     CheckedRankArrivalPlan, CheckedRankCoordinate, CheckedRuntimeNaturalState,
@@ -88,13 +88,8 @@ impl RuntimeRankComponents {
 pub fn prepare_runtime_rank_components(
     program: &dyn crate::CheckingInput,
 ) -> Option<RuntimeRankComponents> {
-    let mut diagnostics = Vec::new();
-    let symbols = TopLevelSymbols::build(program, &mut diagnostics);
-    if diagnostics.iter().any(Diagnostic::is_error) {
-        return None;
-    }
     let proof_only = crate::proof_only_classification(program);
-    let graph = build_machine_call_graph(program, &symbols, &proof_only);
+    let graph = build_machine_call_graph(program, &proof_only);
     let components = strongly_connected_components(&graph.edges)
         .into_iter()
         .filter(|component| {

@@ -20,8 +20,8 @@ machine entry() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() {
+    machine done() {}
+    machine bad() {
         crash Trap;
     }
 }

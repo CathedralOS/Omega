@@ -5,7 +5,7 @@ use omega::language::core::float_operations;
 machine category(value: f32, other: f32) -> FloatClass
 ensures result == F32::classify(value) {
     transition { _ -> next(other) }
-    state next(value: f32) -> FloatClass {
+    machine next(value: f32) -> FloatClass {
         F32::classify(value)
     }
 }
@@ -16,6 +16,6 @@ machine main() crashes Trap {
         FloatClass::Zero { negative: false } -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

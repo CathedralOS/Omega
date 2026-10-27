@@ -19,6 +19,6 @@ machine take() -> u64 {
 machine main() crashes Trap {
     let value: u64 = take();
     transition value == 7 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

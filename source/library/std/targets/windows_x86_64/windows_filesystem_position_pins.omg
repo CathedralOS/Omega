@@ -22,10 +22,10 @@ machine windows_positioned_error(code: u32) -> i64 {
 windows_x86_64 machine windows_positioned_pin(handle: u64) -> WindowsPinnedAccessResult {
     let duplicate: u64 = WindowsFilesystemNativeProvider::duplicate_handle(handle);
     transition duplicate != 0 { true -> query(duplicate) false -> failed() }
-    state failed() -> WindowsPinnedAccessResult {
+    machine failed() -> WindowsPinnedAccessResult {
         WindowsPinnedAccessResult::Error { code: WindowsFilesystemIo::c_get_last_error() }
     }
-    state query(duplicate: u64) -> WindowsPinnedAccessResult {
+    machine query(duplicate: u64) -> WindowsPinnedAccessResult {
         let mut information: WindowsNativeObjectBasicInfo;
         let mut returned: u32 = 0;
         let raw: i64 = narrow_u64_to_i64_wrapping(duplicate);
@@ -35,17 +35,17 @@ windows_x86_64 machine windows_positioned_pin(handle: u64) -> WindowsPinnedAcces
             false -> query_failed(duplicate, status)
         }
     }
-    state complete(duplicate: u64, access: u32, returned: u32) -> WindowsPinnedAccessResult {
+    machine complete(duplicate: u64, access: u32, returned: u32) -> WindowsPinnedAccessResult {
         transition returned == 56 {
             true -> (WindowsPinnedAccessResult::Value { handle: duplicate, access: access })
             false -> refuse(duplicate, 31)
         }
     }
-    state query_failed(duplicate: u64, status: i32) -> WindowsPinnedAccessResult {
+    machine query_failed(duplicate: u64, status: i32) -> WindowsPinnedAccessResult {
         let code: u32 = WindowsFilesystemIo::c_status_to_error(status);
         transition { _ -> refuse(duplicate, code) }
     }
-    state refuse(duplicate: u64, code: u32) -> WindowsPinnedAccessResult {
+    machine refuse(duplicate: u64, code: u32) -> WindowsPinnedAccessResult {
         let released: i32 = block WindowsFilesystemNativeProvider::close_handle(duplicate);
         WindowsPinnedAccessResult::Error { code: code }
     }
@@ -54,19 +54,19 @@ windows_x86_64 machine windows_positioned_pin(handle: u64) -> WindowsPinnedAcces
 windows_x86_64 machine windows_positioned_reopened(pin: u64, raw: i64) -> WindowsPositionedFile {
     let handle: u64 = WindowsFilesystemNativeProvider::normalize_handle(raw);
     transition handle != 0 { true -> release_pin(pin, handle) false -> failed_open(pin) }
-    state failed_open(pin: u64) -> WindowsPositionedFile {
+    machine failed_open(pin: u64) -> WindowsPositionedFile {
         let code: u32 = WindowsFilesystemIo::c_get_last_error();
         let released: i32 = block WindowsFilesystemNativeProvider::close_handle(pin);
         WindowsPositionedFile::Error { code: code }
     }
-    state release_pin(pin: u64, handle: u64) -> WindowsPositionedFile {
+    machine release_pin(pin: u64, handle: u64) -> WindowsPositionedFile {
         let released: i32 = block WindowsFilesystemNativeProvider::close_handle(pin);
         transition released == 0 {
             true -> (WindowsPositionedFile::Handle { value: handle })
             false -> release_failed(handle)
         }
     }
-    state release_failed(handle: u64) -> WindowsPositionedFile {
+    machine release_failed(handle: u64) -> WindowsPositionedFile {
         let code: u32 = WindowsFilesystemIo::c_get_last_error();
         let released: i32 = block WindowsFilesystemNativeProvider::close_handle(handle);
         WindowsPositionedFile::Error { code: code }

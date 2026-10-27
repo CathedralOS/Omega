@@ -10,6 +10,6 @@ machine main() reaches Console {
     let mut row: u64 in IssuedIndex = issue(0);
     replace(&mut row);
     transition row { 1 -> done() _ -> wrong() }
-    state done() { Console::exit_process(0); }
-    state wrong() { Console::exit_process(71); }
+    machine done() { Console::exit_process(0); }
+    machine wrong() { Console::exit_process(71); }
 }

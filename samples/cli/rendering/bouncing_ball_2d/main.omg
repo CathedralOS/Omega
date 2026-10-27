@@ -54,10 +54,10 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
     main.frame = 0;
     transition { _ -> frame_loop(main) }
 
-    state frame_loop(main: &mut Main) {
+    machine frame_loop(main: &mut Main) {
         transition main.frame < 70 { true -> frame_start(main) _ -> finish(main) }
     }
-    state frame_start(main: &mut Main) {
+    machine frame_start(main: &mut Main) {
         Console::write(main.home);
         main.y = 0;
         transition { _ -> row_loop(main) }
@@ -65,88 +65,88 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
 
     // --- render a 24x12 grid, one CELL at a time (a single write per cell whose
     // value a guard decides), one row per write_line ---
-    state row_loop(main: &mut Main) {
+    machine row_loop(main: &mut Main) {
         transition main.y >= 0 && main.y < 12 { true -> col_init(main) _ -> after_frame(main) }
     }
-    state col_init(main: &mut Main) {
+    machine col_init(main: &mut Main) {
         main.x = 0;
         transition { _ -> col_loop(main) }
     }
-    state col_loop(main: &mut Main) {
+    machine col_loop(main: &mut Main) {
         transition main.x >= 0 && main.x < 24 { true -> cell(main) _ -> emit_row(main) }
     }
-    state cell(main: &mut Main) {
+    machine cell(main: &mut Main) {
         transition main.x == main.ball_x && main.y == main.ball_y {
             true -> ball_cell(main)
             _ -> space_cell(main)
         }
     }
-    state ball_cell(main: &mut Main) {
+    machine ball_cell(main: &mut Main) {
         main.line[main.x] = 79;
         transition { _ -> x_step(main) }
     }
-    state space_cell(main: &mut Main) {
+    machine space_cell(main: &mut Main) {
         main.line[main.x] = 32;
         transition { _ -> x_step(main) }
     }
     // Re-guard before each counter increment (the ball/space branch and the
     // write_line call don't carry the loop bound), so the `+ 1`s prove Exact.
-    state x_step(main: &mut Main) {
+    machine x_step(main: &mut Main) {
         transition main.x >= 0 && main.x < 24 { true -> x_bump(main) _ -> emit_row(main) }
     }
-    state x_bump(main: &mut Main) {
+    machine x_bump(main: &mut Main) {
         main.x = main.x + 1;
         transition { _ -> col_loop(main) }
     }
-    state emit_row(main: &mut Main) {
+    machine emit_row(main: &mut Main) {
         Console::write_line(main.line);
         transition main.y >= 0 && main.y < 12 { true -> y_bump(main) _ -> row_loop(main) }
     }
-    state y_bump(main: &mut Main) {
+    machine y_bump(main: &mut Main) {
         main.y = main.y + 1;
         transition { _ -> row_loop(main) }
     }
 
     // --- integrate the physics, then bounce off the four walls ---
-    state after_frame(main: &mut Main) {
+    machine after_frame(main: &mut Main) {
         main.vy = main.vy + 0.45;
         main.bx = main.bx + main.vx;
         main.by = main.by + main.vy;
         transition { _ -> bounce_floor(main) }
     }
-    state bounce_floor(main: &mut Main) {
+    machine bounce_floor(main: &mut Main) {
         transition main.by >= 11.0 { true -> floor_hit(main) _ -> bounce_ceil(main) }
     }
-    state floor_hit(main: &mut Main) {
+    machine floor_hit(main: &mut Main) {
         main.by = 11.0;
         main.vy = 0.0 - main.vy * 0.72;
         transition { _ -> bounce_ceil(main) }
     }
-    state bounce_ceil(main: &mut Main) {
+    machine bounce_ceil(main: &mut Main) {
         transition main.by <= 0.0 { true -> ceil_hit(main) _ -> bounce_walls(main) }
     }
-    state ceil_hit(main: &mut Main) {
+    machine ceil_hit(main: &mut Main) {
         main.by = 0.0;
         main.vy = 0.0 - main.vy;
         transition { _ -> bounce_walls(main) }
     }
-    state bounce_walls(main: &mut Main) {
+    machine bounce_walls(main: &mut Main) {
         transition main.bx >= 23.0 { true -> wall_right(main) _ -> bounce_wall_left(main) }
     }
-    state wall_right(main: &mut Main) {
+    machine wall_right(main: &mut Main) {
         main.bx = 23.0;
         main.vx = 0.0 - main.vx;
         transition { _ -> recompute(main) }
     }
-    state bounce_wall_left(main: &mut Main) {
+    machine bounce_wall_left(main: &mut Main) {
         transition main.bx <= 0.0 { true -> wall_left(main) _ -> recompute(main) }
     }
-    state wall_left(main: &mut Main) {
+    machine wall_left(main: &mut Main) {
         main.bx = 0.0;
         main.vx = 0.0 - main.vx;
         transition { _ -> recompute(main) }
     }
-    state recompute(main: &mut Main) {
+    machine recompute(main: &mut Main) {
         // Named saturating conversions truncate the float positions; the policy
         // then erases.
         let column: i32 in Saturating = I32::from_f64(main.bx);
@@ -156,12 +156,12 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
         Clock::sleep(40);
         transition main.frame < 70 { true -> frame_bump(main) _ -> frame_loop(main) }
     }
-    state frame_bump(main: &mut Main) {
+    machine frame_bump(main: &mut Main) {
         main.frame = main.frame + 1;
         transition { _ -> frame_loop(main) }
     }
 
-    state finish(main: &mut Main) {
+    machine finish(main: &mut Main) {
         Console::write_line("done: 70 frames of gravity-bounce animation complete (exit 0)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

@@ -37,10 +37,10 @@ machine Main::main(context: &mut Main) reaches Console {
     let outside: ReadResult = try_read(&backing, &layout, 2, 0);
     let backing_view: &[i32] = &backing[..];
     transition empty_read { ReadResult::Invalid -> outside_check(context, backing_view, &layout, &swapped, outside, invalid_layout_rejected && checked_last == 6 && full_valid && full_mutable && empty_valid && empty_mutable && overflow_rejected) ReadResult::Ok { value } -> bad(context) }
-    state outside_check(context: &mut Main, backing: &[i32], layout: &Layout2, swapped: &Layout2, outside: ReadResult, valid: bool) {
+    machine outside_check(context: &mut Main, backing: &[i32], layout: &Layout2, swapped: &Layout2, outside: ReadResult, valid: bool) {
         transition outside { ReadResult::Invalid -> entries(context, backing, layout, swapped, valid) ReadResult::Ok { value } -> bad(context) }
     }
-    state entries(context: &mut Main, backing: &[i32], layout: &Layout2, swapped: &Layout2, valid: bool) {
+    machine entries(context: &mut Main, backing: &[i32], layout: &Layout2, swapped: &Layout2, valid: bool) {
         let first: bool = equals(backing, layout, 0, 0, 1);
         let second: bool = equals(backing, layout, 0, 1, 2);
         let third: bool = equals(backing, layout, 0, 2, 3);
@@ -53,8 +53,8 @@ machine Main::main(context: &mut Main) reaches Console {
             false -> bad(context)
         }
     }
-    state good(context: &mut Main) { Console::exit_process(41); }
-    state bad(context: &mut Main) { Console::exit_process(1); }
+    machine good(context: &mut Main) { Console::exit_process(41); }
+    machine bad(context: &mut Main) { Console::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -16,13 +16,13 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> header(&mut acquisition, layers.value, echoes.value, window.value, present.value, reference.value)
         false -> malformed()
     }
-    state header(acquisition: &mut Acquisition, layers: i64 in Saturating, echoes: i64 in Saturating, window: i64 in Saturating, present: i64 in Saturating, reference: i64 in Saturating) {
+    machine header(acquisition: &mut Acquisition, layers: i64 in Saturating, echoes: i64 in Saturating, window: i64 in Saturating, present: i64 in Saturating, reference: i64 in Saturating) {
         transition layers >= 1 && layers <= 4 && echoes >= 1 && echoes <= 8 && window <= 1000 && reference <= 1000000 && present <= 1 {
             true -> reference_check(acquisition, layers, echoes, window, present, reference)
             false -> invalid_header()
         }
     }
-    state reference_check(acquisition: &mut Acquisition, layers: i64 in Saturating, echoes: i64 in Saturating, window: i64 in Saturating, present: i64 in Saturating, reference: i64 in Saturating)
+    machine reference_check(acquisition: &mut Acquisition, layers: i64 in Saturating, echoes: i64 in Saturating, window: i64 in Saturating, present: i64 in Saturating, reference: i64 in Saturating)
     requires layers >= 1 && layers <= 4
     requires echoes >= 1 && echoes <= 8 {
         acquisition.layers = layers as u64 in Saturating;
@@ -35,13 +35,13 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> missing_reference()
         }
     }
-    state layer(acquisition: &mut Acquisition, index: u64 in Saturating) {
+    machine layer(acquisition: &mut Acquisition, index: u64 in Saturating) {
         transition index < acquisition.layers && index < 4 {
             true -> read_layer(acquisition, index)
             false -> echo(acquisition, 0)
         }
     }
-    state read_layer(acquisition: &mut Acquisition, index: u64 in Saturating)
+    machine read_layer(acquisition: &mut Acquisition, index: u64 in Saturating)
     requires index < 4 {
         let speed: Token = block read_token();
         let thickness: Token = block read_token();
@@ -50,26 +50,26 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> malformed()
         }
     }
-    state validate_layer(acquisition: &mut Acquisition, index: u64 in Saturating, speed: i64 in Saturating, thickness: i64 in Saturating)
+    machine validate_layer(acquisition: &mut Acquisition, index: u64 in Saturating, speed: i64 in Saturating, thickness: i64 in Saturating)
     requires index < 4 {
         transition speed >= 1000 && speed <= 10000 && thickness >= 1 && thickness <= 1000000 {
             true -> store_layer(acquisition, index, speed, thickness)
             false -> invalid_layer()
         }
     }
-    state store_layer(acquisition: &mut Acquisition, index: u64 in Saturating, speed: i64 in Saturating, thickness: i64 in Saturating)
+    machine store_layer(acquisition: &mut Acquisition, index: u64 in Saturating, speed: i64 in Saturating, thickness: i64 in Saturating)
     requires index < 4 {
         acquisition.speeds[index] = speed;
         acquisition.thicknesses[index] = thickness;
         transition { _ -> layer(acquisition, index + 1) }
     }
-    state echo(acquisition: &mut Acquisition, index: u64 in Saturating) {
+    machine echo(acquisition: &mut Acquisition, index: u64 in Saturating) {
         transition index < acquisition.echoes && index < 8 {
             true -> read_echo(acquisition, index)
             false -> finish_input(acquisition)
         }
     }
-    state read_echo(acquisition: &mut Acquisition, index: u64 in Saturating)
+    machine read_echo(acquisition: &mut Acquisition, index: u64 in Saturating)
     requires index < 8 {
         let arrival: Token = block read_token();
         transition arrival.valid {
@@ -77,48 +77,48 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> malformed()
         }
     }
-    state validate_echo(acquisition: &mut Acquisition, index: u64 in Saturating, arrival: i64 in Saturating)
+    machine validate_echo(acquisition: &mut Acquisition, index: u64 in Saturating, arrival: i64 in Saturating)
     requires index < 8 {
         transition arrival >= acquisition.reference && arrival <= 9000000 {
             true -> store_echo(acquisition, index, arrival)
             false -> invalid_echo()
         }
     }
-    state store_echo(acquisition: &mut Acquisition, index: u64 in Saturating, arrival: i64 in Saturating)
+    machine store_echo(acquisition: &mut Acquisition, index: u64 in Saturating, arrival: i64 in Saturating)
     requires index < 8 {
         acquisition.arrivals[index] = arrival;
         transition { _ -> echo(acquisition, index + 1) }
     }
-    state finish_input(acquisition: &mut Acquisition) {
+    machine finish_input(acquisition: &mut Acquisition) {
         let ended: bool = block at_end();
         transition ended {
             true -> process(acquisition)
             false -> malformed()
         }
     }
-    state process(acquisition: &mut Acquisition) {
+    machine process(acquisition: &mut Acquisition) {
         build_boundaries(acquisition);
         Console::write_line("acoustic thickness echoes: ns / um / m_per_s");
         transition { _ -> report(acquisition, 0) }
     }
-    state report(acquisition: &Acquisition, index: u64 in Saturating) {
+    machine report(acquisition: &Acquisition, index: u64 in Saturating) {
         transition index < acquisition.echoes && index < 8 {
             true -> report_echo(acquisition, index)
             false -> success()
         }
     }
-    state report_echo(acquisition: &Acquisition, index: u64 in Saturating)
+    machine report_echo(acquisition: &Acquisition, index: u64 in Saturating)
     requires index < 8 {
         let result: EchoResult = match_echo(acquisition, acquisition.arrivals[index]);
         write_echo(index + 1, result);
         transition { _ -> report(acquisition, index + 1) }
     }
-    state success() { Console::write_line("complete"); Console::exit_process(0); }
-    state malformed() { Console::write_line("error malformed_input"); Console::exit_process(2); }
-    state invalid_header() { Console::write_line("error invalid_header"); Console::exit_process(2); }
-    state missing_reference() { Console::write_line("error missing_reference"); Console::exit_process(2); }
-    state invalid_layer() { Console::write_line("error invalid_layer"); Console::exit_process(2); }
-    state invalid_echo() { Console::write_line("error invalid_echo"); Console::exit_process(2); }
+    machine success() { Console::write_line("complete"); Console::exit_process(0); }
+    machine malformed() { Console::write_line("error malformed_input"); Console::exit_process(2); }
+    machine invalid_header() { Console::write_line("error invalid_header"); Console::exit_process(2); }
+    machine missing_reference() { Console::write_line("error missing_reference"); Console::exit_process(2); }
+    machine invalid_layer() { Console::write_line("error invalid_layer"); Console::exit_process(2); }
+    machine invalid_echo() { Console::write_line("error invalid_echo"); Console::exit_process(2); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

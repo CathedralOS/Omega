@@ -37,7 +37,7 @@ machine windows_filesystem_status_error(status: i64) -> ErrorKind {
         true -> native(status)
         false -> ErrorKind::Other
     }
-    state native(status: i64) -> ErrorKind
+    machine native(status: i64) -> ErrorKind
     requires status < 0 && status >= -4294967295 {
         windows_filesystem_error(narrow_i64_to_u32_exact(0 - status))
     }
@@ -55,7 +55,7 @@ machine windows_filesystem_transferred(status: i64, requested: u64) -> IoResult 
         true -> nonnegative(status, requested)
         false -> (IoResult::Error { kind: windows_filesystem_status_error(status) })
     }
-    state nonnegative(status: i64, requested: u64) -> IoResult requires status >= 0 {
+    machine nonnegative(status: i64, requested: u64) -> IoResult requires status >= 0 {
         let count: u64 = narrow_i64_to_u64_exact(status);
         transition count <= requested {
             true -> (IoResult::Ok { count: count })

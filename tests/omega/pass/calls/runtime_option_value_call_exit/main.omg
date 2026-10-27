@@ -33,10 +33,10 @@ machine Main::main(main: &mut Main) reaches Console {
     main.nones = 0;
     transition { _ -> loop(main) }
 
-    state loop(main: &mut Main) {
+    machine loop(main: &mut Main) {
         transition main.i >= 0 && main.i < 3 { true -> call(main) _ -> verify(main) }
     }
-    state call(main: &mut Main) {
+    machine call(main: &mut Main) {
         main.x = main.vals[main.i] as i32 in Wrapping;
         // call the Option-returning function, bind, and match the result
         let r: Opt = classify(main.x);
@@ -45,24 +45,24 @@ machine Main::main(main: &mut Main) reaches Console {
             Opt::None -> nada(main)
         }
     }
-    state got(main: &mut Main, v: i32 in Wrapping) {
+    machine got(main: &mut Main, v: i32 in Wrapping) {
         main.acc = main.acc + v;
         main.i = main.i + 1;
         transition { _ -> loop(main) }
     }
-    state nada(main: &mut Main) {
+    machine nada(main: &mut Main) {
         main.nones = main.nones + 1;
         main.i = main.i + 1;
         transition { _ -> loop(main) }
     }
 
-    state verify(main: &mut Main) {
+    machine verify(main: &mut Main) {
         transition main.acc == 12 && main.nones == 1 { true -> good(main) _ -> wrong(main) }
     }
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
-    state wrong(main: &mut Main) {
+    machine wrong(main: &mut Main) {
         Console::exit_process(main.acc as i32); // surface the sum on regression
     }
 }

@@ -14,5 +14,5 @@ machine main() reaches Service crashes Trap {
         true -> {}
         false -> bad()
     }
-    state bad() { crash Trap; }
+    machine bad() { crash Trap; }
 }

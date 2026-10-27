@@ -34,8 +34,8 @@ machine verify(correct: bool) crashes Trap {
         true -> good()
         _ -> bad()
     }
-    state good() {}
-    state bad() { crash Trap; }
+    machine good() {}
+    machine bad() { crash Trap; }
 }
 
 machine main(context: &mut Context) reaches Settlement crashes Trap {

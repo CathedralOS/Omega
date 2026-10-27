@@ -25,8 +25,8 @@ machine Main::main(main: &mut Main) reaches Console {
             && rounded32 == 18446744073709551616.0f32 -> good()
         _ -> bad()
     }
-    state good() { Console::exit_process(70); }
-    state bad() { Console::exit_process(77); }
+    machine good() { Console::exit_process(70); }
+    machine bad() { Console::exit_process(77); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

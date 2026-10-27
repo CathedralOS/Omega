@@ -7,6 +7,6 @@ machine main() crashes Trap {
     transition whole[1] == 41 && whole[0] == 7 && whole[2] == 9 {
         true -> done() false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

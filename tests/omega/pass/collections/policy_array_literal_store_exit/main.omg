@@ -24,7 +24,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.i = 1;
     main.rows[main.i] = [13, 14, 15];
     transition { _ -> check(main) }
-    state check(main: &mut Main) {
+    machine check(main: &mut Main) {
         transition main.bare[2] == 3
             && main.wrapped[1] == 5
             && main.saturated[0] == 7
@@ -34,7 +34,7 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> finish(main, 1)
         }
     }
-    state finish(main: &mut Main, code: i32) {
+    machine finish(main: &mut Main, code: i32) {
         Console::exit_process(code);
     }
 }

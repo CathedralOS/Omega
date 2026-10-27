@@ -8,7 +8,7 @@ requires q >= 99 && q <= 99
     transition {
         _ -> step(q)
     }
-    state step(quotient: u64) -> i32
+    machine step(quotient: u64) -> i32
     requires quotient >= 99 && quotient <= 99
     {
         let diff: u64 = quotient - 100u64;
@@ -26,6 +26,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

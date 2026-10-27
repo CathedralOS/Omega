@@ -21,7 +21,7 @@ machine compact<'input, T [copy]>(selected: dyn Retain<T>, values: &'input mut [
 {
     transition { _ -> scan(selected, values, 0, 0) }
 
-    state scan(selected: dyn Retain<T>, values: &'input mut [T], cursor: u64, retained: u64)
+    machine scan(selected: dyn Retain<T>, values: &'input mut [T], cursor: u64, retained: u64)
         -> &'input mut [T]
     requires retained <= cursor && cursor <= values.len {
         transition cursor < values.len {
@@ -30,7 +30,7 @@ machine compact<'input, T [copy]>(selected: dyn Retain<T>, values: &'input mut [
         }
     }
 
-    state visit(selected: dyn Retain<T>, values: &'input mut [T], cursor: u64, retained: u64)
+    machine visit(selected: dyn Retain<T>, values: &'input mut [T], cursor: u64, retained: u64)
         -> &'input mut [T]
     requires retained <= cursor && cursor < values.len {
         transition Retain::test(selected, &values[cursor]) {
@@ -39,7 +39,7 @@ machine compact<'input, T [copy]>(selected: dyn Retain<T>, values: &'input mut [
         }
     }
 
-    state keep(selected: dyn Retain<T>, values: &'input mut [T], cursor: u64, retained: u64)
+    machine keep(selected: dyn Retain<T>, values: &'input mut [T], cursor: u64, retained: u64)
         -> &'input mut [T]
     requires retained <= cursor && cursor < values.len {
         values[retained] = values[cursor];
@@ -76,8 +76,8 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }
 
 machine is_empty(values: &[Reading]) -> bool { values.len == 0 }
@@ -87,7 +87,7 @@ machine verify(selected: &[Reading]) -> bool {
         true -> inspect(selected)
         false -> false
     }
-    state inspect(selected: &[Reading]) -> bool
+    machine inspect(selected: &[Reading]) -> bool
     requires selected.len == 2 {
         selected[0].address == 30 && selected[1].address == 40
             && selected[0].previous == 1 && selected[0].current == 4

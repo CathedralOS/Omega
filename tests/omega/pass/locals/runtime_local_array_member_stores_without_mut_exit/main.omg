@@ -40,20 +40,20 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> literal_check(literal, text)
         _ -> failed(71)
     }
-    state literal_check(literal: u8, text: u8) {
+    machine literal_check(literal: u8, text: u8) {
         transition literal == 70 {
             true -> text_check(text)
             _ -> failed(72)
         }
     }
-    state text_check(text: u8) {
+    machine text_check(text: u8) {
         transition text == 70 {
             true -> done()
             _ -> failed(73)
         }
     }
-    state done() { Console::exit_process(70); }
-    state failed(code: i32) { Console::exit_process(code); }
+    machine done() { Console::exit_process(70); }
+    machine failed(code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

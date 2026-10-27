@@ -11,18 +11,18 @@ data Main {
 }
 machine Main::number(main: &mut Main, value: i64 in Wrapping) reaches Console {
     transition value < 0 { true -> negative(main, value) _ -> digits(main, value, 100000000000000000) }
-    state negative(main: &mut Main, value: i64 in Wrapping) {
+    machine negative(main: &mut Main, value: i64 in Wrapping) {
         Console::write("-");
         transition { _ -> digits(main, 0-value, 100000000000000000) }
     }
-    state digits(main: &mut Main, value: i64 in Wrapping, divisor: i64 in Wrapping) {
+    machine digits(main: &mut Main, value: i64 in Wrapping, divisor: i64 in Wrapping) {
         transition divisor > 0 { true -> emit(main, value, divisor) _ -> done() }
     }
-    state emit(main: &mut Main, value: i64 in Wrapping, divisor: i64 in Wrapping) {
+    machine emit(main: &mut Main, value: i64 in Wrapping, divisor: i64 in Wrapping) {
         Console::write_byte(((value/divisor)%10) as i32 + 48);
         transition { _ -> digits(main, value, divisor/10) }
     }
-    state done() { }
+    machine done() { }
 }
 machine Main::rational(main: &mut Main, numerator: i64 in Wrapping, denominator: i64 in Wrapping) reaches Console {
     Main::number(main, numerator); Console::write("/"); Main::number(main, denominator);
@@ -30,44 +30,44 @@ machine Main::rational(main: &mut Main, numerator: i64 in Wrapping, denominator:
 machine Main::main(main: &mut Main) reaches Console {
     main.bytes = 0; main.used = 0;
     transition { _ -> mode(main) }
-    state mode(main: &mut Main) {
+    machine mode(main: &mut Main) {
         let byte: ByteRead = block Console::read_byte();
         main.bytes = main.bytes+1;
         transition byte { ByteRead::Byte { value } -> mode_byte(main, value) _ -> invalid(main) }
     }
-    state mode_byte(main: &mut Main, value: i32) {
+    machine mode_byte(main: &mut Main, value: i32) {
         transition main.bytes <= 512 { true -> mode_start(main, value) _ -> invalid(main) }
     }
-    state mode_start(main: &mut Main, value: i32) {
+    machine mode_start(main: &mut Main, value: i32) {
         transition value { 32 -> mode(main) 9 -> mode(main) 10 -> mode(main) 13 -> mode(main)
             108 -> mode_tail(main, 1, 1) 113 -> mode_tail(main, 2, 1) _ -> invalid(main) }
     }
-    state mode_tail(main: &mut Main, degree: i64 in Wrapping, position: i64 in Wrapping) {
+    machine mode_tail(main: &mut Main, degree: i64 in Wrapping, position: i64 in Wrapping) {
         let byte: ByteRead = block Console::read_byte();
         main.bytes = main.bytes+1;
         transition byte { ByteRead::Byte { value } -> mode_match(main, degree, position, value) _ -> invalid(main) }
     }
-    state mode_match(main: &mut Main, degree: i64 in Wrapping, position: i64 in Wrapping, value: i32) {
+    machine mode_match(main: &mut Main, degree: i64 in Wrapping, position: i64 in Wrapping, value: i32) {
         let expected: i32 = Main::mode_character(degree, position);
         transition main.bytes <= 512 && value == expected {
             true -> mode_advance(main, degree, position)
             _ -> mode_separator(main, degree, position, value)
         }
     }
-    state mode_advance(main: &mut Main, degree: i64 in Wrapping, position: i64 in Wrapping) {
+    machine mode_advance(main: &mut Main, degree: i64 in Wrapping, position: i64 in Wrapping) {
         transition { _ -> mode_tail(main, degree, position+1) }
     }
-    state mode_separator(main: &mut Main, degree: i64 in Wrapping, position: i64 in Wrapping, value: i32) {
+    machine mode_separator(main: &mut Main, degree: i64 in Wrapping, position: i64 in Wrapping, value: i32) {
         transition main.bytes <= 512 && ((degree == 1 && position == 6) || (degree == 2 && position == 9)) &&
                    (value == 32 || value == 9 || value == 10 || value == 13) {
             true -> begin_numbers(main, degree) _ -> invalid(main)
         }
     }
-    state begin_numbers(main: &mut Main, degree: i64 in Wrapping) {
+    machine begin_numbers(main: &mut Main, degree: i64 in Wrapping) {
         main.design.degree = degree;
         transition { _ -> read(main, 0, 1, 0, 0) }
     }
-    state read(main: &mut Main, accumulator: i64 in Wrapping, sign: i64 in Wrapping, active: i64 in Wrapping, digits: i64 in Wrapping) {
+    machine read(main: &mut Main, accumulator: i64 in Wrapping, sign: i64 in Wrapping, active: i64 in Wrapping, digits: i64 in Wrapping) {
         let byte: ByteRead = block Console::read_byte();
         main.bytes = main.bytes+1;
         transition byte {
@@ -75,184 +75,184 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> eof(main, accumulator, sign, active, digits)
         }
     }
-    state bounded(main: &mut Main, value: i64 in Wrapping, sign: i64 in Wrapping, active: i64 in Wrapping,
+    machine bounded(main: &mut Main, value: i64 in Wrapping, sign: i64 in Wrapping, active: i64 in Wrapping,
                   digits: i64 in Wrapping, character: i32) {
         transition main.bytes <= 512 { true -> token(main, value, sign, active, digits, character) _ -> invalid(main) }
     }
-    state token(main: &mut Main, value: i64 in Wrapping, sign: i64 in Wrapping, active: i64 in Wrapping,
+    machine token(main: &mut Main, value: i64 in Wrapping, sign: i64 in Wrapping, active: i64 in Wrapping,
                 digits: i64 in Wrapping, character: i32) {
         transition character >= 48 && character <= 57 {
             true -> digit(main, value, sign, digits, character)
             _ -> separator(main, value, sign, active, digits, character)
         }
     }
-    state digit(main: &mut Main, value: i64 in Wrapping, sign: i64 in Wrapping, digits: i64 in Wrapping, character: i32) {
+    machine digit(main: &mut Main, value: i64 in Wrapping, sign: i64 in Wrapping, digits: i64 in Wrapping, character: i32) {
         transition digits < 2 { true -> append(main, value, sign, digits, character) _ -> invalid(main) }
     }
-    state append(main: &mut Main, value: i64 in Wrapping, sign: i64 in Wrapping, digits: i64 in Wrapping, character: i32) {
+    machine append(main: &mut Main, value: i64 in Wrapping, sign: i64 in Wrapping, digits: i64 in Wrapping, character: i32) {
         transition { _ -> read(main, value*10+(character as i64 in Wrapping)-48, sign, 1, digits+1) }
     }
-    state separator(main: &mut Main, value: i64 in Wrapping, sign: i64 in Wrapping, active: i64 in Wrapping,
+    machine separator(main: &mut Main, value: i64 in Wrapping, sign: i64 in Wrapping, active: i64 in Wrapping,
                     digits: i64 in Wrapping, character: i32) {
         transition character == 32 || character == 9 || character == 10 || character == 13 {
             true -> separated(main, value, sign, active, digits)
             _ -> minus(main, active, character)
         }
     }
-    state minus(main: &mut Main, active: i64 in Wrapping, character: i32) {
+    machine minus(main: &mut Main, active: i64 in Wrapping, character: i32) {
         transition active == 0 && character == 45 { true -> read(main, 0, -1, 1, 0) _ -> invalid(main) }
     }
-    state separated(main: &mut Main, value: i64 in Wrapping, sign: i64 in Wrapping, active: i64 in Wrapping, digits: i64 in Wrapping) {
+    machine separated(main: &mut Main, value: i64 in Wrapping, sign: i64 in Wrapping, active: i64 in Wrapping, digits: i64 in Wrapping) {
         transition active == 0 { true -> read(main, 0, 1, 0, 0) _ -> store(main, value, sign, digits, 0) }
     }
-    state eof(main: &mut Main, value: i64 in Wrapping, sign: i64 in Wrapping, active: i64 in Wrapping, digits: i64 in Wrapping) {
+    machine eof(main: &mut Main, value: i64 in Wrapping, sign: i64 in Wrapping, active: i64 in Wrapping, digits: i64 in Wrapping) {
         transition active == 0 { true -> header(main) _ -> store(main, value, sign, digits, 1) }
     }
-    state store(main: &mut Main, value: i64 in Wrapping, sign: i64 in Wrapping, digits: i64 in Wrapping, eof: i64 in Wrapping) {
+    machine store(main: &mut Main, value: i64 in Wrapping, sign: i64 in Wrapping, digits: i64 in Wrapping, eof: i64 in Wrapping) {
         transition digits > 0 && main.used >= 0 && main.used < 29 { true -> save(main, value, sign, eof) _ -> invalid(main) }
     }
-    state save(main: &mut Main, value: i64 in Wrapping, sign: i64 in Wrapping, eof: i64 in Wrapping) {
+    machine save(main: &mut Main, value: i64 in Wrapping, sign: i64 in Wrapping, eof: i64 in Wrapping) {
         main.tokens[main.used] = value*sign; main.used = main.used+1;
         transition eof == 1 { true -> header(main) _ -> read(main, 0, 1, 0, 0) }
     }
-    state header(main: &mut Main) {
+    machine header(main: &mut Main) {
         let count: i64 in Wrapping = main.tokens[0];
         let size: i64 in Wrapping = main.tokens[1];
         transition count >= 3 && count <= 12 && size >= 1 && size <= 6 && size <= count && main.used == 2*count+5 {
             true -> configure(main, count, size) _ -> invalid(main)
         }
     }
-    state configure(main: &mut Main, count: i64 in Wrapping, size: i64 in Wrapping) {
+    machine configure(main: &mut Main, count: i64 in Wrapping, size: i64 in Wrapping) {
         main.design.count = count; main.design.size = size;
         transition { _ -> candidate(main, 0) }
     }
-    state candidate(main: &mut Main, index: i64 in Wrapping) {
+    machine candidate(main: &mut Main, index: i64 in Wrapping) {
         transition index < main.design.count { true -> candidate_bound(main, index) _ -> prediction(main, 0) }
     }
-    state candidate_bound(main: &mut Main, index: i64 in Wrapping) {
+    machine candidate_bound(main: &mut Main, index: i64 in Wrapping) {
         transition index >= 0 && index < 12 && 2*index+3 >= 0 && 2*index+3 < 29 {
             true -> candidate_values(main, index) _ -> invalid(main)
         }
     }
-    state candidate_values(main: &mut Main, index: i64 in Wrapping) {
+    machine candidate_values(main: &mut Main, index: i64 in Wrapping) {
         let setting: i64 in Wrapping = main.tokens[2*index+2];
         let precision: i64 in Wrapping = main.tokens[2*index+3];
         transition setting >= -10 && setting <= 10 && precision >= 1 && precision <= 10 {
             true -> candidate_store(main, index, setting, precision) _ -> invalid(main)
         }
     }
-    state candidate_store(main: &mut Main, index: i64 in Wrapping, setting: i64 in Wrapping, precision: i64 in Wrapping) {
+    machine candidate_store(main: &mut Main, index: i64 in Wrapping, setting: i64 in Wrapping, precision: i64 in Wrapping) {
         main.design.settings[index] = setting; main.design.precisions[index] = precision;
         transition { _ -> candidate(main, index+1) }
     }
-    state prediction(main: &mut Main, index: i64 in Wrapping) {
+    machine prediction(main: &mut Main, index: i64 in Wrapping) {
         transition index >= 0 && index < 3 { true -> prediction_bound(main, index) _ -> analyze(main) }
     }
-    state prediction_bound(main: &mut Main, index: i64 in Wrapping) {
+    machine prediction_bound(main: &mut Main, index: i64 in Wrapping) {
         let position: i64 in Wrapping = 2*main.design.count+2+index;
         transition position >= 0 && position < 29 { true -> prediction_value(main, index, position) _ -> invalid(main) }
     }
-    state prediction_value(main: &mut Main, index: i64 in Wrapping, position: i64 in Wrapping) {
+    machine prediction_value(main: &mut Main, index: i64 in Wrapping, position: i64 in Wrapping) {
         let value: i64 in Wrapping = main.tokens[position];
         transition value >= -10 && value <= 10 { true -> prediction_store(main, index, value) _ -> invalid(main) }
     }
-    state prediction_store(main: &mut Main, index: i64 in Wrapping, value: i64 in Wrapping) {
+    machine prediction_store(main: &mut Main, index: i64 in Wrapping, value: i64 in Wrapping) {
         main.design.predictions[index] = value;
         transition { _ -> prediction(main, index+1) }
     }
-    state analyze(main: &mut Main) {
+    machine analyze(main: &mut Main) {
         design::model::solve(&mut main.design);
         Console::write("selected");
         transition { _ -> selected(main, 0) }
     }
-    state selected(main: &mut Main, index: i64 in Wrapping) {
+    machine selected(main: &mut Main, index: i64 in Wrapping) {
         transition index >= 0 && index < 12 { true -> selected_value(main, index) _ -> information(main, 0, 0) }
     }
-    state selected_value(main: &mut Main, index: i64 in Wrapping) {
+    machine selected_value(main: &mut Main, index: i64 in Wrapping) {
         transition main.design.selected[index] == 1 { true -> selected_emit(main, index) _ -> selected(main, index+1) }
     }
-    state selected_emit(main: &mut Main, index: i64 in Wrapping) {
+    machine selected_emit(main: &mut Main, index: i64 in Wrapping) {
         Console::write(" "); Main::number(main, index);
         transition { _ -> selected(main, index+1) }
     }
-    state information(main: &mut Main, row: i64 in Wrapping, column: i64 in Wrapping) {
+    machine information(main: &mut Main, row: i64 in Wrapping, column: i64 in Wrapping) {
         transition column == 0 { true -> information_label(main, row) _ -> information_bound(main, row, column) }
     }
-    state information_label(main: &mut Main, row: i64 in Wrapping) {
+    machine information_label(main: &mut Main, row: i64 in Wrapping) {
         Console::write_byte(10);
         transition row <= main.design.degree { true -> information_start(main, row) _ -> determinant(main) }
     }
-    state information_start(main: &mut Main, row: i64 in Wrapping) {
+    machine information_start(main: &mut Main, row: i64 in Wrapping) {
         Console::write("information");
         transition { _ -> information_bound(main, row, 0) }
     }
-    state information_bound(main: &mut Main, row: i64 in Wrapping, column: i64 in Wrapping) {
+    machine information_bound(main: &mut Main, row: i64 in Wrapping, column: i64 in Wrapping) {
         transition column <= main.design.degree { true -> information_index(main, row, column) _ -> information(main, row+1, 0) }
     }
-    state information_index(main: &mut Main, row: i64 in Wrapping, column: i64 in Wrapping) {
+    machine information_index(main: &mut Main, row: i64 in Wrapping, column: i64 in Wrapping) {
         let position: i64 in Wrapping = row*3+column;
         transition position >= 0 && position < 9 { true -> information_emit(main, row, column, position) _ -> invalid(main) }
     }
-    state information_emit(main: &mut Main, row: i64 in Wrapping, column: i64 in Wrapping, position: i64 in Wrapping) {
+    machine information_emit(main: &mut Main, row: i64 in Wrapping, column: i64 in Wrapping, position: i64 in Wrapping) {
         let value: i64 in Wrapping = main.design.information[position];
         Console::write(" "); Main::number(main, value);
         transition { _ -> information(main, row, column+1) }
     }
-    state determinant(main: &mut Main) {
+    machine determinant(main: &mut Main) {
         let value: i64 in Wrapping = main.design.determinant;
         Console::write("determinant "); Main::number(main, value); Console::write_byte(10);
         transition main.design.determinant > 0 { true -> identifiable(main) _ -> singular(main) }
     }
-    state identifiable(main: &mut Main) {
+    machine identifiable(main: &mut Main) {
         Console::write_line("status identifiable");
         transition { _ -> covariance(main, 0, 0) }
     }
-    state covariance(main: &mut Main, row: i64 in Wrapping, column: i64 in Wrapping) {
+    machine covariance(main: &mut Main, row: i64 in Wrapping, column: i64 in Wrapping) {
         transition row <= main.design.degree { true -> covariance_label(main, row, column) _ -> variances(main, 0) }
     }
-    state covariance_label(main: &mut Main, row: i64 in Wrapping, column: i64 in Wrapping) {
+    machine covariance_label(main: &mut Main, row: i64 in Wrapping, column: i64 in Wrapping) {
         transition column == 0 { true -> covariance_start(main, row) _ -> covariance_bound(main, row, column) }
     }
-    state covariance_start(main: &mut Main, row: i64 in Wrapping) {
+    machine covariance_start(main: &mut Main, row: i64 in Wrapping) {
         Console::write("covariance");
         transition { _ -> covariance_bound(main, row, 0) }
     }
-    state covariance_bound(main: &mut Main, row: i64 in Wrapping, column: i64 in Wrapping) {
+    machine covariance_bound(main: &mut Main, row: i64 in Wrapping, column: i64 in Wrapping) {
         transition column <= main.design.degree { true -> covariance_index(main, row, column) _ -> covariance_next(main, row) }
     }
-    state covariance_next(main: &mut Main, row: i64 in Wrapping) {
+    machine covariance_next(main: &mut Main, row: i64 in Wrapping) {
         Console::write_byte(10);
         transition { _ -> covariance(main, row+1, 0) }
     }
-    state covariance_index(main: &mut Main, row: i64 in Wrapping, column: i64 in Wrapping) {
+    machine covariance_index(main: &mut Main, row: i64 in Wrapping, column: i64 in Wrapping) {
         let position: i64 in Wrapping = row*3+column;
         transition position >= 0 && position < 9 { true -> covariance_emit(main, row, column, position) _ -> invalid(main) }
     }
-    state covariance_emit(main: &mut Main, row: i64 in Wrapping, column: i64 in Wrapping, position: i64 in Wrapping) {
+    machine covariance_emit(main: &mut Main, row: i64 in Wrapping, column: i64 in Wrapping, position: i64 in Wrapping) {
         let numerator: i64 in Wrapping = main.design.covariance[position];
         let denominator: i64 in Wrapping = main.design.determinant;
         Console::write(" "); Main::rational(main, numerator, denominator);
         transition { _ -> covariance(main, row, column+1) }
     }
-    state variances(main: &mut Main, index: i64 in Wrapping) {
+    machine variances(main: &mut Main, index: i64 in Wrapping) {
         transition index >= 0 && index < 3 { true -> variance_emit(main, index) _ -> done(main) }
     }
-    state variance_emit(main: &mut Main, index: i64 in Wrapping) {
+    machine variance_emit(main: &mut Main, index: i64 in Wrapping) {
         let numerator: i64 in Wrapping = main.design.variances[index];
         let denominator: i64 in Wrapping = main.design.determinant;
         Console::write("variance "); Main::rational(main, numerator, denominator); Console::write_byte(10);
         transition { _ -> variances(main, index+1) }
     }
-    state done(main: &mut Main) { Console::exit_process(0); }
-    state singular(main: &mut Main) { Console::write_line("status non-identifiable"); Console::exit_process(3); }
-    state invalid(main: &mut Main) { Console::write_line("invalid input"); Console::exit_process(2); }
+    machine done(main: &mut Main) { Console::exit_process(0); }
+    machine singular(main: &mut Main) { Console::write_line("status non-identifiable"); Console::exit_process(3); }
+    machine invalid(main: &mut Main) { Console::write_line("invalid input"); Console::exit_process(2); }
 }
 machine Main::mode_character(degree: i64 in Wrapping, position: i64 in Wrapping) -> i32 {
     transition degree == 1 { true -> linear(position) _ -> quadratic(position) }
-    state linear(position: i64 in Wrapping) -> i32 {
+    machine linear(position: i64 in Wrapping) -> i32 {
         transition position { 1 -> 105 2 -> 110 3 -> 101 4 -> 97 5 -> 114 _ -> -1 }
     }
-    state quadratic(position: i64 in Wrapping) -> i32 {
+    machine quadratic(position: i64 in Wrapping) -> i32 {
         transition position { 1 -> 117 2 -> 97 3 -> 100 4 -> 114 5 -> 97 6 -> 116 7 -> 105 8 -> 99 _ -> -1 }
     }
 }

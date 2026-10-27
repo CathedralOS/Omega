@@ -18,13 +18,13 @@ machine same_canonical_path(left: &[u8; 1024], right: &[u8; 1024]) -> bool {
         true -> compare(left, right, 0)
         false -> (false)
     }
-    state compare(left: &[u8; 1024], right: &[u8; 1024], position: u64) -> bool {
+    machine compare(left: &[u8; 1024], right: &[u8; 1024], position: u64) -> bool {
         transition position < 1024 {
             true -> byte(left, right, position)
             false -> (true)
         }
     }
-    state byte(left: &[u8; 1024], right: &[u8; 1024], position: u64) -> bool
+    machine byte(left: &[u8; 1024], right: &[u8; 1024], position: u64) -> bool
     requires position < 1024;
     {
         transition left[position] == right[position] {
@@ -39,29 +39,29 @@ machine Main::main(main: &mut Main) reaches Console {
     main.result = block Filesystem::remove(&mut main.filesystem, "/tmp/omega_canon_file.txt");
     main.result = block Filesystem::write_all(&mut main.filesystem, "/tmp/omega_canon_file.txt", "canonical");
     transition main.result { UnitResult::Ok -> link(main) _ -> cleanup(main, false) }
-    state link(main: &mut Main) {
+    machine link(main: &mut Main) {
         main.result = block Filesystem::symlink(&mut main.filesystem, "/tmp/omega_canon_file.txt", "/tmp/omega_canon_alias.txt");
         transition main.result { UnitResult::Ok -> target(main) _ -> cleanup(main, false) }
     }
-    state target(main: &mut Main) {
+    machine target(main: &mut Main) {
         main.result = block Filesystem::canonicalize(&mut main.filesystem, "/tmp/omega_canon_file.txt", &mut main.target);
         transition main.result { UnitResult::Ok -> alias(main) _ -> cleanup(main, false) }
     }
-    state alias(main: &mut Main) {
+    machine alias(main: &mut Main) {
         main.result = block Filesystem::canonicalize(&mut main.filesystem, "/tmp/omega_canon_alias.txt", &mut main.alias);
         transition main.result { UnitResult::Ok -> compare(main) _ -> cleanup(main, false) }
     }
-    state compare(main: &mut Main) {
+    machine compare(main: &mut Main) {
         let same: bool = same_canonical_path(&main.target, &main.alias);
         transition { _ -> cleanup(main, same) }
     }
-    state cleanup(main: &mut Main, correct: bool) {
+    machine cleanup(main: &mut Main, correct: bool) {
         main.result = block Filesystem::remove(&mut main.filesystem, "/tmp/omega_canon_alias.txt");
         main.result = block Filesystem::remove(&mut main.filesystem, "/tmp/omega_canon_file.txt");
         transition correct { true -> good() false -> bad() }
     }
-    state good() { Console::write_line("PASS: canonicalize follows a real symlink"); }
-    state bad() { Console::write_line("FAIL: canonicalize"); }
+    machine good() { Console::write_line("PASS: canonicalize follows a real symlink"); }
+    machine bad() { Console::write_line("FAIL: canonicalize"); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

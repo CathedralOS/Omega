@@ -18,14 +18,14 @@ public machine try_dot_f64(left: &[f64], right: &[f64], output: &mut f64) -> boo
         true -> step(left, right, output, 0, 0.0)
         _ -> (false)
     }
-    state step(left: &[f64], right: &[f64], output: &mut f64,
+    machine step(left: &[f64], right: &[f64], output: &mut f64,
         index: u64 in Wrapping, total: f64) -> bool {
         transition index < left.len && index < right.len {
             true -> add(left, right, output, index, total)
             _ -> finish(output, total)
         }
     }
-    state add(left: &[f64], right: &[f64], output: &mut f64,
+    machine add(left: &[f64], right: &[f64], output: &mut f64,
         index: u64 in Wrapping, total: f64) -> bool
     requires index < left.len && index < right.len {
         let product: f64 = left[index as u64] * right[index as u64];
@@ -37,7 +37,7 @@ public machine try_dot_f64(left: &[f64], right: &[f64], output: &mut f64) -> boo
             _ -> (false)
         }
     }
-    state finish(output: &mut f64, total: f64) -> bool {
+    machine finish(output: &mut f64, total: f64) -> bool {
         output = total;
         true
     }
@@ -48,14 +48,14 @@ public machine try_dot_f64(left: &[f64], right: &[f64], output: &mut f64) -> boo
 // The final scale * sqrt(ssq) can still overflow; that is a try failure.
 public machine try_scaled_norm_f64(values: &[f64], output: &mut f64) -> bool {
     transition { _ -> step(values, output, 0, 0.0, 1.0) }
-    state step(values: &[f64], output: &mut f64, index: u64 in Wrapping,
+    machine step(values: &[f64], output: &mut f64, index: u64 in Wrapping,
         scale: f64, squares: f64) -> bool {
         transition index < values.len {
             true -> inspect(values, output, index, scale, squares)
             _ -> finish(output, scale, squares)
         }
     }
-    state inspect(values: &[f64], output: &mut f64, index: u64 in Wrapping,
+    machine inspect(values: &[f64], output: &mut f64, index: u64 in Wrapping,
         scale: f64, squares: f64) -> bool
     requires index < values.len {
         let value: f64 = F64::maximum(values[index as u64], F64::negate(values[index as u64]));
@@ -65,7 +65,7 @@ public machine try_scaled_norm_f64(values: &[f64], output: &mut f64) -> bool {
             _ -> update(values, output, index, scale, squares, value)
         }
     }
-    state update(values: &[f64], output: &mut f64, index: u64 in Wrapping,
+    machine update(values: &[f64], output: &mut f64, index: u64 in Wrapping,
         scale: f64, squares: f64, value: f64) -> bool {
         transition {
             value == 0.0 -> step(values, output, index + 1, scale, squares)
@@ -73,19 +73,19 @@ public machine try_scaled_norm_f64(values: &[f64], output: &mut f64) -> bool {
             _ -> accumulate(values, output, index, scale, squares, value)
         }
     }
-    state rescale(values: &[f64], output: &mut f64, index: u64 in Wrapping,
+    machine rescale(values: &[f64], output: &mut f64, index: u64 in Wrapping,
         scale: f64, squares: f64, value: f64) -> bool {
         let ratio: f64 = scale / value;
         let next: f64 = 1.0 + squares * (ratio * ratio);
         transition { _ -> step(values, output, index + 1, value, next) }
     }
-    state accumulate(values: &[f64], output: &mut f64, index: u64 in Wrapping,
+    machine accumulate(values: &[f64], output: &mut f64, index: u64 in Wrapping,
         scale: f64, squares: f64, value: f64) -> bool {
         let ratio: f64 = value / scale;
         let next: f64 = squares + ratio * ratio;
         transition { _ -> step(values, output, index + 1, scale, next) }
     }
-    state finish(output: &mut f64, scale: f64, squares: f64) -> bool {
+    machine finish(output: &mut f64, scale: f64, squares: f64) -> bool {
         let result: f64 = scale * F64::square_root(squares);
         let valid: bool = nf09_finite(result);
         transition valid {
@@ -93,7 +93,7 @@ public machine try_scaled_norm_f64(values: &[f64], output: &mut f64) -> bool {
             _ -> (false)
         }
     }
-    state publish(output: &mut f64, result: f64) -> bool {
+    machine publish(output: &mut f64, result: f64) -> bool {
         output = result;
         true
     }
@@ -108,14 +108,14 @@ public machine try_axpy_f64(alpha: f64, input: &[f64], output: &mut [f64]) -> bo
         true -> validate(alpha, input, output, 0)
         _ -> (false)
     }
-    state validate(alpha: f64, input: &[f64], output: &mut [f64],
+    machine validate(alpha: f64, input: &[f64], output: &mut [f64],
         index: u64 in Wrapping) -> bool {
         transition index < input.len && index < output.len {
             true -> inspect(alpha, input, output, index)
             _ -> write(alpha, input, output, 0)
         }
     }
-    state inspect(alpha: f64, input: &[f64], output: &mut [f64],
+    machine inspect(alpha: f64, input: &[f64], output: &mut [f64],
         index: u64 in Wrapping) -> bool
     requires index < input.len && index < output.len {
         let product: f64 = alpha * input[index as u64];
@@ -127,14 +127,14 @@ public machine try_axpy_f64(alpha: f64, input: &[f64], output: &mut [f64]) -> bo
             _ -> (false)
         }
     }
-    state write(alpha: f64, input: &[f64], output: &mut [f64],
+    machine write(alpha: f64, input: &[f64], output: &mut [f64],
         index: u64 in Wrapping) -> bool {
         transition index < input.len && index < output.len {
             true -> store(alpha, input, output, index)
             _ -> (true)
         }
     }
-    state store(alpha: f64, input: &[f64], output: &mut [f64],
+    machine store(alpha: f64, input: &[f64], output: &mut [f64],
         index: u64 in Wrapping) -> bool
     requires index < input.len && index < output.len {
         let product: f64 = alpha * input[index as u64];
@@ -152,13 +152,13 @@ public machine try_axpy_self_f64(alpha: f64, values: &mut [f64]) -> bool {
         true -> validate(alpha, values, 0)
         _ -> (false)
     }
-    state validate(alpha: f64, values: &mut [f64], index: u64 in Wrapping) -> bool {
+    machine validate(alpha: f64, values: &mut [f64], index: u64 in Wrapping) -> bool {
         transition index < values.len {
             true -> inspect(alpha, values, index)
             _ -> write(alpha, values, 0)
         }
     }
-    state inspect(alpha: f64, values: &mut [f64], index: u64 in Wrapping) -> bool
+    machine inspect(alpha: f64, values: &mut [f64], index: u64 in Wrapping) -> bool
     requires index < values.len {
         let product: f64 = alpha * values[index as u64];
         let result: f64 = product + values[index as u64];
@@ -169,13 +169,13 @@ public machine try_axpy_self_f64(alpha: f64, values: &mut [f64]) -> bool {
             _ -> (false)
         }
     }
-    state write(alpha: f64, values: &mut [f64], index: u64 in Wrapping) -> bool {
+    machine write(alpha: f64, values: &mut [f64], index: u64 in Wrapping) -> bool {
         transition index < values.len {
             true -> store(alpha, values, index)
             _ -> (true)
         }
     }
-    state store(alpha: f64, values: &mut [f64], index: u64 in Wrapping) -> bool
+    machine store(alpha: f64, values: &mut [f64], index: u64 in Wrapping) -> bool
     requires index < values.len {
         let product: f64 = alpha * values[index as u64];
         let result: f64 = product + values[index as u64];

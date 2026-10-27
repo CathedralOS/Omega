@@ -6,10 +6,10 @@ machine Cell::replace(cell: &write Cell, value: i64) { cell.value = value; }
 
 machine forward(pair: &mut Pair, value: i64) {
     transition { _ -> selected(&write pair.right, value) }
-    state selected(cell: &write Cell, value: i64) {
+    machine selected(cell: &write Cell, value: i64) {
         transition { _ -> store(&write cell, value) }
     }
-    state store(cell: &write Cell, value: i64) {
+    machine store(cell: &write Cell, value: i64) {
         Cell::replace(&write cell, value);
     }
 }
@@ -25,8 +25,8 @@ machine Main::main(main: &mut Main) crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

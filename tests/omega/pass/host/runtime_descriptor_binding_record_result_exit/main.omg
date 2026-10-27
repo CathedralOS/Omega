@@ -43,7 +43,7 @@ linux_x86_64 boundary machine DescriptorImports::write(descriptor: i32, words: &
 
 machine receive(words: &mut [u16; 3]) -> Receipt reaches DescriptorIo blocks; {
     transition { _ -> read(words) }
-    state read(words: &mut [u16; 3]) {
+    machine read(words: &mut [u16; 3]) -> Receipt {
         let moved: i64 = block DescriptorIo::read(0, words, 6);
         Receipt { moved: moved }
     }
@@ -59,8 +59,8 @@ machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

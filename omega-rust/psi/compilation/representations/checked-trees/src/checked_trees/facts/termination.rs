@@ -34,6 +34,7 @@ pub struct TerminationFacts {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CheckedProofRankingRelation {
     StructuralSubterm,
+    StructuralSubtermCycles,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -73,6 +74,7 @@ pub struct CheckedProofRecursiveEdge {
     pub site: CheckedProofRecursiveCallSite,
     pub caller_rank_parameter: SymbolHandle,
     pub callee_rank_parameter: SymbolHandle,
+    /// Empty only for a preserving edge under StructuralSubtermCycles.
     pub strict_member_path: Vec<SymbolHandle>,
 }
 

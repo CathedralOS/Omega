@@ -9,8 +9,8 @@ crashes Abort left == right {
         true -> failed()
         false -> done()
     }
-    state failed() { crash Abort; }
-    state done() {}
+    machine failed() { crash Abort; }
+    machine done() {}
 }
 machine main() {
     let left: Packet;

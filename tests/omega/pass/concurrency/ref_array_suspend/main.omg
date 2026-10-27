@@ -28,7 +28,7 @@ machine Main::main(main: &mut Main) reaches Scheduler {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() {}
+    machine done() {}
+    machine bad() {}
 }
 machine main() {}

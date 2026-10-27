@@ -65,7 +65,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad_state(main)
     }
 
-    state check_total(main: &mut Main) {
+    machine check_total(main: &mut Main) {
         // r1=4, r2=1, r3=4, r4=1, r5=2 -> total=12
         transition main.roller.total == 12 {
             true -> good(main)
@@ -73,21 +73,21 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::write_line("PASS: rolls 4+1+4+1+2 == 12 and the RNG chain ended at 24079 (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(70);
     }
 
-    state bad_state(main: &mut Main) {
+    machine bad_state(main: &mut Main) {
         Console::write_line("FAIL: final LCG state != 24079 (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(71);
     }
 
-    state bad_total(main: &mut Main) {
+    machine bad_total(main: &mut Main) {
         Console::write_line("FAIL: roll total != 12 (exit 72)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

@@ -11,10 +11,10 @@ machine inspect(interval: Interval, main: &mut Main) {
         Interval::Point { lo, hi } -> take(lo, hi, main)
         Interval::Empty -> done()
     }
-    state take(lo: u64, hi: u64, main: &mut Main) {
+    machine take(lo: u64, hi: u64, main: &mut Main) {
         main.width = hi - lo;
     }
-    state done() { }
+    machine done() { }
 }
 
 machine Main::main(main: &mut Main) crashes Trap {
@@ -25,8 +25,8 @@ machine Main::main(main: &mut Main) crashes Trap {
         true -> pass()
         _ -> fail()
     }
-    state pass() { }
-    state fail() { crash Trap; }
+    machine pass() { }
+    machine fail() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

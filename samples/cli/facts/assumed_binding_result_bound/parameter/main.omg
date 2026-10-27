@@ -7,6 +7,6 @@ machine read(index: u32) -> u32 requires index <= 1 { let values: [u32; 2] = [7,
 machine main() reaches Required crashes Trap {
     let observed: u32 = read(Required::get());
     transition observed == 11 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

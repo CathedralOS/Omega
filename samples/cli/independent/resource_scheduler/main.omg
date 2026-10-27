@@ -20,13 +20,13 @@ machine Main::main(main: &mut Main) reaches Console {
         LineReadResult::EndOfInput { count } -> length(main, &input, count)
         _ -> invalid(main)
     }
-    state length(main: &mut Main, input: &Input, count: u64) {
+    machine length(main: &mut Main, input: &Input, count: u64) {
         transition count <= 256 {
             true -> parse_request(main, input, count as i32 in Wrapping)
             _ -> invalid(main)
         }
     }
-    state parse_request(main: &mut Main, input: &Input, count: i32 in Wrapping) {
+    machine parse_request(main: &mut Main, input: &Input, count: i32 in Wrapping) {
         let mut tokens: Tokens;
         let accepted: bool = parse(input, count, &mut tokens);
         transition accepted {
@@ -34,7 +34,7 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> invalid(main)
         }
     }
-    state model(main: &mut Main, tokens: &Tokens) {
+    machine model(main: &mut Main, tokens: &Tokens) {
         let mut problem: Problem;
         let valid: bool = decode(tokens, &mut problem);
         transition valid {
@@ -42,7 +42,7 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> invalid(main)
         }
     }
-    state schedule(main: &mut Main, problem: &Problem) {
+    machine schedule(main: &mut Main, problem: &Problem) {
         let mut result: Schedule;
         let possible: bool = solve(problem, &mut result);
         transition possible {
@@ -50,21 +50,21 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> impossible(main)
         }
     }
-    state verify_result(main: &mut Main, problem: &Problem, result: &Schedule) {
+    machine verify_result(main: &mut Main, problem: &Problem, result: &Schedule) {
         let valid: bool = verify(problem, result);
         transition valid {
             true -> render(main, problem, result, 0)
             _ -> internal_failure(main)
         }
     }
-    state render(main: &mut Main, problem: &Problem, result: &Schedule,
+    machine render(main: &mut Main, problem: &Problem, result: &Schedule,
                   index: i32 in Wrapping) {
         transition index >= 0 && index < problem.count && index < 4 {
             true -> row(main, problem, result, index)
             _ -> finish(main, result)
         }
     }
-    state row(main: &mut Main, problem: &Problem, result: &Schedule,
+    machine row(main: &mut Main, problem: &Problem, result: &Schedule,
                index: i32 in Wrapping) {
         Console::write("TASK ");
         print_number(main, index);
@@ -75,21 +75,21 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("");
         transition { _ -> render(main, problem, result, index + 1) }
     }
-    state finish(main: &mut Main, result: &Schedule) {
+    machine finish(main: &mut Main, result: &Schedule) {
         Console::write("MAKESPAN ");
         print_number(main, result.makespan);
         Console::write_line("");
         Console::exit_process(0);
     }
-    state invalid(main: &mut Main) {
+    machine invalid(main: &mut Main) {
         Console::write_line("INVALID");
         Console::exit_process(2);
     }
-    state impossible(main: &mut Main) {
+    machine impossible(main: &mut Main) {
         Console::write_line("IMPOSSIBLE");
         Console::exit_process(3);
     }
-    state internal_failure(main: &mut Main) {
+    machine internal_failure(main: &mut Main) {
         Console::write_line("INVARIANT_FAILURE");
         Console::exit_process(4);
     }

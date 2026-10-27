@@ -13,10 +13,10 @@ machine write_first(output: &mut [u8]) {
         true -> write(output)
         _ -> done()
     }
-    state write(output: &mut [u8]) requires output.len > 0 {
+    machine write(output: &mut [u8]) requires output.len > 0 {
         output[0] = 77;
     }
-    state done() {}
+    machine done() {}
 }
 
 machine forward(output: &mut [u8]) reaches Fill {
@@ -34,8 +34,8 @@ machine Main::main(main: &mut Main) reaches Fill crashes Trap {
         true -> done()
         _ -> failed()
     }
-    state failed() { crash Trap; }
-    state done() {}
+    machine failed() { crash Trap; }
+    machine done() {}
 }
 
 // The entry owns ordinary local state; selection supplies no context.

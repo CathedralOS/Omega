@@ -20,5 +20,5 @@ machine probe() -> bool {
 }
 machine main() crashes Trap {
  transition probe() { true -> done() _ -> bad() }
- state done() {} state bad() { crash Trap; }
+ machine done() {} machine bad() { crash Trap; }
 }

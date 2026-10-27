@@ -20,14 +20,14 @@ machine Main::main(main: &mut Main) {
         true -> finish(main, (0i32 - 17) / 5i32 + (0i32 - 17) % 5i32)
         false -> fail(main)
     }
-    state finish(main: &mut Main, value: i32) {
+    machine finish(main: &mut Main, value: i32) {
         transition value == (0i32 - 5) {
             true -> pass(main)
             false -> fail(main)
         }
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

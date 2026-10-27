@@ -6,13 +6,13 @@ boundary trait Io { machine acquire(request: &mut Request) -> i32 reaches requir
 Actual satisfies Io { machine acquire(request: &mut Request) -> i32 requires request.internal == ZERO { request.internal = 9; 7 } }
 machine transport(request: &mut Request) -> i32 requires request.internal == ZERO {
     transition { _ -> step(request) }
-    state step(request: &mut Request) -> i32 requires request.internal == ZERO { Io::acquire(request) }
+    machine step(request: &mut Request) -> i32 requires request.internal == ZERO { Io::acquire(request) }
 }
 machine main() crashes Trap {
     let mut request: Request;
 
     let status: i32 = transport(&mut request);
     transition status == 7 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -40,12 +40,12 @@ machine main() crashes Trap {
         true -> later(Counter { code: 7 })
         false -> wrong()
     }
-    state later(counter: Counter) {
+    machine later(counter: Counter) {
         transition ready_code(counter as Counter in Ready) == 7 {
             true -> done()
             false -> wrong()
         }
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

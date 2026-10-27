@@ -43,7 +43,7 @@ machine probe(packet: Packet) -> u64 {
         _ -> consume(res)
     }
 
-    state consume(forwarded: u64) -> u64
+    machine consume(forwarded: u64) -> u64
     requires
         forwarded >= 40u64 && forwarded <= 80u64
     {
@@ -58,6 +58,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

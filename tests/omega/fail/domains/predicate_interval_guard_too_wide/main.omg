@@ -6,8 +6,8 @@ machine guarded(x: u64) -> u64 {
         true -> small(x)
         false -> large()
     }
-    state small(y: u64) -> u64 { use_small(y) }
-    state large() -> u64 { 0 }
+    machine small(y: u64) -> u64 { use_small(y) }
+    machine large() -> u64 { 0 }
 }
 machine main() -> u64 {
     transition { _ -> guarded(3) }

@@ -50,6 +50,7 @@ pub(crate) fn build_termination_facts(
         proof_recursive_components: validation
             .proof_recursive_components
             .iter()
+            .filter_map(|component| component.structural.as_ref())
             .map(
                 |component| checked_trees::CheckedProofRecursiveComponent {
                     members: component
@@ -63,6 +64,9 @@ pub(crate) fn build_termination_facts(
                     ranking_relation: match component.ranking_relation {
                         validation::ValidatedProofRankingRelation::StructuralSubterm => {
                             checked_trees::CheckedProofRankingRelation::StructuralSubterm
+                        }
+                        validation::ValidatedProofRankingRelation::StructuralSubtermCycles => {
+                            checked_trees::CheckedProofRankingRelation::StructuralSubtermCycles
                         }
                     },
                     rank_type_identity: component.rank_type_identity.clone(),

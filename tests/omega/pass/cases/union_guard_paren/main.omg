@@ -15,6 +15,6 @@ machine Main::main(main: &mut Main) {
         (true) -> matched()
         _ -> missed()
     }
-    state matched() {}
-    state missed() {}
+    machine matched() {}
+    machine missed() {}
 }

@@ -11,11 +11,11 @@ machine finish(ack: Ack, word: &Cell) satisfies Completion::complete
 reaches MachineControl
 {
  transition ack.nonce == 37 { true -> write(ack, word) false -> skipped(ack, word) }
- state skipped(ack: Ack, word: &Cell) {
+ machine skipped(ack: Ack, word: &Cell) {
  let mut marker: u64 = 0;
  asm where ensures acknowledged(ack, word) { mov marker, marker }
  }
- state write(ack: Ack, word: &Cell)
+ machine write(ack: Ack, word: &Cell)
  {
  word.value.store(ack.nonce, Publish);
  let mut marker: u64 = 0;
@@ -30,6 +30,6 @@ machine main() reaches Completion, MachineControl crashes Trap {
  let observed_atomic_observed: u64 = word.value.load(Receive);
  let observed: u64 in Wrapping = observed_atomic_observed as u64 in Wrapping;
  transition observed == 37 { true -> done() false -> bad() }
- state done() {}
- state bad() { crash Trap; }
+ machine done() {}
+ machine bad() { crash Trap; }
 }

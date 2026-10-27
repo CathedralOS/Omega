@@ -59,7 +59,7 @@ machine consume_arrival(piece: Region in Owned) -> u64
 reaches RegionSink
 {
     transition { _ -> consume(piece) }
-    state consume(piece: Region in Owned) -> u64 {
+    machine consume(piece: Region in Owned) -> u64 {
         let envelope: EntryEnvelope = EntryEnvelope { held: piece };
         let magnitude: u64 = envelope.held.remaining;
         RegionSink::accept(envelope.held);
@@ -93,8 +93,8 @@ machine Main::main(main: &mut Main) reaches Console, RegionSplit, RegionSink {
         true -> good(main)
         _ -> bad(main)
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(72); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(72); }
 }
 
 RegionSplitImplementation satisfies RegionSplit {

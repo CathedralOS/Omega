@@ -15,14 +15,14 @@ machine count(remaining: u32) terminates by remaining; -> u32 reaches Output {
         true -> count(remaining - 1)
         false -> finish()
     }
-    state finish() -> u32 { selected() }
+    machine finish() -> u32 { selected() }
 }
 data Main { }
 machine Main::main(main: &mut Main) reaches Output crashes Trap {
     let result: u32 = count(3);
     transition result == 37 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 ProviderOutputImplementation satisfies Output {

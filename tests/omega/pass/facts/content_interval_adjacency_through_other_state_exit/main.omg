@@ -18,7 +18,7 @@ ensures separate(Held::content(old(&left)), Held::content(old(&right)))
     == separate(Held::content(&result.left), Held::content(&result.right))
 {
     transition { _ -> carry(left, right) }
-    state carry(left: Region in Held, right: Region in Held) -> Pair
+    machine carry(left: Region in Held, right: Region in Held) -> Pair
 requires embed(left.base) + embed(left.length) == embed(right.base)
     { Pair { left: left, right: right } }
 }
@@ -32,8 +32,8 @@ crashes Trap {
     drop(left);
     drop(right);
     transition correct { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine main() crashes Trap {
     exercise(10, 20, 30, 50, true);

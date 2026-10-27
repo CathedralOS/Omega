@@ -8,7 +8,7 @@ machine main() {
     let index: u64 = four();
     transition { _ -> visit(index) }
 
-    state visit(index: u64)
+    machine visit(index: u64)
     requires index <= 3
     {}
 }

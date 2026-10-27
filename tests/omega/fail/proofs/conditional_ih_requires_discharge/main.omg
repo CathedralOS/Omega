@@ -22,14 +22,14 @@ ensures
         Nat::Succ { prev } -> cihr_step(a, b, witness_left, witness_right, prev)
     }
 
-    state cihr_zero(a: Nat, b: Nat) -> Nat {
+    machine cihr_zero(a: Nat, b: Nat) -> Nat {
         mul_zero_right(a);
         mul_zero_right(b);
         sub_self(Nat::Zero);
         transition { _ -> Nat::Zero }
     }
 
-    state cihr_step(
+    machine cihr_step(
         a: Nat,
         b: Nat,
         witness_left: Nat,

@@ -12,6 +12,6 @@ machine main() crashes Trap {
         FloatClass::Zero { negative: false } -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
