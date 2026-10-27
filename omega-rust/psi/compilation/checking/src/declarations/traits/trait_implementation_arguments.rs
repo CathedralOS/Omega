@@ -103,6 +103,13 @@ pub(super) fn validate_trait_implementation_arguments(
     }
     for machine in program.machines() {
         for edge in program.machine_trait_conformances(machine) {
+            // Only trait applications consume this source-family scope.
+            // Top-level requirements and operators own separate conformance
+            // judgments; asking for their unused trait scope loses projected
+            // templates without establishing any implementation argument.
+            if program.trait_definition_by_symbol(edge.symbol).is_none() {
+                continue;
+            }
             let owner = match super::conformance::authored_conformance_machine(program, machine) {
                 Ok(owner) => owner,
                 Err(diagnostic) => return Err(vec![diagnostic]),

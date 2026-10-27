@@ -41,10 +41,10 @@ pub(crate) fn prepared_admission(
             operators,
         )
         .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
-    let prepared = crate::PreparedBuildMachineProgram::prepare_in(
-        selected_execution.as_ref().unwrap_or(typed),
-        domain,
-    )?;
+    let execution = selected_execution.as_ref().unwrap_or(typed);
+    let domain =
+        domain.with_selected_machine_requirement_descriptions(execution, provider_bodies)?;
+    let prepared = crate::PreparedBuildMachineProgram::prepare_in(execution, &domain)?;
     let execution = prepared.typed();
     let admission = domain
         .admission(execution, selection_authority)

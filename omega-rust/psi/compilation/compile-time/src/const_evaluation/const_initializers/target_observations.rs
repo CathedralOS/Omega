@@ -20,14 +20,6 @@ pub(crate) fn settle(
     domain: &EvaluationDomain,
     selected: crate::SelectedBuildTimeOperators<'_>,
 ) -> Result<(), Vec<Diagnostic>> {
-    if std::env::var_os("OMEGA_INITIALIZER_SELECTION_TRACE").is_some() {
-        eprintln!(
-            "target-initializer-settlement pending={} selected_provider_rows={} selected_operator_rows={}",
-            pending.len(),
-            selected.provider_bodies.len(),
-            selected.operators.len()
-        );
-    }
     let mut declarations = typed
         .const_declarations()
         .iter()
@@ -73,6 +65,10 @@ pub(crate) fn settle(
                 .map_err(|reason| super::failure(declaration.initializer_source_span, reason))?;
             let work =
                 work.demanded_roots(selected_execution.as_ref().unwrap_or(&probes), &[owner]);
+            let work = work.with_selected_machine_requirement_descriptions(
+                selected_execution.as_ref().unwrap_or(&probes),
+                selected.provider_bodies,
+            )?;
             // Source selections, including helper bodies and unexecuted arms,
             // order aliases before consumers. A provisional value is never a
             // canonical dependency, regardless of declaration order in source.

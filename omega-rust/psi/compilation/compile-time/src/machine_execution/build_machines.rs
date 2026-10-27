@@ -83,6 +83,7 @@ impl std::error::Error for BuildMachineEvaluationError {}
 pub struct PreparedBuildMachineProgram {
     program: PreparedBuildMachineBody,
     identity: Arc<PreparedBuildMachineProgramIdentity>,
+    execution_scope: super::execution_scope::ExecutionScope,
 }
 
 enum PreparedBuildMachineBody {
@@ -126,6 +127,14 @@ impl PreparedBuildMachineEntry {
 }
 
 impl PreparedBuildMachineProgram {
+    pub(crate) fn with_execution_scope(
+        mut self,
+        scope: super::execution_scope::ExecutionScope,
+    ) -> Self {
+        self.execution_scope = scope;
+        self
+    }
+
     /// Transfer the checked program and its execution facts into one immutable
     /// identity. No specialization or rebinding follows admission, so retained
     /// facts keep naming the exact arena the interpreter consumes.
@@ -142,6 +151,7 @@ impl PreparedBuildMachineProgram {
                 product_declarations,
             }),
             identity: Arc::new(PreparedBuildMachineProgramIdentity { _private: 0 }),
+            execution_scope: super::execution_scope::ExecutionScope::unrestricted(),
         }
     }
 
@@ -156,7 +166,7 @@ impl PreparedBuildMachineProgram {
         program: &TypedTrees,
         domain: &crate::build_time_evaluation::EvaluationDomain,
     ) -> Result<Self, Vec<diagnostics::Diagnostic>> {
-        let mut typed = domain.execution_program(program);
+        let mut typed = domain.checking_program(program)?;
         // Preparation may precede endpoint evaluation. Preserve those exact
         // obligations on the private copy: specialization leaves a tuple with
         // pending type bounds unreplaced, so it cannot execute before a later
@@ -166,7 +176,17 @@ impl PreparedBuildMachineProgram {
         Ok(Self {
             program: PreparedBuildMachineBody::Typed(Box::new(typed)),
             identity: Arc::new(PreparedBuildMachineProgramIdentity { _private: 0 }),
+            execution_scope: domain.execution_scope(),
         })
+    }
+
+    pub(crate) fn admission(
+        &self,
+        program: &TypedTrees,
+        authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
+    ) -> crate::BuildTimeAdmissionPlan {
+        crate::BuildTimeAdmissionPlan::infer(program, authority)
+            .with_execution_scope(self.execution_scope.clone())
     }
 
     pub fn typed(&self) -> &TypedTrees {
@@ -211,6 +231,9 @@ impl PreparedBuildMachineProgram {
             .validate_entry(entry)
             .map_err(|error| error.to_string())?;
         super::selected_operators::validate_selected_operators(self.typed(), operators)?;
+        self.admission(self.typed(), None)
+            .with_selected_operators(self.typed(), operators)?
+            .require_execution_scope(self.typed(), symbol)?;
         accounting.evaluate_terminal(
             self.interpreter_program(),
             symbol,
@@ -285,6 +308,9 @@ impl PreparedBuildMachineProgram {
     /// prepared program. The lookup never falls back to a matching name. No
     /// execution mode or host grant can admit an unfinished specialization.
     pub fn entry(&self, symbol: SymbolHandle) -> Result<PreparedBuildMachineEntry, String> {
+        if !self.execution_scope.permits(symbol) {
+            return Err("prepared build-machine entry is checking context only".into());
+        }
         if !self.typed().machine(symbol).is_some() {
             return Err(format!(
                 "prepared build program contains no machine with exact symbol {symbol:?}"
@@ -293,7 +319,7 @@ impl PreparedBuildMachineProgram {
         if self.typed().machines().iter().any(|machine| {
             machine.structural_type_equations_pending || !machine.type_parameters.is_empty()
         }) {
-            super::admission::BuildTimeAdmissionPlan::infer(self.typed(), None)
+            self.admission(self.typed(), None)
                 .require_closed_static_applications(self.typed(), symbol)?;
         }
         Ok(PreparedBuildMachineEntry {
@@ -336,6 +362,10 @@ pub fn evaluate_build_machine_measured(
     invocation: BuildMachineInvocation<'_>,
 ) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, BuildMachineEvaluationError> {
     let symbol = program.validate_entry(invocation.entry)?;
+    program
+        .admission(program.typed(), None)
+        .require_execution_scope(program.typed(), symbol)
+        .map_err(BuildMachineEvaluationError::Entry)?;
     let request = checked_interpreter::BuildMachineEvaluationRequest {
         entry: checked_interpreter::BuildMachineEntry::Symbol(symbol),
         arguments: invocation.arguments,

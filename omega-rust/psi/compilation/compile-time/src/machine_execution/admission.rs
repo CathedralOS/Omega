@@ -140,6 +140,7 @@ pub struct BuildTimeAdmissionPlan {
     selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     selected_operators: Vec<crate::SelectedBuildTimeBinaryOperator>,
     selected_machine_bodies: Vec<crate::SelectedBuildTimeMachineBody>,
+    execution_scope: super::execution_scope::ExecutionScope,
     pub(crate) accounting: crate::evaluation_accounting::EvaluationAccounting,
 }
 
@@ -215,6 +216,79 @@ fn walk_call_closure<Outcome>(
 }
 
 impl BuildTimeAdmissionPlan {
+    pub(crate) fn with_execution_scope(
+        mut self,
+        scope: super::execution_scope::ExecutionScope,
+    ) -> Self {
+        self.execution_scope = scope;
+        self
+    }
+
+    pub(crate) fn execution_scope(&self) -> &super::execution_scope::ExecutionScope {
+        &self.execution_scope
+    }
+
+    /// Checking-only declarations never become callable through a retained
+    /// body, an indirect edge or a nested invocation. Missing machine edges
+    /// refuse rather than silently shrinking the executable closure.
+    pub(crate) fn require_execution_scope(
+        &self,
+        program: &TypedTrees,
+        root: SymbolHandle,
+    ) -> Result<(), String> {
+        crate::validate_selected_operators(program, &self.selected_operators)?;
+        crate::SelectedBuildTimeMachineBody::validate_all(program, &self.selected_machine_bodies)?;
+        let mut pending = vec![root];
+        let mut visited = Vec::new();
+        while let Some(symbol) = pending.pop() {
+            if visited.contains(&symbol) {
+                continue;
+            }
+            visited.push(symbol);
+            if program.machine(symbol).is_none() {
+                return Err("build-time execution closure lost an exact machine".into());
+            }
+            let permitted = self.execution_scope.permits(symbol)
+                || self.selected_machine_bodies.iter().any(|selected| {
+                    selected.body == symbol && self.execution_scope.permits(selected.family)
+                });
+            if !permitted {
+                return Err(format!(
+                    "build-time machine {symbol:?} is checking context only, outside the admitted execution selection"
+                ));
+            }
+            for edge in self
+                .call_edges
+                .iter()
+                .filter(|edge| edge.source_machine_symbol == symbol)
+            {
+                if let Some(target) = edge.target_machine(program) {
+                    pending.push(target);
+                } else {
+                    let known_builtin = [edge.target_state_symbol, edge.target_operator_symbol]
+                        .into_iter()
+                        .any(|target| {
+                            target.is_valid()
+                                && matches!(
+                                    program.symbols.get(target).kind,
+                                    symbols::SymbolKind::BuiltinFunction
+                                )
+                        });
+                    let selected_intrinsic = self.selected_operators.iter().any(|selected| {
+                        selected.origin.machine_symbol() == Some(symbol)
+                            && selected.requirement == edge.target_operator_symbol
+                    });
+                    if !known_builtin && !selected_intrinsic {
+                        return Err(
+                            "build-time execution closure has an unresolved callable edge".into(),
+                        );
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub(crate) fn with_accounting(
         mut self,
         accounting: crate::evaluation_accounting::EvaluationAccounting,
@@ -261,6 +335,7 @@ impl BuildTimeAdmissionPlan {
             selection_authority,
             selected_operators: Vec::new(),
             selected_machine_bodies: Vec::new(),
+            execution_scope: super::execution_scope::ExecutionScope::unrestricted(),
             accounting: Default::default(),
         }
     }
@@ -514,6 +589,7 @@ impl BuildTimeAdmissionPlan {
             .machine_by_symbol(machine.symbol)
             .ok_or_else(|| "checked invocation lost its exact declaration".to_owned())?;
         let admission = Self::infer(execution, self.selection_authority.clone())
+            .with_execution_scope(self.execution_scope.clone())
             .with_selected_operators(execution, &self.selected_operators)?
             .with_selected_machine_bodies(execution, &self.selected_machine_bodies)?;
         admission.require_floor(
@@ -626,6 +702,7 @@ impl BuildTimeAdmissionPlan {
         authority: Option<&dyn BuildTimeSelectionAuthority>,
     ) -> Result<(), BuildTimeAdmissionRejection> {
         let program = input.typed();
+        self.require_execution_scope(program, machine.symbol)?;
         crate::validate_selected_operators(program, &self.selected_operators)?;
         crate::SelectedBuildTimeMachineBody::validate_all(program, &self.selected_machine_bodies)?;
         // The ordinary inference may stop at a bodyless family contract. Its
@@ -973,6 +1050,7 @@ impl BuildTimeAdmissionPlan {
             .machine_by_symbol(machine_symbol)
             .ok_or("checked constant invocation lost its exact machine")?;
         let admission = Self::infer(execution, self.selection_authority.clone())
+            .with_execution_scope(self.execution_scope.clone())
             .with_selected_operators(execution, &self.selected_operators)?
             .with_selected_machine_bodies(execution, &self.selected_machine_bodies)?;
         admission.require_floor(

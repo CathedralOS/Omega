@@ -268,10 +268,12 @@ impl<'selection> LengthJobs<'selection> {
         machine: symbols::SymbolHandle,
         source: source::SourceSpan,
     ) -> Result<Option<usize>, Vec<Diagnostic>> {
-        let domain = EvaluationDomain::all()
+        let domain = self
+            .domain
+            .clone()
             .with_accounting(self.domain.accounting.clone())
             .demanded_roots(typed, &[machine]);
-        let mut execution = domain.execution_program(typed);
+        let mut execution = domain.checking_program(typed)?;
         let admission = domain.admission(&execution, self.authority.clone());
         if matches!(self.providers, LengthProviderSelection::Pending) {
             let facts = validation::derive_pre_flow_operator_selections(&execution);
@@ -300,10 +302,12 @@ impl<'selection> LengthJobs<'selection> {
         // tuple. Resume the same specialization owner in the same arena; it
         // appends real instances and cannot replay an evaluated leaf.
         typed_trees_to_typed_trees::specialize_static_machine_calls(typed)?;
-        let domain = EvaluationDomain::all()
+        let domain = self
+            .domain
+            .clone()
             .with_accounting(self.domain.accounting.clone())
             .demanded_roots(typed, &[machine]);
-        execution = domain.execution_program(typed);
+        execution = domain.checking_program(typed)?;
 
         let references = typed_trees::references::collect_program_references(&execution);
         let operators = match &self.providers {
@@ -314,7 +318,10 @@ impl<'selection> LengthJobs<'selection> {
                 .collect::<Vec<_>>(),
             _ => Vec::new(),
         };
-        let all_endpoints = EvaluationDomain::all().with_accounting(self.domain.accounting.clone());
+        let all_endpoints = self
+            .domain
+            .clone()
+            .with_accounting(self.domain.accounting.clone());
         if matches!(self.providers, LengthProviderSelection::Pending)
             && crate::const_evaluation::range_endpoints::pending_endpoint_calls_need_operator_selection(
                 &execution, self.authority.clone(), &all_endpoints,
@@ -371,7 +378,8 @@ impl<'selection> LengthJobs<'selection> {
                 false,
             )
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        let prepared = crate::PreparedBuildMachineProgram::from_checked(checked);
+        let prepared = crate::PreparedBuildMachineProgram::from_checked(checked)
+            .with_execution_scope(self.domain.execution_scope());
         let entry = prepared
             .entry(machine)
             .map_err(|reason| vec![Diagnostic::error(reason)])?;

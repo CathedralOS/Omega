@@ -938,21 +938,10 @@ pub(super) fn clone_single_specialized_machine(
         super::applications::retain_instance(source, program, candidate, instance_symbol)?
     };
     if capture.is_none() {
-        let template_declaration = typed_trees::typed_trees::StaticMachineDeclarationDescription {
-            symbol: source_machine.symbol,
-            name: source_machine.name.clone(),
-            source_span: source
-                .unwrap_or(program)
-                .symbols
-                .symbol_source_span(source_machine.symbol),
-            lifetime_parameters: source_machine.lifetime_parameters.clone(),
-            conformance_bounds: source_machine.conformance_bounds.clone(),
-        };
         program
             .machine_specializations
             .push(typed_trees::typed_trees::MachineSpecialization {
                 template: candidate.template.template_symbol,
-                template_declaration: Some(template_declaration),
                 instance: instance_symbol,
                 template_parameters: source_machine.type_parameters,
                 binding_application,

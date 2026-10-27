@@ -62,9 +62,9 @@ pub use commitments::{
     CapturedMachineApplication, CapturedMachineState, ClosedConformanceApplication,
     ClosedConformanceApplicationCommitment, ClosedConformanceApplicationSite,
     ClosedConformanceConstArgument, ClosedConformanceRowIdentity, MachineSpecialization,
-    MachineSpecializationCommitment, MachineTemplateCommitment,
-    StaticMachineDeclarationDescription, StaticRequirementDispatch, TraitImplementationApplication,
-    closed_conformance_applications_of, machine_specialization_matches_template_identity,
+    MachineSpecializationCommitment, MachineTemplateCommitment, StaticRequirementDispatch,
+    TraitImplementationApplication, closed_conformance_applications_of,
+    machine_specialization_matches_template_identity,
 };
 pub use placed_plans::{
     PlacedAccessPrimitive, PlacedAccessorTarget, PlacedAtomicObservingResultContract,

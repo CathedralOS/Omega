@@ -96,7 +96,8 @@ impl CheckedInitializers {
         for probe in probes {
             typed.push_machine(probe);
         }
-        let admission = BuildTimeAdmissionPlan::infer(&typed, authority.clone())
+        let admission = prepared
+            .admission(&typed, authority.clone())
             .with_accounting(accounting.clone());
         Ok(Self {
             typed,
@@ -140,28 +141,6 @@ impl CheckedInitializers {
             invocation.machine.symbol,
             &facts,
         );
-        if std::env::var_os("OMEGA_INITIALIZER_SELECTION_TRACE").is_some() {
-            let mut closure = vec![invocation.machine.symbol];
-            self.admission
-                .append_execution_dependencies(&self.typed, &mut closure);
-            let machines = closure
-                .iter()
-                .map(|symbol| {
-                    self.typed
-                        .machine_by_symbol(*symbol)
-                        .map(|machine| (machine.symbol, machine.name.as_str(), machine.supply_mode))
-                })
-                .collect::<Vec<_>>();
-            let roots = invocation.probe_roots().map(|roots| {
-                roots
-                    .into_iter()
-                    .map(|root| (root, self.typed.expression_table.expression(root).clone()))
-                    .collect::<Vec<_>>()
-            });
-            eprintln!(
-                "source-initializer-readiness reference={reference:?} needs={needs} closure={machines:?} roots={roots:?}"
-            );
-        }
         Ok(needs)
     }
 
@@ -542,6 +521,9 @@ impl ConstantCalls for Invocation<'_> {
                 );
                 let admission =
                     crate::BuildTimeAdmissionPlan::infer(&probe, self.program.authority.clone())
+                        .with_execution_scope(
+                            self.program.admission.execution_scope().with_probe(owner),
+                        )
                         .with_accounting(self.program.admission.accounting.clone());
                 admission.evaluate_const_evaluable_machine_symbol_for_invocation(
                     &probe,

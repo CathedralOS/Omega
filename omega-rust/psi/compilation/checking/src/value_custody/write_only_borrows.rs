@@ -310,25 +310,44 @@ fn is_byte_slice(program: &dyn crate::CheckingInput, type_reference: TypeReferen
     )
 }
 
-fn is_write_only_length_metadata(
+#[derive(Clone, Copy)]
+enum WriteOnlyLengthMetadata {
+    StaticExtent,
+    ByteSequence,
+}
+
+fn write_only_length_metadata(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     member: &typed_trees::expression::TableMemberExpression,
-) -> bool {
-    crate::value_custody::places::declared_place_type_raw(
+) -> Option<WriteOnlyLengthMetadata> {
+    let Some(reference) = crate::value_custody::places::declared_place_type_raw(
         program,
         machine,
         Some(state),
         member.receiver,
-    )
-    .and_then(|reference| {
-        crate::collection_operations::collection_measure_member(
-            program,
-            member,
-            crate::collection_operations::MeasureReceiver::Declared(reference),
-        )
-    }) == Some(CollectionMeasure::Length)
+    ) else {
+        return None;
+    };
+    if crate::collection_operations::collection_measure_member(
+        program,
+        member,
+        crate::collection_operations::MeasureReceiver::Declared(reference),
+    ) != Some(CollectionMeasure::Length)
+    {
+        return None;
+    }
+    // Fixed-array extent is type metadata. Byte sequence lengths have their
+    // explicit write-only metadata rule. A non-byte element view instead
+    // observes its stored runtime descriptor and requires readable authority
+    // along the complete receiver path, including enclosing references.
+    if crate::value_custody::places::fixed_array_type_extent(program, reference).is_some() {
+        Some(WriteOnlyLengthMetadata::StaticExtent)
+    } else {
+        crate::byte_sequence_carrier(program, reference, &[])
+            .map(|_| WriteOnlyLengthMetadata::ByteSequence)
+    }
 }
 
 /// Resolve one closed nominal data definition whose shape is known without
@@ -1661,8 +1680,8 @@ fn validate_expression(
     let metadata = program
         .expression_table
         .member_node(expression)
-        .is_some_and(|member| is_write_only_length_metadata(program, machine, state, member));
-    let observes_write_only = !metadata
+        .and_then(|member| write_only_length_metadata(program, machine, state, member));
+    let observes_write_only = metadata.is_none()
         && validate_observation_access(program, machine, state, expression, roots, diagnostics);
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
@@ -1711,20 +1730,45 @@ fn validate_expression(
             }
         },
         ExpressionNode::Member(member) => {
-            if metadata {
-                // A direct slice length belongs to its descriptor. A literal
-                // fixed-array length belongs to its static type, including when
-                // the array is reached only through statically known common
-                // fields of plain records. Neither reads referent content.
+            if let Some(metadata) = metadata {
+                // Static array extent and the explicit byte metadata operation
+                // do not read payload content. Element-view lengths have no
+                // write-only exception and follow ordinary observation access.
                 // Check its address computation without observing the payload.
-                validate_metadata_receiver(
-                    program,
-                    machine,
-                    state,
-                    member.receiver,
-                    roots,
-                    diagnostics,
-                );
+                match metadata {
+                    WriteOnlyLengthMetadata::StaticExtent => validate_metadata_receiver(
+                        program,
+                        machine,
+                        state,
+                        member.receiver,
+                        roots,
+                        diagnostics,
+                    ),
+                    WriteOnlyLengthMetadata::ByteSequence => {
+                        let mut sources = roots.to_vec();
+                        sources.extend(projection_sources(program, state, None));
+                        if receiver::storage_projection(
+                            program,
+                            machine,
+                            state,
+                            member.receiver,
+                            &sources,
+                            roots,
+                            diagnostics,
+                        )
+                        .is_none()
+                        {
+                            validate_expression(
+                                program,
+                                machine,
+                                state,
+                                member.receiver,
+                                roots,
+                                diagnostics,
+                            );
+                        }
+                    }
+                }
             } else if !observes_write_only {
                 validate_expression(program, machine, state, member.receiver, roots, diagnostics);
             }

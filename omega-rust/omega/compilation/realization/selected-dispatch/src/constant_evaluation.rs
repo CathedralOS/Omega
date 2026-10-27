@@ -120,27 +120,6 @@ impl SelectedConstantEvaluation {
         plans: &SelectedProviderPlanFacts,
     ) -> Result<Self, Vec<Diagnostic>> {
         let typed = context.typed;
-        if std::env::var_os("OMEGA_INITIALIZER_SELECTION_TRACE").is_some() {
-            eprintln!(
-                "constant-provider-roster plans={} specializations={}",
-                plans.plans().len(),
-                plans.specialized_requirement_rows().len()
-            );
-            for plan in plans.plans() {
-                eprintln!(
-                    "constant-provider-plan name={} target={} rows={:?}",
-                    plan.name, plan.target, plan.rows
-                );
-            }
-            for row in plans.specialized_requirement_rows() {
-                eprintln!(
-                    "constant-provider-specialization selected={:?} closed={:?} provider={:?}",
-                    plans.identities().text(row.selected_requirement_identity),
-                    plans.identities().text(row.requirement_identity),
-                    plans.identities().text(row.machine_identity)
-                );
-            }
-        }
         let uses = facts.resolved_expression_selections();
         let mut selected = Self {
             operators: Vec::new(),
@@ -154,13 +133,6 @@ impl SelectedConstantEvaluation {
             opaque_representation_selections: opaque_representation_selections.to_vec(),
         };
         for (expression, origin, requirement, policy) in uses {
-            if std::env::var_os("OMEGA_INITIALIZER_SELECTION_TRACE").is_some() {
-                eprintln!(
-                    "constant-provider-demand expression={expression:?} source={:?} origin={origin:?} requirement={requirement:?} name={}",
-                    typed.expression_table.source_span(expression),
-                    typed.symbols.display_path(requirement, "::")
-                );
-            }
             let direct_plan =
                 provider_planning::selected_requirement_plan(context, plans.plans(), requirement);
             let specialized = if direct_plan.is_none() {
@@ -178,11 +150,6 @@ impl SelectedConstantEvaluation {
                 .map(|(_, plan)| plan)
                 .or_else(|| specialized.map(|(plan, _, _)| plan))
             else {
-                if std::env::var_os("OMEGA_INITIALIZER_SELECTION_TRACE").is_some() {
-                    eprintln!(
-                        "constant-provider-demand has no selected ProviderPlan for {requirement:?}"
-                    );
-                }
                 continue;
             };
             // Select this exact method, not the binding kind of a sibling

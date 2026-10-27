@@ -166,7 +166,9 @@ pub(super) fn checked_demanded_closure(
         &[machine],
         &[],
     );
-    let mut probe = domain.execution_program(program);
+    let mut probe = domain
+        .checking_program(program)
+        .map_err(|errors| diagnostics::join_messages(&errors))?;
     // Same preliminary-package window as the zero-argument probe above.
     probe.pending_const_range_endpoints.clear();
     let preparation_request = typed_trees_to_typed_trees::PreparationRequest::preliminary();

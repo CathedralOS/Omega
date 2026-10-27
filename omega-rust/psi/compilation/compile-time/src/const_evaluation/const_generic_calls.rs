@@ -257,8 +257,7 @@ fn evaluate_application_group(
         let prepared =
             crate::PreparedBuildMachineProgram::prepare_in(&preparation.typed, &ready_domain)?;
         let execution = prepared.typed();
-        let admission =
-            crate::BuildTimeAdmissionPlan::infer(execution, selection_authority.clone());
+        let admission = prepared.admission(execution, selection_authority.clone());
         let operators = validation::derive_pre_flow_operator_selections(execution);
         let independent = probe_symbols
             .iter()
@@ -296,7 +295,8 @@ fn evaluate_application_group(
             // exact provider rows Omega settles, as deferred fixed-array
             // lengths do. This is explicit external readiness, not a failed
             // admission interpreted as a dependency signal.
-            if admission.closure_needs_execution_preparation(execution, machine.symbol, &operators) {
+            if admission.closure_needs_execution_preparation(execution, machine.symbol, &operators)
+            {
                 continue;
             }
             let checked = match checked_program {

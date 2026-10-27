@@ -7,6 +7,8 @@
 use std::sync::Arc;
 use typed_trees::references::DeclarationSelection;
 
+mod checking_context;
+
 /// Work ownership is narrower than executable lookup. Product work excludes
 /// completed Build jobs but still needs shared toolchain declarations. Build
 /// execution instead keeps exactly its admitted roster: a Product descriptor
@@ -46,8 +48,16 @@ impl EvaluationDomain {
         authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     ) -> crate::BuildTimeAdmissionPlan {
         crate::BuildTimeAdmissionPlan::infer(program, authority)
+            .with_execution_scope(self.execution_scope())
             .with_accounting(self.accounting.clone())
     }
+
+    pub(crate) fn execution_scope(
+        &self,
+    ) -> crate::machine_execution::execution_scope::ExecutionScope {
+        crate::machine_execution::execution_scope::ExecutionScope::new(self.execution.clone())
+    }
+
     pub(crate) fn selected(work: DeclarationSelection, execution: DeclarationSelection) -> Self {
         Self {
             work,
@@ -92,6 +102,94 @@ impl EvaluationDomain {
 
     pub(crate) fn work(&self) -> &DeclarationSelection {
         &self.work
+    }
+
+    /// A selected call replaces its requirement with executable provider code,
+    /// but ordinary conformance still consumes the exact closed requirement's
+    /// complete declaration. Retain only reached, bodyless machine requirements
+    /// in both work and execution-lookup selections. The bodyless guard below
+    /// ensures that this lookup retention supplies no executable body or
+    /// invocation authority; ordinary checking/admission remain mandatory.
+    pub(crate) fn with_selected_machine_requirement_descriptions(
+        &self,
+        program: &typed_trees::TypedTrees,
+        selected: &[SelectedBuildTimeProviderBody],
+    ) -> Result<Self, Vec<diagnostics::Diagnostic>> {
+        let mut domain = self.clone();
+        if selected.is_empty() {
+            return Ok(domain);
+        }
+        let references = self.references(program);
+        for row in selected
+            .iter()
+            .filter(|row| references.expressions.contains(&row.expression))
+        {
+            let failure = |reason| vec![diagnostics::Diagnostic::error(reason)];
+            let mut requirements = program
+                .machines()
+                .iter()
+                .filter(|machine| machine.symbol == row.requirement);
+            let Some(requirement) = requirements.next() else {
+                if program.trait_machine_signature(row.requirement).is_some()
+                    || program
+                        .operator_definition_by_symbol(row.requirement)
+                        .is_some()
+                {
+                    continue;
+                }
+                return Err(failure(
+                    "selected requirement description lost its exact declaration owner",
+                ));
+            };
+            let origin_in_scope = match row.origin {
+                checked_trees::CheckedValueOrigin::NestedExpression { parent } => {
+                    references.expressions.contains(&parent)
+                }
+                origin => origin
+                    .machine_symbol()
+                    .is_some_and(|owner| self.work.contains(owner)),
+            };
+            if !origin_in_scope
+                || !self.execution.contains(row.provider_machine)
+                || !matches!(program.expression_table.expression(row.expression),
+                    typed_trees::expression::ExpressionNode::Call(call)
+                    if call.target_symbol == row.provider_state
+                        && call.operational_acknowledgement.origin
+                            == language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized)
+            {
+                return Err(failure(
+                    "selected requirement description lost its exact demanded provider occurrence",
+                ));
+            }
+            let [entry] = program.machine_states(requirement) else {
+                return Err(failure(
+                    "selected requirement description has no unique signature entry",
+                ));
+            };
+            if requirements.next().is_some()
+                || requirement.supply_mode
+                    != language_semantics::MachineSupplyMode::TopLevelRequirement
+                || requirement.body_is_present
+                || !requirement.owned_data.is_empty()
+                || !entry.statement_nodes.is_empty()
+                || !program.machine_type_parameters(requirement).is_empty()
+                || program
+                    .machine_authored_target(requirement)
+                    .is_some_and(|target| target != row.target_scope)
+                || program
+                    .machine_specializations
+                    .iter()
+                    .filter(|receipt| receipt.instance == requirement.symbol)
+                    .count()
+                    > 1
+            {
+                return Err(failure(
+                    "selected requirement description is ambiguous, executable, open or in another target scope",
+                ));
+            }
+            domain.include(requirement.symbol);
+        }
+        Ok(domain)
     }
 
     /// One early job demands its complete checking and executable closure,
@@ -650,12 +748,6 @@ impl PreCheckEvaluation {
                 self.selection_authority.clone(),
                 &self.domain,
             )?;
-        if std::env::var_os("OMEGA_INITIALIZER_SELECTION_TRACE").is_some() {
-            eprintln!(
-                "typed-initializer-continuation pending={} other_selection={needs_selected_execution}",
-                self.pending_initializers.len()
-            );
-        }
         if needs_selected_execution || !self.pending_initializers.is_empty() {
             range_endpoints::defer_pending_endpoint_calls_in(typed, &self.domain)?;
             const_applications::defer_pending_const_applications(typed, &self.domain)?;

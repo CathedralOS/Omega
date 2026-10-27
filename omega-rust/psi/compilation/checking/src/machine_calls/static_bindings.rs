@@ -6,7 +6,6 @@
 //! closure still requires a closed tuple. Runtime Value carriers keep ordinary
 //! value checking.
 
-mod declaration_descriptions;
 mod forwarded_evidence;
 mod placed_primitives;
 
@@ -36,34 +35,6 @@ struct StaticDeclaration<'program> {
 }
 
 impl<'program> StaticDeclaration<'program> {
-    fn for_application(
-        program: &'program dyn crate::CheckingInput,
-        symbol: SymbolHandle,
-        application: StaticMachineApplicationHandle,
-    ) -> Result<Option<Self>, Diagnostic> {
-        let live = Self::find(program, symbol);
-        let retained = declaration_descriptions::find(program, symbol, application)?;
-        match (live, retained) {
-            (Some(live), Some(description)) => {
-                if live.symbol == description.symbol
-                    && live.name == description.name
-                    && live.parameters == description.parameters
-                    && live.lifetime_parameters == description.lifetime_parameters
-                    && live.conformance_bounds == description.conformance_bounds
-                {
-                    Ok(Some(live))
-                } else {
-                    Err(Diagnostic::error(
-                        "retained static declaration disagrees with its live source declaration",
-                    ))
-                }
-            }
-            (Some(live), None) => Ok(Some(live)),
-            (None, Some(retained)) => Ok(Some(retained)),
-            (None, None) => Ok(None),
-        }
-    }
-
     fn find(program: &'program dyn crate::CheckingInput, symbol: SymbolHandle) -> Option<Self> {
         if let Some(application) = program.closed_requirement_application(symbol) {
             let (_, source) = program.trait_machine_signature(application.template)?;
@@ -470,47 +441,29 @@ pub fn validate_static_machine_bindings(
         } else {
             application.binding_declaration
         };
-        let declared = match StaticDeclaration::for_application(program, declaration_symbol, handle)
-        {
-            Ok(description) => description,
-            Err(diagnostic) => {
-                diagnostics.push(diagnostic);
-                continue;
-            }
-        };
-        let owner =
-            match StaticDeclaration::for_application(program, application.lexical_owner, handle) {
-                Ok(description) => description,
-                Err(diagnostic) => {
-                    diagnostics.push(diagnostic);
-                    continue;
-                }
-            };
         if !lifetimes.is_empty() {
-            if declared
-                .as_ref()
-                .zip(owner.as_ref())
-                .is_none_or(|(declared, owner)| {
-                    // Ordinary calls may infer only the used part of a lifetime
-                    // telescope. Applied provider views separately require a
-                    // complete explicitly selected tuple, including unused slots.
-                    lifetimes.iter().enumerate().any(|(ordinal, binding)| {
-                        !declared
-                            .lifetime_parameters
+            let declared = StaticDeclaration::find(program, declaration_symbol);
+            let owner = StaticDeclaration::find(program, application.lexical_owner);
+            if declared.zip(owner).is_none_or(|(declared, owner)| {
+                // Ordinary calls may infer only the used part of a lifetime
+                // telescope. Applied provider views separately require a
+                // complete explicitly selected tuple, including unused slots.
+                lifetimes.iter().enumerate().any(|(ordinal, binding)| {
+                    !declared
+                        .lifetime_parameters
+                        .iter()
+                        .any(|parameter| parameter == &binding.parameter)
+                        || lifetimes[..ordinal]
                             .iter()
-                            .any(|parameter| parameter == &binding.parameter)
-                            || lifetimes[..ordinal]
-                                .iter()
-                                .any(|previous| previous.parameter == binding.parameter)
-                            || typed_trees::type_identity::lifetime_parameter_identity(
-                                program,
-                                owner.symbol,
-                                binding.argument.as_str(),
-                            )
-                            .is_none()
-                    })
+                            .any(|previous| previous.parameter == binding.parameter)
+                        || typed_trees::type_identity::lifetime_parameter_identity(
+                            program,
+                            owner.symbol,
+                            binding.argument.as_str(),
+                        )
+                        .is_none()
                 })
-            {
+            }) {
                 diagnostics.push(Diagnostic::error("static lifetime tuple does not retain its complete declaration and lexical region custody"));
                 continue;
             }
@@ -518,7 +471,7 @@ pub fn validate_static_machine_bindings(
         if bindings.is_empty() {
             continue;
         }
-        let Some(machine) = declared else {
+        let Some(machine) = StaticDeclaration::find(program, declaration_symbol) else {
             diagnostics.push(Diagnostic::error(format!(
                 "static tuple for `{}` lost its original binding declaration",
                 application.target,
@@ -573,7 +526,9 @@ pub fn validate_static_machine_bindings(
                 }
             })
             .collect::<Vec<_>>();
-        let scope_parameters: &[TypeParameter] = owner.map_or(&[], |owner| owner.parameters);
+        let scope_parameters: &[TypeParameter] =
+            StaticDeclaration::find(program, application.lexical_owner)
+                .map_or(&[], |owner| owner.parameters);
         let mut type_bounds_satisfied = true;
         for binding in bindings {
             let parameter = parameters

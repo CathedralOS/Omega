@@ -1033,31 +1033,6 @@ impl<'program> Collector<'program> {
                 })
                 .collect::<Vec<_>>();
             let [supply] = supplies.as_slice() else {
-                if std::env::var_os("OMEGA_INITIALIZER_SELECTION_TRACE").is_some() {
-                    let rows = self
-                        .provider_bodies
-                        .iter()
-                        .filter(|row| {
-                            table.expression_is_valid(row.expression)
-                                && table.source_span(row.expression) == reference
-                        })
-                        .map(|row| {
-                            (
-                                row.expression,
-                                row.origin,
-                                row.requirement,
-                                self.authored_target(row.requirement, false),
-                                row.provider_machine,
-                                row.provider_state,
-                                self.authored_target(row.provider_state, false),
-                            )
-                        })
-                        .collect::<Vec<_>>();
-                    eprintln!(
-                        "provider-operator-rejoin expression={expression:?} occurrence={occurrence:?} selected={selected:?} context={:?} source_owner={owner:?} call_target={:?} source_entry={source_entry:?} rows={rows:?}",
-                        context.machine.symbol, call.target_symbol
-                    );
-                }
                 return Err(
                     "constant operator call has no unique occurrence-bound selected provider"
                         .into(),
