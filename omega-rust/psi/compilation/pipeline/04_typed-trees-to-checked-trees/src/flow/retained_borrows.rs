@@ -10,7 +10,7 @@ use checked_trees::{
 use typed_trees::types::TypeReferenceHandle;
 use validation::CanonicalPlace;
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct RetainedBorrowHandback {
     pub place: CanonicalPlace,
     pub reference: TypeReferenceHandle,
@@ -98,6 +98,15 @@ pub(super) fn handbacks(
     else {
         return Vec::new();
     };
+    if std::env::var_os("OMEGA_DEBUG_HANDBACK").is_some() {
+        eprintln!(
+            "ENDING {} {} {:?} {:?}",
+            call.statement_index,
+            call.call_ordinal,
+            program.symbols.display_path(call.target_symbol, "::"),
+            ending
+        );
+    }
     if ending.borrows.is_empty() {
         return Vec::new();
     }

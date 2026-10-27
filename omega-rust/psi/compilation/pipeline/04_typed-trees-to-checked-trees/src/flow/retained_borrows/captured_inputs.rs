@@ -7,7 +7,7 @@ use checked_trees::{FlowControlFacts, FlowOperandFact, FlowOperandRetention};
 use typed_trees::expression::ExpressionHandle;
 use validation::CanonicalPlace;
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub(in crate::flow) struct RetainedSources {
     pub(super) holders: Vec<CanonicalPlace>,
     pub(super) borrows: Vec<RetainedBorrowHandback>,
@@ -57,6 +57,17 @@ pub(in crate::flow) fn captured_sources(
             )?
         };
         let mut result = RetainedSources::default();
+        if std::env::var_os("OMEGA_DEBUG_HANDBACK").is_some() {
+            eprintln!(
+                "SOURCE {:?} {:?} proj {:?} type {:?} referent {:?} retention {:?}",
+                operand.expression,
+                program.expression_table.display_name(operand.expression),
+                projection,
+                operand.type_reference,
+                crate::checks::contracts::exclusive_referent_type(program, reference),
+                operand.retention
+            );
+        }
         let referent = crate::checks::contracts::exclusive_referent_type(program, reference);
         if referent.is_valid() {
             let places =
@@ -124,6 +135,9 @@ pub(in crate::flow) fn captured_sources(
         active.push(handle);
         let result = (|| {
             let profile = control.operand_retentions.get(handle);
+            if std::env::var_os("OMEGA_DEBUG_HANDBACK").is_some() {
+                eprintln!("PROFILE {:?} {:?}", handle, profile);
+            }
             let mut result = RetainedSources::default();
             if !profile.alternatives.is_empty() {
                 let mut common: Option<RetainedSources> = None;
@@ -137,9 +151,10 @@ pub(in crate::flow) fn captured_sources(
                 }
                 result.append(common?);
             }
-            for source in control
-                .operand_retained_suppliers
-                .span(profile.lifetime_sources)?
+            for source in profile
+                .lifetime_sources
+                .into_iter()
+                .flat_map(|span| control.operand_retained_suppliers.span_or_empty(span))
             {
                 if !control.operands.is_valid(source.operand) {
                     return None;

@@ -88,7 +88,7 @@ pub struct FlowOperandRetention {
     /// relation. This preserves typed return obligations through opaque owned
     /// carriers. It supplies neither descriptor geometry nor new permission;
     /// those remain with the captured input and its checked loans.
-    pub lifetime_sources: HandleSpan<FlowOperandRetainedSupplier>,
+    pub lifetime_sources: Option<HandleSpan<FlowOperandRetainedSupplier>>,
     /// Exact completed inputs retaining the permission carried by a call store.
     /// These are supplier associations, not value equality or pointee snapshots.
     pub suppliers: HandleSpan<FlowOperandRetainedSupplier>,

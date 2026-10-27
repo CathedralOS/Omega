@@ -1145,7 +1145,7 @@ impl Execution<'_, '_, '_> {
             Vec<PlaceSegment>,
             Vec<PlaceRoot>,
             bool,
-            Vec<checked_trees::FlowOperandRetainedSupplier>,
+            Option<Vec<checked_trees::FlowOperandRetainedSupplier>>,
         )> = Vec::new();
         for source in sources {
             // The declaration supplies the lifetime relation, but the completed
@@ -1169,7 +1169,7 @@ impl Execution<'_, '_, '_> {
                 .iter()
                 .position(|(candidate, _, _, _)| *candidate == path)
                 .unwrap_or_else(|| {
-                    outputs.push((path.clone(), Vec::new(), true, Vec::new()));
+                    outputs.push((path.clone(), Vec::new(), true, Some(Vec::new())));
                     outputs.len() - 1
                 });
             let Some((_, actual)) = inputs.get(source.parameter_index) else {
@@ -1206,18 +1206,20 @@ impl Execution<'_, '_, '_> {
             } else {
                 Some(self.context.control.operands.insert(*actual))
             };
-            if let Some(operand) = supplier {
+            if let (Some(operand), Some(suppliers)) = (supplier, &mut outputs[position].3) {
                 let projection = self
                     .context
                     .control
                     .operand_retained_paths
                     .insert_many(source_path);
-                outputs[position]
-                    .3
-                    .push(checked_trees::FlowOperandRetainedSupplier {
-                        operand,
-                        projection,
-                    });
+                suppliers.push(checked_trees::FlowOperandRetainedSupplier {
+                    operand,
+                    projection,
+                });
+            } else {
+                // Retained roots remain valid lifetime exclusion, but partial
+                // source association cannot publish positive handback evidence.
+                outputs[position].3 = None;
             }
         }
         // A literal-only result has no activation-relative input loan. Its
@@ -1229,7 +1231,7 @@ impl Execution<'_, '_, '_> {
                     .iter()
                     .any(|(candidate, _, _, _)| *candidate == path)
                 {
-                    outputs.push((path, Vec::new(), true, Vec::new()));
+                    outputs.push((path, Vec::new(), true, Some(Vec::new())));
                 }
             }
         }
@@ -1250,11 +1252,12 @@ impl Execution<'_, '_, '_> {
             );
             let captured = if self.context.control.operand_retentions.is_valid(captured) {
                 let profile = *self.context.control.operand_retentions.get(captured);
-                let lifetime_sources = self
-                    .context
-                    .control
-                    .operand_retained_suppliers
-                    .insert_many(suppliers);
+                let lifetime_sources = suppliers.map(|suppliers| {
+                    self.context
+                        .control
+                        .operand_retained_suppliers
+                        .insert_many(suppliers)
+                });
                 self.context
                     .control
                     .operand_retentions
@@ -1281,13 +1284,13 @@ impl Execution<'_, '_, '_> {
             }
         }
         if !leaves.is_empty() {
-            let roots = if let Some(root) = *retention {
+            let root_profile = if let Some(root) = *retention {
                 if !self.context.control.operand_retentions.is_valid(root) {
                     return;
                 }
-                self.context.control.operand_retentions.get(root).roots
+                *self.context.control.operand_retentions.get(root)
             } else {
-                HandleSpan::empty()
+                FlowOperandRetention::default()
             };
             let leaves = self
                 .context
@@ -1296,12 +1299,8 @@ impl Execution<'_, '_, '_> {
                 .insert_many(leaves);
             *retention = Some(self.context.control.operand_retentions.insert(
                 FlowOperandRetention {
-                    roots,
-                    alternatives: HandleSpan::empty(),
                     leaves,
-                    stored_value: Handle::invalid(),
-                    stored_projection: HandleSpan::empty(),
-                    ..Default::default()
+                    ..root_profile
                 },
             ));
         }
