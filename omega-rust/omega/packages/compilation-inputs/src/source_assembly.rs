@@ -414,32 +414,54 @@ impl ImmutableSourceParseCheckpoint {
                 catalogue,
             )?;
         }
-        if self.build_source_id.is_none()
-            && let Some(loaded) = source_storage.seal_default_owner(catalogue)?
-        {
-            let parsed = SourceInput(loaded.into_iter().collect()).append(
-                &mut source_storage.syntax_trees,
-                &mut ParsingTimings(timings),
-            )?;
-            let discovered = discover_imports(
+        if self.build_source_id.is_none() {
+            source_storage.seal_default_owner(catalogue)?;
+        }
+        // Each new preparation gets a fresh consumer cohort. Reusing parser
+        // coordinates across discovery and final binding would make the old
+        // authored-selection ledger own this run's freshly resolved calls.
+        // Dependencies keep their catalogue identities and remain reusable.
+        let loaded = source_storage.reselect_current_sources(catalogue)?;
+        if let Some(inputs) = package_inputs {
+            source_storage
+                .sources
+                .retain_product_dependency_scope(inputs.dependencies());
+        }
+        let parsed = SourceInput(loaded.into_iter().collect()).append(
+            &mut source_storage.syntax_trees,
+            &mut ParsingTimings(timings),
+        )?;
+        let discovered = match package_inputs {
+            Some(inputs) => {
+                discover_package_imports(
+                    &parsed,
+                    &source_storage.syntax_trees,
+                    inputs,
+                    PackageImportPhase::ExactTarget(None),
+                    &mut source_storage.resolved_imports,
+                    &source_storage.toolchain_contract_custody,
+                )?
+                .0
+            }
+            None => discover_imports(
                 &parsed,
                 &source_storage.syntax_trees,
                 &self.root_path,
                 &source_storage.filesystem,
                 &mut source_storage.resolved_imports,
-            )?;
-            source_storage.attach_parsed(parsed);
-            imports.enqueue(discovered)?;
-            load_imports(
-                &mut source_storage,
-                &mut imports,
-                &self.root_path,
-                package_inputs,
-                PackageImportPhase::ExactTarget(None),
-                timings,
-                catalogue,
-            )?;
-        }
+            )?,
+        };
+        source_storage.attach_parsed(parsed);
+        imports.enqueue(discovered)?;
+        load_imports(
+            &mut source_storage,
+            &mut imports,
+            &self.root_path,
+            package_inputs,
+            PackageImportPhase::ExactTarget(None),
+            timings,
+            catalogue,
+        )?;
         let mut source_scoped_top_level_bindings = Vec::new();
         if let Some(prelude) =
             crate::source_imports::prepare_build_prelude(&source_storage, self.build_source_id)

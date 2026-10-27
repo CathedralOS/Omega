@@ -255,32 +255,71 @@ impl SourceStorage {
         &mut self,
         catalogue: &mut source::SourceCatalogue,
     ) -> Result<Vec<source::LoadedSource>, Vec<Diagnostic>> {
-        let current = self.sources.selected_files().cloned().collect::<Vec<_>>();
-        self.sources = catalogue.begin_selection();
-        let admitted = current
-            .into_iter()
-            .map(|file| {
-                let original = file.source_id;
-                let admitted = self.admit_source(
+        let primary_source = self.syntax_trees.source_id;
+        let previous = std::mem::replace(&mut self.sources, catalogue.begin_selection());
+        let mut admitted = Vec::new();
+        let mut correspondence = Vec::new();
+        for file in previous.selected_files() {
+            let current = if file.origin == SourceOrigin::User
+                && file.package_root == self.default_package_root
+                && file.package_identity == self.default_package_identity
+            {
+                let current = catalogue
+                    .admit_source_occurrence(&mut self.sources, file)
+                    .map_err(|message| vec![Diagnostic::error(message)])?;
+                source::LoadedSource {
+                    source_id: current.source_id,
+                    path: current.path.clone(),
+                    source: current.source.clone(),
+                    origin: Some(current.origin),
+                    scope: current.dependency_scope,
+                }
+            } else {
+                self.admit_source(
                     source::SourceContents {
-                        path: file.path,
-                        source: file.source,
+                        path: file.path.clone(),
+                        source: file.source.clone(),
                         scope: file.dependency_scope,
                     },
                     Some(file.origin),
                     file.resolution_stratum,
                     catalogue,
-                )?;
-                self.sources
-                    .retain_source_rejoin(original, admitted.source_id)
-                    .map_err(|message| vec![Diagnostic::error(message)])?;
-                Ok::<_, Vec<Diagnostic>>(admitted)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        self.syntax_trees = admitted
-            .first()
-            .map(|source| SyntaxTrees::new(source.source_id))
-            .unwrap_or_default();
+                )?
+            };
+            self.sources
+                .retain_source_rejoin(file.source_id, current.source_id)
+                .map_err(|message| vec![Diagnostic::error(message)])?;
+            correspondence.push((file.source_id, current.source_id));
+            admitted.push(current);
+        }
+        // Preserve earlier Build-to-Product transitions when another assembly
+        // (for example final semantic binding after discovery) makes a cohort.
+        for (original, preceding) in previous.source_rejoins() {
+            let selected = correspondence
+                .iter()
+                .find_map(|(old, current)| (*old == preceding).then_some(*current))
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "consumer source cohort lost an admitted source correspondence",
+                    )]
+                })?;
+            self.sources
+                .retain_source_rejoin(original, selected)
+                .map_err(|message| vec![Diagnostic::error(message)])?;
+        }
+        self.syntax_trees = if admitted.is_empty() {
+            SyntaxTrees::default()
+        } else {
+            let primary = correspondence
+                .iter()
+                .find_map(|(original, current)| (*original == primary_source).then_some(*current))
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "consumer cohort lost its parser's primary source coordinate",
+                    )]
+                })?;
+            SyntaxTrees::new(primary)
+        };
         self.source_roots = Arena::default();
         self.resolved_imports.clear();
         Ok(admitted)

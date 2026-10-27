@@ -73,6 +73,34 @@ impl SourceCatalogue {
                 "source selection does not belong to this catalogue's coordinate prefix".into(),
             );
         }
+        let source = source.into();
+        if resolution_stratum != SourceResolutionStratum::CurrentActivationExtension
+            && !(origin == SourceOrigin::User && package_identity.is_none())
+        {
+            // One frontier keeps its admitted dependency identity even if
+            // another preparation has since allocated a newer occurrence.
+            let mut selected = selection
+                .selected_files()
+                .filter(|file| {
+                    file.path == path
+                        && file.source == source
+                        && file.package_root == package_root
+                        && file.package_identity == package_identity
+                        && file.origin == origin
+                        && file.resolution_stratum == resolution_stratum
+                        && file.dependency_scope == dependency_scope
+                })
+                .map(|file| file.source_id);
+            let existing = selected.next();
+            if selected.next().is_some() {
+                return Err(
+                    "source frontier selected more than one exact dependency occurrence".into(),
+                );
+            }
+            if let Some(existing) = existing {
+                return Ok(&selection.files[existing.0]);
+            }
+        }
         // An unbound Build capture is a fresh occurrence, not a reusable
         // package instance. Product admission later creates its own sealed
         // source selection; it cannot change the checked Build's coordinates.
@@ -100,6 +128,42 @@ impl SourceCatalogue {
             )
         }
         .source_id;
+        Ok(self.activate_instance(selection, admitted))
+    }
+
+    /// A new consumer preparation owns new occurrences even when its bytes and
+    /// package owner match an earlier preparation. Dependency instances use
+    /// `admit_checked_instance`; this operation never interns the consumer.
+    pub fn admit_source_occurrence<'selection>(
+        &mut self,
+        selection: &'selection mut SourceMap,
+        occurrence: &SourceFile,
+    ) -> Result<&'selection SourceFile, String> {
+        if !self.backing.retains_source_storage(selection) {
+            return Err(
+                "source occurrence does not belong to this catalogue's coordinate prefix".into(),
+            );
+        }
+        let admitted = self
+            .backing
+            .add_checked_instance(
+                occurrence.path.clone(),
+                Arc::clone(&occurrence.source),
+                occurrence.package_root.clone(),
+                occurrence.package_identity,
+                occurrence.origin,
+                occurrence.resolution_stratum,
+                occurrence.dependency_scope,
+            )
+            .source_id;
+        Ok(self.activate_instance(selection, admitted))
+    }
+
+    fn activate_instance<'selection>(
+        &self,
+        selection: &'selection mut SourceMap,
+        admitted: SourceId,
+    ) -> &'selection SourceFile {
         let previous_length = selection.files.len();
         if matches!(selection.selection, SourceSelection::All) {
             selection.selection = SourceSelection::Explicit(vec![true; previous_length]);
@@ -111,7 +175,7 @@ impl SourceCatalogue {
             selected.resize(self.backing.files.len(), false);
             selected[admitted.0] = true;
         }
-        Ok(&selection.files[admitted.0])
+        &selection.files[admitted.0]
     }
 }
 
@@ -161,9 +225,9 @@ impl SourceMap {
         source.0 < self.files.len() && self.selection.includes(source)
     }
 
-    /// Record the exact source-coordinate transition after package custody has
-    /// admitted the anonymous owner's sealed identity. Current-activation
-    /// generated files are new occurrences and cannot inherit this identity.
+    /// Record a producer-owned transition to a fresh consumer cohort. A named
+    /// owner stays exact; an anonymous owner may acquire its admitted identity.
+    /// Current-activation generated files cannot inherit this correspondence.
     pub fn retain_source_rejoin(
         &mut self,
         original: SourceId,
@@ -177,11 +241,11 @@ impl SourceMap {
             .ok_or("source rejoin lost its original file")?;
         let after = self
             .get(selected)
-            .ok_or("source rejoin lost its sealed file")?;
+            .ok_or("source rejoin lost its current file")?;
         if !self.source_is_selected(selected)
             || before.origin != SourceOrigin::User
-            || before.package_identity.is_some()
-            || after.package_identity.is_none()
+            || (before.package_identity.is_some()
+                && before.package_identity != after.package_identity)
             || before.resolution_stratum == SourceResolutionStratum::CurrentActivationExtension
             || before.source != after.source
             || before.path != after.path
@@ -198,12 +262,16 @@ impl SourceMap {
             .find(|(source, _)| *source == original)
         {
             if *previous != selected {
-                return Err("source rejoin has more than one sealed destination".into());
+                return Err("source rejoin has more than one current destination".into());
             }
         } else {
             self.source_rejoins.push((original, selected));
         }
         Ok(())
+    }
+
+    pub fn source_rejoins(&self) -> impl Iterator<Item = (SourceId, SourceId)> + '_ {
+        self.source_rejoins.iter().copied()
     }
 
     /// Consume producer-issued correspondence, checking the preceding payload
@@ -259,7 +327,11 @@ impl SourceMap {
         dependency_scope: DependencyScope,
     ) -> &SourceFile {
         let source = source.into();
-        let retained = self.files.iter().position(|file| {
+        // Choose the most recently allocated exact occurrence for a new
+        // frontier. Allocation is not successful preparation: frontend reuse
+        // still needs a matching retained pair and its compatible context.
+        // Earlier consumer/discovery cohorts remain immutable backing.
+        let retained = self.files.iter().rposition(|file| {
             file.path == path
                 && file.source == source
                 && file.package_root == package_root
