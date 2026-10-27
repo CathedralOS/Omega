@@ -164,49 +164,29 @@ pub fn stored_view_shell(
 /// their storage and live length explicitly.
 pub fn byte_sequence_carrier(
     program: &dyn crate::CheckingInput,
-    mut type_reference: TypeReferenceHandle,
+    type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> Option<checked_trees::CheckedByteSequenceCarrier> {
-    let mut borrowed = None;
-    loop {
-        match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Named { symbol, .. } => {
-                let Some(replacement) = crate::substitutions::actual_for(substitutions, *symbol)
-                else {
-                    break;
-                };
-                // A substitution can bind a parameter to its own reference;
-                // rewriting it again only loops.
-                if replacement == type_reference {
-                    break;
-                }
-                type_reference = replacement;
-            }
-            TypeReferenceNode::Constrained { base_type, .. } => {
-                type_reference = *base_type;
-            }
-            // The reference's access is the carrier's access: a `&mut [u8]`
-            // field and a `&[u8]` one are distinguishable here and nowhere
-            // downstream, so it is recorded rather than discarded.
-            TypeReferenceNode::Reference {
-                referee, access, ..
-            } if borrowed.is_none() => {
-                borrowed = Some(*access);
-                type_reference = *referee;
-            }
-            _ => break,
-        }
+    let shell = peel_carrier_shells(program, type_reference, substitutions)?;
+    // The reference's access is the carrier's access: a `&mut [u8]` field and a
+    // `&[u8]` one are distinguishable here and nowhere downstream, so it is
+    // recorded rather than discarded.
+    let TypeReferenceNode::Reference {
+        referee, access, ..
+    } = program.type_reference_table.type_reference(shell)
+    else {
+        return None;
+    };
+    let slice = peel_carrier_shells(program, *referee, substitutions)?;
+    let TypeReferenceNode::Slice { element_type } =
+        program.type_reference_table.type_reference(slice)
+    else {
+        return None;
+    };
+    if program.primitive_type_reference(*element_type) != Some(PrimitiveType::U8) {
+        return None;
     }
-
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Slice { element_type }
-            if borrowed.is_some()
-                && program.primitive_type_reference(*element_type) == Some(PrimitiveType::U8) =>
-        {
-            Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView {
-                access: Some(borrowed?.into()),
-            })
-        }
-        _ => None,
-    }
+    Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView {
+        access: Some((*access).into()),
+    })
 }
