@@ -83,16 +83,7 @@ pub(super) fn lower_operation(
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
-            let result_home =
-                super::aggregate_results::home(*psi_operation, result, structural_types)?;
-            if site
-                .live
-                .structural_homes
-                .insert(result.place, result_home.clone())
-                .is_some()
-            {
-                return Err(LoweringError::unsupported_control_flow(function.machine));
-            }
+            let result_home = site.establish_home(*psi_operation, result)?;
             site.operations
                 .push(TargetUnitOperation::EstablishActivationClaim {
                     psi_operation: *psi_operation,
@@ -131,16 +122,7 @@ pub(super) fn lower_operation(
             rejected_case,
         } => {
             let committed = super::scalar_sources::source(*committed_at, function, site.live)?;
-            let result_home =
-                super::aggregate_results::home(*psi_operation, result, structural_types)?;
-            if site
-                .live
-                .structural_homes
-                .insert(result.place, result_home.clone())
-                .is_some()
-            {
-                return Err(LoweringError::unsupported_control_flow(function.machine));
-            }
+            let result_home = site.establish_home(*psi_operation, result)?;
             site.operations
                 .push(TargetUnitOperation::SplitActivationClaim {
                     psi_operation: *psi_operation,
@@ -165,16 +147,7 @@ pub(super) fn lower_operation(
             covered_case,
             rejected_case,
         } => {
-            let result_home =
-                super::aggregate_results::home(*psi_operation, result, structural_types)?;
-            if site
-                .live
-                .structural_homes
-                .insert(result.place, result_home.clone())
-                .is_some()
-            {
-                return Err(LoweringError::unsupported_control_flow(function.machine));
-            }
+            let result_home = site.establish_home(*psi_operation, result)?;
             site.operations
                 .push(TargetUnitOperation::MergeActivationClaim {
                     psi_operation: *psi_operation,
