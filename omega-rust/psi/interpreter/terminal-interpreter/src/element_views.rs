@@ -17,7 +17,7 @@
 //! through after calls without manufacturing a second element snapshot.
 
 use crate::errors::{TerminalInterpretError, malformed};
-use crate::execution::{OperationFlow, TerminalExecution};
+use crate::execution::{OperationFlow, TerminalExecution, operation_kind};
 use crate::runtime_rows::RuntimeRows;
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::values::StructuralScalarRuntimeField;
@@ -392,6 +392,32 @@ impl ElementView {
         Some(home.storage.scalar_array_frame())
     }
 
+    /// A complete fixed-array projection retains its original packed frame,
+    /// even when the selected row has no scalar payload.
+    pub(crate) fn complete_scalar_array_frame(
+        &self,
+        types: &crate::program::ProgramDeclarations<'_, terminal_psi::StructuralTypeDeclaration>,
+    ) -> Option<(
+        usize,
+        semantic_vocabulary::PlaceId,
+        semantic_vocabulary::StructuralTypeId,
+    )> {
+        let home = self.home.as_ref()?;
+        let ElementViewBacking::Structural { collection } = &self.backing else {
+            return None;
+        };
+        let (depth, place, root) = home.storage.scalar_array_frame();
+        let selected =
+            terminal_semantics::runtime_structural_path_tip(types.values(), root, &home.path)?;
+        let StructuralTypeShape::FixedArray { length, .. } = selected.shape else {
+            return None;
+        };
+        (selected.id == collection.structural_type
+            && self.window.start == 0
+            && u64::try_from(self.window.end).ok() == Some(length))
+        .then_some((depth, place, root))
+    }
+
     pub(crate) fn access(&self) -> StructuralAccess {
         self.access
     }
@@ -451,6 +477,51 @@ impl ElementView {
 
     /// Select original scalar storage below a collection loan. No snapshot or
     /// byte geometry participates; the owner's accessor checks the frame home.
+    pub(crate) fn initialized_empty_scalar_array(
+        &self,
+        execution: &TerminalExecution,
+        path: &[StructuralPathSegment],
+        expected: semantic_vocabulary::StructuralTypeId,
+    ) -> Result<bool, TerminalInterpretError> {
+        if !StructuralAccess::SharedBorrow.admits_referent(self.access) {
+            return Err(malformed());
+        }
+        let types = execution.program.structural_types();
+        let (collection, projection) = if path.is_empty() {
+            let ElementViewBacking::Structural { collection } = &self.backing else {
+                return Err(malformed());
+            };
+            let StructuralTypeShape::FixedArray { length, .. } = types
+                .get(&collection.structural_type)
+                .ok_or_else(malformed)?
+                .shape
+            else {
+                return Err(malformed());
+            };
+            if self.window.start != 0 || u64::try_from(self.window.end).ok() != Some(length) {
+                return Err(malformed());
+            }
+            (collection.clone(), Vec::new())
+        } else {
+            self.structural_projection(&types, path, false)?
+        };
+        if let Some(home) = &self.home {
+            let mut selected = home.path.clone();
+            selected.extend(projection);
+            execution.initialized_empty_array_in_frame(home.storage, &selected, expected)
+        } else {
+            let selected =
+                crate::custody::project_structural_value(&types, &collection, &projection)?;
+            if selected.structural_type != expected {
+                return Err(malformed());
+            }
+            execution.initialized_empty_scalar_array(
+                &crate::values::StructuralRuntimePlace::from(&selected),
+                expected,
+            )
+        }
+    }
+
     pub(crate) fn scalar_storage(
         &self,
         execution: &TerminalExecution,
@@ -1292,17 +1363,9 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::ElementViewWrite {
-            destination,
-            index,
-            value,
-            length,
-            path,
-            ..
-        } = &operation.kind
-        else {
-            return Err(malformed());
-        };
+        operation_kind!(operation => ElementViewWrite {
+            destination, index, value, length, path, ..
+        });
         if operation.result != OperationResult::Unit {
             return Err(malformed());
         }
@@ -1357,9 +1420,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::ElementViewLength { source } = &operation.kind else {
-            return Err(malformed());
-        };
+        operation_kind!(operation => ElementViewLength { source });
         let result = operation.result.scalar().ok_or_else(malformed)?;
         let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| malformed())?;
         if result.scalar_type != ScalarType::Integer(integer_type) {
@@ -1433,16 +1494,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::ElementViewRead {
-            source,
-            index,
-            length,
-            path,
-            ..
-        } = &operation.kind
-        else {
-            return Err(malformed());
-        };
+        operation_kind!(operation => ElementViewRead { source, index, length, path, .. });
         // Scalar element reads use this operation; structural element fields
         // resolve through the common structural projection owner.
         let result = operation.result.scalar().ok_or_else(malformed)?;
@@ -1464,16 +1516,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &Operation,
     ) -> Result<(), TerminalInterpretError> {
-        let OperationKind::ElementViewSubslice {
-            source,
-            start,
-            end,
-            length,
-            ..
-        } = &operation.kind
-        else {
-            return Err(malformed());
-        };
+        operation_kind!(operation => ElementViewSubslice { source, start, end, length, .. });
         let result = operation.result.structural().ok_or_else(malformed)?;
         let start = count(start, &self.values)?;
         let end = count(end, &self.values)?;

@@ -23,15 +23,21 @@ pub(crate) enum ResultClaimOrigin {
 /// Preparation is fallible; committing this transaction performs no lookup
 /// that can refuse after another part of a compound operation has committed.
 pub(crate) struct PreparedConstructorOperands {
-    homes: Vec<(StructuralArgument, StructuralRuntimePlace)>,
+    homes: Vec<(
+        StructuralArgument,
+        crate::scalar_array::empty_storage::EmptyArrayRetirement,
+    )>,
     frontier: BTreeSet<StructuralAffineDiscard>,
     claims: BTreeMap<semantic_vocabulary::ClaimId, LiveClaim>,
 }
 
 impl PreparedConstructorOperands {
-    pub(crate) fn commit(self, execution: &mut TerminalExecution<'_>) {
-        for (argument, home) in self.homes {
-            execution.prune_subtree(&home);
+    pub(crate) fn commit(
+        self,
+        execution: &mut TerminalExecution<'_>,
+    ) -> Result<(), TerminalInterpretError> {
+        for (argument, retirement) in self.homes {
+            execution.prune_subtree(retirement)?;
             // Partial transfers retain the initialized storage of disjoint
             // siblings, even when the parent's resource custody becomes empty.
             if argument.path.is_empty() {
@@ -40,6 +46,7 @@ impl PreparedConstructorOperands {
         }
         execution.live_affine_frontier = self.frontier;
         execution.live_claims = self.claims;
+        Ok(())
     }
 }
 
@@ -361,7 +368,7 @@ impl TerminalExecution<'_> {
         claims: BTreeMap<semantic_vocabulary::ClaimId, LiveClaim>,
     ) -> Result<(), TerminalInterpretError> {
         self.prepare_constructor_operands(frontier, consumed, claims)?
-            .commit(self);
+            .commit(self)?;
         Ok(())
     }
 
@@ -381,7 +388,10 @@ impl TerminalExecution<'_> {
                     &self.structural_values,
                     argument,
                 )?;
-                Ok((argument.clone(), StructuralRuntimePlace::from(&child)))
+                Ok((
+                    argument.clone(),
+                    self.prepare_subtree_retirement(&StructuralRuntimePlace::from(&child))?,
+                ))
             })
             .collect::<Result<Vec<_>, TerminalInterpretError>>()?;
         Ok(PreparedConstructorOperands {

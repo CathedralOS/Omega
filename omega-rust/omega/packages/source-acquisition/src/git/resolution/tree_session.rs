@@ -235,15 +235,11 @@ impl GitWorkspaceCatalog {
         storage.verify_path_identity()?;
         let git_lane = storage.git_sources();
         let member_lane = storage.workspace_members();
-        let controlled_roots =
-            resolver_package_controlled_roots(&[git_lane.path(), member_lane.path()])?;
         let revision = self.session.recorded_revision()?;
         let result = resolve_git_source_from_retained_cache(
             storage.primary_git()?,
-            &controlled_roots,
+            &[git_lane, member_lane],
             &self.session.request,
-            git_lane.path(),
-            git_lane.directory(),
             self.session.limits,
             GitRevisionSelection::Recorded(&revision),
             |executor, repository, _tree, limits| {

@@ -8,7 +8,7 @@
 
 use super::ProviderStorageBinding;
 use crate::errors::{TerminalInterpretError, malformed};
-use crate::execution::TerminalExecution;
+use crate::execution::{TerminalExecution, operation_kind};
 use crate::record::storage::{ConstructorStorage, ConstructorValue};
 use crate::values::StructuralRuntimePlace;
 use std::collections::BTreeSet;
@@ -29,14 +29,9 @@ impl TerminalExecution<'_> {
             .storage
             .owned_content()
             .map_err(TerminalInterpretError::ContentTransformationMismatch)?;
-        let OperationKind::BoundaryCall {
-            structural_arguments,
-            completion_receipts,
-            ..
-        } = &operation.kind
-        else {
-            return Err(malformed());
-        };
+        operation_kind!(operation => BoundaryCall {
+            structural_arguments, completion_receipts, ..
+        });
         let [source, profile_argument] = structural_arguments.as_slice() else {
             return Err(malformed());
         };
@@ -311,7 +306,7 @@ impl TerminalExecution<'_> {
         // retained non-byte bindings now replace the private snapshot together.
         let _original = std::mem::take(self.provider_storage.residents.get_mut(binding.resident));
         self.provider_storage.residents.free(binding.resident);
-        retirement.commit(self);
+        retirement.commit(self)?;
         self.local_structural_identities
             .commit_cursor(identity_cursor);
         Ok(())

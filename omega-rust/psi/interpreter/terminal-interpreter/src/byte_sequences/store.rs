@@ -3,7 +3,7 @@
 use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::byte_sequences::write::MutableByteSequenceStorage;
 use crate::errors::{TerminalInterpretError, malformed};
-use crate::execution::TerminalExecution;
+use crate::execution::{TerminalExecution, operation_kind};
 use crate::values::TerminalScalarValue;
 use semantic_vocabulary::IntegerValue;
 use terminal_psi::{Operation, OperationKind, OperationResult};
@@ -13,15 +13,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &Operation,
     ) -> Result<(), TerminalInterpretError> {
-        let OperationKind::ByteSequenceStore {
-            destination,
-            source,
-            length,
-            ..
-        } = &operation.kind
-        else {
-            return Err(malformed());
-        };
+        operation_kind!(operation => ByteSequenceStore { destination, source, length, .. });
         if operation.result != OperationResult::Unit || source == destination {
             return Err(malformed());
         }

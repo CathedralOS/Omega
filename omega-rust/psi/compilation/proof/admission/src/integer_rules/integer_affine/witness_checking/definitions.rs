@@ -541,3 +541,16 @@ pub(super) fn apply_exact_add_inverse(
         |_, literal| CheckedIntegerEndpointStep::Subtract(literal),
     )
 }
+
+/// Both orientations of one definition shape: the shape's own reading of
+/// `(left, right)`, then its reading of `(right, left)`. A chain row may be
+/// traversed toward either endpoint of its equation, so every shape is tried
+/// both ways; one owner tries them, so a shape cannot be added with only one
+/// direction and a mirrored call cannot drift from the call it mirrors.
+pub(super) fn both_orientations<T>(
+    left: &ScalarTerm,
+    right: &ScalarTerm,
+    read: impl Fn(&ScalarTerm, &ScalarTerm) -> T,
+) -> [T; 2] {
+    [read(left, right), read(right, left)]
+}

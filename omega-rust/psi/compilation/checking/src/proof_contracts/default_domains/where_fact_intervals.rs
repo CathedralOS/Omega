@@ -45,6 +45,12 @@ fn field_fact_interval(
     if depth >= 4 || definition.where_facts.is_empty() {
         return None;
     }
+    let field_symbol = program
+        .data_members(definition)
+        .iter()
+        .filter_map(|member| member.as_field())
+        .find(|candidate| candidate.name.as_str() == field)?
+        .symbol;
     if let Some((_, low, high)) = data_where_field_intervals(program, definition)
         .into_iter()
         .flatten()
@@ -95,15 +101,15 @@ fn field_fact_interval(
             program.expression_table.expression(binary.left)
             && matches!(product.operator, BinaryOperator::Multiply)
         {
-            let factor = if side_names_field(program, product.left, field) {
+            let factor = if side_selects_field(program, product.left, field_symbol) {
                 Some(product.right)
-            } else if side_names_field(program, product.right, field) {
+            } else if side_selects_field(program, product.right, field_symbol) {
                 Some(product.left)
             } else {
                 None
             };
             if let Some(factor) = factor
-                && field_is_unsigned(program, definition, field)
+                && field_is_unsigned(program, definition, field_symbol)
                 && let Some(factor_low) = factor_lower_bound(program, definition, factor)
                 && factor_low >= 1
                 && let Some(bound) = bound_source_interval(program, definition, binary.right, depth)
@@ -118,9 +124,9 @@ fn field_fact_interval(
                 continue;
             }
         }
-        let (field_side_left, other) = if side_names_field(program, binary.left, field) {
+        let (field_side_left, other) = if side_selects_field(program, binary.left, field_symbol) {
             (true, binary.right)
-        } else if side_names_field(program, binary.right, field) {
+        } else if side_selects_field(program, binary.right, field_symbol) {
             (false, binary.left)
         } else {
             continue;
@@ -266,30 +272,7 @@ fn field_intervals(
             conjuncts.extend([binary.left, binary.right]);
             continue;
         }
-        let rows = if let Some(bounds) =
-            field_literal_bounds(program, fields, &[ProofFact::Expression(conjunct)])
-        {
-            bounds
-                .into_iter()
-                .map(|bound| {
-                    // Floats retain their own literal/carrier judgment; they are
-                    // never replaced by an integer interval.
-                    let value = program.expression_table.integer_node(bound.literal)?;
-                    let bound_value = i64::try_from(value.decimal_value_i128()?).ok()?;
-                    let (low, high) = match bound.operator {
-                        BinaryOperator::LessOrEqual => (None, Some(bound_value)),
-                        BinaryOperator::Less => (None, Some(bound_value.checked_sub(1)?)),
-                        BinaryOperator::GreaterOrEqual => (Some(bound_value), None),
-                        BinaryOperator::Greater => (Some(bound_value.checked_add(1)?), None),
-                        BinaryOperator::Equal => (Some(bound_value), Some(bound_value)),
-                        _ => return None,
-                    };
-                    Some((bound.field, Interval { low, high }))
-                })
-                .collect::<Option<Vec<_>>>()?
-        } else {
-            exact_predicate_field_intervals(program, fields, owner, conjunct)?
-        };
+        let rows = conjunct_field_intervals(program, fields, owner, conjunct)?;
         for (field, stated) in rows {
             match intervals.iter_mut().find(|(symbol, _)| *symbol == field) {
                 Some((_, interval)) => *interval = interval.intersect(stated),
@@ -302,6 +285,80 @@ fn field_intervals(
             .into_iter()
             .map(|(symbol, interval)| (symbol, interval.low, interval.high))
             .collect(),
+    )
+}
+
+fn conjunct_field_intervals(
+    program: &dyn crate::CheckingInput,
+    fields: &[&DataField],
+    owner: symbols::SymbolHandle,
+    conjunct: ExpressionHandle,
+) -> Option<Vec<(symbols::SymbolHandle, Interval)>> {
+    if let Some(bounds) = field_literal_bounds(program, fields, &[ProofFact::Expression(conjunct)])
+    {
+        bounds
+            .into_iter()
+            .map(|bound| {
+                if !literal_comparison_has_builtin_meaning(program, fields, owner, bound) {
+                    return None;
+                }
+                // Floats retain their own literal/carrier judgment; they are
+                // never replaced by an integer interval.
+                let value = program.expression_table.integer_node(bound.literal)?;
+                let bound_value = i64::try_from(value.decimal_value_i128()?).ok()?;
+                let (low, high) = match bound.operator {
+                    BinaryOperator::LessOrEqual => (None, Some(bound_value)),
+                    BinaryOperator::Less => (None, Some(bound_value.checked_sub(1)?)),
+                    BinaryOperator::GreaterOrEqual => (Some(bound_value), None),
+                    BinaryOperator::Greater => (Some(bound_value.checked_add(1)?), None),
+                    BinaryOperator::Equal => (Some(bound_value), Some(bound_value)),
+                    _ => return None,
+                };
+                Some((bound.field, Interval { low, high }))
+            })
+            .collect()
+    } else {
+        exact_predicate_field_intervals(program, fields, owner, conjunct)
+    }
+}
+
+fn literal_comparison_has_builtin_meaning(
+    program: &dyn crate::CheckingInput,
+    fields: &[&DataField],
+    owner: symbols::SymbolHandle,
+    bound: FieldLiteralBound,
+) -> bool {
+    use language_core::OperatorSpelling;
+
+    let Some(field) = fields.iter().find(|field| field.symbol == bound.field) else {
+        return false;
+    };
+    let Some(binary) = program.expression_table.binary_node(bound.conjunct) else {
+        return false;
+    };
+    let spelling = match binary.operator {
+        BinaryOperator::Less => OperatorSpelling::Less,
+        BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
+        BinaryOperator::Greater => OperatorSpelling::Greater,
+        BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
+        BinaryOperator::Equal => OperatorSpelling::Equal,
+        _ => return false,
+    };
+    // Keep declared qualifications in overload lookup. An unstamped anonymous
+    // literal is unknown, never an assumed copy of the opposite field's type.
+    let field_type = Some(field.type_reference);
+    let literal_type = crate::landed_integer_literal_type_reference(program, bound.literal);
+    let operands = if side_selects_field(program, binary.left, field.symbol) {
+        [field_type, literal_type]
+    } else {
+        [literal_type, field_type]
+    };
+    typed_trees::operator::has_builtin_spelled_expression_meaning(
+        program,
+        owner,
+        bound.conjunct,
+        spelling,
+        &operands,
     )
 }
 
@@ -372,22 +429,99 @@ pub(crate) struct FieldLiteralBound {
     pub(crate) conjunct: ExpressionHandle,
 }
 
-/// The conjuncts of a data declaration's `where` facts when every one compares
-/// one of its own fields with an integer or float literal. Such a conjunction
-/// constrains each field independently, so the declaration's valid values are
-/// exactly the product of its fields' bounded sets. `None` when any conjunct
-/// relates two fields or has another shape; an empty list when the data states
-/// no facts.
-pub(crate) fn data_where_field_literal_bounds(
+/// Complete field bounds for representation validity. Integer rows carry the
+/// shared, independently equivalent predicate envelope; IEEE rows retain the
+/// authored comparison for its exact carrier/selected-meaning judgment.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum FieldRepresentationBound {
+    Integer {
+        field: symbols::SymbolHandle,
+        minimum: Option<i64>,
+        maximum: Option<i64>,
+        conjunct: ExpressionHandle,
+    },
+    FloatLiteral(FieldLiteralBound),
+}
+
+impl FieldRepresentationBound {
+    pub(crate) fn field(self) -> symbols::SymbolHandle {
+        match self {
+            Self::Integer { field, .. } => field,
+            Self::FloatLiteral(bound) => bound.field,
+        }
+    }
+
+    pub(crate) fn conjunct(self) -> ExpressionHandle {
+        match self {
+            Self::Integer { conjunct, .. } => conjunct,
+            Self::FloatLiteral(bound) => bound.conjunct,
+        }
+    }
+}
+
+/// Normalize the whole default domain before a representation consumer can
+/// retire its predicates. Every conjunct must describe independent own-field
+/// sets; a useful consequence of an unsupported stronger clause is insufficient.
+pub(crate) fn data_where_field_representation_bounds(
     program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
-) -> Option<Vec<FieldLiteralBound>> {
+) -> Option<Vec<FieldRepresentationBound>> {
+    use typed_trees::types::PrimitiveType;
+
     let fields = declared_data_fields(program, definition);
-    field_literal_bounds(
-        program,
-        &fields,
-        program.proof_facts.span_or_empty(definition.where_facts),
-    )
+    let mut conjuncts = program
+        .proof_facts
+        .span_or_empty(definition.where_facts)
+        .iter()
+        .map(|fact| fact.as_expression().copied())
+        .collect::<Option<Vec<_>>>()?;
+    let mut normalized = Vec::new();
+    while let Some(conjunct) = conjuncts.pop() {
+        if let Some(binary) = program.expression_table.binary_node(conjunct)
+            && binary.operator == BinaryOperator::And
+        {
+            // Conjunction is sealed; no authored implementation can replace it.
+            conjuncts.extend([binary.left, binary.right]);
+            continue;
+        }
+        if let Some(bounds) =
+            field_literal_bounds(program, &fields, &[ProofFact::Expression(conjunct)])
+            && bounds.iter().all(|bound| {
+                fields
+                    .iter()
+                    .find(|field| field.symbol == bound.field)
+                    .and_then(|field| program.primitive_type_reference(field.type_reference))
+                    .is_some_and(|primitive| {
+                        matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
+                    })
+            })
+        {
+            normalized.extend(
+                bounds
+                    .into_iter()
+                    .map(FieldRepresentationBound::FloatLiteral),
+            );
+            continue;
+        }
+        for (field, interval) in
+            conjunct_field_intervals(program, &fields, definition.symbol, conjunct)?
+        {
+            let declaration = fields.iter().find(|candidate| candidate.symbol == field)?;
+            if !program
+                .primitive_type_reference(declaration.type_reference)?
+                .accepts_integer_literal()
+            {
+                return None;
+            }
+            normalized.push(FieldRepresentationBound::Integer {
+                field,
+                minimum: interval.low,
+                maximum: interval.high,
+                conjunct,
+            });
+        }
+    }
+    Some(normalized)
 }
 
 fn field_literal_bounds(
@@ -418,7 +552,7 @@ fn field_literal_bounds(
         let field_named = |expression| {
             fields
                 .iter()
-                .find(|field| side_names_field(program, expression, field.name.as_str()))
+                .find(|field| side_selects_field(program, expression, field.symbol))
         };
         let (field, literal, field_on_left) = match (
             field_named(binary.left),
@@ -527,19 +661,16 @@ pub(crate) fn stored_field_where_interval(
         .map(|(_, low, high)| Interval { low, high })
 }
 
-fn side_names_field(
+fn side_selects_field(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
-    field: &str,
+    field: symbols::SymbolHandle,
 ) -> bool {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Name(path) => program
+    field.is_valid()
+        && program
             .expression_table
-            .name_path_members(path.members)
-            .last()
-            .is_some_and(|member| member.as_str() == field),
-        _ => false,
-    }
+            .name_path_node(expression)
+            .is_some_and(|path| path.symbol == field)
 }
 
 /// The bound-supplying side's SOUND interval: a literal is itself; a
@@ -562,18 +693,16 @@ fn bound_source_interval(
             })
         }
         ExpressionNode::Name(path) => {
-            let name = program
-                .expression_table
-                .name_path_members(path.members)
-                .last()?;
-            let handle = crate::declarations::data_queries::data_field_named(
+            let field = program
+                .data_members(definition)
+                .iter()
+                .filter_map(|member| member.as_field())
+                .find(|field| field.symbol.is_valid() && field.symbol == path.symbol)?;
+            crate::proof_contracts::arithmetic_domains::range_constraint_interval(
                 program,
-                definition,
-                name.clone(),
+                field.type_reference,
             )
-            .map(|field| field.type_reference)?;
-            crate::proof_contracts::arithmetic_domains::range_constraint_interval(program, handle)
-                .or_else(|| field_fact_interval(program, definition, name.as_str(), depth + 1))
+            .or_else(|| field_fact_interval(program, definition, field.name.as_str(), depth + 1))
         }
         _ => None,
     }
@@ -584,14 +713,14 @@ fn bound_source_interval(
 fn field_is_unsigned(
     program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
-    field: &str,
+    field: symbols::SymbolHandle,
 ) -> bool {
     program
         .data_members(definition)
         .iter()
         .find_map(|member| match member {
             typed_trees::data::DataMember::Field(data_field)
-                if data_field.name.as_str() == field =>
+                if data_field.symbol.is_valid() && data_field.symbol == field =>
             {
                 program.primitive_type_reference(data_field.type_reference)
             }
@@ -613,11 +742,12 @@ fn factor_lower_bound(
     factor: ExpressionHandle,
 ) -> Option<i64> {
     let path = program.expression_table.name_path_node(factor)?;
-    let factor_name = program
-        .expression_table
-        .name_path_members(path.members)
-        .last()?
-        .as_str();
+    let factor_symbol = program
+        .data_members(definition)
+        .iter()
+        .filter_map(|member| member.as_field())
+        .find(|field| field.symbol.is_valid() && field.symbol == path.symbol)?
+        .symbol;
     if let Some(interval) = bound_source_interval(program, definition, factor, 4)
         && let Some(low) = interval.low
     {
@@ -632,18 +762,20 @@ fn factor_lower_bound(
         };
         let bound = match binary.operator {
             BinaryOperator::GreaterOrEqual
-                if side_names_field(program, binary.left, factor_name) =>
+                if side_selects_field(program, binary.left, factor_symbol) =>
             {
                 integer_literal_value(program, binary.right).map(|value| value as i64)
             }
-            BinaryOperator::Greater if side_names_field(program, binary.left, factor_name) => {
+            BinaryOperator::Greater if side_selects_field(program, binary.left, factor_symbol) => {
                 integer_literal_value(program, binary.right)
                     .map(|value| (value as i64).saturating_add(1))
             }
-            BinaryOperator::LessOrEqual if side_names_field(program, binary.right, factor_name) => {
+            BinaryOperator::LessOrEqual
+                if side_selects_field(program, binary.right, factor_symbol) =>
+            {
                 integer_literal_value(program, binary.left).map(|value| value as i64)
             }
-            BinaryOperator::Less if side_names_field(program, binary.right, factor_name) => {
+            BinaryOperator::Less if side_selects_field(program, binary.right, factor_symbol) => {
                 integer_literal_value(program, binary.left)
                     .map(|value| (value as i64).saturating_add(1))
             }

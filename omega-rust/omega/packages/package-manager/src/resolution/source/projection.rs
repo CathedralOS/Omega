@@ -1,9 +1,9 @@
 use super::{ResolvePackageSourceError, SourceRootRole};
-use crate::declarations::PackageName;
 use crate::declarations::dependencies::read::{
     DependencyProjectionError, DependencyProjections, extract_build_dependency_projection,
 };
-use crate::declarations::roles::{BuildDeclaration, BuildDeclarationError, BuildDeclarationKind};
+use crate::declarations::{BuildDeclarationError, BuildDeclarationKind, PackageName};
+use build_declarations::BuildDeclaration;
 use std::path::Path;
 
 /// The identity-bearing declaration projected from one selected source root.
@@ -65,13 +65,13 @@ fn project_build_projection(
     let (declaration, dependencies) = projection.into_parts();
     match declaration {
         BuildDeclaration::Package(package) => Ok(ProjectedPackageBuild {
-            name: package.name,
+            name: PackageName::from(package.name),
             role: BuildDeclarationKind::Package,
             dependencies,
         }),
         BuildDeclaration::Application(application) if role.allows_application_root() => {
             Ok(ProjectedPackageBuild {
-                name: application.name,
+                name: PackageName::from(application.name),
                 role: BuildDeclarationKind::Application,
                 dependencies,
             })

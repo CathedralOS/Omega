@@ -4,7 +4,7 @@
 //! original bits because proof meaning deliberately forgets NaN payloads.
 
 use crate::errors::{TerminalInterpretError, malformed};
-use crate::execution::{OperationFlow, TerminalExecution};
+use crate::execution::{OperationFlow, TerminalExecution, operation_kind};
 use crate::results::TerminalExecutionStatus;
 use crate::values::TerminalScalarValue;
 use numerics::float_semantics::{FloatFormat, FloatMeaning, FloatSemantics};
@@ -37,9 +37,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::FloatResultPolicy { policy } = &operation.kind else {
-            return Err(malformed());
-        };
+        operation_kind!(operation => FloatResultPolicy { policy });
         let Some(result) = operation.result.scalar_ref() else {
             return Err(malformed());
         };

@@ -1,134 +1,121 @@
-//! The complete semantic scalar roster of a finite record/array storage. Paths
-//! retain every containing field identity; layout recipes supply placement,
-//! never the missing type or authority. References, atomic storage and other
-//! carrier families need their own codecs rather than scalar-width guesses.
+//! The complete semantic scalar roster of finite record/array storage. Schema
+//! validation is declaration-sized, including children beneath zero dimensions;
+//! instance enumeration visits only branches with actual scalar leaves. Paths
+//! retain every containing field identity. Layout recipes supply placement,
+//! never missing types or authority. References, atomics and other carriers
+//! retain their independent codec requirements.
+
+mod schema;
 
 use super::original_homes::rejection;
+use schema::{Element, Schema, Shape};
 use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, ScalarType, StructuralTypeId};
 use terminal_interpreter::{TerminalEffectRejection, TerminalProgram};
-use terminal_psi::{
-    StructuralFieldDeclaration, StructuralFieldType, StructuralRecordStorage, StructuralTypeShape,
-};
 
 pub(super) struct SemanticScalarField {
     pub path: Vec<Path>,
     pub logical: ScalarType,
 }
 
-enum Visit<'declaration> {
-    Type(StructuralTypeId),
-    Field(&'declaration StructuralFieldDeclaration),
-    Element(StructuralTypeId, u64),
-    LeaveType,
-    LeaveField,
+enum Visit {
+    Node(usize),
+    Field(Path, usize),
+    Scalar(Path, ScalarType),
+    Element {
+        node: usize,
+        index: u64,
+        length: u64,
+    },
+    Pop,
 }
 
 pub(super) fn scalar_fields(
     program: &TerminalProgram,
     structural_type: StructuralTypeId,
 ) -> Result<Vec<SemanticScalarField>, TerminalEffectRejection> {
-    let mut pending = vec![Visit::Type(structural_type)];
-    let mut active = Vec::new();
-    let mut path = Vec::new();
+    let schema = Schema::derive(program, structural_type)?;
     let mut output = Vec::new();
+    output
+        .try_reserve_exact(schema.leaves)
+        .map_err(|_| rejection("native semantic scalar roster exceeds available output storage"))?;
+    let mut pending = vec![Visit::Node(schema.root)];
+    let mut path = Vec::new();
     while let Some(visit) = pending.pop() {
         match visit {
-            Visit::Type(identity) => {
-                if active.contains(&identity) {
-                    return Err(rejection(
-                        "native embedded record has cyclic semantic storage",
-                    ));
+            Visit::Node(index) => {
+                let node = &schema.nodes[index];
+                if node.is_empty() {
+                    continue;
                 }
-                let declaration = program.structural_type(identity).ok_or_else(|| {
-                    rejection("native embedded record has no semantic declaration")
-                })?;
-                if declaration.quotient_carrier.is_some() {
-                    return Err(rejection("native import needs its exact quotient codec"));
-                }
-                match &declaration.shape {
-                    StructuralTypeShape::PrimitiveScalar(logical) => {
-                        output.push(SemanticScalarField {
-                            path: path.clone(),
-                            logical: *logical,
-                        });
-                    }
-                    StructuralTypeShape::Record { fields, storage } => {
-                        if matches!(
-                            storage,
-                            StructuralRecordStorage::PlacedView(_)
-                                | StructuralRecordStorage::PlacedAccessor(_)
-                                | StructuralRecordStorage::TargetLayout(_)
-                        ) {
-                            return Err(rejection(
-                                "native record codec is not resolved ordinary storage",
-                            ));
+                match node.shape()? {
+                    Shape::Scalar(logical) => output.push(SemanticScalarField {
+                        path: path.clone(),
+                        logical: *logical,
+                    }),
+                    Shape::Record(fields) => {
+                        for (identity, element) in fields.iter().rev() {
+                            let segment = Path::Field(*identity);
+                            match element {
+                                Element::Scalar(logical) => {
+                                    pending.push(Visit::Scalar(segment, *logical));
+                                }
+                                Element::Structural(child) => {
+                                    if !schema.nodes[*child].is_empty() {
+                                        pending.push(Visit::Field(segment, *child));
+                                    }
+                                }
+                            }
                         }
-                        active.push(identity);
-                        pending.push(Visit::LeaveType);
-                        pending.extend(
-                            fields
-                                .iter()
-                                .rev()
-                                .filter(|field| !field.relevance.is_erased())
-                                .map(Visit::Field),
-                        );
                     }
-                    StructuralTypeShape::FixedArray { element, length } => {
-                        active.push(identity);
-                        pending.push(Visit::LeaveType);
-                        pending.extend(
-                            (0..*length)
-                                .rev()
-                                .map(|index| Visit::Element(*element, index)),
-                        );
-                    }
-                    _ => {
-                        return Err(rejection(
-                            "native embedded field needs a supported materialized record codec",
-                        ));
+                    Shape::Array { element, length } => {
+                        pending.push(Visit::Element {
+                            node: *element,
+                            index: 0,
+                            length: *length,
+                        });
                     }
                 }
             }
-            Visit::Field(field) => {
-                path.push(Path::Field(field.id));
-                pending.push(Visit::LeaveField);
-                let logical = match field.field_type {
-                    StructuralFieldType::Scalar(scalar) => scalar,
-                    StructuralFieldType::BoundedInteger(bounds) => {
-                        ScalarType::Integer(bounds.integer_type())
-                    }
-                    StructuralFieldType::RefinedScalar(ref refinement) => refinement.carrier(),
-                    StructuralFieldType::IeeeFloat(format) => ScalarType::IeeeFloat(format),
-                    StructuralFieldType::Structural(child) => {
-                        pending.push(Visit::Type(child));
-                        continue;
-                    }
-                    _ => {
-                        return Err(rejection(
-                            "native record field needs its exact non-scalar storage codec",
-                        ));
-                    }
-                };
+            Visit::Field(segment, child) => {
+                path.push(segment);
+                pending.push(Visit::Pop);
+                pending.push(Visit::Node(child));
+            }
+            Visit::Scalar(segment, logical) => {
+                path.push(segment);
                 output.push(SemanticScalarField {
                     path: path.clone(),
                     logical,
                 });
+                path.pop();
             }
-            Visit::Element(element, index) => {
-                path.push(Path::FixedIndex(index));
-                pending.push(Visit::LeaveField);
-                pending.push(Visit::Type(element));
+            Visit::Element {
+                node,
+                index,
+                length,
+            } => {
+                if index < length {
+                    pending.push(Visit::Element {
+                        node,
+                        index: index + 1,
+                        length,
+                    });
+                    path.push(Path::FixedIndex(index));
+                    pending.push(Visit::Pop);
+                    pending.push(Visit::Node(node));
+                }
             }
-            Visit::LeaveType => {
-                active.pop().ok_or_else(|| {
-                    rejection("native record lost its containing semantic declaration")
+            Visit::Pop => {
+                path.pop().ok_or_else(|| {
+                    rejection("native scalar roster lost its containing semantic path")
                 })?;
             }
-            Visit::LeaveField => {
-                path.pop()
-                    .ok_or_else(|| rejection("native record lost its containing semantic field"))?;
-            }
         }
+    }
+    if output.len() != schema.leaves {
+        return Err(rejection(
+            "native scalar roster differs from its complete schema",
+        ));
     }
     Ok(output)
 }
