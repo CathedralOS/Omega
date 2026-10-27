@@ -165,10 +165,6 @@ pub enum DeadCompareError {
     ReplayMismatch,
 }
 
-impl std::fmt::Display for DeadCompareError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid dead-compare removal: {self:?}")
-    }
-}
+failed_display!(DeadCompareError, "invalid dead-compare removal");
 
 impl std::error::Error for DeadCompareError {}

@@ -135,11 +135,7 @@ pub enum CopyRemovalError {
     ReplayMismatch,
 }
 
-impl std::fmt::Display for CopyRemovalError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid copy removal: {self:?}")
-    }
-}
+failed_display!(CopyRemovalError, "invalid copy removal");
 
 impl std::error::Error for CopyRemovalError {}
 

@@ -150,10 +150,6 @@ pub enum RedundantCompareError {
     ReplayMismatch,
 }
 
-impl std::fmt::Display for RedundantCompareError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid redundant-compare removal: {self:?}")
-    }
-}
+failed_display!(RedundantCompareError, "invalid redundant-compare removal");
 
 impl std::error::Error for RedundantCompareError {}

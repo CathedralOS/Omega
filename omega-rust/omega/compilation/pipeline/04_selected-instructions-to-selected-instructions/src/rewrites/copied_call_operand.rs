@@ -217,10 +217,6 @@ pub enum CopiedCallOperandError {
     ReplayMismatch,
 }
 
-impl std::fmt::Display for CopiedCallOperandError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid copied call operand fold: {self:?}")
-    }
-}
+failed_display!(CopiedCallOperandError, "invalid copied call operand fold");
 
 impl std::error::Error for CopiedCallOperandError {}

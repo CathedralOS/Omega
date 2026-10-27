@@ -185,10 +185,6 @@ pub enum ConstantBranchError {
     ReplayMismatch,
 }
 
-impl std::fmt::Display for ConstantBranchError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid constant branch fold: {self:?}")
-    }
-}
+failed_display!(ConstantBranchError, "invalid constant branch fold");
 
 impl std::error::Error for ConstantBranchError {}

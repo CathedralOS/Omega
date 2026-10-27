@@ -184,10 +184,6 @@ pub enum ConstantBooleanError {
     ReplayMismatch,
 }
 
-impl std::fmt::Display for ConstantBooleanError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid constant boolean fold: {self:?}")
-    }
-}
+failed_display!(ConstantBooleanError, "invalid constant boolean fold");
 
 impl std::error::Error for ConstantBooleanError {}

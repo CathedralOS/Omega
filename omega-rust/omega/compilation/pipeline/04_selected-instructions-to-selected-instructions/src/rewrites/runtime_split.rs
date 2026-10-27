@@ -103,11 +103,7 @@ impl RuntimeSplitError {
     }
 }
 
-impl std::fmt::Display for RuntimeSplitError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid runtime live-range split: {self:?}")
-    }
-}
+failed_display!(RuntimeSplitError, "invalid runtime live-range split");
 
 impl std::error::Error for RuntimeSplitError {}
 

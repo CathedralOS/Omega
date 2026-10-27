@@ -157,10 +157,6 @@ pub enum EquivalentCompareError {
     ReplayMismatch,
 }
 
-impl std::fmt::Display for EquivalentCompareError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid equivalent-compare removal: {self:?}")
-    }
-}
+failed_display!(EquivalentCompareError, "invalid equivalent-compare removal");
 
 impl std::error::Error for EquivalentCompareError {}

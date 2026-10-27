@@ -140,10 +140,6 @@ pub enum AddressFoldError {
     ReplayMismatch,
 }
 
-impl std::fmt::Display for AddressFoldError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid address fold: {self:?}")
-    }
-}
+failed_display!(AddressFoldError, "invalid address fold");
 
 impl std::error::Error for AddressFoldError {}

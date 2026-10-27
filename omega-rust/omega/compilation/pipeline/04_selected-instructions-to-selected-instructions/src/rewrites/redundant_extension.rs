@@ -137,10 +137,9 @@ pub enum RedundantExtensionError {
     ReplayMismatch,
 }
 
-impl std::fmt::Display for RedundantExtensionError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid redundant-extension removal: {self:?}")
-    }
-}
+failed_display!(
+    RedundantExtensionError,
+    "invalid redundant-extension removal"
+);
 
 impl std::error::Error for RedundantExtensionError {}
