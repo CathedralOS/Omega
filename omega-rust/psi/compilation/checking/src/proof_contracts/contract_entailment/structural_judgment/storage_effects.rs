@@ -214,6 +214,69 @@ fn expression_exposure_path(
 }
 
 impl StructuralJudge<'_> {
+    /// Rebase only live observed cells from authenticated actual referents.
+    /// A callee entry snapshot is the current value at this arrival, never the
+    /// caller's earlier entry epoch. Frozen selectors were captured before
+    /// clearing expression-local caches. Ambiguous origins donate no cells.
+    pub(super) fn enter_storage_scope(
+        &mut self,
+        entry: &State,
+        subjects: &[crate::machine_calls::calls::InvocationEntrySubject],
+        bindings: &[(SymbolHandle, super::StructuralTerm)],
+    ) {
+        let mut values = Vec::new();
+        for subject in subjects {
+            let Some(source) = self.captured_reference_subject(subject) else {
+                continue;
+            };
+            for stored in self.stored_values.iter() {
+                if stored.coordinate.root != source.root {
+                    continue;
+                }
+                let Some(suffix) = stored
+                    .coordinate
+                    .segments
+                    .strip_prefix(source.segments.as_slice())
+                else {
+                    continue;
+                };
+                let Some(current) = stored.current.clone() else {
+                    continue;
+                };
+                values.push(CapturedStorageValue {
+                    coordinate: CapturedStorageCoordinate {
+                        root: facts::PlaceRoot::Symbol(subject.parameter),
+                        segments: suffix.to_vec(),
+                    },
+                    entry: Some(current.clone()),
+                    current: Some(current),
+                    completed_read: None,
+                });
+            }
+        }
+        self.stored_values = std::sync::Arc::new(values);
+        self.invalidated_storage = std::sync::Arc::new(Vec::new());
+        self.storage_exposures = std::sync::Arc::new(StorageExposureRecord::default());
+        for parameter in self.program.state_parameters(entry) {
+            if crate::reference_shell(self.program, parameter.type_reference).is_some() {
+                continue;
+            }
+            if let Some((_, value)) = bindings
+                .iter()
+                .find(|(symbol, _)| *symbol == parameter.symbol)
+            {
+                self.retain_storage_value(
+                    CapturedStorageCoordinate {
+                        root: facts::PlaceRoot::Symbol(parameter.symbol),
+                        segments: Vec::new(),
+                    },
+                    value.clone(),
+                    true,
+                );
+            }
+        }
+    }
+
     pub(in crate::proof_contracts::contract_entailment) fn observe_storage_writes(
         &mut self,
         state: &State,
@@ -449,7 +512,7 @@ impl StructuralJudge<'_> {
 
     pub(super) fn captured_reference_subject(
         &self,
-        subject: &crate::machine_calls::calls::InvocationReferenceSubject,
+        subject: &crate::machine_calls::calls::InvocationEntrySubject,
     ) -> Option<CapturedStorageCoordinate> {
         // A finite origin join authorizes an entry observation, not one
         // physical write destination. No selected payload identifies an alias.
@@ -1074,16 +1137,7 @@ impl StructuralJudge<'_> {
         if frames.value_is_reference_free(reference) {
             return true;
         }
-        let Some(machine) = self.program.machine(self.machine_symbol) else {
-            return false;
-        };
-        let state = if self.declaration_state.is_valid() {
-            self.program
-                .state_in_machine(machine, self.declaration_state)
-        } else {
-            self.program.machine_states(machine).first()
-        };
-        let Some(state) = state else {
+        let Some((_, state)) = self.runtime_declaration_scope() else {
             return false;
         };
         self.program

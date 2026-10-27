@@ -1979,7 +1979,7 @@ impl<'program> StructuralJudge<'program> {
 
     pub(in crate::proof_contracts::contract_entailment) fn reference_subject_term(
         &self,
-        subject: &crate::machine_calls::calls::InvocationReferenceSubject,
+        subject: &crate::machine_calls::calls::InvocationEntrySubject,
         actual: &StructuralTerm,
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
@@ -2296,26 +2296,16 @@ impl<'program> StructuralJudge<'program> {
             .iter()
             .zip(actuals)
             .filter_map(|(parameter, value)| {
-                let value = if crate::reference_shell(program, parameter.type_reference).is_some() {
-                    super::super::structural_terms::reference_argument_observation(
-                        program,
-                        parameter.type_reference,
-                        value,
+                let subject = subjects
+                    .as_ref()
+                    .and_then(|subjects| {
                         subjects
-                            .as_ref()
-                            .and_then(|subjects| {
-                                subjects
-                                    .iter()
-                                    .find(|subject| subject.parameter == parameter.symbol)
-                            })
-                            .and_then(|subject| {
-                                self.reference_subject_term(subject, value, environment, scope)
-                            }),
-                    )?
-                } else {
-                    self.owned_argument_observation(parameter.type_reference, value)?
-                };
-                Some((parameter.symbol, value))
+                            .iter()
+                            .find(|subject| subject.entry.parameter == parameter.symbol)
+                    })
+                    .map(|subject| &subject.entry);
+                self.entry_argument_value(parameter, value, subject, environment, scope)
+                    .map(|value| (parameter.symbol, value))
             })
             .collect::<Vec<_>>();
         // One authenticated telescope supplies closed constants and completed
@@ -2363,7 +2353,7 @@ impl<'program> StructuralJudge<'program> {
                         (!parameter.is_mutable).then(|| value.clone())?
                     } else if subjects.as_ref().is_some_and(|subjects| {
                         subjects.iter().any(|subject| {
-                            subject.parameter == *symbol && subject.preserved_on_return
+                            subject.entry.parameter == *symbol && subject.preserved_on_return
                         })
                     }) {
                         value.clone()
@@ -2392,7 +2382,7 @@ impl<'program> StructuralJudge<'program> {
             if subject.preserved_on_return || !subject.stable_on_return {
                 continue;
             }
-            let Some(coordinate) = self.captured_reference_subject(subject) else {
+            let Some(coordinate) = self.captured_reference_subject(&subject.entry) else {
                 continue;
             };
             self.capture_sequence += 1;
@@ -2400,14 +2390,14 @@ impl<'program> StructuralJudge<'program> {
                 expression,
                 callable: owner_symbol(&owner),
                 occurrence: self.capture_sequence,
-                result_type: subject.type_reference,
+                result_type: subject.entry.type_reference,
             };
             let mut observed = if program
-                .primitive_type_reference(subject.type_reference)
+                .primitive_type_reference(subject.entry.type_reference)
                 .is_some()
             {
                 StructuralTerm::ObservedValue {
-                    observed_type: subject.type_reference,
+                    observed_type: subject.entry.type_reference,
                     descriptor: None,
                     value: Box::new(value.clone()),
                 }
@@ -2416,14 +2406,14 @@ impl<'program> StructuralJudge<'program> {
             };
             // The normal boundary restores declared predicates on these fresh
             // returned contents; retired pre-call observations supply none.
-            self.intake_admitted_value_predicates(subject.type_reference, value.clone());
+            self.intake_admitted_value_predicates(subject.entry.type_reference, value.clone());
             if let Some(parameter) = parameters.iter().find(|parameter| {
-                parameter.symbol == subject.parameter
+                parameter.symbol == subject.entry.parameter
                     && !parameter.is_mutable
                     && crate::slice_view_shell(program, parameter.type_reference, &[]).is_some()
             }) && let Some((_, descriptor)) = entry_bindings
                 .iter()
-                .find(|(symbol, _)| *symbol == subject.parameter)
+                .find(|(symbol, _)| *symbol == subject.entry.parameter)
             {
                 observed = super::super::structural_terms::reference_argument_observation(
                     program,
@@ -2437,11 +2427,11 @@ impl<'program> StructuralJudge<'program> {
             // post-call observation with an earlier same-symbol entry value.
             if let Some((_, current)) = bindings
                 .iter_mut()
-                .find(|(symbol, _)| *symbol == subject.parameter)
+                .find(|(symbol, _)| *symbol == subject.entry.parameter)
             {
                 *current = observed;
             } else {
-                bindings.push((subject.parameter, observed));
+                bindings.push((subject.entry.parameter, observed));
             }
             post_storage.push((coordinate, value));
         }

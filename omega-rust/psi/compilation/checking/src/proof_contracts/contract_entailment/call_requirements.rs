@@ -569,7 +569,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                     return;
                 };
                 judge.frame_resolver().and_then(|frames| {
-                    frames.expression_call_reference_subjects(
+                    frames.expression_entry_reference_subjects(
                         owner_machine,
                         self.call_expression,
                         self.parameters,

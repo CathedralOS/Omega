@@ -9,6 +9,7 @@ use typed_trees::types::TypeReferenceHandle;
 
 mod domain_premises;
 mod integer_predicates;
+mod invocation_entry;
 mod licenses;
 pub(super) mod normal_returns;
 mod returned_fields;
@@ -859,6 +860,20 @@ impl<'program> StructuralJudge<'program> {
         judge
     }
 
+    fn runtime_declaration_scope(
+        &self,
+    ) -> Option<(&'program Machine, &'program typed_trees::state::State)> {
+        if self.declaration_state.is_valid() {
+            crate::machine_calls::calls::machine_state_by_symbol(
+                self.program,
+                self.declaration_state,
+            )
+        } else {
+            let machine = self.program.machine(self.machine_symbol)?;
+            Some((machine, self.program.machine_states(machine).first()?))
+        }
+    }
+
     fn declaration_scope(
         &self,
     ) -> Option<(SymbolHandle, &[typed_trees::signature::StateParameter])> {
@@ -868,27 +883,15 @@ impl<'program> StructuralJudge<'program> {
         if !self.runtime_body_values {
             return Some((self.machine_symbol, &self.declaration_parameters));
         }
-        let Some(machine) = self.program.machine(self.machine_symbol) else {
+        let Some((machine, state)) = self.runtime_declaration_scope() else {
             return Some((self.machine_symbol, &self.declaration_parameters));
-        };
-        let state = if self.declaration_state.is_valid() {
-            self.program
-                .state_in_machine(machine, self.declaration_state)?
-        } else {
-            self.program.machine_states(machine).first()?
         };
         Some((machine.symbol, self.program.state_parameters(state)))
     }
 
     fn declaration_term(&self, expression: ExpressionHandle) -> Option<StructuralTerm> {
         if self.requires_value_preservation() {
-            let machine = self.program.machine(self.machine_symbol)?;
-            let state = if self.declaration_state.is_valid() {
-                self.program
-                    .state_in_machine(machine, self.declaration_state)?
-            } else {
-                self.program.machine_states(machine).first()?
-            };
+            let (machine, state) = self.runtime_declaration_scope()?;
             let mut environment = self
                 .program
                 .state_parameters(state)
@@ -2132,9 +2135,10 @@ impl<'program> StructuralJudge<'program> {
             environment,
             StaticObservations {
                 machine_bindings: &[],
-                body_parameters: if scope
-                    .is_some_and(|(machine, _, _)| machine.symbol == self.machine_symbol)
-                {
+                body_parameters: if scope.is_some_and(|(machine, _, _)| {
+                    self.runtime_declaration_scope()
+                        .is_some_and(|(owner, _)| machine.symbol == owner.symbol)
+                }) {
                     self.body_type_parameters
                 } else {
                     &[]
