@@ -34,7 +34,8 @@ use crate::component_description::{
     InstallationObligation, InstallationServiceBound, MAX_COMPONENT_DESCRIPTION_BYTES,
     ObligationKind, OutgoingAuthority, OutgoingAuthorityClass, OutgoingEvidence, RetainedProvider,
     component_description_identity, decode_component_description_with_artifact,
-    derive_component_inventory, hex, requirement_contract_identity, requirement_export_identity,
+    derive_component_inventory, hex, identity_text, requirement_contract_identity,
+    requirement_export_identity,
 };
 
 const VERIFIED_COMPONENT_CLOSURE_DOMAIN: &[u8] = b"omega-verified-component-closure-v1";
@@ -515,11 +516,7 @@ impl VerifiedComponent {
             .installation_dependencies
             .iter()
             .map(|dependency| {
-                self.module()
-                    .identities
-                    .text(dependency.requirement_identity)
-                    .unwrap_or_default()
-                    .to_string()
+                identity_text(self.module(), dependency.requirement_identity).to_string()
             })
             .collect();
         if !unresolved.is_empty() {

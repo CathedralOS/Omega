@@ -19,7 +19,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use semantic_vocabulary::{BoundaryMachineId, MachineId, ServiceId};
-use terminal_psi::{OperationKind, TerminalModule, TerminalPsiIdentity};
+use terminal_psi::{OperationKind, TerminalIdentityIndex, TerminalModule, TerminalPsiIdentity};
 
 /// Wire magic for the canonical component-description encoding.
 const DESCRIPTION_MAGIC: &[u8; 8] = b"OMGCMPD\0";
@@ -525,6 +525,16 @@ fn canonical_entry_label(entry: terminal_psi::TargetMachineCallable) -> String {
     }
 }
 
+/// The rendered spelling of one interned identity.
+///
+/// A codec-decoded module's indices are in range, so a producer publishing an
+/// identity has no failure to report here and the fallback is the empty
+/// spelling. Every roster that names an identity reads it through this one
+/// place rather than repeating the fallback decision.
+pub(crate) fn identity_text(module: &TerminalModule, identity: TerminalIdentityIndex) -> &str {
+    module.identities.text(identity).unwrap_or_default()
+}
+
 /// Collision-resistant contract identity of the canonical entry export.
 ///
 /// The canonical entry never satisfies a demanded import — a demanded
@@ -777,22 +787,13 @@ pub(crate) fn derive_component_inventory(
         let declaration = declarations
             .get(boundary)
             .ok_or(DescribeError::UndeclaredBoundary(*boundary))?;
-        called_requirement_identities.push(
-            module
-                .identities
-                .text(declaration.identity)
-                .unwrap_or_default()
-                .to_string(),
-        );
+        called_requirement_identities.push(identity_text(module, declaration.identity).to_string());
         for schema in &declaration.program_local_root_introductions {
             custody.push(CustodyConstraint {
                 kind: CustodyKind::ProgramLocalRootIntroduction,
                 identity: format!(
                     "root-introduction:{}:{}",
-                    module
-                        .identities
-                        .text(declaration.identity)
-                        .unwrap_or_default(),
+                    identity_text(module, declaration.identity),
                     schema.argument_index,
                 ),
                 evidence: CustodyEvidence::ModuleDerived,
@@ -803,10 +804,7 @@ pub(crate) fn derive_component_inventory(
                 kind: CustodyKind::BoundaryContentGuarantee,
                 identity: format!(
                     "content-guarantee:{}:{index}",
-                    module
-                        .identities
-                        .text(declaration.identity)
-                        .unwrap_or_default()
+                    identity_text(module, declaration.identity)
                 ),
                 evidence: CustodyEvidence::ModuleDerived,
             });
@@ -822,10 +820,7 @@ pub(crate) fn derive_component_inventory(
                 "placed-view:{}:{}:{}",
                 input.machine.get(),
                 input.position,
-                module
-                    .identities
-                    .text(input.view_identity)
-                    .unwrap_or_default(),
+                identity_text(module, input.view_identity),
             ),
             evidence: CustodyEvidence::ModuleDerived,
         });
@@ -885,10 +880,7 @@ pub(crate) fn derive_component_inventory(
             bound.sort();
             bound.dedup();
             InstallationServiceBound {
-                requirement_identity: module
-                    .identities
-                    .text(dependency.requirement_identity)
-                    .unwrap_or_default()
+                requirement_identity: identity_text(module, dependency.requirement_identity)
                     .to_string(),
                 bound,
             }
@@ -910,25 +902,14 @@ pub(crate) fn derive_component_inventory(
     for candidate in &module.provider_candidates {
         export_contracts.push(ExportContract {
             identity: requirement_export_identity(
-                module
-                    .identities
-                    .text(candidate.requirement_identity)
-                    .unwrap_or_default(),
-                module
-                    .identities
-                    .text(candidate.provider_identity)
-                    .unwrap_or_default(),
-                module
-                    .identities
-                    .text(candidate.candidate_identity)
-                    .unwrap_or_default(),
+                identity_text(module, candidate.requirement_identity),
+                identity_text(module, candidate.provider_identity),
+                identity_text(module, candidate.candidate_identity),
             ),
-            contract_identity: requirement_contract_identity(
-                module
-                    .identities
-                    .text(candidate.requirement_identity)
-                    .unwrap_or_default(),
-            ),
+            contract_identity: requirement_contract_identity(identity_text(
+                module,
+                candidate.requirement_identity,
+            )),
         });
     }
     export_contracts.sort();
