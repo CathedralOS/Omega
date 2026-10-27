@@ -4066,6 +4066,7 @@ pass/facts/nested_fourteen_level_record_field_bound_through_other_state_exit bui
 pass/facts/nested_fourteen_level_record_field_bound_through_parameter_exit built 2656ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/nested_fourteen_level_record_field_bound_through_target_body_exit built 3227ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/nested_machine_invocation/ancestor_cycle built 3193ms exit:0 interpreter-exit:0 interpreter:agrees @02e7d90a49ae+wt
+pass/facts/nested_machine_invocation/attached_context built 2888ms exit:0 interpreter-exit:0 interpreter:agrees @5a04fc6149ab+wt
 pass/facts/nested_machine_invocation/borrow_context built 5394ms exit:0 interpreter-exit:0 interpreter:agrees @02e7d90a49ae+wt
 pass/facts/nested_machine_invocation/call_result built 5571ms exit:0 interpreter-exit:0 interpreter:agrees @02e7d90a49ae+wt
 pass/facts/nested_machine_invocation/callable_context built 5658ms exit:0 interpreter-exit:0 interpreter:agrees @02e7d90a49ae+wt
@@ -4073,6 +4074,7 @@ pass/facts/nested_machine_invocation/const_context built 5450ms exit:0 interpret
 pass/facts/nested_machine_invocation/const_name built 5423ms exit:0 interpreter-exit:0 interpreter:agrees @02e7d90a49ae+wt
 pass/facts/nested_machine_invocation/field built 5685ms exit:0 interpreter-exit:0 interpreter:agrees @02e7d90a49ae+wt
 pass/facts/nested_machine_invocation/generic_context built 5365ms exit:0 interpreter-exit:0 interpreter:agrees @02e7d90a49ae+wt
+pass/facts/nested_machine_invocation/inferred_crash built 5818ms exit:-1073741795 interpreter:trapped terminal-target.windows_x86_64:trap terminal-target.linux_x86_64:trap terminal-target.macos_arm64:trap terminal-target.linux_arm64:trap terminal-target-artifact:unchanged terminal-targets:match @5a04fc6149ab+wt
 pass/facts/nested_machine_invocation/local built 5599ms exit:0 interpreter-exit:0 interpreter:agrees @02e7d90a49ae+wt
 pass/facts/nested_machine_invocation/match_join built 5481ms exit:0 interpreter-exit:0 interpreter:agrees @02e7d90a49ae+wt
 pass/facts/nested_machine_invocation/other_machine built 5541ms exit:0 interpreter-exit:0 interpreter:agrees @02e7d90a49ae+wt
