@@ -2,7 +2,7 @@
 use crate::candidates::sparse_conditional_constant_propagation::literal_boolean_fact;
 use crate::candidates::{
     accept_region_rewrite, candidate_block, candidate_function, canonicalize_provenance,
-    sweep_output_nodes,
+    require_realized_rows, sweep_output_nodes,
 };
 use crate::candidates::{provenance_proven_unreachable_at, provenance_realized_at};
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
@@ -84,27 +84,7 @@ pub(super) fn validate(
     if candidate.affected_blocks() != expected_blocks {
         return Err(OptimizationUnitValidationError::CandidateReachabilityMismatch);
     }
-    if candidate.provenance().len() != accepted_provenance.len()
-        || candidate
-            .provenance()
-            .iter()
-            .zip(&accepted_provenance)
-            .any(|(actual, expected)| {
-                actual.input != expected.input
-                    || actual.disposition != expected.disposition
-                    || actual.sources != expected.sources
-            })
-    {
-        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
-    }
-    if candidate
-        .provenance()
-        .iter()
-        .zip(&accepted_provenance)
-        .any(|(actual, expected)| actual.fuel != expected.fuel)
-    {
-        return Err(OptimizationUnitValidationError::CandidateFuelMismatch);
-    }
+    require_realized_rows(candidate, &accepted_provenance)?;
     let selected_site = PsiRealizationSite::Edge {
         machine: patch.location.machine,
         edge: selected.psi_edge,

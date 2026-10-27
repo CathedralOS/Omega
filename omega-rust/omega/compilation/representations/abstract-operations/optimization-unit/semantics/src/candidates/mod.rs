@@ -286,6 +286,31 @@ pub(crate) fn sweep_output_nodes(
     Ok(())
 }
 
+/// The candidate's realized rows must be exactly the independently
+/// reconstructed roster: the same rows in the same order, each carrying the
+/// input site, disposition and sources the replay derived, and each its fuel
+/// settlement.
+pub(crate) fn require_realized_rows(
+    candidate: &PsiRewriteCandidate,
+    expected: &[ProvenanceRewrite],
+) -> Result<(), OptimizationUnitValidationError> {
+    let actual = candidate.provenance();
+    let mut paired = actual.iter().zip(expected);
+    if actual.len() != expected.len()
+        || paired.clone().any(|(actual, expected)| {
+            actual.input != expected.input
+                || actual.disposition != expected.disposition
+                || actual.sources != expected.sources
+        })
+    {
+        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
+    }
+    if paired.any(|(actual, expected)| actual.fuel != expected.fuel) {
+        return Err(OptimizationUnitValidationError::CandidateFuelMismatch);
+    }
+    Ok(())
+}
+
 /// The block's node at `node`, or CandidateLocationMissing.
 pub(crate) fn candidate_node(
     block: &optimization_unit::OptimizationBlock,
