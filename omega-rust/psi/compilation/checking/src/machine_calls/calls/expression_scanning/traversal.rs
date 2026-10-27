@@ -229,7 +229,7 @@ pub(crate) fn validate_value_position_calls(
                         }
                     }
                     TransitionTargetNode::Value(expression) => {
-                        scan_expression_calls(
+                        scan_expression_calls_at_position(
                             program,
                             machine,
                             state,
@@ -240,6 +240,7 @@ pub(crate) fn validate_value_position_calls(
                                 .first()
                                 .unwrap_or(value_environment),
                             *expression,
+                            true,
                             executes,
                             boundary_operator_applications,
                             diagnostics,

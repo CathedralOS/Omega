@@ -22,7 +22,10 @@ pub use runtime_predicates::{
 };
 mod scalar_tags;
 pub(crate) use scalar_tags::scalar_tag_constraint;
-pub use scalar_tags::{scalar_predicate_domains, scalar_type_routed_domains, scalar_type_tags};
+pub use scalar_tags::{
+    scalar_membership_is_tag, scalar_predicate_domains, scalar_type_routed_domains,
+    scalar_type_tags,
+};
 
 use crate::declarations::symbols::TopLevelSymbols;
 use crate::proof_contracts::proof_facts::{ProofFactOwner, validate_domain_fact_payloads};

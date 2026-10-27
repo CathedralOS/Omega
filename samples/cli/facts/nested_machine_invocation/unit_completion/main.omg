@@ -1,0 +1,32 @@
+// Expected exit: 0
+// A whole Unit invocation completes its caller; its static arguments and write survive.
+machine dispatch<const Expected: u64>(output: &mut u64) {
+    transition { _ -> finish<Expected>(output) }
+    machine finish<const Value: u64>(output: &mut u64) { output = Value; }
+}
+data Choice { case First; case Last; }
+machine select(output: &mut u64, count: &mut u64, choice: Choice) {
+    transition choice {
+        Choice::First -> write<13>(output, count)
+        Choice::Last -> write<31>(output, count)
+    }
+    machine write<const Value: u64>(output: &mut u64, count: &mut u64) {
+        output = Value;
+        count = ((count as u64 in Wrapping) + 1) as u64;
+    }
+}
+machine main() crashes Trap {
+    let mut output: u64 = 0;
+    dispatch<42>(&mut output);
+    let dispatched: u64 = output;
+    let mut count: u64 = 0;
+    select(&mut output, &mut count, Choice::First);
+    let first: u64 = output;
+    select(&mut output, &mut count, Choice::Last);
+    transition dispatched == 42 && first == 13 && output == 31 && count == 2 {
+        true -> done()
+        _ -> failed()
+    }
+    machine done() {}
+    machine failed() crashes Trap { crash Trap; }
+}

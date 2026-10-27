@@ -1,0 +1,6 @@
+data Unit [copy] { value: u64; }
+data OtherUnit [copy] { value: u64; }
+const METERS: OtherUnit = OtherUnit { value: 1 };
+domain<T, const U: Unit> T::Quantity<U>;
+machine read(value: u64 in Quantity<METERS>) -> u64 { value as u64 }
+machine main() {}

@@ -119,8 +119,14 @@ pub(super) fn validate(
         && !state.return_type.is_valid()
     {
         for target in transition.targets() {
-            if let TransitionTargetNode::Value(_) =
+            if let TransitionTargetNode::Value(expression) =
                 program.statement_table.transition_target(target)
+                && !crate::machine_calls::calls::unit_statement_call_is_admitted(
+                    program,
+                    machine,
+                    state,
+                    *expression,
+                )
             {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` state `{state_name}` transition returns a value, but the state declares no result; a terminal arm is `_ -> {{}}`",
