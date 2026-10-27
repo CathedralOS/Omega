@@ -27,9 +27,7 @@ pub(super) fn policy(
     policy: &PackagePolicyCallables,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.package_identity_field("package", policy.package)?;
-    encoder.field("target", |encoder| {
-        encoder.string(policy.target.identity().as_str())
-    })?;
+    encoder.string_field("target", policy.target.identity().as_str())?;
     encoder.field("callables", |encoder| {
         encoder.sequence(&policy.callables, encode_callable)
     })

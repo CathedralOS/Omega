@@ -20,9 +20,7 @@ pub(in crate::encoding::encode) fn method(
     encoder.field_by("requirement", &method.requirement, encode_nominal)?;
     encoder.field_by("signature", &method.signature, super::signature::signature)?;
     encoder.field_by("authority", &method.authority, super::authority::authority)?;
-    encoder.field("parameter_count", |encoder| {
-        encoder.usize(method.parameter_count)
-    })?;
+    encoder.usize_field("parameter_count", method.parameter_count)?;
     encoder.field("parameter_type_identities", |encoder| {
         encoder.sequence(&method.parameter_type_identities, |encoder, value| {
             encoder.field("value", |encoder| encoder.string(value))
@@ -30,12 +28,11 @@ pub(in crate::encoding::encode) fn method(
     })?;
     encoder.field("entry_claims", |encoder| {
         encoder.sequence(&method.entry_claims, |encoder, claim| {
-            encoder.field("parameter_index", |encoder| {
-                encoder.usize(claim.parameter_index)
-            })?;
-            encoder.field("carrier_identity", |encoder| {
-                encoder.string(method.identities.text(claim.carrier_identity))
-            })?;
+            encoder.usize_field("parameter_index", claim.parameter_index)?;
+            encoder.string_field(
+                "carrier_identity",
+                method.identities.text(claim.carrier_identity),
+            )?;
             encoder.field("domain", |encoder| encoder.string(&claim.domain))?;
             encoder.field("predicate_body", |encoder| {
                 match claim.predicate_body {
@@ -129,14 +126,13 @@ pub(in crate::encoding::encode) fn method(
                         };
                         Ok(())
                     })?;
-                    encoder.field("requirement_identity", |encoder| {
-                        encoder.string(method.identities.text(route.requirement_identity))
-                    })
+                    encoder.string_field(
+                        "requirement_identity",
+                        method.identities.text(route.requirement_identity),
+                    )
                 })
             })
         })
     })?;
-    encoder.field("calling", |encoder| {
-        encoder.option(method.calling.as_ref(), encode_application)
-    })
+    encoder.option_field("calling", method.calling.as_ref(), encode_application)
 }

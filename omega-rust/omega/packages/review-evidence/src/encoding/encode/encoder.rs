@@ -221,6 +221,18 @@ impl<'text> Encoder<'text> {
         self.field(name, |encoder| encode(encoder, value).field_payload())
     }
 
+    /// One field whose payload is one optional value: the field's framing and the
+    /// option's own some/none framing, with the present value's writer stated at
+    /// the field instead of inside a wrapper closure.
+    pub(crate) fn option_field<T: ?Sized>(
+        &mut self,
+        name: &'static str,
+        value: Option<&T>,
+        encode_value: impl Fn(&mut Self, &T) -> Result<(), PackageReviewEncodingError>,
+    ) -> Result<(), PackageReviewEncodingError> {
+        self.field(name, |encoder| encoder.option(value, encode_value))
+    }
+
     pub(crate) fn package_identity(&mut self, identity: PackageKeyIdentity) {
         if let Some(observer) = &mut self.membership {
             let result = observer.package(identity);

@@ -35,9 +35,7 @@ pub(in crate::encoding::encode) fn trait_shape(
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field_by("identity", &shape.identity, encode_nominal)?;
     encoder.boolean_field("is_boundary", shape.is_boundary)?;
-    encoder.field("lifetime_parameter_count", |encoder| {
-        encoder.usize(shape.lifetime_parameter_count)
-    })?;
+    encoder.usize_field("lifetime_parameter_count", shape.lifetime_parameter_count)?;
     encoder.field("type_parameters", |encoder| {
         encoder.sequence(&shape.type_parameters, type_parameter)
     })?;
@@ -50,16 +48,15 @@ pub(in crate::encoding::encode) fn trait_shape(
     encoder.field("requirements", |encoder| {
         encoder.sequence(&shape.requirements, |encoder, requirement| {
             encoder.field_by("identity", &requirement.identity, encode_nominal)?;
-            encoder.field("spelling", |encoder| {
-                encoder.option(requirement.spelling.as_ref(), spelling)
-            })?;
+            encoder.option_field("spelling", requirement.spelling.as_ref(), spelling)?;
             encoder.boolean_field(
                 "has_default_realization",
                 requirement.has_default_realization,
             )?;
-            encoder.field("lifetime_parameter_count", |encoder| {
-                encoder.usize(requirement.lifetime_parameter_count)
-            })?;
+            encoder.usize_field(
+                "lifetime_parameter_count",
+                requirement.lifetime_parameter_count,
+            )?;
             encoder.field("type_parameters", |encoder| {
                 encoder.sequence(&requirement.type_parameters, type_parameter)
             })?;
@@ -78,9 +75,7 @@ pub(in crate::encoding) fn conformance_shape(
     shape: &PackagePolicyConformanceShape,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field_by("identity", &shape.identity, encode_nominal)?;
-    encoder.field("lifetime_parameter_count", |encoder| {
-        encoder.usize(shape.lifetime_parameter_count)
-    })?;
+    encoder.usize_field("lifetime_parameter_count", shape.lifetime_parameter_count)?;
     encoder.field("type_parameters", |encoder| {
         encoder.sequence(&shape.type_parameters, type_parameter)
     })?;
@@ -155,12 +150,8 @@ pub(in crate::encoding::encode) fn operator_shape(
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field_by("coordinate", &shape.coordinate, encode_operator_coordinate)?;
     encoder.boolean_field("is_boundary", shape.is_boundary)?;
-    encoder.field("spelling", |encoder| {
-        encoder.option(shape.spelling.as_ref(), spelling)
-    })?;
-    encoder.field("lifetime_parameter_count", |encoder| {
-        encoder.usize(shape.lifetime_parameter_count)
-    })?;
+    encoder.option_field("spelling", shape.spelling.as_ref(), spelling)?;
+    encoder.usize_field("lifetime_parameter_count", shape.lifetime_parameter_count)?;
     encoder.field("type_parameters", |encoder| {
         encoder.sequence(&shape.type_parameters, type_parameter)
     })?;
@@ -196,9 +187,7 @@ pub(in crate::encoding::encode) fn data_shape(
         };
         Ok(())
     })?;
-    encoder.field("lifetime_parameter_count", |encoder| {
-        encoder.usize(shape.lifetime_parameter_count)
-    })?;
+    encoder.usize_field("lifetime_parameter_count", shape.lifetime_parameter_count)?;
     encoder.field("type_parameters", |encoder| {
         encoder.sequence(&shape.type_parameters, type_parameter)
     })?;

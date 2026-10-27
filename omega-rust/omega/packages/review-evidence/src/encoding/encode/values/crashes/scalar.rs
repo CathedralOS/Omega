@@ -57,17 +57,15 @@ fn encode_scalar_node(
         }
         PackageReviewScalarExpression::IntegerLiteral(literal) => {
             encoder.tag("integer_literal", 3);
-            encoder.field("canonical_text", |encoder| {
-                encoder.string(&literal.canonical_text)
-            })?;
+            encoder.string_field("canonical_text", &literal.canonical_text)?;
             encoder.field("landing", |encoder| {
                 encoder.option(literal.landing.as_ref(), |encoder, landing| {
-                    encoder.field("landed_type", |encoder| {
-                        encoder.string(primitive_type_name(landing.landed_type))
-                    })?;
-                    encoder.field("arithmetic_domain", |encoder| {
-                        encoder.string(arithmetic_domain_name(landing.arithmetic_domain))
-                    })
+                    encoder
+                        .string_field("landed_type", primitive_type_name(landing.landed_type))?;
+                    encoder.string_field(
+                        "arithmetic_domain",
+                        arithmetic_domain_name(landing.arithmetic_domain),
+                    )
                 })
             })?;
         }

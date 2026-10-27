@@ -76,9 +76,7 @@ fn layout_application(
     encoder: &mut Encoder,
     layout: &PackagePolicyCallbackLayoutApplication,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("policy", |encoder| {
-        encoder.option(layout.policy.as_ref(), encode_nominal)
-    })?;
+    encoder.option_field("policy", layout.policy.as_ref(), encode_nominal)?;
     encoder.field("schema", |encoder| type_identity(encoder, &layout.schema))?;
     encoder.u64_field("byte_size", layout.byte_size)?;
     encoder.u64_field("alignment", layout.alignment)?;

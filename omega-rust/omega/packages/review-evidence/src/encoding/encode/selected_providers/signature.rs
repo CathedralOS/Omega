@@ -55,7 +55,5 @@ pub(super) fn signature(
             )
         })
     })?;
-    encoder.field("result", |encoder| {
-        encoder.option(signature.result.as_ref(), encode_type_identity)
-    })
+    encoder.option_field("result", signature.result.as_ref(), encode_type_identity)
 }

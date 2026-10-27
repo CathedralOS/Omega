@@ -38,9 +38,7 @@ pub(crate) fn encode_physical(
     encoder.field("parameters", |encoder| {
         encoder.sequence(physical.parameters(), encode_value_placement)
     })?;
-    encoder.field("result", |encoder| {
-        encoder.option(physical.result(), encode_value_placement)
-    })?;
+    encoder.option_field("result", physical.result(), encode_value_placement)?;
     encoder.field("ordinary_clobbers", |encoder| {
         encoder.sequence(physical.ordinary_clobbers(), |encoder, register| {
             encoder.field_by("register", *register, encode_machine_register)?;

@@ -210,9 +210,7 @@ pub(super) fn frame_row(
         crate::encoding::PACKAGE_POLICY_BASELINE_VERSION,
     )?;
     encoder.package_identity_field("package", package)?;
-    encoder.field("target", |encoder| {
-        encoder.string(target.identity().as_str())
-    })?;
+    encoder.string_field("target", target.identity().as_str())?;
     encoder.tag_field("kind", kind.as_str(), kind.canonical_tag())?;
     encoder.boolean_field("initial_requires_decision", initial)?;
     encoder.boolean_field("update_requires_decision", initial)?;

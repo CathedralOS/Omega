@@ -69,9 +69,7 @@ fn const_argument(
             encoder.tag("evaluated", 0);
             encoder.field_by("parameter_carrier", parameter_carrier, type_identity)?;
             encoder.field_by("declared_carrier", declared_carrier, type_identity)?;
-            encoder.field("canonical_value_encoding", |encoder| {
-                encoder.string(canonical_value_encoding)
-            })
+            encoder.string_field("canonical_value_encoding", canonical_value_encoding)
         }
         PackagePolicyConformanceConstArgument::CallerExpression {
             parameter_carrier,

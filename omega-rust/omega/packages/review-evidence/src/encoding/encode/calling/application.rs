@@ -82,9 +82,11 @@ pub(crate) fn encode_application(
             Ok(())
         })
     })?;
-    encoder.field("semantic_result", |encoder| {
-        encoder.option(application.semantic_result.as_ref(), type_identity)
-    })?;
+    encoder.option_field(
+        "semantic_result",
+        application.semantic_result.as_ref(),
+        type_identity,
+    )?;
     encoder.field("native_parameters", |encoder| {
         encoder.sequence(&application.native_parameters, |encoder, parameter| {
             encoder.field("name", |encoder| encoder.string(&parameter.name))?;

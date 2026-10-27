@@ -44,9 +44,7 @@ pub(crate) fn encode_const_shape(
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field_by("identity", &shape.identity, encode_nominal)?;
     encoder.field_by("declared_type", &shape.declared_type, encode_type_identity)?;
-    encoder.field("canonical_value_encoding", |encoder| {
-        encoder.string(&shape.canonical_value_encoding)
-    })
+    encoder.string_field("canonical_value_encoding", &shape.canonical_value_encoding)
 }
 
 pub(crate) fn encode_operator_coordinate(
@@ -54,12 +52,8 @@ pub(crate) fn encode_operator_coordinate(
     coordinate: &PackageReviewOperatorCoordinate,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field_by("identity", &coordinate.identity, encode_nominal)?;
-    encoder.field("parameter_dispatch", |encoder| {
-        encoder.string(&coordinate.parameter_dispatch)
-    })?;
-    encoder.field("result_dispatch", |encoder| {
-        encoder.string(&coordinate.result_dispatch)
-    })
+    encoder.string_field("parameter_dispatch", &coordinate.parameter_dispatch)?;
+    encoder.string_field("result_dispatch", &coordinate.result_dispatch)
 }
 
 pub(crate) const fn operator_spelling_tag(spelling: language_core::OperatorSpelling) -> u8 {
