@@ -6,7 +6,7 @@ const INVALID: i64 = -1;
 machine probe(value: i64, event: i32, select: bool) -> i64
 ensures result != INVALID;
 reaches Console {
-    
+
     transition { _ -> filter(value, event) }
     machine filter(candidate: i64, event: i32) -> i64 reaches Console {
         Console::write_byte(event);

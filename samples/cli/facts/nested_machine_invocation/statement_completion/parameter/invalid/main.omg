@@ -6,7 +6,7 @@ use omega_language_std::console;
 machine probe(value: i64, event: i32, select: bool) -> i64
 ensures result != -1;
 reaches Console {
-    
+
     transition { _ -> filter(value, event) }
     machine filter(candidate: i64, event: i32) -> i64 reaches Console {
         Console::write_byte(event);
