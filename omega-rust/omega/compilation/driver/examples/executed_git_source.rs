@@ -383,8 +383,11 @@ fn execute_fixture() {
                 )
                 .unwrap()
                 .unwrap(),
-                execution_profile: profile,
-                snapshot: None,
+                execution: package_compilation::BuildExecutionInputs {
+                    profile: Some(profile),
+                    snapshot: None,
+                    ..Default::default()
+                },
                 collect_timings: false,
             },
         )
@@ -543,6 +546,7 @@ fn foreign_policy_control(
             acquired.source_capture(),
             &preparation.entry_path(),
             profile,
+            Default::default(),
         )
         .unwrap();
     let mut invocation = session.compiler().begin_package_build(request).unwrap();

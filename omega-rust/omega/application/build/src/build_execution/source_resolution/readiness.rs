@@ -107,7 +107,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
         &mut self,
         acquired: AcquiredBuildSource,
         entry: &Path,
-        snapshot: Option<build_evaluation::BuildSnapshotRequest>,
+        execution: package_compilation::BuildExecutionInputs,
     ) -> Result<usize, ProjectSourceResolutionError> {
         if let Some(position) = self
             .sources
@@ -136,11 +136,8 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                 let mut request = self
                     .session
                     .packages
-                    .source_build_request(acquired.source_capture(), entry, self.profile)
+                    .source_build_request(acquired.source_capture(), entry, self.profile, execution)
                     .map_err(Resources)?;
-                if snapshot.is_some() {
-                    request.build.snapshot = snapshot;
-                }
                 request.collect_timings = self.timings;
                 self.execute_build(&acquired, request)?.build
             };
@@ -251,7 +248,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                 .map_err(Source)?;
             let acquired = self.finish_acquisition(selection)?;
             let entry = acquired.entry_path();
-            let dependency = self.execute_source(acquired, &entry, None)?;
+            let dependency = self.execute_source(acquired, &entry, Default::default())?;
             let declared = &self.sources[dependency].declared;
             declared.require_dependency().map_err(Source)?;
             let name = explicit_alias
@@ -299,6 +296,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                     acquired.source_capture(),
                     &workspace.entry_path(),
                     self.profile,
+                    Default::default(),
                 )
                 .map_err(Resources)?;
             request.collect_timings = self.timings;
@@ -324,6 +322,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                         acquired.source_capture(),
                         &acquired.entry_path(),
                         self.profile,
+                        Default::default(),
                     )
                     .map_err(Resources)?;
                 request.collect_timings = self.timings;
@@ -382,7 +381,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                     BuildSourceAcquisition::Execute(dependency) => {
                         let acquired = dependency.acquired_source().clone();
                         let entry = acquired.entry_path();
-                        let position = self.execute_source(acquired, &entry, None)?;
+                        let position = self.execute_source(acquired, &entry, Default::default())?;
                         let (_, next) = dependency
                             .complete_declared(&self.sources[position].declared)
                             .map_err(Source)?;

@@ -165,25 +165,39 @@ impl PackageBuildSession {
     }
 
     /// Admit acquired source work before its Build declares a package name.
-    /// These sponsors belong to the whole invocation, including subsequent
-    /// review and Product occurrences. This grants no restricted operation.
+    /// Explicit inputs reach this activation before its effects. Absent sponsors
+    /// use the invocation's shared grants; supplied grants are not replenished
+    /// or inherited by dependencies. No permission is created here.
     pub fn source_build_request(
         &mut self,
         capture: &package_compilation::CapturedLocalSource,
         entry: &Path,
         profile: target::TargetProfile,
+        execution: package_compilation::BuildExecutionInputs,
     ) -> Result<compiler::CheckedCompileRequest, CompileResolvedPackageReviewsError> {
-        let directory = self.create_build_directory(self.root.join("source"))?;
+        self.require_open()?;
+        let profile = execution.profile.unwrap_or(profile);
+        let directory = match execution.directory {
+            Some(directory) => directory,
+            None => self.create_build_directory(self.root.join("source"))?,
+        };
         Ok(compiler::CheckedCompileRequest {
             source_capture: Some(capture.clone()),
             build: package_compilation::BuildExecutionInputs {
-                snapshot: Some(package_compilation::BuildSnapshotRequest::new(
-                    std::iter::empty(),
-                )),
+                profile: Some(profile),
+                snapshot: execution.snapshot.or_else(|| {
+                    Some(package_compilation::BuildSnapshotRequest::new(
+                        std::iter::empty(),
+                    ))
+                }),
                 directory: Some(directory),
-                filesystem_sponsor: Some(self.filesystem_sponsor.clone()),
-                evaluation_sponsor: Some(self.evaluation_sponsor.clone()),
-                ..Default::default()
+                filesystem_sponsor: execution
+                    .filesystem_sponsor
+                    .or_else(|| Some(self.filesystem_sponsor.clone())),
+                evaluation_sponsor: execution
+                    .evaluation_sponsor
+                    .or_else(|| Some(self.evaluation_sponsor.clone())),
+                restricted_grants: execution.restricted_grants,
             },
             ..compiler::CheckedCompileRequest::new(entry, Some(profile.target_name()))
         })
