@@ -67,44 +67,14 @@ pub(crate) fn close_constant_recipes(
         closed_typed,
         selected_target_profile.target_name(),
     );
-    let mut proof_targets = vec![selected_target_profile];
-    let predicate_rows = &shared.facts.constant_predicate_obligations;
-    let range_rows = &shared.facts.integer_range_obligations;
-    let recipe_rows = &shared.facts.constant_recipe_obligations;
-    if !predicate_rows.is_empty() || !range_rows.is_empty() || !recipe_rows.is_empty() {
-        for machine in typed.machines() {
-            if let Some(name) = typed.machine_authored_target(machine) {
-                let target = target::TargetProfile::from_canonical_target_name(name)
-                    .map_err(|reason| vec![reason])?;
-                if !proof_targets.contains(&target) {
-                    proof_targets.push(target);
-                }
-            }
-        }
-    }
-    let declaration_owners =
-        provider_planning::target_machines::declaration_formation_owners(shared);
-    let proof_owners: Vec<_> = predicate_rows
-        .iter()
-        .map(|row| row.caller())
-        .chain(range_rows.iter().map(|row| row.owner()))
-        .chain(
-            recipe_rows
-                .iter()
-                .map(|row| row.owner())
-                .filter(|owner| owner.is_valid()),
-        )
-        .collect();
+    let proof_targets = proof_closure
+        .target_scopes()
+        .into_iter()
+        .map(target::TargetProfile::from_canonical_target_name)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|reason| vec![reason])?;
     for target in proof_targets {
-        if target != selected_target_profile
-            && !recipe_rows.iter().any(|row| !row.owner().is_valid())
-            && !provider_planning::target_machines::target_has_proof_demand(
-                shared,
-                target,
-                &proof_owners,
-                &declaration_owners,
-            )
-        {
+        if !proof_closure.needs_application(target.target_name()) {
             continue;
         }
         let supplemental = if target == selected_target_profile {
@@ -117,24 +87,19 @@ pub(crate) fn close_constant_recipes(
             .map_or(selected_provider_provenance, |selected| {
                 selected.provenance.as_slice()
             });
-        let applications = provider_planning::target_machines::proof_application_machines(
-            shared,
-            target,
-            target == selected_target_profile,
-            provenance,
-        );
-        let declaration_applications =
-            provider_planning::target_machines::proof_application_declaration_owners(
-                shared,
-                &applications,
-                &declaration_owners,
-            );
-        let Some(application) = proof_closure.application(
-            target.target_name(),
-            &applications,
-            &declaration_applications,
-            &declaration_owners,
-        ) else {
+        let provider_edges: Vec<_> = provenance
+            .iter()
+            .flat_map(|selected| {
+                selected
+                    .provider
+                    .row_requirements
+                    .iter()
+                    .copied()
+                    .zip(selected.provider.row_realizations.iter().copied())
+            })
+            .collect();
+        let Some(application) = proof_closure.application(target.target_name(), &provider_edges)
+        else {
             continue;
         };
         let proof_program = match &supplemental {
