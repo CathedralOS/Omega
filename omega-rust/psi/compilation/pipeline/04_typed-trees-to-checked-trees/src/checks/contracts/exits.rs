@@ -212,11 +212,7 @@ pub(super) fn check_exit_ensures(
             if evidence_assignment {
                 continue;
             }
-            let missing_origins = facts
-                .flow
-                .control
-                .exit_parameter_origins
-                .span_or_empty(exit_flow.parameter_origins)
+            let missing_origins = crate::flow::exit_parameter_origins(facts, exit_flow)
                 .iter()
                 .filter(|origin| {
                     Some(origin.contract) == contract

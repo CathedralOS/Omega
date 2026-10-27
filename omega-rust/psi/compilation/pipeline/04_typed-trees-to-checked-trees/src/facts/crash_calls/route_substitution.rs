@@ -493,13 +493,7 @@ fn boolean_view_observation(
     }
     match program.expression_table.expression(expression) {
         typed_trees::expression::ExpressionNode::Name(path) => {
-            if program
-                .expression_table
-                .name_path_members(path.members)
-                .len()
-                != 1
-                || path.head_symbol != path.symbol
-            {
+            if !program.expression_table.name_path_is_single_member(path) {
                 return None;
             }
             // Writable locals retain their initial observation only across an

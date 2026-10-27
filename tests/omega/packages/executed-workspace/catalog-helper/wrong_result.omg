@@ -1,0 +1,5 @@
+use omega::language::core::program_image;
+
+public CatalogImage satisfies ProgramImage {
+    machine retained_suffix_start() -> addr { 128 }
+}

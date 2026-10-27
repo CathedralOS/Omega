@@ -68,6 +68,13 @@ impl ReturnedBuild {
     pub fn requests(&self) -> &[IssuedBuildRequest] {
         &self.requests
     }
+
+    /// Exact dependency occurrences whose code was installed during this
+    /// activation. Catalog observations retain these execution dependencies
+    /// without claiming completion of unrelated Product requests.
+    pub fn provider_sources(&self) -> &[BuildDependencySelection] {
+        &self.provider_sources
+    }
 }
 
 /// Host custody outlives the interpreter's borrowed adapters. One host starts

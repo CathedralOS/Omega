@@ -55,19 +55,9 @@ impl ExitScalars<'_, '_> {
             parameter.is_const
                 || (parameter.is_mutable
                     && !crate::values::exclusive_reference(self.program, parameter.type_reference))
-        }) || self
-            .facts
-            .flow
-            .control
-            .exit_parameter_origins
-            .span_or_empty(self.exit.parameter_origins)
-            .iter()
-            .any(|origin| {
-                origin.contract == self.contract
-                    && (!origin.state_parameter.is_valid()
-                        || origin.entry_parameter != origin.state_parameter)
-            })
-        {
+        }) || self.contract_origins().any(|origin| {
+            !origin.state_parameter.is_valid() || origin.entry_parameter != origin.state_parameter
+        }) {
             return None;
         }
         let primitive = [binary.left, binary.right]

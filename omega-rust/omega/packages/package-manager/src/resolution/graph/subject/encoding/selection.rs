@@ -25,6 +25,7 @@ pub(in super::super) fn encode_subject(
     package_navigations: &[PackageSourceNavigation],
     package_dependency_projections: &[DependencyProjections],
     dependency_requests: &[CanonicalDependencySourceSelection],
+    catalog_dependencies: &[super::super::CanonicalCatalogDependency],
     limits: CanonicalSourceClosureSubjectLimits,
 ) -> Result<Vec<u8>, CanonicalSourceClosureSubjectError> {
     let mut encoder = Encoder::new();
@@ -36,6 +37,7 @@ pub(in super::super) fn encode_subject(
         package_navigations,
         package_dependency_projections,
         dependency_requests,
+        catalog_dependencies,
         limits,
     )?;
     encoder.check()?;
@@ -49,6 +51,7 @@ pub(in super::super) fn encode_subject_with_budget(
     package_navigations: &[PackageSourceNavigation],
     package_dependency_projections: &[DependencyProjections],
     dependency_requests: &[CanonicalDependencySourceSelection],
+    catalog_dependencies: &[super::super::CanonicalCatalogDependency],
     limits: CanonicalSourceClosureSubjectLimits,
     budget: &mut Budget,
 ) -> Result<Vec<u8>, CanonicalSourceClosureSubjectError> {
@@ -61,6 +64,7 @@ pub(in super::super) fn encode_subject_with_budget(
         package_navigations,
         package_dependency_projections,
         dependency_requests,
+        catalog_dependencies,
         limits,
     )?;
     encoder.check()?;
@@ -75,10 +79,17 @@ fn encode_subject_to(
     package_navigations: &[PackageSourceNavigation],
     package_dependency_projections: &[DependencyProjections],
     dependency_requests: &[CanonicalDependencySourceSelection],
+    catalog_dependencies: &[super::super::CanonicalCatalogDependency],
     limits: CanonicalSourceClosureSubjectLimits,
 ) -> Result<(), CanonicalSourceClosureSubjectError> {
     encoder.fixed(SOURCE_CLOSURE_SUBJECT_MAGIC);
-    encoder.u16(SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION);
+    // Existing subjects retain their exact v7 identity and decision bindings.
+    // Only a subject carrying the new execution-only rows uses the v8 extension.
+    encoder.u16(if catalog_dependencies.is_empty() {
+        7
+    } else {
+        SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION
+    });
     encode_target_profile(encoder, target_profile, limits)?;
     encode_root_selection(encoder, root, limits)?;
     encoder.count(packages.len())?;
@@ -94,6 +105,23 @@ fn encode_subject_to(
     encoder.count(dependency_requests.len())?;
     for request in dependency_requests {
         encode_dependency_selection(encoder, request, limits)?;
+    }
+    if !catalog_dependencies.is_empty() {
+        encoder.count(catalog_dependencies.len())?;
+        for dependency in catalog_dependencies {
+            encode_source_identity(encoder, &dependency.observer, limits.maximum_identity_bytes)?;
+            encode_package_navigation(
+                encoder,
+                &dependency.navigation,
+                limits.maximum_request_bytes,
+            )?;
+            encoder.count(dependency.ordinal)?;
+            encode_dependency_request(encoder, Request::from(&dependency.request), limits)?;
+            encoder.bytes_bounded(
+                dependency.provider.canonical_bytes(),
+                limits.maximum_record_bytes,
+            )?;
+        }
     }
     encoder.check()
 }

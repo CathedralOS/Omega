@@ -24,6 +24,31 @@ macro_rules! assignment_context_accessors {
     };
 }
 
+/// The one post-home custody receipt every staging route publishes: the source
+/// receipt that route retained, the homes and manifest it built over it, and
+/// the two counts it published. A route whose source receipt is a different
+/// type parameterizes this owner instead of re-declaring its shape.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PostHomeCustodyReceipt<Source> {
+    source: Source,
+    homes: register_homes::RegisterHomeIdentity,
+    post_allocation_manifest: optimization_core::PostAllocationOptimizationManifestIdentity,
+    function_count: usize,
+    assignment_count: usize,
+}
+
+impl<Source> PostHomeCustodyReceipt<Source> {
+    receipt_accessor_rows!(borrow PostHomeCustodyReceipt {
+        source: &Source,
+    });
+    receipt_accessor_rows!(ref PostHomeCustodyReceipt {
+        homes: register_homes::RegisterHomeIdentity,
+        post_allocation_manifest: optimization_core::PostAllocationOptimizationManifestIdentity,
+        function_count: usize,
+        assignment_count: usize,
+    });
+}
+
 pub(crate) mod baseline;
 pub(crate) mod home_assignment;
 pub(crate) mod post_allocation_manifest;

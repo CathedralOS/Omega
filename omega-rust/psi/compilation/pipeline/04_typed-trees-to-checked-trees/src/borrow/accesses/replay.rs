@@ -46,19 +46,21 @@ pub(crate) fn rejoin_expression_call_accesses<'program>(
         source.statement_index,
         source.call_ordinal,
     )?;
-    match &site {
-        CallSite::Expression { expression, call } => {
-            if *expression != source.authored_expression
-                || validation::call_target_entry_symbol(
-                    program,
-                    validation::call_target_symbol(program, call),
-                ) != source.target_symbol
-            {
-                return None;
-            }
-        }
-        _ => return None,
+    let CallSite::Expression {
+        expression,
+        call: named_call,
+    } = &site
+    else {
+        return None;
     };
+    if *expression != source.authored_expression
+        || validation::call_target_entry_symbol(
+            program,
+            validation::call_target_symbol(program, named_call),
+        ) != source.target_symbol
+    {
+        return None;
+    }
     let arguments = call_site_argument_expressions(program, &site);
     let mut expected_segments = arena::Arena::new();
     let mut expected_accesses = arena::Arena::new();
@@ -71,9 +73,11 @@ pub(crate) fn rejoin_expression_call_accesses<'program>(
         source.statement_index,
         source.call_ordinal,
     );
-    let after_dispatch = invocation.is_some();
-    let extraction = invocation.and_then(|(_, extraction)| extraction);
-    let expected = super::collect_argument_access_span(
+    let schedule = match invocation {
+        Some((_, extraction)) => super::ArgumentAccessSchedule::TransitionTarget(extraction),
+        None => super::ArgumentAccessSchedule::Invocation,
+    };
+    let expected = super::collect_argument_accesses(
         program,
         &mut expected_segments,
         &mut expected_accesses,
@@ -82,8 +86,7 @@ pub(crate) fn rejoin_expression_call_accesses<'program>(
         source.statement_index,
         machine,
         source.target_symbol,
-        after_dispatch,
-        extraction,
+        schedule,
     );
     let expected = expected_accesses.span(expected)?;
     let actual = borrow.argument_accesses.span(call.accesses)?;

@@ -1,0 +1,1 @@
+needs fact `distinct(indices) == true`

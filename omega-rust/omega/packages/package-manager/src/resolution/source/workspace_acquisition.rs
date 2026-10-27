@@ -14,6 +14,57 @@ use compiler::SourceBuildDeclaration;
 use package_compilation::CapturedLocalSource;
 use package_source::{GitCommitId, GitTreeId, ImmutableSourceResolution, ResolvedGitSource};
 use std::path::Path;
+use std::sync::Arc;
+
+/// A compiler-authenticated declaration and the closed source graphs actually
+/// used to compute it. Pending Product requests remain inert observations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspaceMemberObservation {
+    declaration: SourceBuildDeclaration,
+    pub(crate) source: super::PackageSourceCustody,
+    pub(crate) selections: Vec<build_evaluation::BuildDependencySelection>,
+    providers: Vec<Arc<super::ResolvedBuildSources>>,
+}
+
+impl WorkspaceMemberObservation {
+    pub fn new(
+        acquired: &AcquiredBuildSource,
+        declaration: SourceBuildDeclaration,
+        returned: &build_evaluation::ReturnedBuild,
+        providers: Vec<Arc<super::ResolvedBuildSources>>,
+    ) -> Result<Self, String> {
+        if declaration.declaration() != returned.declaration()
+            || returned.provider_sources().len() != providers.len()
+            || returned
+                .provider_sources()
+                .iter()
+                .zip(&providers)
+                .any(|(selected, graph)| {
+                    selected.purpose != build_declarations::DependencyPurpose::Build
+                        || selected.package != graph.root()
+                })
+        {
+            return Err("workspace observation lost an executed provider source graph".into());
+        }
+        if acquired.source_capture() != declaration.source_capture() {
+            return Err("workspace observation belongs to another source capture".into());
+        }
+        Ok(Self {
+            declaration,
+            source: acquired.declare_build(returned)?.custody,
+            selections: returned.provider_sources().to_vec(),
+            providers,
+        })
+    }
+
+    pub fn declaration(&self) -> &SourceBuildDeclaration {
+        &self.declaration
+    }
+
+    pub fn provider_graphs(&self) -> &[Arc<super::ResolvedBuildSources>] {
+        &self.providers
+    }
+}
 
 pub struct AcquiredWorkspaceBuild {
     source: ResolvedGitSource,
@@ -36,7 +87,7 @@ pub(super) struct ExecutedWorkspace {
     members: Vec<(
         WorkspaceMemberPath,
         AcquiredBuildSource,
-        SourceBuildDeclaration,
+        WorkspaceMemberObservation,
     )>,
 }
 
@@ -194,7 +245,7 @@ impl BuildSourceAcquisitions<'_> {
     pub fn complete_workspace(
         &mut self,
         acquired: AcquiredWorkspaceMembers,
-        declarations: Vec<SourceBuildDeclaration>,
+        declarations: Vec<WorkspaceMemberObservation>,
     ) -> Result<AcquiredBuildSource, String> {
         if acquired.members.len() != declarations.len()
             || acquired
@@ -202,7 +253,7 @@ impl BuildSourceAcquisitions<'_> {
                 .iter()
                 .zip(&declarations)
                 .any(|((_, source), declaration)| {
-                    source.source_capture() != declaration.source_capture()
+                    source.source_capture() != declaration.declaration().source_capture()
                 })
         {
             return Err("workspace observations differ from their acquired member roster".into());
@@ -263,7 +314,7 @@ impl BuildSourceAcquisitions<'_> {
                     path.as_str()
                 )
             })?;
-        let name = match declaration.declaration() {
+        let name = match declaration.declaration().declaration() {
             BuildDeclaration::Package(package) => &package.name,
             BuildDeclaration::Application(application) => &application.name,
             BuildDeclaration::Workspace(_) => {

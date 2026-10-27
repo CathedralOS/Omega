@@ -12,11 +12,15 @@ import sys
 
 arguments = sys.argv[1:]
 if "fetch" in arguments or "ls-remote" in arguments:
-    locator = "https://omega-source.invalid/executed-source.git"
-    if locator in arguments:
+    repositories = {
+        "https://omega-source.invalid/executed-source.git": "OMEGA_FIXTURE_GIT_REPOSITORY",
+        "https://omega-source.invalid/catalog-helper.git": "OMEGA_FIXTURE_GIT_HELPER",
+    }
+    selected = next((locator for locator in repositories if locator in arguments), None)
+    if selected is not None and repositories[selected] in os.environ:
         arguments = [
-            Path(os.environ["OMEGA_FIXTURE_GIT_REPOSITORY"]).as_uri()
-            if argument == locator
+            Path(os.environ[repositories[selected]]).as_uri()
+            if argument == selected
             else "protocol.file.allow=always"
             if argument == "protocol.file.allow=never"
             else argument
