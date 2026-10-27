@@ -48,7 +48,6 @@ proof-admission = { path = "../../../psi/compilation/proof/admission" }
 selected-dispatch = { path = "../realization/selected-dispatch" }
 image-emission = { path = "../backend/images/image-emission" }
 native-artifact = { path = "../backend/artifacts/native-artifact" }
-terminal-psi-to-abstract-operations = { path = "../pipeline/00_terminal-psi-to-abstract-operations" }
 phase-profile = { path = "../../../psi/foundation/phase-profile" }
 
 [build-dependencies]
