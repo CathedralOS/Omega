@@ -1,0 +1,123 @@
+{
+  "pr": 384,
+  "submitted_head": "df1defae6f03ad4f747e608bcbb5b9357bdbca6b",
+  "fixed_base": "5ab4e12334fba74babfc3ae8d9992572fba307e6",
+  "producer_revision": "50e50cb1029062ab7fd38145b3312c9bb3ac76e6",
+  "qualification_revision": "df1defae6f03ad4f747e608bcbb5b9357bdbca6b",
+  "qualification_receipt": {
+    "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-formation/qualification.records/c0a17a8224124718a7d0b9d78907e2d4.json",
+    "sha256": "0b4baa3c282b09f9f6cad61af06ccd47802d8466ae2af22bc4da2d4b64562c02"
+  },
+  "applicability": "Actual engine observations retain their original producer and source revisions. Compiler and libraries equal the submitted head; later source changes only pin fixtures, prose and goldens. Qualification validates retained engine observations, without reexecuting them. Native execution was macOS ARM64 only.",
+  "artifacts": "Frozen compiler executables remain local and are omitted from this evidence branch. Exact source bundles, build receipts, binary digests and verified profiles are retained.",
+  "files": [
+    {
+      "evidence_path": "qualification/qualification.json.gz",
+      "sha256": "327518001bd0381fbbb947f140c9856fc02bb3162a976b913d7bebea35a99b49"
+    },
+    {
+      "evidence_path": "qualification/qualification-config.json.gz",
+      "sha256": "a7f3037c6cc30594db1e2de29382f11487561d00e7d15f06e192d236efe082db"
+    },
+    {
+      "evidence_path": "qualification/observation-receipt.json.gz",
+      "sha256": "1ef47e5f08150701c65057cdb599b64345869d241885aa82bceadc1a6991bbde"
+    },
+    {
+      "evidence_path": "qualification/validator-stdout.txt",
+      "sha256": "9e34a237803fac75477029a28cb7c02a4be9c7ae97e7f88fa8f186d9b37adc62"
+    },
+    {
+      "evidence_path": "qualification/validator-stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "evidence_path": "observations/validate.py",
+      "sha256": "67a30913b5c04a5e51c242f580a8bc00dffb53e4e0caa87106a1788f09e1e5d8"
+    },
+    {
+      "evidence_path": "observations/acceptance.json",
+      "sha256": "27e9df842c31b067724eed5695725f616e73eaffaa0115daf26895372aac468d"
+    },
+    {
+      "evidence_path": "observations/base.json",
+      "sha256": "1e6d2cee97ebe340fefdfcaa77a45153f1535779c2fb0e5bc1d152bdd13c8408"
+    },
+    {
+      "evidence_path": "observations/producer-candidate.json",
+      "sha256": "3c0e63fcbfc53259d874c36efe519c92ab5a92d1ec0696394413db8171b5e609"
+    },
+    {
+      "evidence_path": "observations/producer-runner.json",
+      "sha256": "a624360c73a6eacefcfd6fc59a7e68ce0fe721fec7f71f27a8fb4d2370d935e6"
+    },
+    {
+      "evidence_path": "observations/producer-baseline.json",
+      "sha256": "d6f2362f20d29032b3eefc2201f33cfd3714668d56a3d828f1383cc380a27391"
+    },
+    {
+      "evidence_path": "observations/row-baseline.json",
+      "sha256": "96afd1f30fa508172e225644a769eb0e49c9012f9826b42e136c0d2766e69015"
+    },
+    {
+      "evidence_path": "observations/row-candidate.json",
+      "sha256": "8dbd263703539932692a641fc564597a1946416da18daf2ac461c00f550cef53"
+    },
+    {
+      "evidence_path": "observations/controls-baseline.json",
+      "sha256": "81063b3bf8ffd15b678c52888862d5af1b3ac3817bc308c0bfdf9cd6f4e97188"
+    },
+    {
+      "evidence_path": "observations/controls-candidate.json",
+      "sha256": "6af934f26ef0c64ae849ad37c650ec2bae6ad6039de75c4d8fddf356b024d8e4"
+    },
+    {
+      "evidence_path": "observations/corpus-source.json",
+      "sha256": "9007595f216f3b316c57c8f45e93c377f320c5b054d4bb8adcf734197ee8de84"
+    },
+    {
+      "evidence_path": "observations/corpus-both.json",
+      "sha256": "9f9b5b7f133361632640e9eba94c3a7a8da00e47a257e3768f49a66edf654b57"
+    },
+    {
+      "evidence_path": "observations/frozen-witness-inputs.json",
+      "sha256": "08d5ee9aaf8ea80d7320f4ecf600fb180c79f249f502753246f76e9303bdb158"
+    },
+    {
+      "evidence_path": "observations/implementation-context.json",
+      "sha256": "02a3c1ce3d21b53ccaf52cea3103c83de8b657603d1ec5a6aa39ea0b9075caf5"
+    },
+    {
+      "evidence_path": "observations/check-shared-arrivals.log",
+      "sha256": "d1bdf397ce3e5c6676f48c5ce8991884095e76488a5c6bf953690f8d18900c7a"
+    },
+    {
+      "evidence_path": "observations/format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "evidence_path": "observations/space-recovery.json",
+      "sha256": "e8b4cab066559040ddf776c7a4c1cffa275e5e9a35a3ac665dbc35de94bb1d0c"
+    },
+    {
+      "evidence_path": "producer-builds/build-baseline-2.jsonl",
+      "sha256": "b3a02d464d8d503358ccb0e95fe0282a000031c28b4b63179fe657f00a006ce1"
+    },
+    {
+      "evidence_path": "producer-builds/build-candidate.jsonl",
+      "sha256": "7acf20a7bae1ea91374b199079c1b8de8bd4003e70664a48d3eca3680ce81b12"
+    },
+    {
+      "evidence_path": "producer-builds/build-runner.jsonl",
+      "sha256": "98b4e1858d245983513f5e3e471a3fd1270905f793203a2d4f79ec848a1f0bc8"
+    },
+    {
+      "evidence_path": "source/b8ce72f09729ee24597e3255a8f48fb93e9e5add.bundle",
+      "sha256": "e21388c4055f26c8627f6c05db2eec80d23c7d8995a32d0e2b46b988a820d616"
+    },
+    {
+      "evidence_path": "source/df1defae6f03ad4f747e608bcbb5b9357bdbca6b.bundle",
+      "sha256": "240778fec12d6981ee1adc2fdce1a94b0f9fe8b932ede849aa9e3cf84857ff92"
+    }
+  ]
+}

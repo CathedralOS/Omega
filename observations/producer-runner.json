@@ -1,0 +1,6 @@
+{
+  "revision": "50e50cb1029062ab7fd38145b3312c9bb3ac76e6",
+  "sha256": "8d4afbb59e39bdaf5eea78afd52bc20ddb3a813820753381da2bb6f7cdea6a6e",
+  "profile": "{\"schema\":\"omega-compiler-build-profile-v1\",\"opt_level\":\"1\"}\n",
+  "build_record": "build/private-formation/build-runner.jsonl"
+}

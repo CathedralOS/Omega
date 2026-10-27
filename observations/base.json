@@ -1,0 +1,6 @@
+{
+  "base": "5ab4e12334fba74babfc3ae8d9992572fba307e6",
+  "parent": "NESTED-MACHINE-UNIFICATION",
+  "requirement": "Every private arrival supplies the lower bound needed to form exact subtraction inside the unannotated helper.",
+  "prior_publication": "https://github.com/CathedralOS/Omega/pull/348"
+}

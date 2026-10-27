@@ -1,0 +1,89 @@
+[
+  {
+    "name": "escaping_selection/main.omg",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-formation/producer-candidate/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/controls/escaping_selection/main.omg"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_arithmetic_control` with 1 diagnostic(s)\n  error: exact arithmetic in machine `apply` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `private_arithmetic_control`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/private_arithmetic/controls/escaping_selection/main.omg:8:46\n",
+    "source_sha256": "14b088e447045eb5bfa5e48dacdb4553ee316880d634b16235612efdbb20ee19"
+  },
+  {
+    "name": "multiple_arrivals/invalid/main.omg",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-formation/producer-candidate/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/controls/multiple_arrivals/invalid/main.omg"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_arithmetic_control` with 1 diagnostic(s)\n  error: exact arithmetic in machine `apply` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `private_arithmetic_control`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/private_arithmetic/controls/multiple_arrivals/invalid/main.omg:7:46\n",
+    "source_sha256": "58dda27e18cce2bfb58882b7c6862d78fcbfa7e5400af78b4afb176f676a0b9c"
+  },
+  {
+    "name": "multiple_arrivals/main.omg",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-formation/producer-candidate/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/controls/multiple_arrivals/main.omg"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "c89ef2e6af9978d4dda85cab598a3727268f2949a6a4c997d6ba39d01b32151f"
+  },
+  {
+    "name": "public_contract/invalid/main.omg",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-formation/producer-candidate/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/controls/public_contract/invalid/main.omg"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_arithmetic_control` with 1 diagnostic(s)\n  error: exact arithmetic in machine `subtract` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `private_arithmetic_control`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/private_arithmetic/controls/public_contract/invalid/main.omg:2:52\n",
+    "source_sha256": "d854c74656d7585410d0bd1302e8913426554e721e53341ac35d39b0596d3076"
+  },
+  {
+    "name": "public_contract/main.omg",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-formation/producer-candidate/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/controls/public_contract/main.omg"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "ff633fbe6e8cb48b386e79805eaeb6e6f373c515d77ec1235435b5403f10dbd1"
+  },
+  {
+    "name": "snapshot/invalid/main.omg",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-formation/producer-candidate/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/controls/snapshot/invalid/main.omg"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `private_arithmetic_control` with 1 diagnostic(s)\n  error: exact arithmetic in machine `apply` state `entry` local `result` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `private_arithmetic_control`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/private_arithmetic/controls/snapshot/invalid/main.omg:13:33\n",
+    "source_sha256": "f44bf65077d569a68649dd3d0d78cac83096bde1228bf6a9b52cc8437a8e5301"
+  },
+  {
+    "name": "snapshot/main.omg",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-formation/producer-candidate/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/controls/snapshot/main.omg"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n",
+    "source_sha256": "6e356c967a57df365e9c83995c2873e17f2829debce4c476871fed9127e05d0b"
+  }
+]

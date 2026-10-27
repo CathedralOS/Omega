@@ -1,0 +1,13 @@
+{
+  "revision": "50e50cb1029062ab7fd38145b3312c9bb3ac76e6",
+  "sha256": "7a08ed31f57db87dd8cf499bd5078443957d84534ec1e3294a57a807e4792a0e",
+  "profile": "{\"schema\":\"omega-compiler-build-profile-v1\",\"opt_level\":\"1\"}\n",
+  "compiler_inputs": [
+    "omega-rust",
+    "source/library",
+    "Cargo.toml",
+    "Cargo.lock",
+    "rust-toolchain.toml"
+  ],
+  "build_log": "build/private-formation/build-candidate.jsonl"
+}

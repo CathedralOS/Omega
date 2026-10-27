@@ -1,0 +1,12 @@
+{
+  "producer": "50e50cb1029062ab7fd38145b3312c9bb3ac76e6",
+  "baseline": "5ab4e12334fba74babfc3ae8d9992572fba307e6",
+  "nine_places_both_exit_zero": 9,
+  "zero_twins_reject": 9,
+  "soundness_controls": 7,
+  "source_fixtures": 52,
+  "fixture_engine_agreement": 21,
+  "host": "macOS ARM64",
+  "qualification": "Validates retained engine observations; does not reexecute them.",
+  "golden_note": "New rows only. Three older guarded-read-count negative diagnostics differ from historical golden; all still reject with intended fragments. No historical diagnostics rewritten."
+}
