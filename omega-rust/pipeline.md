@@ -234,6 +234,13 @@ Target/Build companion inputs travel explicitly; consumers cannot reopen checked
 source. Matching compilation inputs may share work; host Build and product
 contexts are not interchangeable merely because source bytes match.
 
+Callback and physical-entry adapters now join their exact selected declarations
+to canonical Terminal bodies. Each body retains its combined scalar/structural
+runtime order, so native preparation derives the formal correspondence from
+the artifact itself, including after reload. There is no late Psi signature query
+for these adapters. Other checked-source inputs to product coordination remain
+part of the migration; this does not claim the entire driver is source-free.
+
 An anonymous Build runs before its final source graph has a declaration owner.
 The Psi production request therefore distinguishes invocation-only code from
 portable publication, using the same stages, Terminal representation and

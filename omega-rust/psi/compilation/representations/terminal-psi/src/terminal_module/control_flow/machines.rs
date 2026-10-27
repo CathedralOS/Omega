@@ -20,6 +20,10 @@ pub struct TerminalMachine {
     /// Exact owner-designated cleanup subject, independent of attachment or call sites.
     pub nominal_cleanup_subject: Option<StructuralTypeId>,
     pub parameters: Vec<ValueDeclaration>,
+    /// Authored runtime ordering across scalar and structural lanes. Each tag
+    /// consumes the next parameter in that lane; erased formals occupy no tag.
+    /// Native bridges read this ordering without reopening checked source.
+    pub parameter_order: Vec<crate::BoundaryParameterKind>,
     /// Ordered runtime structural parameters, separate from scalar values.
     pub structural_parameters: Vec<StructuralParameterDeclaration>,
     /// Canonical source-handle-free ranking evidence for the first admitted
@@ -111,6 +115,41 @@ impl Block {
 }
 
 impl TerminalMachine {
+    /// Check that the authored order consumes both runtime lanes exactly once.
+    pub fn validate_parameter_order(&self) -> Result<(), &'static str> {
+        let scalar_count = self
+            .parameter_order
+            .iter()
+            .filter(|kind| **kind == crate::BoundaryParameterKind::Scalar)
+            .count();
+        let structural_count = self.parameter_order.len() - scalar_count;
+        if scalar_count != self.parameters.len()
+            || structural_count != self.structural_parameters.len()
+        {
+            return Err("machine runtime parameter order does not cover its signature");
+        }
+        Ok(())
+    }
+
+    /// Dense runtime formal ordinals in scalar-then-structural storage order.
+    /// Erased formals occupy no native lane and therefore no ordinal here.
+    pub fn runtime_parameter_formals(&self) -> Result<Vec<u32>, &'static str> {
+        self.validate_parameter_order()?;
+        let positions = |kind| {
+            self.parameter_order
+                .iter()
+                .enumerate()
+                .filter_map(move |(position, candidate)| (*candidate == kind).then_some(position))
+        };
+        positions(crate::BoundaryParameterKind::Scalar)
+            .chain(positions(crate::BoundaryParameterKind::Structural))
+            .map(|position| {
+                u32::try_from(position)
+                    .map_err(|_| "machine runtime formal ordinal cannot be represented")
+            })
+            .collect()
+    }
+
     /// The block keyed `id`, when the machine declares it.
     pub fn block(&self, id: &BlockId) -> Option<&Block> {
         self.blocks.iter().find(|block| block.id == *id)

@@ -2,8 +2,8 @@
 //!
 //! This is the producing half of the retained-Terminal contract. It owns
 //! canonical decode, entry settlement, provider demand, comparison custody,
-//! callback placement and boundary coverage. The compiler supplies retained
-//! callback entries in one program; this never calls back into compilation.
+//! callback placement and boundary coverage. Callback bodies are selected from
+//! the canonical program; this never calls back into source compilation.
 //! Checked selections remain transitional inputs, not native execution authority.
 
 use super::{
@@ -13,8 +13,8 @@ use super::{
 use diagnostics::Diagnostic;
 
 /// Borrow this target's source-side selections while closing them against one
-/// canonical artifact. Completed callback bodies arrive in placement order;
-/// neither their cardinality nor their identity is trusted.
+/// canonical artifact. Callback placements identify exact portable applications;
+/// their bodies and formal ordering come from the artifact itself.
 pub struct TerminalNativeProposalRequest<'input> {
     pub direct_boundary_leaves: Vec<&'input backend_plan::DirectBoundaryLeaf>,
     pub provider_declarations:
@@ -31,7 +31,6 @@ pub struct TerminalNativeProposalRequest<'input> {
     pub package_terminal_authority_permissions: Vec<effects::ServiceTerminalAuthorityPermission>,
     pub package_terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
     pub callback_placements: Vec<backend_plan::NativeCallbackPlacement>,
-    pub callback_thunks: Vec<crate::TerminalCallbackThunkArtifact>,
     pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
 }
 
@@ -123,7 +122,7 @@ fn close_family_realizations(
 /// Reconstruct the entry, provider and occurrence joins required by native
 /// re-entry. No compilation, publication or execution happens in this operation.
 pub fn project_terminal_native_realization_proposal(
-    artifact: &terminal_codec::CanonicalTerminalArtifact,
+    artifact: &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
     checked_program_entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
     request: TerminalNativeProposalRequest<'_>,
 ) -> Result<TerminalNativeRealizationProposal, Vec<Diagnostic>> {
@@ -178,7 +177,7 @@ pub fn project_terminal_native_realization_proposal(
 /// One provider projection for the complete canonical program. Main and
 /// callback entries subsequently borrow these same identity-qualified rows.
 fn project_terminal_native_body(
-    artifact: &terminal_codec::CanonicalTerminalArtifact,
+    artifact: &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
     target_profile: target::TargetProfile,
     request: &TerminalNativeProposalRequest<'_>,
 ) -> Result<TerminalNativeBodyProposal, Vec<Diagnostic>> {
@@ -214,8 +213,7 @@ fn project_terminal_native_body(
         .collect::<Result<Vec<_>, _>>()?;
     let callback_occurrences = project_callback_occurrences(
         &request.callback_placements,
-        artifact.view(),
-        &request.callback_thunks,
+        artifact,
         &selected,
         &checked_adapters,
     )?;
@@ -331,17 +329,12 @@ fn bind_direct_boundary_leaves(
 /// compile, so their native interfaces are not re-checked here.
 fn project_callback_occurrences(
     callback_placements: &[backend_plan::NativeCallbackPlacement],
-    caller: terminal_codec::TerminalArtifactView<'_>,
-    thunks: &[crate::TerminalCallbackThunkArtifact],
+    artifact: &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
     selected: &effects::SelectedProviderPlanFacts,
     checked_adapters: &[crate::SelectedProviderAdapter],
 ) -> Result<Vec<crate::TerminalCallbackOccurrenceProposal>, Vec<Diagnostic>> {
+    let caller = artifact.view();
     let module = caller.module();
-    if callback_placements.len() != thunks.len() {
-        return Err(vec![Diagnostic::error(
-            "callback thunk roster differs from checked placement roster",
-        )]);
-    }
     // The source roster may include uses in other canonical bodies, but every
     // retained application in this artifact must still have exactly one use.
     // Filtering out foreign namespaces cannot silently drop a local demand.
@@ -436,11 +429,10 @@ fn project_callback_occurrences(
     }
     let occurrences = callback_placements
         .iter()
-        .zip(thunks)
         .enumerate()
-        .filter(|(_, (placement, _))| module.callback_applications.binary_search_by_key(
+        .filter(|(_, placement)| module.callback_applications.binary_search_by_key(
             &placement.application_index, |row| row.application_index).is_ok())
-        .map(|(placement_index, (placement, callback_thunk_artifact))| {
+        .map(|(placement_index, placement)| {
             let application = module.callback_applications.binary_search_by_key(
                 &placement.application_index, |row| row.application_index
             ).ok().map(|ordinal| &module.callback_applications[ordinal])
@@ -460,12 +452,15 @@ fn project_callback_occurrences(
                             "callback placement {placement_index} cannot derive one valid callback-thunk identity",
                         ))]
                     })?;
+            let callback_thunk_artifact = crate::TerminalCallbackThunkArtifact::for_application(
+                std::sync::Arc::clone(artifact), placement.application_index,
+            ).map_err(|reason| vec![Diagnostic::error(reason)])?;
             Ok(crate::TerminalCallbackOccurrenceProposal::new(
                 placement_index,
                 placement.application_index,
                 application.registrar,
                 callback_thunk_identity,
-                callback_thunk_artifact.clone(),
+                callback_thunk_artifact,
                 placement.boundary_entry_plan.clone(),
                 placement.entry_parameters.clone(),
             ))

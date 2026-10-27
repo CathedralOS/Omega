@@ -22,6 +22,9 @@ pub(super) fn validate_machine(
     module: &TerminalModule,
     machine: &TerminalMachine,
 ) -> Result<(), CodecError> {
+    if let Err(reason) = machine.validate_parameter_order() {
+        return malformed(reason);
+    }
     if machine
         .declaration
         .as_ref()

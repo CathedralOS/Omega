@@ -36,6 +36,5 @@ pub use composition_admission::TerminalCompositionAdmission;
 pub use custody::{ProducedTerminalProgram, TerminalApplicationCustody, TerminalProductionCustody};
 pub use observation::{PsiCompilationObserver, PsiCompilationStage, UnmeasuredProduction};
 pub use terminal_production::{
-    ProgramEntryTerminalReceiptError, RetainedCallableSignature, TerminalArtifactProductionError,
-    TerminalProductionRequest, retained_callable_signature,
+    ProgramEntryTerminalReceiptError, TerminalArtifactProductionError, TerminalProductionRequest,
 };

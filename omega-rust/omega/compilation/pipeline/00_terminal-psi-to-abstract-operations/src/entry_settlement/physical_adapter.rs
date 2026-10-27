@@ -1,4 +1,4 @@
-//! Bind physical arrival to an explicitly selected, checked source provider.
+//! Bind physical arrival to an explicitly selected portable provider body.
 //!
 //! The adapter receives firmware arguments. The semantic continuation remains
 //! a separate checked declaration; ordinary calls into it must transfer its
@@ -30,16 +30,11 @@ impl PhysicalProgramEntry {
         artifact: &terminal_codec::CanonicalTerminalArtifact,
         application: &calling_conventions::BoundaryCallingApplication,
         selected: &[crate::SelectedProviderAdapter],
-        machine: MachineId,
     ) -> Result<Self, &'static str> {
         let module = artifact.semantic_module();
-        let body = module
-            .machine(machine)
-            .ok_or("physical adapter body is absent")?;
         let mut candidates = module.provider_candidates.iter().filter(|candidate| {
-            candidate.candidate == machine
-                && module.identities.text(candidate.requirement_identity)
-                    == Some(application.requirement_identity.as_str())
+            module.identities.text(candidate.requirement_identity)
+                == Some(application.requirement_identity.as_str())
                 && selected.iter().any(|selection| {
                     selection.requirement_identity == application.requirement_identity
                         && module.identities.text(candidate.candidate_identity)
@@ -58,6 +53,10 @@ impl PhysicalProgramEntry {
         if candidates.next().is_some() {
             return Err("physical adapter selection is ambiguous");
         }
+        let machine = candidate.candidate;
+        let body = module
+            .machine(machine)
+            .ok_or("physical adapter body is absent")?;
         let boundary = module
             .boundary_machine(candidate.boundary)
             .ok_or("physical adapter requirement is absent")?;
@@ -82,6 +81,9 @@ impl PhysicalProgramEntry {
             .chain(boundary.parameter_positions(terminal_psi::BoundaryParameterKind::Structural))
             .map(|position| u32::try_from(position).map_err(|_| "physical formal index overflows"))
             .collect::<Result<Vec<_>, _>>()?;
+        if body.runtime_parameter_formals()? != parameter_formals {
+            return Err("physical adapter body changes the retained arrival parameter order");
+        }
         Ok(Self {
             terminal: artifact.view().identity(),
             machine,

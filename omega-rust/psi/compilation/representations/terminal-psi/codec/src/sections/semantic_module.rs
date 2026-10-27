@@ -126,7 +126,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // from local formations and evaluated outgoing actuals.
 // This union retains ingress captures, ordinary no-normal invocations and
 // inherited scalar memberships; neither independent marker-196 layout suffices.
-pub(crate) const FORMAT_MARKER: u16 = 197;
+// Machines retain authored runtime ordering across scalar and structural lanes.
+pub(crate) const FORMAT_MARKER: u16 = 198;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

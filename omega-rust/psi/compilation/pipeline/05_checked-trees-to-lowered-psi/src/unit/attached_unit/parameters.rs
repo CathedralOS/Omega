@@ -69,7 +69,7 @@ fn service_parameter_multiplicity(
 
 /// Merge retained formals without turning lane-local proof/custody coordinates
 /// into ABI positions. Gaps may denote omitted receivers or erased formals.
-pub(crate) fn lower_boundary_parameter_order(
+pub(crate) fn lower_runtime_parameter_order(
     scalars: &[checked_trees::CheckedStructuralScalarParameterPlan],
     structural: &[checked_trees::CheckedUnitStructuralParameterPlan],
 ) -> Result<Vec<terminal_psi::BoundaryParameterKind>, LoweringError> {
@@ -81,7 +81,7 @@ pub(crate) fn lower_boundary_parameter_order(
             .windows(2)
             .any(|pair| pair[0].position >= pair[1].position)
     {
-        return unsupported("boundary parameter lanes are not in strict source order");
+        return unsupported("runtime parameter lanes are not in strict source order");
     }
     let mut scalar = scalars.iter().peekable();
     let mut structure = structural.iter().peekable();
@@ -92,7 +92,7 @@ pub(crate) fn lower_boundary_parameter_order(
                 std::cmp::Ordering::Less => Scalar,
                 std::cmp::Ordering::Greater => Structural,
                 std::cmp::Ordering::Equal => {
-                    return unsupported("boundary parameter lanes share a source position");
+                    return unsupported("runtime parameter lanes share a source position");
                 }
             },
             (Some(_), None) => Scalar,

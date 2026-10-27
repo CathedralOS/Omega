@@ -947,6 +947,12 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         declaration: None,
         nominal_cleanup_subject: None,
         parameters: scalar_parameters,
+        parameter_order: crate::unit::attached_unit::signatures::find(
+            &catalogs.signatures,
+            plan.machine,
+        )?
+        .parameter_order
+        .clone(),
         structural_places,
         structural_parameters: parameters,
         entry_claims: claims.entry_claims,
