@@ -230,19 +230,22 @@ pub(super) fn enforce_construction_field_obligations(
                 else {
                     return writes;
                 };
-                let bounds = format!(
-                    "{}..={}",
-                    range.low().map(|low| low.to_string()).unwrap_or_default(),
-                    range
-                        .high()
-                        .map(|high| high.to_string())
-                        .unwrap_or_default(),
-                );
+                let format_bounds = || {
+                    format!(
+                        "{}..={}",
+                        range.low().map(|low| low.to_string()).unwrap_or_default(),
+                        range
+                            .high()
+                            .map(|high| high.to_string())
+                            .unwrap_or_default(),
+                    )
+                };
                 match construction_field_literal(program, field.value) {
                     Some(value) => {
                         let below = range.low().is_some_and(|low| value < low);
                         let above = range.high().is_some_and(|high| value > high);
                         if below || above {
+                            let bounds = format_bounds();
                             diagnostics.push(Diagnostic::error(format!(
                                 "construction of `{type_name}` field `{}`: value {value} is outside its declared range `{bounds}`",
                                 field.name.as_str()
@@ -263,6 +266,7 @@ pub(super) fn enforce_construction_field_obligations(
                             interval.high().is_some_and(|value_high| value_high <= high)
                         });
                         if !provably_in_range {
+                            let bounds = format_bounds();
                             diagnostics.push(Diagnostic::error(format!(
                                 "construction of `{type_name}` field `{}` cannot be proven within its declared range `{bounds}`; constrain the value, construct with a literal in range, or widen the field",
                                 field.name.as_str()

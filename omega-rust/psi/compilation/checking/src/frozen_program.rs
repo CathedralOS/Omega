@@ -679,6 +679,15 @@ pub struct CheckingMemos {
             Vec<crate::DeclaredFloatFieldBound>,
         >,
     >,
+    pub(crate) private_closed_arrivals: Mutex<
+        symbols::SymbolKeyMap<
+            (symbols::SymbolHandle, symbols::SymbolHandle),
+            Result<
+                Vec<crate::proof_contracts::contract_entailment::structural_prefix::Arrival>,
+                &'static str,
+            >,
+        >,
+    >,
 }
 
 impl CheckingMemos {
@@ -720,6 +729,7 @@ impl CheckingMemos {
             contract_occurrences: self.contract_occurrences,
             bound_maps: self.bound_maps,
             declared_float_field_bounds: self.declared_float_field_bounds,
+            private_closed_arrivals: self.private_closed_arrivals,
             ..Self::default()
         }
     }
@@ -751,6 +761,12 @@ impl CheckingMemos {
             bound_maps: self.bound_maps.clone(),
             declared_float_field_bounds: Mutex::new(
                 self.declared_float_field_bounds
+                    .lock()
+                    .map(|guard| guard.clone())
+                    .unwrap_or_default(),
+            ),
+            private_closed_arrivals: Mutex::new(
+                self.private_closed_arrivals
                     .lock()
                     .map(|guard| guard.clone())
                     .unwrap_or_default(),

@@ -1756,9 +1756,6 @@ fn recognize_structural_state_leaves_from<'a>(
                     );
                     continue;
                 }
-                let mut branch_judge =
-                    structural_arm_judge(program, judge, &branch_hypotheses, &branch_equations);
-                let judge = &mut branch_judge;
                 // A crash closes this selected execution path without a normal
                 // result or later call occurrence. Its ceiling and authority
                 // remain separately checked; excluding the path imports no
@@ -1793,6 +1790,9 @@ fn recognize_structural_state_leaves_from<'a>(
                         // arrival separately owes its state contract.
                         continue;
                     }
+                    let mut branch_judge =
+                        structural_arm_judge(program, judge, &branch_hypotheses, &branch_equations);
+                    let judge = &mut branch_judge;
                     let target_parameters = program.state_parameters(target_state);
                     let target_frames =
                         if let Some(expression) = call_expression {
@@ -1875,6 +1875,9 @@ fn recognize_structural_state_leaves_from<'a>(
                     if requirement.is_some() {
                         continue;
                     }
+                    let mut branch_judge =
+                        structural_arm_judge(program, judge, &branch_hypotheses, &branch_equations);
+                    let judge = &mut branch_judge;
                     for outcome in judge.normal_return_paths(
                         *value,
                         &branch_environment,
@@ -1948,6 +1951,14 @@ pub(super) fn prefix_site_is_reachable(
                 program, owner, state, index,
             ) {
                 let selected = site.target_symbol(program);
+                if selected.is_valid()
+                    && matches!(
+                        program.symbols.get(selected).kind,
+                        symbols::SymbolKind::Operator | symbols::SymbolKind::BuiltinFunction
+                    )
+                {
+                    continue;
+                }
                 let Some((_, destination)) =
                     crate::machine_calls::calls::machine_state_by_symbol(program, selected)
                         .or_else(|| {

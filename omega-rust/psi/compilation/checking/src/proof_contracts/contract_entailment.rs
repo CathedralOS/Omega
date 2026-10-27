@@ -112,7 +112,7 @@ pub(crate) use stored_predicates::stored_data_predicate_holds;
 pub(crate) mod strict_arithmetic;
 mod structural_case_arms;
 pub(crate) mod structural_judgment;
-mod structural_prefix;
+pub(crate) mod structural_prefix;
 pub(crate) use operand_fits::{
     anonymous_comparison_operand_fits_at_occurrence, anonymous_value_fit_at_occurrence,
     exact_binary_fits_at_occurrence, exact_cast_fits_at_occurrence,

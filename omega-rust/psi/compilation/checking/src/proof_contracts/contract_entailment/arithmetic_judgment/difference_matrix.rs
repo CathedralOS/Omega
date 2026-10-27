@@ -65,24 +65,26 @@ impl<'program> Engine<'program> {
     /// residual and scaled judgments as `prove_at_least`, without asking the
     /// identical residual question twice. No new combinations are searched.
     pub(super) fn bounds_are_inconsistent(&self) -> bool {
-        for (bound_position, (polynomial, bound)) in self.bounds.iter().enumerate() {
+        let queries = self.lower_bound_queries();
+        let exact = queries.prepared_exact_bounds();
+        for (bound_position, (polynomial, bound)) in exact.iter().enumerate() {
             let complement = polynomial.neg();
             let complement_bound = BigInt::from_i64(1).sub(bound);
-            if self.prove_base_lower_bound(&complement, &complement_bound) {
+            if queries.prove_base_lower_bound(&complement, &complement_bound) {
                 return true;
             }
-            for (stored_position, (stored, stored_bound)) in self.bounds.iter().enumerate() {
+            for (stored_position, (stored, stored_bound)) in exact.iter().enumerate() {
                 // The reversed pair asks exactly -P-Q >= 1-b-c too. Earlier
                 // rows completed false or we already returned; canonical exact
                 // arithmetic and immutable engine state make that result reusable.
                 // Keep the diagonal and every directed scaled query: scaling's
                 // coefficient selection and integer slack need not be symmetric.
                 if (stored_position >= bound_position
-                    && self.prove_base_lower_bound(
+                    && queries.prove_base_lower_bound(
                         &complement.sub(stored),
                         &complement_bound.sub(stored_bound),
                     ))
-                    || self.prove_scaled_lower_bound(
+                    || queries.prove_scaled_lower_bound(
                         &complement,
                         &complement_bound,
                         stored,
