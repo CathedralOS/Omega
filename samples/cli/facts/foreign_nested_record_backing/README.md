@@ -8,6 +8,8 @@ A mutable foreign registration retains the exact original nested Buffer backing 
 
 The nine places preserve the same operation through local, field, parameter, call result, match join, const name, nested machine, other machine and selected target body. Every entry binds all four hosted targets. Each invalid twin inserts one nested scalar read before its linear Pending completes.
 
+The [array continuation](arrays/README.md) exercises a fixed array of nested records with adjacent element canaries and the same retained original allocation.
+
 This row exercises the recursive original-backing codec. Candidate `f0c9d9694a74` passes all nine places and the repeated-child composition control with actual native and Terminal exit 0 on macOS ARM64. The intended reject twins also pass; the other hosted targets are being qualified. The existing capacity and Pending content contracts and exact normal `Buffer::Owned` guarantee are preserved. Nested record shape adds no qualification or pointer-authority exception.
 
 ## Required behavior
