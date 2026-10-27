@@ -36,7 +36,7 @@ fn declared_array_leaf_proves_its_predicate_without_creating_extra_custody() {
         declaration(
             scalar,
             StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer)),
-            Some(StructuralFieldType::BoundedInteger(bounds)),
+            None,
         ),
         declaration(
             record,
