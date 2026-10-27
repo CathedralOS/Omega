@@ -254,6 +254,7 @@ pub(crate) fn build_check_facts(
                 call_frames.as_ref(),
             )
         });
+        prepared.flow.control.seal_indexes();
         phase_profile::scope("05.d.3.b.flow_fixed_point.bind_call_spans", || {
             crate::facts::review_sources::bind_checked_body_call_source_spans(
                 program,
