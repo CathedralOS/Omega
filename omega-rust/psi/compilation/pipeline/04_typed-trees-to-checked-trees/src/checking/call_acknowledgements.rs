@@ -421,26 +421,36 @@ fn validate_call(
         return;
     };
 
+    // Generated calls may have no authored span. Preserve that absence rather
+    // than attributing their errors to the first source unit at byte zero.
+    let at_call = |message| {
+        let diagnostic = Diagnostic::error(message);
+        if source_span.span.start < source_span.span.end {
+            diagnostic.with_source_span(source_span)
+        } else {
+            diagnostic
+        }
+    };
     let acknowledgement = call.acknowledgement;
     let may_suspend = call.transitive_may_suspend;
     let may_block = call.transitive_may_block;
     if acknowledgement.acknowledges_suspend != may_suspend
         || acknowledgement.acknowledges_block != may_block
     {
-        diagnostics.push(Diagnostic::error(format!(
+        diagnostics.push(at_call(format!(
             "call to `{target}` has operational envelope {} but acknowledges {}; call acknowledgements must match exactly",
             envelope_label(may_suspend, may_block),
             envelope_label(
                 acknowledgement.acknowledges_suspend,
                 acknowledgement.acknowledges_block,
             ),
-        )).with_source_span(source_span));
+        )));
     }
 
     if may_suspend && !direct_position {
-        diagnostics.push(Diagnostic::error(format!(
+        diagnostics.push(at_call(format!(
             "suspending call to `{target}` is nested inside a partially evaluated expression; bind it as a complete statement, simple `let` right-hand side, transition subject, or terminal expression before continuation planning",
-        )).with_source_span(source_span));
+        )));
     }
 }
 

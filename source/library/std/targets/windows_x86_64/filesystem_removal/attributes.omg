@@ -19,7 +19,7 @@ requires handle != 0
 reaches FilesystemMetadataQuery {
     let file: i64 in WindowsDiskFileOrAbsent = block windows_classify_metadata_disk_file(
         narrow_i64_to_u64_wrapping(handle as i64));
-    transition file != 0 { true -> query(file) false -> failed() }
+    transition file != 0 { true -> block query(file) false -> failed() }
     machine query(file: i64 in WindowsDiskFileOrAbsent) -> WindowsRemovalAttributes
     requires file != 0 {
         let mut information: WindowsNativeFileAttributeTagInfo;
