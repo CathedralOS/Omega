@@ -8,8 +8,8 @@ use semantic_vocabulary::ScalarType;
 
 use crate::analyses::control_flow::DominatorAnalysis;
 
-use super::super::scalar_value_definition;
-use super::control_flow::{dominated_blocks, reachable_blocks};
+use super::super::{scalar_value_definition, semantically_reachable_blocks};
+use super::control_flow::dominated_blocks;
 
 pub(super) fn extend(
     unit: &PsiOptimizationUnit,
@@ -17,7 +17,7 @@ pub(super) fn extend(
     facts: &mut Vec<ValueRangeFact>,
 ) {
     for function in &unit.functions {
-        let reachable = reachable_blocks(function);
+        let reachable = semantically_reachable_blocks(function);
         for block in &function.blocks {
             if !reachable.contains(&block.id) {
                 continue;

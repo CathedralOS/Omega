@@ -1,7 +1,7 @@
 //! Optimizer module role: validation leaf. Independently reconstructed countdown placements.
 
 use super::{
-    CountdownInvariantConstantConsumer, CountdownInvariantConstantDestination,
+    AnalysisRoot, CountdownInvariantConstantConsumer, CountdownInvariantConstantDestination,
     CountdownInvariantConstantPlacement, CountdownInvariantConstantPlacementAnalysisError,
     CountdownInvariantConstantPlacementAnalysisSnapshot, CountdownInvariantConstantRole,
     CountdownInvariantIntegerConstant, NodeLocation, O,
@@ -9,7 +9,7 @@ use super::{
     PsiProvenance, ScalarType, UnsignedCountdownInvariantConstantPlacements,
     UnsignedCountdownLoopSummary, ValidatedCountdownInvariantConstantAnalysis,
     ValidatedCountedLoopAnalysis, ValidatedOptimizerCycleComponents, ValueDefinitionSite,
-    recompute_psi_optimization_unit_identity, validate_moved_constant_locations,
+    validate_analysis_root, validate_moved_constant_locations,
 };
 use abstract_operations::{IntegerArithmeticOperator, IntegerOverflowPolicy};
 use std::collections::BTreeMap;
@@ -135,8 +135,7 @@ pub(super) fn reconstruct(
         });
     }
     Ok(CountdownInvariantConstantPlacementAnalysisSnapshot {
-        revision: unit.identity,
-        terminal_psi: unit.psi,
+        root: AnalysisRoot::of(unit),
         loops,
     })
 }
@@ -392,27 +391,12 @@ fn validate_roots(
     counted: &ValidatedCountedLoopAnalysis,
     invariants: &ValidatedCountdownInvariantConstantAnalysis,
 ) -> Result<(), CountdownInvariantConstantPlacementAnalysisError> {
-    let recomputed = recompute_psi_optimization_unit_identity(unit);
-    if recomputed != unit.identity {
-        return Err(
-            CountdownInvariantConstantPlacementAnalysisError::StaleUnitIdentity {
-                stored: unit.identity,
-                recomputed,
-            },
-        );
-    }
-    if unit.psi != custody.snapshot().terminal_psi
-        || unit.psi != custody.ranking_certificates().snapshot().terminal_psi
-        || unit.psi != counted.snapshot().terminal_psi
-        || unit.psi != invariants.snapshot().terminal_psi
-    {
-        return Err(CountdownInvariantConstantPlacementAnalysisError::TerminalIdentityMismatch);
-    }
-    if unit.identity != counted.snapshot().revision
-        || unit.identity != invariants.snapshot().revision
-    {
-        return Err(CountdownInvariantConstantPlacementAnalysisError::AnalysisRevisionMismatch);
-    }
+    validate_analysis_root(
+        unit,
+        custody,
+        &[counted.snapshot().root, invariants.snapshot().root],
+    )
+    .map_err(CountdownInvariantConstantPlacementAnalysisError::Root)?;
     let component_keys = custody
         .components()
         .iter()
