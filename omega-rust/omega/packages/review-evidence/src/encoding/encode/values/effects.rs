@@ -11,10 +11,7 @@ pub(crate) fn encode_synchronous_invocation(
     match invocation {
         PackageReviewSynchronousInvocation::Parameter(position) => {
             encoder.tag("parameter", 0);
-            encoder.field("position", |encoder| {
-                encoder.u32(*position);
-                Ok(())
-            })?;
+            encoder.u32_field("position", *position)?;
         }
         PackageReviewSynchronousInvocation::Service(service) => {
             encoder.tag("service", 1);

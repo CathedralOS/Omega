@@ -24,10 +24,7 @@ pub(super) fn encode_contract_expression_body(
     match expression {
         PackageReviewContractExpression::Boolean(value) => {
             encoder.tag("boolean", 0);
-            encoder.field("value", |encoder| {
-                encoder.boolean(*value);
-                Ok(())
-            })?;
+            encoder.boolean_field("value", *value)?;
         }
         PackageReviewContractExpression::Integer(value) => {
             encoder.tag("integer", 1);
@@ -39,17 +36,11 @@ pub(super) fn encode_contract_expression_body(
                 match value {
                     PackageReviewFloatLiteral::F32(bits) => {
                         encoder.tag("f32", 0);
-                        encoder.field("bits", |encoder| {
-                            encoder.u32(*bits);
-                            Ok(())
-                        })?;
+                        encoder.u32_field("bits", *bits)?;
                     }
                     PackageReviewFloatLiteral::F64(bits) => {
                         encoder.tag("f64", 1);
-                        encoder.field("bits", |encoder| {
-                            encoder.u64(*bits);
-                            Ok(())
-                        })?;
+                        encoder.u64_field("bits", *bits)?;
                     }
                 };
                 Ok(())
@@ -96,10 +87,7 @@ pub(super) fn encode_contract_expression_body(
             encoder.field("end", |encoder| {
                 encoder.option(end.as_deref(), encode_contract_expression)
             })?;
-            encoder.field("end_inclusive", |encoder| {
-                encoder.boolean(*end_inclusive);
-                Ok(())
-            })?;
+            encoder.boolean_field("end_inclusive", *end_inclusive)?;
         }
         PackageReviewContractExpression::ByteSequence(value) => {
             encoder.tag("byte_sequence", 12);
@@ -108,18 +96,12 @@ pub(super) fn encode_contract_expression_body(
         PackageReviewContractExpression::DomainSubject => encoder.tag("domain_subject", 10),
         PackageReviewContractExpression::Parameter(position) => {
             encoder.tag("parameter", 2);
-            encoder.field("position", |encoder| {
-                encoder.u32(*position);
-                Ok(())
-            })?;
+            encoder.u32_field("position", *position)?;
         }
         PackageReviewContractExpression::Result => encoder.tag("result", 3),
         PackageReviewContractExpression::GenericBinder(position) => {
             encoder.tag("generic_binder", 4);
-            encoder.field("position", |encoder| {
-                encoder.u32(*position);
-                Ok(())
-            })?;
+            encoder.u32_field("position", *position)?;
         }
         PackageReviewContractExpression::Nominal(identity) => {
             encoder.tag("nominal", 5);

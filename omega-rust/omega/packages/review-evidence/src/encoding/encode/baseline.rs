@@ -33,14 +33,8 @@ pub(in crate::encoding) fn framed_policy(
     encoder: &mut Encoder,
     value: &PackagePolicyBaseline,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("binary_format", |encoder| {
-        encoder.fixed_bytes(PACKAGE_POLICY_BASELINE_MAGIC);
-        Ok(())
-    })?;
-    encoder.field("baseline_schema", |encoder| {
-        encoder.u16(PACKAGE_POLICY_BASELINE_VERSION);
-        Ok(())
-    })?;
+    encoder.fixed_bytes_field("binary_format", PACKAGE_POLICY_BASELINE_MAGIC)?;
+    encoder.u16_field("baseline_schema", PACKAGE_POLICY_BASELINE_VERSION)?;
     encoder.record("package_policy", |encoder| policy(encoder, value))
 }
 
@@ -48,10 +42,7 @@ pub(in crate::encoding) fn policy(
     encoder: &mut Encoder,
     value: &PackagePolicyBaseline,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("package", |encoder| {
-        encoder.package_identity(value.package);
-        Ok(())
-    })?;
+    encoder.package_identity_field("package", value.package)?;
     encoder.field("target", |encoder| {
         encoder.string(value.target.identity().as_str())
     })?;

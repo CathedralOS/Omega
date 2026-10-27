@@ -26,10 +26,7 @@ pub(super) fn policy(
     encoder: &mut Encoder,
     policy: &PackagePolicyCallables,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("package", |encoder| {
-        encoder.package_identity(policy.package);
-        Ok(())
-    })?;
+    encoder.package_identity_field("package", policy.package)?;
     encoder.field("target", |encoder| {
         encoder.string(policy.target.identity().as_str())
     })?;

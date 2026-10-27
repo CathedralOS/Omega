@@ -46,14 +46,8 @@ pub(in crate::encoding::encode) fn demand(
                     producer_binder_ordinal,
                 } => {
                     encoder.tag("type_binder", 0);
-                    encoder.field("requirement_binder_ordinal", |encoder| {
-                        encoder.u32(*requirement_binder_ordinal);
-                        Ok(())
-                    })?;
-                    encoder.field("producer_binder_ordinal", |encoder| {
-                        encoder.u32(*producer_binder_ordinal);
-                        Ok(())
-                    })?;
+                    encoder.u32_field("requirement_binder_ordinal", *requirement_binder_ordinal)?;
+                    encoder.u32_field("producer_binder_ordinal", *producer_binder_ordinal)?;
                 }
             }
             Ok(())
@@ -78,10 +72,7 @@ pub(in crate::encoding::encode) fn realization(
         &realization.application,
         encode_boundary_application,
     )?;
-    encoder.field("selected_plan_index", |encoder| {
-        encoder.u32(realization.selected_plan_index);
-        Ok(())
-    })?;
+    encoder.u32_field("selected_plan_index", realization.selected_plan_index)?;
     encoder.field("realization", |encoder| {
         match &realization.realization {
             PackagePolicyBoundaryRealization::NongenericCheckedBody {

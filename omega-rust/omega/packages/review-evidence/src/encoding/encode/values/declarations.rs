@@ -129,10 +129,7 @@ pub(crate) fn encode_evidence_interface(
     encoder.field_by("trait_identity", &interface.trait_identity, encode_nominal)?;
     encoder.field("lifetime_arguments", |encoder| {
         encoder.sequence(&interface.lifetime_arguments, |encoder, argument| {
-            encoder.field("argument", |encoder| {
-                encoder.u32(*argument);
-                Ok(())
-            })?;
+            encoder.u32_field("argument", *argument)?;
             Ok(())
         })
     })?;
@@ -150,10 +147,7 @@ pub(crate) fn encode_evidence_interface(
                 encoder.sequence(
                     &requirement.declaring_trait_lifetime_arguments,
                     |encoder, argument| {
-                        encoder.field("argument", |encoder| {
-                            encoder.u32(*argument);
-                            Ok(())
-                        })?;
+                        encoder.u32_field("argument", *argument)?;
                         Ok(())
                     },
                 )

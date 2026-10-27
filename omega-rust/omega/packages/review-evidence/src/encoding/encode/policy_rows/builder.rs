@@ -203,44 +203,23 @@ pub(super) fn frame_row(
     audit: bool,
     value: &impl Fn(&mut Encoder) -> Result<(), PackageReviewEncodingError>,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("binary_format", |encoder| {
-        encoder.fixed_bytes(b"OMEGA-PACKAGE-POLICY-ROW\0");
-        Ok(())
-    })?;
-    encoder.field("row_schema", |encoder| {
-        encoder.u16(PACKAGE_POLICY_ROW_VERSION);
-        Ok(())
-    })?;
-    encoder.field("baseline_schema", |encoder| {
-        encoder.u16(crate::encoding::PACKAGE_POLICY_BASELINE_VERSION);
-        Ok(())
-    })?;
-    encoder.field("package", |encoder| {
-        encoder.package_identity(package);
-        Ok(())
-    })?;
+    encoder.fixed_bytes_field("binary_format", b"OMEGA-PACKAGE-POLICY-ROW\0")?;
+    encoder.u16_field("row_schema", PACKAGE_POLICY_ROW_VERSION)?;
+    encoder.u16_field(
+        "baseline_schema",
+        crate::encoding::PACKAGE_POLICY_BASELINE_VERSION,
+    )?;
+    encoder.package_identity_field("package", package)?;
     encoder.field("target", |encoder| {
         encoder.string(target.identity().as_str())
     })?;
-    encoder.field("kind", |encoder| {
-        encoder.tag(kind.as_str(), kind.canonical_tag());
-        Ok(())
-    })?;
-    encoder.field("initial_requires_decision", |encoder| {
-        encoder.boolean(initial);
-        Ok(())
-    })?;
-    encoder.field("update_requires_decision", |encoder| {
-        encoder.boolean(initial);
-        Ok(())
-    })?;
-    encoder.field("audit_recommended_when_present", |encoder| {
-        encoder.boolean(audit);
-        Ok(())
-    })?;
-    encoder.field("audit_recommended_on_change", |encoder| {
-        encoder.boolean(kind.row_change_audit(initial, audit));
-        Ok(())
-    })?;
+    encoder.tag_field("kind", kind.as_str(), kind.canonical_tag())?;
+    encoder.boolean_field("initial_requires_decision", initial)?;
+    encoder.boolean_field("update_requires_decision", initial)?;
+    encoder.boolean_field("audit_recommended_when_present", audit)?;
+    encoder.boolean_field(
+        "audit_recommended_on_change",
+        kind.row_change_audit(initial, audit),
+    )?;
     encoder.field("value", value)
 }

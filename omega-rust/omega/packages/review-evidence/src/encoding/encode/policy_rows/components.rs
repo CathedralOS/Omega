@@ -38,10 +38,7 @@ pub(super) fn terminal(
                 encoder.field("static_parameters", |encoder| {
                     encoder.sequence(static_parameters, public_api::type_parameter)
                 })?;
-                encoder.field("lifetime_parameter_count", |encoder| {
-                    encoder.u32(*lifetime_parameter_count);
-                    Ok(())
-                })?;
+                encoder.u32_field("lifetime_parameter_count", *lifetime_parameter_count)?;
                 encoder.field("methods", |encoder| {
                     encoder.sequence(methods, selected_providers::encode_service_method)
                 })

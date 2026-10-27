@@ -1,6 +1,53 @@
 use super::{Encoder, PackageReviewEncodingError};
+use semantic_vocabulary::PackageKeyIdentity;
+
+/// The scalar field forms: one named field whose payload is a single scalar
+/// write, delegating to `Encoder::field` for the field's own framing. A policy
+/// row states the scalar value and the field's name; the wrapper closure that
+/// restated the framing at every site is not part of the encoder's surface.
+macro_rules! scalar_field_forms {
+    ($($method:ident($value:ty) => $writer:ident),+ $(,)?) => {
+        $(
+            pub(crate) fn $method(
+                &mut self,
+                name: &'static str,
+                value: $value,
+            ) -> Result<(), PackageReviewEncodingError> {
+                self.field(name, |encoder| {
+                    encoder.$writer(value);
+                    Ok(())
+                })
+            }
+        )+
+    };
+}
 
 impl Encoder<'_> {
+    scalar_field_forms!(
+        byte_field(u8) => byte,
+        u16_field(u16) => u16,
+        u32_field(u32) => u32,
+        u64_field(u64) => u64,
+        i64_field(i64) => i64,
+        boolean_field(bool) => boolean,
+        fixed_bytes_field(&[u8]) => fixed_bytes,
+        package_identity_field(PackageKeyIdentity) => package_identity,
+        optional_package_identity_field(Option<PackageKeyIdentity>) => optional_package_identity,
+    );
+
+    /// One tag field: the tag's own name and value under this field's name,
+    /// for the tag-typed rows that carried the wrapper as well.
+    pub(crate) fn tag_field(
+        &mut self,
+        name: &'static str,
+        tag: &'static str,
+        value: u8,
+    ) -> Result<(), PackageReviewEncodingError> {
+        self.field(name, |encoder| {
+            encoder.tag(tag, value);
+            Ok(())
+        })
+    }
     pub(crate) fn fixed_bytes(&mut self, value: &[u8]) {
         if let Some(text) = &mut self.text {
             text.bytes("fixed", value);

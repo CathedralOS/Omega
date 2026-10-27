@@ -23,10 +23,7 @@ fn encode_boolean_node(
     match expression {
         PackageReviewBooleanExpression::Constant(value) => {
             encoder.tag("constant", 0);
-            encoder.field("value", |encoder| {
-                encoder.boolean(*value);
-                Ok(())
-            })?;
+            encoder.boolean_field("value", *value)?;
         }
         PackageReviewBooleanExpression::Parameter { position } => {
             encoder.tag("parameter", 1);
@@ -41,10 +38,7 @@ fn encode_boolean_node(
             path,
         } => {
             encoder.tag("structural_parameter_field", 3);
-            encoder.field("parameter_position", |encoder| {
-                encoder.u32(*parameter_position);
-                Ok(())
-            })?;
+            encoder.u32_field("parameter_position", *parameter_position)?;
             encoder.field("path", |encoder| encode_structural_path(encoder, path))?;
         }
         PackageReviewBooleanExpression::Not(operand) => {

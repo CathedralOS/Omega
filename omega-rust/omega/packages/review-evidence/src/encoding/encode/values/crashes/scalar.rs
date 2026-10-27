@@ -23,17 +23,11 @@ fn encode_scalar_node(
     match expression {
         PackageReviewScalarExpression::Float32Literal(bits) => {
             encoder.tag("float32_literal", 9);
-            encoder.field("bits", |encoder| {
-                encoder.u32(*bits);
-                Ok(())
-            })?;
+            encoder.u32_field("bits", *bits)?;
         }
         PackageReviewScalarExpression::Float64Literal(bits) => {
             encoder.tag("float64_literal", 10);
-            encoder.field("bits", |encoder| {
-                encoder.u64(*bits);
-                Ok(())
-            })?;
+            encoder.u64_field("bits", *bits)?;
         }
         PackageReviewScalarExpression::Parameter {
             position,
@@ -63,10 +57,7 @@ fn encode_scalar_node(
             primitive_type,
         } => {
             encoder.tag("structural_parameter_field", 2);
-            encoder.field("parameter_position", |encoder| {
-                encoder.u32(*parameter_position);
-                Ok(())
-            })?;
+            encoder.u32_field("parameter_position", *parameter_position)?;
             encoder.field("path", |encoder| encode_structural_path(encoder, path))?;
             encoder.field("primitive_type", |encoder| {
                 encode_primitive_type(encoder, *primitive_type);
@@ -160,10 +151,7 @@ fn encode_scalar_node(
             path,
         } => {
             encoder.tag("structural_parameter_byte_length", 15);
-            encoder.field("parameter_position", |encoder| {
-                encoder.u32(*parameter_position);
-                Ok(())
-            })?;
+            encoder.u32_field("parameter_position", *parameter_position)?;
             encoder.field("path", |encoder| encode_structural_path(encoder, path))?;
         }
         PackageReviewScalarExpression::StructuralParameterIndexedRead {
@@ -175,10 +163,7 @@ fn encode_scalar_node(
             primitive_type,
         } => {
             encoder.tag("structural_parameter_indexed_read", 16);
-            encoder.field("parameter_position", |encoder| {
-                encoder.u32(*parameter_position);
-                Ok(())
-            })?;
+            encoder.u32_field("parameter_position", *parameter_position)?;
             encoder.field("path", |encoder| encode_structural_path(encoder, path))?;
             encoder.field("index", |encoder| encode_scalar_expression(encoder, index))?;
             encoder.field("inner_indexes", |encoder| {

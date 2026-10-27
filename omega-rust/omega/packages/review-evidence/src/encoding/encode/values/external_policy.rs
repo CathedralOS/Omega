@@ -48,18 +48,12 @@ pub(in crate::encoding::encode) fn validated_value(
         match &supply.binding {
             PackagePolicyExternalBinding::Syscall { number } => {
                 encoder.tag("syscall", 1);
-                encoder.field("number", |encoder| {
-                    encoder.i64(*number);
-                    Ok(())
-                })?;
+                encoder.i64_field("number", *number)?;
             }
             PackagePolicyExternalBinding::CompilerIntrinsic => encoder.tag("compiler_intrinsic", 2),
             PackagePolicyExternalBinding::VtableSlot { index } => {
                 encoder.tag("vtable_slot", 3);
-                encoder.field("index", |encoder| {
-                    encoder.i64(*index);
-                    Ok(())
-                })?;
+                encoder.i64_field("index", *index)?;
             }
             PackagePolicyExternalBinding::VtableField { field } => {
                 encoder.tag("vtable_field", 4);
@@ -86,10 +80,7 @@ pub(in crate::encoding::encode) fn validated_value(
             } => {
                 encoder.tag("normalized_syscall", 7);
                 encoder.field("target", |encoder| encode_target(encoder, target))?;
-                encoder.field("number", |encoder| {
-                    encoder.i64(*number);
-                    Ok(())
-                })?;
+                encoder.i64_field("number", *number)?;
                 encoder.field("producer", |encoder| encode_producer(encoder, producer))?;
             }
         }
@@ -114,10 +105,7 @@ pub(crate) fn encode_producer(
     producer: &PackagePolicyEvaluatedBindingProducer,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field_by("declaration", &producer.declaration, encode_nominal)?;
-    encoder.field("package", |encoder| {
-        encoder.optional_package_identity(producer.package);
-        Ok(())
-    })?;
+    encoder.optional_package_identity_field("package", producer.package)?;
     encoder.field("callable_identity", |encoder| {
         encoder.string(&producer.callable_identity)
     })

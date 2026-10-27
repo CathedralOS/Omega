@@ -68,10 +68,7 @@ pub(in crate::encoding::encode) fn method(
         };
         Ok(())
     })?;
-    encoder.field("has_result", |encoder| {
-        encoder.boolean(method.has_result);
-        Ok(())
-    })?;
+    encoder.boolean_field("has_result", method.has_result)?;
     encoder.field("result_type_identity", |encoder| {
         encoder.option(method.result_type_identity.as_ref(), |encoder, value| {
             encoder.field("value", |encoder| encoder.string(value))
@@ -97,18 +94,9 @@ pub(in crate::encoding::encode) fn method(
             encoder.field("value", |encoder| encoder.string(value))
         })
     })?;
-    encoder.field("may_suspend", |encoder| {
-        encoder.boolean(method.may_suspend);
-        Ok(())
-    })?;
-    encoder.field("may_block", |encoder| {
-        encoder.boolean(method.may_block);
-        Ok(())
-    })?;
-    encoder.field("terminates_guarantee", |encoder| {
-        encoder.boolean(method.terminates_guarantee);
-        Ok(())
-    })?;
+    encoder.boolean_field("may_suspend", method.may_suspend)?;
+    encoder.boolean_field("may_block", method.may_block)?;
+    encoder.boolean_field("terminates_guarantee", method.terminates_guarantee)?;
     encoder.field("termination_premises", |encoder| {
         encoder.sequence(&method.termination_premises, |encoder, premise| {
             encoder.field("profile", |encoder| encoder.string(&premise.profile))?;

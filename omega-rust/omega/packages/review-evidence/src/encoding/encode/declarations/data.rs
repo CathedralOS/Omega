@@ -84,10 +84,7 @@ pub(crate) fn encode_data_member(
             })?;
             encoder.field("retired_payload_identities", |encoder| {
                 encoder.sequence(retired_payload_identities, |encoder, identity| {
-                    encoder.field("identity", |encoder| {
-                        encoder.u64(*identity);
-                        Ok(())
-                    })?;
+                    encoder.u64_field("identity", *identity)?;
                     Ok(())
                 })
             })?;
@@ -135,10 +132,7 @@ pub(crate) fn encode_optional_u64(encoder: &mut Encoder, value: Option<u64>) {
         None => encoder.tag("none", 0),
         Some(value) => {
             encoder.tag("some", 1);
-            let _ = encoder.field("value", |encoder| {
-                encoder.u64(value);
-                Ok(())
-            });
+            let _ = encoder.u64_field("value", value);
         }
     }
 }

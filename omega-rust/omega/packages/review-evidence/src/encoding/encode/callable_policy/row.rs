@@ -61,14 +61,8 @@ pub(in crate::encoding) fn encode_callable(
         encoder.sequence(&callable.parameters, |encoder, parameter| {
             encoder.field("name", |encoder| encoder.string(&parameter.name))?;
             encoder.field_by("type", &parameter.type_identity, encode_type_identity)?;
-            encoder.field("const", |encoder| {
-                encoder.boolean(parameter.is_const);
-                Ok(())
-            })?;
-            encoder.field("mutable", |encoder| {
-                encoder.boolean(parameter.is_mutable);
-                Ok(())
-            })?;
+            encoder.boolean_field("const", parameter.is_const)?;
+            encoder.boolean_field("mutable", parameter.is_mutable)?;
             Ok(())
         })
     })?;
@@ -189,14 +183,8 @@ pub(in crate::encoding) fn encode_callable(
             behavior::termination,
         )
     })?;
-    encoder.field("checked_may_suspend", |encoder| {
-        encoder.boolean(callable.checked_may_suspend);
-        Ok(())
-    })?;
-    encoder.field("checked_may_block", |encoder| {
-        encoder.boolean(callable.checked_may_block);
-        Ok(())
-    })?;
+    encoder.boolean_field("checked_may_suspend", callable.checked_may_suspend)?;
+    encoder.boolean_field("checked_may_block", callable.checked_may_block)?;
     encoder.field_by(
         "checked_termination",
         &callable.checked_termination,

@@ -52,10 +52,7 @@ pub(crate) fn encode_application(
 }
 
 fn ordinal(encoder: &mut Encoder, ordinal: &u32) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("value", |encoder| {
-        encoder.u32(*ordinal);
-        Ok(())
-    })?;
+    encoder.u32_field("value", *ordinal)?;
     Ok(())
 }
 

@@ -41,10 +41,7 @@ pub(crate) fn encode_callable_contract(
         encoder.option(
             contract.evidence_lane_position.as_ref(),
             |encoder, position| {
-                encoder.field("position", |encoder| {
-                    encoder.u32(*position);
-                    Ok(())
-                })?;
+                encoder.u32_field("position", *position)?;
                 Ok(())
             },
         )
@@ -80,10 +77,7 @@ pub(crate) fn encode_contract_fact(
         }
         PackageReviewContractFact::PropositionParameter(application) => {
             encoder.tag("proposition_parameter", 3);
-            encoder.field("binder_ordinal", |encoder| {
-                encoder.u32(application.binder_ordinal);
-                Ok(())
-            })?;
+            encoder.u32_field("binder_ordinal", application.binder_ordinal)?;
             encoder.field("arguments", |encoder| {
                 encoder.sequence(&application.arguments, encode_contract_expression)
             })
@@ -126,10 +120,7 @@ pub(crate) fn encode_proposition_application(
                     }
                     PackageReviewPropositionBinderValue::GenericBinder(position) => {
                         encoder.tag("generic_binder", 1);
-                        encoder.field("position", |encoder| {
-                            encoder.u32(*position);
-                            Ok(())
-                        })?;
+                        encoder.u32_field("position", *position)?;
                     }
                     PackageReviewPropositionBinderValue::Integer(value) => {
                         encoder.tag("integer", 2);
@@ -150,10 +141,7 @@ pub(crate) fn encode_proposition_application(
                             };
                             Ok(())
                         })?;
-                        encoder.field("source_lane_position", |encoder| {
-                            encoder.u32(*source_lane_position);
-                            Ok(())
-                        })?;
+                        encoder.u32_field("source_lane_position", *source_lane_position)?;
                         encoder.field_by("declaring_trait", declaring_trait, encode_nominal)?;
                         encoder.field("declaring_trait_arguments", |encoder| {
                             encoder.sequence(declaring_trait_arguments, encode_type_identity)

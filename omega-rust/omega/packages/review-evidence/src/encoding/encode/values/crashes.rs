@@ -19,10 +19,7 @@ pub(crate) fn encode_structural_field(
     encoder: &mut Encoder,
     field: &PackageReviewStructuralParameterField,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("parameter_position", |encoder| {
-        encoder.u32(field.parameter_position);
-        Ok(())
-    })?;
+    encoder.u32_field("parameter_position", field.parameter_position)?;
     encoder.field_by("path", field.path.as_slice(), encode_structural_path)
 }
 
@@ -43,10 +40,7 @@ pub(crate) fn encode_structural_path(
             }
             PackageReviewStructuralPredicatePathSegment::FixedIndex(element_index) => {
                 encoder.tag("fixed_index", 2);
-                encoder.field("index", |encoder| {
-                    encoder.u64(*element_index);
-                    Ok(())
-                })?;
+                encoder.u64_field("index", *element_index)?;
             }
             PackageReviewStructuralPredicatePathSegment::RuntimeIndex(index) => {
                 encoder.tag("runtime_index", 3);

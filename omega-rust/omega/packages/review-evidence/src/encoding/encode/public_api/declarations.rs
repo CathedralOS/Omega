@@ -34,10 +34,7 @@ pub(in crate::encoding::encode) fn trait_shape(
     shape: &PackagePolicyTraitShape,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field_by("identity", &shape.identity, encode_nominal)?;
-    encoder.field("is_boundary", |encoder| {
-        encoder.boolean(shape.is_boundary);
-        Ok(())
-    })?;
+    encoder.boolean_field("is_boundary", shape.is_boundary)?;
     encoder.field("lifetime_parameter_count", |encoder| {
         encoder.usize(shape.lifetime_parameter_count)
     })?;
@@ -56,10 +53,10 @@ pub(in crate::encoding::encode) fn trait_shape(
             encoder.field("spelling", |encoder| {
                 encoder.option(requirement.spelling.as_ref(), spelling)
             })?;
-            encoder.field("has_default_realization", |encoder| {
-                encoder.boolean(requirement.has_default_realization);
-                Ok(())
-            })?;
+            encoder.boolean_field(
+                "has_default_realization",
+                requirement.has_default_realization,
+            )?;
             encoder.field("lifetime_parameter_count", |encoder| {
                 encoder.usize(requirement.lifetime_parameter_count)
             })?;
@@ -157,10 +154,7 @@ pub(in crate::encoding::encode) fn operator_shape(
     shape: &PackagePolicyOperatorShape,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field_by("coordinate", &shape.coordinate, encode_operator_coordinate)?;
-    encoder.field("is_boundary", |encoder| {
-        encoder.boolean(shape.is_boundary);
-        Ok(())
-    })?;
+    encoder.boolean_field("is_boundary", shape.is_boundary)?;
     encoder.field("spelling", |encoder| {
         encoder.option(shape.spelling.as_ref(), spelling)
     })?;
@@ -212,19 +206,13 @@ pub(in crate::encoding::encode) fn data_shape(
         encode_data_properties(encoder, shape.properties);
         Ok(())
     })?;
-    encoder.field("zero_gated", |encoder| {
-        encoder.boolean(shape.zero_gated);
-        Ok(())
-    })?;
+    encoder.boolean_field("zero_gated", shape.zero_gated)?;
     encoder.field("invariants", |encoder| {
         encoder.sequence(&shape.invariants, encode_contract_fact)
     })?;
     encoder.field("retired_identities", |encoder| {
         encoder.sequence(&shape.retired_identities, |encoder, identity| {
-            encoder.field("identity", |encoder| {
-                encoder.u64(*identity);
-                Ok(())
-            })?;
+            encoder.u64_field("identity", *identity)?;
             Ok(())
         })
     })?;

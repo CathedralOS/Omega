@@ -30,10 +30,10 @@ pub(crate) fn encode_application(
     encoder.field("boundary_arguments", |encoder| {
         encoder.sequence(&application.boundary_arguments, type_identity)
     })?;
-    encoder.field("boundary_lifetime_parameter_count", |encoder| {
-        encoder.u32(application.boundary_lifetime_parameter_count);
-        Ok(())
-    })?;
+    encoder.u32_field(
+        "boundary_lifetime_parameter_count",
+        application.boundary_lifetime_parameter_count,
+    )?;
     encoder.field("boundary_lifetime_arguments", |encoder| {
         encoder.sequence(
             &application.boundary_lifetime_arguments,
@@ -43,10 +43,10 @@ pub(crate) fn encode_application(
             },
         )
     })?;
-    encoder.field("application_lifetime_parameter_count", |encoder| {
-        encoder.u32(application.application_lifetime_parameter_count);
-        Ok(())
-    })?;
+    encoder.u32_field(
+        "application_lifetime_parameter_count",
+        application.application_lifetime_parameter_count,
+    )?;
     encoder.field_by("requirement", &application.requirement, encode_nominal)?;
     encoder.field_by(
         "requirement_trait",
@@ -59,10 +59,10 @@ pub(crate) fn encode_application(
     encoder.field("requirement_lifetime_arguments", |encoder| {
         encoder.sequence(&application.requirement_lifetime_arguments, ordinal)
     })?;
-    encoder.field("requirement_lifetime_parameter_count", |encoder| {
-        encoder.u32(application.requirement_lifetime_parameter_count);
-        Ok(())
-    })?;
+    encoder.u32_field(
+        "requirement_lifetime_parameter_count",
+        application.requirement_lifetime_parameter_count,
+    )?;
     encoder.field("static_parameters", |encoder| {
         encoder.sequence(&application.static_parameters, encode_type_parameter)
     })?;
@@ -79,18 +79,9 @@ pub(crate) fn encode_application(
         encoder.sequence(&application.semantic_parameters, |encoder, parameter| {
             encoder.field("name", |encoder| encoder.string(&parameter.name))?;
             encoder.field_by("value_type", &parameter.value_type, type_identity)?;
-            encoder.field("is_mutable", |encoder| {
-                encoder.boolean(parameter.is_mutable);
-                Ok(())
-            })?;
-            encoder.field("is_const", |encoder| {
-                encoder.boolean(parameter.is_const);
-                Ok(())
-            })?;
-            encoder.field("shape_root", |encoder| {
-                encoder.u16(parameter.shape_root);
-                Ok(())
-            })?;
+            encoder.boolean_field("is_mutable", parameter.is_mutable)?;
+            encoder.boolean_field("is_const", parameter.is_const)?;
+            encoder.u16_field("shape_root", parameter.shape_root)?;
             Ok(())
         })
     })?;
@@ -107,14 +98,8 @@ pub(crate) fn encode_application(
                         shape_root,
                     } => {
                         encoder.tag("semantic_formal", 0);
-                        encoder.field("formal_ordinal", |encoder| {
-                            encoder.u32(formal_ordinal);
-                            Ok(())
-                        })?;
-                        encoder.field("shape_root", |encoder| {
-                            encoder.u16(shape_root);
-                            Ok(())
-                        })?;
+                        encoder.u32_field("formal_ordinal", formal_ordinal)?;
+                        encoder.u16_field("shape_root", shape_root)?;
                     }
                     PackagePolicyNativeParameterOrigin::PrivateCallback {
                         binder_index,
@@ -122,18 +107,9 @@ pub(crate) fn encode_application(
                         alignment,
                     } => {
                         encoder.tag("private_callback", 1);
-                        encoder.field("binder_index", |encoder| {
-                            encoder.u32(binder_index);
-                            Ok(())
-                        })?;
-                        encoder.field("byte_size", |encoder| {
-                            encoder.u16(byte_size);
-                            Ok(())
-                        })?;
-                        encoder.field("alignment", |encoder| {
-                            encoder.u16(alignment);
-                            Ok(())
-                        })?;
+                        encoder.u32_field("binder_index", binder_index)?;
+                        encoder.u16_field("byte_size", byte_size)?;
+                        encoder.u16_field("alignment", alignment)?;
                     }
                 };
                 Ok(())

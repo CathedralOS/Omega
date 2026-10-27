@@ -107,14 +107,8 @@ pub(in crate::encoding::encode) fn type_parameter(
                             &parameter.type_identity,
                             encode_type_identity,
                         )?;
-                        encoder.field("is_const", |encoder| {
-                            encoder.boolean(parameter.is_const);
-                            Ok(())
-                        })?;
-                        encoder.field("is_mutable", |encoder| {
-                            encoder.boolean(parameter.is_mutable);
-                            Ok(())
-                        })?;
+                        encoder.boolean_field("is_const", parameter.is_const)?;
+                        encoder.boolean_field("is_mutable", parameter.is_mutable)?;
                         Ok(())
                     })
                 })?;
@@ -177,13 +171,7 @@ pub(in crate::encoding) fn formal(
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field("name", |encoder| encoder.string(name))?;
     encoder.field_by("type_identity", value, encode_type_identity)?;
-    encoder.field("is_const", |encoder| {
-        encoder.boolean(is_const);
-        Ok(())
-    })?;
-    encoder.field("is_mutable", |encoder| {
-        encoder.boolean(is_mutable);
-        Ok(())
-    })?;
+    encoder.boolean_field("is_const", is_const)?;
+    encoder.boolean_field("is_mutable", is_mutable)?;
     Ok(())
 }

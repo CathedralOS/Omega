@@ -119,10 +119,7 @@ pub(super) fn project(
         false,
         |_| Ok(()),
         |encoder| {
-            encoder.field("package", |encoder| {
-                encoder.package_identity(*package);
-                Ok(())
-            })?;
+            encoder.package_identity_field("package", *package)?;
             encoder.field("target", |encoder| {
                 encoder.string(target.identity().as_str())
             })

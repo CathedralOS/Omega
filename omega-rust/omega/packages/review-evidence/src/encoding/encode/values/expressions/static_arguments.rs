@@ -22,10 +22,7 @@ fn encode_contract_static_argument_body(
         }
         PackageReviewContractStaticArgument::GenericTypeBinder(position) => {
             encoder.tag("generic_type_binder", 5);
-            encoder.field("position", |encoder| {
-                encoder.u32(*position);
-                Ok(())
-            })?;
+            encoder.u32_field("position", *position)?;
         }
         PackageReviewContractStaticArgument::GenericType {
             base,
@@ -36,10 +33,7 @@ fn encode_contract_static_argument_body(
             encoder.field("base", |encoder| encode_type_identity(encoder, base))?;
             encoder.field("lifetime_arguments", |encoder| {
                 encoder.sequence(lifetime_arguments, |encoder, argument| {
-                    encoder.field("argument", |encoder| {
-                        encoder.u32(*argument);
-                        Ok(())
-                    })?;
+                    encoder.u32_field("argument", *argument)?;
                     Ok(())
                 })
             })?;
@@ -53,10 +47,7 @@ fn encode_contract_static_argument_body(
         }
         PackageReviewContractStaticArgument::ConstBoolean(value) => {
             encoder.tag("const_boolean", 7);
-            encoder.field("value", |encoder| {
-                encoder.boolean(*value);
-                Ok(())
-            })?;
+            encoder.boolean_field("value", *value)?;
         }
         PackageReviewContractStaticArgument::ConstStructured {
             declared_type,
@@ -70,17 +61,11 @@ fn encode_contract_static_argument_body(
         }
         PackageReviewContractStaticArgument::GenericConstBinder(position) => {
             encoder.tag("generic_const_binder", 6);
-            encoder.field("position", |encoder| {
-                encoder.u32(*position);
-                Ok(())
-            })?;
+            encoder.u32_field("position", *position)?;
         }
         PackageReviewContractStaticArgument::GenericMachineBinder(position) => {
             encoder.tag("generic_machine_binder", 3);
-            encoder.field("position", |encoder| {
-                encoder.u32(*position);
-                Ok(())
-            })?;
+            encoder.u32_field("position", *position)?;
         }
         PackageReviewContractStaticArgument::ConcreteMachine(identity) => {
             encoder.tag("concrete_machine", 4);

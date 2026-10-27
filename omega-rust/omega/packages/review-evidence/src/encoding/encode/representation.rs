@@ -79,10 +79,7 @@ pub(super) fn policy(
     encoder: &mut Encoder,
     policy: &PackagePolicyRepresentation,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("package", |encoder| {
-        encoder.package_identity(policy.package);
-        Ok(())
-    })?;
+    encoder.package_identity_field("package", policy.package)?;
     encoder.field("target", |encoder| {
         encode_representation_target(encoder, policy.target);
         Ok(())

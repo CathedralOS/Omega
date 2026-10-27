@@ -19,10 +19,7 @@ pub(in crate::encoding::encode) fn encode_boundary_application(
                                 type_identity,
                             } => {
                                 encoder.tag("type", 0);
-                                encoder.field("binder_ordinal", |encoder| {
-                                    encoder.u32(*binder_ordinal);
-                                    Ok(())
-                                })?;
+                                encoder.u32_field("binder_ordinal", *binder_ordinal)?;
                                 encoder.field_by(
                                     "type_identity",
                                     type_identity,
@@ -36,10 +33,7 @@ pub(in crate::encoding::encode) fn encode_boundary_application(
                                 value_encoding,
                             } => {
                                 encoder.tag("const", 1);
-                                encoder.field("binder_ordinal", |encoder| {
-                                    encoder.u32(*binder_ordinal);
-                                    Ok(())
-                                })?;
+                                encoder.u32_field("binder_ordinal", *binder_ordinal)?;
                                 encoder.field_by(
                                     "declared_carrier",
                                     declared_carrier,

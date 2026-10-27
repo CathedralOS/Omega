@@ -45,18 +45,9 @@ pub(crate) fn encode_compiler_intrinsic_execution(
             operation,
         } => {
             encoder.tag("placed_scalar_access", 8);
-            encoder.field("contract", |encoder| {
-                encoder.fixed_bytes(contract);
-                Ok(())
-            })?;
-            encoder.field("placement_commitment", |encoder| {
-                encoder.fixed_bytes(placement_commitment);
-                Ok(())
-            })?;
-            encoder.field("access_slot", |encoder| {
-                encoder.u32(*access_slot);
-                Ok(())
-            })?;
+            encoder.fixed_bytes_field("contract", contract)?;
+            encoder.fixed_bytes_field("placement_commitment", placement_commitment)?;
+            encoder.u32_field("access_slot", *access_slot)?;
             encoder.field("operation", |encoder| {
                 match operation {
                     effects::CompilerPlacedScalarOperation::Read => encoder.tag("read", 0),

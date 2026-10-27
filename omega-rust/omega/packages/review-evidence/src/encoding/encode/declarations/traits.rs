@@ -18,10 +18,7 @@ pub(crate) fn encode_trait_parent(
     encoder.field_by("identity", &parent.identity, encode_nominal)?;
     encoder.field("lifetime_arguments", |encoder| {
         encoder.sequence(&parent.lifetime_arguments, |encoder, argument| {
-            encoder.field("argument", |encoder| {
-                encoder.u32(*argument);
-                Ok(())
-            })?;
+            encoder.u32_field("argument", *argument)?;
             Ok(())
         })
     })?;

@@ -24,14 +24,8 @@ pub(super) fn signature(
     encoder.field("parameters", |encoder| {
         encoder.sequence(&value.parameters, |encoder, parameter| {
             encoder.field_by("type", &parameter.type_identity, encode_type_identity)?;
-            encoder.field("const", |encoder| {
-                encoder.boolean(parameter.is_const);
-                Ok(())
-            })?;
-            encoder.field("mutable", |encoder| {
-                encoder.boolean(parameter.is_mutable);
-                Ok(())
-            })?;
+            encoder.boolean_field("const", parameter.is_const)?;
+            encoder.boolean_field("mutable", parameter.is_mutable)?;
             Ok(())
         })
     })?;

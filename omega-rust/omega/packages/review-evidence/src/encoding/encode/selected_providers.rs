@@ -32,10 +32,7 @@ pub(super) fn policy(
     encoder: &mut Encoder,
     policy: &PackagePolicySelectedProviders,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("package", |encoder| {
-        encoder.package_identity(policy.package);
-        Ok(())
-    })?;
+    encoder.package_identity_field("package", policy.package)?;
     encoder.field("target", |encoder| {
         encoder.string(policy.target.identity().as_str())
     })?;
@@ -50,10 +47,7 @@ fn plan(
     plan: &PackagePolicyProviderPlan,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field("plan_name", |encoder| encoder.string(&plan.plan_name))?;
-    encoder.field("realizing_package", |encoder| {
-        encoder.optional_package_identity(plan.realizing_package);
-        Ok(())
-    })?;
+    encoder.optional_package_identity_field("realizing_package", plan.realizing_package)?;
     encoder.field_by(
         "schema_declaration",
         &plan.schema_declaration,
@@ -97,10 +91,7 @@ fn row(
     })?;
     encoder.field("requirement_lifetime_partition", |encoder| {
         encoder.sequence(&row.requirement_lifetime_partition, |encoder, ordinal| {
-            encoder.field("ordinal", |encoder| {
-                encoder.u32(*ordinal);
-                Ok(())
-            })?;
+            encoder.u32_field("ordinal", *ordinal)?;
             Ok(())
         })
     })?;
@@ -121,10 +112,7 @@ fn row(
             })
         })
     })?;
-    encoder.field("admitted_same_stack_bytes", |encoder| {
-        encoder.u64(row.admitted_same_stack_bytes);
-        Ok(())
-    })
+    encoder.u64_field("admitted_same_stack_bytes", row.admitted_same_stack_bytes)
 }
 
 fn family(
@@ -169,10 +157,7 @@ fn family(
                 &coordinate.operator_declaration,
                 encode_nominal,
             )?;
-            encoder.field("plan_index", |encoder| {
-                encoder.u32(coordinate.plan_index);
-                Ok(())
-            })?;
+            encoder.u32_field("plan_index", coordinate.plan_index)?;
             Ok(())
         })
     })
