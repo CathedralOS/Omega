@@ -29,13 +29,19 @@ machine consume(first: Division, copied: Division) -> bool reaches IntegerDivisi
  && second.quotient == 7777777777 && second.remainder == 7
 }
 machine receive(value: Division) -> bool reaches IntegerDivision { consume(value, value) }
-machine select(choice: bool) -> Division reaches IntegerDivision {
+data Selection { division: Division; branch: bool; }
+machine select(choice: bool) -> Selection reaches IntegerDivision {
  match choice {
-  true -> divide(-70000000000, 3)
-  _ -> divide(-70000000000, 3)
+  true -> Selection { division: divide(-70000000000, 3), branch: true }
+  _ -> Selection { division: divide(-70000000000, 3), branch: false }
  }
 }
-machine observe() -> bool reaches IntegerDivision { receive(select(true)) && receive(select(false)) }
+machine observe() -> bool reaches IntegerDivision {
+ let selected_true: Selection = select(true);
+ let selected_false: Selection = select(false);
+ selected_true.branch && !selected_false.branch
+ && receive(selected_true.division) && receive(selected_false.division)
+}
 
 machine main() reaches IntegerDivision crashes Trap {
  transition observe() { true -> done() _ -> failed() }
