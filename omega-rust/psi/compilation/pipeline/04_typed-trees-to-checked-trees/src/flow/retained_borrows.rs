@@ -54,6 +54,13 @@ pub(super) fn handbacks(
         return Vec::new();
     };
     let arguments = validation::call_site_argument_expressions(program, &site);
+    if std::env::var_os("OMEGA_DEBUG_HANDBACK").is_some() {
+        eprintln!("HANDBACK {:?} {} {} {:?}", recorded.authored_expression, recorded.statement_index, recorded.call_ordinal, program.symbols.display_path(recorded.target_symbol, "::"));
+        for arg in arguments { eprintln!("ARG {:?} {:?}", arg, validation::canonical_place_from_expression_in_state(program, state.symbol, recorded.statement_index, *arg)); }
+        for (_, row) in borrow.states.iter().filter(|(_, row)| row.state_symbol == state.symbol) {
+            for (h, loan) in borrow.state_loans(row) { eprintln!("LOAN {:?} owner {:?} path {:?} root {:?} {:?} form {:?} at {} last {} {:?}", h, loan.storage_owner, borrow.loan_owner_path(loan), loan.root, borrow.loan_segments(loan), loan.formation_expression, loan.statement_index, loan.last_use_statement_index, loan.lineage); }
+        }
+    }
     if parameters.len() != arguments.len() {
         return Vec::new();
     }
