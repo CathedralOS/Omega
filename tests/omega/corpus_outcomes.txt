@@ -9329,8 +9329,8 @@ fail/facts/installed_entry_storage_through_field_unproved rejected 2960ms expect
 	cannot prove requires contract for call finish from start: payload.code == 9 (needs fact `code == 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/installed_entry_storage_through_local_unproved rejected 3661ms expected @3c5cd09b7f5d
 	cannot prove requires contract for call finish from start: code == 9 (needs fact `code == 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/installed_entry_storage_through_match_join_unproved rejected 3209ms expected @3c5cd09b7f5d
-	cannot prove requires contract for call finish from start: code == 9 (needs fact `code == 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/installed_entry_storage_through_match_join_unproved rejected 46318ms expected @658a90628a78
+	cannot prove requires contract for call finish from write_selected: selected.code == 9 (needs fact `code == 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/installed_entry_storage_through_other_machine_unproved rejected 2861ms expected @3c5cd09b7f5d
 	cannot prove requires contract for call finish from start: code == 9 (needs fact `code == 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/installed_entry_storage_through_other_state_unproved rejected 3551ms expected @3c5cd09b7f5d

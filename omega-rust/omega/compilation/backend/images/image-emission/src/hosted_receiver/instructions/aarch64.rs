@@ -1,4 +1,4 @@
-//! Decode the installed Darwin bridge independently of its writer and patcher.
+//! Decode hosted AArch64 bridges independently of their writer and patcher.
 //! Address pairs, byte stores, argument occurrences, branch destinations, the
 //! exact semantic call and the original normal-return observations are replayed.
 
@@ -6,6 +6,7 @@ use super::super::{HostedReceiverPartitions, invalid};
 use diagnostics::Diagnostic;
 
 pub(in crate::hosted_receiver) fn validate(
+    target: target::NativeTarget,
     bytes: &[u8],
     address: u64,
     selected_entry: u64,
@@ -13,7 +14,15 @@ pub(in crate::hosted_receiver) fn validate(
     partitions: HostedReceiverPartitions,
     recipes: &[terminal_installation::CheckedPrivateEntryRamRecipe],
 ) -> Result<(), Diagnostic> {
-    let fail = || invalid(target::NativeTarget::macos_arm64());
+    let fail = || invalid(target);
+    if ![
+        target::NativeTarget::macos_arm64(),
+        target::NativeTarget::linux_arm64(),
+    ]
+    .contains(&target)
+    {
+        return Err(fail());
+    }
     let (chunks, remainder) = bytes.as_chunks::<4>();
     if !remainder.is_empty() || !address.is_multiple_of(4) {
         return Err(fail());
@@ -26,6 +35,7 @@ pub(in crate::hosted_receiver) fn validate(
         words: &words,
         position: 0,
         address,
+        target,
     };
     let (continuation, stack_top, allocation) = super::expected_addresses(bss, partitions, &fail)?;
     reader.address(9, continuation)?;
@@ -83,20 +93,38 @@ pub(in crate::hosted_receiver) fn validate(
             reader.exact(0xd280_0060)?; // Only the fresh runtime FD.
             reader.address(1, source)?;
             reader.count(2, count)?;
-            reader.exact(0xd280_0090)?;
-            reader.exact(0xd400_1001)?;
-            reader.conditional_branch(2, 5)?; // Darwin carry error, before CMP.
+            if target == target::NativeTarget::macos_arm64() {
+                reader.exact(0xd280_0090)?; // Darwin write: X16 = 4.
+                reader.exact(0xd400_1001)?;
+                reader.conditional_branch(2, 5)?; // Carry error, before CMP.
+            } else {
+                reader.exact(0xd280_0808)?; // Linux write: X8 = 64.
+                reader.exact(0xd400_0001)?;
+            }
             reader.count(9, count)?;
             reader.exact(0xeb09_001f)?;
             reader.conditional_branch(0, 5)?; // Full write skips failure only.
-            for word in [0xd280_1900, 0xd280_0030, 0xd400_1001, 0xd420_0000] {
+            reader.exact(0xd280_1900)?; // A failed observation exits 200.
+            let exit = if target == target::NativeTarget::macos_arm64() {
+                [0xd280_0030, 0xd400_1001, 0xd420_0000]
+            } else {
+                [0xd280_0bc8, 0xd400_0001, 0xd420_0000]
+            };
+            for word in exit {
                 reader.exact(word)?;
             }
         }
     }
     reader.address(9, continuation)?;
-    for word in [0xa940_792a, 0x9100_015f, 0x5280_0000, 0xd65f_03c0] {
+    for word in [0xa940_792a, 0x9100_015f, 0x5280_0000] {
         reader.exact(word)?;
+    }
+    if target == target::NativeTarget::macos_arm64() {
+        reader.exact(0xd65f_03c0)?; // LC_MAIN returns to its loader.
+    } else {
+        for word in [0xd280_0bc8, 0xd400_0001, 0xd420_0000] {
+            reader.exact(word)?; // ELF entry completes through exit_group(94).
+        }
     }
     if reader.position != words.len() {
         return Err(fail());
@@ -108,6 +136,7 @@ struct Reader<'a> {
     words: &'a [u32],
     position: usize,
     address: u64,
+    target: target::NativeTarget,
 }
 impl Reader<'_> {
     fn take(&mut self) -> Result<u32, Diagnostic> {
@@ -115,7 +144,7 @@ impl Reader<'_> {
             .words
             .get(self.position)
             .copied()
-            .ok_or_else(|| invalid(target::NativeTarget::macos_arm64()))?;
+            .ok_or_else(|| invalid(self.target))?;
         self.position += 1;
         Ok(word)
     }
@@ -124,18 +153,19 @@ impl Reader<'_> {
             .checked_add(
                 (self.position as u64)
                     .checked_mul(4)
-                    .ok_or_else(|| invalid(target::NativeTarget::macos_arm64()))?,
+                    .ok_or_else(|| invalid(self.target))?,
             )
-            .ok_or_else(|| invalid(target::NativeTarget::macos_arm64()))
+            .ok_or_else(|| invalid(self.target))
     }
     fn exact(&mut self, expected: u32) -> Result<(), Diagnostic> {
         if self.take()? != expected {
-            return Err(invalid(target::NativeTarget::macos_arm64()));
+            return Err(invalid(self.target));
         }
         Ok(())
     }
     fn address(&mut self, register: u32, expected: u64) -> Result<(), Diagnostic> {
-        let fail = || invalid(target::NativeTarget::macos_arm64());
+        let target = self.target;
+        let fail = || invalid(target);
         let pc = self.pc()?;
         let page = self.take()?;
         let add = self.take()?;
@@ -161,7 +191,7 @@ impl Reader<'_> {
             if immediate & 0xffe0_001f != 0x5280_000a
                 || (immediate >> 5) & 0xffff != u32::from(*byte)
             {
-                return Err(invalid(target::NativeTarget::macos_arm64()));
+                return Err(invalid(self.target));
             }
             self.exact(0x3900_012a)?; // Store W10 to current original byte.
             self.exact(0x9100_0529)?; // Advance exactly one byte, no gap or alias.
@@ -175,7 +205,7 @@ impl Reader<'_> {
             || high & 0xffe0_001f != 0xf2a0_0000 | register
             || u64::from(((low >> 5) & 0xffff) | (((high >> 5) & 0xffff) << 16)) != expected as u64
         {
-            return Err(invalid(target::NativeTarget::macos_arm64()));
+            return Err(invalid(self.target));
         }
         Ok(())
     }
@@ -184,7 +214,7 @@ impl Reader<'_> {
         if word & 0xff00_001f != 0x5400_0000 | condition
             || ((i64::from((word >> 5) & 0x7ffff) << 45) >> 45) != distance
         {
-            return Err(invalid(target::NativeTarget::macos_arm64()));
+            return Err(invalid(self.target));
         }
         Ok(())
     }
@@ -207,12 +237,14 @@ mod tests {
             words: &words,
             position: 0,
             address: 0x1000,
+            target: target::NativeTarget::macos_arm64(),
         };
         assert!(reader.initialize(0x1200, &[11]).is_ok());
         let mut other = Reader {
             words: &words,
             position: 0,
             address: 0x1000,
+            target: target::NativeTarget::macos_arm64(),
         };
         assert!(other.initialize(0x1204, &[11]).is_err());
         for (position, replacement) in [(2, 0x5280_018a), (3, 0xd503_201f), (4, 0x9100_0929)] {
@@ -222,6 +254,7 @@ mod tests {
                 words: &corrupted,
                 position: 0,
                 address: 0x1000,
+                target: target::NativeTarget::macos_arm64(),
             };
             assert!(reader.initialize(0x1200, &[11]).is_err());
         }
@@ -234,12 +267,14 @@ mod tests {
             words: &addresses,
             position: 0,
             address: 0x1000,
+            target: target::NativeTarget::macos_arm64(),
         };
         assert!(reader.address(0, 0x1200).is_ok());
         let mut substituted = Reader {
             words: &addresses,
             position: 0,
             address: 0x1000,
+            target: target::NativeTarget::macos_arm64(),
         };
         assert!(substituted.address(1, 0x1200).is_err());
         let count = [0xd280_0002, 0xf2a0_0022];
@@ -247,12 +282,14 @@ mod tests {
             words: &count,
             position: 0,
             address: 0,
+            target: target::NativeTarget::macos_arm64(),
         };
         assert!(reader.count(2, 65536).is_ok());
         let mut truncated = Reader {
             words: &count,
             position: 0,
             address: 0,
+            target: target::NativeTarget::macos_arm64(),
         };
         assert!(truncated.count(2, 0).is_err());
     }
@@ -265,6 +302,7 @@ mod tests {
                 words: &words,
                 position: 0,
                 address: 0,
+                target: target::NativeTarget::macos_arm64(),
             };
             assert!(reader.conditional_branch(2, 5).is_err());
         }
@@ -273,6 +311,7 @@ mod tests {
             words: &words,
             position: 0,
             address: 0,
+            target: target::NativeTarget::macos_arm64(),
         };
         assert!(reader.conditional_branch(2, 5).is_ok());
     }
