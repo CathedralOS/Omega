@@ -101,7 +101,10 @@ fn declared_array_leaf_proves_its_predicate_without_creating_extra_custody() {
             domain.id,
         )
     };
-    assert!(entails(&types, &domain));
+    assert!(entails(&types, &domain), "carrier={:?}, restriction={:?}, refinement={:?}",
+        crate::qualification_path_carrier(types.iter(), array, &path),
+        crate::primitive_projection_restriction(types.iter(), array, &path),
+        scalar::refinement(types.iter(), &domain));
     // A current value of 73 would satisfy this stronger predicate, but the
     // source declaration admits 100. Formation must not invent that debt.
     let mut stronger = domain.clone();
