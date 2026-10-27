@@ -1,18 +1,19 @@
 //! Optimizer module role: executable entrance. Global value numbering: the
-//! pass's exact rule order, one file per rule beneath it -- same-block,
-//! dominator and phi-translated common-subexpression elimination in their
-//! total, proof-certified and compatible-policy forms, and the seven
-//! obligation-free total-scalar identity rules. The three CSE contracts and
-//! the exact effect admission every rule consults live here;
-//! `expression_keys` owns the canonical expression identities,
-//! `total_scalar_identities` the identity rules' shared traversal, and
-//! `phi_translated_accounting` the join-parameter provenance accounting.
+//! pass's exact rule order, one row per rule over the shared traversals
+//! beneath it -- same-block, dominator and phi-translated
+//! common-subexpression elimination in their total, proof-certified and
+//! compatible-policy forms, and the seven obligation-free total-scalar
+//! identity rules. The three CSE contracts and the exact effect admission
+//! every rule consults live here; `expression_keys` owns the canonical
+//! expression identities, `total_scalar_identities` the identity rules'
+//! shared traversal, and `phi_translated_accounting` the join-parameter
+//! provenance accounting.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleContract,
-    OptimizationSafetyClass,
+    AcceptedObligationFactIdentity, AnalysisInvalidationSet, AnalysisKind, AnalysisSet,
+    OptimizationRuleContract, OptimizationSafetyClass,
 };
 use optimization_unit::{
     NodeLocation, PsiOptimizationFunction, PsiOptimizationUnit, PsiRewriteCandidate,
@@ -26,29 +27,27 @@ use crate::EffectSummaryAnalysis;
 use crate::rules::GLOBAL_VALUE_NUMBERING_PASS_NAME;
 use crate::rules::catalog::BuiltInRuleRegistration;
 
-mod dominator_proof_certified_compatible_policy_scalar_gvn;
-mod dominator_proof_certified_scalar_gvn;
-mod dominator_total_scalar_gvn;
+mod dominating_scalar_gvn;
 mod expression_keys;
 mod phi_translated_accounting;
-mod phi_translated_obligation_free_scalar_gvn;
-mod phi_translated_proof_certified_compatible_policy_scalar_gvn;
-mod phi_translated_proof_certified_scalar_gvn;
-mod same_block_proof_certified_compatible_policy_scalar_cse;
-mod same_block_proof_certified_scalar_cse;
-mod same_block_total_scalar_cse;
+mod phi_translated_scalar_gvn;
+mod same_block_scalar_cse;
 mod total_scalar_identities;
 mod total_scalar_identity_rules;
 
-pub(crate) use dominator_proof_certified_compatible_policy_scalar_gvn::DominatorProofCertifiedCompatiblePolicyScalarGvnRule;
-pub(crate) use dominator_proof_certified_scalar_gvn::DominatorProofCertifiedScalarGvnRule;
-pub(crate) use dominator_total_scalar_gvn::DominatorTotalScalarGvnRule;
-pub(crate) use phi_translated_obligation_free_scalar_gvn::PhiTranslatedObligationFreeScalarGvnRule;
-pub(crate) use phi_translated_proof_certified_compatible_policy_scalar_gvn::PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule;
-pub(crate) use phi_translated_proof_certified_scalar_gvn::PhiTranslatedProofCertifiedScalarGvnRule;
-pub(crate) use same_block_proof_certified_compatible_policy_scalar_cse::SameBlockProofCertifiedCompatiblePolicyScalarCseRule;
-pub(crate) use same_block_proof_certified_scalar_cse::SameBlockProofCertifiedScalarCseRule;
-pub(crate) use same_block_total_scalar_cse::SameBlockTotalScalarCseRule;
+pub(crate) use dominating_scalar_gvn::{
+    DominatorProofCertifiedCompatiblePolicyScalarGvnRule, DominatorProofCertifiedScalarGvnRule,
+    DominatorTotalScalarGvnRule,
+};
+pub(crate) use phi_translated_scalar_gvn::{
+    PhiTranslatedObligationFreeScalarGvnRule,
+    PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule,
+    PhiTranslatedProofCertifiedScalarGvnRule,
+};
+pub(crate) use same_block_scalar_cse::{
+    SameBlockProofCertifiedCompatiblePolicyScalarCseRule, SameBlockProofCertifiedScalarCseRule,
+    SameBlockTotalScalarCseRule,
+};
 pub(crate) use total_scalar_identity_rules::{
     BitwiseAbsorbingLiteralIdentityRule, BitwiseNeutralLiteralIdentityRule,
     SaturatingMultiplyZeroAnnihilationRule, SaturatingNeutralArithmeticIdentityRule,
@@ -621,5 +620,294 @@ pub(super) fn collect_scalar_rows<K, E>(
             }
         }
     }
+    (leaders, redundants)
+}
+
+/// The accepted obligation a scalar-CSE redundancy carries: `None` for an
+/// obligation-free rule. One payload type keeps one candidate constructor per
+/// scope.
+pub(super) type ScalarCsePayload = Option<AcceptedObligationFactIdentity>;
+
+/// The obligation-free flavour's per-function value-type roster.
+pub(in crate::rules::global_value_numbering) type ScalarCseValueTypes =
+    BTreeMap<ValueId, ScalarType>;
+
+/// One key flavour as its scope's traversal consumes it: the per-function
+/// context, and the classification of one node as an obligation-free leader
+/// and as a redundancy with its payload.
+pub(super) struct ScalarCseKeys<K, C> {
+    pub context: fn(&PsiOptimizationFunction) -> C,
+    pub leader: fn(
+        &C,
+        &PsiOptimizationUnit,
+        &PsiOptimizationFunction,
+        &abstract_operations::AbstractOperation,
+    ) -> Option<ScalarExpressionRow<K>>,
+    pub redundant: fn(
+        &C,
+        &PsiOptimizationUnit,
+        &PsiOptimizationFunction,
+        &abstract_operations::AbstractOperation,
+    ) -> Option<(ScalarExpressionRow<K>, ScalarCsePayload)>,
+}
+
+/// The obligation-free flavour: total scalar expressions classified from the
+/// function's value types, rewriting with no obligation.
+pub(in crate::rules::global_value_numbering) const TOTAL_CSE_KEYS: ScalarCseKeys<
+    expression_keys::TotalScalarExpressionKey,
+    ScalarCseValueTypes,
+> = ScalarCseKeys {
+    context: function_value_types,
+    leader: |value_types, _unit, _function, operation| {
+        expression_keys::total_scalar_expression(operation, value_types)
+    },
+    redundant: |value_types, _unit, _function, operation| {
+        expression_keys::total_scalar_expression(operation, value_types).map(|row| (row, None))
+    },
+};
+
+/// The proof-certified flavour: expressions whose accepted obligation the rule
+/// rejoins, rewriting with that obligation.
+pub(super) const PROOF_CERTIFIED_CSE_KEYS: ScalarCseKeys<
+    expression_keys::ProofCertifiedScalarExpressionKey,
+    (),
+> = ScalarCseKeys {
+    context: |_function| (),
+    leader: |_context, unit, function, operation| {
+        let row = expression_keys::proof_certified_scalar_expression(operation)?;
+        crate::rules::accepted_obligations::accepted_obligation_fact(unit, function.machine, row.1)
+            .ok()?;
+        Some(row)
+    },
+    redundant: |_context, unit, function, operation| {
+        let row = expression_keys::proof_certified_scalar_expression(operation)?;
+        let fact = crate::rules::accepted_obligations::accepted_obligation_fact(
+            unit,
+            function.machine,
+            row.1,
+        )
+        .ok()?;
+        Some((row, Some(fact)))
+    },
+};
+
+/// The compatible-policy flavour: obligation-free leaders and proof-bearing
+/// redundants, rewriting with the redundancy's obligation.
+pub(super) const COMPATIBLE_POLICY_CSE_KEYS: ScalarCseKeys<
+    expression_keys::CompatiblePolicyScalarExpressionKey,
+    (),
+> = ScalarCseKeys {
+    context: |_function| (),
+    leader: |_context, _unit, function, operation| {
+        let row = expression_keys::compatible_policy_scalar_leader(operation)?;
+        if function.facts.iter().any(|fact| {
+            matches!(fact, optimization_unit::OptimizationFact::OperationObligationReference { support, .. }
+                if *support == row.1)
+        }) {
+            return None;
+        }
+        Some(row)
+    },
+    redundant: |_context, unit, function, operation| {
+        let row = expression_keys::compatible_policy_scalar_redundant(operation)?;
+        let fact = crate::rules::accepted_obligations::accepted_obligation_fact(
+            unit,
+            function.machine,
+            row.1,
+        )
+        .ok()?;
+        Some((row, Some(fact)))
+    },
+};
+
+/// The same-block CSE proposal of one key flavour: the shared traversal with
+/// the rule's own candidate constructor for the redundancy's payload.
+pub(super) fn propose_same_block<K, C>(
+    unit: &PsiOptimizationUnit,
+    analyses: crate::RuleAnalysisView<'_>,
+    contract: OptimizationRuleContract,
+    keys: ScalarCseKeys<K, C>,
+) -> Result<Vec<PsiRewriteCandidate>, crate::RuleProposalError>
+where
+    K: Ord,
+{
+    propose_same_block_scalar_cse(
+        unit,
+        analyses,
+        keys.context,
+        keys.leader,
+        keys.redundant,
+        |same| {
+            match same.extras {
+                Some(obligation_fact) => {
+                    PsiRewriteCandidate::new_proof_certified_local_scalar_common_subexpression(
+                        unit.identity,
+                        contract,
+                        same.affected_blocks,
+                        same.provenance,
+                        obligation_fact,
+                        -1,
+                        same.patch,
+                    )
+                }
+                None => PsiRewriteCandidate::new_local_scalar_common_subexpression(
+                    unit.identity,
+                    contract,
+                    same.affected_blocks,
+                    same.provenance,
+                    -1,
+                    same.patch,
+                ),
+            }
+            .map_err(crate::RuleProposalError::InvalidCandidate)
+        },
+    )
+}
+
+/// The dominating GVN proposal of one key flavour.
+pub(super) fn propose_dominating<K, C>(
+    unit: &PsiOptimizationUnit,
+    analyses: crate::RuleAnalysisView<'_>,
+    contract: OptimizationRuleContract,
+    keys: ScalarCseKeys<K, C>,
+) -> Result<Vec<PsiRewriteCandidate>, crate::RuleProposalError>
+where
+    K: Ord,
+{
+    propose_dominating_scalar_gvn(
+        unit,
+        analyses,
+        keys.context,
+        keys.leader,
+        keys.redundant,
+        |same| {
+            match same.extras {
+                Some(obligation_fact) => {
+                    PsiRewriteCandidate::new_proof_certified_dominating_scalar_common_subexpression(
+                        unit.identity,
+                        contract,
+                        same.affected_blocks,
+                        same.provenance,
+                        obligation_fact,
+                        -1,
+                        same.patch,
+                    )
+                }
+                None => PsiRewriteCandidate::new_dominating_scalar_common_subexpression(
+                    unit.identity,
+                    contract,
+                    same.affected_blocks,
+                    same.provenance,
+                    -1,
+                    same.patch,
+                ),
+            }
+            .map_err(crate::RuleProposalError::InvalidCandidate)
+        },
+    )
+}
+
+/// The phi-translated proposal of one key flavour.
+pub(super) fn propose_phi_translated<K>(
+    unit: &PsiOptimizationUnit,
+    analyses: crate::RuleAnalysisView<'_>,
+    contract: OptimizationRuleContract,
+    rows: fn(
+        &PsiOptimizationUnit,
+        &PsiOptimizationFunction,
+        &EffectSummaryAnalysis,
+        &ScalarCseValueTypes,
+    ) -> PhiTranslatedScalarGvnRows<K, ScalarCsePayload>,
+    references_any: fn(K, &BTreeSet<ValueId>) -> bool,
+    translate: fn(K, &BTreeMap<ValueId, ValueId>) -> Option<K>,
+) -> Result<Vec<PsiRewriteCandidate>, crate::RuleProposalError>
+where
+    K: Ord + Copy,
+{
+    propose_phi_translated_scalar_gvn(unit, analyses, rows, references_any, translate, |found| {
+        match found.extras {
+            Some(obligation_fact) => {
+                PsiRewriteCandidate::new_proof_certified_phi_translated_scalar_common_subexpression(
+                    unit.identity,
+                    contract,
+                    found.affected_blocks,
+                    found.provenance,
+                    obligation_fact,
+                    -1,
+                    found.patch,
+                )
+            }
+            None => PsiRewriteCandidate::new_phi_translated_scalar_common_subexpression(
+                unit.identity,
+                contract,
+                found.affected_blocks,
+                found.provenance,
+                -1,
+                found.patch,
+            ),
+        }
+        .map_err(crate::RuleProposalError::InvalidCandidate)
+    })
+}
+
+/// The obligation-free flavour's phi-translated roster, over the join
+/// traversal's value-type roster.
+pub(in crate::rules::global_value_numbering) fn total_cse_phi_rows(
+    unit: &PsiOptimizationUnit,
+    function: &PsiOptimizationFunction,
+    effects: &EffectSummaryAnalysis,
+    value_types: &ScalarCseValueTypes,
+) -> PhiTranslatedScalarGvnRows<expression_keys::TotalScalarExpressionKey, ScalarCsePayload> {
+    let keys = TOTAL_CSE_KEYS;
+    collect_scalar_rows(
+        unit,
+        function,
+        effects,
+        |operation| (keys.leader)(value_types, unit, function, operation),
+        |operation| (keys.redundant)(value_types, unit, function, operation),
+    )
+}
+
+/// The proof-certified flavour's phi-translated roster.
+pub(super) fn proof_certified_cse_phi_rows(
+    unit: &PsiOptimizationUnit,
+    function: &PsiOptimizationFunction,
+    effects: &EffectSummaryAnalysis,
+    _value_types: &ScalarCseValueTypes,
+) -> PhiTranslatedScalarGvnRows<expression_keys::ProofCertifiedScalarExpressionKey, ScalarCsePayload>
+{
+    let keys = PROOF_CERTIFIED_CSE_KEYS;
+    collect_scalar_rows(
+        unit,
+        function,
+        effects,
+        |operation| (keys.leader)(&(), unit, function, operation),
+        |operation| (keys.redundant)(&(), unit, function, operation),
+    )
+}
+
+/// The compatible-policy flavour's phi-translated roster: it refuses a
+/// redundant at the function entry, which has no incoming join to translate.
+pub(super) fn compatible_policy_cse_phi_rows(
+    unit: &PsiOptimizationUnit,
+    function: &PsiOptimizationFunction,
+    effects: &EffectSummaryAnalysis,
+    _value_types: &ScalarCseValueTypes,
+) -> PhiTranslatedScalarGvnRows<
+    expression_keys::CompatiblePolicyScalarExpressionKey,
+    ScalarCsePayload,
+> {
+    let keys = COMPATIBLE_POLICY_CSE_KEYS;
+    let (leaders, redundants) = collect_scalar_rows(
+        unit,
+        function,
+        effects,
+        |operation| (keys.leader)(&(), unit, function, operation),
+        |operation| (keys.redundant)(&(), unit, function, operation),
+    );
+    let redundants = redundants
+        .into_iter()
+        .filter(|row| row.1.block != function.entry)
+        .collect();
     (leaders, redundants)
 }
