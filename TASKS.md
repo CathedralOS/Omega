@@ -364,8 +364,8 @@ defines the complete product bar.
     ARM64, macOS ARM64, and Windows x86-64.
   - Complete remaining runtime aggregate construction and opaque-provider
     result replacement through opaque incoming referents.
-  - Complete remaining generic/reference saved-observation and
-    single-evaluation pattern destructuring compositions.
+  - Complete generic/reference saved numeric and byte-predicate observations,
+    and single-evaluation pattern destructuring compositions.
   Acceptance: a composed caller tolerates renamed/reordered states and inserted
   computations; operands execute left-to-right once, skipped calls never run,
   and saved values, reference locals, and terminal transition calls agree

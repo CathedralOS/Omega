@@ -47,6 +47,7 @@ pub(super) fn complete_argument_tuple(
         kind: "data",
         name: &base_info.name,
         parameters: definition.type_parameters,
+        invocation_lifetimes: &[],
         parameter_names: &base_info.parameter_names,
         const_parameter_types: &base_info.const_parameter_types,
         type_equations: &base_info.type_equations,

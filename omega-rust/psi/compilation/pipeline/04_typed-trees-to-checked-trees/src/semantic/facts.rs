@@ -7,10 +7,7 @@ mod points;
 use contracts::append_contract_semantic_facts;
 pub(crate) use contracts::{contract_fact_place, inherited_contract_scope_parts};
 pub(crate) use contracts::{contract_parameter_position, projected_argument_place};
-use field_domains::{
-    append_local_case_payload_domain_facts, append_local_zii_field_domain_facts,
-    append_state_parameter_domain_facts,
-};
+use field_domains::{append_local_zii_field_domain_facts, append_state_parameter_domain_facts};
 use points::proof_obligation_point;
 
 /// One observed property and its storage dependencies share one lifetime.
@@ -46,11 +43,6 @@ pub(crate) fn build_semantic_facts(
     // Receivers and named inputs have the same caller-enforced declared domains.
     // Actual zero-initialized storage is established separately below.
     append_state_parameter_domain_facts(program, &mut facts);
-    // #66: surface a case-constructed local's payload domain (`let cmd =
-    // Command::Say { text: "ok" }` -> `cmd.<payload> in Utf8`) so a destructured
-    // payload forwarded as a call argument discharges; construction enforcement
-    // guarantees soundness, the flow handles invalidation.
-    append_local_case_payload_domain_facts(program, &mut facts);
     // ZII locals (`let room: Room;`): the zeroed storage already satisfies
     // every declared field domain that admits the empty byte sequence -- the
     // establishment gate -- so those fields are live evidence
