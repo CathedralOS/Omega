@@ -11,6 +11,26 @@ pub fn normal_completion_possible(
     program: &dyn crate::CheckingInput,
     initial: &typed_trees::state::State,
 ) -> Option<bool> {
+    if let Some(memos) = crate::frozen_program::frozen_program_memos(program) {
+        if let Ok(cache) = memos.normal_completion_possible.lock() {
+            if let Some(&cached) = cache.get(&initial.symbol) {
+                return cached;
+            }
+        }
+    }
+    let result = compute_normal_completion_possible(program, initial);
+    if let Some(memos) = crate::frozen_program::frozen_program_memos(program) {
+        if let Ok(mut cache) = memos.normal_completion_possible.lock() {
+            cache.insert(initial.symbol, result);
+        }
+    }
+    result
+}
+
+fn compute_normal_completion_possible(
+    program: &dyn crate::CheckingInput,
+    initial: &typed_trees::state::State,
+) -> Option<bool> {
     use typed_trees::statement::{
         StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
     };
