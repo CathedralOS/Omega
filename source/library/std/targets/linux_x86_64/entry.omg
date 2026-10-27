@@ -29,7 +29,7 @@ machine LinuxX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         _ -> reject()
     }
 
-    state physical(signature: BoundarySignature) -> BoundaryPlanResult {
+    machine physical(signature: BoundarySignature) -> BoundaryPlanResult {
         transition signature.has_result {
             true -> physical_indices(signature, signature.parameters[0],
                 signature.result)
@@ -37,7 +37,7 @@ machine LinuxX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         }
     }
 
-    state physical_indices(signature: BoundarySignature, initial_stack: u64,
+    machine physical_indices(signature: BoundarySignature, initial_stack: u64,
         result: u64) -> BoundaryPlanResult
     {
         transition initial_stack < 256 && result < 256
@@ -49,7 +49,7 @@ machine LinuxX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         }
     }
 
-    state physical_shapes(initial_stack: ValueShape, result: ValueShape)
+    machine physical_shapes(initial_stack: ValueShape, result: ValueShape)
         -> BoundaryPlanResult
     {
         transition HostedEntryShapes::integer_shape(&initial_stack, 8)
@@ -60,7 +60,7 @@ machine LinuxX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         }
     }
 
-    state build_physical() -> BoundaryPlanResult {
+    machine build_physical() -> BoundaryPlanResult {
         let mut output: BoundaryEntryPlan;
         output.call.parameter_count = 1;
         // The kernel arrival supplies the initial process-stack image base
@@ -74,7 +74,7 @@ machine LinuxX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         transition { _ -> finish(output, true) }
     }
 
-    state semantic(signature: BoundarySignature) -> BoundaryPlanResult {
+    machine semantic(signature: BoundarySignature) -> BoundaryPlanResult {
         transition signature.has_result {
             false -> semantic_indices(signature, signature.parameters[0],
                 signature.parameters[1])
@@ -82,7 +82,7 @@ machine LinuxX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         }
     }
 
-    state semantic_indices(signature: BoundarySignature, image: u64,
+    machine semantic_indices(signature: BoundarySignature, image: u64,
         storage: u64) -> BoundaryPlanResult
     {
         transition image < 256 && storage < 256
@@ -94,7 +94,7 @@ machine LinuxX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         }
     }
 
-    state semantic_shapes(image: ValueShape, storage: ValueShape,
+    machine semantic_shapes(image: ValueShape, storage: ValueShape,
         signature: BoundarySignature) -> BoundaryPlanResult
     {
         transition HostedEntryShapes::extent_shape(image, &signature)
@@ -105,7 +105,7 @@ machine LinuxX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         }
     }
 
-    state build_semantic() -> BoundaryPlanResult {
+    machine build_semantic() -> BoundaryPlanResult {
         let mut output: BoundaryEntryPlan;
         output.call.parameter_count = 2;
         // The generated bridge passes the image and initial-storage roots in
@@ -117,7 +117,7 @@ machine LinuxX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         transition { _ -> finish(output, false) }
     }
 
-    state finish(output: BoundaryEntryPlan, supervisor: bool)
+    machine finish(output: BoundaryEntryPlan, supervisor: bool)
         -> BoundaryPlanResult
     {
         let mut plan: BoundaryEntryPlan = output;
@@ -129,7 +129,7 @@ machine LinuxX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         }
     }
 
-    state finish_supervisor(plan: BoundaryEntryPlan) -> BoundaryPlanResult {
+    machine finish_supervisor(plan: BoundaryEntryPlan) -> BoundaryPlanResult {
         let mut output: BoundaryEntryPlan = plan;
         // The kernel supplies no return continuation; the physical contract
         // completes through exit_group (rax = 231) with status in edi.
@@ -140,13 +140,13 @@ machine LinuxX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         transition { _ -> seal(output) }
     }
 
-    state finish_call(plan: BoundaryEntryPlan) -> BoundaryPlanResult {
+    machine finish_call(plan: BoundaryEntryPlan) -> BoundaryPlanResult {
         let mut output: BoundaryEntryPlan = plan;
         output.call.entry_control = EntryControl::CallReturn;
         transition { _ -> seal(output) }
     }
 
-    state seal(plan: BoundaryEntryPlan) -> BoundaryPlanResult {
+    machine seal(plan: BoundaryEntryPlan) -> BoundaryPlanResult {
         let mut output: BoundaryEntryPlan = plan;
         // System V AMD64 caller-saved banks; the bridge may also observe the
         // incoming stack pointer before switching to its private stack.
@@ -217,7 +217,7 @@ machine LinuxX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         BoundaryPlanResult::Accepted { plan: output }
     }
 
-    state reject() -> BoundaryPlanResult {
+    machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection {
                 reason: "LinuxX86_64Application requires exact physical or program-storage entry shapes",
