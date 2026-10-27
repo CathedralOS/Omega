@@ -169,6 +169,8 @@ def prepare_producer(output):
 
 
 def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checking_only=(), producer=None):
+    if not (positives or negatives or checking_only):
+        raise ValueError("pilot requires at least one fixture")
     revision = command(["git", "rev-parse", "HEAD"])
     if command(["git", "status", "--porcelain"]):
         raise ValueError("pilot requires a clean candidate")
@@ -219,7 +221,8 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
                         both=both, revision=revision, target=summary["target"])
 
     stage("checking and rejection controls", lambda: corpus("checking", positives + checking_only + negatives))
-    stage("native and Terminal execution", lambda: corpus("both", positives, both=True))
+    if positives:
+        stage("native and Terminal execution", lambda: corpus("both", positives, both=True))
     producer.verify()
     if command(["git", "rev-parse", "HEAD"]) != revision or command(["git", "status", "--porcelain"]):
         raise ValueError("candidate changed during validation")
