@@ -290,7 +290,12 @@ fn exact_actual(
         .expression_handles(authored.arguments)
         .get(target_position)
         == Some(&expression);
-    if authored.target_symbol != call.target_symbol || !exact_actual {
+    if validation::call_target_entry_symbol(
+        program,
+        validation::call_target_symbol(program, authored),
+    ) != call.target_symbol
+        || !exact_actual
+    {
         return None;
     }
     Some(())

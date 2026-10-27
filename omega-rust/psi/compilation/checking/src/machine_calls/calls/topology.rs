@@ -259,6 +259,16 @@ pub fn call_target_state(
         .or_else(|| program.state_by_symbol(symbol))
 }
 
+/// The executable coordinate of an already selected callable. Machine heads
+/// enter their exact first state; signatures, operators and unresolved targets
+/// retain their declaration coordinate. This changes no source call identity.
+pub fn call_target_entry_symbol(
+    program: &dyn crate::CheckingInput,
+    symbol: SymbolHandle,
+) -> SymbolHandle {
+    call_target_state(program, symbol).map_or(symbol, |state| state.symbol)
+}
+
 /// Whether the callable's contract is discharged by checked source bodies.
 /// A generated target-family interface has no body itself, but every member
 /// owes the common contract before target selection. A missing roster or an

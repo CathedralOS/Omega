@@ -1031,6 +1031,7 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         target: SymbolHandle,
     ) -> Option<(arena::Handle<checked_trees::FlowCallFact>, u32)> {
+        let target = validation::call_target_entry_symbol(self.program, target);
         let state = self.flow.control.state(self.machine, self.state)?;
         let mut matching = self
             .flow

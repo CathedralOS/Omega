@@ -117,7 +117,11 @@ pub(super) fn plan(
     if let Some(expression) = authored_expression {
         let authored = program.expression_table.call_node(expression)?;
         if call.authored_expression != expression
-            || call.target_symbol != validation::call_target_symbol(program, authored)
+            || call.target_symbol
+                != validation::call_target_entry_symbol(
+                    program,
+                    validation::call_target_symbol(program, authored),
+                )
         {
             return None;
         }

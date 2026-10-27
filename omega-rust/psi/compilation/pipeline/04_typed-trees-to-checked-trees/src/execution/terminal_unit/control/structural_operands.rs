@@ -791,7 +791,11 @@ fn collect<'a>(
             nested.statement_index == call.statement_index
                 && nested.call_ordinal > call.call_ordinal
                 && nested.authored_expression == expression
-                && nested.target_symbol == validation::call_target_symbol(program, authored)
+                && nested.target_symbol
+                    == validation::call_target_entry_symbol(
+                        program,
+                        validation::call_target_symbol(program, authored),
+                    )
         });
         let nested = matching.next()?;
         if matching.next().is_some() {

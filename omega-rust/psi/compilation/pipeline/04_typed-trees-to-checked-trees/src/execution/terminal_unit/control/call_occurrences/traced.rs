@@ -170,7 +170,8 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
                         return None;
                     };
                     if call.statement_index != statement_index
-                        || call.target_symbol != authored.target_symbol
+                        || call.target_symbol
+                            != validation::call_target_entry_symbol(program, authored.target_symbol)
                         || facts.flow.control.is_retired(state.symbol, call)
                     {
                         return None;
@@ -593,7 +594,11 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
             let (expression, authored) =
                 ordered_statement_call(program, owner, state, call.statement_index)?;
             if call.authored_expression != expression
-                || call.target_symbol != validation::call_target_symbol(program, authored)
+                || call.target_symbol
+                    != validation::call_target_entry_symbol(
+                        program,
+                        validation::call_target_symbol(program, authored),
+                    )
             {
                 return None;
             }
@@ -664,7 +669,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
                     .map_or(path.symbol, |(callable, _)| callable)
             }
         };
-        if target != call.target_symbol {
+        if validation::call_target_entry_symbol(program, target) != call.target_symbol {
             return None;
         }
         let arguments = validation::call_site_argument_expressions(program, &site);
