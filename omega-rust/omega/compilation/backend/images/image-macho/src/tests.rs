@@ -133,12 +133,13 @@ fn emitted_bss_matches_relocated_storage_and_writable_segment() {
 }
 
 fn validate_mapping(output: &image::ExecutableImageOutput) -> Result<(), diagnostics::Diagnostic> {
-    super::validate_macho_aarch64_loader_mapping(
+    super::validate_macho_loader_mapping(
         &output.bytes,
         output.final_image_layout,
         &output.final_text_bytes,
         &output.final_data_bytes,
         output.bss_bytes,
+        target::NativeTarget::macos_arm64(),
     )
 }
 
@@ -155,12 +156,13 @@ fn x86_64_storage_image(data_size: usize, bss_size: usize, bss_alignment: usize)
 fn validate_x86_64_mapping(
     output: &image::ExecutableImageOutput,
 ) -> Result<(), diagnostics::Diagnostic> {
-    super::validate_macho_x86_64_loader_mapping(
+    super::validate_macho_loader_mapping(
         &output.bytes,
         output.final_image_layout,
         &output.final_text_bytes,
         &output.final_data_bytes,
         output.bss_bytes,
+        target::NativeTarget::macos_x64(),
     )
 }
 
@@ -245,10 +247,11 @@ fn x86_64_loader_mapping_accepts_eager_import_storage() {
     assert_eq!(thunk.byte_count, 6);
     let thunk_bytes = &output.final_text_bytes[thunk.section_offset..thunk.section_offset + 6];
     assert_eq!(&thunk_bytes[..2], &[0xff, 0x25]);
-    super::validate_macho_x86_64_import_binding_pairing(
+    super::validate_macho_import_binding_pairing(
         &output.final_text_bytes,
         &output.executable_regions,
         &output.data_regions,
+        target::NativeTarget::macos_x64(),
     )
     .expect("x86-64 thunk↔slot pairing");
 }

@@ -23,7 +23,7 @@
 //!   validate_import_thunk_footprints      thunk opcodes survived relocation
 //!   ... write header, load commands, segments, linkedit ...
 //!   macho_ad_hoc_code_signature_for_container   hashes the finished file, so LAST
-//!   validate_macho_aarch64_loader_mapping / loader_fixups
+//!   validate_macho_loader_mapping / loader_fixups
 //!       read-only checks of the actual container and exact loader writes
 //! ```
 //!
@@ -98,11 +98,9 @@ mod isa;
 #[cfg(test)]
 mod tests;
 
+pub use dyld_linking::imports::validate_macho_import_binding_pairing;
 use dyld_linking::imports::{
     install_import_thunks, patch_import_thunks, validate_import_thunk_footprints,
-};
-pub use dyld_linking::imports::{
-    validate_macho_aarch64_import_binding_pairing, validate_macho_x86_64_import_binding_pairing,
 };
 use dyld_linking::load_commands::{
     write_empty_macho_dysymtab_command, write_empty_macho_symtab_command,
@@ -114,12 +112,9 @@ use dyld_linking::load_commands::{
     write_macho_uuid_command,
 };
 pub use dyld_linking::loader_fixups::{
-    MachoImportPointer, MachoRebasePointer, validate_macho_aarch64_loader_fixups,
-    validate_macho_aarch64_object_fixups, validate_macho_x86_64_object_fixups,
+    MachoImportPointer, MachoRebasePointer, validate_macho_object_fixups,
 };
-pub use dyld_linking::loader_mapping::{
-    validate_macho_aarch64_loader_mapping, validate_macho_x86_64_loader_mapping,
-};
+pub use dyld_linking::loader_mapping::validate_macho_loader_mapping;
 use entry_symbol::macho_entry_text_offset;
 use isa::MachoIsa;
 
@@ -129,20 +124,6 @@ use isa::MachoIsa;
 /// the validated application name reaches image emission; an authored
 /// identifier is bound through [`emit_macho_executable_signed`] instead.
 const OMEGA_EXECUTABLE_LEAF: &str = "omega-program";
-
-/// The ISA an image's own target names, or the refusal. The image carries the
-/// target it was built for, so emission reads the ABI off it exactly as
-/// `image::apply_relocations` reads its instruction set; there is no entry
-/// point that takes an ISA beside an image. `shared_component` derives its ISA
-/// the same way before asking for a container.
-fn macho_isa_for(image: &FinalImage) -> Result<MachoIsa, Diagnostic> {
-    MachoIsa::from_format(image.target.object_format, image.target.architecture).ok_or_else(|| {
-        Diagnostic::error(format!(
-            "Mach-O emission cannot supply an image whose target is {:?}",
-            image.target,
-        ))
-    })
-}
 
 /// Emit with the console fallback: the executable leaf is the ad-hoc
 /// CodeDirectory label because no authored application identifier was bound.
@@ -162,7 +143,7 @@ pub fn emit_macho_executable_signed(
     image: FinalImage,
     code_signature_identifier: &str,
 ) -> Result<ExecutableImageOutput, Diagnostic> {
-    let isa = macho_isa_for(&image)?;
+    let isa = isa::macho_isa_for(image.target)?;
     let MachoContainerContents {
         image,
         bytes,

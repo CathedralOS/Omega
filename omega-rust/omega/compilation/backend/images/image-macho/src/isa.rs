@@ -11,12 +11,26 @@
 //! closed x86-64 form's decoder and claimed footprint.
 
 use calling_conventions::StateFootprintEvidence;
+use diagnostics::Diagnostic;
 
 /// The two instruction sets the supported Mach-O writer emits for.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum MachoIsa {
     Aarch64,
     X86_64,
+}
+
+/// The ISA a native target names, or the refusal. Every entry point that is
+/// handed a target instead of a chosen ISA - emission and the container
+/// validators - derives the ABI here, so one target cannot select one ISA's
+/// constants while describing another's file.
+pub(crate) fn macho_isa_for(target: target::NativeTarget) -> Result<MachoIsa, Diagnostic> {
+    MachoIsa::from_format(target.object_format, target.architecture).ok_or_else(|| {
+        Diagnostic::error(format!(
+            "Mach-O emission and validation require a macOS ARM64 or x86-64 target, not {:?}",
+            target,
+        ))
+    })
 }
 
 impl MachoIsa {
