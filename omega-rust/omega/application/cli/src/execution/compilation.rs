@@ -84,13 +84,8 @@ pub(super) fn interpret_product(
     target: &str,
 ) -> Result<TerminalRuntimeObservation, TerminalRuntimeError> {
     let artifact = report
-        .retained_native_artifact()
-        .map(|artifact| artifact.psi_artifact())
-        .or_else(|| {
-            report
-                .retained_dynamic_elf_artifact()
-                .map(|artifact| artifact.psi_artifact())
-        })
+        .retained_native_program()
+        .map(|program| program.psi_artifact())
         .ok_or(TerminalRuntimeError::InvalidProvision(
             "native report lost its produced Terminal artifact before comparison",
         ))?;

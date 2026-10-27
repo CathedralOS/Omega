@@ -6,6 +6,7 @@ The corpus owns source checking, native/Terminal execution and diagnostic oracle
 this caller additionally refuses missing rows and success without execution.
 """
 
+from dataclasses import dataclass
 import hashlib
 import json
 import os
@@ -84,7 +85,90 @@ def observation_golden(output, *, both, target):
     return initial
 
 
-def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checking_only=()):
+@dataclass(frozen=True)
+class CompilerProducer:
+    """One retained optimized CLI/runner pair shared by independent cohorts.
+
+    Source and executable identities are checked before and after consumers;
+    selecting another cohort never starts another Cargo build or overwrites a
+    historical producer. The source revision stays the one actually built.
+    """
+    revision: str
+    tree: str
+    target: str
+    toolchain: str
+    cli: Path
+    runner: Path
+    cli_profile: dict
+    runner_profile: dict
+
+    def verify(self):
+        if command(["git", "rev-parse", "HEAD"]) != self.revision or command(["git", "status", "--porcelain"]):
+            raise ValueError("producer source revision or working inputs changed")
+        for binary, expected in ((self.cli, self.cli_profile), (self.runner, self.runner_profile)):
+            if corpus_gate.require_optimized(binary) != expected:
+                raise ValueError(f"retained producer identity/profile changed: {binary}")
+
+    def record(self):
+        return dict(revision=self.revision, tree=self.tree, target=self.target, toolchain=self.toolchain,
+                    cli=str(self.cli), runner=str(self.runner),
+                    cli_profile=self.cli_profile, runner_profile=self.runner_profile)
+
+
+def prepare_producer(output):
+    """Build and retain the ordinary producer once, before choosing consumers."""
+    output = Path(output).resolve()
+    revision = command(["git", "rev-parse", "HEAD"])
+    if command(["git", "status", "--porcelain"]) or os.environ.get("GITHUB_SHA", revision) != revision:
+        raise ValueError("producer requires the clean exact candidate")
+    output.mkdir(parents=True, exist_ok=True)
+    retained = Path(tempfile.mkdtemp(prefix="producer-", dir=output))
+    tool = "mbx" if shutil.which("mbx") else "cargo"
+    arguments = [tool, "build", "--locked", "-p", "omega", "--message-format=json"]
+    import build_slot
+    with build_slot.hold(ROOT):
+        result = subprocess.run(arguments, cwd=ROOT, stdin=subprocess.DEVNULL,
+                                capture_output=True, text=True, env=corpus_gate.optimized_environment())
+    (retained / "cli-build.jsonl").write_text(result.stdout, encoding="utf-8")
+    (retained / "cli-build.stderr").write_text(result.stderr, encoding="utf-8")
+    if result.returncode:
+        sys.stderr.write(result.stderr[-8000:])
+        raise ValueError(f"CLI build failed ({result.returncode}); raw build receipt retained")
+    artifacts = [json.loads(line) for line in result.stdout.splitlines() if line.strip().startswith("{")]
+    binaries = [row["executable"] for row in artifacts if row.get("reason") == "compiler-artifact"
+                and row.get("target", {}).get("name") == "omega" and row.get("executable")]
+    if not binaries or not artifacts[-1].get("success"):
+        raise ValueError("CLI build supplied no completed executable artifact")
+    cli = Path(binaries[-1])
+    # Current CLIs report their own build-time profile. Cargo fingerprint
+    # reconstruction belongs to historical binaries without that protocol;
+    # an internal Cargo output layout is not the CLI's profile authority.
+    cli_profile = corpus_gate.require_optimized(cli)
+    runner = corpus_gate.build_runner()
+    name = "omega.exe" if os.name == "nt" else "omega"
+    copied_cli = retained / name
+    copied_runner = retained / ("corpus_runner.exe" if runner.suffix == ".exe" else "corpus_runner")
+    shutil.copy2(cli, copied_cli)
+    shutil.copy2(runner, copied_runner)
+    shutil.copy2(str(runner) + ".compiler-profile.json", str(copied_runner) + ".compiler-profile.json")
+    producer = CompilerProducer(revision, command(["git", "rev-parse", "HEAD^{tree}"]),
+                                corpus_gate.host_target(), command(["rustc", "-Vv"]), copied_cli.resolve(),
+                                copied_runner.resolve(), corpus_gate.require_optimized(copied_cli),
+                                corpus_gate.require_optimized(copied_runner))
+    if producer.cli_profile["sha256"] != cli_profile["sha256"] or corpus_gate.require_optimized(cli) != cli_profile:
+        raise ValueError("CLI changed between its completed build and retained producer")
+    producer.verify()
+    for binary, profile in ((producer.cli, producer.cli_profile), (producer.runner, producer.runner_profile)):
+        Path(str(binary) + ".verified-profile.json").write_text(json.dumps(dict(
+            source_revision=revision, source_tree=producer.tree, toolchain=producer.toolchain,
+            observation=profile), indent=2) + "\n", encoding="utf-8")
+    if command(["git", "status", "--porcelain"]):
+        raise ValueError("source changed while preparing producer")
+    (retained / "producer.json").write_text(json.dumps(producer.record(), indent=2) + "\n", encoding="utf-8")
+    return producer
+
+
+def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checking_only=(), producer=None):
     revision = command(["git", "rev-parse", "HEAD"])
     if command(["git", "status", "--porcelain"]):
         raise ValueError("pilot requires a clean candidate")
@@ -107,22 +191,15 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
         finally:
             result["seconds"] = round(time.monotonic() - started, 3)
 
-    tool = "mbx" if shutil.which("mbx") else "cargo"
-    stage("build CLI", lambda: subprocess.run(
-        [tool, "build", "--locked", "-p", "omega"], cwd=ROOT,
-        stdin=subprocess.DEVNULL, check=True))
-    runner = stage("build corpus runner", corpus_gate.build_runner)
-    # Keep the exact producer with the reports; later jobs need not rebuild it.
-    retained = output / ("corpus_runner.exe" if runner.suffix == ".exe" else "corpus_runner")
-    shutil.copy2(runner, retained)
-    shutil.copy2(str(runner) + ".compiler-profile.json",
-                 str(retained) + ".compiler-profile.json")
-    with retained.open("rb") as stream:
-        digest = hashlib.sha256()
-        for block in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(block)
-    summary["runner_sha256"] = digest.hexdigest()
-    summary["runner_profile"] = corpus_gate.require_optimized(retained)
+    if producer is None:
+        producer = stage("prepare optimized compiler", lambda: prepare_producer(output))
+    stage("authenticate optimized producer", producer.verify)
+    if producer.revision != revision or producer.target != summary["target"]:
+        raise ValueError("producer belongs to another source or host")
+    summary["producer"] = producer.record()
+    summary["runner_sha256"] = producer.runner_profile["sha256"]
+    summary["runner_profile"] = producer.runner_profile
+    retained = producer.runner
     captures = Path(tempfile.mkdtemp(prefix="artifacts-", dir=output))
     summary["artifact_directory"] = str(captures)
 
@@ -143,17 +220,18 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
 
     stage("checking and rejection controls", lambda: corpus("checking", positives + checking_only + negatives))
     stage("native and Terminal execution", lambda: corpus("both", positives, both=True))
+    producer.verify()
     if command(["git", "rev-parse", "HEAD"]) != revision or command(["git", "status", "--porcelain"]):
         raise ValueError("candidate changed during validation")
 
 
-def run_suite(name, positives, negatives, *, checking_only=()):
+def run_suite(name, positives, negatives, *, checking_only=(), producer=None):
     output = ROOT / "build" / name
     output.mkdir(parents=True, exist_ok=True)
     summary = dict(schema="omega-compiler-pilot-v1", passed=False)
     try:
         execute(output, summary, positives=positives, negatives=negatives,
-                checking_only=checking_only)
+                checking_only=checking_only, producer=producer)
         summary["passed"] = True
         return 0
     except (OSError, ValueError, subprocess.CalledProcessError,

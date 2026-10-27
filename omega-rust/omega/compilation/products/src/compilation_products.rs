@@ -10,7 +10,10 @@
 
 use target::NativeApplicationMetadata;
 
-use crate::{OptimizationRollbackReceipt, RetainedNativeArtifact, RetainedTerminalArtifact};
+use crate::{
+    OptimizationRollbackReceipt, RetainedNativeArtifact, RetainedNativeProgram,
+    RetainedNativeProgramIdentity, RetainedTerminalArtifact,
+};
 use artifacts::compile_timings::PhaseTiming;
 use native_artifact::{
     DynamicElfNativeArtifact, DynamicElfPublicationReceipt, ExecutablePublicationReceipt,
@@ -486,6 +489,22 @@ impl CompileReport {
     pub const fn retained_native_artifact(&self) -> Option<&RetainedNativeArtifact> {
         match &self.product {
             CompileProduct::RetainedNativeArtifact(product) => Some(&product.artifact),
+            _ => None,
+        }
+    }
+
+    /// The exact portable program and native identity shared by executable
+    /// replay consumers. Published and non-native products have no such view.
+    pub fn retained_native_program(&self) -> Option<RetainedNativeProgram<'_>> {
+        match &self.product {
+            CompileProduct::RetainedNativeArtifact(product) => Some(RetainedNativeProgram {
+                artifact: product.artifact.psi_artifact(),
+                identity: RetainedNativeProgramIdentity::Direct(product.artifact.identity()),
+            }),
+            CompileProduct::RetainedDynamicElfArtifact(product) => Some(RetainedNativeProgram {
+                artifact: product.artifact.psi_artifact(),
+                identity: RetainedNativeProgramIdentity::DynamicElf(product.artifact.identity()),
+            }),
             _ => None,
         }
     }

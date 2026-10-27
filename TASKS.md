@@ -1316,10 +1316,8 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     backing through thin foreign export
     ([foreign_scalar_backing](samples/cli/facts/foreign_scalar_backing/README.md)),
     and C record-result host/ABI lanes beyond
-    [foreign_scalar_record_result](samples/cli/facts/foreign_scalar_record_result/README.md)
-    and
+    [foreign_scalar_record_result](samples/cli/facts/foreign_scalar_record_result/README.md),
     [foreign_indirect_float_record_result](samples/cli/facts/foreign_indirect_float_record_result/README.md),
-    including matching-host qualification of
     [recursive owned record input/results](samples/cli/facts/foreign_scalar_record_result/nested/README.md)
     and [owned array descendants](samples/cli/facts/foreign_scalar_record_result/arrays/README.md),
     across Windows, macOS, and both Linux targets in Omega stages 02–03 and

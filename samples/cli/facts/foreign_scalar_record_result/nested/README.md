@@ -114,13 +114,20 @@ Publication uses ordinary fresh placed storage after validating the complete
 ordered scalar roster and every typed containing path. It grants no reference,
 descendant qualification, content or claim authority from equal bytes.
 
-The authored bindings cover four hosted targets; these observations establish
-macOS ARM64 execution only. Matching-host qualification on Windows and both
-Linux targets remains under the parent acceptance. See [the run record](qualification.json).
+The original [run record](qualification.json) establishes macOS ARM64 only.
+The [matching-host record](hosted_qualification.json) now establishes this same
+root and nine-place row on all four hosted targets: optimized producer
+`33901569f34af6ba272ab5994871921aa6a6072e` on Windows x86-64 and both Linux
+hosts, and `e8927c1e8e2d76304342c9cd995646d3f8c3691c` on macOS ARM64.
+Each host records ten public native/Terminal zero agreements, ten canonical
+reloads, nine pinned corpus agreements and nine intended copy-removal rejects.
+The root also passes two inputs through one compilation, retaining its exact
+canonical artifact and native identity before publication.
 Raw compiler profiles, C provider identities, frozen inputs, engine outputs,
 canonical artifacts and qualification are retained in
-`build/foreign-frontier-evidence`.
+`build/foreign-frontier-evidence` and `build/owned-host-evidence`.
 
 The flat record row's earlier observations do not establish recursive owned
-result publication. Arrays, variants, references and qualified descendants
-remain separate acceptance.
+result publication. [Fixed-array descendants](../arrays/README.md) have their own
+qualified row; variants, references and qualified descendants remain separate
+acceptance.

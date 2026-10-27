@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Matching-host C scalar-record result evidence through the normal corpus gate."""
 
+import argparse
+from contextlib import contextmanager
 import ctypes
 import hashlib
 import json
@@ -10,6 +12,9 @@ import sys
 import shutil
 import subprocess
 import time
+import tempfile
+
+import compiler_fact_rows
 
 import compiler_pilot
 
@@ -107,11 +112,10 @@ def qualify_nested_source_import(output, cli):
     profile = compiler_pilot.corpus_gate.require_optimized(cli)
     digest = hashlib.sha256(cli.read_bytes()).hexdigest()
     output.mkdir(parents=True, exist_ok=True)
-    retained = output / cli.name
-    shutil.copy2(cli, retained)
+    retained = cli.resolve()
     candidate = compiler_pilot.command(["git", "rev-parse", "HEAD"])
-    Path(str(retained) + ".compiler-profile.json").write_text(json.dumps(dict(
-        profile, binary_sha256=digest, source_revision=candidate), indent=2) + "\n", encoding="utf-8")
+    (output / "compiler-profile.json").write_text(json.dumps(dict(
+        observation=profile, source_revision=candidate), indent=2) + "\n", encoding="utf-8")
     def source_hashes():
         return {str(path.relative_to(authored)): hashlib.sha256(path.read_bytes()).hexdigest()
                 for path in authored.rglob("*")
@@ -185,17 +189,160 @@ def qualify_result_provenance(output, cli):
         (output / "result-provenance.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
 
 
-if __name__ == "__main__":
-    os.environ["OMEGA_LIBRARY_ROOT"] = str(compiler_pilot.ROOT / "source/library")
-    output = compiler_pilot.ROOT / "build/compiler-foreign-records"
-    authenticate_windows_lldiv(output)
-    status = compiler_pilot.run_suite("compiler-foreign-records", POSITIVES, NEGATIVES)
-    name = "omega.exe" if os.name == "nt" else "omega"
-    cli = Path(os.environ.get("CARGO_TARGET_DIR", compiler_pilot.ROOT / "target")) / "debug" / name
+OWNED_ROWS = {
+    "nested": ("foreign_scalar_record_result/nested", "foreign_nested_scalar_record_result"),
+    "arrays": ("foreign_scalar_record_result/arrays", "foreign_owned_array_record"),
+}
+COHORTS = ("scalar-opaque",) + tuple(OWNED_ROWS)
+
+
+def select_cohorts(selection):
+    selected = COHORTS if selection == "all" else tuple(dict.fromkeys(
+        part.strip() for part in selection.split(",") if part.strip()))
+    if not selected or any(name not in COHORTS for name in selected):
+        raise ValueError("cohorts must name scalar-opaque, nested, arrays, or all")
+    return selected
+
+
+@contextmanager
+def provider_path(library):
+    key = "PATH" if os.name == "nt" else "DYLD_LIBRARY_PATH" if sys.platform == "darwin" else "LD_LIBRARY_PATH"
+    previous = os.environ.get(key)
+    os.environ[key] = str(library.parent) + (os.pathsep + previous if previous else "")
     try:
-        qualify_nested_source_import(output / "public-cli", cli.resolve())
-        qualify_result_provenance(output / "public-cli", (output / "public-cli" / name).resolve())
+        yield
+    finally:
+        if previous is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = previous
+
+
+def prepare_provider(fact, output):
+    """Authenticate the real matching-host C fixture before a compiler build."""
+    output.mkdir(parents=True, exist_ok=False)
+    recipe = fact / "fixture/prepare.py"
+    arguments = [sys.executable, str(recipe), "--output", str(output)]
+    result = subprocess.run(arguments, cwd=compiler_pilot.ROOT, stdin=subprocess.DEVNULL,
+                            capture_output=True, text=True, timeout=180)
+    (output / "prepare.stdout.json").write_text(result.stdout, encoding="utf-8")
+    (output / "prepare.stderr.txt").write_text(result.stderr, encoding="utf-8")
+    if result.returncode:
+        raise ValueError(f"C fixture failed ({result.returncode}): {result.stderr or result.stdout}")
+    receipt = json.loads(result.stdout)
+    library = Path(receipt["library"]).resolve()
+    selftest = Path(receipt["commands"][-1][0]).resolve()
+    if library.parent != output.resolve() or selftest.parent != output.resolve() or receipt["selftest_exit"] != 0:
+        raise ValueError("C fixture did not retain its matching-host library and successful self-test")
+    for path, expected in ((library, receipt["library_sha256"]),
+                           (selftest, receipt["selftest_sha256"]),
+                           (fact / "fixture/provider.c", receipt["provider_sha256"]),
+                           (fact / "fixture/provider.map", receipt["map_sha256"])):
+        if compiler_fact_rows.digest(path) != expected:
+            raise ValueError(f"C fixture resource digest differs: {path}")
+    receipt.update(recipe_sha256=compiler_fact_rows.digest(recipe), preparation_argv=arguments,
+                   preparation_exit=result.returncode)
+    (output / "provider.json").write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
+    return library
+
+
+def scalar_opaque(output, producer):
+    authenticate_windows_lldiv(output)
+    status = compiler_pilot.run_suite(str(output.relative_to(compiler_pilot.ROOT / "build")),
+                                     POSITIVES, NEGATIVES, producer=producer)
+    # Preserve public controls even when an independent corpus control failed.
+    failures = []
+    (output / "public-cli").mkdir(parents=True, exist_ok=True)
+    for operation in (qualify_nested_source_import, qualify_result_provenance):
+        try:
+            operation(output / "public-cli", producer.cli)
+        except (OSError, ValueError, subprocess.SubprocessError) as error:
+            failures.append(str(error))
+    if status or failures:
+        raise ValueError(f"scalar/opaque corpus exit {status}; public controls: {failures}")
+
+
+def owned_row(output, fact, prefix, library, producer):
+    positives, negatives = compiler_fact_rows.fixtures(compiler_pilot.ROOT, fact, prefix)
+    resources = {str(path): compiler_fact_rows.digest(path)
+                 for folder in (output / "provider", fact / "fixture")
+                 for path in folder.iterdir() if path.is_file()}
+    (output / "resource-inputs.json").write_text(json.dumps(resources, indent=2) + "\n", encoding="utf-8")
+    with provider_path(library):
+        inventory = compiler_fact_rows.prepare(output, fact, producer)
+        status = compiler_pilot.run_suite(str(output.relative_to(compiler_pilot.ROOT / "build")),
+                                         positives, negatives, producer=producer)
+        try:
+            compiler_fact_rows.measure(output, inventory, producer)
+        finally:
+            for path, expected in resources.items():
+                if compiler_fact_rows.digest(path) != expected:
+                    raise ValueError(f"provider resource changed during measurement: {path}")
+        if status:
+            raise ValueError(f"owned row corpus failed (exit {status}); public observations retained")
+
+
+def main(arguments=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--cohorts", default=os.environ.get("OMEGA_FOREIGN_RECORD_COHORTS") or "scalar-opaque",
+                        help="comma-separated scalar-opaque,nested,arrays; all selects every cohort")
+    parser.add_argument("--list", action="store_true", help="show exact selected fixtures without building")
+    options = parser.parse_args(arguments)
+    output = compiler_pilot.ROOT / "build/compiler-foreign-records"
+    selected = select_cohorts(options.cohorts)
+    plans = {}
+    for name in selected:
+        if name in OWNED_ROWS:
+            relative, prefix = OWNED_ROWS[name]
+            fact = compiler_pilot.ROOT / "samples/cli/facts" / relative
+            plans[name] = (fact, prefix, *compiler_fact_rows.fixtures(compiler_pilot.ROOT, fact, prefix))
+    if options.list:
+        print(json.dumps({name: dict(positive=plans[name][2], negative=plans[name][3])
+                          if name in plans else dict(positive=POSITIVES, negative=NEGATIVES)
+                          for name in selected}, indent=2))
+        return 0
+    os.environ["OMEGA_LIBRARY_ROOT"] = str(compiler_pilot.ROOT / "source/library")
+    output.mkdir(parents=True, exist_ok=True)
+    attempt = Path(tempfile.mkdtemp(prefix="attempt-", dir=output))
+    report = dict(candidate=compiler_pilot.command(["git", "rev-parse", "HEAD"]),
+                  target=compiler_pilot.corpus_gate.host_target(), cohorts=[], passed=False)
+    try:
+        ready = []
+        for name in selected:
+            record = dict(name=name, passed=False)
+            report["cohorts"].append(record)
+            cohort = attempt / name
+            cohort.mkdir()
+            try:
+                library = prepare_provider(plans[name][0], cohort / "provider") if name in plans else None
+                ready.append((name, cohort, library, record))
+            except (OSError, ValueError, subprocess.SubprocessError) as error:
+                record["error"] = str(error)
+        if ready:
+            producer = compiler_pilot.prepare_producer(attempt)
+            report["producer"] = producer.record()
+            for name, cohort, library, record in ready:
+                try:
+                    if name in plans:
+                        owned_row(cohort, plans[name][0], plans[name][1], library, producer)
+                    else:
+                        scalar_opaque(cohort, producer)
+                    record["passed"] = True
+                except (OSError, ValueError, subprocess.SubprocessError) as error:
+                    record["error"] = str(error)
+                print(f"foreign records: {name}: {record}", flush=True)
+        report["passed"] = bool(report["cohorts"]) and all(row["passed"] for row in report["cohorts"])
     except (OSError, ValueError, subprocess.SubprocessError) as error:
-        print(f"foreign records public CLI: {error}", file=sys.stderr)
-        status = 1
-    sys.exit(status)
+        report["error"] = str(error)
+    finally:
+        (attempt / "summary.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+        (output / "latest.json").write_text(json.dumps(dict(attempt=str(attempt), **report), indent=2) + "\n", encoding="utf-8")
+    return 0 if report["passed"] else 1
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        print(f"foreign records: {error}", file=sys.stderr)
+        sys.exit(1)

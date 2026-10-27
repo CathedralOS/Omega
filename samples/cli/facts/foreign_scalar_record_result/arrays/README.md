@@ -106,10 +106,18 @@ expansion. This does not establish bounded whole-pipeline empty-array storage:
 legacy codec preparation and nested empty-byte-array materialization can still
 scale with outer dimensions and remain unqualified performance acceptance.
 
-Bindings declare all four hosted targets; these runs credit macOS ARM64 only.
-Windows and both Linux targets remain under the parent acceptance. Existing
-flat/nested observations retain their original producers. See [the run record](qualification.json).
+The original [run record](qualification.json) credits macOS ARM64 only.
+The [matching-host record](hosted_qualification.json) now establishes this same
+root and nine-place row on all four hosted targets: optimized producer
+`33901569f34af6ba272ab5994871921aa6a6072e` on Windows x86-64 and both Linux
+hosts, and `e8927c1e8e2d76304342c9cd995646d3f8c3691c` on macOS ARM64.
+Each host records ten public native/Terminal zero agreements, ten canonical
+reloads, nine pinned corpus agreements and nine intended copy-removal rejects.
+The root also passes two inputs through one compilation, retaining its exact
+canonical artifact and native identity before publication. Existing observations
+retain their original producers.
 Raw profiles, frozen inputs, exact C resources, engine outputs, canonical
-artifacts and qualification are retained in `build/owned-array-evidence`.
+artifacts and qualification are retained in `build/owned-array-evidence` and
+`build/owned-host-evidence`.
 Variants, reference arrays and independently qualified descendants remain open
 outside this row.

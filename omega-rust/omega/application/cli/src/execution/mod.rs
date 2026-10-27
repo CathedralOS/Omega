@@ -5,6 +5,7 @@
 mod compilation;
 mod private_observation;
 mod process_exit;
+mod retained_artifacts;
 mod standard_input;
 
 pub use process_exit::ProcessExitObservation;
@@ -147,23 +148,8 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
         } else {
             (None, None)
         };
-    if request.keep_artifacts
-        && let Some(artifact) = report.retained_native_artifact()
-    {
-        // Keep the exact canonical product that produced this image, not a
-        // Source recompile. Debug-formatting the complete native object turned
-        // a 257 KiB filesystem image into 6 GiB of text. That diagnostic is not
-        // an executable or a replay artifact.
-        std::fs::write(
-            build_dir.join("program.oterm"),
-            artifact.psi_artifact().to_bytes(),
-        )
-        .map_err(RunError::ReferenceOutput)?;
-        std::fs::write(
-            build_dir.join("native.identity.txt"),
-            format!("{:?}\n", artifact.identity()),
-        )
-        .map_err(RunError::ReferenceOutput)?;
+    if request.keep_artifacts {
+        retained_artifacts::retain(&report, &build_dir)?;
     }
     let (report, executable) =
         omega_build::publication::publish_native_artifact(report, &build_dir)
@@ -302,6 +288,9 @@ pub fn run_project_cases(request: CaseRunRequest) -> Result<CaseRunOutcome, RunE
         reference_inputs,
     )
     .map_err(RunError::Compilation)?;
+    if request.keep_artifacts {
+        retained_artifacts::retain(&report, &build_dir)?;
+    }
     let (report, executable) =
         omega_build::publication::publish_native_artifact(report, &build_dir)
             .map_err(RunError::Publication)?;

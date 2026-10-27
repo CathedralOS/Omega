@@ -10,6 +10,24 @@
 # context: {"cpus": 16, "jobs": "1", "load1_end": 2.02, "load1_start": 0.2, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/build/installed_entry_ram_stack_occurrence_exit built 79964ms exit:0 entry-ram:match interpreter-exit:0 interpreter-entry-ram:match interpreter:agrees @658a90628a78
 pass/build/installed_entry_ram_two_occurrences_exit built 76574ms exit:0 entry-ram:match interpreter-exit:0 interpreter-entry-ram:match interpreter:agrees @658a90628a78
+pass/facts/foreign_nested_scalar_record_result_through_call_result_exit built 3221ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
+pass/facts/foreign_nested_scalar_record_result_through_const_name_exit built 3221ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
+pass/facts/foreign_nested_scalar_record_result_through_field_exit built 3110ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
+pass/facts/foreign_nested_scalar_record_result_through_local_exit built 3357ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
+pass/facts/foreign_nested_scalar_record_result_through_match_join_exit built 3105ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
+pass/facts/foreign_nested_scalar_record_result_through_other_machine_exit built 3208ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
+pass/facts/foreign_nested_scalar_record_result_through_other_state_exit built 3154ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
+pass/facts/foreign_nested_scalar_record_result_through_parameter_exit built 3155ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
+pass/facts/foreign_nested_scalar_record_result_through_target_body_exit built 3200ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
+pass/facts/foreign_owned_array_record_through_call_result_exit built 5777ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
+pass/facts/foreign_owned_array_record_through_const_name_exit built 5884ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
+pass/facts/foreign_owned_array_record_through_field_exit built 5825ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
+pass/facts/foreign_owned_array_record_through_local_exit built 5959ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
+pass/facts/foreign_owned_array_record_through_match_join_exit built 6066ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
+pass/facts/foreign_owned_array_record_through_other_machine_exit built 5968ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
+pass/facts/foreign_owned_array_record_through_other_state_exit built 6161ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
+pass/facts/foreign_owned_array_record_through_parameter_exit built 5860ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
+pass/facts/foreign_owned_array_record_through_target_body_exit built 5856ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
 pass/facts/installed_entry_storage_through_call_result_exit built 68206ms exit:0 entry-ram:match interpreter-exit:0 interpreter-entry-ram:match interpreter:agrees @658a90628a78
 pass/facts/installed_entry_storage_through_const_name_exit built 68108ms exit:0 entry-ram:match interpreter-exit:0 interpreter-entry-ram:match interpreter:agrees @658a90628a78
 pass/facts/installed_entry_storage_through_field_exit built 68647ms exit:0 entry-ram:match interpreter-exit:0 interpreter-entry-ram:match interpreter:agrees @658a90628a78
