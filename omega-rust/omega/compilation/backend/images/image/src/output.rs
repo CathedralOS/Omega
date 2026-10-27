@@ -140,45 +140,6 @@ pub struct CompilerEntryFootprintBindingEvidence {
     pub evidence_report_fingerprint: u64,
 }
 
-impl CompilerEntryFootprintBindingEvidence {
-    pub fn recomputed_evidence_digest(self) -> CompilerEntryFootprintBindingDigest {
-        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-            b"omega.compiler-entry-footprint-binding.sha256.v1\0",
-        );
-        digest.raw(self.entry_region_evidence_digest.as_bytes());
-        digest.raw(&self.final_region_binding_report_fingerprint.to_le_bytes());
-        digest.raw(self.prior_inventory_digest.as_bytes());
-        digest.raw(self.footprint_digest.as_bytes());
-        digest.raw(self.resulting_inventory_digest.as_bytes());
-        CompilerEntryFootprintBindingDigest::from_digest(digest.finish())
-    }
-
-    pub fn recomputed_evidence_report_fingerprint(self) -> u64 {
-        let mut hash = FNV_OFFSET;
-        for value in [
-            self.entry_region_evidence_report_fingerprint,
-            self.final_region_binding_report_fingerprint,
-            self.prior_inventory_report_fingerprint,
-            self.footprint_report_fingerprint,
-            self.resulting_inventory_report_fingerprint,
-        ] {
-            fingerprint_bytes(&mut hash, &value.to_le_bytes());
-        }
-        hash
-    }
-
-    pub fn validate_identity(self) -> bool {
-        self.entry_region_evidence_report_fingerprint != 0
-            && self.final_region_binding_report_fingerprint != 0
-            && self.prior_inventory_report_fingerprint != 0
-            && self.footprint_report_fingerprint != 0
-            && self.resulting_inventory_report_fingerprint != 0
-            && self.prior_inventory_digest != self.resulting_inventory_digest
-            && self.evidence_digest == self.recomputed_evidence_digest()
-            && self.evidence_report_fingerprint == self.recomputed_evidence_report_fingerprint()
-    }
-}
-
 /// Reporting summary for current compiler functions and their selected spans after
 /// exact final-byte validation. The counters and compact coordinates describe
 /// the completed validation but do not recreate it. Exact final text, placed
