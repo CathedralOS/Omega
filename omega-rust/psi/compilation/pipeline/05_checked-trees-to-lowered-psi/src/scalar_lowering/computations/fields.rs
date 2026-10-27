@@ -122,18 +122,13 @@ impl super::Expansion<'_> {
             };
             // A captured outer operand keeps its consumer's lifetime. Only a
             // freshly evaluated receiver uses this read's checked retirement.
-            let target = if established.is_none() && !normal_cleanup_actions.is_empty() {
-                let mut completed_types = input_types.to_vec();
-                completed_types.push(result_type);
-                self.push(LoweredScalarBranchState::jumping(
+            let target = if established.is_none() {
+                self.complete_observation_receiver(
+                    normal_cleanup_actions,
+                    input_types,
+                    result_type,
                     target,
-                    Vec::new(),
-                    completed_types.clone(),
-                    &completed_types,
-                    vec![LoweredScalarEffect::CompleteObservationReceiver {
-                        actions: normal_cleanup_actions,
-                    }],
-                ))
+                )
             } else {
                 target
             };

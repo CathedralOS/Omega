@@ -46,7 +46,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             provider_boundary: selected.provider_boundary(),
             candidate: selected.candidate(),
         };
-        if selected.receiver() != self.program.identity
+        if selected.receiver() != &self.program.identity
             || selected.receiving_boundary() != *boundary
             || self.boundary_supplies.get(boundary) != Some(&expected_supply)
         {
@@ -87,10 +87,17 @@ impl<'artifact> TerminalExecution<'artifact> {
             .invoke(operation.id, arguments, structural_arguments, meter)
             .map_err(&reject)?
         {
-            Some(TerminalExecutionStatus::SponsorExhausted(exhaustion)) => {
-                return Ok(OperationFlow::Yield(
-                    TerminalExecutionStatus::SponsorExhausted(exhaustion),
-                ));
+            Some(status @ TerminalExecutionStatus::SponsorExhausted(_)) => {
+                return Ok(OperationFlow::Yield(status));
+            }
+            Some(status @ TerminalExecutionStatus::AwaitingEffect(_)) => {
+                if operation.suspension_crossing.is_none() {
+                    return Err(reject(
+                        "component readiness requires the caller's checked suspension crossing"
+                            .to_owned(),
+                    ));
+                }
+                return Ok(OperationFlow::Yield(status));
             }
             Some(_) => {
                 // A component crash or domain exit is not normal return. Its
@@ -153,8 +160,6 @@ impl<'artifact> TerminalExecution<'artifact> {
                     .ok_or_else(|| reject("component producer lost its result type".to_owned()))?;
                 if returned.value.structural_type != right.structural_type
                     || left.multiplicity != right.multiplicity
-                    || !left.qualifications.is_empty()
-                    || !right.qualifications.is_empty()
                     || !left.projected_qualifications.is_empty()
                     || !right.projected_qualifications.is_empty()
                     || receiver_type.owns_linear_claim
@@ -187,6 +192,16 @@ impl<'artifact> TerminalExecution<'artifact> {
                 // key; retain the same nonrecycled host token and exact payload.
                 let mut value = returned.value.clone();
                 value.structural_type = left.structural_type;
+                value.qualifications = value
+                    .qualifications
+                    .iter()
+                    .map(|domain| {
+                        selected.result_membership(*domain).ok_or_else(|| {
+                            reject("component returned an unmapped membership".to_owned())
+                        })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                value.qualifications.sort();
                 let claims = completed.returned_claims().ok_or_else(|| {
                     reject("component return lost its owned claim bindings".to_owned())
                 })?;

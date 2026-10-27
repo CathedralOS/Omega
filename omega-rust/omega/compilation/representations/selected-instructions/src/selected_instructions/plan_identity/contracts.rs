@@ -19,30 +19,7 @@ pub(super) fn encode_local_storage_slot(
     crate::codec_bytes::push_encoded(bytes, row.byte_size.to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, row.alignment.to_le_bytes());
 }
-pub(super) fn frame_slot(bytes: &mut Vec<u8>, slot: crate::FrameStorageSlotId) {
-    match slot {
-        crate::FrameStorageSlotId::Incoming {
-            parameter_index,
-            abi_stack_byte_offset,
-        } => {
-            bytes.push(2);
-            crate::codec_bytes::push_encoded(bytes, parameter_index.to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, abi_stack_byte_offset.to_le_bytes());
-        }
-        crate::FrameStorageSlotId::Outgoing(value) => {
-            bytes.push(match value.role {
-                crate::OutgoingArgumentSlotRole::Argument => 0,
-                crate::OutgoingArgumentSlotRole::ValueCopy => 3,
-            });
-            value.invocation_site.encode_identity(bytes);
-            crate::codec_bytes::push_encoded(bytes, value.argument_index.to_le_bytes());
-        }
-        crate::FrameStorageSlotId::Local(value) => {
-            bytes.push(1);
-            local_slot(bytes, value);
-        }
-    }
-}
+
 pub(super) fn encode_static(bytes: &mut Vec<u8>, function: &SelectedFunction) {
     match &function.structural {
         Some(contract) => {

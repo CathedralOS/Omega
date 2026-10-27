@@ -22,7 +22,10 @@ pub use process_child::{BoundedProcessChild, BoundedProcessCompletion, BoundedPr
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 mod private_observation;
-#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[cfg(windows)]
+#[path = "private_observation/windows.rs"]
+mod private_observation;
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub use private_observation::{
     PrivateObservationCapture, capture_private_observation, prepare_private_observation,
 };

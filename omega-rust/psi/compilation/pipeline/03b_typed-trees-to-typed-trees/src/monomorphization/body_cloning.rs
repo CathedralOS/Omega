@@ -754,9 +754,17 @@ pub(super) fn clone_single_specialized_machine(
                 normalized_template_identity: normalized_template_identity.clone(),
                 accepted_template_commitment: accepted_template_commitment.clone(),
                 states,
-                parameters: source.unwrap_or(program).machine_type_parameters(&source_machine)
-                    .iter().map(|parameter| parameter.symbol)
-                    .chain(source_machine.conformance_bounds.iter().map(|bound| bound.binder))
+                parameters: source
+                    .unwrap_or(program)
+                    .machine_type_parameters(&source_machine)
+                    .iter()
+                    .map(|parameter| parameter.symbol)
+                    .chain(
+                        source_machine
+                            .conformance_bounds
+                            .iter()
+                            .map(|bound| bound.binder),
+                    )
                     .map(|parameter| (parameter, remapped_symbol(parameter, &symbol_map)))
                     .collect(),
             },
@@ -927,7 +935,7 @@ pub(super) fn clone_single_specialized_machine(
         // it from the executable candidate would erase that source custody.
         candidate.binding_application
     } else {
-        super::applications::retain_instance(source, program, candidate, instance_symbol)
+        super::applications::retain_instance(source, program, candidate, instance_symbol)?
     };
     if capture.is_none() {
         program

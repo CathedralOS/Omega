@@ -75,6 +75,18 @@ pub enum TerminalEffect {
 /// Injected semantic effect sink used by the oracle and tests. Native provider
 /// selection and hardware realization remain outside the Psi interpreter.
 pub trait TerminalEffectHandler {
+    /// Poll readiness without invoking the operation or changing lent storage.
+    /// A false answer parks only a checked suspending call. The interpreter
+    /// retains its prepared arguments and polls this same invocation on resume;
+    /// `handle_effect_with_buffers` runs exactly once after readiness succeeds.
+    /// Scheduling work here must be idempotent for this retained effect.
+    fn poll_effect_readiness(
+        &mut self,
+        _effect: &TerminalEffect,
+    ) -> Result<bool, TerminalEffectRejection> {
+        Ok(true)
+    }
+
     /// Whether borrowed storage must lend its actual original homes to this
     /// host binding. Ordinary semantic buffer adapters keep staged restoration.
     fn requires_original_storage(&self, _boundary: BoundaryMachineId) -> bool {
@@ -170,7 +182,8 @@ pub use terminal_installation::{
     admit_target_machine_selections,
 };
 
-/// Admitted supply selection bound to one exact Terminal-Psi identity.
+/// Admitted supply selection bound to exact execution code custody: semantic
+/// content and, for invocation-only code, its retained live owner.
 /// Private fields preserve checked-provider custody; receiving hosts may add
 /// normal import choices through `TerminalProgram::admit_runtime_supplies`.
 /// Shared catalog admission supplies checked selections; this runtime carrier
@@ -181,7 +194,7 @@ pub struct TerminalRuntimeSupplies {
     pub(crate) x86_flags: Option<TerminalX86FlagsEnvironment>,
     pub(crate) memory_ordering: Option<crate::TerminalMemoryOrderingEnvironment>,
     pub(crate) entry: Option<terminal_psi::TargetMachineCallable>,
-    pub(crate) terminal_psi: terminal_psi::TerminalPsiIdentity,
+    pub(crate) code_identity: terminal_codec::TerminalExecutionIdentity,
     pub(crate) supplies: BTreeMap<BoundaryMachineId, AdmittedBoundarySupply>,
     pub(crate) assumed_bindings: Vec<AdmittedAssumedBinding>,
     pub(crate) folded_constant_target: Option<String>,
@@ -199,6 +212,9 @@ pub(crate) enum AdmittedBoundarySupply {
         provider_boundary: BoundaryMachineId,
         candidate: MachineId,
     },
+    /// The host schedules an independently checked component. This reserves
+    /// a route, not a callable implementation or a host-adapter permission.
+    DeferredComponent,
     HostImport,
 }
 
@@ -227,7 +243,9 @@ impl From<&terminal_installation::AdmittedProviderSelections> for TerminalRuntim
         Self {
             x86_flags: None,
             memory_ordering: None,
-            terminal_psi: selected.terminal_psi(),
+            code_identity: terminal_codec::TerminalExecutionIdentity::portable(
+                selected.terminal_psi(),
+            ),
             entry: None,
             supplies: selected
                 .providers()
@@ -260,7 +278,7 @@ impl TerminalRuntimeSupplies {
         selected: &terminal_installation::AdmittedComponentProvider,
     ) -> Result<Self, TerminalInterpretError> {
         let boundary = selected.receiving_boundary();
-        if selected.receiver() != self.terminal_psi || self.supplies.contains_key(&boundary) {
+        if selected.receiver() != &self.code_identity || self.supplies.contains_key(&boundary) {
             return Err(TerminalInterpretError::RuntimeSupplySelectionRejected {
                 boundary,
                 reason: "component selection names another receiver or an already selected slot",
@@ -278,7 +296,7 @@ impl TerminalRuntimeSupplies {
     }
 
     pub const fn terminal_psi(&self) -> terminal_psi::TerminalPsiIdentity {
-        self.terminal_psi
+        self.code_identity.semantic()
     }
 
     /// The root-authorized assumed binding contracts admitted alongside the

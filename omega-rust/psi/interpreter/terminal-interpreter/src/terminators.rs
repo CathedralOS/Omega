@@ -479,7 +479,11 @@ impl TerminalExecution<'_> {
             .external_bindings
             .get(boundary)
             .is_some_and(|admission| {
-                admission.answers(self.program.identity, self.process_domain.as_ref(), demand)
+                admission.answers(
+                    self.program.identity.semantic(),
+                    self.process_domain.as_ref(),
+                    demand,
+                )
             })
         {
             return Err(TerminalInterpretError::UnboundExternalCompletions {

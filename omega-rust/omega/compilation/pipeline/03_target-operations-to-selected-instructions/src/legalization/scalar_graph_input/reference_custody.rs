@@ -1035,10 +1035,17 @@ fn storage_projection(
 /// Rejoin the actual live source descriptor; the declared placed carrier alone
 /// does not provide an established backing interpretation.
 fn placed_source(
+    function: &PsiOptimizationFunction,
     custody: &Custody,
+    types: &[StructuralTypeDeclaration],
     source: &StructuralArgument,
 ) -> Option<target_operations::TargetPlacedInterpretation> {
     if source.path.is_empty() {
+        if let Some(origins) = custody.borrowed_sources.get(&source.place) {
+            return optimization_unit_semantics::descriptor_results::placed_results::agree(
+                origins.as_ref()?.iter().map(|origin| origin.placed.clone()),
+            );
+        }
         return custody
             .placed_formals
             .get(&source.place)
@@ -1048,7 +1055,12 @@ fn placed_source(
     let (StructuralPathSegment::Referent, path) = source.path.split_last()? else {
         return None;
     };
-    custody.leaf(source.place, path)?.placed.clone()
+    if let Some(leaf) = custody.leaf(source.place, path) {
+        return leaf.placed.clone();
+    }
+    let observed = observations::observe(function, custody, types, source.place, path).ok()?;
+    let (place, path) = observed.resident?;
+    custody.leaf(place, &path)?.placed.clone()
 }
 
 /// Normalize the current borrowed source through its admitted storage origins.
@@ -1264,11 +1276,39 @@ fn backing_storage_access_conflicts(
             else {
                 return true;
             };
-            let Some(path) = origin.exact_path() else {
-                return true;
+            // A within-region origin need not provide a descriptor address.
+            // Widen to its whole storage root only when the region itself is
+            // proven inline. A pointer/view crossing or unknown element family
+            // cannot acquire disjointness from its descriptor's local home.
+            let path = if origin.extent == semantic_vocabulary::ReferenceOriginExtent::Projected {
+                let Some(path) = origin.exact_path() else {
+                    return true;
+                };
+                path
+            } else {
+                let Some(region_path) = origin
+                    .path
+                    .iter()
+                    .map(|projection| match projection {
+                        ReferenceOriginProjection::Exact(segment) => Some(segment.clone()),
+                        ReferenceOriginProjection::Element => None,
+                    })
+                    .collect::<Option<Vec<_>>>()
+                else {
+                    return true;
+                };
+                if !source_contract(function, custody, place).is_some_and(|root| {
+                    terminal_semantics::projection_stays_in_inline_storage(
+                        types.iter(),
+                        root,
+                        &region_path,
+                    )
+                }) {
+                    return true;
+                }
+                Vec::new()
             };
-            origin.extent != semantic_vocabulary::ReferenceOriginExtent::Projected
-                || custody.borrowed_sources.contains_key(&place)
+            custody.borrowed_sources.contains_key(&place)
                 || backing_intersects_storage(function, custody, types, backing, place, &path)
         });
     }
@@ -1846,7 +1886,7 @@ fn call_results(
                     result,
                     expected,
                 );
-                leaf.placed = placed_source(custody, source);
+                leaf.placed = placed_source(function, custody, types, source);
                 leaf.backing = backing;
                 leaf.parents.extend(backing_parents);
                 leaf.parents.sort();
@@ -1892,7 +1932,7 @@ fn call_results(
                         {
                             return transferred.placed.clone();
                         }
-                        placed_source(custody, &actual)
+                        placed_source(function, custody, types, &actual)
                     },
                     |correspondence| {
                         target_operations::TargetPlacedInterpretation::Captured(
@@ -2538,7 +2578,7 @@ pub(in crate::legalization) fn apply(
                         result,
                         referent,
                     );
-                    leaf.placed = placed_source(custody, source);
+                    leaf.placed = placed_source(function, custody, types, source);
                     leaf.backing = backing;
                     leaf.parents.extend(backing_parents);
                     leaf.parents.sort();
@@ -3766,12 +3806,17 @@ pub(in crate::legalization) fn placed_call_custody(
             .get(runtime_position)
             .filter(|argument| argument.access == parameter.access)
             .ok_or_else(|| invalid())?;
-        let association = match placed_source(custody, argument) {
+        let association = match placed_source(caller, custody, types, argument) {
             Some(target_operations::TargetPlacedInterpretation::Captured(captured)) => {
-                let observed =
-                    call_paths::call_reference_custody(caller, custody, types, argument)?;
-                if observed.referent != plan.carrier {
+                if reference_source_type(caller, custody, types, argument) != Some(plan.carrier) {
                     return Err(invalid());
+                }
+                if argument.path.contains(&StructuralPathSegment::Referent) {
+                    let observed =
+                        call_paths::call_reference_custody(caller, custody, types, argument)?;
+                    if observed.referent != plan.carrier {
+                        return Err(invalid());
+                    }
                 }
                 optimization_unit_semantics::placed_references::validate_backing(
                     types,

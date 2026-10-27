@@ -99,8 +99,19 @@ pub(crate) fn build_boundary_machine(
         program.machine_contracts(machine),
         program.state_contracts(state),
         &contract.closed_scalar_values,
-    )
-    .ok_or("boundary scalar requirements have no retained plan")?;
+    );
+    let (scalar_requires, pending_scalar_requires, pending_scalar_recipes) = match scalar_requires {
+        Some(rows) => (rows, Vec::new(), Vec::new()),
+        None => {
+            let (clauses, recipes) = super::boundary_contracts::pending_recipe_requires(
+                program,
+                program.machine_contracts(machine),
+                program.state_contracts(state),
+            )
+            .ok_or("boundary scalar requirements have no retained plan")?;
+            (Vec::new(), clauses, recipes)
+        }
+    };
     // The callable's checked reach can include target-family members. Its
     // empty interface state is not the machine's inferred execution closure.
     let machine_reach = facts
@@ -143,6 +154,8 @@ pub(crate) fn build_boundary_machine(
             program, facts, machine, contract,
         ),
         scalar_requires,
+        pending_scalar_requires,
+        pending_scalar_recipes,
         contract_report_fingerprint: contract.report_fingerprint,
         contract_commitment: contract.commitment,
         contract_service_reach: facts
@@ -556,6 +569,8 @@ pub(crate) fn build_static_boundary_requirements(
                 scalar_domain_requirements: domain_requirements.scalar,
                 scalar_ensures,
                 scalar_requires,
+                pending_scalar_requires: Vec::new(),
+                pending_scalar_recipes: Vec::new(),
                 contract_report_fingerprint: capsule.target_contract_report_fingerprint(),
                 contract_commitment: capsule.target_contract_commitment(),
                 contract_service_reach: language_semantics::ServiceReachPlan {
@@ -659,6 +674,8 @@ fn build_boundary_operator(
         scalar_domain_requirements: domain_requirements.scalar,
         scalar_ensures: Vec::new(),
         scalar_requires,
+        pending_scalar_requires: Vec::new(),
+        pending_scalar_recipes: Vec::new(),
         contract_report_fingerprint: capsule.target_contract_report_fingerprint(),
         contract_commitment: capsule.target_contract_commitment(),
         contract_service_reach: language_semantics::ServiceReachPlan {

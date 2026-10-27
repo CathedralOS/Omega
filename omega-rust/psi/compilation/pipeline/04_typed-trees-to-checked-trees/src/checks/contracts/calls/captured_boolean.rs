@@ -478,7 +478,24 @@ fn bound_contract_predicate(
         &parameters,
         expression,
         &facts.operators.exact_integer_casts,
-    )?;
+    )
+    .or_else(|| {
+        // A checked predicate may expose a complete scalar formula only
+        // after proving its converse. Keep this exact declaration telescope;
+        // the caller below still binds every leaf to its captured operand and
+        // live-reference epoch rather than replaying a record initializer.
+        let mut remaining = 256;
+        crate::values::lower_callable_scalar_contract_predicate(
+            program,
+            &facts.operators,
+            owner,
+            &parameters,
+            typed_trees::types::TypeReferenceHandle::invalid(),
+            expression,
+            false,
+            &mut remaining,
+        )
+    })?;
     crate::facts::boolean_predicates::bind_parameters(
         program,
         owner,

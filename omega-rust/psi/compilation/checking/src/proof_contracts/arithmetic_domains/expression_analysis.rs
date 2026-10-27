@@ -116,7 +116,7 @@ impl ArithmeticDecisions {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct CheckedIntegerValue {
     pub(crate) expression: ExpressionHandle,
     pub(crate) interval: Interval,

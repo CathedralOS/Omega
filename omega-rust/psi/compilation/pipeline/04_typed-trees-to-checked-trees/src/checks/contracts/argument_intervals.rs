@@ -58,3 +58,100 @@ pub(super) fn proves(
         _ => false,
     }
 }
+
+/// A captured integer actual can constrain an exact deferred contract recipe.
+/// Retention is conditional evidence: every recorded relation must discharge
+/// under the selected target before Terminal production. A partial conjunction
+/// publishes nothing, and reference contents never use an argument-time hull.
+pub(super) fn recipe_requirements(
+    program: &dyn ::validation::CheckingInput,
+    owner: symbols::SymbolHandle,
+    requirement: ExpressionHandle,
+    intervals: &[validation::ExpressionInterval],
+    argument_for: &impl Fn(ExpressionHandle) -> Option<ExpressionHandle>,
+    description: &str,
+) -> Option<Vec<checked_trees::ConstantRecipeObligation>> {
+    use checked_trees::{ConstantRecipeObligation, ConstantRecipeRequirement};
+    use numerics::bignum::BigInt;
+    if matches!(
+        program.expression_table.expression(requirement),
+        ExpressionNode::Boolean(true)
+    ) || proves(program, requirement, intervals, argument_for)
+    {
+        return Some(Vec::new());
+    }
+    let binary = program.expression_table.binary_node(requirement)?;
+    if binary.operator == BinaryOperator::And {
+        let mut left = recipe_requirements(
+            program,
+            owner,
+            binary.left,
+            intervals,
+            argument_for,
+            description,
+        )?;
+        left.extend(recipe_requirements(
+            program,
+            owner,
+            binary.right,
+            intervals,
+            argument_for,
+            description,
+        )?);
+        return Some(left);
+    }
+    let right_recipe = program.constant_recipe_for_contract_expression(binary.right);
+    let left_recipe = program.constant_recipe_for_contract_expression(binary.left);
+    let (recipe, subject, operator) = if right_recipe.is_valid() {
+        (right_recipe, binary.left, binary.operator)
+    } else if left_recipe.is_valid() {
+        (left_recipe, binary.right, binary.operator.mirrored())
+    } else {
+        return None;
+    };
+    let interval = if let Some(argument) = argument_for(subject) {
+        validation::expression_interval(intervals, argument)?
+    } else {
+        return None;
+    };
+    let relation = match operator {
+        BinaryOperator::Less => ConstantRecipeRequirement::AtLeast(
+            BigInt::from_i64(interval.high?).add(&BigInt::from_i64(1)),
+        ),
+        BinaryOperator::LessOrEqual => {
+            ConstantRecipeRequirement::AtLeast(BigInt::from_i64(interval.high?))
+        }
+        BinaryOperator::Greater => ConstantRecipeRequirement::AtMost(
+            BigInt::from_i64(interval.low?).sub(&BigInt::from_i64(1)),
+        ),
+        BinaryOperator::GreaterOrEqual => {
+            ConstantRecipeRequirement::AtMost(BigInt::from_i64(interval.low?))
+        }
+        BinaryOperator::Equal => {
+            return Some(vec![
+                ConstantRecipeObligation::retain(
+                    owner,
+                    recipe,
+                    ConstantRecipeRequirement::AtLeast(BigInt::from_i64(interval.high?)),
+                    program.expression_table.source_span(requirement),
+                    description.to_owned(),
+                ),
+                ConstantRecipeObligation::retain(
+                    owner,
+                    recipe,
+                    ConstantRecipeRequirement::AtMost(BigInt::from_i64(interval.low?)),
+                    program.expression_table.source_span(requirement),
+                    description.to_owned(),
+                ),
+            ]);
+        }
+        _ => return None,
+    };
+    Some(vec![ConstantRecipeObligation::retain(
+        owner,
+        recipe,
+        relation,
+        program.expression_table.source_span(requirement),
+        description.to_owned(),
+    )])
+}

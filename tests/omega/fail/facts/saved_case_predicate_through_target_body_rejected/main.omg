@@ -1,0 +1,42 @@
+// A saved case verdict selects the same unwritten case payload after a disjoint case replacement.
+// Expected exit: 0
+domain u64::Divisor(value) requires value > 0;
+data Choice [copy] { case Empty; case Full(amount: u64 in Divisor); }
+machine clear(destination: &mut Choice) { destination = Choice::Empty; }
+machine capture<'storage>(choice: &'storage mut Choice, other: &mut Choice) -> &'storage mut Choice { clear(other); choice }
+windows_x86_64 machine probe(choice: &mut Choice, other: &mut Choice) -> u64 {
+    let saved: bool = capture(&mut choice, &mut other) in Choice::Full;
+    let alias: bool = saved;
+    clear(choice);
+    let ordinary: u64 = 9;
+    transition alias { true -> 490 / choice.amount false -> 0 }
+}
+linux_x86_64 machine probe(choice: &mut Choice, other: &mut Choice) -> u64 {
+    let saved: bool = capture(&mut choice, &mut other) in Choice::Full;
+    let alias: bool = saved;
+    clear(choice);
+    let ordinary: u64 = 9;
+    transition alias { true -> 490 / choice.amount false -> 0 }
+}
+macos_arm64 machine probe(choice: &mut Choice, other: &mut Choice) -> u64 {
+    let saved: bool = capture(&mut choice, &mut other) in Choice::Full;
+    let alias: bool = saved;
+    clear(choice);
+    let ordinary: u64 = 9;
+    transition alias { true -> 490 / choice.amount false -> 0 }
+}
+linux_arm64 machine probe(choice: &mut Choice, other: &mut Choice) -> u64 {
+    let saved: bool = capture(&mut choice, &mut other) in Choice::Full;
+    let alias: bool = saved;
+    clear(choice);
+    let ordinary: u64 = 9;
+    transition alias { true -> 490 / choice.amount false -> 0 }
+}
+machine main() crashes Trap {
+    let mut choice: Choice = Choice::Full { amount: 7 };
+    let mut other: Choice = Choice::Full { amount: 7 };
+    let observed: u64 = probe(&mut choice, &mut other);
+    transition observed == 70 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

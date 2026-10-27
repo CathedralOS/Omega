@@ -120,6 +120,16 @@ what it hid.
   hash-consistent with what was stored and wrong; macOS `openrsync` rejects
   GNU-only flags by printing usage and copying nothing (124 MB of 19 GB in the
   wave's case) while a pipeline reported exit 0.
+- **A tautological runtime oracle or unobservable cleanup in a fact witness.**
+  A `match` witness that tests only the boundary input where the matched arm and
+  the `_` fallback evaluate to the same number (for example, `Cell { value: 73 }`
+  against `Cell::Ready -> cell.value, _ -> 73`, then `selected - 73 == 0`) exits
+  0 even if `Psi 05–07` or `Omega 00–09` inverts the branch or always takes `_`.
+  Likewise, a `Resource::drop` witness that mutates only `resource.valid = 0` on
+  the dying local or drops a plain scalar struct exits 0 even if the backend
+  never emits the cleanup call. Fact witnesses must exercise both matching and
+  fallback paths with distinct runtime outcomes and observe cleanup or
+  restoration in caller-visible state ([requirements and evidence](../AGENTS.md#requirements-and-evidence)).
 
 The rule: when a check reports clean, ask what it structurally cannot see, and
 measure that thing separately. Every instance above was found by adding the
@@ -230,7 +240,13 @@ original baseline outcomes, preserved positives/controls, the evidence ledger,
 current versus historical observations, and known limitations. Review the
 [requirements and evidence](../AGENTS.md#requirements-and-evidence) established
 by those consumers, including the semantic premise behind a rewrite, exact
-subjects/actuals, effects/lifetime, formation and authority. Inspect raw evidence;
+subjects/actuals, effects/lifetime, formation and authority. For every fact
+witness under `samples/cli/facts/`, check the runtime counterfactual alongside
+the static reject twin: if `Psi 05–07` or `Omega 00–09` inverted the branch,
+took the wildcard arm, omitted the cleanup action, or miscalculated the slot
+offset, would `main()` trap? A witness whose branches yield the same result on
+the only tested input or whose cleanup mutates only a dying temporary fails
+semantic review just as a missing `invalid/main.omg` twin does. Inspect raw evidence;
 check counts, file presence and a reviewer's identity field alone prove none of
 those obligations. Choose necessary independent replays from the affected scope.
 

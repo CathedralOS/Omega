@@ -47,6 +47,7 @@ pub(super) fn check_call_requires(
     expression_intervals: &[validation::ExpressionInterval],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     constant_obligations: &mut Vec<checked_trees::ConstantPredicateObligation>,
+    recipe_obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
     value_qualifications: &mut arena::Arena<checked_trees::CheckedValueQualification>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -259,6 +260,50 @@ pub(super) fn check_call_requires(
                 });
             }
             if !satisfied {
+                if let FactPayload::ContractBooleanExpression { expression, .. } = fact.payload
+                    && super::prover::has_builtin_operators(program, &facts.operators, expression)
+                    && let Some(parameters) =
+                        validation::call_target_parameters(program, call_flow.target_symbol)
+                    && let Some(arguments) = super::call_values::captured_argument_expressions(
+                        program, facts, state_flow, call_flow,
+                    )
+                    && parameters.len() == arguments.len()
+                    && let Some(obligations) = super::argument_intervals::recipe_requirements(
+                        program,
+                        state_flow.machine_symbol,
+                        expression,
+                        expression_intervals,
+                        &|subject| {
+                            let name = program.expression_table.name_path_node(subject)?;
+                            if name.symbol != name.head_symbol
+                                || program
+                                    .expression_table
+                                    .name_path_members(name.members)
+                                    .len()
+                                    != 1
+                            {
+                                return None;
+                            }
+                            let position = parameters
+                                .iter()
+                                .position(|parameter| parameter.symbol == name.symbol)?;
+                            program
+                                .primitive_type_reference(parameters[position].type_reference)
+                                .filter(|primitive| primitive.accepts_integer_literal())?;
+                            arguments.get(position).copied()
+                        },
+                        &format!(
+                            "requires contract for call {} from {} state {} statement {}",
+                            call_target_label(program, call_flow.target_symbol),
+                            machine_name(program, state_flow.machine_symbol),
+                            symbol_name(program, state_flow.state_symbol),
+                            call_flow.statement_index,
+                        ),
+                    )
+                {
+                    recipe_obligations.extend(obligations);
+                    continue;
+                }
                 if let FactPayload::ContractBooleanExpression { expression, .. } = fact.payload
                     && let Some((target_machine, target_state)) =
                         validation::find_state(program, call_flow.target_symbol)

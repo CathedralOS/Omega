@@ -1,0 +1,17 @@
+// Fact: an alpha-renamed target family carries an open const bound through its result, permitting subtraction from 64u64.
+// Expected exit: 0
+// Expected exit: 0
+// A target family preserves an open const binder in its input and result contracts.
+linux_arm64 machine bound<const Limit: u64>(value: u64) -> u64 requires value <= Limit ensures result <= Limit { value }
+linux_x86_64 machine bound<const Ceiling: u64>(value: u64) -> u64 requires value <= Ceiling ensures result <= Ceiling { value }
+macos_arm64 machine bound<const Maximum: u64>(value: u64) -> u64 requires value <= Maximum ensures result <= Maximum { value }
+windows_x86_64 machine bound<const Cap: u64>(value: u64) -> u64 requires value <= Cap ensures result <= Cap { value }
+machine forward<const Maximum: u64>(value: u64) -> u64 requires value <= Maximum ensures result <= Maximum { bound<Maximum>(value) }
+const LIMIT: u64 = 64;
+machine main() crashes Trap {
+    let result: u64 = forward<40>(42);
+    let remaining: u64 = LIMIT - result;
+    transition remaining == 22 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

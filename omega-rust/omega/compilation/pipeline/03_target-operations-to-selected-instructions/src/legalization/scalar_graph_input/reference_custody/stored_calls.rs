@@ -725,7 +725,7 @@ pub(super) fn stage(
                         }],
                         contract,
                         referent,
-                        placed: super::placed_source(custody, &source),
+                        placed: super::placed_source(function, custody, types, &source),
                     });
                     continue;
                 }

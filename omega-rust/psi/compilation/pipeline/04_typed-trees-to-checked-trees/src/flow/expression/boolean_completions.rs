@@ -190,8 +190,11 @@ impl Execution<'_, '_, '_> {
             self.context,
             self.state.symbol,
             self.statement_index,
-            binary.left,
-            evaluate_when,
+            crate::flow::GuardObservation::evaluated(
+                binary.left,
+                evaluate_when,
+                self.statement_index,
+            ),
             facts::ProgramPoint::Statement {
                 machine_symbol: self.machine.symbol,
                 state_symbol: self.state.symbol,

@@ -7,6 +7,7 @@
 
 mod instructions;
 mod macos_arm64;
+mod windows_x86_64;
 
 use diagnostics::Diagnostic;
 use program_entry_plan::{ProgramEntryPhysicalContractPlan, SelectedProgramEntrySignature};
@@ -76,10 +77,10 @@ impl HostedReceiverBinding {
         let stack = saved.checked_add(16).ok_or_else(invalid)?;
         // The bridge's own call into the semantic continuation is not part of
         // the callee's checked demand. The Microsoft x64 caller owes
-        // thirty-two bytes of incoming shadow space plus the pushed return
-        // address; both live at the top of the private stack partition.
+        // shadow space, a fifth pointer slot, alignment and the pushed return
+        // address. Win32 runtime calls keep the loader's guarded stack.
         let call_overhead = if self.target() == target::NativeTarget::windows_x64() {
-            40
+            72
         } else {
             0
         };
@@ -252,6 +253,8 @@ pub(crate) fn prepare(
     let (object, _partitions, storage) = provision_receiver_storage(artifact, binding)?;
     if artifact.target == target::NativeTarget::macos_arm64() {
         macos_arm64::prepare(artifact, binding, object, storage)
+    } else if artifact.target == target::NativeTarget::windows_x64() {
+        windows_x86_64::prepare(artifact, binding, object, storage)
     } else {
         prepare_linux_x86_64(artifact, binding, object, storage)
     }
@@ -576,6 +579,7 @@ fn validate_entry_arguments(
     if ![
         target::NativeTarget::linux_x64(),
         target::NativeTarget::macos_arm64(),
+        target::NativeTarget::windows_x64(),
     ]
     .contains(&artifact.target)
         || private_entry_ram.is_empty()
@@ -611,6 +615,8 @@ fn validate_entry_arguments(
         || target.graph.call_plan.policy
             != if artifact.target == target::NativeTarget::macos_arm64() {
                 CallingPolicy::Aapcs64
+            } else if artifact.target == target::NativeTarget::windows_x64() {
+                CallingPolicy::MicrosoftX64
             } else {
                 CallingPolicy::SystemVAMD64
             }
@@ -660,14 +666,31 @@ fn validate_entry_arguments(
             || !receiver_pointer_matches(
                 actual.shape,
                 &actual.placement,
-                if artifact.target == target::NativeTarget::macos_arm64() {
-                    (ordinal < 8).then_some(calling_conventions::MachineRegister::Aarch64X(
-                        ordinal as u8,
-                    ))
+                if artifact.target == target::NativeTarget::windows_x64() {
+                    use calling_conventions::{IndirectPointerLocation, MachineRegister};
+                    match ordinal {
+                        0 => IndirectPointerLocation::Register(MachineRegister::X86Rcx),
+                        1 => IndirectPointerLocation::Register(MachineRegister::X86Rdx),
+                        2 => IndirectPointerLocation::Register(MachineRegister::X86R8),
+                        3 => IndirectPointerLocation::Register(MachineRegister::X86R9),
+                        4 => IndirectPointerLocation::Stack {
+                            stack_byte_offset: 32,
+                            alignment: 8,
+                        },
+                        _ => return Err(invalid()),
+                    }
                 } else {
-                    linux_argument_register(ordinal)
-                }
-                .ok_or_else(invalid)?,
+                    calling_conventions::IndirectPointerLocation::Register(
+                        if artifact.target == target::NativeTarget::macos_arm64() {
+                            (ordinal < 8).then_some(calling_conventions::MachineRegister::Aarch64X(
+                                ordinal as u8,
+                            ))
+                        } else {
+                            linux_argument_register(ordinal)
+                        }
+                        .ok_or_else(invalid)?,
+                    )
+                },
             )
             || target.graph.call_plan.parameters.get(ordinal) != Some(&actual.placement)
         {
@@ -682,20 +705,20 @@ fn validate_entry_arguments(
 fn receiver_pointer_matches(
     shape: calling_conventions::ValueShape,
     placement: &calling_conventions::ValuePlacement,
-    register: calling_conventions::MachineRegister,
+    pointer: calling_conventions::IndirectPointerLocation,
 ) -> bool {
-    use calling_conventions::{IndirectPointerLocation, ValueClass, ValueLocation};
+    use calling_conventions::{ValueClass, ValueLocation};
     shape.class == ValueClass::BorrowedReference
         && shape.alignment.is_power_of_two()
         && placement.shape == shape
         && matches!(
             placement.locations.as_slice(),
             [ValueLocation::Indirect {
-                pointer: IndirectPointerLocation::Register(actual),
+                pointer: actual,
                 copy_stack_byte_offset: None,
                 byte_size,
                 alignment,
-            }] if *actual == register && *byte_size == shape.byte_size && *alignment == shape.alignment
+            }] if *actual == pointer && *byte_size == shape.byte_size && *alignment == shape.alignment
         )
 }
 
@@ -734,6 +757,8 @@ pub(crate) fn validate_image(
         .ok_or_else(invalid)?;
     let entry_selected = if artifact.target == target::NativeTarget::macos_arm64() {
         crate::hosted_unit_entry::main_points_to(&output.bytes, offset, artifact.target)
+    } else if artifact.target == target::NativeTarget::windows_x64() {
+        crate::hosted_unit_entry::pe_entry_points_to(&output.bytes, offset, shim_bytes)
     } else {
         elf_entry_points_to(output, offset)
     };
@@ -767,6 +792,16 @@ pub(crate) fn validate_image(
         .text_address
         .checked_add(offset as u64)
         .ok_or_else(invalid)?;
+    if artifact.target == target::NativeTarget::windows_x64() {
+        return instructions::validate_windows_x86_64(
+            shim_bytes,
+            shim_address,
+            selected_entry,
+            output,
+            partitions,
+            &binding.private_entry_ram,
+        );
+    }
     let validate = if artifact.target == target::NativeTarget::macos_arm64() {
         instructions::validate_macos_arm64
     } else {

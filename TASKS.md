@@ -364,7 +364,7 @@ defines the complete product bar.
     ARM64, macOS ARM64, and Windows x86-64.
   - Complete remaining runtime aggregate construction and opaque-provider
     result replacement through opaque incoming referents.
-  - Complete remaining case/generic/reference saved-observation and
+  - Complete remaining generic/reference saved-observation and
     single-evaluation pattern destructuring compositions.
   Acceptance: a composed caller tolerates renamed/reordered states and inserted
   computations; operands execute left-to-right once, skipped calls never run,
@@ -630,13 +630,6 @@ defines the complete product bar.
     and running `pass/float/named_integer_conversion_source_proofs_exit` (exit 78)
     on Linux/Windows without rebuilding `proven_predicates_grant_domain`
     (`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/calls.rs`).
-  - Close the three remaining `requires <param> <= call()` range-suffix sites
-    (`pass/providers/provider_const_endpoint:26`,
-    `pass/comptime/provider_boundary_range_endpoint_exit:33`,
-    `fail/comptime/recipe_endpoint_membership_refused_at_closure:26`) by adding
-    a contract-expression work-root class and fold-publication site feeding
-    `constant_recipe_obligations.rs` against `closed_constant_recipe_value`
-    (without widening `ConstantPredicateObligation`).
   - Migrate the 16 recursive filesystem parameter suffixes with
     **FILESYSTEM-PLATFORM-SERVICES**, and qualify remaining collection/slice
     view and capture compositions (`samples/cli/probes/slice_view_whole/main.omg`,
@@ -1613,15 +1606,13 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   [declaration-owned executable supply](wiki/spec/language/expressions.md#executable-supply),
   [call preconditions](wiki/spec/language/machines.md#call-preconditions), and
   [licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization).
-  - Extend formation checks in
-    `omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/specification_calls.rs`
-    and `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/evidence.rs`
-    to static callable/evidence arguments, generic dispatch, calls in abstract
-    signatures, domain/default predicates, receiver/projection terms, and
-    citation/induction guarantees. The `abstract_signature_call` constant
-    production now preserves selected-call custody through the nine-place row,
-    statement and terminal calls, and calls inside the supplied body; broader
-    formation acceptance remains open.
+  - Admit complete machine-valued static callable tuples through generic dispatch.
+  - Preserve exact cross-module const-alias selection in callable/evidence arguments.
+  - Admit open-Const callable families through their declaration-owned scopes.
+  - Complete generic abstract-signature premise substitution under exact actuals in `omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/specification_calls.rs` and `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/evidence.rs`.
+  - Complete declaration-owned call formation in domain/default predicates.
+  - Complete declaration-owned call formation for receiver/projection terms.
+  - Complete citation/induction call guarantees with their transitive assumptions.
   - Extend `OpenIndexOperationSelection` in
     `omega-rust/psi/compilation/checking/src/value_custody/type_references/open_index_expressions.rs`
     with distributivity and zero/one law evidence surviving

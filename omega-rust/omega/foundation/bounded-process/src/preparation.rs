@@ -31,6 +31,8 @@ pub struct BoundedProcessPrepared {
 enum BoundedStandardStreamDisposition {
     Null,
     Piped,
+    #[cfg(windows)]
+    CallerConfigured,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -157,6 +159,12 @@ impl BoundedProcessPrepared {
             });
         }
         Ok(raw)
+    }
+
+    // The private observation API receives a command whose stdin the CLI already selected.
+    #[cfg(windows)]
+    pub(crate) fn preserve_configured_stdin(&mut self) {
+        self.stdin = Some(BoundedStandardStreamDisposition::CallerConfigured);
     }
 
     pub fn get_program(&self) -> &OsStr {

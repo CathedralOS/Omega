@@ -126,8 +126,11 @@ impl Execution<'_, '_, '_> {
                         self.context,
                         self.state.symbol,
                         self.statement_index,
-                        pattern.condition,
-                        matched,
+                        crate::flow::GuardObservation::evaluated(
+                            pattern.condition,
+                            matched,
+                            self.statement_index,
+                        ),
                         ProgramPoint::Statement {
                             machine_symbol: self.machine.symbol,
                             state_symbol: self.state.symbol,

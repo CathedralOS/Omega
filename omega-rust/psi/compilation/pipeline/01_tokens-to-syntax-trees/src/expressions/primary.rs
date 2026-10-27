@@ -50,6 +50,21 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
     }
 
     if input.at_keyword(KeywordKind::SelfValue) {
+        if context.allows_logical_subject() {
+            let source_span =
+                input.source_span(input.tokens.first().expect("logical subject token"));
+            let input = input.take_keyword(KeywordKind::SelfValue, "self")?;
+            let member = syntax_trees
+                .expressions
+                .append_identifier_path_member(Identifier::new("self", source_span));
+            let expression = syntax_trees.expressions.insert(ExpressionNode::Name(
+                arena::HandleSpan::from_parts(member, 1),
+            ));
+            syntax_trees
+                .expressions
+                .set_source_span(expression, source_span);
+            return Ok((expression, input));
+        }
         return Err(input.error_here(
             "implicit `self` is retired; name the explicit parameter or domain subject",
         ));

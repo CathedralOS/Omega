@@ -1,20 +1,21 @@
-//! Rejoin input membership catalogs at the actual component installation.
+//! Rejoin input and result membership catalogs at the actual installation.
 //!
-//! A membership belongs to the actual caller occurrence; the receiving formal
-//! cannot supply it. Dense domain, semantic-domain and route coordinates belong
+//! A membership belongs to the actual transferred occurrence; receiving
+//! annotations cannot supply it. Dense domain, semantic-domain and route coordinates belong
 //! to separate artifacts. Preserve a relation only when nominal ownership,
 //! carrier and the retained theory agree. Names alone do not pin a theory's
 //! revision. Storage-observing predicates need a structural observation join;
 //! this transfer admits only observation-free predicates rather than inferring
 //! that opacity hides every retained representation field.
 
-use semantic_vocabulary::StructuralDomainId;
+use semantic_vocabulary::{StructuralDomainId, StructuralTypeId};
 use terminal_psi::{
-    BoundaryMachineDeclaration, NominalDeclarationIdentity, StructuralDomainDeclaration,
-    StructuralEstablishmentRoute, TerminalModule,
+    BoundaryMachineDeclaration, BoundaryMachineResult, NominalDeclarationIdentity,
+    StructuralDomainDeclaration, StructuralEstablishmentRoute, TerminalModule,
 };
 
-pub(super) type InputMemberships = Vec<Vec<(StructuralDomainId, StructuralDomainId)>>;
+pub(super) type Memberships = Vec<(StructuralDomainId, StructuralDomainId)>;
+pub(super) type InputMemberships = Vec<Memberships>;
 
 pub(super) fn admit_input_memberships(
     receiver: &TerminalModule,
@@ -30,41 +31,93 @@ pub(super) fn admit_input_memberships(
         .iter()
         .zip(&supplied.structural_parameters)
         .map(|(left, right)| {
-            let mut bindings = Vec::new();
-            for source in receiver
-                .structural_domains
-                .iter()
-                .filter(|row| row.carrier == left.structural_type)
-            {
-                let mut matches = provider.structural_domains.iter().filter(|row| {
-                    row.carrier == right.structural_type
-                        && same_domain(receiver, source, provider, row)
-                });
-                if let Some(destination) = matches.next() {
-                    if matches.next().is_some() {
-                        return Err("component input has ambiguous membership theories".into());
-                    }
-                    bindings.push((source.id, destination.id));
-                }
-            }
-            let mut mapped = left
-                .qualifications
-                .iter()
-                .map(|source| {
-                    bindings
-                        .iter()
-                        .find(|(domain, _)| domain == source)
-                        .map(|(_, domain)| *domain)
-                        .ok_or_else(|| "component input membership theories differ".to_owned())
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            mapped.sort();
-            if mapped != right.qualifications {
-                return Err("component input membership requirements differ".into());
-            }
-            Ok(bindings)
+            admit_memberships(
+                receiver,
+                left.structural_type,
+                &left.qualifications,
+                provider,
+                right.structural_type,
+                &right.qualifications,
+            )
+            .map_err(|reason| format!("component input {reason}"))
         })
         .collect()
+}
+
+/// Results travel in the opposite direction. Retain the producing artifact's
+/// actual membership keys until its owned completion is acknowledged.
+pub(super) fn admit_result_memberships(
+    receiver: &TerminalModule,
+    required: &BoundaryMachineDeclaration,
+    provider: &TerminalModule,
+    supplied: &BoundaryMachineDeclaration,
+) -> Result<Memberships, String> {
+    match (&supplied.result, &required.result) {
+        (BoundaryMachineResult::Unit, BoundaryMachineResult::Unit) => Ok(Vec::new()),
+        (BoundaryMachineResult::Scalar(left), BoundaryMachineResult::Scalar(right))
+            if left == right =>
+        {
+            Ok(Vec::new())
+        }
+        (BoundaryMachineResult::Structural(left), BoundaryMachineResult::Structural(right)) => {
+            if !left.projected_qualifications.is_empty()
+                || !right.projected_qualifications.is_empty()
+            {
+                return Err("component result requires projected membership transfer".into());
+            }
+            admit_memberships(
+                provider,
+                left.structural_type,
+                &left.qualifications,
+                receiver,
+                right.structural_type,
+                &right.qualifications,
+            )
+            .map_err(|reason| format!("component result {reason}"))
+        }
+        _ => Err("component result kinds or scalar contracts differ".into()),
+    }
+}
+
+fn admit_memberships(
+    source_module: &TerminalModule,
+    source_type: StructuralTypeId,
+    source_required: &[StructuralDomainId],
+    target_module: &TerminalModule,
+    target_type: StructuralTypeId,
+    target_required: &[StructuralDomainId],
+) -> Result<Memberships, String> {
+    let mut bindings = Vec::new();
+    for source in source_module
+        .structural_domains
+        .iter()
+        .filter(|row| row.carrier == source_type)
+    {
+        let mut matches = target_module.structural_domains.iter().filter(|row| {
+            row.carrier == target_type && same_domain(source_module, source, target_module, row)
+        });
+        if let Some(destination) = matches.next() {
+            if matches.next().is_some() {
+                return Err("has ambiguous membership theories".into());
+            }
+            bindings.push((source.id, destination.id));
+        }
+    }
+    let mut mapped = source_required
+        .iter()
+        .map(|source| {
+            bindings
+                .iter()
+                .find(|(domain, _)| domain == source)
+                .map(|(_, domain)| *domain)
+                .ok_or_else(|| "membership theories differ".to_owned())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    mapped.sort();
+    if mapped != target_required {
+        return Err("membership requirements differ".into());
+    }
+    Ok(bindings)
 }
 
 fn same_domain(

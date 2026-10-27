@@ -108,7 +108,7 @@ EXPECT_OUTPUT = re.compile(r"//\s*Expected output contains:\s*(.+)")
 # forwarding the program's streams; these lines are wrapper reporting, never
 # program output.
 WRAPPER_LINE = re.compile(
-    r"native (exit -?\d+|signal \d+|terminated without an exit code)$")
+    r"(native (exit -?\d+|signal \d+|terminated without an exit code)|interp exit: -?\d+)$")
 PROGRAM_ENTRY_BINDING = re.compile(r"\b([a-z][a-z0-9_]*)::ProgramEntry\b")
 COMMENT = re.compile(r"//[^\n]*|/\*.*?\*/", re.S)
 # Console rows and the scored `detail` stay short; `diagnostic` keeps the rest.
@@ -472,6 +472,11 @@ def check_refusal(cli, sample, timeout):
     return completed.stdout + completed.stderr
 
 
+def is_fact_sample(sample):
+    normalized = str(sample).replace("\\", "/").rstrip("/")
+    return normalized == "samples/cli/facts" or normalized.startswith("samples/cli/facts/")
+
+
 def entry_ram_rows(path):
     if not Path(path).is_file():
         return []
@@ -511,7 +516,8 @@ def measure(cli, sample, target, timeout, build_unscored=False, accepted_inputs_
         completed = run(command, timeout)
         if completed is None:
             return {"sample": sample, "role": project.role, "state": "timeout", "detail": f">{timeout}s"}
-        matched, detail = rejection_verdict(project, completed.returncode, completed.stderr)
+        matched, detail = rejection_verdict(project, completed.returncode, completed.stderr,
+                                            expected_exit=200 if invocation.is_file() else 1)
         return {"sample": sample, "role": project.role, "state": "rejected" if matched else "rejection-failed", "detail": detail}
     if any(sample.startswith(prefix) for prefix in NOT_HOST_RUNNABLE):
         return {
@@ -593,7 +599,8 @@ def measure(cli, sample, target, timeout, build_unscored=False, accepted_inputs_
         except (OSError, UnicodeError, ValueError) as error:
             return {"sample": sample, "state": "error", "detail": str(error)}
         installed = [argument for position, contents in entry_inputs for argument in ("--entry-ram", f"{position}={contents}")]
-        completed = run([cli, "run", *(["--both"] if entry_inputs else []), *installed, str(project.entry)], timeout, stdin=input_stream, cwd=scratch)
+        both_engines = bool(entry_inputs) or is_fact_sample(sample)
+        completed = run([cli, "run", *(["--both"] if both_engines else []), *installed, str(project.entry)], timeout, stdin=input_stream, cwd=scratch)
     finally:
         if input_stream is not subprocess.DEVNULL:
             input_stream.close()

@@ -100,6 +100,7 @@ impl<'program> Evaluator<'program> {
                 _ => "select",
             },
         };
+        let requires_selecting_machine = binding.requires_lexical_subject();
         let preparation = protocol.and_then(|name| match name {
             "prepare" => Some(true),
             name if name == operation => Some(false),
@@ -229,8 +230,10 @@ impl<'program> Evaluator<'program> {
                     } else {
                         CompositionMode::Fused
                     }),
-                    BuildOperation::RepresentationSelection | BuildOperation::ServiceExclusion
-                        if independent.is_none() =>
+                    operation
+                        if operation.selects_product_declarations()
+                            && operation != BuildOperation::ProviderSelection
+                            && independent.is_none() =>
                     {
                         None
                     }
@@ -240,18 +243,24 @@ impl<'program> Evaluator<'program> {
                         );
                     }
                 };
+                let selecting_machine = if requires_selecting_machine {
+                    Some(
+                        self.program
+                            .symbols
+                            .symbol_source_span(frame.machine_symbol)
+                            .ok_or_else(|| {
+                                Halt::Trap(
+                                    "Product selection lost its authored machine coordinate".into(),
+                                )
+                            })?,
+                    )
+                } else {
+                    None
+                };
                 SourceBuildSelection::Declaration(ExecutedProductSelection {
                     request,
                     composition,
-                    selecting_machine: self
-                        .program
-                        .symbols
-                        .symbol_source_span(frame.machine_symbol)
-                        .ok_or_else(|| {
-                            Halt::Trap(
-                                "Product selection lost its authored machine coordinate".into(),
-                            )
-                        })?,
+                    selecting_machine,
                 })
             }
         };

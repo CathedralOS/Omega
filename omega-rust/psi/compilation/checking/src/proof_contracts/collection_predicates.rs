@@ -130,8 +130,13 @@ fn predicate_call(
 }
 
 /// One exact caller actual or a checked mathematical integer bound.
+pub struct PredicateIntegerSubject {
+    pub expression: ExpressionHandle,
+    pub projection: Vec<facts::PlaceSegment>,
+}
+
 pub enum PredicateIntegerOperand {
-    Argument(ExpressionHandle),
+    Argument(PredicateIntegerSubject),
     Integer(i128),
 }
 
@@ -176,7 +181,10 @@ pub fn predicate_ordering_consequences(
                 (interval.high, BinaryOperator::LessOrEqual),
             ] {
                 consequences.push(PredicateOrderingConsequence {
-                    left: PredicateIntegerOperand::Argument(interval.argument),
+                    left: PredicateIntegerOperand::Argument(PredicateIntegerSubject {
+                        expression: interval.argument,
+                        projection: Vec::new(),
+                    }),
                     right: PredicateIntegerOperand::Integer(bound),
                     operator,
                 });
@@ -385,7 +393,7 @@ pub(crate) fn unknown_knowledge(
         ValueShape::Collection { length: None, .. } => {
             ArgumentKnowledge::CollectionExtent(IntegerSet::range(0, i128::from(u64::MAX)))
         }
-        ValueShape::Boolean => return None,
+        ValueShape::Boolean | ValueShape::Record(_) => return None,
     })
 }
 
@@ -401,7 +409,7 @@ fn zero_knowledge(
         } => ArgumentKnowledge::Array(vec![IntegerSet::singleton(0); length]),
         ValueShape::Integer(_) => ArgumentKnowledge::Integer(IntegerSet::singleton(0)),
         ValueShape::Boolean => ArgumentKnowledge::Boolean(false),
-        ValueShape::Collection { length: None, .. } => return None,
+        ValueShape::Collection { length: None, .. } | ValueShape::Record(_) => return None,
     })
 }
 

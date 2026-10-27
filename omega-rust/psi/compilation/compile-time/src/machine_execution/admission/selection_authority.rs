@@ -43,6 +43,7 @@ pub(super) fn selection_authority_violation(
     custody: Option<BuildTimeInvocationCustody>,
     authority: Option<&dyn BuildTimeSelectionAuthority>,
     selected: &[crate::SelectedBuildTimeBinaryOperator],
+    checked_operators: Option<&checked_trees::CheckedOperatorFacts>,
 ) -> Option<SelectionViolation> {
     let program = input.typed_program();
     if let Some(authority) = authority {
@@ -67,9 +68,13 @@ pub(super) fn selection_authority_violation(
     }
 
     super::walk_call_closure(call_edges, program, root.symbol, |source_machine| {
-        if let Some(violation) =
-            machine_selection_violation(input, source_machine.symbol, authority, selected)
-        {
+        if let Some(violation) = machine_selection_violation(
+            input,
+            source_machine.symbol,
+            authority,
+            selected,
+            checked_operators,
+        ) {
             return Some(violation);
         }
         for call in call_edges
@@ -128,6 +133,7 @@ fn machine_selection_violation(
     machine_symbol: SymbolHandle,
     authority: Option<&dyn BuildTimeSelectionAuthority>,
     selected: &[crate::SelectedBuildTimeBinaryOperator],
+    checked_operators: Option<&checked_trees::CheckedOperatorFacts>,
 ) -> Option<SelectionViolation> {
     let program = input.typed_program();
     let machine = program.machine(machine_symbol)?;
@@ -146,6 +152,7 @@ fn machine_selection_violation(
                 expression,
                 authority,
                 selected,
+                checked_operators,
                 &mut visited,
             ) {
                 return Some(violation);
@@ -219,6 +226,7 @@ fn expression_selection_violation(
     expression: ExpressionHandle,
     authority: Option<&dyn BuildTimeSelectionAuthority>,
     selected: &[crate::SelectedBuildTimeBinaryOperator],
+    checked_operators: Option<&checked_trees::CheckedOperatorFacts>,
     visited: &mut Vec<ExpressionHandle>,
 ) -> Option<SelectionViolation> {
     let program = input.typed_program();
@@ -237,9 +245,16 @@ fn expression_selection_violation(
         expression,
     ) && !selected.iter().any(|row| {
         row.expression == expression && row.origin.machine_symbol() == Some(machine.symbol)
+    }) && !checked_operators.is_some_and(|facts| {
+        facts
+            .selected_trait_candidate_in_machine(expression, machine.symbol)
+            .is_some()
     }) {
         return Some(SelectionViolation {
-            message: "build-time binary operator requires exact authored selection before evaluation; the evaluator cannot execute it as a builtin operator".to_owned(),
+            message: format!(
+                "build-time binary operator requires exact authored selection before evaluation; the evaluator cannot execute it as a builtin operator (machine `{}`, state `{}`, expression {expression:?})",
+                machine.name, state.name
+            ),
             source_span: Some(program.expression_table.source_span(expression)),
         });
     }
@@ -251,7 +266,14 @@ fn expression_selection_violation(
     let children = expression_children(program, expression);
     for child in children {
         if let Some(violation) = expression_selection_violation(
-            input, machine, state, child, authority, selected, visited,
+            input,
+            machine,
+            state,
+            child,
+            authority,
+            selected,
+            checked_operators,
+            visited,
         ) {
             return Some(violation);
         }

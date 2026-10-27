@@ -98,8 +98,9 @@ pub use proof_contracts::arithmetic_domains::{
     selected_scalar_interval,
 };
 pub use proof_contracts::collection_predicates::{
-    PredicateIntegerOperand, exact_predicate_intervals, exact_predicate_ordering, length_member,
-    predicate_ordering_consequences, premises_prove_expression,
+    PredicateIntegerOperand, PredicateIntegerSubject, exact_predicate_intervals,
+    exact_predicate_ordering, length_member, predicate_ordering_consequences,
+    premises_prove_expression,
 };
 pub use proof_contracts::contract_entailment::call_projection_identity::{
     captured_call_argument_index_matches, captured_call_index_value,
@@ -426,7 +427,9 @@ pub use proof_contracts::arithmetic_domains::immutable_integer_expression_bounds
 pub use proof_contracts::arithmetic_domains::integer_widen_is_total;
 pub use proof_contracts::arithmetic_domains::normal_return_integer_bounds;
 pub use proof_contracts::arithmetic_domains::normal_return_length_collection;
-pub use proof_contracts::arithmetic_domains::occurrence_integer_expression_bounds;
+pub use proof_contracts::arithmetic_domains::{
+    occurrence_integer_expression_bounds, occurrence_integer_expression_recipe,
+};
 pub use proof_contracts::arithmetic_domains::occurrence_integer_expression_fits_range;
 pub use proof_contracts::arithmetic_domains::occurrence_integer_expressions_bounds;
 pub use proof_contracts::arithmetic_domains::state_parameter_integer_interval;

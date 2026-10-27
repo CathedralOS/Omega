@@ -99,11 +99,22 @@ pub(crate) fn state_value_root_is_known(
     // with the concrete integer before the executable clone is validated.
     let (scope, _) =
         program.machine_type_reference_scope(machine, |left, right| left.name == right.name);
-    if scope.iter().any(|parameter| {
-        parameter.name.as_str() == name
-            && parameter.kind.is_const_or_value()
-            && (!root.is_valid() || parameter.symbol == root)
-    }) {
+    // Contract operands can retain an authored spelling different from the
+    // resolved binder in this scope. Match resolved binders by identity and
+    // use spelling only for unresolved names; require a unique scope match.
+    if scope
+        .iter()
+        .filter(|parameter| {
+            parameter.kind.is_const_or_value()
+                && if root.is_valid() {
+                    parameter.symbol == root
+                } else {
+                    parameter.name.as_str() == name
+                }
+        })
+        .count()
+        == 1
+    {
         return true;
     }
     if let Some(attached_data) = &machine.attached_data

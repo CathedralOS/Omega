@@ -26,6 +26,24 @@ impl Default for BuildSelectionRequest {
 }
 
 impl BuildSelectionRequest {
+    /// Exclusions and authority-bearing declarations retain their selecting
+    /// machine for final admission. Provider and representation operands carry
+    /// their own lexical scopes and require no additional machine subject.
+    pub fn requires_lexical_subject(&self) -> bool {
+        match self {
+            Self::Exclusion(_) => true,
+            Self::Declaration(request) => matches!(
+                request.operation,
+                super::BuildOperation::ServiceExclusion
+                    | super::BuildOperation::BoundaryAcceptance
+                    | super::BuildOperation::ServiceAudit
+                    | super::BuildOperation::AssumedBindingContract
+                    | super::BuildOperation::WireCompatibilityRequest
+            ),
+            Self::Entry(_) => false,
+        }
+    }
+
     pub fn source_span(&self) -> source::SourceSpan {
         match self {
             Self::Entry(request) => request.source_span,
@@ -219,7 +237,7 @@ pub enum ExecutedBuildSelection {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutedProductSelection {
     pub request: std::sync::Arc<ProductDeclarationRequest>,
-    pub selecting_machine: source::SourceSpan,
+    pub selecting_machine: Option<source::SourceSpan>,
     /// Provider choices retain the actual evaluated mode. Representation
     /// choices carry no composition argument.
     pub composition: Option<CompositionMode>,

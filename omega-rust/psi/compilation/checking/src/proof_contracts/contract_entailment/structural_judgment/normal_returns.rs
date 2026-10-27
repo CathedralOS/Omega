@@ -13,7 +13,7 @@ mod owned_arguments;
 
 use super::super::specification_calls::{
     AppliedProofBindings, SelectedCallContract, owner_contracts, owner_leading_operands,
-    owner_symbol, selected_call_contract,
+    owner_return_type, owner_symbol, selected_call_contract,
 };
 use super::selected_contracts::bound_term;
 use super::value_predicates::boolean_term;
@@ -114,6 +114,8 @@ impl OperationObservations<'_> {
 #[derive(Clone, Copy)]
 enum NormalValueDemand<'query> {
     Value,
+    // Complete the operation and its effects without demanding a result carrier.
+    Completion,
     // Evaluate a checked storage coordinate without observing aggregate contents.
     Location,
     Observe(&'query [ExpressionHandle]),
@@ -339,6 +341,28 @@ impl<'program> StructuralJudge<'program> {
             &mut Vec::new(),
             NormalValueDemand::Value,
         )
+    }
+
+    /// A complete statement retains its normal effects and parameter guarantees,
+    /// not a result value. Unit and discarded value statements share this owner;
+    /// their eager operands still require their actual values in invocation order.
+    pub(in crate::proof_contracts::contract_entailment) fn normal_completion_paths(
+        &self,
+        expression: ExpressionHandle,
+        environment: &[(String, StructuralTerm)],
+        scope: ValueScope<'_>,
+    ) -> Option<Vec<StructuralJudge<'program>>> {
+        self.clone()
+            .evaluate_normal_paths(
+                expression,
+                environment,
+                scope,
+                0,
+                OperationObservations::none(),
+                &mut Vec::new(),
+                NormalValueDemand::Completion,
+            )
+            .map(|paths| paths.into_iter().map(|path| path.judge).collect())
     }
 
     /// Observe an operation after its operands complete, including preceding
@@ -1234,6 +1258,8 @@ impl<'program> StructuralJudge<'program> {
                             NormalValueDemand::Observe(values)
                         }
                     }
+                } else if matches!(demand, NormalValueDemand::Completion) {
+                    NormalValueDemand::Value
                 } else {
                     demand
                 };
@@ -1355,6 +1381,11 @@ impl<'program> StructuralJudge<'program> {
                     scope,
                     &writes,
                 )?;
+                if matches!(demand, NormalValueDemand::Completion) {
+                    return Some(Some(
+                        NormalReturnPath::unobserved(judge).at_expression(expression, demand),
+                    ));
+                }
                 let receiver_changed =
                     scalar_storage_read && judge.storage_write_sequence != receiver_write_sequence;
                 let completed_field = if let ExpressionNode::Member(member) = node {
@@ -2237,35 +2268,42 @@ impl<'program> StructuralJudge<'program> {
             SelectedCallContract::Concrete(machine, _) => machine.symbol,
             _ => owner_symbol(&owner),
         };
-        let Some(observed_type) =
-            crate::expression_result_type_reference(program, scope.0, scope.1, expression)
-        else {
-            return None;
-        };
         // Carrier equality is checked under the exact public application.
         // A policy adapter still cannot donate a raw declaration's equation.
         // Share constructed_results' exact public/applied result telescope.
         // This immutable type correspondence never re-observes actual values.
         let applied_result_parameters = site.parameters(program, scope.0.symbol);
-        let result_presentation = application.runtime_result_presentation(
-            program,
-            &owner,
-            call,
-            observed_type,
-            applied_result_parameters,
-            callable,
-            parameters,
-            &bindings,
-        )?;
-        let result_type = result_presentation.type_reference;
-        let contracts = owner_contracts(program, &owner).collect::<Vec<_>>();
-        self.capture_sequence += 1;
-        let captured = StructuralTerm::CapturedValue {
-            expression,
-            occurrence: self.capture_sequence,
-            callable,
-            result_type,
+        let result_presentation = if matches!(
+            program
+                .type_reference_table
+                .type_reference(owner_return_type(&owner)),
+            typed_trees::types::TypeReferenceNode::Unit
+        ) {
+            None
+        } else {
+            let observed_type =
+                crate::expression_result_type_reference(program, scope.0, scope.1, expression)?;
+            Some(application.runtime_result_presentation(
+                program,
+                &owner,
+                call,
+                observed_type,
+                applied_result_parameters,
+                callable,
+                parameters,
+                &bindings,
+            )?)
         };
+        let contracts = owner_contracts(program, &owner).collect::<Vec<_>>();
+        let captured = result_presentation.as_ref().map(|presentation| {
+            self.capture_sequence += 1;
+            StructuralTerm::CapturedValue {
+                expression,
+                occurrence: self.capture_sequence,
+                callable,
+                result_type: presentation.type_reference,
+            }
+        });
         if super::super::struct_trace() {
             eprintln!(
                 "STRUCT normal-capture bindings expression={expression:?} entry={entry_bindings:?} post={bindings:?}"
@@ -2275,7 +2313,7 @@ impl<'program> StructuralJudge<'program> {
         // does not erase independent guarantees about this returned value.
         // Equations requiring an omitted formal fail exact substitution.
         let Some(guarantees) =
-            self.selected_guarantees(&owner, &entry_bindings, &bindings, &captured, 0)
+            self.selected_guarantees(&owner, &entry_bindings, &bindings, captured.as_ref(), 0)
         else {
             return None;
         };
@@ -2304,10 +2342,12 @@ impl<'program> StructuralJudge<'program> {
                     .find(|(symbol, _)| *symbol == parameter.symbol)
                     .map(|(_, value)| (parameter.name.as_str().to_owned(), value.clone()))
             })
-            .chain(std::iter::once((
-                crate::proof_contracts::contract_entailment::RESULT_BINDER.to_owned(),
-                captured.clone(),
-            )))
+            .chain(captured.as_ref().map(|captured| {
+                (
+                    crate::proof_contracts::contract_entailment::RESULT_BINDER.to_owned(),
+                    captured.clone(),
+                )
+            }))
             .collect::<Vec<_>>();
         let mut case_guarantees = Vec::new();
         let selected_signature = match owner {
@@ -2347,14 +2387,14 @@ impl<'program> StructuralJudge<'program> {
                         parameters,
                         callable,
                         &bindings,
-                        Some(&captured),
+                        captured.as_ref(),
                         0,
                     ) {
                         let mut root = &subject;
                         while let StructuralTerm::Projection { subject, .. } = root {
                             root = subject;
                         }
-                        if root == &captured && guarantee.semantic_domain.is_valid() {
+                        if Some(root) == captured.as_ref() && guarantee.semantic_domain.is_valid() {
                             std::sync::Arc::make_mut(&mut self.normal_memberships).push(
                                 MembershipGuarantee {
                                     subject,
@@ -2380,33 +2420,36 @@ impl<'program> StructuralJudge<'program> {
         }
         if super::super::struct_trace() {
             eprintln!(
-                "STRUCT normal-call expression={expression:?} public_owner={:?} result_type={result_type:?} equations={equations:?}",
+                "STRUCT normal-call expression={expression:?} public_owner={:?} result={captured:?} equations={equations:?}",
                 owner_symbol(&owner),
             );
         }
-        self.intake_admitted_value_predicates(result_type, captured.clone());
-        // A dependent result recipe keeps the same formal presentation used
-        // by admission. Its operands are these completed invocation bindings;
-        // neither slot alpha-renaming nor later writes can replay their source.
-        self.intake_admitted_value_indices(
-            result_type,
-            &captured,
-            result_presentation.parameter_owner,
-            result_presentation.parameters,
-            &result_presentation.bindings,
-        );
-        if let SelectedCallContract::Concrete(callee, selected_state) = &owner {
-            equations.extend(self.returned_field_equations(
-                callee,
-                selected_state,
-                parameters,
-                actuals,
+        if let (Some(captured), Some(result_presentation)) = (captured, result_presentation) {
+            let result_type = result_presentation.type_reference;
+            self.intake_admitted_value_predicates(result_type, captured.clone());
+            // A dependent result recipe keeps the same formal presentation used
+            // by admission. Its operands are these completed invocation bindings;
+            // neither slot alpha-renaming nor later writes can replay their source.
+            self.intake_admitted_value_indices(
+                result_type,
                 &captured,
-            ));
+                result_presentation.parameter_owner,
+                result_presentation.parameters,
+                &result_presentation.bindings,
+            );
+            if let SelectedCallContract::Concrete(callee, selected_state) = &owner {
+                equations.extend(self.returned_field_equations(
+                    callee,
+                    selected_state,
+                    parameters,
+                    actuals,
+                    &captured,
+                ));
+            }
+            // A construction describes payload, never the identity or admission of
+            // this call's result. Equal field geometry cannot merge linear roots.
+            std::sync::Arc::make_mut(&mut self.normal_results).push((expression, captured));
         }
-        // A construction describes payload, never the identity or admission of
-        // this call's result. Equal field geometry cannot merge linear roots.
-        std::sync::Arc::make_mut(&mut self.normal_results).push((expression, captured));
         for (left, right) in equations {
             std::sync::Arc::make_mut(&mut self.captured_result_equations)
                 .push((left.clone(), right.clone()));

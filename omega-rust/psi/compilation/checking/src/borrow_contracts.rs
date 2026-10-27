@@ -500,6 +500,29 @@ pub fn carried_reference_paths(
     })
 }
 
+/// Translate retained nominal loan selectors without reconstructing a borrow.
+/// Runtime selectors require their own evaluated capture and cannot be inferred.
+pub fn structural_owner_path(
+    program: &dyn crate::CheckingInput,
+    path: &[BorrowOwnerSegment],
+) -> Option<Vec<checked_trees::CheckedUnitStructuralPathSegment>> {
+    use checked_trees::CheckedUnitStructuralPathSegment as Segment;
+    path.iter()
+        .map(|segment| match segment {
+            BorrowOwnerSegment::Field(symbol) => Some(Segment::Field(
+                program.any_field_owner(*symbol)?.1.member_identity(),
+            )),
+            BorrowOwnerSegment::Case(symbol) => Some(Segment::Case(
+                program.variant_owner(*symbol)?.1.member_identity(),
+            )),
+            BorrowOwnerSegment::FixedIndex(position) => {
+                Some(Segment::FixedIndex(u64::try_from(*position).ok()?))
+            }
+            BorrowOwnerSegment::DynamicIndex => None,
+        })
+        .collect()
+}
+
 /// Borrow classification and projected paths share the complete frontier.
 /// An unresolved structure is not evidence of absent loans. Consumers must
 /// retain the obligation until admission supplies its complete instantiated

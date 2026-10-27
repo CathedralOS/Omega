@@ -122,7 +122,11 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Content transformations retain a complete root roster, including n-to-m joins.
 // Issuer routes, generic templates and conformance rows retain explicit
 // declaration owners; older layouts cannot infer these missing coordinates.
-pub(crate) const FORMAT_MARKER: u16 = 195;
+// Suspension capture coordinates include retained ingress permissions, distinct
+// from local formations and evaluated outgoing actuals.
+// The merged schema retains those captures and ordinary no-normal invocations;
+// neither independent marker-195 grammar is the complete current layout.
+pub(crate) const FORMAT_MARKER: u16 = 196;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

@@ -1,0 +1,24 @@
+// Expected exit: 0
+// Existing routed membership on an owned opaque result from a checked independent provider survives transport into the next qualified consuming call, preserving libc hosts 66051 and 513 and replacement 1027.
+use producer::main;
+public data AddressBox { value: InternetAddress in Classified; }
+public data AddressPair { first: InternetAddress in Classified; second: InternetAddress; }
+
+machine consume(first: InternetAddress in Classified, second: InternetAddress) -> bool reaches AddressParts, AddressBridge {
+    let mut pair: AddressPair = AddressPair { first: first, second: second };
+    let old_host: u32 = AddressBridge::classified_host(pair.first);
+    pair.first = classify(AddressBridge::make(10, 1027));
+    let sibling_host: u32 = AddressBridge::host(pair.second);
+    let replacement_host: u32 = AddressBridge::host(pair.first as InternetAddress);
+    old_host == 66051 && sibling_host == 513 && replacement_host == 1027
+}
+linux_x86_64 machine observe() -> bool reaches AddressParts, AddressBridge { consume(AddressBridge::classified_make(10, 66051), AddressBridge::make(44048, 513)) }
+linux_arm64 machine observe() -> bool reaches AddressParts, AddressBridge { consume(AddressBridge::classified_make(10, 66051), AddressBridge::make(44048, 513)) }
+windows_x86_64 machine observe() -> bool reaches AddressParts, AddressBridge { consume(AddressBridge::classified_make(10, 66051), AddressBridge::make(44048, 513)) }
+macos_arm64 machine observe() -> bool reaches AddressParts, AddressBridge { consume(AddressBridge::classified_make(10, 66051), AddressBridge::make(44048, 513)) }
+
+machine main() reaches AddressParts, AddressBridge crashes Trap {
+ transition observe() { true -> done() _ -> failed() }
+ state done() {}
+ state failed() { crash Trap; }
+}

@@ -71,7 +71,7 @@ pub struct TerminalExecution<'artifact> {
     pub(crate) account: Option<EvaluationInvocationAccount>,
     /// A host fault is not a resumable pause. Retain its exact site and custody
     /// so retry cannot repeat an operation that may already have had effects.
-    failure: Option<TerminalInterpretError>,
+    pub(crate) failure: Option<TerminalInterpretError>,
     pub(crate) provider_storage: crate::provider_storage::RuntimeProviderStorage,
     /// Entry storage may be supplied only before the first resume, including
     /// a resume which exhausts its fuel without executing an operation.
@@ -183,6 +183,9 @@ pub struct TerminalExecution<'artifact> {
     pub(crate) current: BlockId,
     pub(crate) next_operation: usize,
     pub(crate) call_stack: Vec<SuspendedCall>,
+    /// One prepared host invocation parked before its effect. This belongs to
+    /// the active leaf frame; callers remain in the ordinary call stack.
+    pub(crate) awaiting_effect: Option<Box<crate::calls::PendingBoundaryCall>>,
     pub(crate) result: Option<TerminalExecutionResult>,
     /// Root return descriptors outlive their retired source place. Keep their
     /// shared backing until the embedding closes the completed instance.
@@ -613,6 +616,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             current,
             next_operation: 0,
             call_stack: Vec::new(),
+            awaiting_effect: None,
             result: None,
             returned_byte_sequence: None,
             returned_element_view: None,
@@ -964,7 +968,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                     .get(&demand.boundary)
                     .is_some_and(|admission| {
                         admission.answers(
-                            self.program.identity,
+                            self.program.identity.semantic(),
                             self.process_domain.as_ref(),
                             *demand,
                         )
@@ -1001,7 +1005,15 @@ impl<'artifact> TerminalExecution<'artifact> {
                             .get(boundary)
                             .is_some_and(|binding| binding.pending_at(operation.id))
                 );
-                if !pending_component && let Err(error) = meter.charge_operation(operation) {
+                let pending_effect = self.awaiting_effect.as_ref().is_some_and(|pending| {
+                    pending.site.operation == operation.id
+                        && pending.site.machine == self.current_machine
+                        && pending.site.block == self.current
+                });
+                if !pending_component
+                    && !pending_effect
+                    && let Err(error) = meter.charge_operation(operation)
+                {
                     return meter_status(error);
                 }
                 let selected;

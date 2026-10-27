@@ -607,6 +607,24 @@ pub(super) fn outgoing_float_transfer(
     }
 }
 
+/// The wide-load instruction and constraint key that carry one exactly sized
+/// scalar fragment through a staged pointer. `None` means the width is not one
+/// of the four scalar carriers: a packed fragment expands instead, and every
+/// other caller keeps its own refusal.
+pub(super) fn load_transfer(
+    keys: &SelectedConstraintKeys,
+    byte_size: u32,
+    byte_offset: u32,
+) -> Option<(SelectedInstructionKind, Option<RegisterConstraintKey>)> {
+    Some(match byte_size {
+        1 => (SelectedInstructionKind::Load8 { byte_offset }, keys.load8),
+        2 => (SelectedInstructionKind::Load16 { byte_offset }, keys.load16),
+        4 => (SelectedInstructionKind::Load32 { byte_offset }, keys.load32),
+        8 => (SelectedInstructionKind::Load64 { byte_offset }, keys.load64),
+        _ => return None,
+    })
+}
+
 fn scalar_value_shape(source: &LegalizedScalarFunction, value: ValueId) -> Option<ValueShape> {
     scalar_value_type(source, value).and_then(scalar_shape)
 }

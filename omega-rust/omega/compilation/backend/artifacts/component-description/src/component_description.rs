@@ -1022,6 +1022,32 @@ pub struct StackDemandFacts {
     pub stack_alignment: u32,
 }
 
+// Selection can include native defaults that have no consumer in this retained
+// component. Publish complete plans only when a module call or checked export
+// references them. Never trim rows or rewrite their committed plan identity;
+// the consumer still independently checks every row of each retained plan.
+fn component_references_plan(
+    module: &TerminalModule,
+    inventory: &DerivedInventory,
+    plan: &effects::provider_plan::ProviderPlan,
+) -> bool {
+    plan.rows.iter().any(|row| {
+        let requirement = plan.identities.text(row.requirement_identity);
+        inventory
+            .called_requirement_identities
+            .iter()
+            .any(|called| called == requirement)
+            || module.provider_candidates.iter().any(|candidate| {
+                module
+                    .identities
+                    .text(candidate.source_requirement_identity)
+                    == Some(requirement)
+                    && module.identities.text(candidate.provider_identity)
+                        == Some(plan.provider_type.as_str())
+            })
+    })
+}
+
 /// The exact publication facts a component description is built from.
 ///
 /// `stack_demand` and `realization_identity` are optional so the same
@@ -1053,6 +1079,7 @@ pub(crate) fn describe_decoded_component_facts(
     let providers: Vec<RetainedProvider> = selected
         .plans()
         .iter()
+        .filter(|plan| component_references_plan(module, &inventory, plan))
         .map(|plan| {
             let mut requirement_identities: Vec<String> = plan
                 .rows

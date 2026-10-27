@@ -77,6 +77,12 @@ pub(super) fn require_evaluated_constants(
                 .constant_recipe_for_range_endpoint(**expression)
                 .is_valid()
         })
+        .filter(|expression| {
+            !program
+                .constant_recipe_for_contract_expression(**expression)
+                .is_valid()
+        })
+        .filter(|expression| !program.is_deferred_contract_invocation(**expression))
         .filter(|expression| !program.constant_recipe_root_for_const_application(**expression))
         .map(|expression| {
             Diagnostic::error("range endpoint has an unresolved build-time evaluation dependency")

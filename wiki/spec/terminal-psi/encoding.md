@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 195 even when every table
+order below. This layout uses semantic format marker 196 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -705,7 +705,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 195 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 196 + `u16` vocabulary
 marker 130 + the entry callable, followed by the module tables in the
 declaration order below. The entry callable uses its ordinary machine-or-boundary
 tag and identifier encoding.
@@ -1701,7 +1701,7 @@ identities: two actual positions may name the same storage and still contribute
 separate rows, claims and policies. Preserve every occurrence and the complete
 count; do not deduplicate equal coordinates. Each live value's claims are
 strictly ordered by claim id. The frontier commitment uses the
-`terminal-suspension-frontier-v7` domain and includes the ordered roster and
+`terminal-suspension-frontier-v8` domain and includes the ordered roster and
 its cardinality, each value's loan links and the complete loan graph. Marker
 137 adds evaluated-actual captures; earlier markers are not reinterpreted.
 
@@ -1720,13 +1720,16 @@ A loan occurrence encodes capture, backing, resource kind, parent handle,
 supplier span, structural access and an active-at-call Boolean. Capture is
 `0` unresolved, or `1` followed by formation operation, carrier place, source
 place, source access and a source-path span, or `2` followed by a `u32`
-call-argument live-value position and a captured-leaf path span. This position
-must name a structural CallArgument occurrence. Its path selects the already
+retained live-value position and a captured-leaf path span. This position
+must name a structural Parameter or CallArgument occurrence. Its path selects the already
 evaluated descriptor, not a source expression to evaluate again. Backing is
 `0` unresolved,
 `1` plus a `u32` retained-owner live-value position, or `2` plus an incoming
-structural argument. Resource kind is `0` unresolved, `1` direct root, or
-`2` reborrow. Parentage and supplier transport are distinct relationships.
+structural argument. Resource kind is `0` unresolved, `1` direct root,
+`2` reborrow, or `3` invocation-entry reference permission. Marker 196 combines
+ingress captures and ordinary no-normal invocations. Both independent earlier
+marker-195 layouts reject rather than being reinterpreted.
+Parentage and supplier transport are distinct relationships.
 Incoming referents are not descriptor-slot ownership; retired dependencies do
 not become active because descendants retain them. These rows record demands,
 not a completed lifetime, activation or physical-preservation judgment.

@@ -6,28 +6,7 @@
 use checked_trees::{BorrowLoanOwnerSegment, CheckedUnitStructuralPathSegment};
 use typed_trees::data::DataMember;
 
-/// Declaration selectors of a completed loan relation. The caller has already
-/// selected one carrier; these identities translate its prepared namespace,
-/// not the identity of unrelated storage or the value of an unknown index.
-pub(crate) fn structural_owner_path(
-    program: &dyn ::validation::CheckingInput,
-    path: &[BorrowLoanOwnerSegment],
-) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
-    path.iter()
-        .map(|segment| match segment {
-            BorrowLoanOwnerSegment::Field(symbol) => Some(CheckedUnitStructuralPathSegment::Field(
-                program.any_field_owner(*symbol)?.1.member_identity(),
-            )),
-            BorrowLoanOwnerSegment::Case(symbol) => Some(CheckedUnitStructuralPathSegment::Case(
-                program.variant_owner(*symbol)?.1.member_identity(),
-            )),
-            BorrowLoanOwnerSegment::FixedIndex(index) => Some(
-                CheckedUnitStructuralPathSegment::FixedIndex(u64::try_from(*index).ok()?),
-            ),
-            BorrowLoanOwnerSegment::DynamicIndex => None,
-        })
-        .collect()
-}
+pub(crate) use validation::borrow_contracts::structural_owner_path;
 
 /// A named formal presents its referee as borrowed storage; a named local
 /// retains its whole stored carrier. Authenticate that declaration before

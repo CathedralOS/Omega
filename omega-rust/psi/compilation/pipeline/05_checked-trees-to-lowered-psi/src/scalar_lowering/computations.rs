@@ -36,6 +36,7 @@ pub(crate) mod comparisons;
 mod dispatch;
 pub(crate) mod fields;
 pub(crate) mod literals;
+mod observation_completion;
 pub(crate) mod observations;
 mod operand_scope;
 pub(crate) mod operand_types;

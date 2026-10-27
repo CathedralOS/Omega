@@ -1,0 +1,7 @@
+// A nested machine's checked body supplies its private crash contract.
+// Expected exit: -1073741795 (Windows x86-64 Trap presentation).
+// Terminal outcome: Trap, independent of the host's crash exit representation.
+machine main() crashes Trap {
+    wrong();
+    machine wrong() { crash Trap; }
+}

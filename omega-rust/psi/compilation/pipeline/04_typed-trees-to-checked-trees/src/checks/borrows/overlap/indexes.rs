@@ -682,8 +682,30 @@ pub(super) fn projected_bound(
     lookup: &validation::ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<NormalizedBound> {
-    let (symbol, field, is_mutable) =
-        validation::projected_integer_bound_root(program, lookup, expression)?;
+    let Some((symbol, field, is_mutable)) =
+        validation::projected_integer_bound_root(program, lookup, expression)
+    else {
+        // A nested owned record path is one complete observation. A final
+        // field symbol alone would conflate siblings or different roots.
+        let place = validation::canonical_place_from_expression(program, expression)?;
+        let symbol = place.root.as_symbol()?;
+        if place.segments.is_empty()
+            || !place.segments.iter().all(|segment| {
+                matches!(
+                    segment,
+                    facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
+                )
+            })
+        {
+            return None;
+        }
+        return append_immutable_projection(
+            program,
+            lookup,
+            NormalizedBound::Symbol { symbol, offset: 0 },
+            &place.segments,
+        );
+    };
     // The bound names the canonical attached-field identity the write frame
     // carries; the authored member spelling can disagree for `self` members.
     let field = match program.expression_table.expression(expression) {
@@ -694,6 +716,64 @@ pub(super) fn projected_bound(
     };
     let segments = vec![facts::PlaceSegment::Field { symbol: field }];
     Some(if is_mutable {
+        NormalizedBound::StorageProjected { symbol, segments }
+    } else {
+        NormalizedBound::Projected { symbol, segments }
+    })
+}
+
+/// Read an exact immutable owned path in the same namespace for premise
+/// subjects and compatibility queries. A shared root lends readable storage;
+/// another reference inside the path begins a different epoch and refuses.
+pub(super) fn append_immutable_projection(
+    program: &dyn ::validation::CheckingInput,
+    lookup: &validation::ImmutableBoundLookup<'_>,
+    bound: NormalizedBound,
+    projection: &[facts::PlaceSegment],
+) -> Option<NormalizedBound> {
+    let (symbol, mut segments, storage) = match bound {
+        NormalizedBound::Symbol { symbol, offset: 0 } => (symbol, Vec::new(), false),
+        NormalizedBound::Projected { symbol, segments } => (symbol, segments, false),
+        NormalizedBound::Storage { symbol } => (symbol, Vec::new(), true),
+        NormalizedBound::StorageProjected { symbol, segments } => (symbol, segments, true),
+        _ => return None,
+    };
+    let mut reference = lookup.immutable_binding_type(symbol)?;
+    if let Some(shell) = validation::reference_shell(program, reference) {
+        if shell.access != language_core::ReferenceAccess::Shared {
+            return None;
+        }
+        reference = shell.referee;
+    }
+    segments.extend_from_slice(projection);
+    for (position, segment) in segments.iter().enumerate() {
+        match segment {
+            facts::PlaceSegment::Field { .. } => {}
+            facts::PlaceSegment::FixedIndex { index } => {
+                // Type/path replay alone does not establish array bounds.
+                // Each index belongs to the type at its own prefix; an outer
+                // array's extent cannot authorize a nested element selection.
+                let container = validation::owned_projection_type_reference(
+                    program,
+                    reference,
+                    &segments[..position],
+                )?;
+                let extent = validation::fixed_array_type_length(program, container)?;
+                if *index >= extent {
+                    return None;
+                }
+            }
+            _ => return None,
+        }
+    }
+    let leaf = validation::owned_projection_type_reference(program, reference, &segments)?;
+    if !program.primitive_type_reference(leaf)?.is_fixed_integer()
+        || program.arithmetic_domain_for_type_reference(leaf)
+            != numerics::arithmetic::ArithmeticDomain::Exact
+    {
+        return None;
+    }
+    Some(if storage {
         NormalizedBound::StorageProjected { symbol, segments }
     } else {
         NormalizedBound::Projected { symbol, segments }

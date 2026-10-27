@@ -19,6 +19,7 @@ pub struct SelectedConstantEvaluation {
     /// machine body. Each row carries the exact provider entry the semantic
     /// evaluation owner rebinds to on its private evaluation copy.
     provider_bodies: Vec<SelectedBuildTimeProviderBody>,
+    target_bodies: Vec<build_time_evaluation::SelectedBuildTimeTargetBody>,
     /// The exact selected target the deferred folds are answered under — the
     /// explicit target custody a retained `size_of`/`align_of` query names its
     /// subject from. Never the host's facts: a `--target` build folds every
@@ -49,6 +50,8 @@ impl SelectedConstantEvaluation {
         typed: &mut TypedTrees,
         pending: Vec<PreCheckEvaluation>,
     ) -> Result<(), Vec<Diagnostic>> {
+        build_time_evaluation::prepare_selected_target_family_calls(typed, &self.target_bodies)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
         provider_planning::data_layout_queries::fold_data_layout_queries(
             typed,
             self.target_profile,
@@ -97,6 +100,12 @@ impl SelectedConstantEvaluation {
         (&self.operators, &self.provider_bodies)
     }
 
+    pub fn target_body_receipts(
+        &self,
+    ) -> Vec<typed_trees::constant_recipes::ConstantTargetBodySelection> {
+        self.target_bodies.iter().map(|row| row.receipt()).collect()
+    }
+
     /// Join provider authority once for every retained source use. Psi prepares
     /// semantic operands and independently admits both intrinsic and checked-body
     /// execution. Its coordinator supplies the operator selections; realization
@@ -115,6 +124,10 @@ impl SelectedConstantEvaluation {
         let mut selected = Self {
             operators: Vec::new(),
             provider_bodies: Vec::new(),
+            target_bodies: provider_planning::target_machines::selected_constant_target_bodies(
+                context,
+                target_profile,
+            )?,
             target_profile,
             selection: typed_trees::references::DeclarationSelection::from_program(typed),
             opaque_representation_selections: opaque_representation_selections.to_vec(),

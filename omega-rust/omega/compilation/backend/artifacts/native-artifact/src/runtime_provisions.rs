@@ -442,7 +442,8 @@ impl TerminalRuntimeProvisions {
             };
             expected += 1;
             let mut matches = components.iter().filter(|component| {
-                component.selection().receiver() == self.identity
+                component.selection().receiver()
+                    == &terminal_codec::TerminalExecutionIdentity::portable(self.identity)
                     && component.selection().receiving_boundary() == provision.boundary
                     && component.selection().provider() == *provider
                     && component.selection().candidate() == *candidate

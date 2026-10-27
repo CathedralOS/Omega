@@ -35,11 +35,14 @@ pub(crate) fn parse_body<'tokens, 'source>(
         };
         let state = syntax_trees.items.insert_state(&entry_state);
         let state = syntax_trees.items.append_state_handle(state);
-        return Ok((ParsedMachineBody {
-            states: HandleSpan::from_parts(state, 1),
-            nested_machines: HandleSpan::empty(),
-            bodyless: true,
-        }, input));
+        return Ok((
+            ParsedMachineBody {
+                states: HandleSpan::from_parts(state, 1),
+                nested_machines: HandleSpan::empty(),
+                bodyless: true,
+            },
+            input,
+        ));
     }
 
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
@@ -80,14 +83,18 @@ pub(crate) fn parse_body<'tokens, 'source>(
                 return Err(declaration_start.error_here("expected a nested machine declaration"));
             };
             if machine.is_public {
-                return Err(declaration_start.error_here("nested machines are lexical declarations and cannot be package-exported"));
+                return Err(declaration_start.error_here(
+                    "nested machines are lexical declarations and cannot be package-exported",
+                ));
             }
             children.push(Item::Machine(machine));
             input = rest;
             continue;
         }
         if !children.is_empty() {
-            return Err(input.error_here("executable statements cannot follow nested machine declarations"));
+            return Err(
+                input.error_here("executable statements cannot follow nested machine declarations")
+            );
         }
         if starts_retired_entry_member(input)
             || (input.at_keyword(KeywordKind::Public)
@@ -238,7 +245,13 @@ fn parse_implicit_entry_state<'tokens, 'source>(
     parameters: HandleSpan<StateParameterHandle>,
     return_type: TypeReferenceHandle,
 ) -> ParseResult<'tokens, 'source, State> {
-    let (statements, input) = parse_statements(syntax_trees, input, BodyKind::MachineEntry)?;
+    let (statements, input) = parse_statements(
+        syntax_trees,
+        input,
+        BodyKind::MachineEntry {
+            requires_result: return_type.is_valid(),
+        },
+    )?;
     Ok((
         State {
             name,

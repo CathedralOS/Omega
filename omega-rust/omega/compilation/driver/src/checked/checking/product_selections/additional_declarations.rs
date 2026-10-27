@@ -84,7 +84,9 @@ pub(super) fn admit(
         }
         let author = typed_trees::product_operand::resolve_build_request_author(
             typed,
-            event.selecting_machine,
+            event.selecting_machine.ok_or_else(|| {
+                refuse("executed Product selection lost its authored machine coordinate")
+            })?,
         )
         .map_err(|reason| vec![Diagnostic::error(reason).with_source_span(request.source_span)])?;
         let subject = operand(typed, request, 0).map_err(|error| vec![error])?;

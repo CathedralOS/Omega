@@ -108,6 +108,10 @@ pub(crate) fn validate_transition_target_node(
         return;
     };
 
+    // A resolved terminal machine call has the ordinary call contract even
+    // inside a data-qualified declaration. Lexical resolution already selects
+    // visible nested/sibling targets; qualification does not create a receiver
+    // or a separate syntax mode. Preserve argument and completion checks below.
     let arguments = program.statement_table.expression_handles(*arguments);
     crate::proof_contracts::contract_entailment::validate_const_range_call_in_environment(
         program,

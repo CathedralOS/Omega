@@ -12,7 +12,7 @@ pub struct SelectedInstructionId(pub u32);
 /// definition — every member shares the identical three-method surface.
 macro_rules! sha256_identity {
     ($name:ident) => {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub struct $name([u8; 32]);
 
         impl $name {
@@ -30,6 +30,8 @@ macro_rules! sha256_identity {
         }
     };
 }
+
+pub(crate) use sha256_identity;
 
 sha256_identity!(SelectedInstructionPlanIdentity);
 sha256_identity!(FixedViewCopyIdentity);

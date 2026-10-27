@@ -1,0 +1,21 @@
+// A terminal machine call from a data-qualified declaration forwards its checked result.
+// Expected exit: 0
+machine scan(value: u64) -> u64
+requires value == 41u64
+ensures result == 42u64
+{ value + 1u64 }
+
+data Main {}
+
+machine Main::main() -> u64
+ensures result == 42u64
+{
+    transition { _ -> scan(40u64) }
+}
+
+machine start() crashes Trap {
+    let actual: u64 = Main::main();
+    transition actual == 42u64 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

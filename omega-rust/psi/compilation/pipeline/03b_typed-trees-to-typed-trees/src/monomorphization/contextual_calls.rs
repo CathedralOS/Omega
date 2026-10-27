@@ -83,7 +83,7 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
             .expression_table
             .set_static_machine_application_bindings(application, &bindings);
         let mut selected = invocation.machine_arguments.clone();
-        let mut replaced = false;
+        let mut selection_changed = false;
         for (ordinal, (argument, expected)) in selected
             .iter_mut()
             .zip(&invocation.requirements)
@@ -143,9 +143,20 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
                 // not another runtime specialization tuple.
                 argument.application = None;
             }
-            replaced = true;
+            selection_changed = true;
         }
-        if !replaced {
+        if selection_changed {
+            program
+                .expression_table
+                .set_static_machine_application_selected_machines(application, &selected);
+        }
+        if invocation.use_site == invocations::InvocationUse::RetainedEvaluation {
+            // The overlay is ordinary checking custody. Its source recipe and
+            // explicit tuple remain intact; only an active executable call
+            // consumes those operands into a rewritten machine roster.
+            if selection_changed {
+                changed.push(invocation.owner);
+            }
             continue;
         }
         let authored = match invocation.site {
@@ -162,16 +173,19 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
                 call.machine_arguments.clone()
             }
         };
-        program
-            .expression_table
-            .set_static_machine_application_selected_machines(application, &selected);
         let mut machine_ordinal = 0usize;
-        let mut arguments = authored;
+        let mut arguments = authored.clone();
         for argument in &mut arguments {
             if invocations::is_machine(program, argument.symbol) {
                 *argument = selected[machine_ordinal].clone();
                 machine_ordinal += 1;
             }
+        }
+        // An evaluation probe may activate a previously prepared source
+        // recipe. Its checked overlay is reusable, but the newly executable
+        // occurrence still has to consume the source tuple into that roster.
+        if !selection_changed && arguments == authored {
+            continue;
         }
         match invocation.site {
             CallSite::Expression(handle) => {

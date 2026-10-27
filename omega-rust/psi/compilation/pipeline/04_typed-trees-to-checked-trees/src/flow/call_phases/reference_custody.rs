@@ -58,6 +58,15 @@ fn incoming_reference_survives_call(
     binding_writes: Option<&[validation::CanonicalPlace]>,
 ) -> bool {
     let incoming = borrow.incoming_references.get(identity);
+    // Ordinary calls may replace descriptors stored inside borrowed data, but
+    // cannot replace the root parameter loan supplied by the enclosing caller.
+    // Its lifetime remains that incomplete invocation, even after a write.
+    if matches!(
+        incoming.origin,
+        checked_trees::IncomingReferenceOrigin::ParameterReferent { .. }
+    ) {
+        return true;
+    }
     // Entry constraints contain the fixed parameter-origin span. Completed
     // invocation/output origins are carried by their exact BorrowLoan rows.
     let checked_trees::IncomingReferenceOrigin::Parameter { symbol } = incoming.origin else {

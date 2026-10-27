@@ -1317,7 +1317,7 @@ fn execute_fixture(
         }
         None => process::Command::new(executable),
     };
-    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     let observation = if private_entry_ram.is_empty() {
         None
     } else {
@@ -1340,6 +1340,10 @@ fn execute_fixture(
         let _ = fs::remove_dir_all(&work);
         return vec!["exit:unrunnable".to_owned()];
     };
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+    if let Some(capture) = &observation {
+        capture.bind_child(child.id());
+    }
     let stdout_receiver = capture_stream(child.stdout.take());
     let stderr_receiver = capture_stream(child.stderr.take());
     let deadline = std::time::Instant::now()
@@ -1388,7 +1392,7 @@ fn execute_fixture(
     let stdout = receive_stream(stdout_receiver, drain_deadline);
     let stderr = receive_stream(stderr_receiver, drain_deadline);
     let _ = fs::remove_dir_all(&work);
-    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     if let Some(capture) = observation {
         let observations = capture
             .finish()

@@ -1114,7 +1114,8 @@ pub fn stored_carrier_ingress_is_complete(
         .filter_map(|(_, row)| {
             (row.machine_symbol == machine
                 && row.state_symbol == state
-                && row.parameter_symbol() == parameter)
+                && row.parameter_symbol() == parameter
+                && row.carrier_type == carrier)
                 .then_some(row)
         })
         .collect::<Vec<_>>();

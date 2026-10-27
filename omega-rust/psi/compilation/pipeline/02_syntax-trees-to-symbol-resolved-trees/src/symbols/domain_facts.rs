@@ -83,8 +83,17 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
                     domain.subject_name.as_str().to_owned(),
                     domain.subject_symbol,
                 )))
+                .chain(
+                    std::iter::once(("self".to_owned(), domain.subject_symbol))
+                        .filter(|_| domain.subject_name.as_str() != "self"),
+                )
                 .collect();
-            (domain.facts, local_symbols, Some(domain.type_parameters))
+            (
+                domain.facts,
+                local_symbols,
+                Some(domain.type_parameters),
+                false,
+            )
         })
         .collect::<Vec<_>>();
     proof_fact_scopes.extend(
@@ -93,7 +102,7 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
             .declarations
             .signature_contracts
             .iter()
-            .map(|(_, contract)| (contract.facts, Vec::new(), None)),
+            .map(|(_, contract)| (contract.facts, Vec::new(), None, false)),
     );
     proof_fact_scopes.extend(program.data_definitions.iter().flat_map(|definition| {
         // Value binders have leading descriptor fields, in telescope order
@@ -173,7 +182,12 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
                         .cloned()
                         .collect::<Vec<_>>();
                     scope.extend(inherited);
-                    Some((variant.where_facts, scope, Some(definition.type_parameters)))
+                    Some((
+                        variant.where_facts,
+                        scope,
+                        Some(definition.type_parameters),
+                        true,
+                    ))
                 }
                 _ => None,
             })
@@ -182,6 +196,7 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
             definition.where_facts,
             local_symbols,
             Some(definition.type_parameters),
+            true,
         ))
         .chain(variant_scopes)
     }));
@@ -191,7 +206,7 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
     let type_constraints = &program.tables.types.constraints;
     let proof_facts = &mut program.tables.declarations.proof_facts;
 
-    for (facts, local_symbols, type_parameters) in proof_fact_scopes {
+    for (facts, local_symbols, type_parameters, logical_data_subject) in proof_fact_scopes {
         let local_type_parameters =
             type_parameters.map(|parameters| data_type_parameters.span_or_empty(parameters));
         for fact in proof_facts.span_mut_or_empty(facts) {
@@ -219,6 +234,7 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
                         type_constraints,
                         local_type_parameters,
                         &local_symbols,
+                        logical_data_subject,
                         &mut program.tables.bodies.expressions,
                         membership.value,
                     );
@@ -239,6 +255,7 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
                         type_constraints,
                         local_type_parameters,
                         &local_symbols,
+                        logical_data_subject,
                         &mut program.tables.bodies.expressions,
                         *expression,
                     );
@@ -462,6 +479,7 @@ struct ProofExpressionContext<'visit> {
     type_constraints: &'visit arena::Arena<symbol_resolved_trees::types::TypeConstraint>,
     local_type_parameters: Option<&'visit [symbol_resolved_trees::data::TypeParameter]>,
     local_symbols: &'visit [(String, SymbolHandle)],
+    logical_data_subject: bool,
     expression_table: &'visit mut symbol_resolved_trees::expression::ExpressionTable,
 }
 
@@ -472,6 +490,7 @@ fn assign_proof_expression_symbols(
     type_constraints: &arena::Arena<symbol_resolved_trees::types::TypeConstraint>,
     local_type_parameters: Option<&[symbol_resolved_trees::data::TypeParameter]>,
     local_symbols: &[(String, SymbolHandle)],
+    logical_data_subject: bool,
     expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
     expression: symbol_resolved_trees::expression::ExpressionHandle,
 ) {
@@ -482,6 +501,7 @@ fn assign_proof_expression_symbols(
         type_constraints,
         local_type_parameters,
         local_symbols,
+        logical_data_subject,
         expression_table,
     }
     .assign(expression);
@@ -661,6 +681,49 @@ impl ProofExpressionContext<'_> {
                 }
             }
             symbol_resolved_trees::expression::ExpressionNode::Member(member) => {
+                // A declaration predicate's logical subject projects to its
+                // exact field binder. No runtime receiver is introduced.
+                let logical_receiver = self.logical_data_subject
+                    && matches!(self.expression_table.expression(member.receiver),
+                        symbol_resolved_trees::expression::ExpressionNode::Name(path)
+                        if self.expression_table.name_path_members(path.members).len() == 1
+                            && self.expression_table.name_path_members(path.members)[0].as_str() == "self");
+                if logical_receiver {
+                    let candidates = self
+                        .local_symbols
+                        .iter()
+                        .filter(|(name, symbol)| {
+                            name == member.member.as_str()
+                                && self.symbols.get(*symbol).kind == SymbolKind::Field
+                        })
+                        .map(|(_, symbol)| *symbol)
+                        .collect::<Vec<_>>();
+                    if let [symbol] = candidates.as_slice() {
+                        let members = self.expression_table.reserve_name_path_members(1);
+                        self.expression_table.set_name_path_member_at_offset(
+                            members,
+                            0,
+                            member.member,
+                        );
+                        let member_symbols =
+                            self.expression_table.reserve_name_path_member_symbols(1);
+                        self.expression_table.set_name_path_member_symbol_at_offset(
+                            member_symbols,
+                            0,
+                            *symbol,
+                        );
+                        *self.expression_table.expression_mut(expression) =
+                            symbol_resolved_trees::expression::ExpressionNode::Name(
+                                symbol_resolved_trees::expression::TableNamePath::new(
+                                    members,
+                                    member_symbols,
+                                    *symbol,
+                                    *symbol,
+                                ),
+                            );
+                        return;
+                    }
+                }
                 self.assign(member.receiver);
             }
             symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {

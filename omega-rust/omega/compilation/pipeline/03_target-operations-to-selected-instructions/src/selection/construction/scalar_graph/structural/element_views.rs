@@ -1,14 +1,15 @@
 //! Select element observations from descriptor and derived value homes.
 use super::{
     Builder, IntegerSign, IntegerType, LegalizedScalarFunction, LegalizedScalarInstruction,
-    LegalizedScalarInstructionKind, PlaceId, ScalarType, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedMemoryAccessRole, VirtualRegisterId, memory,
+    LegalizedScalarInstructionKind, PlaceId, ScalarType, SelectedInstructionProvenance,
+    SelectedMemoryAccessRole, VirtualRegisterId, memory,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
 use crate::selection::construction::scalar_graph::structural::provenance;
 use crate::selection::construction::scalar_graph::structural::scaled_element_index;
 use crate::selection::construction::scalar_graph::structural::transport_register;
+use crate::selection::scalar_call_abi::load_transfer;
 use terminal_psi::StructuralTypeShape;
 
 /// The byte stride of the view's element. A derived view home already carries
@@ -201,36 +202,11 @@ fn element_view_read(
             super::runtime_address::Written::None,
         )?;
     }
-    let (kind, constraint) = match byte_count {
-        1 => (
-            SelectedInstructionKind::Load8 {
-                byte_offset: displacement,
-            },
-            builder.constraints.keys.load8.ok_or_else(|| invalid())?,
-        ),
-        2 => (
-            SelectedInstructionKind::Load16 {
-                byte_offset: displacement,
-            },
-            builder.constraints.keys.load16.ok_or_else(|| invalid())?,
-        ),
-        4 => (
-            SelectedInstructionKind::Load32 {
-                byte_offset: displacement,
-            },
-            builder.constraints.keys.load32.ok_or_else(|| invalid())?,
-        ),
-        8 => (
-            SelectedInstructionKind::Load64 {
-                byte_offset: displacement,
-            },
-            builder.constraints.keys.load64.ok_or_else(|| invalid())?,
-        ),
-        _ => return Err(invalid()),
-    };
+    let (kind, constraint) =
+        load_transfer(&builder.constraints.keys, byte_count, displacement).ok_or_else(invalid)?;
     builder.emit(
         kind,
-        constraint,
+        constraint.ok_or_else(|| invalid())?,
         &[address, output],
         SelectedInstructionProvenance {
             operations: vec![row.operation],

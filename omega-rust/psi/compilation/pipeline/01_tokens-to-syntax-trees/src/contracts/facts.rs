@@ -95,8 +95,32 @@ pub(crate) fn parse_proof_facts_until<'tokens, 'source>(
 pub(crate) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
+    is_terminator: impl FnMut(Input<'tokens, 'source>) -> bool,
+    machine_final_semicolon: bool,
+) -> Result<((HandleSpan<ProofFact>, usize), Input<'tokens, 'source>), ParseError> {
+    parse_fact_list(
+        syntax_trees,
+        input,
+        is_terminator,
+        machine_final_semicolon,
+        false,
+    )
+}
+
+pub(crate) fn parse_logical_proof_facts_until<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+    is_terminator: impl FnMut(Input<'tokens, 'source>) -> bool,
+) -> Result<((HandleSpan<ProofFact>, usize), Input<'tokens, 'source>), ParseError> {
+    parse_fact_list(syntax_trees, input, is_terminator, false, true)
+}
+
+fn parse_fact_list<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
     mut is_terminator: impl FnMut(Input<'tokens, 'source>) -> bool,
     machine_final_semicolon: bool,
+    logical_subject: bool,
 ) -> Result<((HandleSpan<ProofFact>, usize), Input<'tokens, 'source>), ParseError> {
     let mut input = input;
     let body_start_tokens = input.tokens.len();
@@ -109,7 +133,14 @@ pub(crate) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
 
         let fact_input = input;
         let mut authored_fact_handles = Vec::new();
-        let (value, rest) = parse_proof_fact_expression_handle(syntax_trees, input)?;
+        let (value, rest) = if logical_subject {
+            crate::expressions::parse_expression::parse_logical_proof_fact_expression_handle(
+                syntax_trees,
+                input,
+            )?
+        } else {
+            parse_proof_fact_expression_handle(syntax_trees, input)?
+        };
         input = rest;
 
         if input.at_contextual("in") {
