@@ -50,40 +50,21 @@ impl SelectedConstantEvaluation {
         typed: &mut TypedTrees,
         pending: Vec<PreCheckEvaluation>,
     ) -> Result<(), Vec<Diagnostic>> {
-        build_time_evaluation::prepare_selected_target_family_calls(typed, &self.target_bodies)
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        provider_planning::data_layout_queries::fold_data_layout_queries(
-            typed,
-            self.target_profile,
-            &self.opaque_representation_selections,
-            true,
-            &self.selection,
-        )?;
-        let mut evaluated = Vec::with_capacity(pending.len());
-        for continuation in pending {
-            evaluated.push(continuation.evaluate_selected_operators(
-                typed,
-                SelectedBuildTimeOperators {
-                    operators: &self.operators,
-                    provider_bodies: &self.provider_bodies,
-                },
-            )?);
+        build_time_evaluation::SelectedConstantEvaluationRequest {
+            program: typed,
+            pending,
+            operators: SelectedBuildTimeOperators {
+                operators: &self.operators,
+                provider_bodies: &self.provider_bodies,
+            },
+            target_bodies: &self.target_bodies,
+            selection: &self.selection,
+            layouts: provider_planning::data_layout_queries::TargetLayoutQueries {
+                target: self.target_profile,
+                opaque_representations: &self.opaque_representation_selections,
+            },
         }
-        // The deferred evaluation installed the validated plan-laid layouts;
-        // queries over `Policy<Schema>` operands fold now, and any operand the
-        // program never instantiated reports the layout authority's own
-        // missing-layout diagnostic.
-        provider_planning::data_layout_queries::fold_data_layout_queries(
-            typed,
-            self.target_profile,
-            &self.opaque_representation_selections,
-            false,
-            &self.selection,
-        )?;
-        for continuation in evaluated {
-            continuation.finish(typed)?;
-        }
-        Ok(())
+        .evaluate()
     }
 
     /// The provider rows this target's pending constant folds are evaluated

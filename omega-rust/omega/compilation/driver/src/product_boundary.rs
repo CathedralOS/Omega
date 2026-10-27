@@ -2,6 +2,50 @@
 //! representations remain legitimate dependencies; transform crates do not.
 
 #[test]
+fn selected_constant_evaluation_belongs_to_psi() {
+    let selection = include_str!("../../realization/selected-dispatch/src/constant_evaluation.rs");
+    assert!(selection.contains("build_time_evaluation::SelectedConstantEvaluationRequest"));
+    for forbidden in [
+        "evaluate_selected_operators(",
+        ".finish(typed)",
+        "fold_data_layout_queries(",
+    ] {
+        assert!(
+            !selection.contains(forbidden),
+            "selection drives {forbidden}"
+        );
+    }
+    let geometry = include_str!("../../realization/provider-planning/src/data_layout_queries.rs");
+    for forbidden in [
+        "expression_mut(",
+        "proof_only::",
+        "PreCheckEvaluation",
+        "reject_unresolved_layout_operands",
+    ] {
+        assert!(!geometry.contains(forbidden), "geometry owns {forbidden}");
+    }
+    let evaluation = include_str!(
+        "../../../../psi/compilation/compile-time/src/const_evaluation/selected_constants.rs"
+    );
+    let queries = include_str!(
+        "../../../../psi/compilation/compile-time/src/const_evaluation/data_layout_queries.rs"
+    );
+    for source in [evaluation, queries] {
+        for forbidden in [
+            "provider_planning::",
+            "selected_dispatch::",
+            "target::",
+            "layout::",
+        ] {
+            assert!(
+                !source.contains(forbidden),
+                "Psi evaluation depends on {forbidden}"
+            );
+        }
+    }
+}
+
+#[test]
 fn constant_proof_closure_belongs_to_psi() {
     let coordinator = include_str!("execution_settlement/constant_recipe_closure.rs");
     assert!(coordinator.contains("psi_compiler::ConstantProofClosure::new("));
