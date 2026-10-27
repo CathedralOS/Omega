@@ -117,6 +117,7 @@ class CompilerProducer:
 
 def prepare_producer(output):
     """Build and retain the ordinary producer once, before choosing consumers."""
+    output = Path(output).resolve()
     revision = command(["git", "rev-parse", "HEAD"])
     if command(["git", "status", "--porcelain"]) or os.environ.get("GITHUB_SHA", revision) != revision:
         raise ValueError("producer requires the clean exact candidate")
@@ -139,19 +140,23 @@ def prepare_producer(output):
     if not binaries or not artifacts[-1].get("success"):
         raise ValueError("CLI build supplied no completed executable artifact")
     cli = Path(binaries[-1])
-    corpus_gate.record_cargo_build(cli, result.stdout)
+    # Current CLIs report their own build-time profile. Cargo fingerprint
+    # reconstruction belongs to historical binaries without that protocol;
+    # an internal Cargo output layout is not the CLI's profile authority.
+    cli_profile = corpus_gate.require_optimized(cli)
     runner = corpus_gate.build_runner()
     name = "omega.exe" if os.name == "nt" else "omega"
     copied_cli = retained / name
     copied_runner = retained / ("corpus_runner.exe" if runner.suffix == ".exe" else "corpus_runner")
     shutil.copy2(cli, copied_cli)
-    shutil.copy2(str(cli) + ".compiler-profile.json", str(copied_cli) + ".compiler-profile.json")
     shutil.copy2(runner, copied_runner)
     shutil.copy2(str(runner) + ".compiler-profile.json", str(copied_runner) + ".compiler-profile.json")
     producer = CompilerProducer(revision, command(["git", "rev-parse", "HEAD^{tree}"]),
                                 corpus_gate.host_target(), command(["rustc", "-Vv"]), copied_cli.resolve(),
                                 copied_runner.resolve(), corpus_gate.require_optimized(copied_cli),
                                 corpus_gate.require_optimized(copied_runner))
+    if producer.cli_profile["sha256"] != cli_profile["sha256"] or corpus_gate.require_optimized(cli) != cli_profile:
+        raise ValueError("CLI changed between its completed build and retained producer")
     producer.verify()
     for binary, profile in ((producer.cli, producer.cli_profile), (producer.runner, producer.runner_profile)):
         Path(str(binary) + ".verified-profile.json").write_text(json.dumps(dict(

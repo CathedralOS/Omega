@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
+from contextlib import nullcontext
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ci"))
 import compiler_fact_rows as rows
@@ -152,6 +153,66 @@ class OwnedForeignCohortTests(unittest.TestCase):
                     self.assertEqual(os.environ["PATH"], str(library.parent) + os.pathsep + "original path")
                     raise ValueError("intended failure")
             self.assertEqual(os.environ["PATH"], "original path")
+
+    def producer_build(self, root, *, refused=False):
+        name = "omega.exe" if os.name == "nt" else "omega"
+        cli = root / "bin" / name
+        runner = root / "bin" / ("corpus_runner.exe" if os.name == "nt" else "corpus_runner")
+        cli.parent.mkdir()
+        cli.write_bytes(b"CLI with current profile protocol")
+        runner.write_bytes(b"corpus runner")
+        Path(str(runner) + ".compiler-profile.json").write_text("retained Cargo build receipt\n")
+        cargo = "\n".join(json.dumps(row) for row in [
+            dict(reason="compiler-artifact", target=dict(name="omega"), executable=str(cli)),
+            dict(reason="build-finished", success=True)])
+        result = subprocess.CompletedProcess(["cargo"], 0, cargo, "optimized build\n")
+
+        def command(arguments):
+            if arguments == ["git", "rev-parse", "HEAD"]:
+                return "a" * 40
+            if arguments == ["git", "rev-parse", "HEAD^{tree}"]:
+                return "b" * 40
+            return "" if "status" in arguments else "pinned rustc"
+
+        def profile(path):
+            if refused:
+                raise ValueError("unoptimized or unknown CLI profile")
+            return dict(binary=str(Path(path).absolute()), sha256=rows.digest(path),
+                        profile=dict(schema="omega-compiler-build-profile-v1", opt_level="1"))
+
+        with patch.object(pilot, "ROOT", root), patch.dict(os.environ), \
+             patch.object(pilot, "command", side_effect=command), \
+             patch.object(pilot.subprocess, "run", return_value=result), \
+             patch("build_slot.hold", return_value=nullcontext()), \
+             patch.object(pilot.corpus_gate, "build_runner", return_value=runner) as build_runner, \
+             patch.object(pilot.corpus_gate, "host_target", return_value="linux_x86_64"), \
+             patch.object(pilot.corpus_gate, "require_optimized", side_effect=profile), \
+             patch.object(pilot.corpus_gate, "record_cargo_build") as historical_fingerprint:
+            os.environ.pop("GITHUB_SHA", None)
+            if refused:
+                with self.assertRaisesRegex(ValueError, "unoptimized or unknown"):
+                    pilot.prepare_producer(root / "evidence")
+                build_runner.assert_not_called()
+                producer = None
+            else:
+                producer = pilot.prepare_producer(root / "evidence")
+            historical_fingerprint.assert_not_called()
+        return producer
+
+    def test_current_cli_profile_needs_no_historical_cargo_unit_sidecar(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            producer = self.producer_build(root)
+            self.assertEqual(producer.revision, "a" * 40)
+            self.assertTrue(producer.cli.is_file())
+            self.assertTrue(Path(str(producer.cli) + ".verified-profile.json").is_file())
+            self.assertFalse(Path(str(producer.cli) + ".compiler-profile.json").exists())
+
+    def test_unknown_cli_profile_refuses_before_runner_or_program_execution(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.assertIsNone(self.producer_build(root, refused=True))
+            self.assertEqual(len(list((root / "evidence").glob("*/cli-build.jsonl"))), 1)
 
     def test_changed_retained_binary_refuses_even_when_profile_kind_is_same(self):
         with tempfile.TemporaryDirectory() as temporary:
