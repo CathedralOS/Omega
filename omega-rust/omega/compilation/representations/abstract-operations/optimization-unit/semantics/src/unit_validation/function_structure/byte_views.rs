@@ -7,7 +7,7 @@
 use std::collections::BTreeMap;
 
 use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
-use optimization_unit::PsiOptimizationFunction;
+use optimization_unit::{PsiOptimizationFunction, operation_result_placement};
 use semantic_vocabulary::{BlockId, StructuralDomainId, StructuralPlaceKind, StructuralTypeId};
 use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralDomainDeclaration, StructuralMultiplicity,
@@ -441,14 +441,7 @@ pub(super) fn validate_source(
                 && result.qualifications.is_empty()
                 && result.projected_qualifications.is_empty()
                 && result.claims.is_empty()
-                && function.structural_places.iter().any(|place| {
-                    place.id == result.place
-                        && place.kind
-                            == StructuralPlaceKind::OperationResult {
-                                producer: *psi_operation,
-                                structural_type: result.structural_type,
-                            }
-                })
+                && operation_result_placement(function, result, *psi_operation)
                 && !function.entry_claim_declared(result.place)
                 && !function.content_entry_claim_declared(result.place)
         }

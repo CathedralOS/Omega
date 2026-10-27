@@ -16,6 +16,26 @@ mod primitive_locals;
 pub(crate) use availability::validate_structural_place_availability;
 pub(crate) use availability::{operation_place_accesses, operation_place_inputs};
 
+/// Whether the place catalog's row for `result.place` is exactly the
+/// operation-result placement `producer` declares with `result`'s structural
+/// type. The catalog is built once per function from the same roster
+/// [`optimization_unit::operation_result_placement`] queries; both answer the
+/// one question, so a producer that admits a fresh result asks it here rather
+/// than spelling the kind comparison again.
+pub(crate) fn place_kinds_operation_result(
+    place_kinds: &BTreeMap<PlaceId, StructuralPlaceKind>,
+    result: &terminal_psi::StructuralOperationResult,
+    producer: semantic_vocabulary::OperationId,
+) -> bool {
+    matches!(
+        place_kinds.get(&result.place),
+        Some(StructuralPlaceKind::OperationResult {
+            producer: recorded,
+            structural_type,
+        }) if *recorded == producer && *structural_type == result.structural_type
+    )
+}
+
 /// One disposable declared-reference replay for an entire validation
 /// invocation. Callers own the immutable current graph; functions share its
 /// pre-operation snapshots without cloning the whole unit per function.
@@ -140,11 +160,7 @@ pub(crate) fn validate_structural_root_operations(
                 producer,
                 result,
             } => {
-                place_kinds.get(&result.place)
-                    == Some(&StructuralPlaceKind::OperationResult {
-                        producer: *producer,
-                        structural_type: result.structural_type,
-                    })
+                place_kinds_operation_result(&place_kinds, result, *producer)
                     && function.block_nodes().any(|node| {
                         node.operation
                             .structural_result()
@@ -230,9 +246,7 @@ pub(crate) fn validate_structural_root_operations(
                         &operation,
                     )
                     .map_err(|_| catalog_mismatch(function))?;
-                    if !matches!(place_kinds.get(&result.place), Some(StructuralPlaceKind::OperationResult { producer, structural_type })
-                        if *producer == *psi_operation && *structural_type == result.structural_type)
-                    {
+                    if !place_kinds_operation_result(&place_kinds, result, *psi_operation) {
                         return Err(catalog_mismatch(function));
                     }
                 }
@@ -627,9 +641,7 @@ pub(crate) fn validate_structural_root_operations(
                     .is_ok();
                     if !exact
                         || !result.is_affine_plain()
-                        || !matches!(place_kinds.get(&result.place),
-                            Some(StructuralPlaceKind::OperationResult { producer, structural_type })
-                                if *producer == *psi_operation && *structural_type == result.structural_type)
+                        || !place_kinds_operation_result(&place_kinds, result, *psi_operation)
                         || !matches!(
                             source.access,
                             terminal_psi::StructuralAccess::SharedBorrow
@@ -791,14 +803,7 @@ pub(crate) fn validate_structural_root_operations(
                                         .all(|row| result.projected_qualifications.contains(row)))
                         }))
                         && result.claims.is_empty()
-                        && matches!(
-                            place_kinds.get(&result.place),
-                            Some(StructuralPlaceKind::OperationResult {
-                                producer,
-                                structural_type,
-                            }) if *producer == *psi_operation
-                                && *structural_type == result.structural_type
-                        )
+                        && place_kinds_operation_result(&place_kinds, result, *psi_operation)
                         && matches!(
                             source.access,
                             terminal_psi::StructuralAccess::MutableBorrow
@@ -905,14 +910,7 @@ pub(crate) fn validate_structural_root_operations(
                                     && result.projected_qualifications == projected
                                     && result.qualification_establishments.is_empty()
                             })
-                        && matches!(
-                            place_kinds.get(&result.place),
-                            Some(StructuralPlaceKind::OperationResult {
-                                producer,
-                                structural_type,
-                            }) if *producer == *psi_operation
-                                && *structural_type == result.structural_type
-                        );
+                        && place_kinds_operation_result(&place_kinds, result, *psi_operation);
                     if !valid {
                         return Err(catalog_mismatch(function));
                     }
@@ -1037,9 +1035,7 @@ pub(crate) fn validate_structural_root_operations(
                         || (!source.path.is_empty()
                             && result.multiplicity != terminal_psi::StructuralMultiplicity::Linear
                             && result.claims.iter().any(|claim| claim.path.is_empty()))
-                        || !matches!(place_kinds.get(&result.place),
-                            Some(StructuralPlaceKind::OperationResult { producer, structural_type })
-                                if *producer == *psi_operation && *structural_type == result.structural_type)
+                        || !place_kinds_operation_result(&place_kinds, result, *psi_operation)
                     {
                         return Err(invalid(
                             "transfer requires the same owned carrier, multiplicity and fresh result without issuance",
@@ -1259,14 +1255,7 @@ pub(crate) fn validate_structural_root_operations(
                                 view_graph,
                             )
                             && result.claims.is_empty()
-                            && matches!(
-                                place_kinds.get(&result.place),
-                                Some(StructuralPlaceKind::OperationResult {
-                                    producer,
-                                    structural_type,
-                                }) if *producer == *psi_operation
-                                    && *structural_type == result.structural_type
-                            );
+                            && place_kinds_operation_result(&place_kinds, result, *psi_operation);
                     if !valid {
                         return Err(catalog_mismatch(function));
                     }
@@ -1621,14 +1610,7 @@ fn borrowed_window_root(
                                     && source.operation_result() == Some(result)
                             })
                     });
-            producer_admits
-                && matches!(
-                    place_kinds.get(&result.place),
-                    Some(StructuralPlaceKind::OperationResult {
-                        producer: recorded,
-                        structural_type,
-                    }) if *recorded == *producer && *structural_type == result.structural_type
-                )
+            producer_admits && place_kinds_operation_result(&place_kinds, result, *producer)
         }
     }
 }

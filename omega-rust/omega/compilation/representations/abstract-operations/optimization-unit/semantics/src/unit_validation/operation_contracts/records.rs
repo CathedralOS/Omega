@@ -10,8 +10,8 @@ use crate::unit_validation::operation_contracts::structural_access::structural_s
 use crate::unit_validation::structural_catalog::resolve_structural_path;
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
-use optimization_unit::PsiOptimizationFunction;
-use semantic_vocabulary::{PlaceId, StructuralPlaceKind, StructuralTypeId};
+use optimization_unit::{PsiOptimizationFunction, operation_result_placement};
+use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     ByteSequenceCarrier, RecordFieldValue, StructuralAccess, StructuralFieldType,
@@ -67,16 +67,24 @@ pub(crate) fn zeroed_establishment_matches(
     else {
         return false;
     };
-    function.structural_places.iter().any(|place| {
-        place.id == result.place
-            && matches!(place.kind, StructuralPlaceKind::OperationResult { producer, structural_type }
-                if producer == *psi_operation && structural_type == result.structural_type)
-    }) && matches!(result.multiplicity,terminal_psi::nonlinear_multiplicity_pair_pattern!())
+    operation_result_placement(function, result, *psi_operation)
+        && matches!(
+            result.multiplicity,
+            terminal_psi::nonlinear_multiplicity_pair_pattern!()
+        )
         && result.qualifications.is_empty()
-        && terminal_semantics::zeroed_projected_byte_qualifications_hold(types.values().copied(), domains.values().copied(), result.structural_type, &result.projected_qualifications)
+        && terminal_semantics::zeroed_projected_byte_qualifications_hold(
+            types.values().copied(),
+            domains.values().copied(),
+            result.structural_type,
+            &result.projected_qualifications,
+        )
         && result.qualification_establishments.is_empty()
         && result.claims.is_empty()
-        && terminal_semantics::zeroed_structural_shape(types.values().copied(), result.structural_type)
+        && terminal_semantics::zeroed_structural_shape(
+            types.values().copied(),
+            result.structural_type,
+        )
 }
 
 pub(crate) fn record_establishment_matches(
@@ -96,11 +104,7 @@ pub(crate) fn record_establishment_matches(
     else {
         return false;
     };
-    let exact_result_place = function.structural_places.iter().any(|place| {
-        place.id == result.place
-            && matches!(place.kind, StructuralPlaceKind::OperationResult { producer, structural_type }
-                if producer == *psi_operation && structural_type == result.structural_type)
-    });
+    let exact_result_place = operation_result_placement(function, result, *psi_operation);
     // Reconstruct issuance from this complete constructor's current result:
     // one whole linear claim, or no claim for an affine/copyable root. The
     // field checks still own every child transfer and its declared type.

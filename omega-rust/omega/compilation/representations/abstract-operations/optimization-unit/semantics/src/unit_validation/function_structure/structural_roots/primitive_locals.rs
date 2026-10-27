@@ -3,8 +3,8 @@
 use std::collections::BTreeMap;
 
 use abstract_operations::AbstractOperation as O;
-use optimization_unit::PsiOptimizationFunction;
-use semantic_vocabulary::{BlockId, PlaceId, StructuralPlaceKind, StructuralTypeId};
+use optimization_unit::{PsiOptimizationFunction, operation_result_placement};
+use semantic_vocabulary::{BlockId, PlaceId, StructuralTypeId};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralOperationResult};
 
 use crate::{OperationSite, OptimizationUnitValidationError};
@@ -49,14 +49,7 @@ pub(super) fn validate(
             ..
         } => {
             local_matches(result, value.scalar_type)
-                && function.structural_places.iter().any(|place| {
-                    place.id == result.place
-                        && place.kind
-                            == StructuralPlaceKind::OperationResult {
-                                producer: *psi_operation,
-                                structural_type: result.structural_type,
-                            }
-                })
+                && operation_result_placement(function, result, *psi_operation)
         }
         O::PrimitiveLocalStore {
             destination, value, ..
