@@ -1457,7 +1457,7 @@ impl Implication<'_> {
             return None;
         }
         // Keep a dependent transfer inside its enclosing induction scope.
-        let dependent = self.depends_on_enclosing_activation(&arguments);
+        let dependent = self.depends_on_enclosing_activation(&arguments, &path)?;
         let mut generalized = parameters
             .iter()
             .zip(&arguments)
@@ -1572,20 +1572,89 @@ impl Implication<'_> {
         self.generalized_activation(machine, state, generalized, path, goal, judgment, depth)
     }
 
-    fn depends_on_enclosing_activation(&self, arguments: &[Value]) -> bool {
-        arguments.iter().any(|argument| {
+    fn depends_on_enclosing_activation(
+        &mut self,
+        arguments: &[Value],
+        path: &Path,
+    ) -> Option<bool> {
+        let formals = self
+            .lemmas
+            .iter()
+            .flat_map(|lemma| lemma.arguments.iter().cloned())
+            .collect::<Vec<_>>();
+        for argument in arguments {
             let Value::Integer { value, .. } = argument else {
-                return false;
+                continue;
             };
-            self.lemmas.iter().any(|lemma| {
-                lemma.arguments.iter().any(|formal| {
-                    let Value::Integer { value: formal, .. } = formal else {
-                        return false;
-                    };
-                    contains(value, formal)
-                })
-            })
-        })
+            for formal in &formals {
+                self.spend()?;
+                match formal {
+                    Value::Integer { value: formal, .. } if contains(value, formal) => {
+                        return Some(true);
+                    }
+                    Value::Collection { identity, .. }
+                        if self.collection_observes_integer(*identity, value, path)? =>
+                    {
+                        return Some(true);
+                    }
+                    Value::Record {
+                        identity,
+                        projection,
+                        ..
+                    } => {
+                        // These are already-read immutable observations of the
+                        // exact enclosing record, not a new current-storage read.
+                        // A helper must retain their atoms when the outer goal
+                        // still names them, just as it retains scalar formals.
+                        for position in 0..self.records.len() {
+                            self.spend()?;
+                            let observation = &self.records[position];
+                            if observation.identity != *identity
+                                || !observation.projection.starts_with(projection)
+                            {
+                                continue;
+                            }
+                            match observation.value.clone() {
+                                Value::Integer { value: formal, .. }
+                                    if contains(value, &formal) =>
+                                {
+                                    return Some(true);
+                                }
+                                Value::Collection { identity, .. }
+                                    if self
+                                        .collection_observes_integer(identity, value, path)? =>
+                                {
+                                    return Some(true);
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        Some(false)
+    }
+
+    fn collection_observes_integer(
+        &mut self,
+        identity: usize,
+        value: &Integer,
+        path: &Path,
+    ) -> Option<bool> {
+        for observation in &path.observations {
+            self.spend()?;
+            if observation.collection == identity
+                && let Value::Integer {
+                    value: observed, ..
+                } = &observation.value
+                && contains(value, observed)
+            {
+                return Some(true);
+            }
+        }
+        Some(false)
     }
 
     /// Check one already-generalized formal frame. Call activation prepares
@@ -1608,7 +1677,7 @@ impl Implication<'_> {
         if !admitted_activation_parameters(self.program, parameters, arguments.len()) {
             return None;
         }
-        let dependent = self.depends_on_enclosing_activation(&arguments);
+        let dependent = self.depends_on_enclosing_activation(&arguments, &path)?;
         let frame = Frame {
             machine,
             state,
