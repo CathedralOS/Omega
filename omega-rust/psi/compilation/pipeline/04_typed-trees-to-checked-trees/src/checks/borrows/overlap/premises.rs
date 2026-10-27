@@ -643,6 +643,22 @@ fn decompose_premise_expression(
                             )
                         })
                         .flatten(),
+                    validation::PredicateIntegerOperand::Read(read) => match &scope {
+                        PremiseScope::State { machine, state } => {
+                            validation::instantiate_immutable_entry_indexed_read_identity(
+                                program,
+                                read.predicate,
+                                read.expression,
+                                &read.arguments,
+                                machine,
+                                state,
+                            )
+                            .map(NormalizedBound::EntryRead)
+                        }
+                        // Completed/local observations need their own exact
+                        // prefix/capture owner, not an entry namespace guess.
+                        _ => None,
+                    },
                     validation::PredicateIntegerOperand::Integer(value) => {
                         i64::try_from(value).ok().map(NormalizedBound::Integer)
                     }
@@ -828,6 +844,9 @@ fn transport_query_bound(
     };
     Some(match bound {
         NormalizedBound::Integer(_) => bound,
+        // An entry read cannot cross a different parameter namespace without
+        // the owning typed read/telescope substitution.
+        NormalizedBound::EntryRead(_) => return None,
         NormalizedBound::Symbol { symbol, offset } => NormalizedBound::Symbol {
             symbol: argument(symbol)?,
             offset,
@@ -1059,6 +1078,9 @@ fn chained_legs_prove(
 /// term sets stay unrelated, never negative evidence.
 fn bound_shift(value: NormalizedBound, base: NormalizedBound) -> Option<i64> {
     match (value, base) {
+        (NormalizedBound::EntryRead(value), NormalizedBound::EntryRead(base)) if value == base => {
+            Some(0)
+        }
         (NormalizedBound::Integer(value), NormalizedBound::Integer(base)) => {
             value.checked_sub(base)
         }

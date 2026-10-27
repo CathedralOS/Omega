@@ -90,7 +90,8 @@ pub(super) fn substitute_bound(
             | NormalizedBound::Storage { .. }
             | NormalizedBound::Projected { .. }
             | NormalizedBound::StorageProjected { .. }
-            | NormalizedBound::CallResult { .. } => None,
+            | NormalizedBound::CallResult { .. }
+            | NormalizedBound::EntryRead(_) => None,
         },
         NormalizedBound::Projected { symbol, segments } => match argument_bound(symbol)? {
             // `p.first` with `p` substituted by the argument names the
@@ -111,7 +112,8 @@ pub(super) fn substitute_bound(
         // and likewise cannot substitute.
         NormalizedBound::Storage { .. }
         | NormalizedBound::StorageProjected { .. }
-        | NormalizedBound::CallResult { .. } => None,
+        | NormalizedBound::CallResult { .. }
+        | NormalizedBound::EntryRead(_) => None,
         NormalizedBound::SymbolSum {
             first,
             second,
