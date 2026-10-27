@@ -127,6 +127,9 @@ pub type StaticArgumentClassifier = fn(&TypedTrees, StaticArgumentCall<'_>) -> S
 /// A consumer of exact typed references. Return false from an arena callback
 /// when a node was already visited; symbol consumers may preserve repeated edges.
 pub trait TypedReferences: Extend<SymbolHandle> {
+    /// A called or supplied callable, distinct from a declaration's signature
+    /// or satisfaction row. This retains the exact executable application.
+    fn callable_use(&mut self, _: SymbolHandle) {}
     /// A callable's exact parameter/result scope, before its nested telescope
     /// and contract facts are visited. This describes ownership, not admission.
     fn callable_signature(&mut self, _: &crate::signature::StateSignature) {}
@@ -174,6 +177,7 @@ pub trait TypedReferences: Extend<SymbolHandle> {
 pub struct ProgramReferences {
     pub declarations: Vec<SymbolHandle>,
     pub symbols: HashSet<SymbolHandle>,
+    pub callable_uses: HashSet<SymbolHandle>,
     /// Declaration dependencies retained as descriptions, not executable edges.
     pub descriptor_symbols: HashSet<SymbolHandle>,
     pub expressions: HashSet<ExpressionHandle>,
@@ -188,6 +192,7 @@ struct ReferenceCollector {
     selection: DeclarationSelection,
     declarations: Vec<SymbolHandle>,
     symbols: HashSet<SymbolHandle>,
+    callable_uses: HashSet<SymbolHandle>,
     descriptor_symbols: HashSet<SymbolHandle>,
     classify_static_arguments: Option<StaticArgumentClassifier>,
     expressions: HashSet<ExpressionHandle>,
@@ -202,6 +207,11 @@ impl Extend<SymbolHandle> for ReferenceCollector {
     }
 }
 impl TypedReferences for ReferenceCollector {
+    fn callable_use(&mut self, symbol: SymbolHandle) {
+        if symbol.is_valid() {
+            self.callable_uses.insert(symbol);
+        }
+    }
     fn declaration_description_dependency(&mut self, symbol: SymbolHandle) {
         self.descriptor_symbols.insert(symbol);
     }
@@ -609,6 +619,7 @@ fn finish_references(roots: ReferenceCollector) -> ProgramReferences {
     let mut proof_facts = roots.facts.into_iter().collect::<Vec<_>>();
     proof_facts.sort_unstable_by_key(|handle| (handle.arena_index(), handle.generation()));
     ProgramReferences {
+        callable_uses: roots.callable_uses,
         declarations: roots.declarations,
         symbols: roots.symbols,
         descriptor_symbols: roots.descriptor_symbols,
@@ -784,6 +795,7 @@ fn visit_callable_symbol(
     retained: &mut impl TypedReferences,
     symbol: SymbolHandle,
 ) {
+    retained.callable_use(symbol);
     visit_symbol(retained, symbol);
     for (_, plan) in program.placement_lifecycle_plans.iter() {
         if let crate::typed_trees::PlacementLifecyclePlan::Evaluated {

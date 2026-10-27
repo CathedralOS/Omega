@@ -1,0 +1,24 @@
+// Declaring checked alternatives does not demand a choice for an unused slot.
+// Expected exit: 0
+public boundary trait Choice {
+    machine read() -> u32 reaches;
+}
+
+public First satisfies Choice {
+    machine read() -> u32 { 11 }
+}
+
+public Second satisfies Choice {
+    machine read() -> u32 { 22 }
+}
+
+machine main() crashes Trap {
+    let first: u32 = First::read();
+    let second: u32 = Second::read();
+    transition first == 11 && second == 22 {
+        true -> done()
+        _ -> incorrect()
+    }
+    machine done() {}
+    machine incorrect() crashes Trap { crash Trap; }
+}
