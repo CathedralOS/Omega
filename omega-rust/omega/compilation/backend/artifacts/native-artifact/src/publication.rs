@@ -85,17 +85,7 @@ pub(crate) fn native_publication_certificate_digest(
     digest.raw(native_artifact_identity);
     digest.u64(semantic_bytes.len() as u64);
     digest.raw(&semantic_bytes);
-    digest.byte(match target.architecture {
-        target::Architecture::Aarch64 => 1,
-        target::Architecture::X86_64 => 2,
-    });
-    digest.byte(match target.object_format {
-        target::ObjectFormat::Elf => 1,
-        target::ObjectFormat::MachO => 2,
-        target::ObjectFormat::Coff => 3,
-    });
-    digest.u64(target.pointer_size as u64);
-    digest.u64(target.pointer_alignment as u64);
+    digest.raw(&target.wire_identity_bytes());
     digest.raw(final_image_symbol_digest.as_bytes());
     digest.byte(u8::from(boundary_contract_report_fingerprint.is_some()));
     digest.raw(
