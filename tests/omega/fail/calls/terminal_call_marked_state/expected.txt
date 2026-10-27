@@ -1,1 +1,1 @@
-value call `next(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees.
+call to `next` has operational envelope neither suspension nor blocking but acknowledges `block`
