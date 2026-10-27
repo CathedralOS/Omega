@@ -172,13 +172,11 @@ impl Denotation {
             None => None,
         };
         let position = self.integer_operation(operation)?;
-        let mut term = self.constant(position);
-        for operand in [left].into_iter().chain(right) {
-            term = self.arena.insert(Term::Apply {
-                function: term,
-                argument: operand,
-            });
-        }
+        let function = self.constant(position);
+        let term = match right {
+            Some(right) => self.arena.apply_arguments(function, &[left, right]),
+            None => self.arena.apply_arguments(function, &[left]),
+        };
         Ok(Some(term))
     }
 
@@ -211,15 +209,8 @@ impl Denotation {
         let left = self.fixed_scalar_term(left)?;
         let right = self.fixed_scalar_term(right)?;
         let position = self.integer_operation(operation)?;
-        let function = self.constant(position);
-        let function = self.arena.insert(Term::Apply {
-            function,
-            argument: left,
-        });
-        Ok(Some(self.arena.insert(Term::Apply {
-            function,
-            argument: right,
-        })))
+        let relation = self.constant(position);
+        Ok(Some(self.arena.apply_binary(relation, left, right)))
     }
 
     /// One binary operation applied to already-denoted operands —
@@ -254,14 +245,7 @@ impl Denotation {
     ) -> Result<TermHandle, BoundedDenotationError> {
         let position = operation(self)?;
         let operation = self.constant(position);
-        let function = self.arena.insert(Term::Apply {
-            function: operation,
-            argument: left,
-        });
-        Ok(self.arena.insert(Term::Apply {
-            function,
-            argument: right,
-        }))
+        Ok(self.arena.apply_binary(operation, left, right))
     }
 
     /// One checked `op l r = n` bridge between evaluated numerals and the

@@ -424,6 +424,24 @@ impl TermArena {
         self.terms.insert(term)
     }
 
+    /// `function a₁ … aₙ` — the left-nested application spine every
+    /// constant reference, law instance and relation elaboration ends on:
+    /// the arguments bind left to right, so slot order is statement order.
+    pub fn apply_arguments(
+        &mut self,
+        function: TermHandle,
+        arguments: &[TermHandle],
+    ) -> TermHandle {
+        let mut spine = function;
+        for &argument in arguments {
+            spine = self.insert(Term::Apply {
+                function: spine,
+                argument,
+            });
+        }
+        spine
+    }
+
     /// `relation left right`: every binary-relation elaboration ends on
     /// this pair of applications.
     pub fn apply_binary(
@@ -432,14 +450,7 @@ impl TermArena {
         left: TermHandle,
         right: TermHandle,
     ) -> TermHandle {
-        let function = self.insert(Term::Apply {
-            function: relation,
-            argument: left,
-        });
-        self.insert(Term::Apply {
-            function,
-            argument: right,
-        })
+        self.apply_arguments(relation, &[left, right])
     }
 
     pub fn get(&self, handle: TermHandle) -> Term {
