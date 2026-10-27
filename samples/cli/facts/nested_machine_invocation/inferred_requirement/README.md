@@ -63,4 +63,4 @@ all target/ABI requirements, prove portable evidence for every computed ranking,
 or qualify the entire declaration migration. The parent task retains the
 Omega-written parser/resolver, linked customer migration, full affected corpus
 migration and remaining invocation/custody/stack acceptance. Private requirements
-through opaque or nonterminal calls remain conservative rather than assumed.
+through opaque or effectful bodies remain conservative rather than assumed.

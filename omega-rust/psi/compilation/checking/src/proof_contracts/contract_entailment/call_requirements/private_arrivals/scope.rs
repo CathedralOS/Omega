@@ -6,11 +6,44 @@
 use super::{Arrival, ExpressionHandle, Machine, SymbolHandle};
 use typed_trees::references::TypedReferences;
 
+/// Specialization custody retains declaration ancestry after executable roots
+/// are flattened. It selects a scope, never imports a template's runtime facts.
+fn authored_machine(
+    program: &dyn crate::CheckingInput,
+    mut symbol: SymbolHandle,
+) -> Option<SymbolHandle> {
+    let mut seen = Vec::new();
+    while symbol.is_valid() && !seen.contains(&symbol) {
+        seen.push(symbol);
+        let Some(template) = program
+            .typed_program()
+            .executable_application_template(symbol)
+            .ok()?
+        else {
+            return Some(symbol);
+        };
+        if template == symbol {
+            return Some(symbol);
+        }
+        symbol = template;
+    }
+    None
+}
+
+pub(super) fn is_root(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    root: &Machine,
+) -> bool {
+    authored_machine(program, machine.symbol) == Some(root.symbol)
+}
+
 pub(super) fn lexical_root<'program>(
     program: &'program dyn crate::CheckingInput,
     machine: &Machine,
 ) -> Option<&'program Machine> {
-    let mut current = program.symbols.get(machine.symbol).parent;
+    let declaration = authored_machine(program, machine.symbol)?;
+    let mut current = program.symbols.get(declaration).parent;
     let mut root = None;
     let mut seen = Vec::new();
     while current.is_valid() {
@@ -32,11 +65,20 @@ fn belongs_to(
     root: SymbolHandle,
 ) -> bool {
     let mut seen = Vec::new();
-    while symbol.is_valid() && !seen.contains(&symbol) {
+    while symbol.is_valid() {
+        if program.symbols.get(symbol).kind == symbols::SymbolKind::Machine {
+            let Some(declaration) = authored_machine(program, symbol) else {
+                return false;
+            };
+            symbol = declaration;
+        }
+        if seen.contains(&symbol) {
+            return false;
+        }
+        seen.push(symbol);
         if symbol == root {
             return true;
         }
-        seen.push(symbol);
         symbol = program.symbols.get(symbol).parent;
     }
     false
@@ -51,7 +93,7 @@ pub(super) fn closed_arrivals(
         .machines()
         .iter()
         .filter(|machine| {
-            machine.symbol != root.symbol && belongs_to(program, machine.symbol, root.symbol)
+            !is_root(program, machine, root) && belongs_to(program, machine.symbol, root.symbol)
         })
         .collect();
     let destination = members

@@ -587,11 +587,6 @@ defines the complete product bar.
     live backing accounted for.
   - Migrate affected bundled/product Omega source, samples, and fixtures and
     delete the retired `state` parser/declaration/dispatch paths.
-    The Rust parser retirement and bulk source conversion expose proof helpers
-    that previously borrowed state-graph induction/arrival handling: ordinary
-    machine SCC ranking and complete call contracts must carry those proofs,
-    including bundled `Nat` and the core imports that consume it. Do not restore
-    a state compatibility parser or admit the rejected proofs as assumptions.
     The Omega-written parser/resolver and linked application repositories still
     need the corresponding declaration-model migration.
   Acceptance: source-to-Terminal/native execution agreement (`omega run --both`)

@@ -36,15 +36,6 @@ pub(super) fn prove(
     };
     let entry = program.machine_states(machine).first()?;
     let classification = crate::proof_only_classification(program);
-    let requires = super::machine_requires_facts(program, root);
-    let mut judge = if classification.is_proof_machine(program, root) {
-        StructuralJudge::from_requires(program, root, &requires, true)
-    } else {
-        StructuralJudge::from_runtime_requires(program, root, &requires)
-    };
-    if case_facts_only {
-        judge.restrict_to_case_facts();
-    }
     requirement.seen = false;
     requirement.proven = true;
     let mut observer = ArrivalRequirement {
@@ -54,20 +45,49 @@ pub(super) fn prove(
         observed: Vec::new(),
     };
     let mut diagnostics = Vec::new();
-    let recognized = super::recognize_structural_case_arms(
-        program,
-        root,
-        &judge,
-        &classification,
-        &mut diagnostics,
-        Some(&mut observer),
-    );
+    let mut recognized = true;
+    // Each executable application starts independently with arbitrary runtime
+    // inputs under its own applied contract. Knowing the source template locates
+    // that declaration group; it supplies neither caller values nor premises.
+    for arrival_root in program
+        .machines()
+        .iter()
+        .filter(|candidate| scope::is_root(program, candidate, root))
+    {
+        let Some(root_entry) = program.machine_states(arrival_root).first() else {
+            return Some(false);
+        };
+        if !super::super::structural_case_arms::prefix_site_is_reachable(
+            program, root_entry, &observer,
+        ) {
+            continue;
+        }
+        let requires = super::machine_requires_facts(program, arrival_root);
+        let mut judge = if classification.is_proof_machine(program, arrival_root) {
+            StructuralJudge::from_requires(program, arrival_root, &requires, true)
+        } else {
+            StructuralJudge::from_runtime_requires(program, arrival_root, &requires)
+        };
+        if case_facts_only {
+            judge.restrict_to_case_facts();
+        }
+        observer.root = arrival_root.symbol;
+        recognized &= super::recognize_structural_case_arms(
+            program,
+            arrival_root,
+            &judge,
+            &classification,
+            &mut diagnostics,
+            Some(&mut observer),
+        )
+        .is_some();
+    }
     if super::super::struct_trace() {
         eprintln!(
             "PRIVATE arrivals machine={} root={} recognized={} seen={} proven={} observed={} expected={} diagnostics={}",
             machine.name,
             root.name,
-            recognized.is_some(),
+            recognized,
             observer.requirement.seen,
             observer.requirement.proven,
             observer.observed.len(),
@@ -76,7 +96,7 @@ pub(super) fn prove(
         );
     }
     Some(
-        recognized.is_some()
+        recognized
             && diagnostics.is_empty()
             && observer.requirement.seen
             && observer.requirement.proven

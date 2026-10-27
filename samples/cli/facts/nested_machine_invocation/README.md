@@ -89,3 +89,10 @@ The parent outcome remains open: complete call-contract/custody acceptance,
 joint ranking and physical stack-bound evidence, product-compiler support,
 and migration/removal of all retired source-state paths are not established
 by this row. Existing unrelated baseline corpus regressions are not reclassified.
+
+[Private invocation requirements](inferred_requirement/README.md) retain required
+facts at every actual arrival, including ordinary hoisted results and terminal
+calls, without a duplicate handwritten requirement on each nested helper.
+That row also contains public-contract, callback escape and proof-erasure
+controls. Its host observations are recorded separately from this row's earlier
+Windows qualification.

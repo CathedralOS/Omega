@@ -1891,7 +1891,7 @@ fn recognize_structural_state_leaves_from<'a>(
 /// Reachability is over exact call identities, not membership in the root
 /// machine's former state list. This is only a pruning query: the path walker
 /// still checks each entered body and substitutes every actual argument.
-fn prefix_site_is_reachable(
+pub(super) fn prefix_site_is_reachable(
     program: &dyn crate::CheckingInput,
     source: &typed_trees::state::State,
     observer: &dyn StructuralPrefixVisitor,
