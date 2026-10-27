@@ -850,7 +850,7 @@ def main() -> None:
         "byte-predicates-apply-to-byte-views",
         b'domain u64::Odd\nrequires valid_utf8(self);',
         "NoMatchingMachine",
-        b"valid_utf8(value)",
+        b"valid_utf8(self)",
     )
     rejected(
         program,

@@ -1541,7 +1541,7 @@ def machine_form_cases(program: str) -> None:
         contracts=((1, *span(source, b"Step", 2), 1, 0, 1, 1, 0, 0, 0, 2,
                     *span(source, b"where machine Step(value: u8) requires value > 0 ensures value < 9;")),),
         clauses=(
-            clause_row(REQUIRES, (0, 0), 2, span(source, b"requires self > 0"), True),
+            clause_row(REQUIRES, (0, 0), 2, span(source, b"requires value > 0"), True),
             clause_row(ENSURES, (0, 0), 5, span(source, b"ensures value < 9"), True),
             clause_row(ENSURES, (0, 0), 8, span(source, b"ensures v > 1"), True),
         ),

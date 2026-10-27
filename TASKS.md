@@ -208,10 +208,10 @@ retired-syntax deletions to completion.
 - **DOMAIN-DEFAULT-PREDICATE-UNIFICATION.** Implement the owner-ratified
   [predicate subject](wiki/spec/language/domains.md#declaration-and-membership)
   and [case-dependent default domains](wiki/spec/language/data_and_literals.md#case-constraints).
-  - Constrain `self` to data `where` and domain `requires`, remove explicit
-    domain subject binders and case-level `where` (and their parallel internal
-    predicate paths), and migrate library, samples, and fixtures in the same
-    change.
+  - Complete product data-`where self` resolution and remove case-level
+    `where` with its parallel internal predicate paths; migrate their library,
+    sample and fixture users in the same change. Repair nested/inherited scalar
+    domain result establishment, including qualified constant destinations.
   - Carry one general predicate representation through formation, construction,
     calls, matching, coverage, writes, and erasure so case membership plus the
     established domain recovers type equality and guarded payload bounds while

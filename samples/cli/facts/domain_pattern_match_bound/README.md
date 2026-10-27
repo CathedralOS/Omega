@@ -20,6 +20,34 @@ The root [main.omg](main.omg) and its four-target [build.omg](build.omg) retain 
 
 The [ordered-effects control](controls/ordered_effects/main.omg) evaluates a computed record subject once, chooses the first of overlapping domains and executes only the selected effectful arm. [Wrong-carrier](controls/wrong_carrier/main.omg) and [missing-coverage](controls/missing_coverage/main.omg) controls preserve exact carrier and exhaustiveness obligations.
 
+## Logical subject migration
+
+The same row also establishes **DOMAIN-DEFAULT-PREDICATE-UNIFICATION**'s
+retirement of authored domain subject binders. `Cell::Ready` now states
+`requires self.value >= 73u64`; `self` names the exact selected value and
+creates no runtime receiver or authority. Each twin changes only the bound to
+72. The target place uses four ordinary named implementations, each selected
+by its target's Build entry, as required by the ratified target-selection model.
+
+Optimized producer `908c7c891c76347f6c9406f45e8e222fc5d23a3a` executes the root
+and all nine public places with native and Terminal exit 0 on macOS ARM64;
+all nine pinned positives also agree in the corpus, and all nine twins reject
+their exact-arithmetic obligation. Foreign-host execution is not claimed by
+this observation. The qualification record retains the producer, accepted
+replay inputs, raw streams and canonical Terminal products.
+
+The [constant control](controls/logical_subject_constants/main.omg) covers
+scalar, generic, indexed and record subjects independently of same-spelled outer
+constants; its [twin](controls/logical_subject_constants/invalid/main.omg)
+changes only the scalar initializer from 3 to 9. Retired-binder and machine-scope
+controls live under `tests/omega/fail/domains/`.
+
+The parent remains open for case-dependent defaults, typed extraction, guarded
+payload formation and matching, mutation restoration and removal of case-local
+predicate paths. Product data-`where self` resolution and the baseline
+`named_const_subject_binding` nested/inherited scalar result-domain refusals
+remain engineering work; this syntax migration does not claim to complete them.
+
 ## Current failure and retained evidence
 
 At fixed baseline `ccc9bf848faf12acabb9762ec570c7572b90cc5d`, the optimized shared producer rejects the unchanged root with `match pattern does not select a record or case of its subject's exact carrier`, followed by the missing lower-bound proof at `selected - 73u64`. The public command is `omega run --both samples/cli/facts/domain_pattern_match_bound/main.omg`; it must produce actual native and Terminal Psi exit 0. Neither engine executes at the recorded baseline refusal. The immutable failed qualification receipt and canonical implementation context are retained by claim `3cb73abd75a24eecaa6e25fddfe08b5a`.
