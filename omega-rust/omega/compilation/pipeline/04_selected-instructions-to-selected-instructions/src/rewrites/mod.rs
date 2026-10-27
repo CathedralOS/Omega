@@ -393,6 +393,36 @@ pub(crate) fn integer_copy_row<'environment, E>(
     Ok(row)
 }
 
+/// A rewrite's candidate carrier in the emitted two-operand form every
+/// pre-allocation rule admits: exactly two operands — a `Use` at position 0 and
+/// `second_access` at position 1 — carrying no implicit unit traffic, no
+/// clobber, and no fixed view, tie, or early clobber riding along that the
+/// rewrite would silently keep on a malformed shape. Returns the two operands
+/// so the caller binds their registers and classes to its own roster; a rule
+/// with an extra condition on either operand checks it after.
+pub(crate) fn carrier_pair(
+    instruction: &SelectedInstruction,
+    second_access: RegisterOperandAccess,
+) -> Option<(&SelectedOperand, &SelectedOperand)> {
+    let [first, second] = instruction.operands.as_slice() else {
+        return None;
+    };
+    if !instruction.implicit_uses.is_empty()
+        || !instruction.implicit_defs.is_empty()
+        || !instruction.clobbers.is_empty()
+        || first.operand != 0
+        || first.access != RegisterOperandAccess::Use
+        || second.operand != 1
+        || second.access != second_access
+        || instruction.operands.iter().any(|operand| {
+            operand.fixed_view.is_some() || operand.tied_to.is_some() || operand.early_clobber
+        })
+    {
+        return None;
+    }
+    Some((first, second))
+}
+
 /// The cone-propagation bound every walked family's measured-step contract
 /// derives from a function and its successor edges — the audits share this
 /// arithmetic verbatim and then add their own per-unit and setup terms.
