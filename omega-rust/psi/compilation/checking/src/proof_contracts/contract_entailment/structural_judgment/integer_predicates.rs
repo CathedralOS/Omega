@@ -41,7 +41,7 @@ struct IntegerProjectionRegistrations {
     engine: (usize, usize, usize, usize),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct ObservedOperation {
     operator: BinaryOperator,
     primitives: [PrimitiveType; 2],
@@ -324,7 +324,13 @@ impl StructuralJudge<'_> {
             carrier_bounds: Vec::new(),
             installed_carrier_bounds: 0,
         };
+        if std::env::var_os("OMEGA_TRACE_ARITHMETIC_FIT").is_some() {
+            eprintln!("TRACE_GOAL target={target:?} term={value:?}");
+        }
         let Some(value) = self.mathematical_value(&value, &mut observations, 0) else {
+            if std::env::var_os("OMEGA_TRACE_ARITHMETIC_FIT").is_some() {
+                eprintln!("TRACE_UNAVAILABLE goal-projection");
+            }
             return CarrierFit::Unknown;
         };
         let (minimum, maximum, exclusive) = if target == PrimitiveType::Addr {
@@ -358,6 +364,15 @@ impl StructuralJudge<'_> {
         let mut premises = self.observed_integer_premises(&mut observations);
         if !observations.install_premises(&mut premises) || !observations.admitted(goal_operations)
         {
+            if std::env::var_os("OMEGA_TRACE_ARITHMETIC_FIT").is_some() {
+                eprintln!(
+                    "TRACE_UNADMITTED value={value:?} operations={:?}",
+                    observations.operations
+                );
+            }
+            observations
+                .engine
+                .trace_bound_state("unadmitted-operation-or-premise");
             return CarrierFit::Unknown;
         }
         observations.engine.integer_value_fit(
@@ -453,8 +468,10 @@ impl StructuralJudge<'_> {
         let admitted = retained
             .into_iter()
             .filter(|(comparison, operations)| {
-                matches!(comparison.0, BinaryOperator::Equal | BinaryOperator::NotEqual)
-                    && observations.admitted(operations.clone())
+                matches!(
+                    comparison.0,
+                    BinaryOperator::Equal | BinaryOperator::NotEqual
+                ) && observations.admitted(operations.clone())
             })
             .map(|(comparison, _)| comparison)
             .collect::<Vec<_>>();
@@ -623,8 +640,7 @@ impl StructuralJudge<'_> {
                 return Some(0);
             }
             if matches!(ge_eq_judgment, StructuralJudgment::Unknown) {
-                let resolved =
-                    resolved_ge.unwrap_or_else(|| self.resolve_at(greater_or_equal, 1));
+                let resolved = resolved_ge.unwrap_or_else(|| self.resolve_at(greater_or_equal, 1));
                 if self.proves_observed_integer_boolean(&resolved, 1) == Some(true) {
                     return Some(0);
                 }
@@ -953,8 +969,10 @@ impl StructuralJudge<'_> {
         let admitted = retained
             .into_iter()
             .filter(|(comparison, operations)| {
-                matches!(comparison.0, BinaryOperator::Equal | BinaryOperator::NotEqual)
-                    && observations.admitted(operations.clone())
+                matches!(
+                    comparison.0,
+                    BinaryOperator::Equal | BinaryOperator::NotEqual
+                ) && observations.admitted(operations.clone())
             })
             .map(|(comparison, _)| comparison)
             .collect();

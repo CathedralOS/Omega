@@ -358,6 +358,12 @@ impl<'program> Engine<'program> {
                     if from == to {
                         if !combined.is_negative() && !combined.is_zero() {
                             self.requires_unsatisfiable = true;
+                            if std::env::var_os("OMEGA_TRACE_ARITHMETIC_FIT").is_some() {
+                                eprintln!(
+                                    "TRACE_CYCLE from={from} via={via} to={to} first={first} second={second}"
+                                );
+                            }
+                            self.trace_bound_state("flag:positive-cycle");
                         }
                         continue;
                     }
