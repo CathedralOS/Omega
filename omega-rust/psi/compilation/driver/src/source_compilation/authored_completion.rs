@@ -16,7 +16,7 @@ pub(super) struct AuthoredCompletions {
 }
 
 struct Completion {
-    input: SourceCompletionInput,
+    input: Arc<SourceCompletionInput>,
     source: CompletedSource,
 }
 
@@ -44,7 +44,7 @@ impl AuthoredCompletions {
 
     pub(super) fn retain(
         &self,
-        input: SourceCompletionInput,
+        input: Arc<SourceCompletionInput>,
         source: &CompletedSource,
     ) -> Result<(), Vec<Diagnostic>> {
         // A tolerated failed probe still has its original source outcome, but

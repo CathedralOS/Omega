@@ -26,6 +26,7 @@ language-core = { path = "../../foundation/language-core" }
 language-semantics = { path = "../../foundation/language-semantics" }
 layout-plans = { path = "../../foundation/layout-plans" }
 numerics = { path = "../../foundation/numerics" }
+phase-profile = { path = "../../foundation/phase-profile" }
 source = { path = "../../foundation/source" }
 symbol-resolved-trees = { path = "../representations/symbol-resolved-trees" }
 symbols = { path = "../../foundation/symbols" }

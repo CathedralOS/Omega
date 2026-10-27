@@ -130,11 +130,9 @@ pub fn desugar_placed_views(
     syntax: &mut SyntaxTrees,
     context: crate::BuildTimeSources<'_>,
 ) -> Result<Vec<PlacedViewRecord>, Vec<Diagnostic>> {
-    let crate::BuildTimeSources {
-        sources,
-        source_scoped_top_level_bindings,
-        selection_authority,
-    } = context;
+    let sources = context.sources.clone();
+    let source_scoped_top_level_bindings = context.source_scoped_top_level_bindings;
+    let selection_authority = context.selection_authority.clone();
     let owner_requests = syntax
         .root_items()
         .filter_map(|item| match item {
@@ -154,17 +152,14 @@ pub fn desugar_placed_views(
                 .iter()
                 .map(|(_, owner)| owner.clone())
                 .collect::<Vec<_>>(),
+            context.retained_base(),
         )?;
     let selected_owners = owner_requests
         .into_iter()
         .zip(owner_declarations)
         .map(|((machine, _), owner)| (machine, owner))
         .collect::<Vec<_>>();
-    let mut selected_arguments = applied_results::retain_applied_results(
-        syntax,
-        sources.clone(),
-        source_scoped_top_level_bindings,
-    )?;
+    let mut selected_arguments = applied_results::retain_applied_results(syntax, &context)?;
     // Header selection retains nominal custody without executing a body.
     // Generated result demands already carry their selected template identity.
     let requests = syntax
@@ -218,6 +213,7 @@ pub fn desugar_placed_views(
                 .iter()
                 .map(|(_, name)| name.clone())
                 .collect::<Vec<_>>(),
+            context.retained_base(),
         )?;
     for ((reference, _), declaration) in names.into_iter().zip(declarations) {
         selected_arguments.push(applied_results::SelectedArgument {
@@ -254,18 +250,17 @@ pub fn desugar_placed_views(
         probe,
         sources.clone(),
         source_scoped_top_level_bindings,
-        None,
+        context.retained_base(),
     )?;
     let probe_plan_laid = crate::desugar_plan_laid_value_types(&mut probe)?;
-    let frontier = syntax_trees_to_symbol_resolved_trees::resolve_deferred(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-            syntax: probe,
-            sources: sources.clone(),
-            top_level_bindings: source_scoped_top_level_bindings.to_vec(),
-        },
+    let frontier =
+        syntax_trees_to_symbol_resolved_trees::resolve_deferred(context.resolution_request(probe))?;
+    let (mut typed, domain, selected_layouts) = prepare_placement_probe(
+        frontier,
+        &applications,
+        &probe_plan_laid,
+        context.predecessor.clone(),
     )?;
-    let (mut typed, domain, selected_layouts) =
-        prepare_placement_probe(frontier, &applications, &probe_plan_laid)?;
     crate::const_evaluation::const_lengths::evaluate_const_array_lengths_in(
         &mut typed,
         selection_authority.clone(),
@@ -356,6 +351,7 @@ fn prepare_placement_probe(
     frontier: syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
     applications: &[Application],
     records: &[crate::PlanLaidRecord],
+    predecessor: Option<symbol_resolved_trees_to_typed_trees::SeededTypingBase>,
 ) -> Result<(TypedTrees, EvaluationDomain, Vec<crate::PlanLaidRecord>), Vec<Diagnostic>> {
     let mut machines = applications
         .iter()
@@ -391,6 +387,7 @@ fn prepare_placement_probe(
             &machines,
             &[],
             &declarations,
+            predecessor.clone(),
         )?;
         let previous_count = selected.len();
         for record in records {

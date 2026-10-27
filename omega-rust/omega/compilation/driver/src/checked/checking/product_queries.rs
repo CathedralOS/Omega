@@ -8,6 +8,7 @@ use package_compilation::source_imports::{ProductQueryDependency, ProductQueryIn
 /// inputs, never source IRs or a synthetic completed package. Repeated queries
 /// over the same inputs share their declaration frontier.
 pub struct ProductQueries {
+    preparation: compilation_products::SourcePreparation,
     sources: Option<package_compilation::source_assembly::DeferredProductSources>,
     initial: psi_compiler::SourceContinuation,
     inputs: Option<package_compilation::PackageCompilationInputs>,
@@ -22,6 +23,7 @@ impl ProductQueries {
         execution_profile: Option<target::TargetProfile>,
     ) -> Self {
         Self {
+            preparation: frontier.preparation.clone(),
             sources: frontier
                 .product_sources
                 .as_ref()
@@ -47,9 +49,14 @@ impl ProductQueries {
             let source = match &self.sources {
                 Some(sources) => {
                     let mut timings = artifacts::compile_timings::CompileTimings::default();
-                    let syntax = sources.assemble_query(&inputs, &mut timings)?;
+                    let syntax = sources.assemble_query(
+                        &inputs,
+                        &mut timings,
+                        &mut *self.preparation.catalogue()?,
+                    )?;
                     super::build_continuation::lower_typed_frontier(
-                        syntax.sources.len(),
+                        self.preparation.clone(),
+                        syntax.sources.selected_files().count(),
                         syntax,
                         self.execution_profile,
                         self.inputs.as_ref(),
@@ -77,24 +84,10 @@ impl ProductQueries {
             .symbols
             .source_map()
             .ok_or_else(|| refuse("Product query has no source custody"))?;
-        let mut matches = source_map.files().filter(|candidate| {
-            candidate.path == author.path
-                && candidate.source == author.source
-                && candidate.package_root == author.package_root
-                && candidate.package_identity == author.package_identity
-                && candidate.origin == author.origin
-                && candidate.resolution_stratum == author.resolution_stratum
-                && candidate.dependency_scope == author.dependency_scope
-        });
-        let selected = matches
-            .next()
-            .ok_or_else(|| refuse("Product query author is absent from the query frontier"))?;
-        if matches.next().is_some() {
-            return Err(refuse(
-                "Product query author is ambiguous in the query frontier",
-            ));
-        }
-        let occurrence = source::SourceSpan::new(selected.source_id, query.occurrence.span);
+        let selected = source_map.rejoined_source_id(author).ok_or_else(|| {
+            refuse("Product query author lost its admitted source correspondence")
+        })?;
+        let occurrence = source::SourceSpan::new(selected, query.occurrence.span);
         match query.operation {
             psi_compiler::TerminalBuildQueryOperation::SchemaPath
             | psi_compiler::TerminalBuildQueryOperation::ProviderPath => Err(refuse(

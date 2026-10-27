@@ -859,11 +859,15 @@ impl SyntaxCopy<'_> {
         mut map: impl FnMut(&mut Self, S) -> T,
         mut append: impl FnMut(&mut Self, T) -> Handle<T>,
     ) -> HandleSpan<T> {
+        // Recursive copies may allocate into the destination arena too. Finish
+        // every child before publishing the contiguous span of outer values.
+        let mapped = values
+            .into_iter()
+            .map(|value| map(self, value))
+            .collect::<Vec<_>>();
         let mut start = Handle::invalid();
         let mut count = 0u32;
-
-        for value in values {
-            let value = map(self, value);
+        for value in mapped {
             let handle = append(self, value);
             if count == 0 {
                 start = handle;

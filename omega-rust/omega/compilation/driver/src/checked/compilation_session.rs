@@ -29,6 +29,7 @@ use std::sync::Arc;
 
 #[derive(Default)]
 pub struct CompilationSession {
+    preparation: compilation_products::SourcePreparation,
     sources: Vec<PreparedSource>,
     pure_builds: build_evaluation::PureBuildCompilation,
     checks: RetainedCompilationChecks,
@@ -232,8 +233,13 @@ impl CompilationSession {
         }) {
             return Ok(prepared.source.fork());
         }
-        let mut source =
-            prepare_checked_source(root_path, inputs.clone(), capture, collect_timings)?;
+        let mut source = prepare_checked_source(
+            root_path,
+            inputs.clone(),
+            capture,
+            collect_timings,
+            self.preparation.clone(),
+        )?;
         self.sources.push(PreparedSource {
             root: root_path.to_path_buf(),
             inputs,

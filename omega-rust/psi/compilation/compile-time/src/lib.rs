@@ -87,8 +87,8 @@ pub use reflection::{
 };
 
 pub use build_time_evaluation::{
-    AuthorizedSelection, BuildTimeEvaluationRequest, BuildTimeSourceContext, BuildTimeSources,
-    EvaluatedPreCheck, PreCheckEvaluation, PreResolutionEvaluation, SelectedBuildTimeOperators,
+    AuthorizedSelection, BuildTimeEvaluationRequest, BuildTimeSources, EvaluatedPreCheck,
+    PreCheckEvaluation, PreResolutionEvaluation, SelectedBuildTimeOperators,
     evaluate_pre_resolution,
 };
 

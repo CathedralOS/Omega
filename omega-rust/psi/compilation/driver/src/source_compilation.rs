@@ -10,6 +10,9 @@ use build_time_evaluation::{BuildTimeSelectionAuthority, PreCheckEvaluation};
 use diagnostics::Diagnostic;
 use std::sync::Arc;
 
+mod activation;
+use activation::SourceContext;
+
 mod authored_completion;
 use authored_completion::AuthoredCompletions;
 
@@ -17,6 +20,11 @@ use authored_completion::AuthoredCompletions;
 #[derive(Clone)]
 pub struct SourceCompilationRequest {
     pub syntax: syntax_trees::SyntaxTrees,
+    pub source_items: Vec<(source::SourceId, Vec<syntax_trees::item::ItemHandle>)>,
+    /// Consumer-owned sources are fresh work even when dependency coordinates match.
+    pub root_sources: Vec<source::SourceId>,
+    pub frontends: SourceFrontends,
+    pub build_helper_identity: &'static str,
     pub sources: Arc<source::SourceMap>,
     pub top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     pub selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
@@ -26,7 +34,7 @@ pub struct SourceCompilationRequest {
 /// Cloning retains a reusable compilation input, never permission to execute Build.
 #[derive(Clone)]
 pub struct SourceContinuation {
-    input: SourceCompletionInput,
+    input: Arc<SourceCompletionInput>,
     completions: AuthoredCompletions,
 }
 
@@ -36,6 +44,7 @@ struct SourceCompletionInput {
     typing: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
     pending_bodies: syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
     pending_pre_checks: Vec<PreCheckEvaluation>,
+    context: SourceContext,
 }
 
 /// The mutable inputs an independently admitted Build evaluator consumes.
@@ -70,76 +79,176 @@ pub struct PreparedSource {
 
 impl SourceCompilationRequest {
     pub fn prepare(
-        self,
+        mut self,
         observer: &mut impl PsiCompilationObserver,
     ) -> Result<SourceContinuation, Vec<Diagnostic>> {
+        let _profile = phase_profile::guard("psi.source.prepare");
+        let context = SourceContext {
+            bindings: self.top_level_bindings.clone(),
+            authority: self.selection_authority.clone(),
+            build_helper_identity: self.build_helper_identity,
+        };
+        let activation = activation::select_retained_source(&self, &context, observer)?;
+        if let Some(activation) = &activation {
+            activation.remove_retained_syntax(&mut self.syntax, &self.source_items);
+        }
+        let retained_program = activation
+            .as_ref()
+            .map(|activation| activation.typing.typed().clone());
+        let (mut retained, mut pending_pre_checks) = match activation {
+            Some(activation) => (Some(activation.typing), activation.pre_checks),
+            None => (None, Vec::new()),
+        };
+        let resolved_base = retained
+            .as_mut()
+            .map(|typing| typing.resolved_base_for_extension())
+            .transpose()?
+            .map(Arc::new);
         let evaluated = build_time_evaluation::evaluate_pre_resolution(
             build_time_evaluation::BuildTimeEvaluationRequest {
                 syntax_trees: self.syntax,
-                source_context: Some(build_time_evaluation::BuildTimeSourceContext {
-                    sources: Arc::clone(&self.sources),
+                source_context: build_time_evaluation::BuildTimeSources {
+                    sources: Some(Arc::clone(&self.sources)),
                     source_scoped_top_level_bindings: &self.top_level_bindings,
                     selection_authority: self.selection_authority,
-                    retained_base: None,
-                }),
+                    predecessor: retained.clone(),
+                },
             },
         )?;
         let (syntax, pre_check) = evaluated.into_syntax_and_pre_check();
-        let mut pending_bodies = observer.record_result(PsiCompilationStage::Resolution, || {
-            syntax_trees_to_symbol_resolved_trees::resolve_deferred(
-                syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                    syntax,
-                    sources: Some(self.sources),
-                    top_level_bindings: self.top_level_bindings,
-                },
-            )
-        })?;
+        let (mut typing, mut pending_bodies) =
+            if let (Some(typing), Some(base)) = (retained, resolved_base) {
+                let extension = observer.record_result(PsiCompilationStage::Resolution, || {
+                    syntax_trees_to_symbol_resolved_trees::resolve_deferred_extension(
+                        syntax_trees_to_symbol_resolved_trees::ExtensionRequest {
+                            base: Arc::unwrap_or_clone(base),
+                            syntax,
+                            sources: self.sources,
+                            top_level_bindings: self.top_level_bindings,
+                        },
+                    )
+                })?;
+                observer.record_result(PsiCompilationStage::Typing, || {
+                    typing.append_deferred(extension)
+                })?
+            } else {
+                let mut frontier =
+                    observer.record_result(PsiCompilationStage::Resolution, || {
+                        syntax_trees_to_symbol_resolved_trees::resolve_deferred(
+                            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                                syntax,
+                                sources: Some(self.sources),
+                                top_level_bindings: self.top_level_bindings,
+                                retained_base: None,
+                            },
+                        )
+                    })?;
+                loop {
+                    let selected = build_bodies(&frontier);
+                    if selected.is_empty() {
+                        break;
+                    }
+                    frontier = observer
+                        .record_result(PsiCompilationStage::Resolution, || {
+                            frontier.complete_machine_bodies(&selected)
+                        })?
+                        .into_resolved_frontier();
+                }
+                let typing = observer.record_result(PsiCompilationStage::Typing, || {
+                symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_to_seeded_base(
+                    frontier.shared_trees(),
+                ).map_err(|diagnostic| vec![diagnostic])
+            })?;
+                (typing, frontier)
+            };
         // Build may use its admitted declaration context. Product bodies stay
         // pending: completing them here would demand unrelated constants/layouts.
         loop {
-            let build_bodies = pending_bodies
-                .pending_machines()
-                .filter(|symbol| {
-                    pending_bodies
-                        .trees()
-                        .symbols
-                        .symbol_provenance_source_span(*symbol)
-                        .and_then(|span| pending_bodies.trees().symbols.source_file(span))
-                        .is_some_and(|file| {
-                            file.origin == source::SourceOrigin::Toolchain
-                                || file.dependency_scope == source::DependencyScope::Build
-                        })
-                })
-                .collect::<Vec<_>>();
+            let build_bodies = build_bodies(&pending_bodies);
             if build_bodies.is_empty() {
                 break;
             }
-            pending_bodies = observer
-                .record_result(PsiCompilationStage::Resolution, || {
-                    pending_bodies.complete_machine_bodies(&build_bodies)
-                })?
-                .into_resolved_frontier();
+            pending_bodies = typing.join_prepared_allocations(pending_bodies)?;
+            let completed = observer.record_result(PsiCompilationStage::Resolution, || {
+                pending_bodies.complete_machine_bodies(&build_bodies)
+            })?;
+            (typing, pending_bodies) = observer
+                .record_result(PsiCompilationStage::Typing, || {
+                    typing.complete_bodies(completed)
+                })?;
             // Completion can append attached implementations. Those use the
             // same scope test, not a second Product declaration selection.
         }
-        let typing = observer.record_result(PsiCompilationStage::Typing, || {
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_to_seeded_base(
-                pending_bodies.shared_trees(),
-            )
-            .map_err(|diagnostic| vec![diagnostic])
-        })?;
+        let pre_check = match retained_program {
+            Some(previous) => pre_check.exclude_completed_work(typing.typed(), &previous)?,
+            None => pre_check,
+        };
+        pending_pre_checks.push(pre_check);
+        // Only the canonical pre-Build input is shared. A Build mutation forks
+        // the whole input, including pending recipes; probe products never enter here.
+        let input = Arc::new(SourceCompletionInput {
+            typing,
+            pending_bodies,
+            pending_pre_checks,
+            context,
+        });
+        self.frontends.retain(Arc::clone(&input))?;
         Ok(SourceContinuation {
-            input: SourceCompletionInput {
-                typing,
-                pending_bodies,
-                pending_pre_checks: vec![pre_check],
-            },
+            input,
             completions: Default::default(),
         })
     }
 }
 
 impl SourceContinuation {
+    /// Complete only the old bodies this consumer actually selected, retaining
+    /// their original syntax/ordinals until completion. Lookup changes first:
+    /// checking references afterward cannot repair a stale ambiguity diagnostic.
+    fn complete_selected(
+        input: Arc<SourceCompletionInput>,
+        sources: Arc<source::SourceMap>,
+        bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+        observer: &mut impl PsiCompilationObserver,
+    ) -> Result<
+        (
+            symbol_resolved_trees_to_typed_trees::SeededTypingBase,
+            Vec<PreCheckEvaluation>,
+        ),
+        Vec<Diagnostic>,
+    > {
+        let (mut typing, mut pending_bodies) = input.typing.clone().activate_body_completion(
+            input.pending_bodies.clone(),
+            Arc::clone(&sources),
+            bindings,
+        )?;
+        loop {
+            pending_bodies = typing.join_prepared_allocations(pending_bodies)?;
+            let selected = pending_bodies
+                .pending_machines()
+                .filter(|symbol| {
+                    pending_bodies
+                        .trees()
+                        .symbols
+                        .symbol_provenance_source_span(*symbol)
+                        .is_some_and(|span| sources.source_is_selected(span.source_id))
+                })
+                .collect::<Vec<_>>();
+            if selected.is_empty() {
+                break;
+            }
+            let resolved = observer.record_result(PsiCompilationStage::Resolution, || {
+                pending_bodies.complete_machine_bodies(&selected)
+            })?;
+            (typing, pending_bodies) = observer
+                .record_result(PsiCompilationStage::Typing, || {
+                    typing.complete_bodies(resolved)
+                })?;
+        }
+        // Pre-checks may depend on the receiving Build's representation choices.
+        // Keep their exact work; projection and ordinary evaluation follow later.
+        Ok((typing, input.pending_pre_checks.clone()))
+    }
+
     /// Describe a data declaration without checking or executing Product bodies.
     pub fn describe_schema(
         &self,
@@ -210,9 +319,10 @@ impl SourceContinuation {
     }
 
     pub fn build_input(&mut self) -> BuildSourceInput<'_> {
+        let input = Arc::make_mut(&mut self.input);
         BuildSourceInput {
-            typed: self.input.typing.typed_mut(),
-            pre_checks: &mut self.input.pending_pre_checks,
+            typed: input.typing.typed_mut(),
+            pre_checks: &mut input.pending_pre_checks,
         }
     }
 
@@ -221,19 +331,21 @@ impl SourceContinuation {
         self,
         observer: &mut impl PsiCompilationObserver,
     ) -> Result<CompletedSource, Vec<Diagnostic>> {
+        let _profile = phase_profile::guard("psi.source.complete_authored");
         if let Some(source) = self.completions.find(&self.input)? {
             return Ok(source);
         }
         let input = self.input.clone();
         let Self {
-            input:
-                SourceCompletionInput {
-                    mut typing,
-                    mut pending_bodies,
-                    pending_pre_checks,
-                },
+            input: owned_input,
             completions,
         } = self;
+        let SourceCompletionInput {
+            mut typing,
+            mut pending_bodies,
+            pending_pre_checks,
+            context: _,
+        } = Arc::unwrap_or_clone(owned_input);
         loop {
             // Build may append concrete declarations. Join their exact suffix
             // before body resolution allocates more symbols in the same owner.
@@ -278,6 +390,7 @@ impl CompletedSource {
     }
 
     pub fn finish(self) -> PreparedSource {
+        let _profile = phase_profile::guard("psi.source.finish");
         PreparedSource {
             accounting: self.accounting,
             typed: self.typing.into_typed(),
@@ -293,17 +406,18 @@ impl CompletedSource {
         extension: SourceExtensionRequest,
         observer: &mut impl PsiCompilationObserver,
     ) -> Result<PreparedSource, Vec<Diagnostic>> {
+        let _profile = phase_profile::guard("psi.source.extend");
         let wire_schema_frontier = self.typing.typed().wire_schemas().len();
         let resolved_base = self.typing.resolved_base_for_extension()?;
         let (syntax, pre_checks) =
             build_time_evaluation::PreResolutionEvaluation::evaluate_extension(
                 extension.units,
                 extension.first_source,
-                build_time_evaluation::BuildTimeSourceContext {
-                    sources: Arc::clone(&extension.sources),
+                build_time_evaluation::BuildTimeSources {
+                    sources: Some(Arc::clone(&extension.sources)),
                     source_scoped_top_level_bindings: &[],
                     selection_authority: Some(extension.selection_authority),
-                    retained_base: Some(&resolved_base),
+                    predecessor: Some(self.typing.clone()),
                 },
             )?;
         let seeded = observer.record_result(PsiCompilationStage::Resolution, || {
@@ -316,9 +430,11 @@ impl CompletedSource {
                 },
             )
         })?;
-        let mut typed = observer.record_result(PsiCompilationStage::Typing, || {
-            self.typing.lower_extension(seeded)
-        })?;
+        let mut typed = observer
+            .record_result(PsiCompilationStage::Typing, || {
+                self.typing.lower_extension(seeded)
+            })?
+            .into_typed();
         self.pending_pre_checks
             .extend(PreCheckEvaluation::evaluate_extension_or_defer(
                 pre_checks,
@@ -336,6 +452,7 @@ impl CompletedSource {
 impl SourceCompletionInput {
     fn same_completion_input(&self, other: &Self) -> bool {
         self.typing == other.typing
+            && self.context.same_input(&other.context)
             && self.pending_bodies == other.pending_bodies
             && self.pending_pre_checks.len() == other.pending_pre_checks.len()
             && self
@@ -344,4 +461,54 @@ impl SourceCompletionInput {
                 .zip(&other.pending_pre_checks)
                 .all(|(left, right)| left.same_pending_work(right))
     }
+}
+
+/// Invocation-owned canonical frontend inputs. Retention supplies declarations
+/// and pending bodies, never a language judgment, Build authority or free charge.
+/// Stored inputs contain no reference to this container, avoiding ownership cycles.
+#[derive(Clone, Default)]
+pub struct SourceFrontends {
+    entries: Arc<std::sync::Mutex<Vec<Arc<SourceCompletionInput>>>>,
+}
+impl SourceFrontends {
+    fn snapshots(&self) -> Result<Vec<Arc<SourceCompletionInput>>, Vec<Diagnostic>> {
+        self.entries
+            .lock()
+            .map(|entries| entries.clone())
+            .map_err(|_| {
+                vec![Diagnostic::error(
+                    "source frontend retention owner is poisoned",
+                )]
+            })
+    }
+    fn retain(&self, input: Arc<SourceCompletionInput>) -> Result<(), Vec<Diagnostic>> {
+        self.entries
+            .lock()
+            .map_err(|_| {
+                vec![Diagnostic::error(
+                    "source frontend retention owner is poisoned",
+                )]
+            })?
+            .push(input);
+        Ok(())
+    }
+}
+
+fn build_bodies(
+    frontier: &syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
+) -> Vec<symbols::SymbolHandle> {
+    frontier
+        .pending_machines()
+        .filter(|symbol| {
+            frontier
+                .trees()
+                .symbols
+                .symbol_provenance_source_span(*symbol)
+                .and_then(|span| frontier.trees().symbols.source_file(span))
+                .is_some_and(|file| {
+                    file.origin == source::SourceOrigin::Toolchain
+                        || file.dependency_scope == source::DependencyScope::Build
+                })
+        })
+        .collect()
 }

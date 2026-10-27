@@ -90,6 +90,18 @@ pub(crate) fn desugar_generic_data_instances_in(
     selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     domain: GenericDataWorkDomain<'_>,
 ) -> Result<(), Vec<Diagnostic>> {
+    // An empty completion owns no applications or declarations. Retained
+    // syntax is lookup context, not work to reselect under this consumer's
+    // narrower active namespace. New descendants require an initial demand.
+    if let GenericDataWorkDomain::Selected {
+        type_roots,
+        declarations,
+    } = domain
+        && type_roots.is_empty()
+        && declarations.is_empty()
+    {
+        return Ok(());
+    }
     let work = SynthesisWork::new(syntax, domain);
     // Attachments belong to the carrier selected in their declaring source,
     // not to every generic declaration with the same leaf spelling.
@@ -337,9 +349,13 @@ pub(crate) fn desugar_generic_data_instances_in(
         let Some(ClosedArgumentIdentity::Instance(template, argument_identity)) =
             super::closed_argument_identity(syntax, selection, origin, false)
         else {
-            return Err(vec![Diagnostic::error(
-                "existing generic instance lost its exact template and argument identity",
-            )]);
+            return Err(vec![
+                Diagnostic::error(format!(
+                    "existing generic instance `{}` lost its exact template and argument identity",
+                    definition.name.as_str(syntax),
+                ))
+                .with_source_span(definition.name.source_span()),
+            ]);
         };
         let TypeReferenceNode::Generic { arguments, .. } =
             syntax.type_references.type_reference(origin)

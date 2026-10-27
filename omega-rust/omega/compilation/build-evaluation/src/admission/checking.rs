@@ -164,7 +164,7 @@ pub(crate) fn prepare_checked_build(
     // work. Product keeps its exact complement, not a second full evaluation.
     *pre_checks = pre_checks
         .iter()
-        .map(|continuation| continuation.exclude_projection(typed, &checked))
+        .map(|continuation| continuation.exclude_completed_work(typed, &checked))
         .collect::<Result<_, _>>()?;
     Ok((PreparedBuildMachineProgram::from_checked(checked), retained))
 }

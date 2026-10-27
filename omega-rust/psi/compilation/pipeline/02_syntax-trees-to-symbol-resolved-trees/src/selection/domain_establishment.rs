@@ -47,11 +47,18 @@ struct AuthoredRouteResolution {
 /// authority from attachment names or contract placement.
 pub(crate) fn normalize_domain_establishment_routes(
     program: &mut SymbolResolvedTrees,
+    retained: Option<&SymbolResolvedTrees>,
 ) -> Result<(), Diagnostic> {
     let mut resolutions = Vec::new();
-    collect_authored_requirement_routes(program, &mut resolutions)?;
+    collect_authored_requirement_routes(program, retained, &mut resolutions)?;
 
     program.domain_definitions.for_each_mut(|domain| {
+        // A retained declaration already owns exact normalized routes. Body
+        // completion changes implementations, not its published authorization;
+        // re-resolving diagnostic paths would reopen excluded source lookup.
+        if retained.is_some_and(|base| base.domain_definition_by_symbol(domain.symbol).is_some()) {
+            return;
+        }
         domain.establishment_routes.clear();
         for resolution in &resolutions {
             if resolution.domain_symbol == domain.symbol
@@ -102,9 +109,13 @@ fn record_route_selection_once(
 
 fn collect_authored_requirement_routes(
     program: &SymbolResolvedTrees,
+    retained: Option<&SymbolResolvedTrees>,
     resolutions: &mut Vec<AuthoredRouteResolution>,
 ) -> Result<(), Diagnostic> {
     for domain in &program.domain_definitions {
+        if retained.is_some_and(|base| base.domain_definition_by_symbol(domain.symbol).is_some()) {
+            continue;
+        }
         if domain.alias.is_some() && !domain.authored_routes.is_empty() {
             return Err(Diagnostic::error(format!(
                 "domain alias `{}` cannot author establishment routes; routes belong to its atomic declarations",

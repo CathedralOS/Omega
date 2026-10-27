@@ -34,11 +34,39 @@ pub(crate) fn validate(
     authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
     domain: &crate::build_time_evaluation::EvaluationDomain,
 ) -> Result<(), Vec<Diagnostic>> {
+    // Syntax work and receiving value validation have different domains. New
+    // values carry exact constant dependencies, including call-produced values
+    // from a completed predecessor. Close those recorded edges before creating
+    // the independently checked replay batch; omission must still hit the
+    // missing-owner fence below, never authorize trusting a capsule by itself.
+    let mut replay_domain = typed_trees::references::DeclarationSelection::from_symbols(
+        typed
+            .const_declarations()
+            .iter()
+            .filter(|declaration| domain.contains(declaration.symbol))
+            .map(|declaration| declaration.symbol),
+    );
+    loop {
+        let references =
+            typed_trees::references::collect_selected_program_references(typed, &replay_domain);
+        let mut changed = false;
+        for declaration in typed.const_declarations() {
+            if references.symbols.contains(&declaration.symbol)
+                && !replay_domain.contains(declaration.symbol)
+            {
+                replay_domain.include(declaration.symbol);
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
     let mut leaves = Vec::new();
     let mut replay_declarations = Vec::new();
     let mut floating_declarations = Vec::new();
     for declaration in typed.const_declarations() {
-        if !domain.contains(declaration.symbol) {
+        if !replay_domain.contains(declaration.symbol) {
             continue;
         }
         let reference = declaration.initializer_source_span;
@@ -1126,13 +1154,7 @@ fn pair(
                     program
                         .data_members(definition)
                         .iter()
-                        .filter_map(|member| {
-                            if let Some(field) = member.as_field() {
-                                Some(field)
-                            } else {
-                                None
-                            }
-                        })
+                        .filter_map(|member| member.as_field())
                         .collect::<Vec<_>>(),
                     fields,
                 ),

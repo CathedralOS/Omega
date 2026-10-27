@@ -101,6 +101,7 @@ pub(crate) fn collect_declaration(
     root: ExpressionHandle,
     destination: &symbol_resolved_trees::types::TypeReference,
     purpose: DependencyPurpose,
+    retained_base: Option<&SymbolResolvedTrees>,
 ) -> Result<ConstInitializerDependencies, String> {
     let mut collector = Collector {
         expressions: vec![root],
@@ -127,6 +128,16 @@ pub(crate) fn collect_declaration(
         } else {
             *symbol
         };
+        // Normalization work belongs to this syntax cohort. A selected owner
+        // already resolved in the predecessor supplies its real declarations
+        // and bodies to the probe, not syntax that this cohort must recreate.
+        // Its calls/constants remain in the dependency and admission rosters.
+        if retained_base.is_some_and(|base| {
+            base.symbols.symbols().nodes().is_valid(owner)
+                && base.symbols.symbol_source_is_selected(owner)
+        }) {
+            continue;
+        }
         let source = collector
             .program
             .symbols
@@ -381,7 +392,10 @@ pub(crate) fn bind_named_implementation_const_calls(
 /// routing moves the copy while the selection stays the entry. Constant
 /// custody compares the two. Put the recorded entry back on every copy of
 /// that initializer call. Other machine-body calls keep the requirement.
-pub(crate) fn restore_const_named_implementation_call_targets(program: &mut SymbolResolvedTrees) {
+pub(crate) fn restore_const_named_implementation_call_targets(
+    program: &mut SymbolResolvedTrees,
+    work: &[ExpressionHandle],
+) {
     let roots = program
         .const_declarations
         .iter()
@@ -423,14 +437,7 @@ pub(crate) fn restore_const_named_implementation_call_targets(program: &mut Symb
     if recorded.is_empty() {
         return;
     }
-    let expressions = program
-        .tables
-        .bodies
-        .expressions
-        .iter_expressions()
-        .map(|(expression, _)| expression)
-        .collect::<Vec<_>>();
-    for expression in expressions {
+    for &expression in work {
         let node = program
             .tables
             .bodies
@@ -499,6 +506,43 @@ fn recorded_call_selection(
         }
     }
     selected
+}
+
+/// Source-less parser entries inherit exactly their owning machine's authored
+/// declaration. No other state or parent relation supplies that call identity.
+pub(crate) fn call_declaration_source(
+    program: &SymbolResolvedTrees,
+    target: SymbolHandle,
+) -> Result<SourceSpan, String> {
+    if let Some(source) = program.symbols.symbol_source_span(target) {
+        return Ok(source);
+    }
+    let symbol = program.symbols.get(target);
+    if symbol.kind != SymbolKind::State
+        || program.symbols.get(symbol.parent).kind != SymbolKind::Machine
+    {
+        return Err("source-less constant target is not its exact owning entry".to_owned());
+    }
+    let mut owners = program
+        .machines
+        .iter()
+        .filter(|owner| owner.symbol == symbol.parent);
+    let owner = owners
+        .next()
+        .ok_or("implicit constant entry lost its owner")?;
+    let states = program.machine_state_handles(owner.states);
+    if owners.next().is_some()
+        || states.len() != owner.states.len()
+        || !states
+            .first()
+            .is_some_and(|state| program.machine_state(*state).symbol == target)
+    {
+        return Err("source-less constant target is not its exact owning entry".to_owned());
+    }
+    program
+        .symbols
+        .symbol_source_span(owner.symbol)
+        .ok_or_else(|| "implicit constant entry lost its authored machine declaration".to_owned())
 }
 
 fn collect_expression_handles(
@@ -799,35 +843,7 @@ impl<'program> Collector<'program> {
                 ));
             }
         };
-        let declaration = if let Some(source) = self.program.symbols.symbol_source_span(target) {
-            source
-        } else {
-            // The parser's implicit entry has no authored token. Its exact
-            // first-state ownership identifies the machine declaration which
-            // the source selected; another state cannot inherit this identity.
-            let mut owners = self
-                .program
-                .machines
-                .iter()
-                .filter(|owner| owner.symbol == machine);
-            let owner = owners
-                .next()
-                .ok_or("implicit constant entry lost its owner")?;
-            let states = self.program.machine_state_handles(owner.states);
-            if owners.next().is_some()
-                || symbol.kind != SymbolKind::State
-                || states.len() != owner.states.len()
-                || !states
-                    .first()
-                    .is_some_and(|state| self.program.machine_state(*state).symbol == target)
-            {
-                return Err("source-less constant target is not its exact owning entry".to_owned());
-            }
-            self.program
-                .symbols
-                .symbol_source_span(machine)
-                .ok_or("implicit constant entry lost its authored machine declaration")?
-        };
+        let declaration = call_declaration_source(self.program, target)?;
         let selection = (reference, declaration);
         if !self.dependencies.calls.contains(&selection) {
             self.dependencies.calls.push(selection);

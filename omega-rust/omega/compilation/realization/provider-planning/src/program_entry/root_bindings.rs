@@ -55,15 +55,14 @@ pub fn collect_root_bindings(
             }
             RootBindingSelection::AuthoredPath(implementation) => {
                 let implementation = implementation.clone();
+                let occurrence = typed.symbols.rejoin_product_occurrence(binding.source_span);
                 // Static root operands share the product query's lexical scope,
                 // not the build helper's import scope. An authorized alias selects
                 // the dependency's product checked instance even when the same
                 // source also has an independently checked build instance.
                 let qualified = implementation.split_once("::");
                 let dependency = qualified.and_then(|(alias, _)| {
-                    typed
-                        .symbols
-                        .product_dependency_target(binding.source_span, alias)
+                    typed.symbols.product_dependency_target(occurrence, alias)
                 });
                 let declaration_path = match (qualified, dependency) {
                     (Some((_, path)), Some(_)) => path,
@@ -87,16 +86,15 @@ pub fn collect_root_bindings(
                                     .symbols
                                     .symbol_source_span(machine.symbol)
                                     .is_some_and(|span| {
-                                        typed.symbols.same_product_package_instance(
-                                            binding.source_span,
-                                            span,
-                                        )
+                                        typed
+                                            .symbols
+                                            .same_product_package_instance(occurrence, span)
                                     }),
                             }
                     })
                     .filter(|machine| {
                         typed.symbols.source_reference_can_describe_product_symbol(
-                            binding.source_span,
+                            occurrence,
                             machine.symbol,
                         )
                     })

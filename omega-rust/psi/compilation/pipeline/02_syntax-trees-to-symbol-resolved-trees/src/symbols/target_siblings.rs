@@ -24,9 +24,10 @@ struct Sibling {
 pub(crate) fn bind_sibling_calls(
     program: &mut SymbolResolvedTrees,
     inputs: &[crate::selection::body_calls::CallSelectionInput],
+    work: &[SymbolHandle],
 ) {
     let symbols = std::mem::take(&mut program.symbols);
-    bind_sibling_calls_with(program, &symbols, inputs);
+    bind_sibling_calls_with(program, &symbols, inputs, work);
     program.symbols = symbols;
 }
 
@@ -34,6 +35,7 @@ fn bind_sibling_calls_with(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
     inputs: &[crate::selection::body_calls::CallSelectionInput],
+    work: &[SymbolHandle],
 ) {
     let machine_families = program
         .machines
@@ -60,7 +62,10 @@ fn bind_sibling_calls_with(
             })
         })
         .collect::<Vec<_>>();
-    for sibling in &siblings {
+    for sibling in siblings
+        .iter()
+        .filter(|sibling| work.contains(&sibling.machine))
+    {
         let same_target = siblings
             .iter()
             .filter(|candidate| candidate.target == sibling.target)

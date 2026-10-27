@@ -51,7 +51,9 @@ pub fn collect_product_root_grants(
                     .symbols
                     .display_path(selected, "::"),
                 selecting_machine,
-                source_span: event.request.source_span,
+                source_span: typed
+                    .symbols
+                    .rejoin_product_occurrence(event.request.source_span),
             })
         })();
         let grant = result

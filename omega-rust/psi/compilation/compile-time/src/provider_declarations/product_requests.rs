@@ -106,7 +106,10 @@ pub fn collect_product_provider_selections(
                 provider,
                 mode,
                 activation,
-                event.request.source_span,
+                context
+                    .typed
+                    .symbols
+                    .rejoin_product_occurrence(event.request.source_span),
                 &selections,
             )
         })();

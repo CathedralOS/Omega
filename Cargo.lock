@@ -233,6 +233,7 @@ dependencies = [
  "language-semantics",
  "layout-plans",
  "numerics",
+ "phase-profile",
  "psi-terminal-production",
  "semantic-vocabulary",
  "source",

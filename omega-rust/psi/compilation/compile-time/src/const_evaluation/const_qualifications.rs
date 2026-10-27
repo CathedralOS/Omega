@@ -8,19 +8,14 @@
 //! Only successful judgments return to the exact declaration; private unqualified
 //! copies never leave preparation or supply qualification evidence themselves.
 
-use std::sync::Arc;
-
 use diagnostics::Diagnostic;
-use source::SourceMap;
-use symbols::SourceScopedTopLevelBinding;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{ConstQualification, Item};
 use syntax_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
 pub(crate) fn prove_ready(
     mut syntax: SyntaxTrees,
-    sources: Option<Arc<SourceMap>>,
-    bindings: &[SourceScopedTopLevelBinding],
+    context: &crate::BuildTimeSources<'_>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
     let candidates = syntax
         .root_item_handles()
@@ -52,11 +47,7 @@ pub(crate) fn prove_ready(
     defer_unproved(&mut probe);
     let selection =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::prepare_const_initializer_selection(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax: probe.clone(),
-                sources: sources.clone(),
-                top_level_bindings: bindings.to_vec(),
-            },
+            context.resolution_request(probe.clone()),
         )?;
     let mut pending = Vec::new();
     for (item, definition) in candidates {
@@ -104,24 +95,25 @@ pub(crate) fn prove_ready(
     }
     let probe = crate::syntax_probes::normalize_initializer_probe_data(
         probe,
-        sources.clone(),
-        bindings,
-        None,
+        context.sources.clone(),
+        context.source_scoped_top_level_bindings,
+        context.retained_base(),
         &probe_declarations,
     )?;
     let frontier =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_deferred_initializer_probe(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax: probe,
-                sources,
-                top_level_bindings: bindings.to_vec(),
-            },
+            context.resolution_request(probe),
         )?;
     let owners = owners
         .iter()
         .map(|owner| owner.resolve(frontier.trees()))
         .collect::<Result<Vec<_>, _>>()?;
-    let prepared = crate::syntax_probes::prepare_owned_probe_evaluation(frontier, &owners, &[])?;
+    let prepared = crate::syntax_probes::prepare_owned_probe_evaluation(
+        frontier,
+        &owners,
+        &[],
+        context.predecessor.clone(),
+    )?;
     let program = prepared.domain.execution_program(&prepared.typed);
     let request = typed_trees_to_typed_trees::PreparationRequest::settled();
     let (program, preparation) =

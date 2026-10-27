@@ -9,22 +9,28 @@ mod batches;
 
 use crate::{PsiCompilationObserver, PsiCompilationStage};
 use diagnostics::Diagnostic;
-use source::{DependencyScope, LoadedSources, SourceFileSystem};
+use source::{DependencyScope, LoadedSources, SourceContents, SourceFileSystem};
 use std::path::PathBuf;
 use syntax_trees::{ParsedSources, SyntaxTrees};
 
-/// Admitted source bytes or an ordered frontier in the caller's filesystem view.
-/// Neither form discovers imports or acquires additional package authority.
-pub enum SourceInput<'source> {
-    Files {
-        frontier: Vec<(PathBuf, DependencyScope)>,
-        first_source: usize,
-        filesystem: &'source SourceFileSystem,
-    },
-    Retained(LoadedSources),
+/// Load the complete frontier before parsing, preserving read-error precedence.
+/// The package owner assigns custody and coordinates to these exact bytes before
+/// returning them as `SourceInput`; parser order never allocates source IDs.
+pub fn load_source_files(
+    frontier: Vec<(PathBuf, DependencyScope)>,
+    filesystem: &SourceFileSystem,
+    observer: &mut impl PsiCompilationObserver,
+) -> Result<Vec<SourceContents>, Vec<Diagnostic>> {
+    observer.record_result(PsiCompilationStage::SourceParsing, || {
+        source_files_to_tokens::load_sources(frontier, filesystem)
+    })
 }
 
-impl SourceInput<'_> {
+/// Admitted source instances with coordinates assigned by their source owner.
+/// Parsing neither discovers imports nor acquires additional package authority.
+pub struct SourceInput(pub LoadedSources);
+
+impl SourceInput {
     /// Append a frontier as owned parser pages, transferring rather than copying
     /// their arenas. Returned roots refer to the caller's extended syntax forest.
     pub fn append(
@@ -58,15 +64,7 @@ impl SourceInput<'_> {
         observer: &mut impl PsiCompilationObserver,
     ) -> Result<(Vec<SyntaxTrees>, ParsedSources), Vec<Diagnostic>> {
         observer.record_result(PsiCompilationStage::SourceParsing, || {
-            let loaded = match self {
-                Self::Files {
-                    frontier,
-                    first_source,
-                    filesystem,
-                } => source_files_to_tokens::load_sources(frontier, first_source, filesystem)?,
-                Self::Retained(loaded) => loaded,
-            };
-            batches::parse(loaded, first_page, independent_units)
+            batches::parse(self.0, first_page, independent_units)
         })
     }
 }

@@ -59,7 +59,7 @@ pub(super) fn entry_contract_seeds_from_graphs(
         let relative_source = contract_package.package_relative_source();
         let already_loaded = source_storage
             .sources
-            .files()
+            .selected_files()
             .any(|file| file.path.ends_with(relative_source));
         if already_loaded
             || seeds

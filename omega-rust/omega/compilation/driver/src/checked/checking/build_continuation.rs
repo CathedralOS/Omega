@@ -49,6 +49,7 @@ pub(super) fn prepare_build_invocation(
     let build_execution_profile = build.profile;
     let execution_contract = build.contract();
     let TypedCompilationFrontier {
+        preparation,
         mut source,
         anonymous_source,
         product_sources,
@@ -86,6 +87,7 @@ pub(super) fn prepare_build_invocation(
         execution_contract,
         parsed,
         frontier: TypedCompilationFrontier {
+            preparation,
             source,
             anonymous_source,
             product_sources,
@@ -290,6 +292,7 @@ fn complete_build_source(
     timings: &mut CompileTimings,
 ) -> Result<(BuiltTypedProgram, BuildSourceCustody), CompileFailure> {
     let TypedCompilationFrontier {
+        preparation,
         mut source,
         anonymous_source: _,
         product_sources,
@@ -313,9 +316,14 @@ fn complete_build_source(
         let product = match pending.retained(&inputs, package_inputs)? {
             Some(product) => product,
             None => {
-                let (count, syntax) = pending.sources().assemble(package_inputs, timings)?;
+                let (count, syntax) = pending.sources().assemble(
+                    package_inputs,
+                    timings,
+                    &mut *preparation.catalogue()?,
+                )?;
                 let diagnostic_sources = syntax.sources.clone();
                 let product = lower_typed_frontier(
+                    preparation.clone(),
                     count,
                     syntax,
                     build_execution_profile,
@@ -367,6 +375,7 @@ fn complete_build_source(
     };
     Ok((
         BuiltTypedProgram {
+            preparation,
             source,
             base_sources,
             computed_build_config,
@@ -378,17 +387,13 @@ fn complete_build_source(
 }
 
 pub(super) fn lower_typed_frontier(
+    preparation: compilation_products::SourcePreparation,
     source_file_count: usize,
     mut syntax: package_compilation::source_assembly::AssembledSyntax,
     execution_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
     timings: &mut CompileTimings,
 ) -> Result<TypedCompilationFrontier, Vec<Diagnostic>> {
-    if syntax.product_sources.is_none()
-        && let Some(ownership) = syntax.anonymous_owner.take()
-    {
-        syntax.sources = ownership.complete_without_dependencies()?;
-    }
     let generated_source_custody = std::mem::take(&mut syntax.generated_source_custody);
     let base_sources = syntax.sources.clone();
     // Only build helpers select an execution target here. Product families
@@ -414,6 +419,10 @@ pub(super) fn lower_typed_frontier(
     );
     let build_source_id = syntax.build_source_id;
     let request = psi_compiler::SourceCompilationRequest {
+        source_items: syntax.source_items,
+        root_sources: syntax.root_sources,
+        frontends: preparation.frontends.clone(),
+        build_helper_identity: execution.target_name(),
         syntax: syntax.syntax_trees,
         sources: syntax.sources,
         top_level_bindings: syntax.source_scoped_top_level_bindings,
@@ -423,6 +432,7 @@ pub(super) fn lower_typed_frontier(
     };
     let source = request.prepare(&mut crate::observations::PsiStageTimings::new(timings))?;
     Ok(TypedCompilationFrontier {
+        preparation,
         source,
         anonymous_source: syntax.anonymous_owner,
         product_sources: syntax
@@ -455,6 +465,7 @@ pub(super) fn complete_product_frontend(
 > {
     artifacts::compile_timings::counters::record_product_source_completion();
     let BuiltTypedProgram {
+        preparation,
         source,
         base_sources,
         mut computed_build_config,
@@ -469,7 +480,17 @@ pub(super) fn complete_product_frontend(
         &base_sources,
         package_inputs,
         &computed_build_config.generated_sources,
+        &mut *preparation.catalogue()?,
     )? {
+        let first_source = extension
+            .custody()
+            .first()
+            .map(|(source, _)| *source)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "admitted generated extension has no source coordinate",
+                )]
+            })?;
         let (sources, units) = extension.parse(&base_sources, timings)?;
         // Extension failures can name generated units absent from base_sources.
         // Resolve their spans before consuming the only map that owns those bytes;
@@ -480,7 +501,7 @@ pub(super) fn complete_product_frontend(
                 psi_compiler::SourceExtensionRequest {
                     units,
                     sources,
-                    first_source: source::SourceId(base_sources.len()),
+                    first_source,
                     selection_authority: Arc::new(package_inputs.clone()),
                 },
                 &mut crate::observations::PsiStageTimings::new(timings),

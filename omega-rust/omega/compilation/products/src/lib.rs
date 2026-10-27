@@ -73,7 +73,7 @@ pub use prepared_build::{
     SettledBuildSource, SettledPackageBuild,
 };
 pub use prepared_source::{
-    DeferredProductCompilation, PreparedCheckedSource, PreparedSourceFrontier,
+    DeferredProductCompilation, PreparedCheckedSource, PreparedSourceFrontier, SourcePreparation,
     TypedCompilationFrontier,
 };
 pub use retained_native_program::{RetainedNativeProgram, RetainedNativeProgramIdentity};

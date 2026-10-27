@@ -19,6 +19,96 @@ use symbols::SymbolKind;
 use syntax_trees::identifier::JoinedSyntaxPath;
 use syntax_trees::{SyntaxTrees, item::ConstDefinition, types::ConstArgumentOrigin};
 
+/// The three existing initializer inventories: original value use, complete
+/// declaration preparation, and the materialized value's realized selections.
+#[derive(Clone, Copy)]
+pub enum InitializerCustodyPurpose {
+    Authored,
+    Declaration,
+    Value,
+}
+
+/// Read a completed predecessor's original graph, never its source syntax or
+/// a guessed summary. The receiving evaluator still checks every new use.
+pub(crate) fn retained_constant_custody(
+    program: &SymbolResolvedTrees,
+    owner: &symbol_resolved_trees::constant::ConstDeclaration,
+    purpose: InitializerCustodyPurpose,
+) -> Result<syntax_trees::item::ConstInitializerCustody, Diagnostic> {
+    use super::initializer_dependencies::{DependencyPurpose, collect_declaration};
+    let source = program
+        .symbols
+        .symbol_source_span(owner.symbol)
+        .ok_or_else(|| {
+            error(
+                owner.initializer_source_span,
+                "retained constant lost its declaration source",
+            )
+        })?;
+    let mut custody = syntax_trees::item::ConstInitializerCustody::default();
+    if matches!(purpose, InitializerCustodyPurpose::Value) {
+        append_retained_custody(
+            program,
+            owner,
+            source,
+            &mut custody,
+            DependencyPurpose::DeclarationReadiness,
+        )?;
+        return Ok(custody);
+    }
+    let dependencies = collect_declaration(
+        program,
+        if owner.authored_initializer.is_valid() {
+            owner.authored_initializer
+        } else {
+            owner.initializer
+        },
+        &owner.declared_type,
+        if matches!(purpose, InitializerCustodyPurpose::Authored) {
+            DependencyPurpose::Authored
+        } else {
+            DependencyPurpose::DeclarationReadiness
+        },
+        None,
+    )
+    .map_err(|reason| error(source, &reason))?;
+    custody.builtin_operators = dependencies.initializer_operators;
+    custody.call_selections = dependencies.calls;
+    for (reference, declaration_source) in dependencies.constants {
+        let declaration = program
+            .const_declaration_at_source_span(declaration_source)
+            .ok_or_else(|| {
+                error(
+                    reference,
+                    "retained constant dependency lost its declaration",
+                )
+            })?;
+        if !declaration.is_public
+            && !program
+                .symbols
+                .same_source_package(reference, declaration_source)
+        {
+            return Err(error(
+                reference,
+                "retained constant selects a private foreign declaration",
+            ));
+        }
+        let origin = ConstArgumentOrigin {
+            reference,
+            declaration: declaration_source,
+            initializer: declaration.initializer_source_span,
+            evaluated_value: declaration
+                .evaluated_value
+                .clone()
+                .ok_or_else(|| error(reference, "retained dependency has no completed value"))?,
+        };
+        if !custody.selections.contains(&origin) {
+            custody.selections.push(origin);
+        }
+    }
+    Ok(custody)
+}
+
 pub(crate) struct PendingInitializer {
     declaration: SourceSpan,
     materialized: ExpressionHandle,
@@ -232,6 +322,7 @@ fn declaration_custody(
         record.authored,
         &owner.declared_type,
         purpose,
+        None,
     )
     .map_err(|reason| error(record.declaration, &reason))
 }
@@ -325,14 +416,24 @@ fn reconstruct(
                 }
                 pending.push(dependency);
             } else {
+                let mut retained = syntax_trees::item::ConstInitializerCustody::default();
                 append_retained_custody(
                     program,
                     declaration,
                     records[root].declaration,
-                    &mut origins,
-                    &mut operators,
+                    &mut retained,
                     purpose,
                 )?;
+                for origin in retained.selections {
+                    if !origins.contains(&origin) {
+                        origins.push(origin);
+                    }
+                }
+                for operator in retained.builtin_operators {
+                    if !operators.contains(&operator) {
+                        operators.push(operator);
+                    }
+                }
             }
         }
     }
@@ -346,8 +447,7 @@ fn append_retained_custody(
     program: &SymbolResolvedTrees,
     owner: &symbol_resolved_trees::constant::ConstDeclaration,
     root: SourceSpan,
-    origins: &mut Vec<ConstArgumentOrigin>,
-    operators: &mut Vec<SourceSpan>,
+    custody: &mut syntax_trees::item::ConstInitializerCustody,
     purpose: super::initializer_dependencies::DependencyPurpose,
 ) -> Result<(), Diagnostic> {
     let owner_source = program.symbols.symbol_source_span(owner.symbol);
@@ -380,10 +480,18 @@ fn append_retained_custody(
                 // The detached original rederives call custody. A copied call
                 // selection is neither a constant origin nor a builtin premise;
                 // a named boundary operator keeps that same custody-only role.
+                let declaration = super::initializer_dependencies::call_declaration_source(
+                    program,
+                    selected.selected_symbol(),
+                )
+                .map_err(|reason| error(reference, &reason))?;
+                if !custody.call_selections.contains(&(reference, declaration)) {
+                    custody.call_selections.push((reference, declaration));
+                }
             }
             (Kind::Operator, Target::Intrinsic(Intrinsic::BuiltinOperator)) => {
-                if !operators.contains(&reference) {
-                    operators.push(reference);
+                if !custody.builtin_operators.contains(&reference) {
+                    custody.builtin_operators.push(reference);
                 }
             }
             (Kind::StaticPathSegment, Target::Resolved(selected))
@@ -433,8 +541,8 @@ fn append_retained_custody(
                         )
                     })?,
                 };
-                if !origins.contains(&origin) {
-                    origins.push(origin);
+                if !custody.selections.contains(&origin) {
+                    custody.selections.push(origin);
                 }
             }
             (

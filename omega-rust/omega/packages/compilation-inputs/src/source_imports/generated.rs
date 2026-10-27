@@ -46,6 +46,7 @@ pub fn admit_generated_extension(
     package_root: &Path,
     package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
     generated_sources: &[build_output::PackageGeneratedSource],
+    catalogue: &mut source::SourceCatalogue,
 ) -> Result<GeneratedSourceExtension, Vec<Diagnostic>> {
     let mut sources = (**base_sources).clone();
     let mut retained = Vec::with_capacity(generated_sources.len());
@@ -68,7 +69,7 @@ pub fn admit_generated_extension(
         [] => Vec::new(),
         [logical_path] => vec![
             base_sources
-                .files()
+                .selected_files()
                 .any(|existing| existing.path == *logical_path),
         ],
         _ => {
@@ -87,7 +88,7 @@ pub fn admit_generated_extension(
                     }
                 }
             }
-            for existing in base_sources.files() {
+            for existing in base_sources.selected_files() {
                 if let Some(&position) = generated_positions.get(existing.path.as_path()) {
                     collisions[position] = true;
                 }
@@ -111,21 +112,22 @@ pub fn admit_generated_extension(
             ))]);
         }
 
-        let source_id = source::SourceId(sources.len());
         // Generated extension sources are the producing activation's
         // product-context handoff; they keep the base compilation's product
         // instance semantics rather than growing a second checked instance.
-        let added = sources.add_checked_instance(
-            logical_path.clone(),
-            source,
-            package_root.to_path_buf(),
-            package_identity,
-            source::SourceOrigin::User,
-            source::SourceResolutionStratum::CurrentActivationExtension,
-            source::DependencyScope::Product,
-        );
-        debug_assert_eq!(added.source_id, source_id);
-        retained.push((source_id, generated.clone()));
+        let added = catalogue
+            .admit_checked_instance(
+                &mut sources,
+                logical_path.clone(),
+                source,
+                package_root.to_path_buf(),
+                package_identity,
+                source::SourceOrigin::User,
+                source::SourceResolutionStratum::CurrentActivationExtension,
+                source::DependencyScope::Product,
+            )
+            .map_err(|message| vec![Diagnostic::error(message)])?;
+        retained.push((added.source_id, generated.clone()));
     }
     Ok(GeneratedSourceExtension {
         sources: Arc::new(sources),

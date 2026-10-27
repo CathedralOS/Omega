@@ -33,17 +33,12 @@ pub(super) fn resolve(
             .ok_or_else(|| {
                 Diagnostic::error("behavior exclusion has no authoritative Build activation")
             })?;
-        let selecting_machine = typed
-            .machines()
-            .iter()
-            .find(|machine| typed.symbols.symbol_source_span(machine.symbol) == Some(machine_span))
-            .map(|machine| machine.symbol)
-            .ok_or_else(|| {
-                Diagnostic::error("behavior exclusion lost its authored selecting machine")
-            })?;
+        let selecting_machine =
+            typed_trees::product_operand::resolve_build_request_author(typed, machine_span)
+                .map_err(Diagnostic::error)?;
         let row = AuthoredBehaviorExclusion {
             kind,
-            source_span,
+            source_span: typed.symbols.rejoin_product_occurrence(source_span),
             selecting_machine,
         };
         if !exclusions.contains(&row) {

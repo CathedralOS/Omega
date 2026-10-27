@@ -14,12 +14,31 @@ use package_compilation::{PackageCompilationInputs, ProductSourceInputs, SourceA
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
+/// One invocation owns source coordinates and canonical Psi frontend inputs.
+/// The coordinator borrows coordinates only during admission; no execution or
+/// semantic stage runs while the catalogue is locked.
+#[derive(Clone, Default)]
+pub struct SourcePreparation {
+    catalogue: Arc<Mutex<source::SourceCatalogue>>,
+    pub frontends: psi_compiler::SourceFrontends,
+}
+impl SourcePreparation {
+    pub fn catalogue(
+        &self,
+    ) -> Result<std::sync::MutexGuard<'_, source::SourceCatalogue>, Vec<Diagnostic>> {
+        self.catalogue
+            .lock()
+            .map_err(|_| vec![Diagnostic::error("source catalogue owner is poisoned")])
+    }
+}
+
 /// Indexed declarations and completed Build-context bodies before admission.
 /// With authored Build, Product imports remain unopened under captured custody;
 /// otherwise the default-Build route retains pending Product implementations.
 /// This is a reusable compilation checkpoint, not a portable program form.
 #[derive(Clone)]
 pub struct TypedCompilationFrontier {
+    pub preparation: SourcePreparation,
     pub source: psi_compiler::SourceContinuation,
     /// Acquired source custody survives frontend preparation. Build uses the
     /// same inventory before its executed declaration has a package owner.
@@ -99,6 +118,7 @@ impl DeferredProductCompilation {
 /// consuming the last checkpoint allows assembly to move the original arenas.
 /// Every child supplies its own policy and independently admits its custody.
 pub struct PreparedCheckedSource {
+    preparation: SourcePreparation,
     source_checkpoint: ImmutableSourceParseCheckpoint,
     shared_timings: CompileTimings,
     frontiers: Arc<Mutex<Vec<(SourceAssemblyInputs, TypedCompilationFrontier)>>>,
@@ -122,9 +142,13 @@ pub struct TypedFrontierRetention {
 }
 
 impl PreparedCheckedSource {
+    pub fn preparation(&self) -> SourcePreparation {
+        self.preparation.clone()
+    }
     /// Fork only at a real sibling boundary, freezing shared source pages once.
     pub fn fork(&mut self) -> Self {
         Self {
+            preparation: self.preparation.clone(),
             source_checkpoint: self.source_checkpoint.fork(),
             shared_timings: self.shared_timings.clone(),
             frontiers: self.frontiers.clone(),
@@ -134,8 +158,10 @@ impl PreparedCheckedSource {
     pub fn from_parsed(
         source_checkpoint: ImmutableSourceParseCheckpoint,
         shared_timings: CompileTimings,
+        preparation: SourcePreparation,
     ) -> Self {
         Self {
+            preparation,
             source_checkpoint,
             shared_timings,
             frontiers: Arc::new(Mutex::new(Vec::new())),
