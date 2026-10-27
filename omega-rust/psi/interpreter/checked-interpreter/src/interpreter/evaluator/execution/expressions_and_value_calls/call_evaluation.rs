@@ -270,7 +270,6 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             && matches!(
                 language_semantics::declaration_selection::BuildOperation::from_call_target(target),
                 Some(language_semantics::declaration_selection::BuildOperation::RepresentationSelection
-                    | language_semantics::declaration_selection::BuildOperation::BoundaryAcceptance
                     | language_semantics::declaration_selection::BuildOperation::WireCompatibilityRequest)
             )
         {

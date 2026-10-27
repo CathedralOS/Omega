@@ -108,8 +108,12 @@ pub(super) fn validate(
                     BuildOperation::ProviderSelection
                         | BuildOperation::RepresentationSelection
                         | BuildOperation::ServiceExclusion
+                        | BuildOperation::BoundaryAcceptance
                 ) || binding.operands.len()
-                    != if binding.operation == BuildOperation::ServiceExclusion {
+                    != if matches!(
+                        binding.operation,
+                        BuildOperation::ServiceExclusion | BuildOperation::BoundaryAcceptance
+                    ) {
                         1
                     } else {
                         2

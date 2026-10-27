@@ -47,7 +47,8 @@ pub(crate) fn request(
     let Some(
         operation @ (BuildOperation::ProviderSelection
         | BuildOperation::RepresentationSelection
-        | BuildOperation::ServiceExclusion),
+        | BuildOperation::ServiceExclusion
+        | BuildOperation::BoundaryAcceptance),
     ) = BuildOperation::from_call_target(name)
     else {
         return Ok(None);
@@ -62,7 +63,10 @@ pub(crate) fn request(
     {
         return Ok(None);
     }
-    let operand_count = if operation == BuildOperation::ServiceExclusion {
+    let operand_count = if matches!(
+        operation,
+        BuildOperation::ServiceExclusion | BuildOperation::BoundaryAcceptance
+    ) {
         1
     } else {
         2

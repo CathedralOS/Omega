@@ -30,5 +30,5 @@ pub use provider_grants::{
     ResolvedSelectedProviderGrant, resolve_authored_selected_provider_grants,
     resolve_selected_provider_grants,
 };
-pub use root_grants::{harvest_root_grants, reject_package_non_provider_grants};
+pub use root_grants::{collect_product_root_grants, reject_package_non_provider_grants};
 pub use trust_admission::TrustAdmission;
