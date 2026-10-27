@@ -55,7 +55,21 @@ The repaired row now has actual native and Terminal zero exits at all nine
 places on macOS ARM64, with nine intended source rejections. Raw baselines,
 producers, profiles and engine observations are retained in
 `/Users/zcanann/Omega-build/retained-borrowed-array-view-2026-10-27/`.
-Other-host execution remains to be qualified by the retained foreign gate.
+Matching-host Windows x86-64 execution at `258918eb09a` also records nine
+corpus and nine public CLI native/Terminal zero agreements, with nine intended
+loan rejections ([run 40554860652](https://github.com/CathedralOS/Omega/actions/runs/40554860652)).
+After exporting `nestlease_register_view` under `RETAIN_1.0`, Linux x86-64 and
+Linux ARM64 at `3e1d8468dfb` record the same view-row outcomes
+([x86-64](https://github.com/CathedralOS/Omega/actions/runs/40560630817),
+[ARM64](https://github.com/CathedralOS/Omega/actions/runs/40560630630)).
+Their producers, C libraries, native/Psi products and raw reports retain those
+original source identities under
+`/Users/zcanann/Omega-build/retained-view-elf-export-2026-10-27/` and
+`/Users/zcanann/Omega-build/native-provider-test-codec-2026-10-27/`.
+The broader runs remain red: the older array constant rejects with its declared
+range diagnostic (now pinned by both public and corpus controls), and the Windows
+mutable-borrow call-result case has an unresolved native timeout. Neither is
+counted as successful whole-suite qualification.
 
 This row establishes the finite borrowed fixed-array descriptor and its original
 backing. Recursive/dynamic pointer graphs, newly introduced provider-owned
