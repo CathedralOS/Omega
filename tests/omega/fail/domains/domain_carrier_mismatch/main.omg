@@ -6,9 +6,9 @@ data Blob {
     payload: i32;
 }
 
-domain Blob::Scanned(blob)
+domain Blob::Scanned
 requires
-    blob.payload > 0;
+    self.payload > 0;
 
 data Main {
     value: i32 in Scanned;

@@ -225,8 +225,8 @@ windows_x86_64 machine Imports::release(module: u64) -> i32 satisfies ModuleApi:
 // One occurrence owns both the live-registration capacity and one loader pin.
 // Activation changes its state; it never reconstructs an equal authority value.
 data Registration [linear] { module: u64; atom: u64; occurrence: u64; released: bool; }
-domain Registration::Held(registration)
-requires registration.module != 0
+domain Registration::Held
+requires self.module != 0
 established by Registration::acquire;
 // The one owned unit is capacity for one live registration, retained while
 // vacant or installed. A callback thunk does not introduce another unit.
@@ -236,9 +236,9 @@ satisfies Content<Registration, CountedQuantity<RegistrationSlot>>::project {
  CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
 }
 
-domain Registration::Vacant(registration) requires registration.atom == 0;
-domain Registration::Live(registration)
-requires registration.atom != 0
+domain Registration::Vacant requires self.atom == 0;
+domain Registration::Live
+requires self.atom != 0
 established by Registration::activate;
 domain Registration::Available = Held & Vacant;
 domain Registration::Installed = Held & Live;

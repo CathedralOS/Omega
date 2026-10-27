@@ -1,13 +1,13 @@
-domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8]::Utf8 requires valid_utf8(self);
 // Regression: chained in-place appends on a bounded UTF-8 carrier across
 // separate statements (`x = "a"; x = x + "b"; x = x + "c";`) then a guard
 // `x == "abc"`. The checker follows the running byte length (1, 2, 3), each
 // append extends the carrier's inline bytes at its current length, and the
 // guard reads that updated carrier rather than a stale legacy scratch buffer.
 
-domain [u8; 16]::Utf8(bytes)
+domain [u8; 16]::Utf8
 requires
-    valid_utf8(bytes);
+    valid_utf8(self);
 use omega_language_std::console;
 
 data Main {

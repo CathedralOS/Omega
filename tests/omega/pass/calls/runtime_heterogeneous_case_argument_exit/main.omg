@@ -1,6 +1,6 @@
 data Cell { value: u64 in Wrapping; }
 data Cells { values: [Cell; 4]; }
-domain u64::Small(value) requires 1 <= value && value <= 100;
+domain u64::Small requires 1 <= self && self <= 100;
 data Choice {
     case Full(cells: Cells);
     case Scalar(value: u64 in Small);

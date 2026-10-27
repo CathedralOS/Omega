@@ -1,6 +1,6 @@
 // A true first constituent cannot waive the later zero-excluding predicate.
-domain u32::Small(value) requires value <= 5;
-domain u32::NonZero(value) requires value != 0;
+domain u32::Small requires self <= 5;
+domain u32::NonZero requires self != 0;
 domain u32::SmallNonZero = u32::Small & u32::NonZero;
 
 data Main { value: u32 in SmallNonZero; }

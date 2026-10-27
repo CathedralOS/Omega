@@ -281,8 +281,7 @@ machine ParserHarness::write_parse_observation(
             ParseDiagnosticCode::ExpectedDomainCarrier -> parse_diagnostic(parser_harness, output, 130)
             ParseDiagnosticCode::ExpectedDomainSeparator -> parse_diagnostic(parser_harness, output, 131)
             ParseDiagnosticCode::ExpectedDomainName -> parse_diagnostic(parser_harness, output, 132)
-            ParseDiagnosticCode::ExpectedDomainSubject -> parse_diagnostic(parser_harness, output, 133)
-            ParseDiagnosticCode::ExpectedDomainSubjectEnd -> parse_diagnostic(parser_harness, output, 134)
+            ParseDiagnosticCode::RetiredDomainSubject -> parse_diagnostic(parser_harness, output, 133)
             ParseDiagnosticCode::ExpectedDomainConstituent -> parse_diagnostic(parser_harness, output, 135)
             ParseDiagnosticCode::ExpectedEstablishedBy -> parse_diagnostic(parser_harness, output, 136)
             ParseDiagnosticCode::ExpectedDomainRoute -> parse_diagnostic(parser_harness, output, 137)
@@ -1659,8 +1658,6 @@ crashes Trap
         ParserHarness::write_u64(parser_harness, item.argument_count);
         ParserHarness::write_u64(parser_harness, item.first_generic_parameter);
         ParserHarness::write_u64(parser_harness, item.generic_parameter_count);
-        ParserHarness::write_flag(parser_harness, item.has_subject);
-        ParserHarness::write_source_span(parser_harness, item.subject.source_span);
         ParserHarness::write_u64(parser_harness, item.first_clause);
         ParserHarness::write_u64(parser_harness, item.clause_count);
         ParserHarness::write_u64(parser_harness, item.first_route);

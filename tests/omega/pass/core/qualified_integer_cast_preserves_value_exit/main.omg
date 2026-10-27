@@ -1,6 +1,6 @@
 // Computed sources and selected results retain their declared carriers in Prop.
-domain i16::Identity(value)
-    requires ((value + 0i16) as i16 in Wrapping) == value {}
+domain i16::Identity
+    requires ((self + 0i16) as i16 in Wrapping) == self {}
 proposition same(value: i16) = (value as i16 in Trapping) == value;
 machine identity(value: i16) -> i16
 ensures (result as i16 in Trapping) == result, result == value { value }

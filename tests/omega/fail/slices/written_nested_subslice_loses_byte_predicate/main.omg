@@ -1,5 +1,5 @@
 // A nested descriptor's predicate observes current backing, not formation-time bytes.
-domain [u8]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8]::Ascii requires ascii_only(self);
 machine inspect(bytes: &[u8] in Ascii) {}
 machine replace(bytes: &mut [u8])
 requires ascii_only(bytes) && bytes.len >= 2 {

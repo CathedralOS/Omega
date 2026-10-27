@@ -1,9 +1,9 @@
-domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8]::Utf8 requires valid_utf8(self);
 // A mutable bounded-text receiver rewritten across states:
 // `&mut TextBuffer` + `ensures output.storage in Utf8` — successive
 // literal stores each re-prove the domain on the write side; the
 // sibling scalar beside the receiver in the caller keeps its value.
-domain [u8; 16]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 16]::Utf8 requires valid_utf8(self);
 machine replace(output: &mut TextBuffer) crashes Trap
 ensures output.storage in Utf8 {
     transition { _ -> first(output) }

@@ -1,6 +1,6 @@
 // Expected exit: 0. A state borrows a qualified owner's original storage.
 data Resource { identity: u64; }
-domain Resource::Open(resource) requires resource.identity != 0;
+domain Resource::Open requires self.identity != 0;
 
 machine main() crashes Trap {
     let mut resource: Resource in Open = Resource { identity: 73 };

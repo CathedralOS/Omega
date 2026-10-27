@@ -1,4 +1,4 @@
-domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 8]::Ascii requires ascii_only(self);
 data Packet { bytes: [u8; 8] in Ascii; }
 machine Packet::main(packet: &mut Packet)
 requires packet.bytes.len >= 8 {

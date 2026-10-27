@@ -1,8 +1,8 @@
-domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8]::Utf8 requires valid_utf8(self);
 // Expected exit: 0. Equal-capacity qualified owners and temporary carriers
 // must not change the storage selected when a copied field becomes a view.
-domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
-domain [u8; 2]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 8]::Utf8 requires valid_utf8(self);
+domain [u8; 2]::Ascii requires ascii_only(self);
 data Text [copy] { bytes: TextBuffer; }
 data Room [copy] { description: Text; }
 data Main { output: TextBuffer; entries: [Text; 2]; }

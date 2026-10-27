@@ -18,10 +18,10 @@
 
 use omega_language_std::console;
 
-domain u64::SymbolSlot(slot) requires slot < 5;
-domain u8::HuffmanSymbol(byte)
+domain u64::SymbolSlot requires self < 5;
+domain u8::HuffmanSymbol
 requires
-    byte == 65 || byte == 66 || byte == 67 || byte == 68 || byte == 82;
+    self == 65 || self == 66 || self == 67 || self == 68 || self == 82;
 
 data TreeNode [copy] {
     weight: u32 in Wrapping;

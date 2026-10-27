@@ -2,9 +2,9 @@
 // `n: u64 in Tiny` narrows the field to {0..4} while `n >= 2` adds the
 // record-level floor — both bounds must hold at construction, and the
 // literal 3 satisfies each.
-domain u64::Tiny(value)
+domain u64::Tiny
 requires
-    value <= 4;
+    self <= 4;
 
 data Pair
 where

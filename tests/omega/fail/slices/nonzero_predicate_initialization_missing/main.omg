@@ -1,2 +1,2 @@
-domain i32::Selected(value) requires value == 1 || value == 38;
+domain i32::Selected requires self == 1 || self == 38;
 machine main() { let selected: i32 in Selected; let observed: i32 in Selected = selected; }

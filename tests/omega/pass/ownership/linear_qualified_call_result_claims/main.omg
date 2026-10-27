@@ -12,7 +12,7 @@ public data Receipt [linear] {
 }
 machine Receipt::drop(receipt: &mut Receipt) {}
 public domain Receipt::Issued;
-domain Receipt::Extra(receipt) requires receipt.code >= 0;
+domain Receipt::Extra requires self.code >= 0;
 domain Receipt::ExtraIssued = Issued & Extra;
 
 public boundary trait Acknowledgement {

@@ -1107,11 +1107,11 @@ def main() -> None:
     # proved where a value meets a qualified destination, unless it already
     # carries the qualification; a routed domain or a byte predicate is
     # established only by carrying it.
-    small = b"domain u64::Small(value)\nrequires value < 4;\nmachine take(index: u64 in Small) -> u64 { index }\n"
+    small = b'domain u64::Small\nrequires self < 4;\nmachine take(index: u64 in Small) -> u64 { index }\n'
     accepted(
         program,
         "qualified-parameter-assumes-its-domain",
-        b"domain u64::Small(value)\nrequires value < 4;\nmachine at(items: &[u8; 4], index: u64 in Small) -> u8 { items[index] }",
+        b'domain u64::Small\nrequires self < 4;\nmachine at(items: &[u8; 4], index: u64 in Small) -> u8 { items[index] }',
     )
     rejected(
         program,
@@ -1164,14 +1164,14 @@ def main() -> None:
     rejected(
         program,
         "qualified-result-proves-the-domain",
-        b"domain u64::Small(value)\nrequires value < 4;\nmachine f(count: u64) -> u64 in Small { count }",
+        b'domain u64::Small\nrequires self < 4;\nmachine f(count: u64) -> u64 in Small { count }',
         "DomainUnproven",
         b"count!2",
     )
     rejected(
         program,
         "qualifying-cast-proves-the-domain",
-        b"domain u64::Small(value)\nrequires value < 4;\nmachine f(i: u64) -> u64 { let s: u64 in Small = i as u64 in Small; s }",
+        b'domain u64::Small\nrequires self < 4;\nmachine f(i: u64) -> u64 { let s: u64 in Small = i as u64 in Small; s }',
         "DomainUnproven",
         b"i as u64 in Small",
     )
@@ -1183,7 +1183,7 @@ def main() -> None:
         "DomainUnproven",
         b"1",
     )
-    text = b"domain [u8]::Text(bytes)\nrequires valid_utf8(bytes);\nmachine show(text: &[u8] in Text) {}\n"
+    text = b'domain [u8]::Text\nrequires valid_utf8(self);\nmachine show(text: &[u8] in Text) {}\n'
     rejected(program, "byte-predicate-domain-needs-carried-evidence", text + b"machine f(raw: &[u8]) { show(raw); }",
              "DomainUnproven", b"raw!2")
     accepted(program, "byte-predicate-domain-carried", text + b"machine f(view: &[u8] in Text) { show(view); }")
@@ -1277,7 +1277,7 @@ def main() -> None:
     # ranges and its own `requires` facts.
     # A whole membership fact is its domain's predicates of the value; a
     # case membership must hold only where checking keeps case knowledge.
-    member = b"domain u64::Small(value)\nrequires value < 4;\n"
+    member = b'domain u64::Small\nrequires self < 4;\n'
     accepted(
         program,
         "membership-requires-assumes-its-domain",
@@ -1332,7 +1332,7 @@ def main() -> None:
     rejected(
         program,
         "array-literal-element-proves-its-domain",
-        b"domain u8::Small(value)\nrequires value < 4;\nmachine f() -> u8 { let a: [u8 in Small; 2] = [1, 9]; 0 }",
+        b'domain u8::Small\nrequires self < 4;\nmachine f() -> u8 { let a: [u8 in Small; 2] = [1, 9]; 0 }',
         "DomainUnproven",
         b"9",
     )
@@ -1419,11 +1419,7 @@ def main() -> None:
     # Qualification keeps the exact fixed-array width. Literal predicates
     # are still checked independently of geometry and length.
     fixed_bytes = (
-        b"domain [u8; 2]::Utf8(bytes) requires valid_utf8(bytes);\n"
-        b"data M { line: [u8; 2] in Utf8; }\n"
-        b"machine two(n: u64) requires n == 2 {}\n"
-        b"machine text(bytes: &[u8; 2] in Utf8) requires valid_utf8(bytes) {}\n"
-        b"machine f(m: &mut M) {\n    m.line = LITERAL;\n    two(m.line.len);\n    text(&m.line);\n}"
+        b'domain [u8; 2]::Utf8 requires valid_utf8(self);\ndata M { line: [u8; 2] in Utf8; }\nmachine two(n: u64) requires n == 2 {}\nmachine text(bytes: &[u8; 2] in Utf8) requires valid_utf8(bytes) {}\nmachine f(m: &mut M) {\n    m.line = LITERAL;\n    two(m.line.len);\n    text(&m.line);\n}'
     )
     accepted(program, "quoted-copy-retains-fixed-byte-length", fixed_bytes.replace(b"LITERAL", b"\"ok\""))
     rejected(
@@ -1441,13 +1437,7 @@ def main() -> None:
         b"two(m.line.len)",
     )
     geometry = (
-        b"domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);\n"
-        b"machine eight(n: u64) requires n == 8 {}\n"
-        b"machine borrowed(bytes: &[u8; 8] in Utf8) { eight(bytes.len); }\n"
-        b"machine owned(bytes: [u8; 8] in Utf8) {\n"
-        b"    let plain: [u8; 8] = bytes;\n    eight(bytes.len);\n    eight(plain.len);\n}\n"
-        b"machine write_only(bytes: &write [u8; 8] in Utf8) { eight(bytes.len); }\n"
-        b"machine last(bytes: &[u8; 8] in Utf8) -> u8 { bytes[7] }"
+        b'domain [u8; 8]::Utf8 requires valid_utf8(self);\nmachine eight(n: u64) requires n == 8 {}\nmachine borrowed(bytes: &[u8; 8] in Utf8) { eight(bytes.len); }\nmachine owned(bytes: [u8; 8] in Utf8) {\n    let plain: [u8; 8] = bytes;\n    eight(bytes.len);\n    eight(plain.len);\n}\nmachine write_only(bytes: &write [u8; 8] in Utf8) { eight(bytes.len); }\nmachine last(bytes: &[u8; 8] in Utf8) -> u8 { bytes[7] }'
     )
     accepted(program, "fixed-qualified-owned-borrowed-erased-lengths-and-last-index", geometry)
     rejected(program, "fixed-qualified-index-at-extent", geometry.replace(b"bytes[7]", b"bytes[8]"),
@@ -2728,13 +2718,7 @@ def main() -> None:
     accepted(
         program,
         "record-copy-keeps-its-fields",
-        b"data Player [copy] { health: i32; }\n"
-        b"domain Player::Alive(player)\nrequires player.health > 0;\n"
-        b"machine inspect(player: Player)\nrequires player in Player::Alive\n{}\n"
-        b"machine run(player: Player)\nrequires player in Player::Alive\n{\n"
-        b"    let copy: Player = player;\n"
-        b"    inspect(copy);\n"
-        b"}",
+        b'data Player [copy] { health: i32; }\ndomain Player::Alive\nrequires self.health > 0;\nmachine inspect(player: Player)\nrequires player in Player::Alive\n{}\nmachine run(player: Player)\nrequires player in Player::Alive\n{\n    let copy: Player = player;\n    inspect(copy);\n}',
     )
 
     # An operand evaluated before a later call writes what it read keeps
@@ -3071,20 +3055,14 @@ def main() -> None:
     rejected(
         program,
         'selector-writes-before-the-value-reads',
-        b'data Token { value: u64; }\n'
-        b'machine mutate(token: &mut Token) -> u64 ensures result == 0 && token.value == 9 { token.value = 9; 0 }\n'
-        b'domain u64::One(value) requires value == 1;\n'
-        b'machine run() { let mut items: [u64 in One; 1] = [1]; let mut token: Token = Token { value: 1 }; items[mutate(&mut token)] = token.value; }',
+        b'data Token { value: u64; }\nmachine mutate(token: &mut Token) -> u64 ensures result == 0 && token.value == 9 { token.value = 9; 0 }\ndomain u64::One requires self == 1;\nmachine run() { let mut items: [u64 in One; 1] = [1]; let mut token: Token = Token { value: 1 }; items[mutate(&mut token)] = token.value; }',
         "DomainUnproven",
         b"items[mutate(&mut token)] = token.value;",
     )
     accepted(
         program,
         'value-reads-the-selector-write',
-        b'data Token { value: u64; }\n'
-        b'machine mutate(token: &mut Token) -> u64 ensures result == 0 && token.value == 9 { token.value = 9; 0 }\n'
-        b'domain u64::Nine(value) requires value == 9;\n'
-        b'machine run() { let mut items: [u64 in Nine; 1] = [9]; let mut token: Token = Token { value: 1 }; items[mutate(&mut token)] = token.value; }',
+        b'data Token { value: u64; }\nmachine mutate(token: &mut Token) -> u64 ensures result == 0 && token.value == 9 { token.value = 9; 0 }\ndomain u64::Nine requires self == 9;\nmachine run() { let mut items: [u64 in Nine; 1] = [9]; let mut token: Token = Token { value: 1 }; items[mutate(&mut token)] = token.value; }',
     )
 
     # Borrowed locals keep the captured storage identity through reborrows
@@ -3404,14 +3382,12 @@ def main() -> None:
     accepted(
         program,
         "a-qualified-source-views-shared",
-        b"domain u8::Small(value) requires value < 8;\ndata P { v: u8 in Small; }\n"
-        b"machine f(p: &P) { let signed: &i8 = &p.v as &i8; }",
+        b'domain u8::Small requires self < 8;\ndata P { v: u8 in Small; }\nmachine f(p: &P) { let signed: &i8 = &p.v as &i8; }',
     )
     rejected(
         program,
         "a-qualified-source-never-views-mutably",
-        b"domain u8::Small(value) requires value < 8;\ndata P { v: u8 in Small; }\n"
-        b"machine f(p: &mut P) { let signed: &mut i8 = &mut p.v as &mut i8; }",
+        b'domain u8::Small requires self < 8;\ndata P { v: u8 in Small; }\nmachine f(p: &mut P) { let signed: &mut i8 = &mut p.v as &mut i8; }',
         "RepresentationUnproven",
         b"&mut p.v as &mut i8",
     )

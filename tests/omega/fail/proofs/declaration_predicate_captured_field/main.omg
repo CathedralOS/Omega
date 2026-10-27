@@ -1,6 +1,6 @@
 data Counter { value: u64; }
 data Pair [copy] { first: u64; second: u64; }
-domain Pair::Small(value) requires embed(value.first) <= 100;
+domain Pair::Small requires embed(self.first) <= 100;
 machine replace(counter: &mut Counter) -> u64 {
     counter.value = 1;
     0

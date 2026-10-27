@@ -248,8 +248,6 @@ pub struct DataVariant {
 #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
 pub struct DomainDefinition {
     pub name: Identifier,
-    /// Lexical name of the classified value, not a runtime or generic parameter.
-    pub subject: Option<Identifier>,
     /// Generic carrier binder followed by proof-static const binders. Empty
     /// for an ordinary monomorphic domain.
     pub type_parameters: HandleSpan<TypeParameter>,
@@ -286,7 +284,6 @@ impl Default for DomainDefinition {
     fn default() -> Self {
         Self {
             name: Identifier::generated(""),
-            subject: None,
             type_parameters: HandleSpan::empty(),
             target_type: crate::types::TypeReferenceHandle::invalid(),
             index_arguments: HandleSpan::empty(),

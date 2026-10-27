@@ -610,7 +610,7 @@ public data ConformanceRow [copy] {
     source_span: SourceSpan;
 }
 
-// A `domain` declaration `domain<binders> Carrier::Name<indices>(subject)`.
+// A `domain` declaration `domain<binders> Carrier::Name<indices>`.
 // The carrier is a type-reference handle, the index arguments a range of
 // `SyntaxTrees::type_arguments`. A predicate domain keeps its `requires`
 // facts as clauses and its `established by` routes as name paths; a
@@ -622,8 +622,6 @@ public data DomainItem [copy] {
     argument_count: u64 in Trapping;
     first_generic_parameter: u64 in Trapping;
     generic_parameter_count: u64 in Trapping;
-    has_subject: bool;
-    subject: IdentifierSpan;
     first_clause: u64 in Trapping;
     clause_count: u64 in Trapping;
     first_route: u64 in Trapping;
@@ -850,8 +848,7 @@ public data ParseDiagnosticCode [copy] {
     case ExpectedDomainCarrier;
     case ExpectedDomainSeparator;
     case ExpectedDomainName;
-    case ExpectedDomainSubject;
-    case ExpectedDomainSubjectEnd;
+    case RetiredDomainSubject;
     case ExpectedDomainConstituent;
     case ExpectedEstablishedBy;
     case ExpectedDomainRoute;

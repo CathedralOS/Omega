@@ -6,4 +6,4 @@ requires left >= right;
 trait Comparison {
     machine checked(left: f64, right: f32) requires left != right;
 }
-domain f64::Mixed(value) requires value < 1.0f32;
+domain f64::Mixed requires self < 1.0f32;

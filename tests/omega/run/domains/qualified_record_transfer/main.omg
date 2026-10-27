@@ -1,6 +1,6 @@
 // Expected exit: 0.
 data Handle { value: u64; }
-domain Handle::Open(handle) requires handle.value != 0 established by issue_handle, issue_local;
+domain Handle::Open requires self.value != 0 established by issue_handle, issue_local;
 machine issue_handle(value: u64) -> Handle in Open requires value != 0 { Handle { value: value } }
 machine issue_local(value: u64) -> Handle in Open requires value != 0 {
     let handle: Handle = Handle { value: value };

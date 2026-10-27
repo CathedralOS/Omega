@@ -1,6 +1,6 @@
 use omega_language_std::console;
 
-domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8]::Utf8 requires valid_utf8(self);
 // The copyable owner stores capacity and live length explicitly. Qualification
 // belongs to the borrowed prefix, whose actual bytes are validated.
 data TextBuffer [copy] where used <= 16 { storage: [u8; 16]; used: u64; }

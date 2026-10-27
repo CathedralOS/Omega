@@ -1,6 +1,6 @@
-domain [u8]::Utf8(bytes)
+domain [u8]::Utf8
 requires
-    valid_utf8(bytes);
+    valid_utf8(self);
 // Wire stage 2, domain-qualified borrowed slices: a `#N label: &[u8] in Utf8`
 // member is still borrowed-slice storage -- the `in Utf8` qualification rides
 // the referee slice, and ENCODE only reads the member (a place declared `in`

@@ -5,9 +5,9 @@
 // proved equivalent. Other canaries independently pin mutable write-through.
 use omega_language_std::console;
 
-domain u32::Small(value)
+domain u32::Small
 requires
-    value <= 100;
+    self <= 100;
 
 data Main {
     value: u32 in Small;

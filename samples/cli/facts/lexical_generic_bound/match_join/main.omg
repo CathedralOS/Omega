@@ -1,7 +1,7 @@
 // Expected exit: 0
 // A shadowed const binder carries the seven-unit upper bound before exact 7 - value.
 data Units {}
-domain u64::AtMostSeven(value) requires value <= 7;
+domain u64::AtMostSeven requires self <= 7;
 trait Bounded {
     machine value<const Units: u64>(input: u64) -> u64
     requires input <= Units

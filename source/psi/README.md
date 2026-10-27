@@ -98,8 +98,8 @@ own `;`; a
 named conformance `[pub] Name [<generic parameters>] satisfies Trait<arguments>
 { ... }` holds checked machines and reference rows `Trait::requirement = Path;`
 ([`parse/traits.omg`](parse/traits.omg), [`parse/conformance.omg`](parse/conformance.omg));
-`[pub] domain [<generic parameters>] Carrier::Name [<indices>] [(subject)]`
-is a transparent alias `= A & B;` or takes `requires` facts and
+`[pub] domain [<generic parameters>] Carrier::Name [<indices>]`
+is a transparent alias `= A & B;` or takes `requires` facts over logical `self` and
 `established by Path, ...` routes, closed by `;` or an empty `{ }`
 ([`parse/domain.omg`](parse/domain.omg)); `[pub] const [Owner::]NAME: Type =
 value;` names a compile-time value ([`parse/constant.omg`](parse/constant.omg));
@@ -571,7 +571,7 @@ and a membership inside a larger fact is an unknown Boolean. A domain's
 predicates decide as trees, so deciding a membership never recurs.
 Declared domains ([`checking/qualification.omg`](checking/qualification.omg)):
 a parameter's qualification holds from its body's entry, decided as the
-domain's predicates with its subject binder standing for the value; a
+domain's predicates with its exact logical `self` standing for the value; a
 call or jump argument, a returned value, a qualified local's initializer, a
 store and an `as` cast meet their destination's qualification by already
 carrying it (an unadapted value of a type it qualifies) or by proving the

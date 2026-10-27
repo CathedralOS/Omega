@@ -25,9 +25,9 @@ public boundary data Sleeper;
 
 boundary machine Sleeper::park(token: i32) suspends;
 
-public domain Token::AcrossSuspend(token)
+public domain Token::AcrossSuspend
 requires
-    token.id > 0;
+    self.id > 0;
 
 public data Token {
     id: u64;

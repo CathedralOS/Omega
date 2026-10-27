@@ -3,9 +3,9 @@ data Item [copy] {
     tag: i32;
 }
 
-domain Item::Valid(item)
+domain Item::Valid
 requires
-    item.value > 0;
+    self.value > 0;
 
 data Main {
     items: [Item; 2];

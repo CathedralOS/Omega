@@ -12,8 +12,8 @@ use targets::windows_x86_64::windows_filesystem_calling;
 use targets::windows_x86_64::windows_filesystem_transfer;
 
 // Zero is the failed acquisition. Only nonzero classified values may enter I/O.
-domain i64::WindowsSynchronousFileOrAbsent(handle)
-requires handle != -1
+domain i64::WindowsSynchronousFileOrAbsent
+requires self != -1
 established by windows_synchronous_duplicate;
 
 boundary trait WindowsFilesystemTransferIo: Calling<WindowsFilesystemTransferCalling> {

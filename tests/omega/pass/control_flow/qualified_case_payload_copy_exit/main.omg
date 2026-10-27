@@ -1,6 +1,6 @@
 // Expected exit: 0. A qualified copyable payload survives case/field projection.
 data Item [copy] { value: u64; }
-domain Item::Positive(item) requires item.value > 0;
+domain Item::Positive requires self.value > 0;
 data Outcome { case Empty; case Ready(item: Item in Positive); }
 data Envelope { outcome: Outcome; }
 

@@ -6,84 +6,54 @@ use syntax_trees::statement::StatementNode;
 use syntax_trees::types::TypeReferenceNode;
 
 #[test]
-fn explicit_domain_subject_preserves_ordinary_name_operands() {
+fn logical_domain_subject_preserves_ordinary_machine_operands() {
     let source = r#"
         data Player { health: u64; }
-        domain Player::Alive(player) requires player.health > 0 { }
+        domain Player::Alive requires self.health > 0 { }
         machine health(player: Player) -> u64 { player.health }
     "#;
-    let parsed = super::parse_source_verbose(
-        source,
-        "tokenize domain subject",
-        "parse explicit domain subject",
-    );
-    let domain = super::root_domain(&parsed, "domain");
-    assert_eq!(
-        domain.subject.as_ref().map(|name| name.as_str(&parsed)),
-        Some("player")
-    );
-    assert_eq!(
-        parsed
-            .expressions
-            .iter_expressions()
-            .filter(|(_, node)| {
-                let ExpressionNode::Name(path) = node else { return false; };
-                matches!(parsed.expressions.identifier_path_members(*path), [name] if name.as_str(&parsed) == "player")
-            })
-            .count(),
-        2
-    );
-    assert!(parsed.expressions.iter_expressions().any(|(_, node)| {
-        let ExpressionNode::Name(path) = node else { return false; };
-        matches!(parsed.expressions.identifier_path_members(*path), [name] if name.as_str(&parsed) == "player")
-    }), "the machine's parameter reference must remain an ordinary name");
+    let parsed =
+        super::parse_source_verbose(source, "tokenize logical subject", "parse logical subject");
     let mut copied = syntax_trees::SyntaxTrees::default();
     copied.extend_from(&parsed);
-    let copied_subject = copied
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Domain(domain) => domain.subject.as_ref(),
-            _ => None,
-        })
-        .expect("copied subject");
-    assert_eq!(copied_subject.as_str(&copied), "player");
-}
-
-#[test]
-fn explicit_domain_subject_follows_indices_and_preserves_generic_references() {
-    let tokens =
-        Lexer::new("domain<const Limit: u64> u64::AtMost<Limit>(value) requires value <= Limit;")
-            .tokenize()
-            .expect("tokenize indexed domain");
-    let parsed = parse_syntax_trees(&tokens).expect("parse indexed domain subject");
-    assert_eq!(
-        parsed
-            .expressions
-            .iter_expressions()
-            .filter(|(_, node)| {
+    for trees in [&parsed, &copied] {
+        super::root_domain(trees, "domain");
+        for name in ["self", "player"] {
+            assert_eq!(trees.expressions.iter_expressions().filter(|(_, node)| {
                 let ExpressionNode::Name(path) = node else { return false; };
-                matches!(parsed.expressions.identifier_path_members(*path), [name] if name.as_str(&parsed) == "value")
-            })
-            .count(),
-        1
-    );
-    assert!(parsed.expressions.iter_expressions().any(|(_, node)| {
-        let ExpressionNode::Name(path) = node else { return false; };
-        matches!(parsed.expressions.identifier_path_members(*path), [name] if name.as_str(&parsed) == "Limit")
-    }));
+                matches!(trees.expressions.identifier_path_members(*path), [member] if member.as_str(trees) == name)
+            }).count(), 1, "logical and ordinary subjects remain separate through copying");
+        }
+    }
 }
 
 #[test]
-fn explicit_domain_subject_rejects_runtime_parameter_shapes_and_duplicate_binders() {
+fn logical_domain_subject_preserves_generic_references() {
+    let tokens = Lexer::new("domain<const Limit: u64> u64::AtMost<Limit> requires self <= Limit;")
+        .tokenize()
+        .expect("tokenize indexed domain");
+    let parsed = parse_syntax_trees(&tokens).expect("parse indexed logical subject");
+    for name in ["self", "Limit"] {
+        assert!(parsed.expressions.iter_expressions().any(|(_, node)| {
+            let ExpressionNode::Name(path) = node else { return false; };
+            matches!(parsed.expressions.identifier_path_members(*path), [member] if member.as_str(&parsed) == name)
+        }));
+    }
+}
+
+#[test]
+fn rejects_every_authored_domain_subject_shape() {
     for source in [
+        "domain u64::Positive(value) requires value > 0;",
+        "domain u64::Positive(self) requires self > 0;",
         "domain u64::Positive(value: u64) requires value > 0;",
         "domain u64::Positive(left, right) requires left > right;",
-        "domain u64::Positive(value) requires self > 0;",
         "domain<const Limit: u64> u64::AtMost<Limit>(Limit) requires Limit > 0;",
+        "domain u64::Tag(unused);",
     ] {
         let tokens = Lexer::new(source)
             .tokenize()
-            .expect("tokenize invalid subject");
+            .expect("tokenize retired subject");
         assert!(parse_syntax_trees(&tokens).is_err(), "accepted {source}");
     }
 }

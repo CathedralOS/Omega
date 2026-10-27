@@ -1,6 +1,6 @@
 data Pair { first: u64; second: u64; }
 data Captured [copy] { first: u64; second: u64; }
-domain Captured::Both(value) requires value.first == 1 && value.second == 1;
+domain Captured::Both requires self.first == 1 && self.second == 1;
 machine initialize(value: &mut Pair) -> u64
 ensures value.first == 1 && value.second == 1
 {

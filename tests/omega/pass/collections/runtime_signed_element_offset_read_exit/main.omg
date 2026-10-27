@@ -6,7 +6,7 @@
 // `i: u64 in U640To3` proves the element obligation. -> exit 70.
 use omega_language_std::console;
 
-domain u64::U640To3(value) requires value <= 3;
+domain u64::U640To3 requires self <= 3;
 data Main {
     tag: u64;
     values: [i32; 4];

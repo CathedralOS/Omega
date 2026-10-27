@@ -1,7 +1,7 @@
 use omega::language::core::content;
 data Slot { }
 data Capacity [linear] { stamp: u64; }
-domain Capacity::Held(capacity) requires capacity.stamp != 0 established by acquire;
+domain Capacity::Held requires self.stamp != 0 established by acquire;
 machine acquire() -> Capacity in Capacity::Held { Capacity { stamp: 17 } }
 machine Held::content(capacity: &Capacity) -> CountedQuantity<Slot>
 satisfies Content<Capacity, CountedQuantity<Slot>>::project {

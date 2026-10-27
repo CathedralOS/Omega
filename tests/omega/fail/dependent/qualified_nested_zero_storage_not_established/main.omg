@@ -2,7 +2,7 @@
 // Looking through that child's qualification for field geometry cannot
 // establish the child or authorize an observation of its zeroed payload.
 data Guarded [copy] { code: i32; }
-domain Guarded::Positive(value) requires value.code > 0;
+domain Guarded::Positive requires self.code > 0;
 domain Guarded::PositiveAlias = Positive;
 domain Guarded::Issued established by Guarded::issue;
 domain Guarded::IssuedAlias = Issued;

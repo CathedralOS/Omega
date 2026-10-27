@@ -2,46 +2,61 @@
 // Expected exit: 0
 
 data Cell [copy] { value: u64; }
-domain Cell::Ready(cell)
-requires cell.value >= 72u64;
+domain Cell::Ready requires self.value >= 72u64;
+trait Consumer { machine consume(cell: &Cell) -> u64; }
+WindowsConsumer satisfies Consumer {
+    machine consume(cell: &Cell) -> u64 {
+        let selected: u64 = match cell {
+            Cell::Ready -> cell.value
+            _ -> 73u64
+        };
+        selected - 73u64
+    }
+}
 
-windows_x86_64 machine consume(cell: &Cell) -> u64 {
-    let selected: u64 = match cell {
-        Cell::Ready -> cell.value
-        _ -> 73u64
-    };
-    selected - 73u64
+LinuxConsumer satisfies Consumer {
+    machine consume(cell: &Cell) -> u64 {
+        let selected: u64 = match cell {
+            Cell::Ready -> cell.value
+            _ -> 73u64
+        };
+        selected - 73u64
+    }
 }
-linux_x86_64 machine consume(cell: &Cell) -> u64 {
-    let selected: u64 = match cell {
-        Cell::Ready -> cell.value
-        _ -> 73u64
-    };
-    selected - 73u64
+
+MacConsumer satisfies Consumer {
+    machine consume(cell: &Cell) -> u64 {
+        let selected: u64 = match cell {
+            Cell::Ready -> cell.value
+            _ -> 73u64
+        };
+        selected - 73u64
+    }
 }
-macos_arm64 machine consume(cell: &Cell) -> u64 {
-    let selected: u64 = match cell {
-        Cell::Ready -> cell.value
-        _ -> 73u64
-    };
-    selected - 73u64
+
+LinuxArmConsumer satisfies Consumer {
+    machine consume(cell: &Cell) -> u64 {
+        let selected: u64 = match cell {
+            Cell::Ready -> cell.value
+            _ -> 73u64
+        };
+        selected - 73u64
+    }
 }
-linux_arm64 machine consume(cell: &Cell) -> u64 {
-    let selected: u64 = match cell {
-        Cell::Ready -> cell.value
-        _ -> 73u64
-    };
-    selected - 73u64
-}
-machine main() crashes Trap {
+
+machine journey<Operations satisfies Consumer>() crashes Trap {
     let ready: Cell = Cell { value: 90u64 };
     let fallback: Cell = Cell { value: 12u64 };
-    let matched: u64 = consume(&ready);
-    let defaulted: u64 = consume(&fallback);
+    let matched: u64 = Operations::consume(&ready);
+    let defaulted: u64 = Operations::consume(&fallback);
     transition matched == 17u64 && defaulted == 0u64 {
         true -> done()
         false -> wrong()
     }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
 }
-machine done() {}
-machine wrong() crashes Trap { crash Trap; }
+machine windows_entry() crashes Trap { journey<WindowsConsumer>(); }
+machine linux_entry() crashes Trap { journey<LinuxConsumer>(); }
+machine mac_entry() crashes Trap { journey<MacConsumer>(); }
+machine linux_arm_entry() crashes Trap { journey<LinuxArmConsumer>(); }

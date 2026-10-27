@@ -5,7 +5,7 @@
 // MUST reject with the expected fragment.
 use omega_language_std::console;
 
-domain i32::Ten(value) requires 0 <= value && value <= 10;
+domain i32::Ten requires 0 <= self && self <= 10;
 
 data Level {
     case Dark;

@@ -4,8 +4,8 @@
 data Seed [copy] { code: u64; }
 data Counter { value: u64; invocations: u64 in Wrapping; }
 data Keeper { output: &mut Counter; code: u64; }
-domain Keeper::Held(keeper) dropped by release_keeper requires keeper.code == 7;
-domain Keeper::Label(keeper) dropped by release_keeper requires keeper.code == 7;
+domain Keeper::Held dropped by release_keeper requires self.code == 7;
+domain Keeper::Label dropped by release_keeper requires self.code == 7;
 machine release_keeper(keeper: &mut Keeper) requires keeper.code == 7 {
     keeper.output.value = keeper.code;
     keeper.output.invocations = keeper.output.invocations + 1;

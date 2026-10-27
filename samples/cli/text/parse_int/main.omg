@@ -12,12 +12,12 @@
 // runtime, not hard-coded).
 // Expected exit: 150.
 
-domain [u8]::Utf8(bytes)
+domain [u8]::Utf8
 requires
-    valid_utf8(bytes);
-domain [u8; 3]::Utf8(bytes)
+    valid_utf8(self);
+domain [u8; 3]::Utf8
 requires
-    valid_utf8(bytes);
+    valid_utf8(self);
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 // Parsing borrows its input. Only the cursor and accumulator cross state edges;

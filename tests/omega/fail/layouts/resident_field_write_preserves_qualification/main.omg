@@ -5,7 +5,7 @@ use omega::language::core::layout;
 
 data TestMemory {}
 
-public domain u64::Seventeen(value) requires value == 17;
+public domain u64::Seventeen requires self == 17;
 public data Word { value: u64 in Seventeen; }
 public data WordPlacement {}
 

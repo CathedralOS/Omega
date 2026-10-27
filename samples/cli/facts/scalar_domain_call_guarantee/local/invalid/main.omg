@@ -1,7 +1,7 @@
 // A completed query guarantees a nonnegative result; routed domain introduction preserves that fact.
 // Expected exit: 0.
 const FLOOR: i64 = -1;
-domain i64::Nonnegative(value) requires value >= 0 established by issue;
+domain i64::Nonnegative requires self >= 0 established by issue;
 boundary trait Query { machine read(input: i64) -> i64 reaches ensures result >= FLOOR; }
 Actual satisfies Query {
     machine read(input: i64) -> i64 ensures result >= FLOOR {

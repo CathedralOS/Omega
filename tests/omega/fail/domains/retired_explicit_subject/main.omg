@@ -1,0 +1,3 @@
+domain u64::Small(value) requires value < 5;
+const VALUE: u64 in Small = 3;
+machine check() {}

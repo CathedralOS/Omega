@@ -1,7 +1,7 @@
-domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8]::Utf8 requires valid_utf8(self);
 // Expected exit: 0. Array elements keep their own byte domains, live lengths
 // and backing through construction, copies, returns and exclusive loans.
-domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 8]::Utf8 requires valid_utf8(self);
 data Container [copy] { entries: [TextBuffer; 2]; }
 
 machine make() -> [TextBuffer; 2] crashes Trap { [TextBuffer { storage: [97u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 1 }, TextBuffer { storage: [115u8, 108u8, 111u8, 116u8, 0u8, 0u8, 0u8, 0u8], used: 4 }] }

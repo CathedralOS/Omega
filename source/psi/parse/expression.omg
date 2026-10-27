@@ -222,13 +222,27 @@ crashes Trap
         }
     }
 
-    // As in every name position, a keyword other than `self` is an ordinary
-    // name here (`data(...)` targets a state named `data`).
+    // Logical self is admitted only by a declaration predicate owner. Other
+    // keywords remain ordinary names; this grants no machine receiver.
     machine keyword_operand(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode, keyword: KeywordKind) {
         transition keyword {
-            KeywordKind::SelfValue -> reject(parser, input, code)
+            KeywordKind::SelfValue -> logical_subject(parser, input, code)
             _ -> path(parser, input)
         }
+    }
+
+    machine logical_subject(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
+        transition parser.expression_logical_subject {
+            true -> subject_node(parser, input)
+            _ -> reject(parser, input, code)
+        }
+    }
+
+    machine subject_node(parser: &mut Parser, input: &TokenStream) {
+        let token: Token = input.tokens[parser.current_index];
+        parser.path_start = token.start;
+        Parser::take_current(parser, input);
+        transition { _ -> name_node(parser, input) }
     }
 
     machine prefix(parser: &mut Parser, input: &TokenStream, operator: OperatorKind) {

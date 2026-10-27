@@ -2,9 +2,9 @@
 // then that local field stored into a qualified borrowed-view local: each
 // store installs the same backing and extent, no byte is copied, and the
 // view local reads its declared Utf8 home like any other shared view.
-domain [u8]::Utf8(bytes)
+domain [u8]::Utf8
 requires
-    valid_utf8(bytes);
+    valid_utf8(self);
 use omega_language_std::console;
 
 data Room [copy] { label: &[u8] in Utf8; }

@@ -12,9 +12,9 @@
 // Compile-checked only: no standard-library dependency, no ProcessExit
 // provider.
 
-domain i32::Ten(value)
+domain i32::Ten
 requires
-    0 <= value && value <= 10;
+    0 <= self && self <= 10;
 
 data Gauge {
     level: i32 in Ten;
@@ -24,19 +24,19 @@ data Player {
     health: i32;
 }
 
-domain Player::Valid(player)
+domain Player::Valid
 requires
-    player.health >= 0;
+    self.health >= 0;
 
-domain Player::Alive(player)
+domain Player::Alive
 requires
-    player in Player::Valid;
-    player.health > 0;
+    self in Player::Valid;
+    self.health > 0;
 
-domain Player::Dead(player)
+domain Player::Dead
 requires
-    player in Player::Valid;
-    player.health == 0;
+    self in Player::Valid;
+    self.health == 0;
 
 data Main {
     player: Player;

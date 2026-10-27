@@ -3,9 +3,9 @@
 // the outer `open_main_log` only forwards its folder, so the authority
 // flow propagates `derives` up the call graph.
 
-public domain [u8]::Utf8(bytes)
+public domain [u8]::Utf8
 requires
-    valid_utf8(bytes);
+    valid_utf8(self);
 
 public data Folder {
 }

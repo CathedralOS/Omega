@@ -1,4 +1,4 @@
-domain u64::Positive(value) requires value >= 1;
+domain u64::Positive requires self >= 1;
 
 machine copy(values: &[u64 in Positive]) -> u64 in Positive
 requires values.len == 2

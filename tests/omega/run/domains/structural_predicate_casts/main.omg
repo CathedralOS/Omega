@@ -6,7 +6,7 @@
 // and a later state's parameter.
 data Quantity [copy] { value: i32; }
 
-domain Quantity::Additive(quantity) requires quantity.value >= 0;
+domain Quantity::Additive requires self.value >= 0;
 
 data Holder [copy] { quantity: Quantity; }
 

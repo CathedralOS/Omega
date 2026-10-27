@@ -12,9 +12,9 @@ machine within_calibration(reading: Reading) -> bool {
     reading.value >= reading.minimum && reading.value <= reading.maximum
 }
 
-domain Reading::Calibrated(reading)
+domain Reading::Calibrated
 requires
-    within_calibration(reading);
+    within_calibration(self);
 
 machine consume(reading: Reading in Calibrated) {}
 

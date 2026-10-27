@@ -5,8 +5,8 @@ use omega_language_std::console;
 
 data Slot { }
 data Capacity [linear] { stamp: u64; active: u64; units: u64; released: bool; }
-domain Capacity::Held(capacity) requires capacity.stamp != 0 established by acquire;
-domain Capacity::Vacant(capacity) requires capacity.active == 0;
+domain Capacity::Held requires self.stamp != 0 established by acquire;
+domain Capacity::Vacant requires self.active == 0;
 domain Capacity::Available = Capacity::Held & Capacity::Vacant;
 machine Held::content(capacity: &Capacity) -> CountedQuantity<Slot>
 satisfies Content<Capacity, CountedQuantity<Slot>>::project {

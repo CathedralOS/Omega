@@ -1,6 +1,6 @@
 use omega_language_std::console;
 
-domain [u8]::Name(bytes) requires no_nul(bytes);
+domain [u8]::Name requires no_nul(self);
 
 data Main {
 }

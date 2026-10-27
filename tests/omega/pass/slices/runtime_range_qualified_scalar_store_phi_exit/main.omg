@@ -1,4 +1,4 @@
-domain i32::Small(value) requires 0 <= value && value <= 100;
+domain i32::Small requires 0 <= self && self <= 100;
 machine write(items: &mut [i32 in Small; 3], value: i32 in Small, flag: bool) {
  transition flag { true -> next(items, value) _ -> next(items, value) }
  machine next(items: &mut [i32 in Small; 3], value: i32 in Small) { items[1] = value; }

@@ -1,8 +1,8 @@
 // Expected exit: 0. Explicit structural membership and qualified parameters
 // retain the same nominal obligation through checked boundary dispatch.
 data Guid { tag: u32; bytes: [u8; 2]; }
-domain Guid::Selected(value)
-requires value.tag == 7 && value.bytes[0] == 1 && value.bytes[1] == 2;
+domain Guid::Selected
+requires self.tag == 7 && self.bytes[0] == 1 && self.bytes[1] == 2;
 boundary trait Reader {
     machine read(prefix: u64, protocol: &Guid, suffix: u32) -> u64 reaches requires protocol in Guid::Selected;
     machine qualified(protocol: &Guid in Selected) -> u64 reaches;

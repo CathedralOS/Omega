@@ -1,9 +1,9 @@
-domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8]::Utf8 requires valid_utf8(self);
 // A field copy observes the local's current bytes after a completed call,
 // snapshots them, and preserves them when another call changes the source.
 use omega_language_std::console;
 
-domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 8]::Utf8 requires valid_utf8(self);
 data Text [copy] { bytes: TextBuffer; }
 data Room [copy] { description: Text; }
 data Main { output: TextBuffer; }

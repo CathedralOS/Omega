@@ -3,7 +3,7 @@
 // `bytes[at] = value` writes only the caller's home. `at < bytes.len
 // && value < 128` keeps both bounds and domain honest; a shared
 // `&[u8; 2] in Ascii` loan may ride into a later state.
-domain [u8; 2]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 2]::Ascii requires ascii_only(self);
 machine replace(at: u64, bytes: &mut [u8; 2] in Ascii, value: u8) -> bool {
     transition at < bytes.len && value < 128 {
         true -> write(at, bytes, value, true)

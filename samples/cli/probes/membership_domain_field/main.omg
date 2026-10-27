@@ -10,9 +10,9 @@
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-domain [u8]::NonEmpty(bytes)
+domain [u8]::NonEmpty
 requires
-    non_empty(bytes);
+    non_empty(self);
 
 data Message
 where

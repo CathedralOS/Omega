@@ -4,9 +4,9 @@
 // entry `requires`, a dominating guard -- establishes the membership even
 // when it is spelled differently from the domain's predicate: `x < 10`
 // establishes `value <= 15`. Unsigned, signed and field subjects are shown.
-domain u64::Small(value) requires value <= 15;
+domain u64::Small requires self <= 15;
 
-domain i32::Centered(value) requires value >= -5 && value <= 5;
+domain i32::Centered requires self >= -5 && self <= 5;
 
 data Box [copy] { size: u64; }
 

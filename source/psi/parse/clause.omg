@@ -683,7 +683,9 @@ crashes Trap
     // A fact ends where its expression does; the body's `{` admits no
     // construction there.
     machine fact(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, kind: ClauseKind) {
+        parser.expression_logical_subject = Parser::clause_has_subject(owner, kind);
         Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedClauseFact, false, true);
+        parser.expression_logical_subject = false;
         transition parser.output.accepted {
             true -> fact_retained(parser, input, owner, kind, parser.expression_result)
             _ -> done()
@@ -1192,4 +1194,18 @@ crashes Trap
     machine full(parser: &mut Parser, input: &TokenStream) {
         Parser::reject_current(parser, input, ParseDiagnosticCode::ArgumentCapacityExceeded);
     }
+}
+
+// A predicate's subject belongs to its declaration, never to operational or
+// machine contracts. Clear the admission immediately after the expression so
+// the next declaration cannot inherit it, including after parse failure.
+machine Parser::clause_has_subject(owner: ClauseOwner, kind: ClauseKind) -> bool {
+    transition owner {
+        ClauseOwner::Domain -> domain(kind)
+        ClauseOwner::Data -> data(kind)
+        _ -> absent()
+    }
+    machine domain(kind: ClauseKind) -> bool { kind == ClauseKind::Requires }
+    machine data(kind: ClauseKind) -> bool { kind == ClauseKind::Where }
+    machine absent() -> bool { false }
 }

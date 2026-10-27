@@ -2,8 +2,8 @@
 // Expected exit: 0
 
 data Cell [copy] { value: u64; }
-domain Cell::Ready(cell) requires cell.value >= 73u64;
-domain Cell::Other(cell) requires cell.value >= 0u64;
+domain Cell::Ready requires self.value >= 73u64;
+domain Cell::Other requires self.value >= 0u64;
 machine obtain(visits: &mut u64) -> Cell
 requires visits == 0u64
 {

@@ -14,7 +14,7 @@
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 8]::Ascii requires ascii_only(self);
 
 machine replace(at: u64, bytes: &mut [u8; 8] in Ascii, value: u8) -> bool {
     transition at < bytes.len && value < 128 {

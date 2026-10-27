@@ -3,8 +3,8 @@
 // fields, forwarding and a later state. The domain excludes abs(INT_MIN).
 use omega::language::core::external_binding;
 
-public domain i32::RepresentableMagnitude(value)
-    requires value > -2147483648; (value & 1) == 0;
+public domain i32::RepresentableMagnitude
+    requires self > -2147483648; (self & 1) == 0;
 public boundary trait Magnitude {
     machine absolute(value: i32 in RepresentableMagnitude) -> i32
         reaches

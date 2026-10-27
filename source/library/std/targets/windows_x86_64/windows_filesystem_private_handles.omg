@@ -8,7 +8,7 @@ use targets::windows_x86_64::windows_filesystem_directory;
 use targets::windows_x86_64::windows_filesystem_reparse;
 use targets::windows_x86_64::filesystem_removal::acquisition;
 
-domain i64::WindowsPrivateNonalertFileOrAbsent(handle)
-requires handle != -1
+domain i64::WindowsPrivateNonalertFileOrAbsent
+requires self != -1
 established by windows_directory_open, windows_open_reparse,
     windows_removal_open_root, windows_removal_open_child;

@@ -1,6 +1,6 @@
 // A saved case decision crosses Boolean aliases, ordinary locals and disjoint writes.
 // Expected exit: 0
-domain u64::Divisor(value) requires value > 0;
+domain u64::Divisor requires self > 0;
 data Choice [copy] { case Empty; case Full(amount: u64 in Divisor); }
 machine mark(marker: &mut bool) { marker = true; }
 machine quotient(choice: &Choice, marker: &mut bool) -> u64 {
