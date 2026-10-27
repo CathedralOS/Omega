@@ -288,37 +288,15 @@ pub(super) fn admit<'source>(
     {
         return Err(DeadCompareError::UnsupportedInstruction);
     }
-    // The compare's own constraint row must declare the same all-`use`
-    // operand shape at the classes the roster assigns, and the same
-    // implicit surface the instruction carries: a row that disagrees would
-    // change what removing the instruction means.
-    let row = environment
-        .constraint(compare_instruction.constraint)
-        .ok_or(DeadCompareError::ConstraintMismatch)?;
-    if row.operands.len() != arity
-        || row.implicit_uses != compare_instruction.implicit_uses
-        || row.implicit_defs != compare_instruction.implicit_defs
-        || row.clobbers != compare_instruction.clobbers
-    {
-        return Err(DeadCompareError::ConstraintMismatch);
-    }
-    for (position, operand) in compare_instruction.operands.iter().enumerate() {
-        let register = function
-            .virtual_register(operand.virtual_register)
-            .ok_or(DeadCompareError::ConstraintMismatch)?;
-        if row.operands[position].operand != operand.operand
-            || row.operands[position].access != RegisterOperandAccess::Use
-            || row.operands[position].class != register.class
-        {
-            return Err(DeadCompareError::ConstraintMismatch);
-        }
-    }
-    // Removing the compare orphans anything that names it: call contracts
-    // and memory-access rows bind instructions by identity, and neither may
-    // claim the compare.
-    if function.call(compare).is_some() || function.memory_access(compare).is_some() {
-        return Err(DeadCompareError::UnsupportedInstruction);
-    }
+    agree_compare_removal_row(
+        function,
+        compare,
+        compare_instruction,
+        arity,
+        environment,
+        || DeadCompareError::ConstraintMismatch,
+        || DeadCompareError::UnsupportedInstruction,
+    )?;
     // Every condition-state unit the compare publishes must die unread:
     // each walks forward from the compare until a redefinition or clobber
     // kills it on every path, refusing the first reached reader.
@@ -433,4 +411,48 @@ where
         map_error,
     )?;
     seal(source, function_index, compare, transformed)
+}
+
+/// The compare-removal row agreement every compare family re-proves before its
+/// own audit: the compare's constraint row must declare the same all-`use`
+/// operand shape at the classes the roster assigns and the same implicit
+/// surface the instruction carries — a row that disagrees would change what
+/// removing the instruction means — and nothing may bind the removed
+/// instruction by identity, because a call contract or memory-access row
+/// naming it is orphaned by the removal. `arity` is the operand count the
+/// family's own canonical-shape read established.
+pub(crate) fn agree_compare_removal_row<E>(
+    function: &SelectedFunction,
+    compare: SelectedInstructionId,
+    compare_instruction: &SelectedInstruction,
+    arity: usize,
+    environment: &ValidatedTargetRegisterEnvironment,
+    constraint_mismatch: impl Fn() -> E,
+    unsupported: impl Fn() -> E,
+) -> Result<(), E> {
+    let row = environment
+        .constraint(compare_instruction.constraint)
+        .ok_or_else(&constraint_mismatch)?;
+    if row.operands.len() != arity
+        || row.implicit_uses != compare_instruction.implicit_uses
+        || row.implicit_defs != compare_instruction.implicit_defs
+        || row.clobbers != compare_instruction.clobbers
+    {
+        return Err(constraint_mismatch());
+    }
+    for (position, operand) in compare_instruction.operands.iter().enumerate() {
+        let register = function
+            .virtual_register(operand.virtual_register)
+            .ok_or_else(&constraint_mismatch)?;
+        if row.operands[position].operand != operand.operand
+            || row.operands[position].access != RegisterOperandAccess::Use
+            || row.operands[position].class != register.class
+        {
+            return Err(constraint_mismatch());
+        }
+    }
+    if function.call(compare).is_some() || function.memory_access(compare).is_some() {
+        return Err(unsupported());
+    }
+    Ok(())
 }
