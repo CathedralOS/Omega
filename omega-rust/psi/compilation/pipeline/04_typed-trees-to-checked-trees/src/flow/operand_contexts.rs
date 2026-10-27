@@ -2,7 +2,9 @@
 //! exact views read their referents at invocation. Operators and ordinary calls
 //! share this law, including the conservative context-identity intersection.
 mod selections;
+mod write_intervals;
 pub(crate) use selections::{OperandContextSelection, OperandContextSelections};
+pub(super) use write_intervals::{ContentObservationPoint, contents_observation_survives};
 
 use arena::HandleSpan;
 use checked_trees::{
@@ -341,7 +343,7 @@ pub(crate) fn binding_origin_is_stable(
     entry_origin_is_stable_when(program, control, writes, unknown, place, binding_overwrite)
 }
 
-type SourceWriteRelation = fn(
+pub(super) type SourceWriteRelation = fn(
     &dyn ::validation::CheckingInput,
     &validation::CanonicalPlace,
     &[facts::PlaceSegment],
@@ -762,32 +764,6 @@ pub(super) fn observation_prefixes_agree(
         && prefixes_agree(program, control, first, second, place, contents_overlap)
 }
 
-/// A tag read after an earlier write observes the new discriminator. Only
-/// writes between that actual read and its guard use can invalidate its tag;
-/// payload-only writes retain the ordinary discriminator overlap rule.
-pub(super) fn case_observation_prefixes_agree(
-    program: &dyn validation::CheckingInput,
-    control: &checked_trees::FlowControlFacts,
-    first: HandleSpan<checked_trees::FlowOperandReferent>,
-    first_unknown: bool,
-    second: HandleSpan<checked_trees::FlowOperandReferent>,
-    second_unknown: bool,
-    place: &validation::CanonicalPlace,
-) -> bool {
-    !first_unknown
-        && !second_unknown
-        && prefixes_agree(
-            program,
-            control,
-            first,
-            second,
-            place,
-            |program, place, written| {
-                super::case_tag_segments_may_overlap(program, &place.segments, written)
-            },
-        )
-}
-
 /// The complete directed contents-write interval between two completed
 /// occurrences. Consumers supply their own typed storage/permission judgment;
 /// this owner supplies chronology and refuses missing or unknown prefixes.
@@ -798,66 +774,14 @@ pub(crate) fn operand_contents_writes_between<'facts>(
     first: &FlowOperandFact,
     second: &FlowOperandFact,
 ) -> Option<Vec<(usize, &'facts checked_trees::FlowOperandReferent)>> {
-    if first.state_symbol != second.state_symbol
-        || first.entry_origin_unknown_write
-        || second.entry_origin_unknown_write
-    {
-        return None;
-    }
-    let control = &flow.control;
-    let mut writes = Vec::new();
-    if first.statement_index == second.statement_index {
-        writes.extend(
-            write_prefix_extension(
-                control,
-                first.entry_origin_writes,
-                second.entry_origin_writes,
-            )?
-            .iter()
-            .map(|write| (first.statement_index, write)),
-        );
-        return Some(writes);
-    }
-    let state = program.state_by_symbol(first.state_symbol)?;
-    let row = control.state_by_symbol(first.state_symbol)?;
-    let order = program
-        .statement_table
-        .admitted_execution_order(state.statement_nodes);
-    let start = order.position(first.statement_index)?;
-    let end = order.position(second.statement_index)?;
-    if start >= end {
-        return None;
-    }
-    let statements = control.statements.span(row.statements)?;
-    for (position, index) in order.indices()[start..end].iter().enumerate() {
-        let mut matching = statements
-            .iter()
-            .filter(|row| row.statement_index == *index);
-        let statement = matching.next()?;
-        if matching.next().is_some() || statement.completed_content_unknown_write {
-            return None;
-        }
-        let remaining = if position == 0 {
-            write_prefix_extension(
-                control,
-                first.entry_origin_writes,
-                statement.completed_content_writes,
-            )?
-        } else {
-            control
-                .operand_origin_writes
-                .span(statement.completed_content_writes)?
-        };
-        writes.extend(remaining.iter().map(|write| (*index, write)));
-    }
-    writes.extend(
-        control
-            .operand_origin_writes
-            .span(second.entry_origin_writes)?
-            .iter()
-            .map(|write| (second.statement_index, write)),
-    );
-    Some(writes)
+    let statements = flow.control.state_by_symbol(first.state_symbol)?.statements;
+    write_intervals::contents_writes_between(
+        program,
+        &flow.control,
+        statements,
+        ContentObservationPoint::from_operand(first),
+        ContentObservationPoint::from_operand(second),
+    )
 }
 
 /// Prefixes can be copied during arena growth. Authenticate the complete

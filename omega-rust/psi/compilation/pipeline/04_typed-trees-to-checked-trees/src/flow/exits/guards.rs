@@ -628,7 +628,8 @@ pub(in crate::flow) fn append_predicate_context(
         let state = &program.machine_states(machine)[state_position];
         // Each signed observation held when it was evaluated. A short-circuit
         // meet may have dropped its tag before this whole guard is known true;
-        // reconstruct it only across writes since that actual observation.
+        // reconstruct it only across the complete directed write interval
+        // since that actual observation, including intervening statements.
         // Earlier writes do not invalidate a freshly read tag. A later tag
         // replacement or unknown write still retires it, including for the
         // final signed observation of a guard containing trailing effects.
@@ -730,22 +731,43 @@ pub(in crate::flow) fn append_predicate_context(
             ) else {
                 continue;
             };
+            let statements = super::super::reference_spans::appended_span_since(
+                &build.control.statements,
+                build.state_statements_start,
+            );
+            let first = super::super::operand_contexts::ContentObservationPoint {
+                state: state_symbol,
+                statement: observation_statement_index,
+                writes: observed.origin_writes,
+                unknown_write: observed.origin_unknown_write,
+            };
+            let second = super::super::operand_contexts::ContentObservationPoint {
+                state: state_symbol,
+                statement: statement_index,
+                writes: entry_writes,
+                unknown_write: entry_unknown_write,
+            };
+            let write_changes: super::super::operand_contexts::SourceWriteRelation = if observed
+                .descriptor
+                .is_valid()
+            {
+                super::super::operand_contexts::contents_overlap
+            } else {
+                |program, place, written| {
+                    super::super::case_tag_segments_may_overlap(program, &place.segments, written)
+                }
+            };
             if std::iter::once(&observed.subject)
                 .chain(&observed.dependencies)
                 .any(|subject| {
-                    let agrees = if observed.descriptor.is_valid() {
-                        super::super::operand_contexts::observation_prefixes_agree
-                    } else {
-                        super::super::operand_contexts::case_observation_prefixes_agree
-                    };
-                    !agrees(
+                    !super::super::operand_contexts::contents_observation_survives(
                         program,
                         &build.control,
-                        observed.origin_writes,
-                        observed.origin_unknown_write,
-                        entry_writes,
-                        entry_unknown_write,
+                        statements,
+                        first,
+                        second,
                         subject,
+                        write_changes,
                     )
                 })
             {
