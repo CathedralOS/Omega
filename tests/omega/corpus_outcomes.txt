@@ -1937,6 +1937,8 @@ fail/build/explicit_lifetime_entry_context_shared rejected 234ms expected @a92f1
 	entry machine `Main::main` context `main` requires an exclusive mutable borrow
 fail/build/explicit_lifetime_entry_context_unestablished_reference rejected 2336ms expected @a92f16431042
 	native artifact ProgramEntry receiver provisioning failed: hosted receiver requires a checked ZII-valid value with no executable nominal cleanup
+fail/build/explicit_provider_readiness_private rejected 1288ms expected @f229bab668eb
+	Build backing names no public implementation in its exact dependency package
 fail/build/generated_resolution_source_location rejected 345ms expected @a92f16431042
 	machine `selected` is implemented twice for `local_unchecked` -- a target supplies exactly one implementation of a contract machine
 fail/build/generated_scalar_constant_range_refused rejected 1021ms expected published:none @a92f16431042
@@ -23042,6 +23044,7 @@ pass/build/discarded_provider_selection_exit rejected 5857ms check-target:macos_
 pass/build/entry_schema_same_leaf_exit checked 1937ms check-target:macos_arm64 @a92f16431042
 pass/build/executed_exclusion_values_exit checked 3300ms check-target:macos_arm64 @030cc694c7b9+wt
 pass/build/explicit_lifetime_entry_context_exit checked 1898ms check-target:macos_arm64 @a92f16431042
+pass/build/explicit_provider_readiness_exit checked 2301ms check-target:macos_arm64 interpreter-exit:0 @f229bab668eb
 pass/build/freestanding_unselected_completion checked 5583ms @a92f16431042
 pass/build/generated_source_selects_authored checked 4405ms published:files/generated.omg @a92f16431042
 pass/build/installed_entry_ram_stack_occurrence_exit checked 6380ms check-target:macos_arm64 @3c5cd09b7f5d

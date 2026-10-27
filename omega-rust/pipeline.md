@@ -318,7 +318,11 @@ then installs that exact implementation before resuming. The final source join
 also reconciles helper graphs retained with workspace declaration observations;
 unselected members' pending Product requests stay inert. Package locks retain
 catalog execution custody separately from Product routing. Applied/inherited
-multi-slot readiness and source-only corpus discovery remain open.
+multi-slot readiness remains open. Corpus consumers use this same executed
+discovery and retain settled Builds through target selection and Product
+admission. Their explicit fixture consent does not construct a second source
+graph or grant late execution inputs; named inspection consumes retained
+products as well.
 
 Each compiler entrance shows named representations and actual stage calls in
 execution order. A separate `pipeline.rs` is justified only if it owns meaningful

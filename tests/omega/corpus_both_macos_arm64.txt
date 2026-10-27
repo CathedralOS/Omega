@@ -278,6 +278,7 @@ pass/boundary/static_foreign_scalar_result_locals_exit built 69334ms exit:70 int
 pass/boundary/static_opaque_qualifier_exit built 762ms exit:0 interpreter-exit:0 interpreter:agrees @f07d2c3e0d94+wt
 pass/build/crash_exclusion_unexecuted_helper_exit built 1403ms exit:0 interpreter-exit:0 interpreter:agrees @9ac99b4eaa48
 pass/build/discarded_provider_selection_exit built 6550ms exit:70 interpreter-exit:70 interpreter:agrees @ac7fc986d407+wt
+pass/build/explicit_provider_readiness_exit built 2267ms exit:0 interpreter-exit:0 interpreter:agrees @f229bab668eb
 pass/build/installed_entry_ram_two_occurrences_exit built 1578ms exit:0 entry-ram:match interpreter-exit:0 interpreter-entry-ram:match interpreter:agrees @0360a23ad5f5+wt
 pass/build/nested_generated_dependency_dual_purpose built 983ms exit:0 interpreter-exit:0 interpreter:agrees @9176336860d9
 pass/build/product_selection_conditional_exit built 931ms exit:0 interpreter-exit:0 interpreter:agrees @7530b1177ef5+wt

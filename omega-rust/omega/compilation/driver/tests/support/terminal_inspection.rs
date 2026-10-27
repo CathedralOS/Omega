@@ -5,13 +5,10 @@
 
 use std::path::Path;
 
-use compiler::CheckedCompileRequest;
 use diagnostics::Diagnostic;
 use terminal_codec::{CanonicalTerminalArtifact, CanonicalTerminalArtifactError, DebugMapError};
 
-use crate::fixture_package_inputs::{
-    fixture_build_snapshot, reviewed_repository_fixture_package_inputs,
-};
+use crate::fixture_package_inputs;
 
 #[path = "closed_reach_controls.rs"]
 mod closed_reach_controls;
@@ -118,35 +115,54 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             }
         };
         inspected = true;
-        let prepared = reviewed_repository_fixture_package_inputs(root, None)
-            .map_err(|errors| format!("inspection {machine} package inputs: {errors:?}"))?;
-        let snapshot = fixture_build_snapshot(&prepared.root_path)
+        let source_controls = matches!(
+            conformance_controls,
+            Some(InspectionControls::MathematicalActuals | InspectionControls::IndexedFamily)
+        );
+        let product = if source_controls {
+            compiler::CompilationProduct::Check
+        } else {
+            compiler::CompilationProduct::Inspection(machine.to_owned())
+        };
+        let snapshot = fixture_package_inputs::fixture_build_snapshot(root)
             .map_err(|errors| format!("inspection {machine} build inputs: {errors:?}"))?;
-        let mut request = CheckedCompileRequest::new(&prepared.root_path, None);
-        request.package_inputs = prepared.package_inputs;
-        request.build.snapshot = snapshot;
-        if matches!(
-            conformance_controls,
-            Some(InspectionControls::MathematicalActuals)
-        ) {
-            let _artifact = mathematical_actuals::produce(request, machine)?;
-            continue;
-        }
-        if matches!(
-            conformance_controls,
-            Some(InspectionControls::IndexedFamily)
-        ) {
-            let _artifact = indexed_family_controls::produce(request, machine)?;
-            continue;
-        }
-        let produced = omega_build::produce_source(
-            &mut compiler::CompilationSession::default(),
-            request,
-            compiler::CompilationProduct::Inspection(machine.to_owned()),
+        let discovered = fixture_package_inputs::discover_fixture(
+            root,
+            package_compilation::BuildExecutionInputs {
+                snapshot,
+                ..Default::default()
+            },
         )
-        .and_then(compiler::CompilationOutput::into_inspection)
-        .map_err(compiler::CompilationProductError::into_diagnostics)
-        .map_err(|errors| format!("inspection {machine} production: {errors:?}"))?;
+        .map_err(|errors| format!("inspection {machine} discovery: {errors:?}"))?;
+        let selected_target = crate::check_leg_realization_target(&discovered.targets);
+        let profile = target::TargetProfile::from_omega_target_name(selected_target.as_deref())
+            .map_err(|error| error.message)?;
+        let mut prepared = fixture_package_inputs::review_fixture(discovered, &[profile], product)
+            .map_err(|errors| format!("inspection {machine} admission: {errors:?}"))?;
+        if source_controls {
+            let checked = fixture_package_inputs::check_fixture(
+                &mut prepared,
+                profile.target_name(),
+                Default::default(),
+            )
+            .map_err(|errors| format!("inspection {machine} checking: {errors:?}"))?;
+            match conformance_controls {
+                Some(InspectionControls::MathematicalActuals) => {
+                    let _artifact = mathematical_actuals::produce(&checked, machine)?;
+                }
+                Some(InspectionControls::IndexedFamily) => {
+                    let _artifact = indexed_family_controls::produce(&checked, machine)?;
+                }
+                _ => unreachable!("source controls selected above"),
+            }
+            continue;
+        }
+        let output =
+            fixture_package_inputs::produce_fixture(&mut prepared, Some(profile.target_name()))
+                .map_err(|errors| format!("inspection {machine} production: {errors:?}"))?;
+        let produced = output
+            .into_inspection()
+            .map_err(|error| format!("inspection {machine} output: {error:?}"))?;
         let artifact = produced.artifact().map_err(|error| error.to_string())?;
         let mut transported = artifact.to_bytes();
         let decoded = CanonicalTerminalArtifact::from_bytes(&transported)

@@ -62,6 +62,34 @@ impl PreparedLocalProject {
         &self.entry_path
     }
 
+    pub fn root_package(&self) -> semantic_vocabulary::PackageKeyIdentity {
+        self.source_closure.graph().root().identity()
+    }
+
+    /// Find the acquired identity from an exact canonical local origin, not a
+    /// declared package name or its cache directory. This is observation for
+    /// caller policy; it neither acquires source nor accepts any package rows.
+    pub fn package_at_local_root(
+        &self,
+        canonical_root: &Path,
+    ) -> Option<semantic_vocabulary::PackageKeyIdentity> {
+        self.source_closure
+            .graph()
+            .packages()
+            .iter()
+            .find_map(|package| {
+                let key = package.source().key();
+                match key.source_lineage() {
+                    package_source::SourceLineage::ExternalLocal(local)
+                        if local.canonical_absolute_path() == canonical_root =>
+                    {
+                        Some(key.identity())
+                    }
+                    _ => None,
+                }
+            })
+    }
+
     /// Split for a multi-target route: every requested target's section beside
     /// the shared entry path and source closure.
     pub(super) fn into_target_review_parts(

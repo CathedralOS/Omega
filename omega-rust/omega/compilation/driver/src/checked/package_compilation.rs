@@ -45,6 +45,7 @@ impl PackageSourceRequest {
 
 /// Product context and the exact pre-effect obligations its retained Build
 /// must have satisfied. Product checking options cannot grant Build effects.
+#[derive(Clone)]
 pub struct PackageProductSourceRequest {
     pub target: target::TargetProfile,
     pub inputs: package_compilation::PackageCompilationInputs,
@@ -129,7 +130,7 @@ pub struct CompletedBuild {
 /// Product judgment policy, distinct from the already settled Build execution.
 /// Discovery may leave service fields unsettled; a bound Product must check
 /// them under its own admission and cannot reuse that relaxed judgment.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct PackageProductOptions {
     pub optimization_rollback: optimization_core::OptimizationRollback,
     pub permit_unsettled_fused_service_fields: bool,
@@ -138,6 +139,40 @@ pub struct PackageProductOptions {
 impl CompletedBuild {
     pub fn package_inputs(&self) -> &package_compilation::PackageCompilationInputs {
         &self.source.inputs
+    }
+
+    /// Targets whose entry slots this activation actually bound, in execution
+    /// order. This observation does not admit the selected implementation or
+    /// replace target-specific Product checking.
+    pub fn bound_program_targets(&self) -> Result<Vec<target::TargetProfile>, Vec<Diagnostic>> {
+        let mut targets = Vec::new();
+        for binding in &self
+            .source
+            .source
+            .evaluated
+            .configuration
+            .root_binding_requests
+        {
+            let Some((owner, name)) = binding.slot.rsplit_once("::") else {
+                return Err(vec![Diagnostic::error(format!(
+                    "root slot `{}` is not target-qualified",
+                    binding.slot
+                ))]);
+            };
+            let profile =
+                target::TargetProfile::from_root_slot_owner(owner).map_err(|error| vec![error])?;
+            let required = profile.required_root_slot(name).ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "target profile `{}` declares no required root slot `{}`",
+                    profile.target_name(),
+                    binding.slot
+                ))]
+            })?;
+            if required.program_entry().is_some() && !targets.contains(&profile) {
+                targets.push(profile);
+            }
+        }
+        Ok(targets)
     }
 
     /// A Product demand cannot retroactively add inputs or required outputs to
