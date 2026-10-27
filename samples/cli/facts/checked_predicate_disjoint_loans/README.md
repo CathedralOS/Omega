@@ -246,3 +246,14 @@ owned records; it does not establish arbitrary runtime-length enumeration,
 stored-reference traversal, arbitrary nested collection element shapes, or the
 parent's remaining structured-callee/domain and theorem acceptance. Engine
 observations remain specific to macOS ARM64.
+
+Fresh final optimized producer
+`15cba48fc19157be657b41db21ac47ad3995ddc2` repeats the complete fact's
+130 public observations: 58 native/Terminal exit-zero agreements and 72
+fact-sensitive rejects. The retained corpus checks 57 positives and 72 rejects;
+all 57 executable fixtures agree at native/Terminal exit 0. The five affected
+historical consumers lose no behavior, and the ranked recursive theorem core
+still checks. Scoped golden recording adds only the 25 new checking fixtures
+and 12 new native fixtures. These fresh observations supersede no historical
+producer identities; final golden/README changes preserve the producer's
+compiler, library and per-program input/oracle bytes.
