@@ -20,6 +20,7 @@ pub(crate) mod providers;
 pub use external_requirements::SelectedExternalRequirementApplication;
 
 use crate::provider_evidence::digest_encoder::DomainDigestEncoder;
+use crate::provider_evidence::providers::provider_plan::DigestFeed;
 use crate::provider_plan::ProviderPlan;
 use std::collections::BTreeSet;
 
@@ -1252,9 +1253,11 @@ fn selected_closure_report_fingerprint(
 
 struct SelectedProviderClosureDigestEncoder(DomainDigestEncoder);
 
-impl crate::provider_evidence::providers::provider_plan::DigestFeed
-    for SelectedProviderClosureDigestEncoder
-{
+/// Only the byte sink is closure-specific; the framed-feed vocabulary
+/// (`byte`, `bool`, `len`, `u64`, `i64`, `bytes`, `string`, `strings`) comes
+/// from [`DigestFeed`]'s single definition, as it does for every other
+/// domain-tagged encoder in this crate.
+impl DigestFeed for SelectedProviderClosureDigestEncoder {
     fn raw(&mut self, bytes: &[u8]) {
         self.0.raw(bytes);
     }
@@ -1272,34 +1275,13 @@ impl SelectedProviderClosureDigestEncoder {
         SelectedProviderClosureDigest::from_digest(self.0.finish())
     }
 
-    fn byte(&mut self, value: u8) {
-        self.0.byte(value);
-    }
-
-    fn len(&mut self, value: usize) {
-        self.0.len(value);
-    }
-
-    fn u64(&mut self, value: u64) {
-        self.0.u64(value);
-    }
-
-    fn i64(&mut self, value: i64) {
-        self.0.i64(value);
-    }
-
-    fn bytes(&mut self, bytes: &[u8]) {
-        self.0.bytes(bytes);
-    }
-
-    fn string(&mut self, value: &str) {
-        self.bytes(value.as_bytes());
-    }
-
-    fn strings(&mut self, values: &[String]) {
-        self.len(values.len());
-        for value in values {
-            self.string(value);
+    fn execution_scope(&mut self, scope: crate::ExecutionScope) {
+        match scope {
+            crate::ExecutionScope::CallerAddressSpace => self.byte(0),
+            crate::ExecutionScope::IsolatedProvider(identity) => {
+                self.byte(1);
+                self.u64(identity);
+            }
         }
     }
 }
