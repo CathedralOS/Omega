@@ -39,9 +39,13 @@ pub(super) fn retain_bindings<'facts>(
         (captured.type_reference, &captured.projection),
     ]
     .into_iter()
-    .all(|(reference, projection)| {
+    .enumerate()
+    .all(|(position, (reference, projection))| {
         validation::project_type_reference_from_segments(program, reference, &projection.remaining)
-            .is_some_and(|selected| crate::flow::operand_binds_stable_copy(program, selected))
+            .is_some_and(|selected| {
+                crate::flow::operand_binds_stable_copy(program, selected)
+                    || (position == 1 && captured.producer_epoch.is_some())
+            })
     }) {
         return;
     }
@@ -55,15 +59,17 @@ pub(super) fn retain_bindings<'facts>(
     let ([observed], [produced]) = (observed.as_slice(), produced.as_slice()) else {
         return;
     };
-    // If the store walk could not recover a detached producer, this is still
-    // a live view, not a copied value. Its earlier observation cannot donate
-    // predicates after a later operand changes the referent.
+    // A typed receiving read may detach contents from a producer that remains
+    // a live descriptor. Its recorded read epoch owns that source identity;
+    // later actuals observe the copy, not a new read of the descriptor. Without
+    // that cut, a live view still owes preservation through the actual's epoch.
+    let producer_epoch = captured.producer_epoch.unwrap_or(captured.operand);
     if crate::flow::operand_binds_live_view(program, captured.type_reference)
         && !crate::flow::operand_observations_agree(
             program,
             &facts.flow,
             captured.operand.row(),
-            epoch,
+            captured.producer_epoch.map_or(epoch, |read| read.row()),
             &produced.projected,
         )
     {
@@ -107,7 +113,7 @@ pub(super) fn retain_bindings<'facts>(
             retained.push(CapturedBinding {
                 position: first_position + offset,
                 place: produced.projected.clone(),
-                epoch: captured.operand.row(),
+                epoch: producer_epoch.row(),
             });
         }
     }
