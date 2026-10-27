@@ -3,13 +3,41 @@ use super::{
     TargetFrameLayoutError, TargetFrameLayoutPolicy, function_layout,
 };
 
+/// Every case here lays out a canonical ordinary-call frame for machine 1 with
+/// no stable-address loans; the fixture supplies those three arguments so each
+/// case names only the shape it is about.
+fn frame(
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    abi: FrameAbiPreservationConvention,
+    contains_call: bool,
+    writes_link_register: bool,
+    outgoing_arguments: &[selected_instructions::SelectedOutgoingArgumentSlot],
+    local_storage: &[selected_instructions::SelectedLocalStorageSlot],
+    callee_save_area_bytes: u64,
+    callee_save_slots: Vec<CalleeSaveFrameSlot>,
+) -> Result<machine_code::FunctionTargetFrameLayout, TargetFrameLayoutError> {
+    function_layout(
+        environment,
+        abi,
+        TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
+        semantic_vocabulary::MachineId::new(1).unwrap(),
+        contains_call,
+        writes_link_register,
+        outgoing_arguments,
+        local_storage,
+        Vec::new(),
+        callee_save_area_bytes,
+        callee_save_slots,
+    )
+}
+
 #[test]
 fn owned_overaligned_homes_keep_fixed_x64_stack_geometry() {
     use selected_instructions::{
         LocalStorageSlotId, OutgoingArgumentSlotId, OutgoingArgumentSlotRole,
         SelectedLocalStorageSlot, SelectedOutgoingArgumentSlot,
     };
-    use semantic_vocabulary::{MachineId, OperationId, PlaceId};
+    use semantic_vocabulary::{OperationId, PlaceId};
     for target in [
         target::NativeTarget::linux_x64(),
         target::NativeTarget::windows_x64(),
@@ -41,16 +69,13 @@ fn owned_overaligned_homes_keep_fixed_x64_stack_geometry() {
             byte_size: 64,
             alignment: 64,
         };
-        let layout = function_layout(
+        let layout = frame(
             &environment,
             abi,
-            TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
-            MachineId::new(1).unwrap(),
             true,
             false,
             std::slice::from_ref(&outgoing),
             std::slice::from_ref(&local),
-            Vec::new(),
             0,
             Vec::new(),
         )
@@ -90,18 +115,15 @@ fn owned_overaligned_homes_keep_fixed_x64_stack_geometry() {
         let mut invalid = outgoing;
         invalid.id.role = OutgoingArgumentSlotRole::Argument;
         assert_eq!(
-            function_layout(
+            frame(
                 &environment,
                 abi,
-                TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
-                MachineId::new(1).unwrap(),
                 true,
                 false,
                 &[invalid],
                 &[],
-                Vec::new(),
                 0,
-                Vec::new(),
+                Vec::new()
             ),
             Err(TargetFrameLayoutError::NonCanonicalLayout),
         );
@@ -160,16 +182,13 @@ fn narrow_outgoing_payload_aligns_preservation_without_activation_locals() {
             size_bytes: 8,
             alignment_bytes: 8,
         };
-        let layout = function_layout(
+        let layout = frame(
             &environment,
             abi,
-            TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
-            semantic_vocabulary::MachineId::new(1).unwrap(),
             true,
             false,
             std::slice::from_ref(&outgoing),
             &[],
-            Vec::new(),
             8,
             vec![save],
         )
@@ -187,16 +206,13 @@ fn narrow_outgoing_payload_aligns_preservation_without_activation_locals() {
         assert!(saved.frame_offset_bytes + saved.size_bytes <= layout.frame_size_bytes);
 
         // Without preservation storage the payload does not acquire invented padding.
-        let without_save = function_layout(
+        let without_save = frame(
             &environment,
             abi,
-            TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
-            semantic_vocabulary::MachineId::new(1).unwrap(),
             true,
             false,
             &[outgoing],
             &[],
-            Vec::new(),
             0,
             Vec::new(),
         )
@@ -228,16 +244,13 @@ fn activation_locals_are_not_outgoing_abi_storage_on_any_host() {
         let abi = register_environment::selected_abi_preservation(&environment)
             .unwrap()
             .kind;
-        let layout = function_layout(
+        let layout = frame(
             &environment,
             abi,
-            TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
-            semantic_vocabulary::MachineId::new(1).unwrap(),
             true,
             false,
             &[],
             std::slice::from_ref(&local),
-            Vec::new(),
             0,
             Vec::new(),
         )
@@ -253,16 +266,13 @@ fn activation_locals_are_not_outgoing_abi_storage_on_any_host() {
         assert_eq!(layout.local_storage_slots[0].size_bytes, 24);
         assert!(layout.frame_size_bytes >= outgoing + 24);
         assert!(
-            function_layout(
+            frame(
                 &environment,
                 abi,
-                TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
-                semantic_vocabulary::MachineId::new(1).unwrap(),
                 true,
                 false,
                 &[],
                 &[local.clone(), local.clone()],
-                Vec::new(),
                 0,
                 Vec::new()
             )
@@ -307,38 +317,20 @@ fn outgoing_pointer_slots_reserve_storage_on_every_host_abi() {
             alignment: 8,
             abi_stack_byte_offset: offset,
         };
-        let layout = function_layout(
+        let layout = frame(
             &environment,
             abi,
-            TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
-            semantic_vocabulary::MachineId::new(1).unwrap(),
             true,
             false,
             std::slice::from_ref(&slot),
             &[],
-            Vec::new(),
             0,
             Vec::new(),
         )
         .unwrap();
         assert_eq!(layout.outgoing_abi_area.byte_size, u64::from(offset) + 8);
         assert!(layout.frame_size_bytes >= u64::from(offset) + 8);
-        assert!(
-            function_layout(
-                &environment,
-                abi,
-                TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
-                semantic_vocabulary::MachineId::new(1).unwrap(),
-                false,
-                false,
-                &[slot],
-                &[],
-                Vec::new(),
-                0,
-                Vec::new()
-            )
-            .is_err()
-        );
+        assert!(frame(&environment, abi, false, false, &[slot], &[], 0, Vec::new()).is_err());
     }
 }
 
@@ -386,16 +378,13 @@ fn large_frames_commit_through_an_exact_probe_roster() {
     ] {
         let environment =
             register_environment::baseline_target_register_environment(target).unwrap();
-        let layout = function_layout(
+        let layout = frame(
             &environment,
             abi,
-            TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
-            semantic_vocabulary::MachineId::new(1).unwrap(),
             false,
             false,
             &[],
             std::slice::from_ref(&local),
-            Vec::new(),
             0,
             Vec::new(),
         )
@@ -407,16 +396,13 @@ fn large_frames_commit_through_an_exact_probe_roster() {
             byte_size: 24,
             ..local.clone()
         };
-        let small_layout = function_layout(
+        let small_layout = frame(
             &environment,
             abi,
-            TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
-            semantic_vocabulary::MachineId::new(1).unwrap(),
             false,
             false,
             &[],
             std::slice::from_ref(&small),
-            Vec::new(),
             0,
             Vec::new(),
         )
@@ -452,11 +438,9 @@ fn frames_past_the_shared_displacement_reach_are_refused_by_name() {
         let environment =
             register_environment::baseline_target_register_environment(target).unwrap();
         let layout = |byte_size: u32| {
-            function_layout(
+            frame(
                 &environment,
                 abi,
-                TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
-                semantic_vocabulary::MachineId::new(1).unwrap(),
                 false,
                 false,
                 &[],
@@ -468,7 +452,6 @@ fn frames_past_the_shared_displacement_reach_are_refused_by_name() {
                     byte_size,
                     alignment: 8,
                 }],
-                Vec::new(),
                 0,
                 Vec::new(),
             )
@@ -506,16 +489,13 @@ fn system_v_leaf_spill_storage_inside_the_red_zone_commits_nothing() {
         (0..16).map(spill).collect::<Vec<_>>(),
     ] {
         let extent = u64::try_from(slots.len()).unwrap() * 8;
-        let layout = function_layout(
+        let layout = frame(
             &environment,
             FrameAbiPreservationConvention::SystemVAMD64,
-            TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
-            semantic_vocabulary::MachineId::new(1).unwrap(),
             false,
             false,
             &[],
             &slots,
-            Vec::new(),
             0,
             Vec::new(),
         )
@@ -533,16 +513,13 @@ fn system_v_leaf_spill_storage_inside_the_red_zone_commits_nothing() {
     }
     // One slot past the boundary commits the whole frame again.
     let over: Vec<_> = (0..17).map(spill).collect();
-    let layout = function_layout(
+    let layout = frame(
         &environment,
         FrameAbiPreservationConvention::SystemVAMD64,
-        TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
-        semantic_vocabulary::MachineId::new(1).unwrap(),
         false,
         false,
         &[],
         &over,
-        Vec::new(),
         0,
         Vec::new(),
     )
@@ -598,16 +575,13 @@ fn red_zone_residency_requires_leaf_spill_only_sysv_storage() {
             }],
         ),
     ] {
-        let layout = function_layout(
+        let layout = frame(
             &sysv,
             FrameAbiPreservationConvention::SystemVAMD64,
-            TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
-            semantic_vocabulary::MachineId::new(1).unwrap(),
             contains_call,
             false,
             &[],
             &locals,
-            Vec::new(),
             save_area,
             saves,
         )
@@ -643,16 +617,13 @@ fn red_zone_residency_requires_leaf_spill_only_sysv_storage() {
     ] {
         let environment =
             register_environment::baseline_target_register_environment(target).unwrap();
-        let layout = function_layout(
+        let layout = frame(
             &environment,
             abi,
-            TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
-            semantic_vocabulary::MachineId::new(1).unwrap(),
             false,
             false,
             &[],
             &[spill(0)],
-            Vec::new(),
             0,
             Vec::new(),
         )
@@ -661,16 +632,13 @@ fn red_zone_residency_requires_leaf_spill_only_sysv_storage() {
         assert!(layout.frame_size_bytes != 0, "{target:?}");
     }
     // An empty leaf frame commits nothing and has nothing resident.
-    let empty = function_layout(
+    let empty = frame(
         &sysv,
         FrameAbiPreservationConvention::SystemVAMD64,
-        TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
-        semantic_vocabulary::MachineId::new(1).unwrap(),
         false,
         false,
         &[],
         &[],
-        Vec::new(),
         0,
         Vec::new(),
     )
@@ -710,19 +678,7 @@ fn unwind_matrix_fails_closed_on_conventions_the_pair_does_not_declare() {
         let environment =
             register_environment::baseline_target_register_environment(target).unwrap();
         assert_eq!(
-            function_layout(
-                &environment,
-                abi,
-                TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
-                semantic_vocabulary::MachineId::new(1).unwrap(),
-                false,
-                false,
-                &[],
-                &[],
-                Vec::new(),
-                0,
-                Vec::new(),
-            ),
+            frame(&environment, abi, false, false, &[], &[], 0, Vec::new()),
             Err(TargetFrameLayoutError::UnsupportedTarget),
             "{target:?} must refuse the foreign convention {abi:?}"
         );
@@ -736,16 +692,13 @@ fn windows_frames_separate_shadow_space_from_preservation_storage() {
     )
     .unwrap();
     for (area, extent) in [(0, 0), (8, 8), (16, 24)] {
-        let layout = function_layout(
+        let layout = frame(
             &environment,
             FrameAbiPreservationConvention::MicrosoftX64,
-            TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
-            semantic_vocabulary::MachineId::new(1).unwrap(),
             false,
             false,
             &[],
             &[],
-            Vec::new(),
             area,
             Vec::new(),
         )
@@ -773,16 +726,13 @@ fn windows_frames_separate_shadow_space_from_preservation_storage() {
                 alignment_bytes: 8,
             }]
         };
-        let layout = function_layout(
+        let layout = frame(
             &environment,
             FrameAbiPreservationConvention::MicrosoftX64,
-            TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
-            semantic_vocabulary::MachineId::new(1).unwrap(),
             true,
             false,
             &[],
             &[],
-            Vec::new(),
             area,
             slots,
         )
@@ -798,18 +748,15 @@ fn windows_frames_separate_shadow_space_from_preservation_storage() {
         );
     }
     assert_eq!(
-        function_layout(
+        frame(
             &environment,
             FrameAbiPreservationConvention::MicrosoftX64,
-            TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
-            semantic_vocabulary::MachineId::new(1).unwrap(),
             true,
             false,
             &[],
             &[],
-            Vec::new(),
             u64::MAX,
-            Vec::new(),
+            Vec::new()
         ),
         Err(TargetFrameLayoutError::GeometryOverflow)
     );
@@ -827,20 +774,7 @@ fn allocated_link_register_write_gets_a_leaf_frame_slot() {
         let abi = register_environment::selected_abi_preservation(&environment)
             .unwrap()
             .kind;
-        let layout = function_layout(
-            &environment,
-            abi,
-            TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
-            semantic_vocabulary::MachineId::new(1).unwrap(),
-            false,
-            true,
-            &[],
-            &[],
-            Vec::new(),
-            0,
-            Vec::new(),
-        )
-        .unwrap();
+        let layout = frame(&environment, abi, false, true, &[], &[], 0, Vec::new()).unwrap();
         assert!(!layout.contains_call);
         assert_eq!(layout.frame_size_bytes, 16);
         assert_eq!(
