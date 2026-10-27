@@ -9,12 +9,10 @@ pub struct FinalImageRelocationTable {
 }
 
 impl FinalImageRelocationTable {
-    pub fn with_roots(relocations: Arena<FinalImageRelocation>) -> Self {
-        Self { relocations }
-    }
-
     pub fn with_capacity(relocation_capacity: usize) -> Self {
-        Self::with_roots(Arena::with_capacity(relocation_capacity))
+        Self {
+            relocations: Arena::with_capacity(relocation_capacity),
+        }
     }
 }
 

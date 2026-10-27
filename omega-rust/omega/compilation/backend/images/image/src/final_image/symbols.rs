@@ -70,28 +70,16 @@ pub struct FinalImageSymbolTable {
 }
 
 impl FinalImageSymbolTable {
-    pub fn with_roots(
-        entry_symbol: FinalImageSymbolHandle,
-        symbols: Arena<FinalImageSymbol>,
-        imports: Arena<FinalImageImport>,
-    ) -> Self {
-        Self {
-            entry_symbol,
-            symbols,
-            imports,
-        }
-    }
-
     pub fn with_capacity(
         entry_symbol: FinalImageSymbolHandle,
         symbol_capacity: usize,
         import_capacity: usize,
     ) -> Self {
-        Self::with_roots(
+        Self {
             entry_symbol,
-            Arena::with_capacity(symbol_capacity),
-            Arena::with_capacity(import_capacity),
-        )
+            symbols: Arena::with_capacity(symbol_capacity),
+            imports: Arena::with_capacity(import_capacity),
+        }
     }
 }
 

@@ -1,7 +1,7 @@
 //! The evidence an emitter hands forward: text and function validation, entry
 //! bindings, and the image output kinds that carry them.
 
-use crate::final_image::{FNV_OFFSET, fingerprint_bytes};
+use crate::final_image::byte_report_fingerprint;
 
 image_digest!(CompilerEntryRegionBindingDigest);
 image_digest!(CompilerEntryFootprintBindingDigest);
@@ -210,9 +210,7 @@ impl CompilerFunctionValidationEvidence {
     /// Compact reporting coordinate only. This is not evidence, admission,
     /// publication, or replay authority; use [`Self::evidence_digest`].
     pub fn evidence_report_fingerprint(self) -> u64 {
-        let mut hash = FNV_OFFSET;
-        fingerprint_bytes(&mut hash, self.evidence_digest().as_bytes());
-        hash
+        byte_report_fingerprint(self.evidence_digest().as_bytes())
     }
 }
 
