@@ -1045,6 +1045,7 @@ fn terminal_build_filesystem() {
 /// Preparing the Build must not load the Product root or resolve its imports.
 /// Both phases still consume the same closed source capture.
 fn initial_build_source_isolation() {
+    let mut catalogue = source::SourceCatalogue::default();
     let root = fixture_package_inputs::repo_root()
         .join("tests/omega/pass/build/separate_build_product_imports_exit/main.omg");
     let mut timings = artifacts::compile_timings::CompileTimings::default();
@@ -1053,10 +1054,11 @@ fn initial_build_source_isolation() {
         None,
         None,
         &mut timings,
+        &mut catalogue,
     )
     .expect("captured Build sources");
     let (_, mut syntax) = checkpoint
-        .assemble(None, &mut timings)
+        .assemble(None, &mut timings, &mut catalogue)
         .expect("Build assembly");
     assert!(syntax.build_source_id.is_some());
     assert!(
@@ -1082,7 +1084,7 @@ fn initial_build_source_isolation() {
         .product_sources
         .take()
         .expect("pending Product sources")
-        .assemble(None, &mut timings)
+        .assemble(None, &mut timings, &mut catalogue)
         .expect("joined Product sources");
     assert!(product.sources.files().any(|file| file.path == root));
     assert!(
@@ -1110,6 +1112,7 @@ fn initial_build_source_isolation() {
 /// An import discovered after Build still resolves in the captured namespace,
 /// including existence/canonicalization, not just the final file-byte read.
 fn deferred_product_uses_captured_imports() {
+    let mut catalogue = source::SourceCatalogue::default();
     let authored = fixture_package_inputs::repo_root()
         .join("tests/omega/pass/build/separate_build_product_imports_exit");
     let nonce = std::time::SystemTime::now()
@@ -1131,16 +1134,17 @@ fn deferred_product_uses_captured_imports() {
         None,
         None,
         &mut timings,
+        &mut catalogue,
     )
     .expect("directory-root Build capture");
     let (_, build) = checkpoint
-        .assemble(None, &mut timings)
+        .assemble(None, &mut timings, &mut catalogue)
         .expect("Build assembly");
     std::fs::remove_file(root.join("result.omg")).expect("remove only the live Product helper");
     let (_, product) = build
         .product_sources
         .expect("deferred Product")
-        .assemble(None, &mut timings)
+        .assemble(None, &mut timings, &mut catalogue)
         .expect("Product import resolves from capture after live deletion");
     assert!(
         product
