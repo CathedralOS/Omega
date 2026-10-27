@@ -1,10 +1,12 @@
-// Recursive Unit calls reborrow caller-owned data. Each suspended
-// caller retains its scalar depth and contributes it again after the call.
+// Reborrowing caller-owned storage does not admit non-tail runtime recursion.
+// Work after the recursive call would retain one activation per depth.
 use omega_language_std::console;
 data Counter { value: u64 in Trapping; }
 machine visit(counter: &mut Counter, depth: u64) {
     transition depth > 0 { true -> next(counter, depth) false -> done() }
-    machine next(counter: &mut Counter, depth: u64) {
+    machine next(counter: &mut Counter, depth: u64)
+    requires depth > 0;
+    {
         let mut retained: Counter;
         retained.value = depth as u64 in Trapping;
         counter.value = counter.value + (depth as u64 in Trapping);
@@ -15,6 +17,7 @@ machine visit(counter: &mut Counter, depth: u64) {
 }
 machine main() reaches Console {
     let mut counter: Counter;
+    counter.value = 0 as u64 in Trapping;
     let mut untouched: Counter;
     untouched.value = 100 as u64 in Trapping;
     visit(&mut counter, 6);
