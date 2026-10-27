@@ -1076,6 +1076,17 @@ pass/facts/crash_entry_signed_zero_through_other_machine_exit built 16783ms exit
 pass/facts/crash_entry_signed_zero_through_other_state_exit built 16332ms exit:0 interpreter-exit:0 interpreter:agrees @47676d7c9bb2
 pass/facts/crash_entry_signed_zero_through_parameter_exit built 11172ms exit:0 interpreter-exit:0 interpreter:agrees @47676d7c9bb2
 pass/facts/crash_entry_signed_zero_through_target_body_exit built 11541ms exit:0 interpreter-exit:0 interpreter:agrees @47676d7c9bb2
+pass/facts/data_where_private_write_multiple_arrivals_exit built 4701ms exit:0 interpreter-exit:0 interpreter:agrees @40411a345102
+pass/facts/data_where_private_write_snapshot_exit built 4508ms exit:0 interpreter-exit:0 interpreter:agrees @40411a345102
+pass/facts/data_where_private_write_through_call_result_exit built 4280ms exit:0 interpreter-exit:0 interpreter:agrees @40411a345102
+pass/facts/data_where_private_write_through_const_name_exit built 8417ms exit:0 interpreter-exit:0 interpreter:agrees @40411a345102
+pass/facts/data_where_private_write_through_field_exit built 4602ms exit:0 interpreter-exit:0 interpreter:agrees @40411a345102
+pass/facts/data_where_private_write_through_local_exit built 4099ms exit:0 interpreter-exit:0 interpreter:agrees @40411a345102
+pass/facts/data_where_private_write_through_match_join_exit built 3970ms exit:0 interpreter-exit:0 interpreter:agrees @40411a345102
+pass/facts/data_where_private_write_through_other_machine_exit built 4197ms exit:0 interpreter-exit:0 interpreter:agrees @40411a345102
+pass/facts/data_where_private_write_through_other_state_exit built 4785ms exit:0 interpreter-exit:0 interpreter:agrees @40411a345102
+pass/facts/data_where_private_write_through_parameter_exit built 4403ms exit:0 interpreter-exit:0 interpreter:agrees @40411a345102
+pass/facts/data_where_private_write_through_target_body_exit built 1944ms exit:0 interpreter-exit:0 interpreter:agrees @40411a345102
 pass/facts/data_where_standing_const_coupled_const built 1797ms exit:0 interpreter-exit:0 interpreter:agrees @fdf827e3c460
 pass/facts/data_where_standing_const_nested_const built 1801ms exit:0 interpreter-exit:0 interpreter:agrees @fdf827e3c460
 pass/facts/data_where_standing_mutable_recast_direct_exit built 3137ms exit:0 interpreter-exit:0 interpreter:agrees @6a009ad9c8a6

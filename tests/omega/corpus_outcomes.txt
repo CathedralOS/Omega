@@ -7298,6 +7298,28 @@ fail/facts/crash_entry_signed_zero_through_parameter_rejected rejected 6776ms ex
 	call from `read_zero` to `maybe_nonzero` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_signed_zero_through_target_body_rejected rejected 7002ms expected @a92f16431042
 	call from `read_zero` to `forward` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/data_where_private_write_multiple_arrivals_rejected rejected 691ms expected @40411a345102
+	machine `fill` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/data_where_private_write_snapshot_rejected rejected 828ms expected @40411a345102
+	machine `fill` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/data_where_private_write_through_call_result_rejected rejected 737ms expected @40411a345102
+	machine `fill` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/data_where_private_write_through_const_name_rejected rejected 488ms expected @40411a345102
+	machine `fill` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/data_where_private_write_through_field_rejected rejected 698ms expected @40411a345102
+	machine `fill` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/data_where_private_write_through_local_rejected rejected 569ms expected @40411a345102
+	machine `fill` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/data_where_private_write_through_match_join_rejected rejected 588ms expected @40411a345102
+	machine `fill` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/data_where_private_write_through_other_machine_rejected rejected 550ms expected @40411a345102
+	machine `fill` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/data_where_private_write_through_other_state_rejected rejected 517ms expected @40411a345102
+	machine `fill` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/data_where_private_write_through_parameter_rejected rejected 529ms expected @40411a345102
+	machine `fill` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/data_where_private_write_through_target_body_rejected rejected 502ms expected @40411a345102
+	machine `fill` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/facts/data_where_standing_const_coupled_false rejected 435ms expected @2693b883558f
 	data `Counter` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/facts/data_where_standing_const_missing_field_shadow rejected 318ms expected @2693b883558f
@@ -25977,6 +25999,17 @@ pass/facts/crash_entry_signed_zero_through_other_machine_exit checked 11959ms ch
 pass/facts/crash_entry_signed_zero_through_other_state_exit checked 11788ms check-target:macos_arm64 @a92f16431042
 pass/facts/crash_entry_signed_zero_through_parameter_exit checked 8173ms check-target:macos_arm64 @a92f16431042
 pass/facts/crash_entry_signed_zero_through_target_body_exit checked 7322ms check-target:macos_arm64 @a92f16431042
+pass/facts/data_where_private_write_multiple_arrivals_exit checked 3857ms check-target:macos_arm64 @40411a345102
+pass/facts/data_where_private_write_snapshot_exit checked 3857ms check-target:macos_arm64 @40411a345102
+pass/facts/data_where_private_write_through_call_result_exit checked 3691ms check-target:macos_arm64 @40411a345102
+pass/facts/data_where_private_write_through_const_name_exit checked 8537ms check-target:macos_arm64 @40411a345102
+pass/facts/data_where_private_write_through_field_exit checked 4136ms check-target:macos_arm64 @40411a345102
+pass/facts/data_where_private_write_through_local_exit checked 3533ms check-target:macos_arm64 @40411a345102
+pass/facts/data_where_private_write_through_match_join_exit checked 3878ms check-target:macos_arm64 @40411a345102
+pass/facts/data_where_private_write_through_other_machine_exit checked 3922ms check-target:macos_arm64 @40411a345102
+pass/facts/data_where_private_write_through_other_state_exit checked 3987ms check-target:macos_arm64 @40411a345102
+pass/facts/data_where_private_write_through_parameter_exit checked 3896ms check-target:macos_arm64 @40411a345102
+pass/facts/data_where_private_write_through_target_body_exit checked 2349ms check-target:macos_arm64 @40411a345102
 pass/facts/data_where_standing_const_coupled_const checked 2363ms check-target:macos_arm64 @06b136c1a61f
 pass/facts/data_where_standing_const_nested_const checked 2363ms check-target:macos_arm64 @06b136c1a61f
 pass/facts/data_where_standing_mutable_recast_direct_exit checked 3074ms check-target:macos_arm64 @a1f4e9300309
