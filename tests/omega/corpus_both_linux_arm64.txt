@@ -37,4 +37,14 @@ pass/facts/installed_entry_storage_through_other_machine_exit built 76920ms exit
 pass/facts/installed_entry_storage_through_other_state_exit built 85335ms exit:0 entry-ram:match interpreter-exit:0 interpreter-entry-ram:match interpreter:agrees @658a90628a78
 pass/facts/installed_entry_storage_through_parameter_exit built 74734ms exit:0 entry-ram:match interpreter-exit:0 interpreter-entry-ram:match interpreter:agrees @658a90628a78
 pass/facts/installed_entry_storage_through_target_body_exit built 67578ms exit:0 entry-ram:match interpreter-exit:0 interpreter-entry-ram:match interpreter:agrees @658a90628a78
+pass/facts/nested_zero_leaf_array_storage_through_call_result_exit built 5438ms exit:0 interpreter-exit:0 interpreter:agrees @84e39b1c4f5a
+pass/facts/nested_zero_leaf_array_storage_through_const_name_exit built 5634ms exit:0 interpreter-exit:0 interpreter:agrees @84e39b1c4f5a
+pass/facts/nested_zero_leaf_array_storage_through_field_exit built 5456ms exit:0 interpreter-exit:0 interpreter:agrees @84e39b1c4f5a
+pass/facts/nested_zero_leaf_array_storage_through_local_exit built 5609ms exit:0 interpreter-exit:0 interpreter:agrees @84e39b1c4f5a
+pass/facts/nested_zero_leaf_array_storage_through_match_join_exit built 5715ms exit:0 interpreter-exit:0 interpreter:agrees @84e39b1c4f5a
+pass/facts/nested_zero_leaf_array_storage_through_other_machine_exit built 5735ms exit:0 interpreter-exit:0 interpreter:agrees @84e39b1c4f5a
+pass/facts/nested_zero_leaf_array_storage_through_other_state_exit built 5664ms exit:0 interpreter-exit:0 interpreter:agrees @84e39b1c4f5a
+pass/facts/nested_zero_leaf_array_storage_through_parameter_exit built 5699ms exit:0 interpreter-exit:0 interpreter:agrees @84e39b1c4f5a
+pass/facts/nested_zero_leaf_array_storage_through_target_body_exit built 5652ms exit:0 interpreter-exit:0 interpreter:agrees @84e39b1c4f5a
+pass/facts/nested_zero_leaf_array_storage_zeroed_source_exit built 5580ms exit:0 interpreter-exit:0 interpreter:agrees @84e39b1c4f5a
 pass/layouts/placed_view_source_access_exit built 68793ms exit:0 entry-ram:match interpreter-exit:0 interpreter-entry-ram:match interpreter:agrees @658a90628a78

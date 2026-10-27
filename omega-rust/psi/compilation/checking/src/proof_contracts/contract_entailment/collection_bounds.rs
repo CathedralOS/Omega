@@ -81,7 +81,23 @@ impl<'program> CollectionBoundsObservations<'program> {
                 &mut query,
             )
         };
-        recognized.is_some() && query.seen && query.proven
+        if recognized.is_some() && query.seen && query.proven {
+            return true;
+        }
+        // A private helper's exact descriptor and index arrive together under
+        // its callers' guards. Observe the same closed incoming frames as
+        // operand formation; lexical ancestry alone supplies no bound, and
+        // any unresolved or unproved arrival keeps the operation inadmissible.
+        query.seen = false;
+        query.proven = true;
+        super::structural_prefix::observe_private_arrivals(
+            self.program,
+            self.machine,
+            &mut query,
+            false,
+        ) == Some(true)
+            && query.seen
+            && query.proven
     }
 }
 

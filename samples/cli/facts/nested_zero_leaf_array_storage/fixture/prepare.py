@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the matching-host array lldiv provider and run its real C self-test."""
+"""Build the matching-host zero-leaf record provider and run its real C self-test."""
 import argparse
 import hashlib
 import json
@@ -29,7 +29,7 @@ def main():
     if system == 'Darwin' and machine not in ('arm64', 'aarch64'):
         parser.error('the macOS fixture requires ARM64')
     fixture = Path(__file__).resolve().parent
-    output = (arguments.output or fixture.parents[4] / 'build/foreign_owned_array_division_fixture').resolve()
+    output = (arguments.output or fixture.parents[4] / 'build/foreign_zero_leaf_array_fixture').resolve()
     output.mkdir(parents=True, exist_ok=True)
     executable = output / ('provider-test.exe' if system == 'Windows' else 'provider-test')
     library = output / LIBRARIES[system]

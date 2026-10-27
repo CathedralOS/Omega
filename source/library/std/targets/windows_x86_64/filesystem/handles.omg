@@ -32,43 +32,43 @@ invokes WindowsFilesystemHost;
     // satisfy it, and must not be upgraded just to make a flag combination fit.
     transition options.truncate && (!options.write || options.append) && !options.create_new {
         true -> (OpenResult::Error { kind: ErrorKind::InvalidInput })
-        false -> access(path, options)
+        false -> block access(path, options)
     }
     machine access(path: &[u8] in Path, options: OpenOptions) -> OpenResult {
         transition options.read || (!options.write && !options.append) {
-            true -> writable(path, options, 2147483648)
-            false -> writable(path, options, 0)
+            true -> block writable(path, options, 2147483648)
+            false -> block writable(path, options, 0)
         }
     }
     machine writable(path: &[u8] in Path, options: OpenOptions, desired: u32) -> OpenResult {
         transition options.append {
-            true -> disposition(path, options, desired | 1179924)
-            false -> ordinary_write(path, options, desired)
+            true -> block disposition(path, options, desired | 1179924)
+            false -> block ordinary_write(path, options, desired)
         }
     }
     machine ordinary_write(path: &[u8] in Path, options: OpenOptions, desired: u32) -> OpenResult {
         transition options.write {
-            true -> disposition(path, options, desired | 1073741824)
-            false -> disposition(path, options, desired)
+            true -> block disposition(path, options, desired | 1073741824)
+            false -> block disposition(path, options, desired)
         }
     }
     machine disposition(path: &[u8] in Path, options: OpenOptions, desired: u32) -> OpenResult {
         transition options.create_new {
-            true -> acquire(path, desired, 1)
-            false -> creating(path, options, desired)
+            true -> block acquire(path, desired, 1)
+            false -> block creating(path, options, desired)
         }
     }
     machine creating(path: &[u8] in Path, options: OpenOptions, desired: u32) -> OpenResult {
         transition options.create {
-            true -> create_mode(path, options.truncate, desired)
-            false -> existing_mode(path, options.truncate, desired)
+            true -> block create_mode(path, options.truncate, desired)
+            false -> block existing_mode(path, options.truncate, desired)
         }
     }
     machine create_mode(path: &[u8] in Path, truncate: bool, desired: u32) -> OpenResult {
-        transition truncate { true -> acquire(path, desired, 2) false -> acquire(path, desired, 4) }
+        transition truncate { true -> block acquire(path, desired, 2) false -> block acquire(path, desired, 4) }
     }
     machine existing_mode(path: &[u8] in Path, truncate: bool, desired: u32) -> OpenResult {
-        transition truncate { true -> acquire(path, desired, 5) false -> acquire(path, desired, 3) }
+        transition truncate { true -> block acquire(path, desired, 5) false -> block acquire(path, desired, 3) }
     }
     machine acquire(path: &[u8] in Path, desired: u32, disposition: u32) -> OpenResult {
         let handle: u64 = block WindowsFilesystemHost::create_file(path, desired, 7, disposition, 1048704);
@@ -116,7 +116,7 @@ reaches FilesystemContentRead
 invokes WindowsFilesystemHost;
 {
     transition file.handle != 0 && count <= buffer.len {
-        true -> transfer(file, buffer, count)
+        true -> block transfer(file, buffer, count)
         false -> invalid(file)
     }
     machine transfer(file: File, buffer: &mut [u8], count: u64) -> IoResult {
@@ -136,7 +136,7 @@ reaches FilesystemContentWrite
 invokes WindowsFilesystemHost;
 {
     transition file.handle != 0 {
-        true -> transfer(file, bytes)
+        true -> block transfer(file, bytes)
         false -> (IoResult::Error { kind: ErrorKind::BadDescriptor })
     }
     machine transfer(file: File, bytes: &[u8]) -> IoResult {
@@ -153,12 +153,12 @@ reaches FilesystemContentRead
 invokes WindowsFilesystemHost;
 {
     transition file.handle != 0 {
-        true -> validate(file, buffer, count, offset)
+        true -> block validate(file, buffer, count, offset)
         false -> (IoResult::Error { kind: ErrorKind::BadDescriptor })
     }
     machine validate(file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult {
         transition offset >= 0 && count <= buffer.len && count <= 4294967295 {
-            true -> transfer(file, buffer, count, offset)
+            true -> block transfer(file, buffer, count, offset)
             false -> (IoResult::Error { kind: ErrorKind::InvalidInput })
         }
     }
@@ -173,12 +173,12 @@ reaches FilesystemContentWrite
 invokes WindowsFilesystemHost;
 {
     transition file.handle != 0 {
-        true -> validate(file, bytes, offset)
+        true -> block validate(file, bytes, offset)
         false -> (IoResult::Error { kind: ErrorKind::BadDescriptor })
     }
     machine validate(file: File, bytes: &[u8], offset: i64) -> IoResult {
         transition offset >= 0 && bytes.len <= 4294967295 {
-            true -> transfer(file, bytes, offset)
+            true -> block transfer(file, bytes, offset)
             false -> (IoResult::Error { kind: ErrorKind::InvalidInput })
         }
     }
@@ -192,7 +192,7 @@ windows_x86_64 machine windows_filesystem_close(file: File) -> UnitResult
 invokes WindowsFilesystemHost;
 {
     transition file.handle != 0 {
-        true -> release(file)
+        true -> block release(file)
         false -> (UnitResult::Error { kind: ErrorKind::BadDescriptor })
     }
     machine release(file: File) -> UnitResult {
@@ -205,7 +205,7 @@ windows_x86_64 machine windows_filesystem_sync(file: File) -> UnitResult
 invokes WindowsFilesystemHost;
 {
     transition file.handle != 0 {
-        true -> flush(file)
+        true -> block flush(file)
         false -> (UnitResult::Error { kind: ErrorKind::BadDescriptor })
     }
     machine flush(file: File) -> UnitResult {
@@ -232,12 +232,12 @@ reaches FilesystemContentWrite + FilesystemMetadataMutation
 invokes WindowsFilesystemHost;
 {
     transition file.handle != 0 {
-        true -> validate(file, length)
+        true -> block validate(file, length)
         false -> (UnitResult::Error { kind: ErrorKind::BadDescriptor })
     }
     machine validate(file: File, length: i64) -> UnitResult {
         transition length >= 0 {
-            true -> update(file, length)
+            true -> block update(file, length)
             false -> (UnitResult::Error { kind: ErrorKind::InvalidInput })
         }
     }

@@ -1,0 +1,9 @@
+// No bound survives for this exact collection and current index.
+machine probe(items: &[u8], index: u64) -> u8 {
+    transition index < items.len { true -> get(items, index) false -> (0) }
+    machine get(items: &[u8], mut index: u64) -> u8 {
+        index = items.len;
+        items[index]
+    }
+}
+machine main() {}

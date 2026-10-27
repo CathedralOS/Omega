@@ -34,23 +34,23 @@ windows_x86_64 machine windows_filesystem_write_complete(file: File, bytes: &[u8
 reaches FilesystemContentWrite
 invokes WindowsFilesystemHost;
 {
-    transition { _ -> remaining(file, bytes, 0) }
+    transition { _ -> block remaining(file, bytes, 0) }
     machine remaining(file: File, bytes: &[u8], position: u64) -> UnitResult
     requires position <= bytes.len {
-        transition position < bytes.len { true -> window(file, bytes, position) false -> UnitResult::Ok }
+        transition position < bytes.len { true -> block window(file, bytes, position) false -> UnitResult::Ok }
     }
     machine window(file: File, bytes: &[u8], position: u64) -> UnitResult
     requires position < bytes.len {
         transition bytes.len - position > 4294967295 {
-            true -> write(file, bytes, position, position + 4294967295)
-            false -> write(file, bytes, position, bytes.len)
+            true -> block write(file, bytes, position, position + 4294967295)
+            false -> block write(file, bytes, position, bytes.len)
         }
     }
     machine write(file: File, bytes: &[u8], position: u64, end: u64) -> UnitResult
     requires position < end && end <= bytes.len {
         let count: i64 = block WindowsFilesystemHost::write_file(file.handle, bytes[position..end]);
         transition count > 0 {
-            true -> progressed(file, bytes, position, end, count)
+            true -> block progressed(file, bytes, position, end, count)
             false -> stopped(count)
         }
     }
@@ -58,7 +58,7 @@ invokes WindowsFilesystemHost;
     requires position < end && end <= bytes.len && count > 0 {
         let written: u64 = narrow_i64_to_u64_exact(count);
         transition written <= end - position {
-            true -> remaining(file, bytes, position + written)
+            true -> block remaining(file, bytes, position + written)
             false -> (UnitResult::Error { kind: ErrorKind::Other })
         }
     }
@@ -77,7 +77,7 @@ invokes WindowsFilesystemHost;
     let acquired: OpenResult = block windows_filesystem_create(path);
     transition acquired {
         OpenResult::Error { kind } -> (UnitResult::Error { kind: kind })
-        OpenResult::Ok { file } -> write(file, bytes)
+        OpenResult::Ok { file } -> block write(file, bytes)
     }
     machine write(file: File, bytes: &[u8]) -> UnitResult {
         let outcome: UnitResult = block windows_filesystem_write_complete(file, bytes);
@@ -93,14 +93,14 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 invokes WindowsFilesystemHost;
 {
     transition count <= buffer.len {
-        true -> acquire(path, buffer, count)
+        true -> block acquire(path, buffer, count)
         false -> (IoResult::Error { kind: ErrorKind::InvalidInput })
     }
     machine acquire(path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult {
         let acquired: OpenResult = block windows_filesystem_open(path);
         transition acquired {
             OpenResult::Error { kind } -> (IoResult::Error { kind: kind })
-            OpenResult::Ok { file } -> read(file, buffer, count)
+            OpenResult::Ok { file } -> block read(file, buffer, count)
         }
     }
     machine read(file: File, buffer: &mut [u8], count: u64) -> IoResult {

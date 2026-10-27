@@ -39,7 +39,8 @@ class OwnedForeignCohortTests(unittest.TestCase):
 
     def test_selection_is_explicit_and_default_cohort_stays_available(self):
         self.assertEqual(foreign.select_cohorts("nested, arrays,nested"), ("nested", "arrays"))
-        self.assertEqual(foreign.select_cohorts("all"), ("scalar-opaque", "nested", "arrays"))
+        self.assertEqual(foreign.select_cohorts("all"), ("scalar-opaque", "nested", "arrays", "zero-leaf"))
+        self.assertEqual(foreign.select_cohorts("zero-leaf"), ("zero-leaf",))
         for selection in ("", " , ", "unknown", "nested,unknown", "nested; echo wrong"):
             with self.subTest(selection=selection), self.assertRaises(ValueError):
                 foreign.select_cohorts(selection)
@@ -121,10 +122,52 @@ class OwnedForeignCohortTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "zero-exit oracle"):
                 rows.fixtures(root, fact, "example")
 
+    def test_additional_producer_needs_its_own_positive_and_reject_pins(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fact = self.fact(root)
+            projects = (("zeroed", "example_zeroed"),)
+            for relative in ("zeroed", "zeroed/invalid"):
+                source = fact / relative
+                source.mkdir(parents=True, exist_ok=True)
+                (source / "main.omg").write_text("// Expected exit: 0\nmachine run_main() {}\n")
+                (source / "build.omg").write_text("authored package\n")
+            (fact / "zeroed/invalid/expected.txt").write_text("holds no value\n")
+            with self.assertRaisesRegex(ValueError, "required authored place/twin"):
+                rows.fixtures(root, fact, "example", additional_projects=projects)
+            for tier, suffix, relative in (("pass", "exit", "zeroed"), ("fail", "rejected", "zeroed/invalid")):
+                pinned = root / f"tests/omega/{tier}/facts/example_zeroed_{suffix}"
+                pinned.mkdir(parents=True)
+                for source in (fact / relative).iterdir():
+                    if source.is_file():
+                        (pinned / source.name).write_bytes(source.read_bytes())
+            positive, negative = rows.fixtures(root, fact, "example", additional_projects=projects)
+            self.assertEqual(len(positive), 10)
+            self.assertEqual(positive[-1], "pass/facts/example_zeroed_exit")
+            self.assertEqual(negative[-1], "fail/facts/example_zeroed_rejected")
+
+    def test_measurement_refuses_a_missing_or_duplicate_project_before_execution(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            producer = Mock()
+            prepared = [dict(place=place) for place in ("root",) + rows.PLACES]
+            with patch.object(rows, "execute") as execute:
+                with self.assertRaisesRegex(ValueError, "project roster differs"):
+                    rows.measure(Path(temporary), dict(rows=prepared), producer,
+                                 additional_projects=(("zeroed", "example_zeroed"),))
+                with self.assertRaisesRegex(ValueError, "distinct names"):
+                    rows.prepare(Path(temporary), Path(temporary), producer,
+                                 additional_projects=(("local", "duplicate"),))
+                execute.assert_not_called()
+
     def test_preparation_and_measurement_never_add_evidence_to_accepted_source(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             fact = self.fact(root)
+            producer_source = fact / "zeroed"
+            producer_source.mkdir()
+            for name in ("main.omg", "build.omg"):
+                (producer_source / name).write_bytes((fact / name).read_bytes())
+            projects = (("zeroed", "example_zeroed"),)
             output = root / "evidence"
             producer = Mock(cli=root / "producer/omega", target="linux_x86_64")
             producer.record.return_value = dict(revision="a" * 40)
@@ -159,15 +202,15 @@ class OwnedForeignCohortTests(unittest.TestCase):
 
             with patch.object(rows.sample_native_gate, "accept_review", side_effect=review), \
                  patch.object(rows, "execute", side_effect=execute):
-                inventory = rows.prepare(output, fact, producer)
-                self.assertEqual(len(accepted), 10)
+                inventory = rows.prepare(output, fact, producer, additional_projects=projects)
+                self.assertEqual(len(accepted), 11)
                 self.assertTrue(all({p.name for p in project.iterdir()} == names
                                     for project, names in accepted.items()))
-                report = rows.measure(output, inventory, producer)
+                report = rows.measure(output, inventory, producer, additional_projects=projects)
             self.assertTrue(report["passed"])
             self.assertTrue(all({p.name for p in project.iterdir()} == names
                                 for project, names in accepted.items()))
-            self.assertEqual(len(list((output / "sample-logs").glob("*/products/program.oterm"))), 10)
+            self.assertEqual(len(list((output / "sample-logs").glob("*/products/program.oterm"))), 11)
             self.assertTrue(report["observations"][0]["cases"]["passed"])
 
     def test_mutating_frozen_source_or_lock_refuses(self):
