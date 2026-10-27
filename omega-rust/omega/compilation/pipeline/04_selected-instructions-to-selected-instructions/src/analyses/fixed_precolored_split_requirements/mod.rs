@@ -100,11 +100,7 @@ pub(super) fn site_key(site: selected_instructions::VirtualFixedConstraintSite) 
             point.0,
             instruction.0,
             operand,
-            match access {
-                register_model::RegisterOperandAccess::Use => 0,
-                register_model::RegisterOperandAccess::Def => 1,
-                register_model::RegisterOperandAccess::UseDef => 2,
-            },
+            access.access_tag(),
         ),
     }
 }

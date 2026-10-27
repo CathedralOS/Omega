@@ -85,8 +85,8 @@ impl RegisterConstraintKey {
 }
 
 /// Canonical identity bytes for one constraint key: the family tag byte
-/// followed by the variant word. Every identity codec that walks a register
-/// catalog spells this row the same way.
+/// followed by the variant word. The family half is [`RegisterConstraintFamily::tag`]'s
+/// row, so a new family member cannot drift here.
 pub fn encode_constraint_key(bytes: &mut Vec<u8>, key: RegisterConstraintKey) {
     bytes.push(key.family.tag());
     crate::codec_bytes::push_encoded(bytes, key.variant.to_le_bytes());
