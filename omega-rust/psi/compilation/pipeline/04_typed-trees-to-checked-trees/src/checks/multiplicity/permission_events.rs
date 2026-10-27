@@ -1218,12 +1218,7 @@ fn reconcile_state_call_result_origins(
             &maps,
         );
         if !origins_changed && !liveness_changed {
-            return derive_checked_claim_outcome_maps(
-                program,
-                borrow,
-                ownership,
-                permission_events,
-            );
+            return Ok(maps);
         }
     }
     Err("call-result claim origins did not converge")

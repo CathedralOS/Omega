@@ -785,34 +785,47 @@ fn prepare_owners(
         let entry = source_parameters
             .iter()
             .any(|parameter| parameter.symbol == symbol);
-        for (_, receipt) in checked.facts.flow.ownership.owned_selections.iter() {
-            if receipt.machine == machine
-                && receipt.state == state
-                && matches!(
-                    receipt.evaluation,
-                    checked_trees::FlowPermissionEvaluation::Statement
-                        | checked_trees::FlowPermissionEvaluation::TransitionGuard
-                )
-                && (entry || receipt.statement_ordinal > formation)
-                && receipt.statement_ordinal < statement
-                && checked
-                    .facts
-                    .flow
-                    .ownership
-                    .selection_sources
-                    .span_or_empty(receipt.sources)
-                    .iter()
-                    .any(|source| source.symbol == symbol)
-            {
-                return Ok(false);
-            }
+        let has_conflicting_selection = checked
+            .facts
+            .flow
+            .ownership
+            .with_state_owned_selections(state, |handles| {
+                handles.iter().copied().any(|handle| {
+                    let receipt = checked.facts.flow.ownership.owned_selections.get(handle);
+                    receipt.machine == machine
+                        && receipt.state == state
+                        && matches!(
+                            receipt.evaluation,
+                            checked_trees::FlowPermissionEvaluation::Statement
+                                | checked_trees::FlowPermissionEvaluation::TransitionGuard
+                        )
+                        && (entry || receipt.statement_ordinal > formation)
+                        && receipt.statement_ordinal < statement
+                        && checked
+                            .facts
+                            .flow
+                            .ownership
+                            .selection_sources
+                            .span_or_empty(receipt.sources)
+                            .iter()
+                            .any(|source| source.symbol == symbol)
+                })
+            });
+        if has_conflicting_selection {
+            return Ok(false);
         }
         // A historical extraction is not a permanent hole. Fold the checked
         // storage events in evaluation order: establishment or exclusive-call
         // restoration reseats its subtree, while transfer/disposal removes it.
         // Claim identities are resolved separately at the consuming operand.
         let mut vacancies = Vec::new();
-        for (_, event) in checked.facts.flow.ownership.permissions.iter() {
+        let state_permissions = checked
+            .facts
+            .flow
+            .ownership
+            .with_state_permissions(state, |handles| handles.to_vec());
+        for handle in state_permissions {
+            let event = checked.facts.flow.ownership.permissions.get(handle);
             if event.machine_symbol != machine
                 || event.state_symbol != state
                 || event.root != facts::PlaceRoot::Symbol(symbol)
