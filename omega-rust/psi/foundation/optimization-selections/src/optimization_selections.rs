@@ -155,7 +155,7 @@ impl PsiOptimizationSelections {
         let encoded = self.encode();
         let mut digest = crate::digest_encoder::DomainDigestEncoder::new(IDENTITY_DOMAIN);
         digest.bytes(&encoded);
-        PsiOptimizationSelectionIdentity(digest.finish())
+        PsiOptimizationSelectionIdentity(digest.finish().into())
     }
 }
 
