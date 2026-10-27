@@ -28,7 +28,7 @@ use crate::task_plans::stack_graphs::task_call_graph;
 use crate::task_plans::start_selections::{exact_task_activation_target, task_start_selections};
 use diagnostics::Diagnostic;
 use std::collections::BTreeMap;
-use target::{Architecture, NativeTarget, ObjectFormat};
+use target::NativeTarget;
 use task_plans::{
     ActivationPlanCandidate, CallingPlanId, MachineContractId, MachineEntryId,
     StackRepresentationId, TaskActivationPlanFact, TaskActivationPlanSet, ValueLayoutId,
@@ -223,17 +223,7 @@ fn stack_representation_report_fingerprint(target: NativeTarget) -> u64 {
     let mut hash = crate::fnv1a::Fnv1a::new();
     hash.byte(0x53);
     hash.string_terminated("fixed-nonmoving-stack-v1");
-    hash.byte(match target.architecture {
-        Architecture::Aarch64 => 1,
-        Architecture::X86_64 => 2,
-    });
-    hash.byte(match target.object_format {
-        ObjectFormat::Elf => 1,
-        ObjectFormat::MachO => 2,
-        ObjectFormat::Coff => 3,
-    });
-    hash.usize(target.pointer_size);
-    hash.usize(target.pointer_alignment);
+    hash.bytes(&target.wire_identity_bytes());
     hash.finish_or(1)
 }
 
@@ -309,17 +299,7 @@ fn calling_plan_report_fingerprint(
     outcome_report_fingerprint: u64,
 ) -> u64 {
     let mut hash = crate::fnv1a::Fnv1a::new();
-    hash.byte(match target.architecture {
-        Architecture::Aarch64 => 1,
-        Architecture::X86_64 => 2,
-    });
-    hash.byte(match target.object_format {
-        ObjectFormat::Elf => 1,
-        ObjectFormat::MachO => 2,
-        ObjectFormat::Coff => 3,
-    });
-    hash.usize(target.pointer_size);
-    hash.usize(target.pointer_alignment);
+    hash.bytes(&target.wire_identity_bytes());
     hash.u64(entry_report_fingerprint);
     hash.u64(arguments_report_fingerprint);
     hash.u64(outcome_report_fingerprint);
