@@ -19,7 +19,7 @@ design is ahead of its implementation; native support is still being completed.
 [Language guide](wiki/language_guide/language_guide.md) ·
 [Specification](wiki/README.md#current-specification-subjects) ·
 [Examples](samples) ·
-[VS Code highlighting](tools/vscode-omega/README.md) ?
+[VS Code highlighting](tools/vscode-omega/README.md) ·
 [Contributing](#development)
 
 ## Failures Omega addresses
