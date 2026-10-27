@@ -8,17 +8,60 @@ mod reservation_profiles;
 
 use crate::{
     PhysicalRegisterModel, PreservationConvention, RegisterClass, RegisterClassId,
-    RegisterConstraintCatalog, RegisterConstraintId, RegisterConstraintKey,
-    RegisterInstructionConstraint, RegisterOperandAccess, RegisterOperandConstraint,
-    RegisterReservationOverlay, RegisterUnit, RegisterUnitId, RegisterUnitKind, RegisterView,
-    RegisterViewId, RegisterWriteSemantics, ReservationReason, ValidatedPhysicalRegisterModel,
-    validate_physical_register_model,
+    RegisterConstraintCatalog, RegisterConstraintCatalogValidationError, RegisterConstraintId,
+    RegisterConstraintKey, RegisterInstructionConstraint, RegisterModelValidationError,
+    RegisterOperandAccess, RegisterOperandConstraint, RegisterReservationOverlay, RegisterUnit,
+    RegisterUnitId, RegisterUnitKind, RegisterView, RegisterViewId, RegisterWriteSemantics,
+    ReservationReason, ValidatedPhysicalRegisterModel, validate_physical_register_model,
+    validate_register_constraint_catalog,
 };
 use target::Architecture;
 
 type ModelMutation = Box<dyn Fn(&mut PhysicalRegisterModel)>;
 
 type CatalogMutation = Box<dyn Fn(&mut RegisterConstraintCatalog)>;
+
+/// Assert that a fresh fixture, corrupted by `mutate`, fails `validate` with
+/// exactly `expected`. Every negative fixture test in this module tree spells
+/// its expectation through this one owner.
+pub(crate) fn assert_rejected<T, V, E>(
+    mut fixture: T,
+    mutate: impl FnOnce(&mut T),
+    validate: impl FnOnce(T) -> Result<V, E>,
+    expected: E,
+) where
+    E: std::fmt::Debug + PartialEq,
+    V: std::fmt::Debug + PartialEq,
+{
+    mutate(&mut fixture);
+    assert_eq!(validate(fixture), Err(expected));
+}
+
+/// The miniature catalog rejects the row `mutate` corrupts with `expected`.
+pub(crate) fn catalog_rejection(
+    mutate: impl FnOnce(&mut RegisterConstraintCatalog),
+    expected: RegisterConstraintCatalogValidationError,
+) {
+    assert_rejected(
+        miniature_catalog(),
+        mutate,
+        |catalog| validate_register_constraint_catalog(catalog, &validated_miniature_model()),
+        expected,
+    );
+}
+
+/// The miniature model rejects the declaration `mutate` corrupts with `expected`.
+pub(crate) fn model_rejection(
+    mutate: impl FnOnce(&mut PhysicalRegisterModel),
+    expected: RegisterModelValidationError,
+) {
+    assert_rejected(
+        miniature_model(),
+        mutate,
+        validate_physical_register_model,
+        expected,
+    );
+}
 
 fn miniature_model() -> PhysicalRegisterModel {
     PhysicalRegisterModel {

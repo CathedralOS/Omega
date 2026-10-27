@@ -1,16 +1,17 @@
 use super::{
-    PreservationStorageCatalog, PreservationStorageCatalogValidationError,
+    PreservationStorageCatalog, PreservationStorageCatalogValidationError as Rejected,
     PreservationStorageGroup, PreservationStorageGroupId, preservation_storage_catalog_identity,
     validate_preservation_storage_catalog,
 };
+use crate::tests::assert_rejected;
 use crate::{
     PhysicalRegisterModel, PreservationConvention, RegisterClass, RegisterClassId, RegisterUnit,
     RegisterUnitId, RegisterUnitKind, RegisterView, RegisterViewId, RegisterWriteSemantics,
-    validate_physical_register_model,
+    ValidatedPhysicalRegisterModel, validate_physical_register_model,
 };
 use target::Architecture;
 
-fn validated_model() -> crate::ValidatedPhysicalRegisterModel {
+fn validated_model() -> ValidatedPhysicalRegisterModel {
     validate_physical_register_model(PhysicalRegisterModel {
         architecture: Architecture::X86_64,
         units: vec![
@@ -57,7 +58,7 @@ fn validated_model() -> crate::ValidatedPhysicalRegisterModel {
     .unwrap()
 }
 
-fn catalog(model: &crate::ValidatedPhysicalRegisterModel) -> PreservationStorageCatalog {
+fn catalog(model: &ValidatedPhysicalRegisterModel) -> PreservationStorageCatalog {
     PreservationStorageCatalog {
         physical_register_model: model.identity(),
         convention: "test".into(),
@@ -70,6 +71,17 @@ fn catalog(model: &crate::ValidatedPhysicalRegisterModel) -> PreservationStorage
             alignment_bytes: 8,
         }],
     }
+}
+
+/// The catalog `mutate` corrupts is rejected with exactly `expected`.
+fn rejection(mutate: impl FnOnce(&mut PreservationStorageCatalog), expected: Rejected) {
+    let model = validated_model();
+    assert_rejected(
+        catalog(&model),
+        mutate,
+        |catalog| validate_preservation_storage_catalog(catalog, &model),
+        expected,
+    );
 }
 
 #[test]
@@ -112,78 +124,46 @@ fn catalog_accepts_one_fragment_coalescing_group_and_binds_every_field() {
 
 #[test]
 fn catalog_rejects_model_convention_id_view_geometry_and_coverage_corruption() {
-    let model = validated_model();
-
-    let mut wrong_model = catalog(&model);
-    wrong_model.physical_register_model = crate::PhysicalRegisterModelIdentity::from_bytes([7; 32]);
-    assert_eq!(
-        validate_preservation_storage_catalog(wrong_model, &model),
-        Err(PreservationStorageCatalogValidationError::PhysicalRegisterModelMismatch)
+    rejection(
+        |catalog| {
+            catalog.physical_register_model =
+                crate::PhysicalRegisterModelIdentity::from_bytes([7; 32])
+        },
+        Rejected::PhysicalRegisterModelMismatch,
     );
-
-    let mut unknown_convention = catalog(&model);
-    unknown_convention.convention = "unknown".into();
-    assert_eq!(
-        validate_preservation_storage_catalog(unknown_convention, &model),
-        Err(PreservationStorageCatalogValidationError::UnknownConvention("unknown".into()))
+    rejection(
+        |catalog| catalog.convention = "unknown".into(),
+        Rejected::UnknownConvention("unknown".into()),
     );
-
-    let mut bad_id = catalog(&model);
-    bad_id.groups[0].id = PreservationStorageGroupId(1);
-    assert_eq!(
-        validate_preservation_storage_catalog(bad_id, &model),
-        Err(PreservationStorageCatalogValidationError::NonCanonicalGroupIds)
+    rejection(
+        |catalog| catalog.groups[0].id = PreservationStorageGroupId(1),
+        Rejected::NonCanonicalGroupIds,
     );
-
-    let mut bad_view = catalog(&model);
-    bad_view.groups[0].storage_view = RegisterViewId(u16::MAX);
-    assert_eq!(
-        validate_preservation_storage_catalog(bad_view, &model),
-        Err(
-            PreservationStorageCatalogValidationError::UnknownStorageView {
-                group: PreservationStorageGroupId(0),
-                view: RegisterViewId(u16::MAX),
-            }
-        )
+    rejection(
+        |catalog| catalog.groups[0].storage_view = RegisterViewId(u16::MAX),
+        Rejected::UnknownStorageView {
+            group: PreservationStorageGroupId(0),
+            view: RegisterViewId(u16::MAX),
+        },
     );
-
-    let mut wrong_size = catalog(&model);
-    wrong_size.groups[0].size_bytes = 4;
-    assert_eq!(
-        validate_preservation_storage_catalog(wrong_size, &model),
-        Err(
-            PreservationStorageCatalogValidationError::StorageSizeMismatch(
-                PreservationStorageGroupId(0)
-            )
-        )
+    rejection(
+        |catalog| catalog.groups[0].size_bytes = 4,
+        Rejected::StorageSizeMismatch(PreservationStorageGroupId(0)),
     );
-
-    let mut bad_alignment = catalog(&model);
-    bad_alignment.groups[0].alignment_bytes = 3;
-    assert_eq!(
-        validate_preservation_storage_catalog(bad_alignment, &model),
-        Err(
-            PreservationStorageCatalogValidationError::InvalidStorageAlignment(
-                PreservationStorageGroupId(0)
-            )
-        )
+    rejection(
+        |catalog| catalog.groups[0].alignment_bytes = 3,
+        Rejected::InvalidStorageAlignment(PreservationStorageGroupId(0)),
     );
-
-    let mut missing = catalog(&model);
-    missing.groups[0].preserved_units.pop();
-    assert_eq!(
-        validate_preservation_storage_catalog(missing, &model),
-        Err(
-            PreservationStorageCatalogValidationError::StorageViewUnitMismatch(
-                PreservationStorageGroupId(0)
-            )
-        )
+    rejection(
+        |catalog| {
+            catalog.groups[0].preserved_units.pop();
+        },
+        Rejected::StorageViewUnitMismatch(PreservationStorageGroupId(0)),
     );
 }
 
 #[test]
 fn catalog_rejects_overlap_omission_and_noncanonical_group_order() {
-    let model = validated_model();
     let one_unit_group = |id, name: &str, unit| PreservationStorageGroup {
         id: PreservationStorageGroupId(id),
         name: name.into(),
@@ -193,37 +173,30 @@ fn catalog_rejects_overlap_omission_and_noncanonical_group_order() {
         alignment_bytes: 8,
     };
 
-    let mut overlap = catalog(&model);
-    overlap.groups.push(PreservationStorageGroup {
-        id: PreservationStorageGroupId(1),
-        name: "duplicate".into(),
-        ..overlap.groups[0].clone()
-    });
-    assert_eq!(
-        validate_preservation_storage_catalog(overlap, &model),
-        Err(PreservationStorageCatalogValidationError::OverlappingPreservedUnit(RegisterUnitId(0)))
+    rejection(
+        |catalog| {
+            catalog.groups.push(PreservationStorageGroup {
+                id: PreservationStorageGroupId(1),
+                name: "duplicate".into(),
+                ..catalog.groups[0].clone()
+            });
+        },
+        Rejected::OverlappingPreservedUnit(RegisterUnitId(0)),
     );
-
-    let mut omitted = catalog(&model);
-    omitted.groups.clear();
-    assert_eq!(
-        validate_preservation_storage_catalog(omitted, &model),
-        Err(PreservationStorageCatalogValidationError::MissingPreservedUnit(RegisterUnitId(0)))
+    rejection(
+        |catalog| catalog.groups.clear(),
+        Rejected::MissingPreservedUnit(RegisterUnitId(0)),
     );
 
     // The view mismatch is checked before order for split groups; exact view
     // equality prevents a catalog from inventing partial storage carriers.
-    let mut partial = catalog(&model);
-    partial.groups = vec![
-        one_unit_group(0, "high", RegisterUnitId(1)),
-        one_unit_group(1, "low", RegisterUnitId(0)),
-    ];
-    assert_eq!(
-        validate_preservation_storage_catalog(partial, &model),
-        Err(
-            PreservationStorageCatalogValidationError::StorageViewUnitMismatch(
-                PreservationStorageGroupId(0)
-            )
-        )
+    rejection(
+        |catalog| {
+            catalog.groups = vec![
+                one_unit_group(0, "high", RegisterUnitId(1)),
+                one_unit_group(1, "low", RegisterUnitId(0)),
+            ];
+        },
+        Rejected::StorageViewUnitMismatch(PreservationStorageGroupId(0)),
     );
 }

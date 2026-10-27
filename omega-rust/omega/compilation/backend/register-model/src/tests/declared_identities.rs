@@ -312,21 +312,6 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
 
     for changed_keys in [
         TargetRegisterEnvironmentConstraintKeys {
-            port_write: None,
-            system_register_read: None,
-            system_register_write: None,
-            control_register_read: None,
-            control_register_write: None,
-            port_register_read: None,
-            port_register_write: None,
-            model_specific_read: None,
-            model_specific_write: None,
-            processor_halt: None,
-            interrupt_control: None,
-            memory_fence: None,
-            atomic_fence: None,
-            placed_read: None,
-            placed_write: None,
             atomic_load: Some(instruction_key(781)),
             ..keys.clone()
         },
@@ -385,7 +370,6 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         },
         TargetRegisterEnvironmentConstraintKeys {
             call_unit: Vec::new(),
-            call_unit_mixed: Vec::new(),
             ..keys.clone()
         },
         TargetRegisterEnvironmentConstraintKeys {
@@ -398,7 +382,6 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         },
         TargetRegisterEnvironmentConstraintKeys {
             frame_address: None,
-            byte_literal_image_address: None,
             ..keys.clone()
         },
         TargetRegisterEnvironmentConstraintKeys {
@@ -433,16 +416,7 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         },
         TargetRegisterEnvironmentConstraintKeys {
             copy_i64: instruction_key(15),
-            float32_to_bits: None,
-            float64_to_bits: None,
-            bits_to_float32: None,
-            bits_to_float64: None,
-            ieee_float_arithmetic: None,
-            ieee_float_directed_binary: None,
-            ieee_float_directed_unary: None,
-            ieee_float_unary: None,
             ieee_float_conversion_control: Some(instruction_key(788)),
-            ieee_float_ternary: None,
             ..keys.clone()
         },
         TargetRegisterEnvironmentConstraintKeys {
@@ -559,7 +533,6 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
             ..keys.clone()
         },
         TargetRegisterEnvironmentConstraintKeys {
-            return_float: Vec::new(),
             return_i64: instruction_key(14),
             ..keys.clone()
         },
