@@ -20,14 +20,11 @@ pub(super) fn proves(
         return false;
     };
     let place = facts.semantic.places.get(place);
-    let place = validation::CanonicalPlace {
-        root: place.root,
-        segments: facts
-            .semantic
-            .place_segments
-            .span_or_empty(place.segments)
-            .to_vec(),
-    };
+    let place = crate::checks::places::place_or_root_in(
+        &facts.semantic.place_segments,
+        place.root,
+        place.segments,
+    );
     let Some(machine) = program.machine_by_symbol(state.machine_symbol) else {
         return false;
     };
@@ -219,14 +216,11 @@ fn contexts_prove_domain(
                 ) {
                     return false;
                 }
-                let candidate = validation::CanonicalPlace {
-                    root: candidate.root,
-                    segments: facts
-                        .semantic
-                        .place_segments
-                        .span_or_empty(candidate.segments)
-                        .to_vec(),
-                };
+                let candidate = crate::checks::places::place_or_root_in(
+                    &facts.semantic.place_segments,
+                    candidate.root,
+                    candidate.segments,
+                );
                 let Some(candidate) = resolve_candidate(candidate) else {
                     return false;
                 };

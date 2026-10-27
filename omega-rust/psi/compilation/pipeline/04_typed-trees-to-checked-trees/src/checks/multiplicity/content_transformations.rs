@@ -419,15 +419,11 @@ fn prepare(
     }
     for parent in &transaction.parents {
         let available = content.body_available_inputs.get(parent.available);
-        let current = CanonicalPlace {
-            root: available.root,
-            segments: facts
-                .flow
-                .ownership
-                .segments
-                .span_or_empty(available.segments)
-                .to_vec(),
-        };
+        let current = crate::checks::places::place_or_root_in(
+            &facts.flow.ownership.segments,
+            available.root,
+            available.segments,
+        );
         let reference = validation::canonical_place_type_reference(
             program,
             transaction.state,
@@ -632,15 +628,11 @@ pub(super) fn consumed_places(
                 .body_available_inputs
                 .span_or_empty(equation.available_inputs)
             {
-                let place = CanonicalPlace {
-                    root: input.root,
-                    segments: facts
-                        .flow
-                        .ownership
-                        .segments
-                        .span_or_empty(input.segments)
-                        .to_vec(),
-                };
+                let place = crate::checks::places::place_or_root_in(
+                    &facts.flow.ownership.segments,
+                    input.root,
+                    input.segments,
+                );
                 crate::collections::push_unique(&mut places, place);
             }
         }
