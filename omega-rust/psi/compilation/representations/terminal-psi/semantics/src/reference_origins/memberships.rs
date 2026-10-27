@@ -24,14 +24,14 @@ use terminal_psi::{
 /// drop this context before publishing a retention sweep's new operation rows.
 pub struct ReferenceResultMemberships<'module> {
     module: &'module TerminalModule,
-    graph: Vec<DescriptorMachine>,
+    graph: std::cell::OnceCell<Vec<DescriptorMachine>>,
 }
 
 impl<'module> ReferenceResultMemberships<'module> {
     pub fn new(module: &'module TerminalModule) -> Self {
         Self {
             module,
-            graph: descriptors::terminal_borrowed_storage_graph(module),
+            graph: std::cell::OnceCell::new(),
         }
     }
 
@@ -99,10 +99,13 @@ impl<'module> ReferenceResultMemberships<'module> {
             },
             structural_arguments,
         )?;
+        let graph = self
+            .graph
+            .get_or_init(|| descriptors::terminal_borrowed_storage_graph(self.module));
         reference_call_preserved_memberships(
             &self.module.structural_types,
             &self.module.structural_domains,
-            &self.graph,
+            graph,
             caller.id,
             position,
             result,

@@ -19,9 +19,10 @@
 //! recorded source-call or selected-IEEE join keeps its named operation and
 //! captured scalar environment reachable.
 //!
-//! The scan proposes folds; the independent verifier re-derives each removed
-//! block's unreachability under the performed folds and checks the exact
-//! before/after relation and proof questions.
+//! The scan folds each literal conditional and drops the blocks the fold
+//! leaves unreachable. The corpus fixtures observe the rewrite; the stage does
+//! not re-derive its own output (verification placement,
+//! `omega-rust/pipeline.md`).
 //!
 //! After the per-machine folds, a machine no retained transition reaches —
 //! through calls, selected evidence, cleanup actions, or closed reach
@@ -30,21 +31,16 @@
 //! dropped, provided no surviving row still names a block, edge, operation,
 //! or value inside it. A machine a surviving row or unsealed sidecar keeps
 //! authored is not a retention root, but the machines its own surviving
-//! transitions name stay too. The verifier re-derives that machine-level
-//! relation from the rewritten module as well.
+//! transitions name stay too.
 
 mod cleanup;
 mod machines;
 mod retention;
-mod validation;
-
-pub(super) use validation::ControlFlowCleanupRewriteError;
 
 use crate::PsiOptimizationStageError;
 use lowered_psi::LoweredPsi;
 use std::collections::BTreeSet;
 use terminal_psi::{DebugSubject, OperationResult};
-use validation::validate_control_flow_cleanup;
 
 pub(super) fn cleanup(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationStageError> {
     let mut after = before.clone();
@@ -83,8 +79,6 @@ pub(super) fn cleanup(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationS
         &sidecar_edges,
         &sidecar_values,
     );
-    validate_control_flow_cleanup(&before.semantic_module, &after.semantic_module)
-        .map_err(PsiOptimizationStageError::InvalidControlFlowCleanupRewrite)?;
     if let Some(debug) = after.debug_map.as_mut() {
         let surviving_machines = after
             .semantic_module

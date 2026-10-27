@@ -17,18 +17,15 @@
 //! cannot carry verbatim refuses, leaving the complete closure as authored
 //! until proof-context transport lets the question move with the rewrite.
 //!
-//! The scan proposes removals; the independent verifier re-derives the
-//! canonical survivor for each removed operation and checks the exact
-//! before/after relation and proof questions.
+//! The scan removes each duplicate and substitutes the canonical survivor at
+//! every direct scalar use. The corpus fixtures observe the rewrite; the
+//! stage does not re-derive its own output (verification placement,
+//! `omega-rust/pipeline.md`).
 
 mod equivalents;
-mod validation;
-
-pub(super) use validation::GlobalValueNumberingRewriteError;
 
 use crate::PsiOptimizationStageError;
 use lowered_psi::LoweredPsi;
-use validation::validate_global_value_numbering;
 
 pub(super) fn number(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationStageError> {
     let mut after = before.clone();
@@ -44,8 +41,6 @@ pub(super) fn number(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationSt
     for machine in &mut after.semantic_module.machines {
         equivalents::deduplicate(machine, &before.source_call_occurrences, &retained_values);
     }
-    validate_global_value_numbering(&before.semantic_module, &after.semantic_module)
-        .map_err(PsiOptimizationStageError::InvalidGlobalValueNumberingRewrite)?;
     crate::retained_identities::prune_debug_map(&before, &mut after)?;
     Ok(after)
 }

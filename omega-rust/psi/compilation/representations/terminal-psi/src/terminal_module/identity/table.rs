@@ -39,6 +39,30 @@ pub struct TerminalIdentityTable {
     entries: Vec<String>,
     invocation: Option<InvocationCodeScope>,
     invocation_local: Vec<TerminalIdentityIndex>,
+    positions: TerminalIdentityPositionsMemo,
+}
+
+#[derive(Default)]
+struct TerminalIdentityPositionsMemo(std::sync::OnceLock<std::collections::HashMap<String, u32>>);
+
+impl Clone for TerminalIdentityPositionsMemo {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+impl PartialEq for TerminalIdentityPositionsMemo {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for TerminalIdentityPositionsMemo {}
+
+impl std::fmt::Debug for TerminalIdentityPositionsMemo {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("TerminalIdentityPositionsMemo")
+    }
 }
 
 /// A retained local-code owner. Equality is custody, never the contents of an
@@ -60,6 +84,7 @@ impl Default for TerminalIdentityTable {
             entries: vec![String::new()],
             invocation: None,
             invocation_local: Vec::new(),
+            positions: TerminalIdentityPositionsMemo::default(),
         }
     }
 }
@@ -108,12 +133,16 @@ impl TerminalIdentityTable {
     /// against the table length once).
     /// Reverse lookup used when a checked-side identity must rejoin its
     /// already-interned terminal index (artifact rosters built after the
-    /// module table is sealed). Construction-scale tables keep this a scan.
+    /// module table is sealed).
     pub fn index_of(&self, text: &str) -> Option<TerminalIdentityIndex> {
-        self.entries
-            .iter()
-            .position(|entry| entry == text)
-            .map(|position| TerminalIdentityIndex(position as u32))
+        let positions = self.positions.0.get_or_init(|| {
+            self.entries
+                .iter()
+                .enumerate()
+                .map(|(position, entry)| (entry.clone(), position as u32))
+                .collect()
+        });
+        positions.get(text).copied().map(TerminalIdentityIndex)
     }
 
     pub fn text(&self, index: TerminalIdentityIndex) -> Option<&str> {
@@ -123,13 +152,14 @@ impl TerminalIdentityTable {
     /// Construction resumed on an existing table: test fixtures and sealed
     /// rosters that must mint identities late take the rows back to a builder
     /// rather than reconstructing the deduplication map by hand.
-    pub fn into_builder(self) -> TerminalIdentityTableBuilder {
-        let positions = self
-            .entries
-            .iter()
-            .enumerate()
-            .map(|(position, entry)| (entry.clone(), position as u32))
-            .collect();
+    pub fn into_builder(mut self) -> TerminalIdentityTableBuilder {
+        let positions = self.positions.0.take().unwrap_or_else(|| {
+            self.entries
+                .iter()
+                .enumerate()
+                .map(|(position, entry)| (entry.clone(), position as u32))
+                .collect()
+        });
         TerminalIdentityTableBuilder {
             table: self,
             positions,
@@ -206,6 +236,7 @@ impl TerminalIdentityTableBuilder {
             .expect("terminal identity table overflowed u32 entries");
         self.positions.insert(text.to_owned(), position);
         self.table.entries.push(text.to_owned());
+        let _ = self.table.positions.0.take();
         TerminalIdentityIndex(position)
     }
 
@@ -235,6 +266,7 @@ impl TerminalIdentityTableBuilder {
     /// The finished table. `build` runs no deduplication: `intern` already
     /// assigned each distinct text exactly one entry.
     pub fn build(self) -> TerminalIdentityTable {
+        let _ = self.table.positions.0.set(self.positions);
         self.table
     }
 }
@@ -248,6 +280,7 @@ impl From<Vec<String>> for TerminalIdentityTable {
             entries,
             invocation: None,
             invocation_local: Vec::new(),
+            positions: TerminalIdentityPositionsMemo::default(),
         }
     }
 }

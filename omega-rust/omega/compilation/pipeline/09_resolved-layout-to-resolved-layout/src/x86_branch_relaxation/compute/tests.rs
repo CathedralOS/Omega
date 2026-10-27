@@ -18,9 +18,7 @@ use machine_code::{
 };
 
 use super::{
-    branch_inspection::{inspect_production_branch, replay_inspect_branch},
-    reflow::{reflow_production_functions, reflow_replay_functions},
-    work::charge,
+    branch_inspection::inspect_production_branch, reflow::reflow_production_functions, work::charge,
 };
 
 use super::super::{
@@ -28,7 +26,7 @@ use super::super::{
     X86BranchRelaxationPolicy, X86BranchRelaxationRevisionIdentity,
     error::{OptimizedX86BranchRelaxationError, X86BranchRelaxationWorkAxis},
     identity::{RevisionRoots, artifact_identity, revision_identity},
-    validation::{compare_replayed_action_evidence, ensure_x86_target},
+    validation::ensure_x86_target,
 };
 
 fn physical() -> ValidatedPhysicalRegisterModel {
@@ -405,7 +403,7 @@ fn conditional_branch_mut(
 }
 
 #[test]
-fn eligible_near_branch_shrinks_and_both_reflow_implementations_agree() {
+fn eligible_near_branch_shrinks_and_reflow_settles_on_the_short_form() {
     let physical = physical();
     let source = function(127);
     assert_eq!(
@@ -415,22 +413,11 @@ fn eligible_near_branch_shrinks_and_both_reflow_implementations_agree() {
             Some(127),
         )
     );
-    assert_eq!(
-        replay_inspect_branch(&source, 0, 0, &physical).unwrap(),
-        (
-            X86BranchRelaxationAttemptOutcome::SelectedForRelaxation,
-            Some(127),
-        )
-    );
-
     let short =
         encode_x86_64_selected_short_nonzero_branch_form(&physical, alternative(), 127).unwrap();
     let mut produced = vec![source.clone()];
     produced[0].blocks[0].instructions[0].bytes = short.bytes().to_vec();
-    let mut replayed = produced.clone();
     reflow_production_functions(&mut produced, &physical).unwrap();
-    reflow_replay_functions(&mut replayed, &physical).unwrap();
-    assert_eq!(produced, replayed);
     assert_eq!(source.byte_count - produced[0].byte_count, 4);
     assert_eq!(produced[0].blocks[0].instructions[0].bytes, [0x75, 0x7f]);
     assert_eq!(produced[0].blocks[1].offset, 2);
@@ -448,16 +435,9 @@ fn eligible_near_branch_shrinks_and_both_reflow_implementations_agree() {
         inspect_production_branch(&produced[0], 0, 0, &physical).unwrap(),
         (X86BranchRelaxationAttemptOutcome::AlreadyShort, None,)
     );
-    assert_eq!(
-        replay_inspect_branch(&produced[0], 0, 0, &physical).unwrap(),
-        (X86BranchRelaxationAttemptOutcome::AlreadyShort, None,)
-    );
-
     let fixed_point = produced.clone();
     reflow_production_functions(&mut produced, &physical).unwrap();
-    reflow_replay_functions(&mut replayed, &physical).unwrap();
     assert_eq!(produced, fixed_point);
-    assert_eq!(replayed, fixed_point);
 }
 
 #[test]
@@ -473,14 +453,6 @@ fn u64_less_than_relaxation_uses_jb_and_changes_only_the_alternative_variant() {
             Some(127),
         )
     );
-    assert_eq!(
-        replay_inspect_branch(&source, 0, 0, &physical).unwrap(),
-        (
-            X86BranchRelaxationAttemptOutcome::SelectedForRelaxation,
-            Some(127),
-        )
-    );
-
     let short_alternative = MachineAlternativeKey {
         family: MachineAlternativeFamily::ConditionalBranchU64LessThan,
         variant: 1,
@@ -490,10 +462,7 @@ fn u64_less_than_relaxation_uses_jb_and_changes_only_the_alternative_variant() {
     let mut produced = vec![source.clone()];
     produced[0].blocks[0].instructions[0].alternative = short_alternative;
     produced[0].blocks[0].instructions[0].bytes = short.bytes().to_vec();
-    let mut replayed = produced.clone();
     reflow_production_functions(&mut produced, &physical).unwrap();
-    reflow_replay_functions(&mut replayed, &physical).unwrap();
-    assert_eq!(produced, replayed);
     assert_eq!(source.byte_count - produced[0].byte_count, 4);
     assert_eq!(produced[0].blocks[0].instructions[0].bytes, [0x72, 0x7f]);
     assert_eq!(
@@ -504,14 +473,10 @@ fn u64_less_than_relaxation_uses_jb_and_changes_only_the_alternative_variant() {
         inspect_production_branch(&produced[0], 0, 0, &physical).unwrap(),
         (X86BranchRelaxationAttemptOutcome::AlreadyShort, None)
     );
-    assert_eq!(
-        replay_inspect_branch(&produced[0], 0, 0, &physical).unwrap(),
-        (X86BranchRelaxationAttemptOutcome::AlreadyShort, None)
-    );
 }
 
 #[test]
-fn i64_less_than_relaxation_uses_jl_and_replay_rejects_jb_substitution() {
+fn i64_less_than_relaxation_uses_jl() {
     let physical = physical();
     let source = signed_less_than_function(127);
     assert_eq!(source.blocks[0].instructions[0].bytes[..2], [0x0f, 0x8c]);
@@ -524,16 +489,9 @@ fn i64_less_than_relaxation_uses_jl_and_replay_rejects_jb_substitution() {
     let mut produced = vec![source.clone()];
     produced[0].blocks[0].instructions[0].alternative = short_alternative;
     produced[0].blocks[0].instructions[0].bytes = short.bytes().to_vec();
-    let mut replayed = produced.clone();
     reflow_production_functions(&mut produced, &physical).unwrap();
-    reflow_replay_functions(&mut replayed, &physical).unwrap();
-    assert_eq!(produced, replayed);
     assert_eq!(source.byte_count - produced[0].byte_count, 4);
     assert_eq!(produced[0].blocks[0].instructions[0].bytes, [0x7c, 0x7f]);
-
-    let mut unsigned_opcode = produced[0].clone();
-    unsigned_opcode.blocks[0].instructions[0].bytes[0] = 0x72;
-    assert!(replay_inspect_branch(&unsigned_opcode, 0, 0, &physical).is_err());
 }
 
 #[test]
@@ -542,7 +500,7 @@ fn branch_predicate_and_opcode_cannot_be_substituted() {
     let mut less = less_than_function(1);
     less.blocks[0].instructions[0].alternative = alternative();
     less.blocks[0].instructions[0].bytes = vec![0x0f, 0x85, 1, 0, 0, 0];
-    assert!(replay_inspect_branch(&less, 0, 0, &physical).is_err());
+    assert!(inspect_production_branch(&less, 0, 0, &physical).is_err());
 
     let mut nonzero = function(1);
     nonzero.blocks[0].instructions[0].alternative = MachineAlternativeKey {
@@ -550,22 +508,15 @@ fn branch_predicate_and_opcode_cannot_be_substituted() {
         variant: 0,
     };
     nonzero.blocks[0].instructions[0].bytes = vec![0x0f, 0x82, 1, 0, 0, 0];
-    assert!(replay_inspect_branch(&nonzero, 0, 0, &physical).is_err());
+    assert!(inspect_production_branch(&nonzero, 0, 0, &physical).is_err());
 }
 
 #[test]
-fn out_of_range_near_branch_is_a_verified_no_change_attempt() {
+fn out_of_range_near_branch_is_no_change_attempt() {
     let physical = physical();
     let source = function(128);
     assert_eq!(
         inspect_production_branch(&source, 0, 0, &physical).unwrap(),
-        (
-            X86BranchRelaxationAttemptOutcome::NearDisplacementOutsideI8,
-            None,
-        )
-    );
-    assert_eq!(
-        replay_inspect_branch(&source, 0, 0, &physical).unwrap(),
         (
             X86BranchRelaxationAttemptOutcome::NearDisplacementOutsideI8,
             None,
@@ -577,9 +528,17 @@ fn out_of_range_near_branch_is_a_verified_no_change_attempt() {
 fn malformed_short_opcode_and_work_overrun_fail_closed() {
     let physical = physical();
     let mut source = function(1);
+    // The wrong short opcode for the recorded predicate: the encoder's own
+    // decoder rejects it.
     source.blocks[0].instructions[0].bytes = vec![0x74, 1];
     assert!(matches!(
-        replay_inspect_branch(&source, 0, 0, &physical),
+        inspect_production_branch(&source, 0, 0, &physical),
+        Err(OptimizedX86BranchRelaxationError::X86_64(_))
+    ));
+    // A width that is neither the two-byte nor the six-byte form.
+    source.blocks[0].instructions[0].bytes = vec![0x0f, 0x85, 1];
+    assert!(matches!(
+        inspect_production_branch(&source, 0, 0, &physical),
         Err(OptimizedX86BranchRelaxationError::MalformedBranch(
             SelectedInstructionId(0)
         ))
@@ -606,7 +565,7 @@ fn non_x86_target_is_rejected_before_any_relaxation_work() {
 }
 
 #[test]
-fn corrupted_action_changes_identity_and_is_rejected_by_replay_comparison() {
+fn corrupted_action_changes_the_artifact_identity() {
     let roots = RevisionRoots {
         source: ResolvedSelectedFormLayoutIdentity::from_bytes([1; 32]),
         selected: selected_instructions::SelectedInstructionPlanIdentity::from_bytes([2; 32]),
@@ -672,19 +631,10 @@ fn corrupted_action_changes_identity_and_is_rejected_by_replay_comparison() {
         &functions,
     );
     assert_ne!(identity, corrupted_identity);
-    assert_eq!(
-        compare_replayed_action_evidence(
-            &attempts,
-            std::slice::from_ref(&corrupted),
-            &attempts,
-            std::slice::from_ref(&action),
-        ),
-        Err(OptimizedX86BranchRelaxationError::ArtifactMismatch)
-    );
 }
 
 #[test]
-fn backward_branch_at_the_i8_floor_relaxes_and_both_reflow_implementations_agree() {
+fn backward_branch_at_the_i8_floor_relaxes_to_the_short_form() {
     let physical = physical();
     // The taken block covers bytes 0..126, so the branch sits at 126 and the
     // prospective rel8 displacement 0-(126+2) is exactly -128.
@@ -696,22 +646,11 @@ fn backward_branch_at_the_i8_floor_relaxes_and_both_reflow_implementations_agree
             Some(-128),
         )
     );
-    assert_eq!(
-        replay_inspect_branch(&source, 1, 0, &physical).unwrap(),
-        (
-            X86BranchRelaxationAttemptOutcome::SelectedForRelaxation,
-            Some(-128),
-        )
-    );
-
     let short =
         encode_x86_64_selected_short_nonzero_branch_form(&physical, alternative(), -128).unwrap();
     let mut produced = vec![source.clone()];
     produced[0].blocks[1].instructions[0].bytes = short.bytes().to_vec();
-    let mut replayed = produced.clone();
     reflow_production_functions(&mut produced, &physical).unwrap();
-    reflow_replay_functions(&mut replayed, &physical).unwrap();
-    assert_eq!(produced, replayed);
     assert_eq!(source.byte_count - produced[0].byte_count, 4);
     assert_eq!(produced[0].blocks[1].instructions[0].bytes, [0x75, 0x80]);
     assert_eq!(produced[0].blocks[1].offset, 126);
@@ -729,14 +668,10 @@ fn backward_branch_at_the_i8_floor_relaxes_and_both_reflow_implementations_agree
         inspect_production_branch(&produced[0], 1, 0, &physical).unwrap(),
         (X86BranchRelaxationAttemptOutcome::AlreadyShort, None,)
     );
-    assert_eq!(
-        replay_inspect_branch(&produced[0], 1, 0, &physical).unwrap(),
-        (X86BranchRelaxationAttemptOutcome::AlreadyShort, None,)
-    );
 }
 
 #[test]
-fn backward_branch_beyond_the_i8_floor_is_a_verified_no_change() {
+fn backward_branch_beyond_the_i8_floor_is_no_change() {
     let physical = physical();
     // One byte further back: the prospective rel8 displacement is -129.
     let source = backward_conditional_function(127);
@@ -747,17 +682,10 @@ fn backward_branch_beyond_the_i8_floor_is_a_verified_no_change() {
             None,
         )
     );
-    assert_eq!(
-        replay_inspect_branch(&source, 1, 0, &physical).unwrap(),
-        (
-            X86BranchRelaxationAttemptOutcome::NearDisplacementOutsideI8,
-            None,
-        )
-    );
 }
 
 #[test]
-fn jump_whose_target_crosses_the_relaxed_branch_is_reencoded_by_both_reflows() {
+fn jump_whose_target_crosses_the_relaxed_branch_is_reencoded_by_reflow() {
     let physical = physical();
     let source = jump_across_branch_function(127);
     assert_eq!(
@@ -781,10 +709,7 @@ fn jump_whose_target_crosses_the_relaxed_branch_is_reencoded_by_both_reflows() {
         encode_x86_64_selected_short_nonzero_branch_form(&physical, alternative(), 127).unwrap();
     let mut produced = vec![source.clone()];
     produced[0].blocks[1].instructions[0].bytes = short.bytes().to_vec();
-    let mut replayed = produced.clone();
     reflow_production_functions(&mut produced, &physical).unwrap();
-    reflow_replay_functions(&mut replayed, &physical).unwrap();
-    assert_eq!(produced, replayed);
     assert_eq!(source.byte_count - produced[0].byte_count, 4);
     // The jump row stays at offset 0 while its target moves from 138 to 134.
     let jump = jump_evidence(&produced[0]);
@@ -797,7 +722,7 @@ fn jump_whose_target_crosses_the_relaxed_branch_is_reencoded_by_both_reflows() {
 }
 
 #[test]
-fn a_taken_block_absent_from_the_layout_is_rejected_by_both_inspectors() {
+fn a_taken_block_absent_from_the_layout_is_rejected() {
     let physical = physical();
     let mut source = function(1);
     conditional_branch_mut(&mut source, 0, 0).when_taken_block = SelectedBlockId(99);
@@ -807,52 +732,38 @@ fn a_taken_block_absent_from_the_layout_is_rejected_by_both_inspectors() {
             SelectedBlockId(99)
         ))
     );
+}
+
+#[test]
+fn a_fallthrough_that_is_not_the_next_block_is_rejected() {
+    let physical = physical();
+    let mut functions = vec![function(1)];
+    // The taken block is not the branch's fallthrough; reflow refuses to
+    // rewrite a branch whose fallthrough edge does not end at the next row.
+    conditional_branch_mut(&mut functions[0], 0, 0).when_fallthrough_block = SelectedBlockId(2);
     assert_eq!(
-        replay_inspect_branch(&source, 0, 0, &physical),
-        Err(OptimizedX86BranchRelaxationError::MissingTargetBlock(
-            SelectedBlockId(99)
+        reflow_production_functions(&mut functions, &physical),
+        Err(OptimizedX86BranchRelaxationError::BranchFallthroughMismatch(SelectedInstructionId(0)))
+    );
+}
+
+#[test]
+fn drifted_recorded_branch_effects_are_rejected() {
+    let physical = physical();
+    let mut functions = vec![function(1)];
+    conditional_branch_mut(&mut functions[0], 0, 0)
+        .decoded_effects
+        .control = MachineEncodedControlEffect::FallThroughV1;
+    assert_eq!(
+        reflow_production_functions(&mut functions, &physical),
+        Err(OptimizedX86BranchRelaxationError::BranchEffectsMismatch(
+            SelectedInstructionId(0)
         ))
     );
 }
 
 #[test]
-fn a_fallthrough_that_is_not_the_next_block_is_rejected_by_both_reflows() {
-    let physical = physical();
-    for reflow in [reflow_production_functions, reflow_replay_functions] {
-        let mut functions = vec![function(1)];
-        // The taken block is not the branch's fallthrough; reflow refuses to
-        // rewrite a branch whose fallthrough edge does not end at the next row.
-        conditional_branch_mut(&mut functions[0], 0, 0).when_fallthrough_block = SelectedBlockId(2);
-        assert_eq!(
-            reflow(&mut functions, &physical),
-            Err(
-                OptimizedX86BranchRelaxationError::BranchFallthroughMismatch(
-                    SelectedInstructionId(0)
-                )
-            )
-        );
-    }
-}
-
-#[test]
-fn drifted_recorded_branch_effects_are_rejected_by_both_reflows() {
-    let physical = physical();
-    for reflow in [reflow_production_functions, reflow_replay_functions] {
-        let mut functions = vec![function(1)];
-        conditional_branch_mut(&mut functions[0], 0, 0)
-            .decoded_effects
-            .control = MachineEncodedControlEffect::FallThroughV1;
-        assert_eq!(
-            reflow(&mut functions, &physical),
-            Err(OptimizedX86BranchRelaxationError::BranchEffectsMismatch(
-                SelectedInstructionId(0)
-            ))
-        );
-    }
-}
-
-#[test]
-fn corrupted_attempt_outcome_changes_identity_and_is_rejected_by_replay_comparison() {
+fn corrupted_attempt_outcome_changes_the_artifact_identity() {
     let roots = RevisionRoots {
         source: ResolvedSelectedFormLayoutIdentity::from_bytes([1; 32]),
         selected: selected_instructions::SelectedInstructionPlanIdentity::from_bytes([2; 32]),
@@ -893,7 +804,7 @@ fn corrupted_attempt_outcome_changes_identity_and_is_rejected_by_replay_comparis
         &functions,
     );
     // An attempt roster that reports the terminal decline instead of the
-    // recorded selection rehashes differently and fails the replay comparison.
+    // recorded selection rehashes differently.
     let mut corrupted_attempts = attempts.clone();
     corrupted_attempts[0].outcome = X86BranchRelaxationAttemptOutcome::AlreadyShort;
     let corrupted_identity = artifact_identity(
@@ -908,10 +819,6 @@ fn corrupted_attempt_outcome_changes_identity_and_is_rejected_by_replay_comparis
         &functions,
     );
     assert_ne!(identity, corrupted_identity);
-    assert_eq!(
-        compare_replayed_action_evidence(&corrupted_attempts, &[], &attempts, &[]),
-        Err(OptimizedX86BranchRelaxationError::ArtifactMismatch)
-    );
 }
 
 /// `branch_count` blocks each ending in one six-byte near branch to a shared
@@ -1046,19 +953,13 @@ fn branch_bytes(functions: &[ResolvedSelectedFunctionLayout]) -> String {
         .join(" ")
 }
 
-/// Run both trace routes over the same roster, require them to agree, and
-/// report the sweep count, the committed branch count and the relaxed bytes.
+/// Run the production trace over the roster and report the sweep count, the
+/// committed branch count and the relaxed bytes.
 fn sweep_report(functions: Vec<ResolvedSelectedFunctionLayout>) -> String {
     let physical = physical();
     let production =
         super::production::compute_trace(sweep_roots(), &functions, &physical, sweep_budget())
             .unwrap();
-    let replayed =
-        super::replay::replay_trace(sweep_roots(), &functions, &physical, sweep_budget()).unwrap();
-    assert_eq!(production.functions, replayed.functions);
-    assert_eq!(production.usage, replayed.usage);
-    assert_eq!(production.attempts, replayed.attempts);
-    assert_eq!(production.actions, replayed.actions);
     format!(
         "sweeps={} commits={} branches={}",
         production.usage.iterations,
