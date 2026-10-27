@@ -1,1 +1,1 @@
-const `WRONG` declares type `ImpostorToken`, but the parameter requires `Token`
+indexed-domain selected constant has canonical type `named(name(ImpostorToken))`, expected `named(name(Token))`
