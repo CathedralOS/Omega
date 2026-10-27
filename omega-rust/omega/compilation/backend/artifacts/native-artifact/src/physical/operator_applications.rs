@@ -8,6 +8,7 @@ use terminal_psi::OperationKind;
 pub(super) mod fragment_call;
 mod fragment_comparison;
 
+pub(super) use super::derivation::evidence::{ranges_overlap, span};
 use super::{
     NativeByteSpan, OptimizedOperatorOccurrence, PhysicalRelocationDisposition, native_byte_span,
 };
@@ -365,25 +366,6 @@ fn derive_span(
         final_image_bytes_digest: sha256(final_image_bytes),
         relocation: disposition,
     })
-}
-
-fn span(bytes: &[u8], span: NativeByteSpan) -> Result<&[u8], &'static str> {
-    let end = span
-        .offset()
-        .checked_add(span.byte_count())
-        .ok_or("D29 physical child byte span overflow")?;
-    bytes
-        .get(span.offset()..end)
-        .ok_or("D29 physical child byte span is out of bounds")
-}
-
-fn ranges_overlap(
-    left_start: usize,
-    left_end: usize,
-    right_start: usize,
-    right_end: usize,
-) -> bool {
-    left_start < right_end && right_start < left_end
 }
 
 #[cfg(test)]
