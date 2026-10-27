@@ -17,6 +17,7 @@
 use target::compatibility_fingerprint::Fnv1a;
 
 use super::super::checked::{self, CandidateValidationError};
+use crate::bytes::require_name;
 use crate::dynamic_executable::checked::{checked_sum, checked_u32, require};
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::ValidatedElfProcedureLinkageTemplatePlan;
 use diagnostics::Diagnostic;
@@ -476,18 +477,11 @@ fn validate_name(
     seed: &[u8],
     row: &ElfProcedureLinkageSectionDescriptor,
 ) -> Result<(), Diagnostic> {
-    let offset = usize::try_from(row.name_offset)
-        .map_err(|_| Diagnostic::error("ELF linkage sh_name exceeds usize"))?;
-    let tail = seed
-        .get(offset..)
-        .ok_or_else(|| Diagnostic::error("ELF linkage sh_name is outside the name seed"))?;
-    let terminator = tail
-        .iter()
-        .position(|byte| *byte == 0)
-        .ok_or_else(|| Diagnostic::error("ELF linkage section name is not NUL-terminated"))?;
-    require(
-        tail.get(..terminator) == Some(row.kind.name()),
-        "ELF linkage sh_name does not select its exact semantic name",
+    require_name(
+        seed,
+        row.name_offset,
+        row.kind.name(),
+        "ELF linkage sh_name",
     )
 }
 

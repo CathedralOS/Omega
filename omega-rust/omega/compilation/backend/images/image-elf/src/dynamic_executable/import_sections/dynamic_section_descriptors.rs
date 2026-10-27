@@ -16,6 +16,7 @@
 use target::compatibility_fingerprint::Fnv1a;
 
 use super::super::checked::{self, CandidateValidationError};
+use crate::bytes::{name_at, require_name};
 use crate::dynamic_executable::checked::{read_u32, require};
 use crate::dynamic_executable::import_sections::dynamic_section_bytes::ValidatedElfDynamicSectionPayloads;
 use diagnostics::Diagnostic;
@@ -355,6 +356,7 @@ fn validate_contents(
         name_at(
             &contents.section_name_table_seed,
             SECTION_NAME_TABLE_NAME_OFFSET,
+            "section-name seed",
         )? == b".shstrtab"
             && contents
                 .descriptors
@@ -412,20 +414,12 @@ fn validate_name(
     section_names: &[u8],
     row: &ElfAddressFreeSectionDescriptor,
 ) -> Result<(), Diagnostic> {
-    require(
-        name_at(section_names, row.name_offset)? == row.kind.name(),
-        "ELF descriptor name offset does not identify its semantic kind",
+    require_name(
+        section_names,
+        row.name_offset,
+        row.kind.name(),
+        "ELF descriptor name offset",
     )
-}
-
-fn name_at(section_names: &[u8], offset: u32) -> Result<&[u8], Diagnostic> {
-    let suffix = section_names
-        .get(offset as usize..)
-        .ok_or_else(|| Diagnostic::error("ELF descriptor name offset exceeds the name seed"))?;
-    let end = suffix.iter().position(|byte| *byte == 0).ok_or_else(|| {
-        Diagnostic::error("ELF descriptor name is not terminated in the name seed")
-    })?;
-    Ok(&suffix[..end])
 }
 
 fn validate_row(

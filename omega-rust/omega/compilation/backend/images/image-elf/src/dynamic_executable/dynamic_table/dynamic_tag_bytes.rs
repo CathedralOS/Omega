@@ -318,6 +318,7 @@ mod tests {
         serialize_elf_dynamic_table, validate_candidate, validate_contents,
         validate_fixup_coverage,
     };
+    use crate::bytes::name_at;
     use crate::dynamic_executable::checked::read_i64;
     use target::TargetProfile;
 
@@ -484,9 +485,8 @@ mod tests {
                     ordinal * ELF64_DYNAMIC_ROW_SIZE + ELF64_DYNAMIC_VALUE_OFFSET,
                     "DT_NEEDED offset",
                 )
-                .unwrap() as usize;
-                let tail = &dynstr[offset..];
-                &tail[..tail.iter().position(|byte| *byte == 0).unwrap()]
+                .unwrap() as u32;
+                name_at(dynstr, offset, "DT_NEEDED string offset").unwrap()
             })
             .collect::<Vec<_>>();
         assert_eq!(names, [b"liba\xff.so".as_slice(), b"libb.so".as_slice()]);

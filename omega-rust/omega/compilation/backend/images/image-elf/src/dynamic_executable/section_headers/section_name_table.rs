@@ -13,6 +13,7 @@
 use target::compatibility_fingerprint::Fnv1a;
 
 use super::super::checked::{self, CandidateValidationError};
+use crate::bytes::{name_at, require_name};
 use crate::dynamic_executable::checked::{checked_sum, checked_u32, require};
 use crate::dynamic_executable::dynamic_table::dynamic_table_descriptor::ValidatedElfDynamicTableSectionDescriptorPlan;
 use crate::dynamic_executable::import_sections::dynamic_section_descriptors::ElfDynamicSectionKind;
@@ -286,18 +287,12 @@ fn validate_complete_names(bytes: &[u8]) -> Result<(), Diagnostic> {
             *offset == next_offset,
             "section-name-table expected offsets are not contiguous",
         )?;
-        let tail = bytes
-            .get(*offset..)
-            .ok_or_else(|| Diagnostic::error("section name offset is outside the table"))?;
-        let terminator = tail
-            .iter()
-            .position(|byte| *byte == 0)
-            .ok_or_else(|| Diagnostic::error("section name is not NUL-terminated"))?;
+        let name = name_at(bytes, *offset as u32, "section name")?;
         require(
-            tail.get(..terminator) == Some(*expected),
+            name == *expected,
             "section-name-table entry does not replay",
         )?;
-        next_offset = checked_sum(*offset, terminator + 1, "section-name-table traversal")?;
+        next_offset = checked_sum(*offset, name.len() + 1, "section-name-table traversal")?;
     }
     require(
         next_offset == bytes.len(),
@@ -306,17 +301,11 @@ fn validate_complete_names(bytes: &[u8]) -> Result<(), Diagnostic> {
 }
 
 fn validate_name(bytes: &[u8], row: &ElfSectionNameTableDescriptor) -> Result<(), Diagnostic> {
-    let offset = usize::try_from(row.name_offset)
-        .map_err(|_| Diagnostic::error("section-name-table sh_name exceeds usize"))?;
-    let tail = bytes
-        .get(offset..)
-        .ok_or_else(|| Diagnostic::error("section-name-table sh_name is outside its payload"))?;
-    let terminator = tail.iter().position(|byte| *byte == 0).ok_or_else(|| {
-        Diagnostic::error("section-name-table descriptor name is not NUL-terminated")
-    })?;
-    require(
-        tail.get(..terminator) == Some(row.kind.name()),
-        "section-name-table sh_name does not select the reserved semantic name",
+    require_name(
+        bytes,
+        row.name_offset,
+        row.kind.name(),
+        "section-name-table sh_name",
     )
 }
 

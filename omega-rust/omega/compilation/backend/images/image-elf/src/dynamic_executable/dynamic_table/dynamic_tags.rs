@@ -15,6 +15,7 @@
 use target::compatibility_fingerprint::Fnv1a;
 
 use super::super::checked::{self, CandidateValidationError};
+use crate::bytes::name_at;
 use crate::constants::ELF64_RELA_SIZE;
 use crate::dynamic_executable::checked::{checked_product, checked_sum, checked_u32, require};
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_descriptors::{
@@ -481,7 +482,7 @@ fn validate_needed_rows(
             }),
             "DT_NEEDED row drifted from the exact significant roster",
         )?;
-        let object = dynamic_string(dynstr, *expected_offset)?;
+        let object = name_at(dynstr, *expected_offset, "DT_NEEDED string offset")?;
         require(
             !object.is_empty(),
             "DT_NEEDED references an empty object name",
@@ -713,19 +714,6 @@ fn validate_relocation_closure(
             },
         "target GOT policy drifted from the future .dynamic section obligation",
     )
-}
-
-fn dynamic_string(bytes: &[u8], offset: u32) -> Result<&[u8], Diagnostic> {
-    let offset = usize::try_from(offset)
-        .map_err(|_| Diagnostic::error("DT_NEEDED string offset exceeds usize"))?;
-    let tail = bytes
-        .get(offset..)
-        .ok_or_else(|| Diagnostic::error("DT_NEEDED string offset is outside .dynstr"))?;
-    let terminator = tail
-        .iter()
-        .position(|byte| *byte == 0)
-        .ok_or_else(|| Diagnostic::error("DT_NEEDED object name is not NUL-terminated"))?;
-    Ok(&tail[..terminator])
 }
 
 fn non_authoritative_tag_compatibility_fingerprint(

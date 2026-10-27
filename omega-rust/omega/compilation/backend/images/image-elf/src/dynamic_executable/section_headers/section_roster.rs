@@ -13,6 +13,7 @@
 use target::compatibility_fingerprint::Fnv1a;
 
 use super::super::checked::{self, CandidateValidationError};
+use crate::bytes::require_name;
 use crate::constants::SECTION_COUNT;
 use crate::dynamic_executable::checked::{checked_u32, require};
 use crate::dynamic_executable::import_sections::dynamic_section_descriptors::ElfDynamicSectionKind;
@@ -394,18 +395,11 @@ fn validate_name(
     section_names: &[u8],
     row: &ElfNumericSectionDescriptor,
 ) -> Result<(), Diagnostic> {
-    let offset = usize::try_from(row.name_offset)
-        .map_err(|_| Diagnostic::error("numeric ELF sh_name exceeds usize"))?;
-    let tail = section_names
-        .get(offset..)
-        .ok_or_else(|| Diagnostic::error("numeric ELF sh_name is outside .shstrtab"))?;
-    let terminator = tail
-        .iter()
-        .position(|byte| *byte == 0)
-        .ok_or_else(|| Diagnostic::error("numeric ELF section name is not NUL-terminated"))?;
-    require(
-        tail.get(..terminator) == Some(expected_name(row.kind)),
-        "numeric ELF sh_name does not select its exact canonical name",
+    require_name(
+        section_names,
+        row.name_offset,
+        expected_name(row.kind),
+        "numeric ELF sh_name",
     )
 }
 

@@ -16,7 +16,7 @@
 use target::compatibility_fingerprint::Fnv1a;
 
 use super::super::checked::{self, CandidateValidationError};
-use crate::bytes::{write_u16, write_u32, write_u64};
+use crate::bytes::{name_at, write_u16, write_u32, write_u64};
 use crate::dynamic_executable::checked::{
     checked_sum, read_u8, read_u16, read_u32, read_u64, require,
 };
@@ -356,15 +356,23 @@ fn validate_payloads(
     )?;
 
     for symbol in dynsym.iter().skip(1) {
-        referenced_string(&payloads.dynstr, symbol.name)?;
+        name_at(
+            &payloads.dynstr,
+            symbol.name,
+            "ELF dynamic string reference",
+        )?;
     }
     for offset in &contents.needed {
-        referenced_string(&payloads.dynstr, *offset)?;
+        name_at(&payloads.dynstr, *offset, "ELF dynamic string reference")?;
     }
     for need in &verneed {
-        referenced_string(&payloads.dynstr, need.file)?;
+        name_at(&payloads.dynstr, need.file, "ELF dynamic string reference")?;
         for auxiliary in &need.auxiliaries {
-            referenced_string(&payloads.dynstr, auxiliary.name)?;
+            name_at(
+                &payloads.dynstr,
+                auxiliary.name,
+                "ELF dynamic string reference",
+            )?;
         }
     }
     Ok(())
@@ -680,18 +688,6 @@ fn decode_verneed(bytes: &[u8], need_count: usize) -> Result<Vec<ElfVersionNeed>
         "GNU version requirement chain does not consume the exact payload bytes",
     )?;
     Ok(needs)
-}
-
-fn referenced_string(bytes: &[u8], offset: u32) -> Result<&[u8], Diagnostic> {
-    let offset = offset as usize;
-    let suffix = bytes.get(offset..).ok_or_else(|| {
-        Diagnostic::error("ELF dynamic string reference exceeds the serialized payload")
-    })?;
-    let end = suffix
-        .iter()
-        .position(|byte| *byte == 0)
-        .ok_or_else(|| Diagnostic::error("ELF dynamic string reference lacks a NUL terminator"))?;
-    Ok(&suffix[..end])
 }
 
 fn non_authoritative_payload_compatibility_fingerprint(

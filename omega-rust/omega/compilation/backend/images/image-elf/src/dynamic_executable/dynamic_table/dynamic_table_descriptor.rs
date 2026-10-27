@@ -13,6 +13,7 @@
 use target::compatibility_fingerprint::Fnv1a;
 
 use super::super::checked::{self, CandidateValidationError};
+use crate::bytes::require_name;
 use crate::dynamic_executable::checked::{checked_product, checked_sum, checked_u32, require};
 use crate::dynamic_executable::dynamic_table::dynamic_tag_bytes::ValidatedElfDynamicTablePayload;
 use crate::dynamic_executable::import_sections::dynamic_section_descriptors::ElfDynamicSectionKind;
@@ -298,18 +299,11 @@ fn validate_contents(
 }
 
 fn validate_name(seed: &[u8], row: &ElfDynamicTableSectionDescriptor) -> Result<(), Diagnostic> {
-    let offset = usize::try_from(row.name_offset)
-        .map_err(|_| Diagnostic::error("dynamic-table sh_name exceeds usize"))?;
-    let tail = seed
-        .get(offset..)
-        .ok_or_else(|| Diagnostic::error("dynamic-table sh_name is outside the name seed"))?;
-    let terminator = tail
-        .iter()
-        .position(|byte| *byte == 0)
-        .ok_or_else(|| Diagnostic::error("dynamic-table section name is not NUL-terminated"))?;
-    require(
-        tail.get(..terminator) == Some(row.kind.name()),
-        "dynamic-table sh_name does not select the exact semantic name",
+    require_name(
+        seed,
+        row.name_offset,
+        row.kind.name(),
+        "dynamic-table sh_name",
     )
 }
 
