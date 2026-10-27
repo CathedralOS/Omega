@@ -39,6 +39,18 @@ impl ObjectLocalSymbolId {
         if value == 0 { None } else { Some(Self(value)) }
     }
 
+    /// The id of the `index`th row of a canonical sequence that begins after
+    /// `preceding` earlier rows: the function table starts the sequence, the
+    /// import plan continues it after the function rows. `None` is the index
+    /// arithmetic refusing, never a hole in the sequence.
+    pub fn at(preceding: usize, index: usize) -> Option<Self> {
+        u64::try_from(preceding)
+            .ok()?
+            .checked_add(u64::try_from(index).ok()?)?
+            .checked_add(1)
+            .and_then(Self::new)
+    }
+
     pub const fn get(self) -> u64 {
         self.0
     }
@@ -383,10 +395,9 @@ pub(crate) fn validate_relocation_free_object(
     let mut cursor = 0_u64;
     let mut entry_count = 0_u64;
     for (index, symbol) in object.symbols.iter().enumerate() {
-        let ordinal = u64::try_from(index)
-            .map_err(|_| RelocationFreeObjectError::LengthOverflow)?
-            .checked_add(1)
-            .ok_or(RelocationFreeObjectError::LengthOverflow)?;
+        let ordinal = ObjectLocalSymbolId::at(0, index)
+            .ok_or(RelocationFreeObjectError::LengthOverflow)?
+            .get();
         if symbol.symbol.get() != ordinal {
             return Err(RelocationFreeObjectError::NonCanonicalSymbolId);
         }
@@ -446,14 +457,9 @@ pub(crate) fn validate_relocation_free_object(
     let mut import_symbols = std::collections::BTreeMap::new();
     let mut last_coordinate = None;
     for (index, import) in object.normalized_imports.iter().enumerate() {
-        let expected = u64::try_from(object.symbols.len())
-            .map_err(|_| RelocationFreeObjectError::LengthOverflow)?
-            .checked_add(
-                u64::try_from(index).map_err(|_| RelocationFreeObjectError::LengthOverflow)?,
-            )
-            .and_then(|base| base.checked_add(1))
+        let expected = ObjectLocalSymbolId::at(object.symbols.len(), index)
             .ok_or(RelocationFreeObjectError::LengthOverflow)?;
-        if import.symbol.get() != expected {
+        if import.symbol != expected {
             return Err(RelocationFreeObjectError::NonCanonicalForeignImportId);
         }
         let coordinate = (import.boundary.get(), import.ordinal);
