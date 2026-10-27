@@ -33,6 +33,32 @@ const CANONICAL_ENTRY_CONTRACT_DOMAIN: &[u8] = b"omega-component-canonical-entry
 const PORT_MECHANISM_DOMAIN: &[u8] = b"omega-component-port-mechanism-v1";
 const REGISTER_MECHANISM_DOMAIN: &[u8] = b"omega-component-register-mechanism-v1";
 
+/// One wire-tag table per enum, generated whole.
+///
+/// The forward `tag` and the reverse `from_tag` are one list here, so a variant
+/// cannot be given a number in one direction only: the previous hand-written
+/// pairs kept two match tables per enum in step by inspection, and a new variant
+/// added to one of them read back as an unsupported tag or silently aliased
+/// another variant's number.
+macro_rules! wire_tagged {
+    ($name:ident { $($variant:ident = $tag:literal),+ $(,)? }) => {
+        impl $name {
+            pub(crate) fn tag(self) -> u8 {
+                match self {
+                    $(Self::$variant => $tag),+
+                }
+            }
+
+            fn from_tag(tag: u8) -> Option<Self> {
+                match tag {
+                    $($tag => Some(Self::$variant),)+
+                    _ => None,
+                }
+            }
+        }
+    };
+}
+
 /// Current and only published description schema.
 ///
 /// V3 retains the complete original normalized provider-plan input. Consumers
@@ -65,24 +91,11 @@ pub enum DescriptionFrontier {
     TerminalArtifactClosure,
 }
 
-impl DescriptionFrontier {
-    pub(crate) fn tag(self) -> u8 {
-        match self {
-            Self::AuthoredDeclaration => 1,
-            Self::SelectedPlan => 2,
-            Self::TerminalArtifactClosure => 3,
-        }
-    }
-
-    fn from_tag(tag: u8) -> Option<Self> {
-        match tag {
-            1 => Some(Self::AuthoredDeclaration),
-            2 => Some(Self::SelectedPlan),
-            3 => Some(Self::TerminalArtifactClosure),
-            _ => None,
-        }
-    }
-}
+wire_tagged!(DescriptionFrontier {
+    AuthoredDeclaration = 1,
+    SelectedPlan = 2,
+    TerminalArtifactClosure = 3,
+});
 
 /// One import slot: an outgoing requirement the component demands but does
 /// not itself seal to a retained provider. Installation must bind each slot
@@ -165,32 +178,15 @@ pub enum ComponentEntryKind {
     RetainedProvider,
 }
 
-impl ComponentEntryKind {
-    pub(crate) fn tag(self) -> u8 {
-        match self {
-            Self::Canonical => 1,
-            Self::SuspensionResumption => 2,
-            Self::Startup => 3,
-            Self::RegisteredCallback => 4,
-            Self::Timer => 5,
-            Self::Cleanup => 6,
-            Self::RetainedProvider => 7,
-        }
-    }
-
-    fn from_tag(tag: u8) -> Option<Self> {
-        match tag {
-            1 => Some(Self::Canonical),
-            2 => Some(Self::SuspensionResumption),
-            3 => Some(Self::Startup),
-            4 => Some(Self::RegisteredCallback),
-            5 => Some(Self::Timer),
-            6 => Some(Self::Cleanup),
-            7 => Some(Self::RetainedProvider),
-            _ => None,
-        }
-    }
-}
+wire_tagged!(ComponentEntryKind {
+    Canonical = 1,
+    SuspensionResumption = 2,
+    Startup = 3,
+    RegisteredCallback = 4,
+    Timer = 5,
+    Cleanup = 6,
+    RetainedProvider = 7,
+});
 
 /// Evidence binding one entry row to independently checkable fact.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -225,26 +221,12 @@ pub enum OutgoingAuthorityClass {
     ServiceCeiling,
 }
 
-impl OutgoingAuthorityClass {
-    pub(crate) fn tag(self) -> u8 {
-        match self {
-            Self::BoundaryRequirement => 1,
-            Self::PortSpaceWrite => 2,
-            Self::ServiceCeiling => 3,
-            Self::RegisterAccess => 4,
-        }
-    }
-
-    fn from_tag(tag: u8) -> Option<Self> {
-        match tag {
-            1 => Some(Self::BoundaryRequirement),
-            2 => Some(Self::PortSpaceWrite),
-            3 => Some(Self::ServiceCeiling),
-            4 => Some(Self::RegisterAccess),
-            _ => None,
-        }
-    }
-}
+wire_tagged!(OutgoingAuthorityClass {
+    BoundaryRequirement = 1,
+    PortSpaceWrite = 2,
+    ServiceCeiling = 3,
+    RegisterAccess = 4,
+});
 
 /// Evidence binding one outgoing-authority row to checkable fact.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -313,34 +295,16 @@ pub enum CustodyKind {
     Lease,
 }
 
-impl CustodyKind {
-    pub(crate) fn tag(self) -> u8 {
-        match self {
-            Self::PlacedViewInput => 1,
-            Self::ReborrowRestoredCall => 3,
-            Self::CompletionReceipt => 4,
-            Self::ProgramLocalRootIntroduction => 5,
-            Self::BoundaryContentGuarantee => 6,
-            Self::SuspensionFrontier => 8,
-            Self::Mapping => 9,
-            Self::Lease => 10,
-        }
-    }
-
-    fn from_tag(tag: u8) -> Option<Self> {
-        match tag {
-            1 => Some(Self::PlacedViewInput),
-            3 => Some(Self::ReborrowRestoredCall),
-            4 => Some(Self::CompletionReceipt),
-            5 => Some(Self::ProgramLocalRootIntroduction),
-            6 => Some(Self::BoundaryContentGuarantee),
-            8 => Some(Self::SuspensionFrontier),
-            9 => Some(Self::Mapping),
-            10 => Some(Self::Lease),
-            _ => None,
-        }
-    }
-}
+wire_tagged!(CustodyKind {
+    PlacedViewInput = 1,
+    ReborrowRestoredCall = 3,
+    CompletionReceipt = 4,
+    ProgramLocalRootIntroduction = 5,
+    BoundaryContentGuarantee = 6,
+    SuspensionFrontier = 8,
+    Mapping = 9,
+    Lease = 10,
+});
 
 /// Evidence binding one custody row to checkable fact.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -395,30 +359,14 @@ pub enum ObligationKind {
     Lease,
 }
 
-impl ObligationKind {
-    pub(crate) fn tag(self) -> u8 {
-        match self {
-            Self::StackProvision => 1,
-            Self::ProviderOccurrence => 2,
-            Self::ImportBinding => 3,
-            Self::ResourceAdmission => 5,
-            Self::Mapping => 6,
-            Self::Lease => 7,
-        }
-    }
-
-    fn from_tag(tag: u8) -> Option<Self> {
-        match tag {
-            1 => Some(Self::StackProvision),
-            2 => Some(Self::ProviderOccurrence),
-            3 => Some(Self::ImportBinding),
-            5 => Some(Self::ResourceAdmission),
-            6 => Some(Self::Mapping),
-            7 => Some(Self::Lease),
-            _ => None,
-        }
-    }
-}
+wire_tagged!(ObligationKind {
+    StackProvision = 1,
+    ProviderOccurrence = 2,
+    ImportBinding = 3,
+    ResourceAdmission = 5,
+    Mapping = 6,
+    Lease = 7,
+});
 
 /// One installation obligation. The `identity` is the canonical obligation
 /// coordinate; `detail` carries bounded human-readable context only.
