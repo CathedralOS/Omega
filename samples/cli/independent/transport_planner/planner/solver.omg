@@ -17,14 +17,14 @@ public machine solve_transport(input: &TransportInput, plan: &mut TransportPlan)
     plan.total = 0;
     plan.shipments = [0,0,0,0,0,0,0,0,0];
     transition { _ -> enumerate(input, plan, 0) }
-    state enumerate(input: &TransportInput, plan: &mut TransportPlan,
+    machine enumerate(input: &TransportInput, plan: &mut TransportPlan,
                     candidate: i32 in Wrapping) -> bool {
         transition candidate < 10000 {
             true -> derive(input, plan, candidate)
             false -> (plan.found)
         }
     }
-    state derive(input: &TransportInput, plan: &mut TransportPlan,
+    machine derive(input: &TransportInput, plan: &mut TransportPlan,
                  candidate: i32 in Wrapping) -> bool {
         let first: i32 in Wrapping = candidate / 1000;
         let second: i32 in Wrapping = candidate / 100 % 10;
@@ -41,7 +41,7 @@ public machine solve_transport(input: &TransportInput, plan: &mut TransportPlan)
             false -> enumerate(input, plan, candidate + 1)
         }
     }
-    state objective(input: &TransportInput, plan: &mut TransportPlan, candidate: i32 in Wrapping,
+    machine objective(input: &TransportInput, plan: &mut TransportPlan, candidate: i32 in Wrapping,
                     first: i32 in Wrapping, second: i32 in Wrapping, third: i32 in Wrapping,
                     fourth: i32 in Wrapping, fifth: i32 in Wrapping, sixth: i32 in Wrapping,
                     seventh: i32 in Wrapping, eighth: i32 in Wrapping, ninth: i32 in Wrapping) -> bool {
@@ -55,7 +55,7 @@ public machine solve_transport(input: &TransportInput, plan: &mut TransportPlan)
             false -> enumerate(input, plan, candidate + 1)
         }
     }
-    state retain(input: &TransportInput, plan: &mut TransportPlan, candidate: i32 in Wrapping,
+    machine retain(input: &TransportInput, plan: &mut TransportPlan, candidate: i32 in Wrapping,
                  cost: i32 in Wrapping, first: i32 in Wrapping, second: i32 in Wrapping, third: i32 in Wrapping,
                  fourth: i32 in Wrapping, fifth: i32 in Wrapping, sixth: i32 in Wrapping,
                  seventh: i32 in Wrapping, eighth: i32 in Wrapping, ninth: i32 in Wrapping) -> bool {

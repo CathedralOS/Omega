@@ -12,7 +12,7 @@ requires count <= 16
 ensures result.values.len == count
 {
     transition { _ -> window(audit, count) }
-    state window(audit: &'row mut Audit, count: u64) -> Held<'row>
+    machine window(audit: &'row mut Audit, count: u64) -> Held<'row>
     requires count >= 1
     requires count <= 16
     {
@@ -55,6 +55,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

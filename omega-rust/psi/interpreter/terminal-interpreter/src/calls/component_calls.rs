@@ -87,7 +87,10 @@ impl<'artifact> TerminalExecution<'artifact> {
             .invoke(operation.id, arguments, structural_arguments, meter)
             .map_err(&reject)?
         {
-            Some(status @ TerminalExecutionStatus::SponsorExhausted(_)) => {
+            Some(
+                status @ (TerminalExecutionStatus::SponsorExhausted(_)
+                | TerminalExecutionStatus::HostComputationPending(_)),
+            ) => {
                 return Ok(OperationFlow::Yield(status));
             }
             Some(status @ TerminalExecutionStatus::AwaitingEffect(_)) => {
@@ -202,6 +205,36 @@ impl<'artifact> TerminalExecution<'artifact> {
                     })
                     .collect::<Result<Vec<_>, _>>()?;
                 value.qualifications.sort();
+                // The completed checked value can retain explicit parents
+                // already implied by its declared child. Authenticate both
+                // rosters before presenting the exact receiving signature;
+                // unrelated membership and raw host assertions cannot enter
+                // this checked completion lane.
+                let domains = &self.program.catalogs.structural_domains;
+                let entails =
+                    |actual: &[semantic_vocabulary::StructuralDomainId],
+                     required: &[semantic_vocabulary::StructuralDomainId]| {
+                        required.iter().all(|identity| {
+                            domains
+                                .iter()
+                                .find(|domain| domain.id == *identity)
+                                .is_some_and(|domain| {
+                                    domain.carrier == left.structural_type
+                                        && domain
+                                            .missing_membership_requirements(domains, actual)
+                                            .is_some_and(|missing| missing.is_empty())
+                                })
+                        })
+                    };
+                if !entails(&value.qualifications, &left.qualifications)
+                    || !entails(&left.qualifications, &value.qualifications)
+                {
+                    return Err(reject(format!(
+                        "component result membership closures differ: returned={:?}, receiving={:?}",
+                        value.qualifications, left.qualifications,
+                    )));
+                }
+                value.qualifications.clone_from(&left.qualifications);
                 let claims = completed.returned_claims().ok_or_else(|| {
                     reject("component return lost its owned claim bindings".to_owned())
                 })?;

@@ -202,6 +202,7 @@ pub(crate) fn build_check_facts(
         &validation_facts.exact_integer_casts,
         &mut values.proof_terms.terms,
     );
+    values.scalar_expressions.seal_expressions();
     // Form source flow and custody first. Their selected cleanup dispositions
     // complete the implicit execution graph; only then may effects and the
     // stronger capability, termination and callable-contract judgments publish.
@@ -226,6 +227,7 @@ pub(crate) fn build_check_facts(
     };
     let mut claim_outcomes = crate::checks::ClaimOutcomePreparation::default();
     drop(pre_flow_guard);
+    mutation_summaries.prewarm(program, &prepared.borrow, call_frames.as_ref());
     let flow_loop_guard = phase_profile::guard("05.d.3.b.flow_fixed_point");
     loop {
         phase_profile::count("05.d.3.b.flow_fixed_point.outer_iterations", 1);
@@ -252,36 +254,56 @@ pub(crate) fn build_check_facts(
                 call_frames.as_ref(),
             )
         });
-        crate::facts::review_sources::bind_checked_body_call_source_spans(
-            program,
-            &mut prepared.flow,
-        )?;
-        if crate::checks::prepare_permission_events(
-            program,
-            &mut prepared,
-            &mut claim_outcomes,
-            mutation_summaries,
-            call_frames.as_ref(),
+        prepared.flow.control.seal_indexes();
+        phase_profile::scope("05.d.3.b.flow_fixed_point.bind_call_spans", || {
+            crate::facts::review_sources::bind_checked_body_call_source_spans(
+                program,
+                &mut prepared.flow,
+            )
+        })?;
+        if phase_profile::scope(
+            "05.d.3.b.flow_fixed_point.prepare_permission_events",
+            || {
+                crate::checks::prepare_permission_events(
+                    program,
+                    &mut prepared,
+                    &mut claim_outcomes,
+                    mutation_summaries,
+                    call_frames.as_ref(),
+                )
+            },
         )? {
             continue;
         }
-        if contextual_cleanup::retain_selected_receiver_loans(
-            program,
-            &mut prepared.borrow,
-            &prepared.flow.ownership,
-            &prepared.contextual_cleanup,
+        if phase_profile::scope(
+            "05.d.3.b.flow_fixed_point.retain_selected_receiver_loans",
+            || {
+                contextual_cleanup::retain_selected_receiver_loans(
+                    program,
+                    &mut prepared.borrow,
+                    &prepared.flow.ownership,
+                    &prepared.contextual_cleanup,
+                )
+            },
         ) {
             continue;
         }
-        if !contextual_cleanup::infer_entry_requirements(
-            program,
-            &mut prepared,
-            call_frames.as_ref(),
+        if !phase_profile::scope(
+            "05.d.3.b.flow_fixed_point.infer_entry_requirements",
+            || {
+                contextual_cleanup::infer_entry_requirements(
+                    program,
+                    &mut prepared,
+                    call_frames.as_ref(),
+                )
+            },
         )? {
             break;
         }
     }
     drop(flow_loop_guard);
+    prepared.flow.ownership.seal_indexes();
+    prepared.flow.control.seal_indexes();
     let _post_flow_guard = phase_profile::guard("05.d.3.c.post_flow_facts");
     crate::borrow::accesses::retain_completed_dispatch_extractions(program, &mut prepared);
     phase_profile::scope("05.d.3.c.1.scalar_and_index_plans", || {
@@ -466,7 +488,7 @@ pub(crate) fn build_check_facts(
     let mut fact_call_projections = Vec::new();
     for call in &validation_facts.integer_embedding_calls {
         let exact_source = matches!(program.expression_table.expression(call.call_expression),
-            typed_trees::expression::ExpressionNode::Call(source) if source.target_symbol == call.target_state)
+            typed_trees::expression::ExpressionNode::Call(source) if validation::call_target_entry_symbol(program, source.target_symbol) == call.target_state)
             && program
                 .machines()
                 .iter()

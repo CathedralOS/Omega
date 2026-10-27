@@ -11,7 +11,7 @@ machine receive(attempt: Attempt) -> u64 {
         Attempt::Ok { owner } -> owned(owner)
         _ -> (0)
     }
-    state owned(owner: Owner in Open) -> u64 {
+    machine owned(owner: Owner in Open) -> u64 {
         let value: u64 = observe(&owner);
         release(owner);
         value
@@ -23,12 +23,12 @@ machine main() crashes Trap {
         Attempt::Ok { owner } -> owned(owner)
         _ -> wrong()
     }
-    state owned(owner: Owner in Open) {
+    machine owned(owner: Owner in Open) {
         let observed: u64 = observe(&owner);
         release(owner);
         let forwarded: u64 = receive(acquire());
         transition observed == 41 && forwarded == 41 { true -> done() false -> wrong() }
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

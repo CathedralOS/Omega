@@ -35,7 +35,7 @@ machine selected_continuation(image: Extent in Granted, context: &mut KernelStat
 requires context.phase == 17;
 {
     transition { _ -> retain(image, storage) }
-    state retain(image: Extent in Granted, storage: Extent in Granted) {
+    machine retain(image: Extent in Granted, storage: Extent in Granted) {
         transition { _ -> retain(image, storage) }
     }
 }

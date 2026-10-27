@@ -16,26 +16,26 @@ public data Input {
 
 public machine parse(raw: &mut Raw) -> bool reaches Console invokes Console; blocks; crashes Trap {
     transition { _ -> read(raw, 0, false, 0) }
-    state read(raw: &mut Raw, accumulator: u32 in Saturating, active: bool, bytes: u32) -> bool {
+    machine read(raw: &mut Raw, accumulator: u32 in Saturating, active: bool, bytes: u32) -> bool {
         transition bytes < 256 {
             true -> receive(raw, accumulator, active, bytes)
             false -> bad()
         }
     }
-    state receive(raw: &mut Raw, accumulator: u32 in Saturating, active: bool, bytes: u32) -> bool {
+    machine receive(raw: &mut Raw, accumulator: u32 in Saturating, active: bool, bytes: u32) -> bool {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Byte { value } -> classify(raw, accumulator, active, bytes, value)
             ByteRead::Eof -> finish(raw, accumulator, active)
         }
     }
-    state classify(raw: &mut Raw, accumulator: u32 in Saturating, active: bool, bytes: u32, character: i32) -> bool {
+    machine classify(raw: &mut Raw, accumulator: u32 in Saturating, active: bool, bytes: u32, character: i32) -> bool {
         transition character >= 48 && character <= 57 {
             true -> digit(raw, accumulator, bytes, character)
             false -> delimiter(raw, accumulator, active, bytes, character)
         }
     }
-    state digit(raw: &mut Raw, accumulator: u32 in Saturating, bytes: u32, character: i32) -> bool {
+    machine digit(raw: &mut Raw, accumulator: u32 in Saturating, bytes: u32, character: i32) -> bool {
         let digit: u32 in Saturating = narrow_i32_to_u32_trapping(character) as u32 in Saturating;
         let next: u32 in Saturating = accumulator * 10 + digit - 48;
         transition next <= 200 {
@@ -43,48 +43,48 @@ public machine parse(raw: &mut Raw) -> bool reaches Console invokes Console; blo
             false -> bad()
         }
     }
-    state delimiter(raw: &mut Raw, accumulator: u32 in Saturating, active: bool, bytes: u32, character: i32) -> bool {
+    machine delimiter(raw: &mut Raw, accumulator: u32 in Saturating, active: bool, bytes: u32, character: i32) -> bool {
         transition character == 32 || character == 10 || character == 13 || character == 9 {
             true -> separate(raw, accumulator, active, bytes)
             false -> bad()
         }
     }
-    state separate(raw: &mut Raw, accumulator: u32 in Saturating, active: bool, bytes: u32) -> bool {
+    machine separate(raw: &mut Raw, accumulator: u32 in Saturating, active: bool, bytes: u32) -> bool {
         transition active {
             true -> capacity(raw, accumulator, bytes)
             false -> read(raw, 0, false, bytes + 1)
         }
     }
-    state capacity(raw: &mut Raw, accumulator: u32 in Saturating, bytes: u32) -> bool {
+    machine capacity(raw: &mut Raw, accumulator: u32 in Saturating, bytes: u32) -> bool {
         transition raw.count < 16 {
             true -> store(raw, accumulator, bytes)
             false -> bad()
         }
     }
-    state store(raw: &mut Raw, accumulator: u32 in Saturating, bytes: u32) -> bool {
+    machine store(raw: &mut Raw, accumulator: u32 in Saturating, bytes: u32) -> bool {
         raw.values[raw.count] = accumulator as u32;
         raw.count = raw.count + 1;
         transition { _ -> read(raw, 0, false, bytes + 1) }
     }
-    state finish(raw: &mut Raw, accumulator: u32 in Saturating, active: bool) -> bool {
+    machine finish(raw: &mut Raw, accumulator: u32 in Saturating, active: bool) -> bool {
         transition active {
             true -> final_capacity(raw, accumulator)
             false -> good()
         }
     }
-    state final_capacity(raw: &mut Raw, accumulator: u32 in Saturating) -> bool {
+    machine final_capacity(raw: &mut Raw, accumulator: u32 in Saturating) -> bool {
         transition raw.count < 16 {
             true -> final_store(raw, accumulator)
             false -> bad()
         }
     }
-    state final_store(raw: &mut Raw, accumulator: u32 in Saturating) -> bool {
+    machine final_store(raw: &mut Raw, accumulator: u32 in Saturating) -> bool {
         raw.values[raw.count] = accumulator as u32;
         raw.count = raw.count + 1;
         transition { _ -> good() }
     }
-    state good() -> bool { true }
-    state bad() -> bool { false }
+    machine good() -> bool { true }
+    machine bad() -> bool { false }
 }
 
 public machine validate(raw: &Raw, input: &mut Input) -> bool {
@@ -99,7 +99,7 @@ public machine validate(raw: &Raw, input: &mut Input) -> bool {
         true -> initialize(raw, input)
         false -> bad()
     }
-    state initialize(raw: &Raw, input: &mut Input) -> bool {
+    machine initialize(raw: &Raw, input: &mut Input) -> bool {
         input.stages = raw.values[1];
         input.hot_capacity = F64::from_u32(raw.values[2]) * F64::from_u32(raw.values[3]);
         input.cold_capacity = F64::from_u32(raw.values[4]) * F64::from_u32(raw.values[5]);
@@ -107,23 +107,23 @@ public machine validate(raw: &Raw, input: &mut Input) -> bool {
         input.cold_in = F64::from_u32(raw.values[7]);
         transition { _ -> scan(raw, input, 0) }
     }
-    state scan(raw: &Raw, input: &mut Input, position: u32) -> bool {
+    machine scan(raw: &Raw, input: &mut Input, position: u32) -> bool {
         transition position < input.stages && position < 8 {
             true -> load(raw, input, position)
             false -> good()
         }
     }
-    state load(raw: &Raw, input: &mut Input, position: u32) -> bool requires position < 8 {
+    machine load(raw: &Raw, input: &mut Input, position: u32) -> bool requires position < 8 {
         let conductance: f64 = F64::from_u32(raw.values[position + 8]);
         transition conductance <= input.hot_capacity && conductance <= input.cold_capacity {
             true -> store(input, raw, position, conductance)
             false -> bad()
         }
     }
-    state store(input: &mut Input, raw: &Raw, position: u32, conductance: f64) -> bool requires position < 8 {
+    machine store(input: &mut Input, raw: &Raw, position: u32, conductance: f64) -> bool requires position < 8 {
         input.conductance[position] = conductance;
         transition { _ -> scan(raw, input, position + 1) }
     }
-    state good() -> bool { true }
-    state bad() -> bool { false }
+    machine good() -> bool { true }
+    machine bad() -> bool { false }
 }

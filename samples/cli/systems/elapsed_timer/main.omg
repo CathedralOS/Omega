@@ -39,7 +39,7 @@ machine Main::main(context: &mut Main) reaches Console {
         true -> read_elapsed(context, start)
         false -> fail_request(context)
     }
-    state read_elapsed(context: &mut Main, start: Instant) {
+    machine read_elapsed(context: &mut Main, start: Instant) {
         let elapsed: Duration = Time::elapsed_since(&mut context.time, start);
         let total_result: TotalResult = Duration::checked_as_milliseconds(&elapsed);
         transition total_result {
@@ -47,7 +47,7 @@ machine Main::main(context: &mut Main) reaches Console {
             TotalResult::Overflow -> fail_overflow(context)
         }
     }
-    state render(context: &mut Main, milliseconds: u64) {
+    machine render(context: &mut Main, milliseconds: u64) {
         let digits: [u8; 10] in Utf8 = "0123456789";
         let mut line: [u8; 27] in Utf8 = "elapsed milliseconds: 00000";
         let ten_thousands: u64 = (milliseconds / 10000) % 10;
@@ -66,10 +66,10 @@ machine Main::main(context: &mut Main) reaches Console {
             false -> fail_elapsed(context)
         }
     }
-    state good(context: &mut Main) { Console::exit_process(70); }
-    state fail_request(context: &mut Main) { Console::exit_process(1); }
-    state fail_elapsed(context: &mut Main) { Console::exit_process(2); }
-    state fail_overflow(context: &mut Main) { Console::exit_process(3); }
+    machine good(context: &mut Main) { Console::exit_process(70); }
+    machine fail_request(context: &mut Main) { Console::exit_process(1); }
+    machine fail_elapsed(context: &mut Main) { Console::exit_process(2); }
+    machine fail_overflow(context: &mut Main) { Console::exit_process(3); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

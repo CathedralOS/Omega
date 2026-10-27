@@ -8,14 +8,7 @@ use symbols::{JoinedPath, SymbolHandle};
 /// Declaration roles of non-callable Product operands. A requirement member,
 /// a boundary subject and a representation have different declaration roles;
 /// none acquires ordinary host-call nameability through this selection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProductOperandKind {
-    BoundarySubject,
-    Provider,
-    Requirement,
-    Data,
-    Representation,
-}
+pub use language_semantics::declaration_selection::ProductOperandRole as ProductOperandKind;
 
 /// A product description names a declaration, not an applied type, value or
 /// evidence projection. Checking and later path resolution share this shape.
@@ -53,6 +46,7 @@ pub fn resolve_product_path(
 ) -> Option<symbols::SymbolHandle> {
     let program = typed.product_declarations();
     let candidates = match kind {
+        ProductOperandKind::WireCompatibilityFact => return None,
         ProductOperandKind::BoundarySubject => program
             .traits()
             .iter()
@@ -254,4 +248,22 @@ impl<'program> ProductEntryDeclaration<'program> {
                 }),
         }
     }
+}
+
+/// Rejoin an exact authored Build owner without importing generated instances.
+pub fn resolve_build_request_author(
+    typed: &TypedTrees,
+    author: source::SourceSpan,
+) -> Result<SymbolHandle, String> {
+    let mut matching = typed
+        .machines()
+        .iter()
+        .filter(|machine| typed.symbols.symbol_source_span(machine.symbol) == Some(author));
+    let machine = matching
+        .next()
+        .ok_or("executed Build request has no authored selecting machine")?;
+    if matching.next().is_some() {
+        return Err("executed Build request has ambiguous authored machine custody".into());
+    }
+    Ok(machine.symbol)
 }

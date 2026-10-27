@@ -6,6 +6,7 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionRecordError,
 };
 use symbol_resolved_trees::SymbolResolvedTrees;
+use symbol_resolved_trees::name::DiagnosticName;
 use symbols::SymbolKind;
 
 /// Attach the authored const selection to the substituted expression. The
@@ -176,15 +177,21 @@ pub(crate) fn finalize_const_argument_selections(
     slots: &[crate::resolution::lowerer::PendingConstArgumentSlot],
     lexical_inputs: &[crate::lowering::state::StateLexicalInputs],
 ) -> Result<(), Diagnostic> {
+    let mut selected_arguments = Vec::new();
     for (selection_ordinal, selection) in pending.iter().enumerate() {
         let origin = &selection.origin;
         let mut declarations = program.const_declarations.iter().filter(|declaration| {
             program.symbols.symbol_source_span(declaration.symbol) == Some(origin.declaration)
         });
-        let declaration = declarations.next().ok_or_else(|| {
-            Diagnostic::error("normalized constant argument lost its exact selected declaration")
+        let declaration = declarations
+            .next()
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    "normalized constant argument lost its exact selected declaration",
+                )
                 .with_source_span(origin.reference)
-        })?;
+            })?
+            .clone();
         if declarations.next().is_some()
             || declaration.initializer_source_span != origin.initializer
             || declaration.evaluated_value.as_ref() != Some(&origin.evaluated_value)
@@ -203,6 +210,20 @@ pub(crate) fn finalize_const_argument_selections(
                     .evaluated_value
                     .encoding()
                     .is_some_and(carrier::encoding_has_nominal_carrier));
+        let structured_argument = selection.is_argument_value
+            && origin.evaluated_value.encoding().is_some_and(|encoding| {
+                use language_semantics::const_value::{
+                    CanonicalConstValue, DecodedCanonicalConstValue,
+                };
+                matches!(
+                    CanonicalConstValue::new("", encoding, "").decode_encoding(),
+                    Some(
+                        DecodedCanonicalConstValue::Array { .. }
+                            | DecodedCanonicalConstValue::Record { .. }
+                            | DecodedCanonicalConstValue::Variant { .. }
+                    )
+                )
+            });
         let mut matched = false;
         for slot in slots
             .iter()
@@ -237,13 +258,17 @@ pub(crate) fn finalize_const_argument_selections(
                 );
             };
             if selection.is_argument_value
-                && (requires_nominal_slot || carrier::has_nominal_carrier(program, type_reference))
+                && (structured_argument
+                    || requires_nominal_slot
+                    || carrier::has_nominal_carrier(program, type_reference))
             {
-                if !carrier::same_resolved_carrier(
-                    program,
-                    &declaration.declared_type,
-                    type_reference,
-                ) {
+                if (requires_nominal_slot || carrier::has_nominal_carrier(program, type_reference))
+                    && !carrier::same_resolved_carrier(
+                        program,
+                        &declaration.declared_type,
+                        type_reference,
+                    )
+                {
                     return Err(Diagnostic::error("selected constant nominal carrier differs from its receiving generic parameter").with_source_span(origin.reference));
                 }
                 let symbol_resolved_trees::types::TypeReference::Named { symbol, name, .. } =
@@ -254,7 +279,7 @@ pub(crate) fn finalize_const_argument_selections(
                     )
                     .with_source_span(origin.reference));
                 };
-                if symbol.is_valid()
+                if (symbol.is_valid() && *symbol != declaration.symbol)
                     || !language_semantics::const_value::CanonicalConstValue::from_atom(
                         name.as_str(),
                     )
@@ -267,6 +292,15 @@ pub(crate) fn finalize_const_argument_selections(
                     )
                     .with_source_span(origin.reference));
                 }
+                selected_arguments.push((
+                    slot.arguments,
+                    slot.ordinal,
+                    declaration.symbol,
+                    DiagnosticName::from_str(
+                        program.symbols.name(declaration.symbol),
+                        origin.reference,
+                    ),
+                ));
             }
             matched = true;
         }
@@ -276,15 +310,31 @@ pub(crate) fn finalize_const_argument_selections(
             )
             .with_source_span(origin.reference));
         }
-        let selected = declaration.symbol;
-        program
-            .record_resolved_authored_declaration_selection(
-                origin.reference,
-                selection.exposure,
-                AuthoredDeclarationSelectionKind::StaticPathSegment,
-                selected,
-            )
-            .map_err(const_selection_record_diagnostic)?;
+        if let Some(exposure) = selection.exposure {
+            program
+                .record_resolved_authored_declaration_selection(
+                    origin.reference,
+                    exposure,
+                    AuthoredDeclarationSelectionKind::StaticPathSegment,
+                    declaration.symbol,
+                )
+                .map_err(const_selection_record_diagnostic)?;
+        }
+    }
+    // Preparation's value encoding predates nominal symbol allocation. Once
+    // custody has joined the exact declaration and receiving carrier, publish
+    // that selected value rather than its provisional short type label. Defer
+    // replacement until every origin has checked the original argument.
+    for (arguments, ordinal, selected, selected_name) in selected_arguments {
+        let argument = &mut program
+            .tables
+            .declarations
+            .child_type_references
+            .span_mut_or_empty(arguments)[ordinal];
+        if let symbol_resolved_trees::types::TypeReference::Named { symbol, name, .. } = argument {
+            *symbol = selected;
+            *name = selected_name;
+        }
     }
     Ok(())
 }

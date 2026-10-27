@@ -5,6 +5,9 @@
 //! retained contract. Block bodies and their operation vocabulary remain in
 //! the parent codec.
 
+#[cfg(test)]
+mod tests;
+
 use terminal_psi::{
     EntryClaim, StructuralPlaceDeclaration, TerminalBlockNaturalRank, TerminalMachine,
     TerminalMachineResult, TerminalNaturalCycle, TerminalNaturalRankComparison,
@@ -51,6 +54,13 @@ pub(crate) fn encode_machine(
     encode_optional_id(writer, machine.attachment);
     encode_optional_id(writer, machine.nominal_cleanup_subject);
     encode_declarations(writer, "machine parameters", &machine.parameters)?;
+    writer.len("machine parameter order", machine.parameter_order.len())?;
+    for kind in &machine.parameter_order {
+        writer.u8(match kind {
+            terminal_psi::BoundaryParameterKind::Scalar => 0,
+            terminal_psi::BoundaryParameterKind::Structural => 1,
+        });
+    }
     encode_structural_parameters(writer, &machine.structural_parameters)?;
     encode_ranked_scc(writer, machine.ranked_scc.as_ref())?;
     match &machine.result {
@@ -156,6 +166,11 @@ pub(crate) fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine,
     let attachment = decode_optional_id(reader, "StructuralTypeId")?;
     let nominal_cleanup_subject = decode_optional_id(reader, "StructuralTypeId")?;
     let parameters = decode_declarations(reader)?;
+    let parameter_order = decode_counted(reader, |reader| match reader.u8()? {
+        0 => Ok(terminal_psi::BoundaryParameterKind::Scalar),
+        1 => Ok(terminal_psi::BoundaryParameterKind::Structural),
+        tag => Err(CodecError::InvalidTag("machine parameter kind", tag)),
+    })?;
     let structural_parameters = decode_structural_parameters(reader)?;
     let ranked_scc = decode_ranked_scc(reader)?;
     let result = match reader.u8()? {
@@ -215,6 +230,7 @@ pub(crate) fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine,
         attachment,
         nominal_cleanup_subject,
         parameters,
+        parameter_order,
         structural_parameters,
         ranked_scc,
         result,

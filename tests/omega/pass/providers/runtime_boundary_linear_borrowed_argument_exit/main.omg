@@ -40,7 +40,7 @@ machine Main::main(main: &mut Main) reaches Console, TokenScale {
     let forwarded: &Token = &token;
     let tagged: bool = TokenScale::tag(forwarded, 11);
     transition { _ -> check(main, token, direct, tagged) }
-    state check(main: &mut Main, token: Token, direct: u64, tagged: bool) {
+    machine check(main: &mut Main, token: Token, direct: u64, tagged: bool) {
         let later: u64 = TokenScale::weigh(&token);
         let correct: bool = direct == 11 && tagged && later == 11;
         drop(token);
@@ -49,8 +49,8 @@ machine Main::main(main: &mut Main) reaches Console, TokenScale {
             _ -> bad(main)
         }
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main) { Console::exit_process(72); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(72); }
 }
 
 TokenScaleProviderTokenScaleImplementation satisfies TokenScale {

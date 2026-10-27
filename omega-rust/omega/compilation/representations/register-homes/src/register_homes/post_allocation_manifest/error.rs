@@ -28,8 +28,4 @@ pub enum PostAllocationOptimizationManifestDecodeError {
     TrailingBytes,
 }
 
-optimization_core::truncated_from_adapter!(PostAllocationOptimizationManifestDecodeError);
-
-optimization_core::take_error_from_adapter!(PostAllocationOptimizationManifestDecodeError);
-
-crate::decode_error_display! { PostAllocationOptimizationManifestDecodeError, "invalid post-allocation manifest encoding" }
+crate::decode_error! { PostAllocationOptimizationManifestDecodeError, "invalid post-allocation manifest encoding" }

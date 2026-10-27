@@ -54,11 +54,11 @@ machine Main::main(main: &mut Main) reaches NativeHeap crashes Trap {
         true -> release(first, second)
         _ -> bad(first, second)
     }
-    state release(first: Allocation in Held, second: Allocation in Held) {
+    machine release(first: Allocation in Held, second: Allocation in Held) {
         settle(first);
         settle(second);
     }
-    state bad(first: Allocation in Held, second: Allocation in Held) {
+    machine bad(first: Allocation in Held, second: Allocation in Held) {
         settle(first);
         settle(second);
         crash Trap;

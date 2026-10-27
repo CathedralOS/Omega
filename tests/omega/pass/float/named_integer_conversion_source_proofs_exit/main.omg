@@ -20,12 +20,12 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> guarded(main)
         _ -> bad(main)
     }
-    state guarded(main: &mut Main) {
+    machine guarded(main: &mut Main) {
         main.b = I32::from_f64(main.unbounded);
         transition main.a == 77 && main.b == 42 { true -> good(main) _ -> bad(main) }
     }
-    state good(main: &mut Main) { Console::exit_process(78); }
-    state bad(main: &mut Main) { Console::exit_process(71); }
+    machine good(main: &mut Main) { Console::exit_process(78); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
 }
 machine Main::run(main: &mut Main) { Main::main(main); }
 

@@ -199,9 +199,7 @@ fn release_owned_dispositions<'plans>(
     {
         if let CheckedUnitEffectOperationPlan::ReleaseReference { owner_cleanups, .. } = operation {
             for owner in control.reference_owner_cleanups.span(*owner_cleanups)? {
-                if !dispositions.contains(&owner.disposition) {
-                    dispositions.push(owner.disposition);
-                }
+                crate::collections::push_unique(&mut dispositions, owner.disposition);
             }
         }
     }
@@ -284,7 +282,8 @@ fn sequence_actions(
 
             if let CheckedUnitEffectOperationPlan::EstablishLocal(
                 checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { calls, .. },
-            ) = operation
+            )
+            | CheckedUnitEffectOperationPlan::EvaluateStructuralValue { calls, .. } = operation
             {
                 let mut nested = Vec::new();
                 for (call_index, call) in calls.iter().enumerate() {
@@ -396,18 +395,22 @@ fn value_call_actions(
             None,
             release_owned,
         )?,
-        completions: sequence_actions(
-            program,
-            facts,
-            targets,
-            shapes,
-            machine,
-            state,
-            parameters,
-            OperationSequence::operands(call.completions()),
-            Some((call.operation(), preparation)),
-            release_owned,
-        )?,
+        completions: if let Some(completions) = call.completions() {
+            sequence_actions(
+                program,
+                facts,
+                targets,
+                shapes,
+                machine,
+                state,
+                parameters,
+                OperationSequence::operands(completions),
+                call.operation().map(|operation| (operation, preparation)),
+                release_owned,
+            )?
+        } else {
+            OperationSelections::default()
+        },
     })
 }
 
@@ -601,11 +604,12 @@ fn install_sequence(
         *selected_regions = actions.selected_regions;
     }
     for (position, selections) in selected.constructions {
-        let CheckedUnitEffectOperationPlan::EstablishLocal(
-            checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { calls, .. },
-        ) = operations.get_mut(position)?
-        else {
-            return None;
+        let calls = match operations.get_mut(position)? {
+            CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { calls, .. },
+            )
+            | CheckedUnitEffectOperationPlan::EvaluateStructuralValue { calls, .. } => calls,
+            _ => return None,
         };
         for (call_index, selected) in selections {
             install_value_call(calls.get_mut(call_index)?, selected)?;
@@ -622,10 +626,16 @@ fn install_value_call(
         OperationSequenceMut::Operands(call.operands_mut()),
         selected.operands,
     )?;
-    install_sequence(
-        OperationSequenceMut::Operands(call.completions_mut()),
-        selected.completions,
-    )
+    if let Some(completions) = call.completions_mut() {
+        install_sequence(
+            OperationSequenceMut::Operands(completions),
+            selected.completions,
+        )
+    } else if selected.completions.is_empty() {
+        Some(())
+    } else {
+        None
+    }
 }
 
 /// Complete reads, computed calls and retained value calls from their checked

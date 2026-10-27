@@ -21,7 +21,7 @@ ensures
 // has a different type; both nested constructor results must be prepared.
 machine state_constructor_reflexivity(value: u32, tail: Seq<u64>) {
     transition { _ -> conclude(17, tail) }
-    state conclude(value: u64, tail: Seq<u64>)
+    machine conclude(value: u64, tail: Seq<u64>)
     requires
         (Seq::Cons { head: value, tail: Seq::Cons { head: value, tail: tail } })
         == (Seq::Cons { head: value, tail: Seq::Cons { head: value, tail: tail } })
@@ -38,8 +38,8 @@ machine observe_selected_view(keep: bool) -> bool {
         true -> inspect(view)
         false -> done()
     }
-    state inspect(view: BagView) -> bool { view.items.len == 3 }
-    state done() -> bool { true }
+    machine inspect(view: BagView) -> bool { view.items.len == 3 }
+    machine done() -> bool { true }
 }
 
 // Expected exit: 0. The checked library also supplies the runtime view.
@@ -52,12 +52,12 @@ machine main() crashes Trap {
         true -> inspect(view.items)
         false -> failed()
     }
-    state inspect(items: &[u64]) requires items.len == 3 {
+    machine inspect(items: &[u64]) requires items.len == 3 {
         transition items[0] == 17 && items[1] == 25 && items[2] == 31 {
             true -> passed()
             false -> failed()
         }
     }
-    state passed() {}
-    state failed() { crash Trap; }
+    machine passed() {}
+    machine failed() { crash Trap; }
 }

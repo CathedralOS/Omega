@@ -12,19 +12,19 @@ requires Rooms >= 1 && phase >= 0 && phase < ANIMATION_PERIOD {
         true -> horizontal(actor, target)
         _ -> (Command { direction: -1, attack: false })
     }
-    state horizontal(actor: Actor<Rooms>, target: Actor<Rooms>) -> Command {
+    machine horizontal(actor: Actor<Rooms>, target: Actor<Rooms>) -> Command {
         transition actor.position.x < target.position.x {
             true -> (Command { direction: 1, attack: false })
             _ -> left(actor, target)
         }
     }
-    state left(actor: Actor<Rooms>, target: Actor<Rooms>) -> Command {
+    machine left(actor: Actor<Rooms>, target: Actor<Rooms>) -> Command {
         transition actor.position.x > target.position.x {
             true -> (Command { direction: 3, attack: false })
             _ -> vertical(actor, target)
         }
     }
-    state vertical(actor: Actor<Rooms>, target: Actor<Rooms>) -> Command {
+    machine vertical(actor: Actor<Rooms>, target: Actor<Rooms>) -> Command {
         transition actor.position.y < target.position.y {
             true -> (Command { direction: 2, attack: false })
             _ -> (Command { direction: 0, attack: false })

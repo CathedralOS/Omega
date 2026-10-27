@@ -10,15 +10,15 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> observe(&bytes, &numbers)
         _ -> failed()
     }
-    state observe(bytes: &[u8; 4], numbers: &[i32; 3]) {
+    machine observe(bytes: &[u8; 4], numbers: &[i32; 3]) {
         Console::write_byte(widen_u8_to_i32(bytes[2]));
         transition numbers[2] == 29 {
             true -> done()
             _ -> failed()
         }
     }
-    state done() { Console::exit_process(70); }
-    state failed() { Console::exit_process(71); }
+    machine done() { Console::exit_process(70); }
+    machine failed() { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -31,6 +31,7 @@ pub(crate) fn empty_program() -> Arc<AdmittedTerminalProgram<'static>> {
         declaration: None,
         nominal_cleanup_subject: None,
         parameters: Vec::new(),
+        parameter_order: Vec::new(),
         structural_parameters: Vec::new(),
         structural_places: Vec::new(),
         entry_claims: Vec::new(),

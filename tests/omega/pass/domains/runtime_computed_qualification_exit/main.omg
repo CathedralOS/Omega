@@ -8,8 +8,8 @@ machine observe(value: i32 in Three) -> i32 { value as i32 }
 
 machine guarded(value: i32) -> i32 {
     transition value > 0 { true -> positive(value) false -> empty() }
-    state positive(value: i32) { (value as i32 in Positive) as i32 }
-    state empty() { 0 }
+    machine positive(value: i32) -> i32 { (value as i32 in Positive) as i32 }
+    machine empty() -> i32 { 0 }
 }
 
 machine main() crashes Trap {
@@ -28,6 +28,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

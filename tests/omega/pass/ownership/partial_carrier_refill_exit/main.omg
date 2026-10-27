@@ -7,7 +7,7 @@ data Envelope { carrier: Carrier; sibling: i64; }
 machine consume(carrier: Carrier) -> i64 { carrier.part.value }
 machine inspect(envelope: Envelope) -> bool {
     transition { _ -> next(envelope) }
-    state next(envelope: Envelope) -> bool {
+    machine next(envelope: Envelope) -> bool {
         let mut restored: Envelope = envelope;
         let detached: Part = restored.carrier.part;
         let sibling: i64 = restored.carrier.sibling;
@@ -31,6 +31,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

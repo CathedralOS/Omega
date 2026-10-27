@@ -11,7 +11,7 @@ requires items.len == 4;
 {
     let count: u32 = 1;
     transition { _ -> pick(items, count) }
-    state pick(items: &[u8], count: u32) -> u8
+    machine pick(items: &[u8], count: u32) -> u8
     requires count < items.len;
     {
         read_at<count>(items)
@@ -21,6 +21,6 @@ requires items.len == 4;
 machine main() crashes Trap {
     let bytes: [u8; 4] = [9, 8, 7, 6];
     transition indexed(&bytes[..]) == 8 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

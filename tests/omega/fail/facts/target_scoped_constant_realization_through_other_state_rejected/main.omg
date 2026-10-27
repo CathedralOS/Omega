@@ -24,10 +24,10 @@ linux_arm64 machine expected() -> u64 { 4 }
 macos_arm64 machine expected() -> u64 { 8 }
 machine main() crashes Trap {
     transition { _ -> verify(size_of<Main>()) }
-    state verify(observed: u64) {
+    machine verify(observed: u64) {
         let slack: u64 = observed - 4u64;
         transition observed == expected() && slack == expected() - 4u64 { true -> done() false -> bad() }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

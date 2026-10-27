@@ -63,6 +63,28 @@ impl Execution<'_, '_, '_> {
             ));
         }
         self.publish_constructed_values(parent, values, contexts, constraints);
+        self.append_completed_qualifications(
+            parent,
+            destination,
+            type_reference,
+            evaluated,
+            contexts,
+            constraints,
+        );
+    }
+
+    /// Rebase only the completed owned value's existing qualifications. A
+    /// construction stores these at its child path; a selection meets them at
+    /// its receiving root. Both retain the same source and authority rules.
+    pub(super) fn append_completed_qualifications(
+        &mut self,
+        parent: ExpressionHandle,
+        destination: &[PlaceSegment],
+        type_reference: typed_trees::types::TypeReferenceHandle,
+        evaluated: &EvaluatedOperand,
+        contexts: &mut HandleSpan<FlowSemanticContextRef>,
+        constraints: &mut HandleSpan<FlowConstraintRef>,
+    ) {
         // Ownership predicates belong to the completed child just as scalar
         // observations do. Publish them before any later sibling evaluates;
         // waiting for a statement store loses anonymous constructor projections.

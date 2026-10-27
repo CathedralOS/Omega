@@ -48,7 +48,7 @@ machine descent_measures() {
         _ -> done(71)
     }
 
-    state check_climb {
+    machine check_climb {
         let up: u64 = climb(4, 0, 0);
         transition up == 4 {
             true -> done(70)
@@ -56,5 +56,5 @@ machine descent_measures() {
         }
     }
 
-    state done(code: i32) {}
+    machine done(code: i32) {}
 }

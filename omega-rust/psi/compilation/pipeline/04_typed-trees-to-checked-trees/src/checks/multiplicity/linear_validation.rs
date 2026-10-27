@@ -350,16 +350,27 @@ fn append_unresolved_state_result_mapping_diagnostics(
         {
             continue;
         }
-        let mapped_from_call = ownership.permissions.iter().any(|(_, candidate)| {
-            candidate.kind == PermissionEventKind::Transfer
-                && candidate.access == PermissionAccess::Owned
-                && candidate.obligation_live
-                && candidate.claim_identity != PermissionClaimIdentity::Unknown
-                && candidate.claim_identity == event.claim_identity
-                && (candidate.state_symbol == target_state.symbol
-                    || (candidate.state_symbol == state.symbol
-                        && permission_event_statement_index(candidate.source)
-                            == Some(statement_index)))
+        let mapped_from_call = ownership.with_state_permissions(target_state.symbol, |handles| {
+            handles.iter().copied().any(|handle| {
+                let candidate = ownership.permissions.get(handle);
+                candidate.kind == PermissionEventKind::Transfer
+                    && candidate.access == PermissionAccess::Owned
+                    && candidate.obligation_live
+                    && candidate.claim_identity != PermissionClaimIdentity::Unknown
+                    && candidate.claim_identity == event.claim_identity
+                    && candidate.state_symbol == target_state.symbol
+            })
+        }) || ownership.with_state_permissions(state.symbol, |handles| {
+            handles.iter().copied().any(|handle| {
+                let candidate = ownership.permissions.get(handle);
+                candidate.kind == PermissionEventKind::Transfer
+                    && candidate.access == PermissionAccess::Owned
+                    && candidate.obligation_live
+                    && candidate.claim_identity != PermissionClaimIdentity::Unknown
+                    && candidate.claim_identity == event.claim_identity
+                    && candidate.state_symbol == state.symbol
+                    && permission_event_statement_index(candidate.source) == Some(statement_index)
+            })
         });
         let receiving_path = ownership.segments.span_or_empty(event.segments);
         let mapped_by_checked_outcome = ownership
@@ -383,7 +394,7 @@ fn append_unresolved_state_result_mapping_diagnostics(
                 && receipt.state_symbol == state.symbol
                 && receipt.statement_index == statement_index
                 && receipt.expression == result_expression
-                && receipt.target_symbol == call.target_symbol
+                && receipt.target_symbol == target_state.symbol
                 && receipt.result_root == event.root
                 && ownership.segments.span_or_empty(receipt.result_segments) == receiving_path
                 && receipt.claim_identity == event.claim_identity

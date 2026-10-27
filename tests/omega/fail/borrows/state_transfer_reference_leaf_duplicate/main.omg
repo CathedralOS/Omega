@@ -3,5 +3,5 @@ data Control { value: i32; }
 data Carrier { body: &mut Control; }
 machine transfer(carrier: Carrier) {
     transition { _ -> done(carrier.body, carrier.body) }
-    state done(first: &mut Control, second: &mut Control) { first.value = 2; second.value = 3; }
+    machine done(first: &mut Control, second: &mut Control) { first.value = 2; second.value = 3; }
 }

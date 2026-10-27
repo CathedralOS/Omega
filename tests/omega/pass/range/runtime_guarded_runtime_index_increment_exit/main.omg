@@ -19,16 +19,16 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> bump(main, t)
         false -> full(main)
     }
-    state bump(main: &mut Main, v: i32) requires v < 16, main.k < 4 {
+    machine bump(main: &mut Main, v: i32) requires v < 16, main.k < 4 {
         main.tallies[main.k] = v + 1;
         transition main.tallies[2] == 1 {
             true -> matched(main)
             false -> unmatched(main)
         }
     }
-    state matched(main: &mut Main) { Console::exit_process(1); }
-    state unmatched(main: &mut Main) { Console::exit_process(9); }
-    state full(main: &mut Main) { Console::exit_process(8); }
+    machine matched(main: &mut Main) { Console::exit_process(1); }
+    machine unmatched(main: &mut Main) { Console::exit_process(9); }
+    machine full(main: &mut Main) { Console::exit_process(8); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

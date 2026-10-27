@@ -88,7 +88,7 @@ pub use effects::original_storage::{
     TerminalOriginalScalarBackings, TerminalOriginalScalarValue, TerminalOriginalStorageLoan,
     TerminalOriginalStorageRequest, TerminalOriginalStorageRoot,
 };
-pub use effects::results::TerminalEffectResult;
+pub use effects::results::{TerminalByteSequenceValue, TerminalEffectResult};
 pub use effects::scalar_loans::TerminalBoundaryScalarBuffer;
 pub use effects::storage_inputs::{
     TerminalBoundaryReferenceSelection, TerminalBoundaryStorageBuffer,

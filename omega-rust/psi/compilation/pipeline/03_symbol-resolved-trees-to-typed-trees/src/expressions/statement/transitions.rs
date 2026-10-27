@@ -111,6 +111,7 @@ fn lower_transition_target(
             typed::statement::TransitionTargetNode::Named {
                 static_machine_parameter: symbols::SymbolHandle::invalid(),
                 path: typed::statement::TableNamePath {
+                    receiver_symbol: path.receiver_symbol,
                     members: lower_statement_path_members(lowerer, path.members),
                     head_symbol: path.head_symbol,
                     symbol: path.symbol,

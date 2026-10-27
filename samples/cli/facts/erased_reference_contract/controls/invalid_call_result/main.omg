@@ -14,8 +14,8 @@ machine verify(result: i32, flag: bool) crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine run(flag: bool) crashes Trap {
     let result: i32 = exercise(flag);

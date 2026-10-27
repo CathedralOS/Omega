@@ -126,8 +126,8 @@ fn build_submits_admitted_package_batches_together() {
     assert!(products.contains("crate::project_compilation::compile_returned("));
     let application = include_str!("../../../application/build/src/project_compilation.rs");
     assert!(application.contains("package_manager::operations::admit_project_products("));
-    assert!(application.contains("crate::package_compilation::compile_returned_packages("));
-    assert!(application.contains("admitted.completion.complete(products, session.packages)"));
+    assert!(application.contains("crate::package_compilation::compile_packages("));
+    assert!(application.contains(".complete(products, &mut session.packages)"));
     let admission =
         include_str!("../../../packages/package-manager/src/operations/accepted_compilation.rs");
     for forbidden in [
@@ -185,6 +185,21 @@ fn components_use_the_shared_product_sequence() {
     assert!(!component.contains("TerminalProductionRequest"));
     assert!(component.contains("finish_terminal_application("));
     assert!(component.contains("accepted_terminal_authority_permission_policy("));
+    let (preparation, completion) = component
+        .split_once("pub(crate) fn finish(")
+        .expect("component preparation precedes completion");
+    assert!(preparation.contains("component_calling_applications("));
+    assert!(!completion.contains("component_calling_applications("));
+    let terminal = include_str!("terminal/terminal_artifact.rs");
+    let completion = terminal
+        .split_once("pub(crate) fn finish_terminal_application(")
+        .expect("retained application completion")
+        .1
+        .split_once("fn publish_target_providers(")
+        .expect("provider publication")
+        .0;
+    assert!(!completion.contains("program.typed"));
+    assert!(!completion.contains("component_calling_applications("));
     assert!(!include_str!("lib.rs").contains("publish_checked_component"));
     assert!(!include_str!("compiler.rs").contains("mod package"));
 }
@@ -315,7 +330,7 @@ fn early_constants_share_terminal_production_without_tree_fallback() {
         .expect("constant body");
     assert!(constant.contains("psi_terminal_production::TerminalProductionRequest::new("));
     assert!(constant.contains("terminal_interpreter::TerminalProgram::borrow("));
-    assert!(constant.contains(".invoke(&mut meter)"));
+    assert!(constant.contains(".invoke(meter)"));
     assert!(!constant.contains("checked_interpreter::"));
 
     let facade = include_str!("../../../../psi/compilation/driver/Cargo.toml");

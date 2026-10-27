@@ -74,6 +74,32 @@ pub(super) fn validate(
         })?;
         let arguments = expressions.expression_handles(call.arguments);
         let expected = match request {
+            BuildSelectionRequest::ProviderReadiness(request) => {
+                if !program.traits().iter().any(|definition| {
+                    definition.symbol
+                        == program
+                            .type_reference_table
+                            .type_symbol(request.requirement)
+                        && definition.is_boundary
+                }) || request.backing.path.is_empty()
+                    || request.backing.source_span.span.start
+                        >= request.backing.source_span.span.end
+                {
+                    return Err(Diagnostic::error(
+                        "provider readiness lost its checked requirement or designated backing",
+                    )
+                    .with_source_span(span));
+                }
+                match operation {
+                    "prepare" | "await_provider" => 1,
+                    _ => {
+                        return Err(Diagnostic::error(
+                            "provider readiness lost its checked suspension protocol",
+                        )
+                        .with_source_span(span));
+                    }
+                }
+            }
             BuildSelectionRequest::Exclusion(_) => match operation {
                 "prepare" => 1,
                 "exclude" => 2,
@@ -103,27 +129,9 @@ pub(super) fn validate(
             }
             BuildSelectionRequest::Declaration(binding) => {
                 use language_semantics::declaration_selection::BuildOperation;
-                if !matches!(
-                    binding.operation,
-                    BuildOperation::ProviderSelection
-                        | BuildOperation::RepresentationSelection
-                        | BuildOperation::ServiceExclusion
-                ) || binding.operands.len()
-                    != if binding.operation == BuildOperation::ServiceExclusion {
-                        1
-                    } else {
-                        2
-                    }
-                    || binding.operands.iter().any(|operand| {
-                        operand.path.is_empty()
-                            || operand.source_span.span.start >= operand.source_span.span.end
-                    })
-                {
-                    return Err(Diagnostic::error(
-                        "Product selection lost its admitted declaration operand shape",
-                    )
-                    .with_source_span(span));
-                }
+                binding
+                    .validate_shape()
+                    .map_err(|reason| Diagnostic::error(reason).with_source_span(span))?;
                 match operation {
                     "prepare" | "select" => 1,
                     "select_mode" if binding.operation == BuildOperation::ProviderSelection => 2,

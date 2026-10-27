@@ -25,6 +25,18 @@ pub(super) struct BlockLocalEvidence {
     pub values: BTreeSet<ValueId>,
 }
 
+fn retain_invocation(site: semantic_vocabulary::InvocationSite, evidence: &mut BlockLocalEvidence) {
+    match site {
+        semantic_vocabulary::InvocationSite::Operation(operation) => {
+            evidence.operations.insert(operation);
+        }
+        semantic_vocabulary::InvocationSite::InvokeNoNormal(edge)
+        | semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
+            evidence.edges.insert(edge);
+        }
+    }
+}
+
 /// Inventory the block-local rows semantic evidence retains across rewrites.
 ///
 /// Every Terminal identity is module-unique, so the carrier that names a row
@@ -110,7 +122,7 @@ pub(super) fn block_local_evidence_over_machines<'machine>(
     }
     for call in &module.proof_output_calls {
         if let Some(runtime) = &call.runtime_call {
-            evidence.operations.insert(runtime.operation);
+            retain_invocation(runtime.site, &mut evidence);
         }
     }
     for restoration in &module.reborrow_restored_call_uses {
@@ -128,7 +140,7 @@ pub(super) fn block_local_evidence_over_machines<'machine>(
         }
         if let Some(application) = &machine.closed_reach_application {
             for call in &application.calls {
-                evidence.operations.insert(call.operation);
+                retain_invocation(call.site, &mut evidence);
             }
         }
         for composition in &machine.content_partition_compositions {

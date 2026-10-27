@@ -10,12 +10,12 @@ use domain::model;
 public data Normal [copy] { aa: f64; ab: f64; bb: f64; at: f64; bt: f64; }
 machine clamp(value: f64, low: f64, high: f64) -> f64 {
     transition value < low { true -> lower(low) false -> upper(value, high) }
-    state lower(low: f64) -> f64 { low }
-    state upper(value: f64, high: f64) -> f64 {
+    machine lower(low: f64) -> f64 { low }
+    machine upper(value: f64, high: f64) -> f64 {
         transition value > high { true -> capped(high) false -> kept(value) }
     }
-    state capped(high: f64) -> f64 { high }
-    state kept(value: f64) -> f64 { value }
+    machine capped(high: f64) -> f64 { high }
+    machine kept(value: f64) -> f64 { value }
 }
 machine accumulate(normal: &mut Normal, ray: &Ray) {
     normal.aa = normal.aa + ray.first * ray.first;
@@ -29,7 +29,7 @@ machine consider(problem: &Problem, fit: &mut Fit, first: f64, second: f64) {
         true -> feasible(problem, fit, first, second)
         false -> skip()
     }
-    state feasible(problem: &Problem, fit: &mut Fit, first: f64, second: f64) {
+    machine feasible(problem: &Problem, fit: &mut Fit, first: f64, second: f64) {
         let cost: f64 = objective(problem, first, second);
         let norm: f64 = first * first + second * second;
         let previous_norm: f64 = fit.first * fit.first + fit.second * fit.second;
@@ -38,26 +38,26 @@ machine consider(problem: &Problem, fit: &mut Fit, first: f64, second: f64) {
             false -> skip()
         }
     }
-    state replace(fit: &mut Fit, first: f64, second: f64, cost: f64) {
+    machine replace(fit: &mut Fit, first: f64, second: f64, cost: f64) {
         fit.first = first; fit.second = second; fit.objective = cost;
     }
-    state skip() {}
+    machine skip() {}
 }
 machine fixed_first(problem: &Problem, normal: &Normal, fit: &mut Fit, first: f64) {
     transition normal.bb > 0.5 { true -> varying(problem, normal, fit, first) false -> flat(problem, fit, first) }
-    state varying(problem: &Problem, normal: &Normal, fit: &mut Fit, first: f64) {
+    machine varying(problem: &Problem, normal: &Normal, fit: &mut Fit, first: f64) {
         let second: f64 = clamp((normal.bt - normal.ab * first) / normal.bb, problem.low_second, problem.high_second);
         consider(problem, fit, first, second);
     }
-    state flat(problem: &Problem, fit: &mut Fit, first: f64) { consider(problem, fit, first, problem.low_second); }
+    machine flat(problem: &Problem, fit: &mut Fit, first: f64) { consider(problem, fit, first, problem.low_second); }
 }
 machine fixed_second(problem: &Problem, normal: &Normal, fit: &mut Fit, second: f64) {
     transition normal.aa > 0.5 { true -> varying(problem, normal, fit, second) false -> flat(problem, fit, second) }
-    state varying(problem: &Problem, normal: &Normal, fit: &mut Fit, second: f64) {
+    machine varying(problem: &Problem, normal: &Normal, fit: &mut Fit, second: f64) {
         let first: f64 = clamp((normal.at - normal.ab * second) / normal.aa, problem.low_first, problem.high_first);
         consider(problem, fit, first, second);
     }
-    state flat(problem: &Problem, fit: &mut Fit, second: f64) { consider(problem, fit, problem.low_first, second); }
+    machine flat(problem: &Problem, fit: &mut Fit, second: f64) { consider(problem, fit, problem.low_first, second); }
 }
 public machine solve(problem: &Problem) -> Fit {
     let mut normal: Normal;
@@ -72,35 +72,35 @@ public machine solve(problem: &Problem) -> Fit {
         true -> full(problem, &normal, &mut fit, determinant)
         false -> deficient(problem, &normal, &mut fit)
     }
-    state full(problem: &Problem, normal: &Normal, fit: &mut Fit, determinant: f64) -> Fit {
+    machine full(problem: &Problem, normal: &Normal, fit: &mut Fit, determinant: f64) -> Fit {
         fit.rank = 2;
         let first: f64 = (normal.at * normal.bb - normal.bt * normal.ab) / determinant;
         let second: f64 = (normal.bt * normal.aa - normal.at * normal.ab) / determinant;
         consider(problem, fit, first, second);
         transition { _ -> edges(problem, normal, fit) }
     }
-    state deficient(problem: &Problem, normal: &Normal, fit: &mut Fit) -> Fit {
+    machine deficient(problem: &Problem, normal: &Normal, fit: &mut Fit) -> Fit {
         let trace: f64 = normal.aa + normal.bb;
         transition trace > 0.5 { true -> rank_one(problem, normal, fit, trace) false -> rank_zero(problem, normal, fit) }
     }
-    state rank_one(problem: &Problem, normal: &Normal, fit: &mut Fit, trace: f64) -> Fit {
+    machine rank_one(problem: &Problem, normal: &Normal, fit: &mut Fit, trace: f64) -> Fit {
         fit.rank = 1;
         consider(problem, fit, normal.at / trace, normal.bt / trace);
         transition normal.aa > 0.5 { true -> null_first(problem, normal, fit) false -> null_second(problem, normal, fit) }
     }
-    state null_first(problem: &Problem, normal: &Normal, fit: &mut Fit) -> Fit {
+    machine null_first(problem: &Problem, normal: &Normal, fit: &mut Fit) -> Fit {
         fit.null_first = normal.ab; fit.null_second = 0.0 - normal.aa;
         transition { _ -> edges(problem, normal, fit) }
     }
-    state null_second(problem: &Problem, normal: &Normal, fit: &mut Fit) -> Fit {
+    machine null_second(problem: &Problem, normal: &Normal, fit: &mut Fit) -> Fit {
         fit.null_first = 1.0; fit.null_second = 0.0;
         transition { _ -> edges(problem, normal, fit) }
     }
-    state rank_zero(problem: &Problem, normal: &Normal, fit: &mut Fit) -> Fit {
+    machine rank_zero(problem: &Problem, normal: &Normal, fit: &mut Fit) -> Fit {
         fit.rank = 0; fit.null_first = 1.0; fit.null_second = 0.0;
         transition { _ -> edges(problem, normal, fit) }
     }
-    state edges(problem: &Problem, normal: &Normal, fit: &mut Fit) -> Fit {
+    machine edges(problem: &Problem, normal: &Normal, fit: &mut Fit) -> Fit {
         fixed_first(problem, normal, fit, problem.low_first);
         fixed_first(problem, normal, fit, problem.high_first);
         fixed_second(problem, normal, fit, problem.low_second);

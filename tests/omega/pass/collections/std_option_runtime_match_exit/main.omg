@@ -15,14 +15,14 @@ machine Main::main(main: &mut Main) reaches Console {
         Optional::Some { value } -> check_b(main, value)
         Optional::None -> bad(main)
     }
-    state check_b(main: &mut Main, value: i32) {
+    machine check_b(main: &mut Main, value: i32) {
         transition main.b {
             Optional::Some { value } -> bad(main)
             Optional::None -> ok(main, value)
         }
     }
-    state ok(main: &mut Main, value: i32) { Console::exit_process(value); }
-    state bad(main: &mut Main) { Console::exit_process(71); }
+    machine ok(main: &mut Main, value: i32) { Console::exit_process(value); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

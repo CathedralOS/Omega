@@ -32,12 +32,12 @@ machine Main::main(main: &mut Main) reaches Console {
 
     // Walk rows; each row walks its cells. Every hop's proof is the arm's
     // own guard relating the next coordinate to the bound field.
-    state row(grid: &mut Grid, y: u32, hottest: u32)
+    machine row(grid: &mut Grid, y: u32, hottest: u32)
         requires 0 <= y && y <= grid.max_y
     {
         transition { _ -> cell(grid, y, 0, hottest) }
     }
-    state cell(grid: &mut Grid, y: u32, x: u32, hottest: u32)
+    machine cell(grid: &mut Grid, y: u32, x: u32, hottest: u32)
         requires 0 <= y && y <= grid.max_y && 0 <= x && x <= grid.max_x
     {
         let bump: u8 =
@@ -52,7 +52,7 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> step(grid, y, x, hottest)
         }
     }
-    state step(grid: &mut Grid, y: u32, x: u32, hottest: u32)
+    machine step(grid: &mut Grid, y: u32, x: u32, hottest: u32)
         requires 0 <= y && y <= grid.max_y && 0 <= x && x <= grid.max_x
     {
         transition x + 1 <= grid.max_x {
@@ -60,7 +60,7 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> next_row(grid, y, hottest)
         }
     }
-    state next_row(grid: &mut Grid, y: u32, hottest: u32)
+    machine next_row(grid: &mut Grid, y: u32, hottest: u32)
         requires 0 <= y && y <= grid.max_y
     {
         transition y + 1 <= grid.max_y {
@@ -68,7 +68,7 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> done(hottest)
         }
     }
-    state done(hottest: u32) {
+    machine done(hottest: u32) {
         let code: i32 = narrow_u32_to_i32_trapping(hottest);
         Console::exit_process(code);
     }

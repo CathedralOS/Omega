@@ -7,7 +7,7 @@ machine copy(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64)
 requires start <= 16; bytes.len <= 16 - start
 {
     transition { _ -> copying(buffer, bytes, start, 0) }
-    state copying(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    machine copying(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
     requires start <= 16; index <= 16
     {
         transition index < bytes.len && start + index < 16 {
@@ -21,7 +21,7 @@ requires start <= 16; bytes.len <= 16 - start
         buffer[start + index] = bytes[index];
         transition { _ -> copying(buffer, bytes, start, index + 1) }
     }
-    state done() {}
+    machine done() {}
 }
 
 machine append(buffer: &mut Buffer, bytes: &[u8] in Ascii) crashes Trap
@@ -32,9 +32,9 @@ requires bytes.len <= 16 - buffer.used {
         true -> finished(buffer, total)
         _ -> bad()
     }
-    state finished(buffer: &mut Buffer, total: u64)
+    machine finished(buffer: &mut Buffer, total: u64)
     requires total <= 16 { buffer.used = total; }
-    state bad() { crash Trap; }
+    machine bad() { crash Trap; }
 }
 machine main() crashes Trap {
     let mut buffer: Buffer = Buffer {

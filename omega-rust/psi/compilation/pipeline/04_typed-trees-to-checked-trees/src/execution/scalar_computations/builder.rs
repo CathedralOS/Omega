@@ -521,18 +521,23 @@ impl Builder<'_, '_> {
         if self.uses_captured_dispatch_value(expression) {
             return self.completed_scalar_observation(expression, expected_type);
         }
+        // A value-producing control expression owns its receiving context.
+        // Dispatch lowers each arm into that scalar type; retaining the whole
+        // naturally reference-valued match would publish the wrong local root.
+        if let ExpressionNode::Match(dispatch) =
+            self.program.expression_table.expression(expression).clone()
+        {
+            return self.dispatch(expression, &dispatch, expected_type);
+        }
         if let Some(observation) = self.primitive_reference_observation(expression, expected_type) {
             return Some(observation);
         }
 
         if let ExpressionNode::Name(name) = self.program.expression_table.expression(expression)
-            && name.symbol == name.head_symbol
             && self
                 .program
                 .expression_table
-                .name_path_members(name.members)
-                .len()
-                == 1
+                .name_path_is_single_member(name)
         {
             let mut selected = self.declaration_bindings.iter().filter(|(formal, _)| {
                 formal.root == facts::PlaceRoot::Symbol(name.symbol) && formal.segments.is_empty()
@@ -634,11 +639,6 @@ impl Builder<'_, '_> {
             && semantic_casts::requires_custody(self.program, self.state, expression)
         {
             return self.authored_cast(expression, &cast, expected_type);
-        }
-        if let ExpressionNode::Match(dispatch) =
-            self.program.expression_table.expression(expression).clone()
-        {
-            return self.dispatch(expression, &dispatch, expected_type);
         }
         if expected_type == PrimitiveType::Bool
             && let Some(operator_use) = self.comparison_use(
@@ -793,8 +793,12 @@ impl Builder<'_, '_> {
                     }
                     return self.boundary_call(expression, &call, target, expected_type);
                 }
+                let entered_target = validation::call_target_entry_symbol(
+                    self.program,
+                    validation::call_target_symbol(self.program, &call),
+                );
                 let (target_machine, target_state) =
-                    validation::find_machine_by_entry_state(self.program, call.target_symbol)?;
+                    validation::find_machine_by_entry_state(self.program, entered_target)?;
                 if static_requirement_dispatch.is_some()
                     && target_machine.supply_mode
                         != language_semantics::MachineSupplyMode::CheckedBody
@@ -1031,6 +1035,7 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         target: SymbolHandle,
     ) -> Option<(arena::Handle<checked_trees::FlowCallFact>, u32)> {
+        let target = validation::call_target_entry_symbol(self.program, target);
         let state = self.flow.control.state(self.machine, self.state)?;
         let mut matching = self
             .flow

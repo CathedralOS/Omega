@@ -64,26 +64,49 @@ fn fixture_process(workspace: bool) {
         .unwrap()
         .canonicalize()
         .unwrap();
-    let git = |arguments: &[&str]| {
+    let git = |root: &std::path::Path, arguments: &[&str]| {
         let result = std::process::Command::new(&real_git)
-            .current_dir(&remote)
+            .current_dir(root)
             .args(arguments)
             .output()
             .unwrap();
         assert!(result.status.success(), "{result:?}");
     };
-    git(&["init", "--quiet", "-b", "executed-build-fixture-v1"]);
-    git(&["add", "--all"]);
-    git(&[
-        "-c",
-        "user.name=Omega SDK",
-        "-c",
-        "user.email=sdk@example.invalid",
-        "commit",
-        "--quiet",
-        "-m",
-        "authored source fixture",
-    ]);
+    let helper = directory.join("catalog-helper");
+    let mut repositories = vec![remote.as_path()];
+    if workspace {
+        std::fs::create_dir(&helper).unwrap();
+        for name in ["build.omg", "main.omg"] {
+            std::fs::copy(
+                repository
+                    .join("tests/omega/packages/executed-workspace/catalog-helper")
+                    .join(name),
+                helper.join(name),
+            )
+            .unwrap();
+        }
+        repositories.push(helper.as_path());
+    }
+    for root in repositories {
+        git(
+            root,
+            &["init", "--quiet", "-b", "executed-build-fixture-v1"],
+        );
+        git(root, &["add", "--all"]);
+        git(
+            root,
+            &[
+                "-c",
+                "user.name=Omega SDK",
+                "-c",
+                "user.email=sdk@example.invalid",
+                "commit",
+                "--quiet",
+                "-m",
+                "authored source fixture",
+            ],
+        );
+    }
     let tools = directory.join("operator-tools");
     std::fs::create_dir(&tools).unwrap();
     std::fs::copy(
@@ -103,6 +126,7 @@ fn fixture_process(workspace: bool) {
         .env("PATH", search)
         .env("OMEGA_FIXTURE_GIT_DIRECTORY", &directory)
         .env("OMEGA_FIXTURE_GIT_REPOSITORY", &remote)
+        .env("OMEGA_FIXTURE_GIT_HELPER", &helper)
         .env("OMEGA_FIXTURE_REAL_GIT", &real_git)
         .env("OMEGA_FIXTURE_GIT_FETCH_LOG", directory.join("fetch.log"))
         .output()
@@ -148,8 +172,8 @@ fn execute_workspace_fixture() {
     joined_product_execution::execute_report(report, &directory.join("native"));
     assert_eq!(
         artifacts::compile_timings::counters::build_execution_count(),
-        before + 5,
-        "catalog, client and each observed member execute once; selected returns are reused"
+        before + 6,
+        "catalog, client, helper and each observed member execute once; selected returns are reused"
     );
     let source = std::fs::read_to_string(project.join("main.omg")).unwrap();
     std::fs::write(
@@ -177,7 +201,7 @@ fn execute_workspace_fixture() {
         declaration.replace("workspace_selected", "workspace_missing"),
     )
     .unwrap();
-    let error = omega_build::build(request)
+    let error = omega_build::build(request.clone())
         .err()
         .expect("named selection must exist in the executed catalog");
     assert!(
@@ -186,9 +210,154 @@ fn execute_workspace_fixture() {
             .contains("workspace has no declared package `workspace_missing`"),
         "{error}"
     );
-    println!(
-        "production_workspace_named_members_relative_path_shared_activations_unselected_product_isolation_native_terminal_exit0_private_call_and_missing_name_refusals"
+    std::fs::write(project.join("build.omg"), declaration).unwrap();
+    accept_workspace_project(&project, profile);
+    let locked = std::fs::read(project.join("omega.lock")).unwrap();
+    let helper = PathBuf::from(std::env::var_os("OMEGA_FIXTURE_GIT_HELPER").unwrap());
+    std::fs::copy(
+        authored
+            .parent()
+            .unwrap()
+            .join("catalog-helper/wrong_result.omg"),
+        helper.join("main.omg"),
+    )
+    .unwrap();
+    let moved = std::process::Command::new(std::env::var_os("OMEGA_FIXTURE_REAL_GIT").unwrap())
+        .current_dir(&helper)
+        .args([
+            "-c",
+            "user.name=Omega SDK",
+            "-c",
+            "user.email=sdk@example.invalid",
+            "commit",
+            "-q",
+            "-am",
+            "change catalog helper result",
+        ])
+        .output()
+        .unwrap();
+    assert!(moved.status.success(), "{moved:?}");
+    let fetch_log = directory.join("fetch.log");
+    let fetches = std::fs::read(&fetch_log).unwrap();
+    let mut offline = request.clone();
+    offline.offline = true;
+    let before = artifacts::compile_timings::counters::build_execution_count();
+    let mut outcomes = omega_build::build(offline).unwrap();
+    let report = outcomes
+        .pop()
+        .unwrap()
+        .result
+        .unwrap()
+        .into_report()
+        .unwrap()
+        .report;
+    joined_product_execution::execute_report(report, &directory.join("locked-native"));
+    assert_eq!(
+        artifacts::compile_timings::counters::build_execution_count(),
+        before + 6
     );
+    let audit =
+        omega_build::inspect_packages(package_manager::operations::PackageInspectionOptions {
+            project_root: project.clone(),
+            targets: vec![profile],
+            details: false,
+            offline: true,
+            build_inputs: None,
+        })
+        .unwrap();
+    assert!(
+        audit.complete && !audit.requires_decision,
+        "{}",
+        audit.report
+    );
+    assert_eq!(
+        std::fs::read(&fetch_log).unwrap(),
+        fetches,
+        "locked helper uses retained objects without fetching a moved selector"
+    );
+    assert_eq!(
+        std::fs::read(project.join("omega.lock")).unwrap(),
+        locked,
+        "compilation and audit do not rewrite acceptance"
+    );
+    let mut session = omega_build::BuildSession::create(&project.join("build/refresh")).unwrap();
+    let error = omega_build::execute_package_command(
+        package_manager::PackageCommand::Update {
+            packages: Vec::new(),
+            revision: None,
+        },
+        package_manager::PackageCommandOptions {
+            project_root: project.clone(),
+            targets: vec![profile],
+            offline: false,
+            build_inputs: None,
+        },
+        &mut session,
+    )
+    .expect_err("refreshing the changed helper must change the observed catalog");
+    assert!(
+        error
+            .to_string()
+            .contains("workspace repeats declared package name `workspace_selected`"),
+        "{error}"
+    );
+    assert_eq!(
+        std::fs::read(project.join("omega.lock")).unwrap(),
+        locked,
+        "failed catalog refresh cannot publish acceptance"
+    );
+    session.close().unwrap();
+    println!(
+        "production_workspace_catalog_helper_lock_roundtrip_offline_pinned_native_terminal_exit0_readonly_audit_changed_helper_private_call_and_missing_name_refusals"
+    );
+}
+
+fn accept_workspace_project(project: &std::path::Path, profile: target::TargetProfile) {
+    use package_manager::{
+        PackageCommand, PackageCommandKind, PackageCommandOptions, PackageCommandStatus,
+    };
+    let mut session =
+        omega_build::BuildSession::create(&project.join("build/package-manager")).unwrap();
+    let options = PackageCommandOptions {
+        project_root: project.to_path_buf(),
+        targets: vec![profile],
+        offline: false,
+        build_inputs: None,
+    };
+    let mut command = PackageCommand::Update {
+        packages: Vec::new(),
+        revision: None,
+    };
+    for _ in 0..4 {
+        let outcome =
+            omega_build::execute_package_command(command, options.clone(), &mut session).unwrap();
+        if outcome.status == PackageCommandStatus::Published {
+            session.close().unwrap();
+            return;
+        }
+        for path in &outcome.review_paths {
+            let original = std::fs::read_to_string(path).unwrap();
+            let accepted = original
+                .lines()
+                .map(|line| {
+                    if line.starts_with("decision ") {
+                        line.strip_suffix(" pending")
+                            .map(|subject| format!("{subject} accept"))
+                            .unwrap_or_else(|| line.to_owned())
+                    } else {
+                        line.to_owned()
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("\n")
+                + "\n";
+            std::fs::write(path, accepted).unwrap();
+        }
+        command = PackageCommand::Resume {
+            kind: PackageCommandKind::Update,
+        };
+    }
+    panic!("workspace review did not publish its source lock");
 }
 
 fn execute_fixture() {
@@ -214,8 +383,11 @@ fn execute_fixture() {
                 )
                 .unwrap()
                 .unwrap(),
-                execution_profile: profile,
-                snapshot: None,
+                execution: package_compilation::BuildExecutionInputs {
+                    profile: Some(profile),
+                    snapshot: None,
+                    ..Default::default()
+                },
                 collect_timings: false,
             },
         )
@@ -247,11 +419,22 @@ fn execute_fixture() {
         let fetches_at_return = std::fs::read(&log).unwrap();
         if !private_call {
             let remote = PathBuf::from(std::env::var_os("OMEGA_FIXTURE_GIT_REPOSITORY").unwrap());
-            std::fs::copy(
-                fixture.join("controls/changed_library.omg"),
-                remote.join("main.omg"),
-            )
-            .unwrap();
+            let changed = std::fs::read(fixture.join("controls/changed_library.omg")).unwrap();
+            let original = std::fs::read(remote.join("main.omg")).unwrap();
+            assert_ne!(
+                original, changed,
+                "selector counterfactual must change source"
+            );
+            std::fs::write(remote.join("main.omg"), &changed).unwrap();
+            // Re-read content into the index, independent of copied timestamps
+            // and equal-length source replacements in a fast fixture run.
+            let staged =
+                std::process::Command::new(std::env::var_os("OMEGA_FIXTURE_REAL_GIT").unwrap())
+                    .current_dir(&remote)
+                    .args(["add", "--renormalize", "--", "main.omg"])
+                    .output()
+                    .unwrap();
+            assert!(staged.status.success(), "{staged:?}");
             let observed =
                 std::process::Command::new(std::env::var_os("OMEGA_FIXTURE_REAL_GIT").unwrap())
                     .current_dir(&remote)
@@ -262,7 +445,7 @@ fn execute_fixture() {
                         "user.email=sdk@example.invalid",
                         "commit",
                         "--quiet",
-                        "-am",
+                        "-m",
                         "move selector after discovery",
                     ])
                     .output()
@@ -363,6 +546,7 @@ fn foreign_policy_control(
             acquired.source_capture(),
             &preparation.entry_path(),
             profile,
+            Default::default(),
         )
         .unwrap();
     let mut invocation = session.compiler().begin_package_build(request).unwrap();

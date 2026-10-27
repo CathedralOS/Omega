@@ -19,15 +19,15 @@ machine Main::main(main: &mut Main) reaches Console {
         Divisor::By { amount } -> quotient(main, 490 / amount)
         Divisor::Unset -> fail(main)
     }
-    state quotient(main: &mut Main, result: i32) {
+    machine quotient(main: &mut Main, result: i32) {
         clear(main);
         transition main.divisor {
             Divisor::Unset -> done(main, result)
             Divisor::By { amount as _ } -> fail(main)
         }
     }
-    state done(main: &mut Main, result: i32) { Console::exit_process(result); }
-    state fail(main: &mut Main) { Console::exit_process(71); }
+    machine done(main: &mut Main, result: i32) { Console::exit_process(result); }
+    machine fail(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

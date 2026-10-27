@@ -85,6 +85,21 @@ pub fn admit_prepared_native_realization<'execution>(
 ) -> Result<AdmittedNativeRealization<'execution>, Vec<Diagnostic>> {
     // Invocation-scoped supplies must answer the same executable occurrences
     // as the plan. Complete declarations stay retained in canonical Terminal.
+    let executed_boundaries: std::collections::BTreeSet<semantic_vocabulary::BoundaryMachineId> =
+        input
+            .plan()
+            .boundary_machines
+            .iter()
+            .map(|boundary| boundary.id)
+            .collect();
+    let module_boundaries: std::collections::BTreeSet<semantic_vocabulary::BoundaryMachineId> =
+        input
+            .context()
+            .module()
+            .boundary_machines
+            .iter()
+            .map(|boundary| boundary.id)
+            .collect();
     let settlements = request
         .providers
         .settlements
@@ -117,13 +132,7 @@ pub fn admit_prepared_native_realization<'execution>(
             // Unknown supplies still reach admission and refuse there. Only
             // a declared, out-of-scope occurrence may be omitted by selection.
             matching.peek().is_none()
-                || matching.any(|boundary| {
-                    input
-                        .plan()
-                        .boundary_machines
-                        .iter()
-                        .any(|executed| executed.id == boundary.id)
-                })
+                || matching.any(|boundary| executed_boundaries.contains(&boundary.id))
         })
         .collect::<Vec<_>>();
     let compiler_builtins = request
@@ -132,42 +141,50 @@ pub fn admit_prepared_native_realization<'execution>(
         .iter()
         .copied()
         .filter(|proposal| {
+            executed_boundaries.contains(&proposal.boundary)
+                || !module_boundaries.contains(&proposal.boundary)
+        })
+        .collect::<Vec<_>>();
+    let native_callbacks = if request.providers.native_callbacks.is_empty() {
+        Vec::new()
+    } else {
+        let plan_boundary_call_ops: std::collections::BTreeSet<semantic_vocabulary::OperationId> =
             input
                 .plan()
-                .boundary_machines
+                .operations()
+                .filter_map(|operation| match operation {
+                    abstract_operations::AbstractOperation::BoundaryCall {
+                        psi_operation, ..
+                    } => Some(*psi_operation),
+                    _ => None,
+                })
+                .collect();
+        let module_boundary_call_ops: std::collections::BTreeSet<semantic_vocabulary::OperationId> =
+            input
+                .context()
+                .module()
+                .machines
                 .iter()
-                .any(|boundary| boundary.id == proposal.boundary)
-                || !input
-                    .context()
-                    .module()
-                    .boundary_machines
-                    .iter()
-                    .any(|boundary| boundary.id == proposal.boundary)
-        })
-        .collect::<Vec<_>>();
-    let native_callbacks = request
-        .providers
-        .native_callbacks
-        .iter()
-        .filter(|callback| {
-            input.plan().operations().any(|operation|
-                matches!(operation, abstract_operations::AbstractOperation::BoundaryCall { psi_operation, .. } if *psi_operation == callback.terminal_operation))
-                || !input
-                    .context()
-                    .module()
-                    .machines
-                    .iter()
-                    .flat_map(|machine| machine.operations())
-                    .any(|operation| {
-                        operation.id == callback.terminal_operation
-                            && matches!(
-                                operation.kind,
-                                terminal_psi::OperationKind::BoundaryCall { .. }
-                            )
-                    })
-        })
-        .cloned()
-        .collect::<Vec<_>>();
+                .flat_map(|machine| machine.operations())
+                .filter_map(|operation| {
+                    matches!(
+                        operation.kind,
+                        terminal_psi::OperationKind::BoundaryCall { .. }
+                    )
+                    .then_some(operation.id)
+                })
+                .collect();
+        request
+            .providers
+            .native_callbacks
+            .iter()
+            .filter(|callback| {
+                plan_boundary_call_ops.contains(&callback.terminal_operation)
+                    || !module_boundary_call_ops.contains(&callback.terminal_operation)
+            })
+            .cloned()
+            .collect::<Vec<_>>()
+    };
     let scoped_providers = ProviderAdmissionRequest {
         profile: request.providers.profile,
         selected_provider_plans: request.providers.selected_provider_plans,

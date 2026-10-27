@@ -1,8 +1,5 @@
 //! Optimizer module role: executable entrance. Linear empty-block validation.
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
-use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationSafetyClass,
-};
 use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 
 mod replay;
@@ -11,23 +8,12 @@ pub(crate) fn validate_linear_empty_block_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
-    super::super::super::contract::validate(
+    super::super::super::contract::admit(
         input,
         candidate,
-        b"omega.psi-rule.linear-empty-block-thread.v2",
-        AnalysisSet::new([
-            AnalysisKind::ControlFlowGraph,
-            AnalysisKind::UseDefinition,
-            AnalysisKind::OwnershipFrontiers,
-        ]),
-        AnalysisInvalidationSet::new([
-            AnalysisKind::ControlFlowGraph,
-            AnalysisKind::UseDefinition,
-            AnalysisKind::EffectSummaries,
-        ]),
-        OptimizationSafetyClass::StructuralIdentity,
+        &super::super::super::contract::LINEAR_EMPTY_BLOCK_THREAD,
     )?;
-    if candidate.predicted_cost_delta() != -3 || !candidate.substitutions().is_empty() {
+    if !candidate.substitutions().is_empty() {
         return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
     }
     replay::validate(input, candidate)

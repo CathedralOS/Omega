@@ -20,7 +20,7 @@ requires outer.mid.inner.val >= 40 && outer.mid.inner.val <= 81
     transition {
         _ -> step(outer)
     }
-    state step(o: Outer) -> u64
+    machine step(o: Outer) -> u64
     requires o.mid.inner.val >= 40 && o.mid.inner.val <= 81
     {
         let res: u64 = o.mid.inner.val;
@@ -46,6 +46,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

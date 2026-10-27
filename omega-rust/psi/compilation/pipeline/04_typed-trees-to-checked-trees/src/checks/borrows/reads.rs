@@ -34,6 +34,110 @@ use super::place_access;
 use crate::checks::ownership_occurrences::{StatementOccurrence, StatementStep};
 use crate::labels::symbol_name;
 
+/// Refine conservative syntactic holds with the producer's exact access ends.
+/// A scalar copied into an operand no longer borrows its source during the
+/// invocation. References and borrowed results instead retain the endpoints
+/// recorded by the argument-access producer. Unknown or ambiguous occurrences
+/// keep the conservative hold; nothing is released merely because it is Copy.
+fn completed_access_holds(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    flow: &FlowStateFact,
+    statement: &FlowStatementFact,
+    occurrences: &[StatementOccurrence],
+) -> Vec<usize> {
+    use crate::checks::ownership_occurrences::{InvocationIdentity, routes_compatible};
+
+    let mut holds: Vec<_> = occurrences
+        .iter()
+        .map(|occurrence| occurrence.held_until)
+        .collect();
+    let Some(borrow_state) = super::matching_borrow_state(facts, flow) else {
+        return holds;
+    };
+    let Some((machine, state)) =
+        validation::machine_state_by_symbols(program, flow.machine_symbol, flow.state_symbol)
+    else {
+        return holds;
+    };
+    for call in facts
+        .borrow
+        .calls
+        .span_or_empty(borrow_state.calls)
+        .iter()
+        .filter(|call| call.statement_index == statement.statement_index)
+    {
+        let Some(site) = validation::find_call_site_in_state(
+            program,
+            machine,
+            state,
+            call.statement_index,
+            call.call_ordinal,
+        ) else {
+            continue;
+        };
+        let target = validation::transition_call_target(
+            program,
+            machine,
+            state,
+            call.statement_index,
+            call.call_ordinal,
+        );
+        let Some(identity) = InvocationIdentity::from_call_site(site, target) else {
+            continue;
+        };
+        let mut completions = occurrences
+            .iter()
+            .enumerate()
+            .filter(|(_, occurrence)| occurrence.invocation == Some(identity));
+        let Some((completion, _)) = completions.next() else {
+            continue;
+        };
+        if completions.next().is_some() {
+            continue;
+        }
+        let accesses = facts.borrow.argument_accesses.span_or_empty(call.accesses);
+        for (position, occurrence) in occurrences.iter().enumerate() {
+            let StatementStep::Observe { expression, .. } = occurrence.step else {
+                continue;
+            };
+            if occurrence.held_until != completion {
+                continue;
+            }
+            let mut released = None;
+            let mut retained = false;
+            for access in accesses
+                .iter()
+                .filter(|access| access.expression == expression)
+            {
+                if access.end_before_access.is_none() || !access.released_at.is_valid() {
+                    retained = true;
+                    break;
+                }
+                let mut endpoints = occurrences.iter().enumerate().filter(|(endpoint, end)| {
+                    *endpoint >= position && *endpoint < completion
+                        && matches!(end.step, StatementStep::Complete(value) if value == access.released_at)
+                        && routes_compatible(&occurrence.route, &end.route)
+                });
+                let Some((endpoint, _)) = endpoints.next() else {
+                    retained = true;
+                    break;
+                };
+                if endpoints.next().is_some() {
+                    retained = true;
+                    break;
+                }
+                released =
+                    Some(released.map_or(endpoint, |previous: usize| previous.max(endpoint)));
+            }
+            if !retained && let Some(released) = released {
+                holds[position] = released;
+            }
+        }
+    }
+    holds
+}
+
 /// Each loan live at the statement's entry whose last use is this statement,
 /// with the last step that still holds it there.
 pub(super) fn final_holds_in_statement(
@@ -45,6 +149,15 @@ pub(super) fn final_holds_in_statement(
     occurrences: &[StatementOccurrence],
     ends_source_path: bool,
 ) -> Vec<(Handle<BorrowLoanFact>, usize)> {
+    if facts
+        .flow
+        .borrow_loan_constraints(statement.entry_constraints)
+        .next()
+        .is_none()
+    {
+        return Vec::new();
+    }
+    let holds = completed_access_holds(program, facts, state, statement, occurrences);
     let destination_root = match statement_node {
         StatementNode::Assignment(assignment) => {
             validation::canonical_place_from_expression_in_state(
@@ -88,11 +201,12 @@ pub(super) fn final_holds_in_statement(
             }
             occurrences
                 .iter()
-                .filter(|occurrence| {
+                .enumerate()
+                .filter(|(_, occurrence)| {
                     matches!(&occurrence.step, StatementStep::Observe { place, .. }
                         if place.root.as_symbol() == Some(loan.owner_symbol))
                 })
-                .map(|occurrence| occurrence.held_until)
+                .map(|(position, _)| holds[position])
                 .max()
                 .map(|held_until| (handle, held_until))
         })

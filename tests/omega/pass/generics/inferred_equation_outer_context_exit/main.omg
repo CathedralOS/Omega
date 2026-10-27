@@ -8,5 +8,5 @@ machine main() crashes Trap {
     let items: [u8; 2] = [7, 11];
     let observed: u64 = capacity<[u8; 2], 2>(forward([7, 11]));
     transition observed == 2 { true -> done() _ -> bad() }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }

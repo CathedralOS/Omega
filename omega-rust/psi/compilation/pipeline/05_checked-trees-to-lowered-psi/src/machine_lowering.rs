@@ -15,6 +15,7 @@
 //! Unsupported source constructs fail closed.
 
 mod boundary_applications;
+mod build_providers;
 mod callback_applications;
 pub(crate) mod debug_map;
 pub(crate) mod declarations;
@@ -161,34 +162,41 @@ pub fn lower_machine(
         boundaries: program_roots.boundaries,
     };
     let selection = select_terminal_machine(checked, machine)?;
-    let (mut lowered, completion) = lower_terminal_selection(
-        &mut identities,
-        checked,
-        selection,
-        exact_toolchain_sources,
-        program_roots,
-    )
+    let (mut lowered, completion) = phase_profile::scope("05.lower_terminal_selection", || {
+        lower_terminal_selection(
+            &mut identities,
+            checked,
+            selection,
+            exact_toolchain_sources,
+            program_roots,
+        )
+    })
     .map_err(|error| error.with_source_names(checked))?;
-    boundary_applications::retain(
-        &mut identities,
-        checked,
-        exact_toolchain_sources,
-        &mut lowered,
-    )
+    phase_profile::scope("05.boundary_applications", || {
+        boundary_applications::retain(
+            &mut identities,
+            checked,
+            exact_toolchain_sources,
+            &mut lowered,
+        )
+    })
     .map_err(LoweringError::Unsupported)?;
-    callback_applications::retain(
-        &mut identities,
-        checked,
-        exact_toolchain_sources,
-        &mut lowered,
-    )
+    phase_profile::scope("05.callback_applications", || {
+        callback_applications::retain(
+            &mut identities,
+            checked,
+            exact_toolchain_sources,
+            &mut lowered,
+        )
+    })
     .map_err(LoweringError::InvalidDeclarationIdentity)?;
-    lowered.semantic_module.identities = identities.build();
+    lowered.semantic_module.identities =
+        phase_profile::scope("05.identities_build", || identities.build());
     // Declaration and evidence producers intern beyond the body snapshot.
     // Validate against their complete module-owned table before publication.
-    if let Err(reason) =
+    if let Err(reason) = phase_profile::scope("05.validate_runtime_evidence_inputs", || {
         terminal_semantics::validate_runtime_evidence_inputs(&lowered.semantic_module)
-    {
+    }) {
         diagnose_runtime_evidence_case_failure(&lowered.semantic_module, reason);
         return Err(LoweringError::Unsupported(reason));
     }
@@ -196,26 +204,28 @@ pub fn lower_machine(
     // boundary/callback applications and the final interned identity table.
     // Construct it only after those producers finish; stamping the body's
     // earlier table prefix makes even a constant entry's companion stale.
-    lowered.debug_map = if selection.signature == CheckedTerminalSignatureEligibility::Eligible
-        && completion.debug == DebugPublication::FromCheckedPlan
-    {
-        let live_states = checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .composed_for_machine(selection.machine)
-            .map(attached_unit::unit_graph_live_states)
-            .transpose()?;
-        checked
-            .facts
-            .flow
-            .terminal_debug
-            .for_machine(selection.machine)
-            .map(|plan| build_debug_map(plan, &lowered.semantic_module, live_states.as_deref()))
-            .transpose()?
-    } else {
-        None
-    };
+    lowered.debug_map = phase_profile::scope("05.debug_map", || -> Result<_, LoweringError> {
+        if selection.signature == CheckedTerminalSignatureEligibility::Eligible
+            && completion.debug == DebugPublication::FromCheckedPlan
+        {
+            let live_states = checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .composed_for_machine(selection.machine)
+                .map(attached_unit::unit_graph_live_states)
+                .transpose()?;
+            checked
+                .facts
+                .flow
+                .terminal_debug
+                .for_machine(selection.machine)
+                .map(|plan| build_debug_map(plan, &lowered.semantic_module, live_states.as_deref()))
+                .transpose()
+        } else {
+            Ok(None)
+        }
+    })?;
     Ok(lowered)
 }
 
@@ -333,13 +343,15 @@ fn lower_terminal_selection(
         completion,
         source_machine_ids,
         source_boundary_ids,
-    } = lower_selected_machine(
-        identities,
-        checked,
-        selection,
-        program_roots,
-        exact_toolchain_sources,
-    )?;
+    } = phase_profile::scope("05.01_lower_selected_machine", || {
+        lower_selected_machine(
+            identities,
+            checked,
+            selection,
+            program_roots,
+            exact_toolchain_sources,
+        )
+    })?;
     if lowered.semantic_module.target_machine_families.len()
         != crate::unit::attached_unit::target_families::runtime_families(checked)?.len()
     {
@@ -349,98 +361,129 @@ fn lower_terminal_selection(
         .iter()
         .map(|(source, _)| *source)
         .collect::<Vec<_>>();
-    declarations::retain(
-        identities,
-        checked,
-        exact_toolchain_sources,
-        &source_machine_ids,
-        &mut lowered.semantic_module,
-    )
-    .map_err(LoweringError::InvalidDeclarationIdentity)?;
-    retain_nominal_cleanup_roles(checked, &source_machine_ids, &mut lowered.semantic_module)?;
-    closed_reach_applications::retain_closed_reach_applications(
-        identities,
-        checked,
-        &source_machine_ids,
-        &lowered.source_call_occurrences,
-        &mut lowered.semantic_module,
-    )?;
-    for (source_machine, terminal_machine) in &source_machine_ids {
-        reborrow_restored_call_use::retain_selected_reborrow_restored_call_uses(
+    phase_profile::scope("05.02_declarations_retain", || {
+        declarations::retain(
             identities,
             checked,
-            *source_machine,
-            *terminal_machine,
+            exact_toolchain_sources,
+            &source_machine_ids,
+            &mut lowered.semantic_module,
+        )
+    })
+    .map_err(LoweringError::InvalidDeclarationIdentity)?;
+    phase_profile::scope("05.03_nominal_cleanup_roles", || {
+        retain_nominal_cleanup_roles(checked, &source_machine_ids, &mut lowered.semantic_module)
+    })?;
+    phase_profile::scope("05.04_closed_reach_applications", || {
+        closed_reach_applications::retain_closed_reach_applications(
+            identities,
+            checked,
+            &source_machine_ids,
             &lowered.source_call_occurrences,
-            &lowered.semantic_module.machines,
-            &mut lowered.semantic_module.reborrow_restored_call_uses,
+            &mut lowered.semantic_module,
+        )
+    })?;
+    phase_profile::scope("05.05_reborrow_restored_call_use", || -> Result<_, LoweringError> {
+        for (source_machine, terminal_machine) in &source_machine_ids {
+            reborrow_restored_call_use::retain_selected_reborrow_restored_call_uses(
+                identities,
+                checked,
+                *source_machine,
+                *terminal_machine,
+                &lowered.source_call_occurrences,
+                &lowered.semantic_module.machines,
+                &mut lowered.semantic_module.reborrow_restored_call_uses,
+            )?;
+        }
+        Ok(())
+    })?;
+    phase_profile::scope("05.06_placed_and_suspension", || -> Result<_, LoweringError> {
+        crate::retention::placed_view_plans::retain(
+            identities,
+            checked,
+            exact_toolchain_sources,
+            &mut lowered.semantic_module,
         )?;
-    }
-    crate::retention::placed_view_plans::retain(
-        identities,
-        checked,
-        exact_toolchain_sources,
-        &mut lowered.semantic_module,
-    )?;
-    crate::retention::placement_lifecycles::retain(
-        identities,
-        checked,
-        exact_toolchain_sources,
-        &mut lowered,
-    )?;
-    suspension_call_plan::retain_suspension_call_plans(
-        identities,
-        checked,
-        &source_machines,
-        &lowered.source_call_occurrences,
-        &mut lowered.semantic_module,
-    )?;
-    retained_borrow_custody::retain_foreign_borrow_custodies(
-        identities,
-        checked,
-        exact_toolchain_sources,
-        &mut lowered.semantic_module,
-    )?;
+        crate::retention::placement_lifecycles::retain(
+            identities,
+            checked,
+            exact_toolchain_sources,
+            &mut lowered,
+        )?;
+        suspension_call_plan::retain_suspension_call_plans(
+            identities,
+            checked,
+            &source_machines,
+            &lowered.source_call_occurrences,
+            &mut lowered.semantic_module,
+        )?;
+        retained_borrow_custody::retain_foreign_borrow_custodies(
+            identities,
+            checked,
+            exact_toolchain_sources,
+            &mut lowered.semantic_module,
+        )?;
+        Ok(())
+    })?;
     // Selected operator invocations carry their crash contract beside the
     // exact emitted operation; a named invocation's carrier is its own
     // boundary call's declaration, verified through the same projection
     // sources. A crash-qualified use the closure cannot join fails closed
     // here rather than lowering crash-free.
-    operation_crash_contracts::retain_operation_crash_contracts(
-        identities,
-        checked,
-        &source_machines,
-        &source_machine_ids,
-        &mut lowered,
-    )?;
+    phase_profile::scope("05.07_operation_crash_contracts", || {
+        operation_crash_contracts::retain_operation_crash_contracts(
+            identities,
+            checked,
+            &source_machines,
+            &source_machine_ids,
+            &mut lowered,
+        )
+    })?;
     // Guarded guarantees are admitted from the finished closure: whether the
     // entry returns one exact payloadless case is a fact of its lowered body,
     // whichever producer emitted it.
-    reject_unguarded_outcome_guarantees(checked, &source_machine_ids, &lowered.semantic_module)?;
-    crate::retention::conformance_applications::lower_closed_conformance_applications(
-        identities,
-        checked,
-        &source_machines,
-        &source_boundary_ids,
-        &mut lowered.semantic_module,
-    )?;
-    crate::unit::dynamic_dispatch::lower_dynamic_dispatch_catalog(
-        identities,
-        checked,
-        &source_machines,
-        &mut lowered.semantic_module,
-    )?;
-    retain_float_meanings(identities, checked, &source_machine_ids, &mut lowered)?;
+    phase_profile::scope("05.08_conformance_and_dyn", || -> Result<_, LoweringError> {
+        reject_unguarded_outcome_guarantees(checked, &source_machine_ids, &lowered.semantic_module)?;
+        crate::retention::conformance_applications::lower_closed_conformance_applications(
+            identities,
+            checked,
+            &source_machines,
+            &source_boundary_ids,
+            &mut lowered.semantic_module,
+        )?;
+        crate::unit::dynamic_dispatch::lower_dynamic_dispatch_catalog(
+            identities,
+            checked,
+            &source_machines,
+            &mut lowered.semantic_module,
+        )?;
+        retain_float_meanings(identities, checked, &source_machine_ids, &mut lowered)?;
+        Ok(())
+    })?;
+    lowered.build_provider_requirements = phase_profile::scope("05.09_build_providers", || {
+        build_providers::retain(
+            identities,
+            checked,
+            exact_toolchain_sources,
+            &source_boundary_ids,
+            &lowered.source_call_occurrences,
+        )
+    })?;
 
     // Copies emitted while composing values can allocate after frame reservation.
     // Retain their ordinary place declarations before publishing the module;
     // quotient adaptations keep their separate exact occurrence licenses.
-    crate::emission::operation_emission::place_declarations::reconcile_leaf_copy_place_declarations(
-        &mut lowered.semantic_module,
-    );
-    crate::emission::descriptor_residences::complete(&mut lowered.semantic_module)?;
-    crate::retention::payload_memberships::retain(&mut lowered.semantic_module)?;
-    lower_and_install_evidence_artifacts(identities, checked, &source_machine_ids, &mut lowered)?;
+    phase_profile::scope("05.10_reconcile_and_residences", || -> Result<_, LoweringError> {
+        crate::emission::operation_emission::place_declarations::reconcile_leaf_copy_place_declarations(
+            &mut lowered.semantic_module,
+        );
+        crate::emission::descriptor_residences::complete(&mut lowered.semantic_module)?;
+        crate::retention::payload_memberships::retain(&mut lowered.semantic_module)?;
+        Ok(())
+    })?;
+    phase_profile::scope("05.11_evidence_artifacts", || {
+        lower_and_install_evidence_artifacts(identities, checked, &source_machine_ids, &mut lowered)
+    })?;
     Ok((lowered, completion))
 }
 
@@ -470,7 +513,7 @@ fn diagnose_runtime_evidence_case_failure(module: &terminal_psi::TerminalModule,
         let Some(machine) = graph.iter().find(|machine| machine.id == caller.id) else {
             eprintln!(
                 "[runtime-evidence-case] caller={:?} consumer={:?} graph=absent reason={reason}",
-                caller.id, runtime.operation
+                caller.id, runtime.site
             );
             continue;
         };
@@ -503,7 +546,7 @@ fn diagnose_runtime_evidence_case_failure(module: &terminal_psi::TerminalModule,
                         caller.id,
                         operation.id,
                         block.id,
-                        runtime.operation,
+                        runtime.site,
                         row.output,
                         result.place,
                         result.structural_type,

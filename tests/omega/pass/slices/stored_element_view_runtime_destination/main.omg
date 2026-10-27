@@ -7,8 +7,8 @@ machine replacement(value: i32) -> i32 {
         true -> positive(value)
         false -> negative(value)
     }
-    state positive(value: i32) -> i32 { value ^ 1 }
-    state negative(value: i32) -> i32 { value ^ 2 }
+    machine positive(value: i32) -> i32 { value ^ 1 }
+    machine negative(value: i32) -> i32 { value ^ 2 }
 }
 
 machine write<'storage>(outputs: &mut [Output<'storage>; 2], selected: u64, position: u64, value: i32) -> bool {
@@ -16,14 +16,14 @@ machine write<'storage>(outputs: &mut [Output<'storage>; 2], selected: u64, posi
         true -> choose(outputs, selected, position, value)
         false -> false
     }
-    state choose(outputs: &mut [Output<'storage>; 2], selected: u64, position: u64, value: i32) -> bool
+    machine choose(outputs: &mut [Output<'storage>; 2], selected: u64, position: u64, value: i32) -> bool
     requires selected < 2 {
         transition position < outputs[selected].values.len {
             true -> store(outputs, selected, position, value)
             false -> false
         }
     }
-    state store(outputs: &mut [Output<'storage>; 2], selected: u64, position: u64, value: i32) -> bool
+    machine store(outputs: &mut [Output<'storage>; 2], selected: u64, position: u64, value: i32) -> bool
     requires selected < 2 && position < outputs[selected].values.len {
         outputs[selected].values[position] = replacement(value);
         let mut captured_selector: u64 = selected;
@@ -45,6 +45,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

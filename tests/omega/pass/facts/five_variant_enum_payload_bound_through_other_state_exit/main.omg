@@ -34,7 +34,7 @@ machine payload_state(p: Packet) -> u64 {
     transition {
         _ -> step(p)
     }
-    state step(pkt: Packet) -> u64 {
+    machine step(pkt: Packet) -> u64 {
         let res: u64 = extract_payload(pkt);
         verify_payload(res)
     }
@@ -49,7 +49,7 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 

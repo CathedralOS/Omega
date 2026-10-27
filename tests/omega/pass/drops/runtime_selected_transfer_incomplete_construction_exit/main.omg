@@ -138,8 +138,8 @@ machine incomplete_reversed(enabled: bool) -> bool reaches Console {
 machine verify(accepted: bool) reaches Console crashes Trap {
     Console::write_byte(10);
     transition accepted { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 data Main { }

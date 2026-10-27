@@ -5,7 +5,7 @@ machine reset_value(cell: &mut Cell) -> i32 { cell.value = 0; 0 }
 machine quiet(value: i32) {}
 machine outer(cell: &mut Cell) -> i32 requires cell.value == 1 {
  transition { _ -> middle(cell) }
- state middle(cell: &mut Cell) -> i32 {
+ machine middle(cell: &mut Cell) -> i32 {
   quiet(reset_value(cell));
   needs_one(cell.value)
  }

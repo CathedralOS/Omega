@@ -22,6 +22,7 @@ fn comparison_module(operand_type: ScalarType, kind: OperationKind) -> TerminalM
             declaration: None,
             nominal_cleanup_subject: None,
             parameters: vec![value(1, operand_type), value(2, operand_type)],
+            parameter_order: vec![terminal_psi::BoundaryParameterKind::Scalar; 2],
             structural_parameters: Vec::new(),
             ranked_scc: None,
             result: TerminalMachineResult::Unit,

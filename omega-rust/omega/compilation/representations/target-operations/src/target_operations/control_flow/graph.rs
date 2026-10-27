@@ -4,7 +4,7 @@ use crate::{
 };
 use abstract_operations::ValueBinding;
 use calling_conventions::CallPlan;
-use semantic_vocabulary::{BlockId, EdgeId, ScalarType, ValueId};
+use semantic_vocabulary::{BlockId, EdgeId, MachineId, ScalarType, ValueId};
 use terminal_psi::TerminalAffineCleanupAction;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -54,6 +54,20 @@ pub struct TargetScalarBlockParameter {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetControlTerminator {
+    /// An ordinary declared-ABI call whose receiving control has no normal edge.
+    /// Physical result placement remains in the call plan, without a value home.
+    InvokeNoNormal {
+        psi_edge: EdgeId,
+        callee: MachineId,
+        call_plan: calling_conventions::CallPlan,
+        scalar_arguments: Vec<crate::TargetUnitScalarCallArgument>,
+        arguments: Vec<crate::TargetStructuralArgument>,
+        placed_bindings: Vec<crate::TargetPlacedCallBinding>,
+        claim_transfers: Vec<terminal_psi::ClaimTransfer>,
+        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
+        crash_continuations: Vec<terminal_psi::CrashRouteBucket>,
+        declared_result: abstract_operations::AbstractFunctionResult,
+    },
     /// An exact admitted boundary invocation with no normal continuation.
     ExternalCompletion {
         psi_edge: EdgeId,

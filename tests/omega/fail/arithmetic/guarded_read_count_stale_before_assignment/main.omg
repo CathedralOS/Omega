@@ -1,16 +1,16 @@
 data Reader where received <= 16384 { received: u64; count: i64; }
 machine Reader::advance(reader: &mut Reader) {
     transition reader.count > 0 { true -> room(reader) _ -> done() }
-    state room(reader: &mut Reader) {
+    machine room(reader: &mut Reader) {
         transition reader.count as u64 <= 16384 - reader.received {
             true -> store(reader)
             _ -> done()
         }
     }
-    state store(reader: &mut Reader) {
+    machine store(reader: &mut Reader) {
         reader.count = 16384;
         reader.received = reader.received + reader.count as u64;
         transition { _ -> done() }
     }
-    state done() { }
+    machine done() { }
 }

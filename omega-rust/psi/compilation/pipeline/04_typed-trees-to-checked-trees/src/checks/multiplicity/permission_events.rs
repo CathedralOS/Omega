@@ -973,9 +973,7 @@ fn proven_conditional_entry_claims(
                     subject_path: subject.segments[argument.segments.len()..].to_vec(),
                     variant,
                 };
-                if !memberships.contains(&membership) {
-                    memberships.push(membership);
-                }
+                crate::collections::push_unique(&mut memberships, membership);
             }
         }
     }
@@ -1165,9 +1163,7 @@ pub(crate) fn case_transition_run_is_exhaustive(
             return false;
         }
         subject_label = Some(label);
-        if !covered.contains(&variant) {
-            covered.push(variant);
-        }
+        crate::collections::push_unique(&mut covered, variant);
     }
     let Some(first_variant) = covered.first() else {
         return false;
@@ -1218,12 +1214,7 @@ fn reconcile_state_call_result_origins(
             &maps,
         );
         if !origins_changed && !liveness_changed {
-            return derive_checked_claim_outcome_maps(
-                program,
-                borrow,
-                ownership,
-                permission_events,
-            );
+            return Ok(maps);
         }
     }
     Err("call-result claim origins did not converge")

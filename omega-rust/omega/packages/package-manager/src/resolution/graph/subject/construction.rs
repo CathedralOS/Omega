@@ -27,6 +27,7 @@ impl CanonicalSourceClosureSubject {
                 "source-closure subject exceeds its record-byte limit",
             ));
         }
+        let mut budget = Budget::new(usize::MAX);
         validate_subject_with_budget(
             &self.root,
             &self.packages,
@@ -34,11 +35,22 @@ impl CanonicalSourceClosureSubject {
             &self.package_dependency_projections,
             &self.dependency_requests,
             limits,
-            &mut Budget::new(usize::MAX),
-        )
+            &mut budget,
+        )?;
+        super::catalog::validate(self, &self.catalog_dependencies, limits, &mut budget)
     }
 
     pub(crate) fn from_resolved(
+        target_closure: &ExactTargetPackageSourceClosure<'_>,
+        limits: CanonicalSourceClosureSubjectLimits,
+    ) -> Result<Self, CanonicalSourceClosureSubjectError> {
+        let limits = limits.compiler_bounded();
+        let subject = Self::from_resolved_without_catalog(target_closure, limits)?;
+        let dependencies = super::catalog::project(target_closure, limits)?;
+        subject.with_catalog_dependencies(dependencies, limits, &mut Budget::new(usize::MAX))
+    }
+
+    pub(super) fn from_resolved_without_catalog(
         target_closure: &ExactTargetPackageSourceClosure<'_>,
         limits: CanonicalSourceClosureSubjectLimits,
     ) -> Result<Self, CanonicalSourceClosureSubjectError> {
@@ -164,6 +176,7 @@ impl CanonicalSourceClosureSubject {
             &package_navigations,
             &package_dependency_projections,
             &dependency_requests,
+            &[],
             limits,
             budget,
         )?;
@@ -180,8 +193,41 @@ impl CanonicalSourceClosureSubject {
             package_navigations,
             package_dependency_projections,
             dependency_requests,
+            catalog_dependencies: Vec::new(),
             canonical_bytes,
             fingerprint,
         })
+    }
+
+    pub(super) fn with_catalog_dependencies(
+        mut self,
+        dependencies: Vec<super::CanonicalCatalogDependency>,
+        limits: CanonicalSourceClosureSubjectLimits,
+        budget: &mut Budget,
+    ) -> Result<Self, CanonicalSourceClosureSubjectError> {
+        super::catalog::validate(&self, &dependencies, limits, budget)?;
+        if dependencies.is_empty() {
+            return Ok(self);
+        }
+        let bytes = encode_subject_with_budget(
+            self.target_profile,
+            &self.root,
+            &self.packages,
+            &self.package_navigations,
+            &self.package_dependency_projections,
+            &self.dependency_requests,
+            &dependencies,
+            limits,
+            budget,
+        )?;
+        if bytes.len() > limits.maximum_record_bytes {
+            return Err(CanonicalSourceClosureSubjectError::new(
+                "source-closure subject exceeds its record-byte limit",
+            ));
+        }
+        self.fingerprint = fingerprint(&bytes);
+        self.canonical_bytes = bytes;
+        self.catalog_dependencies = dependencies;
+        Ok(self)
     }
 }

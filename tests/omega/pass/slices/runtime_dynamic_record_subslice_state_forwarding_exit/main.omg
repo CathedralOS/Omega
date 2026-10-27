@@ -4,7 +4,7 @@ machine write(items: &mut [Cell], start: u64, end: u64)
 requires start < end && end <= items.len
 {
     transition { _ -> forwarded(true, &mut items[start..end]) }
-    state forwarded(marker: bool, selected: &mut [Cell])
+    machine forwarded(marker: bool, selected: &mut [Cell])
     requires selected.len > 0
     {
         selected[0].value = 23;
@@ -24,6 +24,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

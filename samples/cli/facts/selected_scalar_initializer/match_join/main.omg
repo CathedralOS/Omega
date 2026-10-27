@@ -6,8 +6,8 @@ machine verify(observed: i32, first: i32, flag: bool) crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine exercise(flag: bool) crashes Trap {
     let items: [i32 in Selected; 2] = match flag { true -> [1, 38], false -> [1, 38] };

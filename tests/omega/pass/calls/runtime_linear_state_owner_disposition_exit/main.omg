@@ -15,7 +15,7 @@ machine consume_pair(first: Receipt, second: Receipt) -> bool {
 machine relay(first: Receipt, second: Receipt) -> bool {
     transition { _ -> handoff(second, first) }
 
-    state handoff(first: Receipt, second: Receipt) -> bool {
+    machine handoff(first: Receipt, second: Receipt) -> bool {
         transition { _ -> consume_pair(first, second) }
     }
 }

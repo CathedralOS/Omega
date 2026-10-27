@@ -37,7 +37,7 @@ machine copy(buffer: &mut [u8; 32] in Ascii, bytes: &[u8] in Ascii, start: u64)
 requires start <= 32; bytes.len <= 32 - start
 {
     transition { _ -> copying(buffer, bytes, start, 0) }
-    state copying(buffer: &mut [u8; 32] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    machine copying(buffer: &mut [u8; 32] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
     requires start <= 32; index <= 32
     {
         transition index < bytes.len && start + index < 32 {
@@ -51,7 +51,7 @@ requires start <= 32; bytes.len <= 32 - start
         buffer[start + index] = bytes[index];
         transition { _ -> copying(buffer, bytes, start, index + 1) }
     }
-    state done() {}
+    machine done() {}
 }
 
 use omega_language_std::console;
@@ -121,56 +121,56 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad_name1(main)
     }
 
-    state bad_name1(main: &mut Main) {
+    machine bad_name1(main: &mut Main) {
         Console::write_line("FAIL: entry1.name did not equal Alpha (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(71);
     }
 
-    state check_name2(main: &mut Main) {
+    machine check_name2(main: &mut Main) {
         transition name_view(&main.catalog.entry2.name) == "Beta" {
             true -> check_label(main)
             _ -> bad_name2(main)
         }
     }
 
-    state bad_name2(main: &mut Main) {
+    machine bad_name2(main: &mut Main) {
         Console::write_line("FAIL: entry2.name did not equal Beta (exit 72)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(72);
     }
 
-    state check_label(main: &mut Main) {
+    machine check_label(main: &mut Main) {
         transition live(&main.catalog.label) == "[Alpha+Beta]" {
             true -> check_total(main)
             _ -> bad_label(main)
         }
     }
 
-    state bad_label(main: &mut Main) {
+    machine bad_label(main: &mut Main) {
         Console::write_line("FAIL: concatenated label was not [Alpha+Beta] (exit 73)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(73);
     }
 
-    state check_total(main: &mut Main) {
+    machine check_total(main: &mut Main) {
         transition main.catalog.total == 70 {
             true -> good(main)
             _ -> bad_total(main)
         }
     }
 
-    state bad_total(main: &mut Main) {
+    machine bad_total(main: &mut Main) {
         Console::write_line("FAIL: score total was not 70 (exit 74)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(74);
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::write_line("PASS: names, label [Alpha+Beta], and total 70 all verified (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

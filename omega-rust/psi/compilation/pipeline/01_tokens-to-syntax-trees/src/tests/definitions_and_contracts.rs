@@ -465,7 +465,7 @@ fn parses_nested_call_arguments_as_contiguous_expression_spans() {
         machine Main::main(main: &mut Main, player: &mut Player) {
             player.xp = max(0, player.xp - xp_required(player.level));
 
-            state xp_required(level: i32) -> i32 {
+            machine xp_required(level: i32) -> i32 {
                 10
             }
         }
@@ -556,7 +556,7 @@ fn parses_evidence_lane_on_named_transition_without_dropping_it() {
     let source = r#"
         machine Main::main(proof: Evidence) {
             transition { _ -> next(; proof) }
-            state next() {}
+            machine next() {}
         }
     "#;
     let parsed = super::parse_source_verbose(

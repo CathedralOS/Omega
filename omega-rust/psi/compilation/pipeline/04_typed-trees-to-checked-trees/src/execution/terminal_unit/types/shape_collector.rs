@@ -34,6 +34,7 @@ pub(crate) struct ShapeCollector<'program> {
     pub(in crate::execution::terminal_unit) cleanup_control:
         checked_trees::CheckedCleanupControlPlans,
     in_progress: BTreeSet<typed_trees::type_identity::TypeIdentityId>,
+    domains_in_progress: BTreeSet<(u32, typed_trees::type_identity::TypeIdentityId)>,
     /// The element rows registered beside borrowed byte views. A byte
     /// carrier's plan keeps no element field, so `retain_transitive` follows
     /// this edge where it follows a `BorrowedSliceView`'s element identity.
@@ -53,6 +54,7 @@ impl<'program> ShapeCollector<'program> {
             domains: Vec::new(),
             cleanup_control: Default::default(),
             in_progress: BTreeSet::new(),
+            domains_in_progress: BTreeSet::new(),
             byte_view_elements: BTreeSet::new(),
             unselected_opaque: None,
         }
@@ -122,7 +124,11 @@ impl<'program> ShapeCollector<'program> {
         binders: &[(SymbolHandle, String)],
         stored_carrier: bool,
     ) -> Option<typed_trees::type_identity::TypeIdentityId> {
-        let definition = typed_trees::domain::domain_by_symbol(self.program, application.symbol)?;
+        let definition = self
+            .program
+            .typed_program()
+            .domain_definition_for_instance(application.symbol, application.semantic_id)
+            .or_else(|| typed_trees::domain::domain_by_symbol(self.program, application.symbol))?;
         let predicate = if application.arguments.is_empty()
             || validation::field_domains::domain_requires_provenance(
                 self.program,
@@ -180,7 +186,11 @@ impl<'program> ShapeCollector<'program> {
         binders: &[(SymbolHandle, String)],
         stored_carrier: bool,
     ) -> Option<typed_trees::type_identity::TypeIdentityId> {
-        let definition = typed_trees::domain::domain_by_symbol(self.program, selected_symbol)?;
+        let definition = self
+            .program
+            .typed_program()
+            .domain_definition_for_instance(selected_symbol, domain)
+            .or_else(|| typed_trees::domain::domain_by_symbol(self.program, selected_symbol))?;
         self.add_domain_definition(
             domain,
             carrier,
@@ -206,6 +216,25 @@ impl<'program> ShapeCollector<'program> {
             } else {
                 self.add_type(carrier, binders, &[])?
             };
+        let key = (domain.0, carrier_type_identity);
+        if self.domains_in_progress.contains(&key) {
+            return Some(carrier_type_identity);
+        }
+        let requirements = definition.and_then(|definition| {
+            typed_trees::domain::required_subject_memberships(
+                self.program.typed_program(),
+                definition,
+            )
+        });
+        let required_memberships = requirements.as_ref().map(|requirements| {
+            let mut domains = requirements
+                .iter()
+                .map(|membership| membership.semantic_domain)
+                .collect::<Vec<_>>();
+            domains.sort_by_key(|domain| domain.0);
+            domains.dedup();
+            domains
+        });
         let identity = self.program.semantic_domains.name(domain)?.to_owned();
         let establishment_routes = definition
             .map(|definition| definition.establishment_routes.clone())
@@ -241,14 +270,10 @@ impl<'program> ShapeCollector<'program> {
                     definition.target_type,
                 )
                 .is_empty()
-                && !self
-                    .program
-                    .typed_program()
-                    .proof_facts(definition)
-                    .iter()
-                    .any(|fact| matches!(fact, typed_trees::domain::ProofFact::Membership(_)))
+                && required_memberships.is_some()
         });
         let plan = CheckedUnitStructuralDomainPlan {
+            required_memberships,
             complete_predicate_theory,
             predicate,
             byte_predicate,
@@ -261,12 +286,13 @@ impl<'program> ShapeCollector<'program> {
         // contents under distinct access-bearing identities. Register the
         // selected theory for both presentations; this creates no membership
         // evidence and never applies a referent's theory to a stored pointer.
-        let stored_carrier = if validation::slice_view_shell(self.program, carrier, &[]).is_some() {
-            self.add_stored_type(carrier, binders, &[])?
-        } else {
-            carrier_type_identity
-        };
-        for identity in [carrier_type_identity, stored_carrier] {
+        let stored_carrier_identity =
+            if validation::slice_view_shell(self.program, carrier, &[]).is_some() {
+                self.add_stored_type(carrier, binders, &[])?
+            } else {
+                carrier_type_identity
+            };
+        for identity in [carrier_type_identity, stored_carrier_identity] {
             let mut presented = plan.clone();
             presented.carrier_type_identity = identity;
             if let Some(existing) = self.domains.iter().find(|existing| {
@@ -279,7 +305,21 @@ impl<'program> ShapeCollector<'program> {
                 self.domains.push(presented);
             }
         }
-        Some(carrier_type_identity)
+        self.domains_in_progress.insert(key);
+        let collected = requirements.as_ref().is_none_or(|requirements| {
+            requirements.iter().all(|membership| {
+                self.add_selected_domain(
+                    membership.semantic_domain,
+                    membership.domain_symbol,
+                    carrier,
+                    binders,
+                    stored_carrier,
+                )
+                .is_some()
+            })
+        });
+        self.domains_in_progress.remove(&key);
+        collected.then_some(carrier_type_identity)
     }
 
     pub(in crate::execution::terminal_unit) fn add_attached_data(
@@ -1438,6 +1478,8 @@ impl<'program> ShapeCollector<'program> {
             && matches!(
                 field_type,
                 CheckedUnitStructuralFieldType::Structural { .. }
+                    | CheckedUnitStructuralFieldType::BoundedInteger(_)
+                    | CheckedUnitStructuralFieldType::RefinedScalar { .. }
                     | CheckedUnitStructuralFieldType::ByteSequence(_)
                     | CheckedUnitStructuralFieldType::PredicateByteSequence { .. }
             )
@@ -1448,13 +1490,15 @@ impl<'program> ShapeCollector<'program> {
                 field_type_reference,
                 binders,
             )?;
-            // A structural field's carrier is its own retained type; a byte
-            // field names none, so its plan carries the carriers instead.
-            if field_type.byte_sequence_carrier().is_some() {
+            // Structural children retain their own type. Inline scalar and
+            // byte restrictions keep the exact qualification carrier here,
+            // independently of their physical scalar/byte representation.
+            if !matches!(
+                field_type,
+                CheckedUnitStructuralFieldType::Structural { .. }
+            ) {
                 for (_, carrier) in carriers {
-                    if !qualification_carriers.contains(&carrier) {
-                        qualification_carriers.push(carrier);
-                    }
+                    crate::collections::push_unique(&mut qualification_carriers, carrier);
                 }
             }
         }

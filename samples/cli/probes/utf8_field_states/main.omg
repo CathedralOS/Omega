@@ -9,27 +9,27 @@ machine Main::main(main: &mut Main) {
     transition {
         _ -> fill(main)
     }
-    state fill(main: &mut Main) {
+    machine fill(main: &mut Main) {
         main.label = "abc";
         transition {
             _ -> stamp(main)
         }
     }
-    state stamp(main: &mut Main) {
+    machine stamp(main: &mut Main) {
         main.label[0] = 66;
         transition {
             _ -> done(main)
         }
     }
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         let b: i32 = main.label[0] as i32;
         transition b == 66 {
             true -> good(main)
             false -> bad(main)
         }
     }
-    state good(main: &mut Main) { }
-    state bad(main: &mut Main) { }
+    machine good(main: &mut Main) { }
+    machine bad(main: &mut Main) { }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

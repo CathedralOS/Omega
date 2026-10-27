@@ -702,7 +702,7 @@ impl Query<'_> {
         } else {
             None
         };
-        let operation = ordinary.or_else(|| deferred.map(|call| call.operation()))?;
+        let operation = ordinary.or_else(|| deferred.and_then(|call| call.operation()))?;
         if operation.call()?.coordinate != coordinate
             || operation.call()?.target.state != source.target_symbol
             || operation.call()?.structural_result()?.statement_index != value.statement_index
@@ -720,7 +720,11 @@ impl Query<'_> {
                 _ => None,
             })
             .flatten()
-            .filter(|scheduled| std::ptr::eq(scheduled.operation(), operation));
+            .filter(|scheduled| {
+                scheduled
+                    .operation()
+                    .is_some_and(|candidate| std::ptr::eq(candidate, operation))
+            });
         let scheduled = schedules.next().or(deferred);
         if schedules.next().is_some()
             || scheduled.is_some_and(|scheduled| {

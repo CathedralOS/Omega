@@ -10,8 +10,8 @@ machine live(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
         true -> checked(bytes)
         false -> bad()
     }
-    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
-    state bad() { crash Trap; }
+    machine checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    machine bad() -> &[u8] in Utf8 { crash Trap; }
 }
 machine main() crashes Trap {
     let buffer: TextBuffer = TextBuffer {
@@ -23,6 +23,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

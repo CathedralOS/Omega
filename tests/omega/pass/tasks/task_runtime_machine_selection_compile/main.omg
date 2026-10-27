@@ -82,11 +82,11 @@ machine Main::probe(main: &mut Main) reaches TokenIssuer + TaskRuntime {
         StartOutcome::Rejected { arguments, reason } -> rejected(arguments, reason)
     }
 
-    state settle_retry(retry_task: Task<Token>) {
+    machine settle_retry(retry_task: Task<Token>) {
         _ = suspend block Task::settle(retry_task);
     }
 
-    state rejected(arguments: Token, reason: StartRejection) { }
+    machine rejected(arguments: Token, reason: StartRejection) { }
 }
 
 machine Main::main() { }

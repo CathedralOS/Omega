@@ -24,31 +24,31 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> vault(main)
     }
 
-    state gate(main: &mut Main) {
+    machine gate(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state spent(main: &mut Main) {
+    machine spent(main: &mut Main) {
         Console::exit_process(71);
     }
 
-    state fountain(main: &mut Main) {
+    machine fountain(main: &mut Main) {
         Console::exit_process(72);
     }
 
-    state ambush_clear(main: &mut Main) {
+    machine ambush_clear(main: &mut Main) {
         Console::exit_process(73);
     }
 
-    state ambush(main: &mut Main) {
+    machine ambush(main: &mut Main) {
         Console::exit_process(74);
     }
 
-    state looted(main: &mut Main) {
+    machine looted(main: &mut Main) {
         Console::exit_process(75);
     }
 
-    state vault(main: &mut Main) {
+    machine vault(main: &mut Main) {
         Console::exit_process(76);
     }
 }

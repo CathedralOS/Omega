@@ -29,6 +29,6 @@ machine main() crashes Trap {
     drop(pieces.left);
     drop(pieces.right);
     transition correct { true -> done() false -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

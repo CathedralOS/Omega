@@ -6,8 +6,8 @@ machine Main::main<'entry>(main: &'entry mut Main<'entry>) crashes Trap {
     let view: &i32 = borrowed(&main.value);
     let result: i32 = view as i32;
     transition result == 37 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The root owns ordinary local storage; its region is not allocation authority.

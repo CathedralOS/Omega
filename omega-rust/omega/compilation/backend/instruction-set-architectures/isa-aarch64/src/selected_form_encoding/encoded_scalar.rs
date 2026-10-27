@@ -274,6 +274,7 @@ pub(super) fn validate(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::reject_every_bit_flip;
 
     fn operands(physical: &ValidatedPhysicalRegisterModel) -> [RegisterViewId; 6] {
         ["x0", "x1", "x2", "x3", "x4", "x5"]
@@ -441,14 +442,9 @@ mod tests {
         ] {
             let alternative = MachineAlternativeKey { family, variant: 0 };
             let encoded = encode(&physical, kind, alternative, &operands).unwrap();
-            for bit in 0..encoded.bytes.len() * 8 {
-                let mut changed = encoded.bytes.clone();
-                changed[bit / 8] ^= 1 << (bit % 8);
-                assert!(
-                    validate(&physical, kind, alternative, &operands, &changed).is_err(),
-                    "{kind:?} bit {bit}"
-                );
-            }
+            reject_every_bit_flip(&encoded.bytes, &format!("{kind:?}"), |changed| {
+                validate(&physical, kind, alternative, &operands, &changed).is_err()
+            });
             let input_count = if kind == SelectedInstructionKind::LoadEncodedScalar {
                 2
             } else {

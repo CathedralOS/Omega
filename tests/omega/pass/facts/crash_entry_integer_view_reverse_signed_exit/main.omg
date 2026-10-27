@@ -3,7 +3,7 @@ machine maybe_zero(value: u32) -> u32
 crashes Trap value == 0
 {
     transition value == 0 { true -> bad() false -> (value) }
-    state bad() { crash Trap; }
+    machine bad() -> u32 { crash Trap; }
 }
 public machine read_bits(value: i32) -> u32
 requires value == -1
@@ -15,5 +15,5 @@ requires value == -1
 machine main() crashes Trap {
     let observed: u32 = read_bits(-1);
     transition observed == 4294967295 { true -> done() _ -> bad() }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }

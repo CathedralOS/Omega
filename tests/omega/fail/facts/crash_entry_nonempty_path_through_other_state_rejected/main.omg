@@ -3,7 +3,7 @@ machine maybe_zero(value: u64) -> u64
 crashes Trap value == 0
 {
     transition value == 0 { true -> bad() false -> (value) }
-    state bad() { crash Trap; }
+    machine bad() -> u64 { crash Trap; }
 }
 public data Leaf { bits: u64; marker: u64; }
 public data Packet { leaf: Leaf; tag: u64; }
@@ -11,7 +11,7 @@ public data Packet { leaf: Leaf; tag: u64; }
 public machine read_bits(packet: &Packet) -> u64
 {
     transition { _ -> step(packet) }
-    state step(packet: &Packet) -> u64 {
+    machine step(packet: &Packet) -> u64 {
         let observed: u64 = packet.leaf.bits;
         maybe_zero(observed)
     }
@@ -20,5 +20,5 @@ machine main() crashes Trap {
     let packet: Packet = Packet { leaf: Leaf { bits: 7, marker: 3 }, tag: 11 };
     let observed: u64 = read_bits(&packet);
     transition observed == 7 { true -> done() _ -> bad() }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }

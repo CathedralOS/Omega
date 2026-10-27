@@ -9,7 +9,7 @@ use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId, SelectedMemo
 
 pub(super) fn argument(
     source: &LegalizedScalarFunction,
-    operation: &legalized_operations::LegalizedScalarInstruction,
+    operation: &impl super::call_arguments::InvocationArgumentSource,
     argument_index: usize,
     semantic: &terminal_psi::StructuralArgument,
     target: &target_operations::TargetStructuralArgument,
@@ -43,7 +43,10 @@ pub(super) fn argument(
     {
         return Err(SelectedInstructionError::custody());
     }
-    let block = super::block_containing_operation(source, operation.operation)?;
+    let block =
+        crate::selection::scalar_call_abi::input_site::use_cut(source, operation.invocation_site())
+            .ok_or_else(SelectedInstructionError::custody)?
+            .0;
     let pointer = if let Some(slot) = slot {
         // Only an owned whole-home slot needs the root's aggregate
         // geometry: a placement source reaches the subtree through its
@@ -115,7 +118,7 @@ pub(super) fn argument(
 /// Transport already-authenticated value backing through the retained ABI.
 /// A borrowed view copies its descriptor words, not its referent bytes or custody.
 pub(super) fn transport(
-    operation: &legalized_operations::LegalizedScalarInstruction,
+    operation: &impl super::call_arguments::InvocationArgumentSource,
     argument_index: usize,
     target: &target_operations::TargetStructuralArgument,
     indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
@@ -127,13 +130,9 @@ pub(super) fn transport(
 ) -> Result<Vec<VirtualRegisterId>, SelectedInstructionError> {
     let place = target.place;
     let indirect = crate::selection::aggregate_result_input::indirect_argument(&target.destination);
-    let outgoing_plan = match &operation.kind {
-        legalized_operations::LegalizedScalarInstructionKind::Call(call) => &call.call_plan,
-        legalized_operations::LegalizedScalarInstructionKind::NormalizedForeignCall(call) => {
-            &call.binding.boundary_entry_plan.call
-        }
-        _ => return Err(SelectedInstructionError::custody()),
-    };
+    let outgoing_plan = operation
+        .invocation_call_plan()
+        .ok_or_else(SelectedInstructionError::custody)?;
     let stack_base = target
         .destination
         .locations
@@ -168,7 +167,7 @@ pub(super) fn transport(
                 .ok_or_else(|| SelectedInstructionError::custody())?
         };
         let slot = selected_instructions::OutgoingArgumentSlotId {
-            invocation_site: operation.operation.into(),
+            invocation_site: operation.invocation_site(),
             argument_index: argument_index
                 .try_into()
                 .map_err(|_| SelectedInstructionError::custody())?,
@@ -218,7 +217,7 @@ pub(super) fn transport(
         let address = super::structural_case::register(builder, place, 0, 64, false)?;
         super::structural::memory_at_origin(
             builder,
-            selected_instructions::SelectedMemoryAccessOrigin::Operation(operation.operation),
+            super::call_arguments::invocation_memory_origin(operation),
             place,
             0,
             byte_size,
@@ -419,7 +418,7 @@ pub(super) fn transport(
             )?;
             super::structural::memory_at_origin(
                 builder,
-                selected_instructions::SelectedMemoryAccessOrigin::Operation(operation.operation),
+                super::call_arguments::invocation_memory_origin(operation),
                 place,
                 stack_offset,
                 byte_size,
@@ -442,7 +441,7 @@ pub(super) fn transport(
                 alignment,
             } => {
                 let slot = selected_instructions::OutgoingArgumentSlotId {
-                    invocation_site: operation.operation.into(),
+                    invocation_site: operation.invocation_site(),
                     argument_index: argument_index
                         .try_into()
                         .map_err(|_| SelectedInstructionError::custody())?,
@@ -467,9 +466,7 @@ pub(super) fn transport(
                     });
                 super::structural::memory_at_origin(
                     builder,
-                    selected_instructions::SelectedMemoryAccessOrigin::Operation(
-                        operation.operation,
-                    ),
+                    super::call_arguments::invocation_memory_origin(operation),
                     place,
                     0,
                     8,

@@ -55,7 +55,7 @@ machine shared_field(container: &AsciiContainer) -> bool {
 // an owned array element's field.
 machine owned_arrival(owners: [Container; 2]) -> bool {
     transition { _ -> update(owners) }
-    state update(mut owners: [Container; 2]) -> bool {
+    machine update(mut owners: [Container; 2]) -> bool {
         owners[1].second = "arrived.";
         owners[0].first == "left...." && owners[0].second == "first..."
             && owners[1].first == "right..." && owners[1].second == "arrived."
@@ -92,6 +92,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

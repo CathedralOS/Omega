@@ -15,32 +15,32 @@ data Main {
 machine Main::main(context: &mut Main) reaches Console {
     transition { _ -> b_xor(context, 4042322160, 252645135) }
 
-    state b_xor(context: &mut Main, a: u32 in Wrapping, b: u32 in Wrapping) {
+    machine b_xor(context: &mut Main, a: u32 in Wrapping, b: u32 in Wrapping) {
         let result: u32 in Wrapping = a ^ b;
         transition result == 4294967295 {
             true -> b_and(context, a, b)
             _ -> bad(context)
         }
     }
-    state b_and(context: &mut Main, a: u32 in Wrapping, b: u32 in Wrapping) {
+    machine b_and(context: &mut Main, a: u32 in Wrapping, b: u32 in Wrapping) {
         let result: u32 in Wrapping = a & b;
         transition result == 0 { true -> b_or(context, a, b) _ -> bad(context) }
     }
-    state b_or(context: &mut Main, a: u32 in Wrapping, b: u32 in Wrapping) {
+    machine b_or(context: &mut Main, a: u32 in Wrapping, b: u32 in Wrapping) {
         let result: u32 in Wrapping = a | b;
         transition result == 4294967295 { true -> b_ext(context, a) _ -> bad(context) }
     }
-    state b_ext(context: &mut Main, a: u32 in Wrapping) {
+    machine b_ext(context: &mut Main, a: u32 in Wrapping) {
         let shifted: u32 in Wrapping = a >> 28;
         let nibble: u32 in Wrapping = shifted & 15;
         transition nibble == 15 { true -> b_not(context, a) _ -> bad(context) }
     }
-    state b_not(context: &mut Main, a: u32 in Wrapping) {
+    machine b_not(context: &mut Main, a: u32 in Wrapping) {
         let result: u32 in Wrapping = a ^ 4294967295;
         transition result == 252645135 { true -> ok(context) _ -> bad(context) }
     }
-    state ok(context: &mut Main) { Console::exit_process(70); }
-    state bad(context: &mut Main) { Console::exit_process(71); }
+    machine ok(context: &mut Main) { Console::exit_process(70); }
+    machine bad(context: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

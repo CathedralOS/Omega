@@ -27,8 +27,8 @@ machine observe(region: Region in Owned) -> u64 {
 }
 machine choose(region: Region in Owned, select: bool) -> Region in Owned {
     transition select { true -> left(region) _ -> right(region) }
-    state left(region: Region in Owned) -> Region in Owned { retain(region) }
-    state right(region: Region in Owned) -> Region in Owned { retain(region) }
+    machine left(region: Region in Owned) -> Region in Owned { retain(region) }
+    machine right(region: Region in Owned) -> Region in Owned { retain(region) }
 }
 machine exercise(select: bool) -> u64 {
     observe(choose(Region { amount: 29 }, select))
@@ -37,6 +37,6 @@ machine main() crashes Trap {
     let first: u64 = exercise(true);
     let second: u64 = exercise(false);
     transition first == 29 && second == 29 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -6,6 +6,6 @@ machine main() crashes Trap {
     values[0] = 99;
     let observed: u64 = held.items.len;
     transition observed == 3 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

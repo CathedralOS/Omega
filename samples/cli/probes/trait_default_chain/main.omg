@@ -54,12 +54,12 @@ machine Counter::set(counter: &mut Counter, value: i32) {
         _ -> assigned(counter, value)
     }
 
-    state prepared(counter: &mut Counter) {
+    machine prepared(counter: &mut Counter) {
         counter.prepared = true;
         counter.value = 10;
     }
 
-    state assigned(counter: &mut Counter, value: i32) {
+    machine assigned(counter: &mut Counter, value: i32) {
         counter.value = value;
     }
 }
@@ -86,7 +86,7 @@ machine trait_default_chain() {
         _ -> done(71)
     }
 
-    state check_ledger {
+    machine check_ledger {
         let mut ledger: Ledger = Ledger { total: 0, count: 0 };
         LedgerStore::put_twice(&mut ledger, 7);
         transition ledger.count == 2 && ledger.total == 14 {
@@ -95,5 +95,5 @@ machine trait_default_chain() {
         }
     }
 
-    state done(code: i32) {}
+    machine done(code: i32) {}
 }

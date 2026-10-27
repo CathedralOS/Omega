@@ -18,8 +18,8 @@ machine settle(builder: &mut Build, completion: OutputCompletion) {
         OutputCompletion::Sealed { receipt } -> sealed(builder)
         OutputCompletion::Retry { obligation, file } -> failed(builder, obligation)
     }
-    state sealed(builder: &mut Build) {}
-    state failed(builder: &mut Build, obligation: RequiredOutput) {
+    machine sealed(builder: &mut Build) {}
+    machine failed(builder: &mut Build, obligation: RequiredOutput) {
         BuildOutput::fail(&mut builder.output, obligation, "output did not seal");
     }
 }

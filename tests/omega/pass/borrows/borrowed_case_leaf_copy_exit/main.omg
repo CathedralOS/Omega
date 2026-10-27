@@ -26,8 +26,8 @@ machine Kind::tag(kind: Kind) -> u64 in Trapping {
         _ -> two()
     }
 
-    state one() -> u64 in Trapping { 1 }
-    state two() -> u64 in Trapping { 2 }
+    machine one() -> u64 in Trapping { 1 }
+    machine two() -> u64 in Trapping { 2 }
 }
 
 // Straight-line: the copied leaf binds a local.
@@ -47,14 +47,14 @@ crashes Trap
         _ -> field(table)
     }
 
-    state element(table: &Table, index: u64 in Trapping) -> u64 in Trapping
+    machine element(table: &Table, index: u64 in Trapping) -> u64 in Trapping
     requires index < 4
     {
         let tag: u64 in Trapping = Kind::tag(table.kinds[index]);
         tag
     }
 
-    state field(table: &Table) -> u64 in Trapping {
+    machine field(table: &Table) -> u64 in Trapping {
         let tag: u64 in Trapping = Kind::tag(table.item.kind);
         tag
     }
@@ -76,7 +76,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         _ -> done(main, 71)
     }
 
-    state done(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine done(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

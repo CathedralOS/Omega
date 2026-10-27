@@ -6,8 +6,8 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> correct(main)
         _ -> incorrect(main)
     }
-    state correct(main: &mut Main) { Console::exit_process(73); }
-    state incorrect(main: &mut Main) { Console::exit_process(74); }
+    machine correct(main: &mut Main) { Console::exit_process(73); }
+    machine incorrect(main: &mut Main) { Console::exit_process(74); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

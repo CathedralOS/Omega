@@ -53,7 +53,7 @@ linux_arm64 machine PosixFilesystem::decode_metadata(filesystem: &mut PosixFiles
         true -> decode(stat, blocks, blksize)
         _ -> MetadataResult::Error { kind: ErrorKind::InvalidInput }
     }
-    state decode(stat: &LinuxArm64StatView, blocks: i64, blksize: i64) -> MetadataResult
+    machine decode(stat: &LinuxArm64StatView, blocks: i64, blksize: i64) -> MetadataResult
     requires blocks >= 0 && blksize >= 0;
     {
         let mode: u32 = stat.value.mode;

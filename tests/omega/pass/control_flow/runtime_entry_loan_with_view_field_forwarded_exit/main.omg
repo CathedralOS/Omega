@@ -24,12 +24,12 @@ machine Main::main(context: &mut Main) reaches Console {
     context.total = 0;
     transition { _ -> count(context) }
 
-    state count(main: &mut Main) {
+    machine count(main: &mut Main) {
         main.total = main.total + main.label.len;
         transition { _ -> confirm(main) }
     }
 
-    state confirm(main: &mut Main) {
+    machine confirm(main: &mut Main) {
         main.total = main.total + main.label.len;
         transition main.label.len == 5 {
             true -> finish(main)
@@ -37,14 +37,14 @@ machine Main::main(context: &mut Main) reaches Console {
         }
     }
 
-    state finish(main: &mut Main) {
+    machine finish(main: &mut Main) {
         transition main.total == 10 {
             true -> refused(main, 70)
             _ -> refused(main, 71)
         }
     }
 
-    state refused(main: &mut Main, code: i32) {
+    machine refused(main: &mut Main, code: i32) {
         Console::exit_process(code);
     }
 }

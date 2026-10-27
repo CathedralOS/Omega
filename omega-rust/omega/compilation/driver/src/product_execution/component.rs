@@ -20,6 +20,7 @@ pub(crate) struct ComponentPublication {
     checked: CheckedCompilation,
     timings: CompileTimings,
     selections: optimization_core::OptimizationRollbackSettlement,
+    exported_calling_applications: Vec<calling_conventions::BoundaryCallingApplication>,
 }
 
 impl ComponentPublication {
@@ -31,11 +32,40 @@ impl ComponentPublication {
         }
         let selections = optimization_core::OptimizationRollback::default()
             .settle(&checked.build().config.settings.optimizations);
+        // Export ABI planning belongs to this source-owned preparation, not
+        // the native handoff after Terminal publication. Ordinary entry calls
+        // do not enumerate every exported component requirement.
+        let plans = checked
+            .execution()
+            .selected_provider_plan_facts
+            .plans()
+            .iter()
+            .collect::<Vec<_>>();
+        let exported_calling_applications = if plans.is_empty() {
+            Vec::new()
+        } else {
+            let target = checked
+                .execution()
+                .selected_native_target()
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "component native publication requires an exact selected target",
+                    )]
+                })?;
+            provider_planning::calling_policy_plans::component_calling_applications(
+                &checked.execution().program.typed,
+                target,
+                &plans,
+                &checked.providers().boundary_calling_plan_realizations,
+                &checked.build().config.opaque_representation_selections,
+            )?
+        };
         let timings = std::mem::take(checked.timings_mut());
         Ok(Self {
             checked,
             timings,
             selections,
+            exported_calling_applications,
         })
     }
 
@@ -54,13 +84,7 @@ impl ComponentPublication {
             &self.checked,
             produced,
             self.selections.effective(),
-            &self
-                .checked
-                .execution()
-                .selected_provider_plan_facts
-                .plans()
-                .iter()
-                .collect::<Vec<_>>(),
+            &self.exported_calling_applications,
         )?;
         let description = describe_component(&self.checked, &retained)?;
         let accepted_permissions =

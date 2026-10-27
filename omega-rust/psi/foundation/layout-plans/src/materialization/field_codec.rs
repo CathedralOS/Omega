@@ -310,18 +310,11 @@ fn prepare_aggregate_field<'source>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::{layout_field_entry, numbered_layout_field_entry};
     use crate::{
-        AggregateFieldValue, IntegerInterpretation, LayoutFieldEntryReport,
-        materialize_aggregate_layout_into, stage_aggregate_layout,
+        AggregateFieldValue, IntegerInterpretation, materialize_aggregate_layout_into,
+        stage_aggregate_layout,
     };
-
-    fn entry(field: &str, placement: LayoutPlacementReport) -> LayoutFieldEntryReport {
-        LayoutFieldEntryReport {
-            field: field.into(),
-            member_identity: None,
-            placement,
-        }
-    }
 
     #[test]
     fn scalar_replacement_preserves_neighbours_padding_and_failed_writes() {
@@ -331,7 +324,7 @@ mod tests {
             size: Some(8),
             align: 1,
             entries: vec![
-                entry(
+                layout_field_entry(
                     "small",
                     LayoutPlacementReport::Bits {
                         container: 0,
@@ -341,7 +334,7 @@ mod tests {
                         width: 3,
                     },
                 ),
-                entry(
+                layout_field_entry(
                     "signed",
                     LayoutPlacementReport::IntegerAt {
                         offset: 4,
@@ -392,9 +385,10 @@ mod tests {
             // A later fragment can refuse after earlier bits were staged. The
             // atomic wrapper must not publish that partial update or touch tail.
             let mut invalid = layout.clone();
-            invalid
-                .entries
-                .push(entry("small", LayoutPlacementReport::At { offset: 8 }));
+            invalid.entries.push(layout_field_entry(
+                "small",
+                LayoutPlacementReport::At { offset: 8 },
+            ));
             let mut atomic = [0xa5; 12];
             assert!(update_scalar_field(&invalid, &value, order, &mut atomic).is_err());
             assert_eq!(atomic, [0xa5; 12]);
@@ -413,7 +407,7 @@ mod tests {
             size: Some(12),
             align: 1,
             entries: vec![
-                entry(
+                layout_field_entry(
                     "enabled",
                     LayoutPlacementReport::Bits {
                         container: 0,
@@ -423,7 +417,7 @@ mod tests {
                         width: 1,
                     },
                 ),
-                entry(
+                layout_field_entry(
                     "small",
                     LayoutPlacementReport::Bits {
                         container: 0,
@@ -433,7 +427,7 @@ mod tests {
                         width: 3,
                     },
                 ),
-                entry(
+                layout_field_entry(
                     "signed",
                     LayoutPlacementReport::IntegerAt {
                         offset: 1,
@@ -441,7 +435,7 @@ mod tests {
                         interpretation: IntegerInterpretation::Signed,
                     },
                 ),
-                entry("bytes", LayoutPlacementReport::At { offset: 4 }),
+                layout_field_entry("bytes", LayoutPlacementReport::At { offset: 4 }),
             ],
         };
         let schemas = [
@@ -501,10 +495,12 @@ mod tests {
             align: 2,
             entries: [8, 0, 4]
                 .into_iter()
-                .map(|offset| LayoutFieldEntryReport {
-                    field: "old_name".into(),
-                    member_identity: Some(91),
-                    placement: LayoutPlacementReport::At { offset },
+                .map(|offset| {
+                    numbered_layout_field_entry(
+                        "old_name".into(),
+                        91,
+                        LayoutPlacementReport::At { offset },
+                    )
                 })
                 .collect(),
         };
@@ -545,7 +541,7 @@ mod tests {
             offsets: None,
             size: Some(1),
             align: 1,
-            entries: vec![entry(
+            entries: vec![layout_field_entry(
                 "value",
                 LayoutPlacementReport::Bits {
                     container: 0,
@@ -572,7 +568,10 @@ mod tests {
             offsets: None,
             size: Some(1),
             align: 1,
-            entries: vec![entry("value", LayoutPlacementReport::At { offset: 0 })],
+            entries: vec![layout_field_entry(
+                "value",
+                LayoutPlacementReport::At { offset: 0 },
+            )],
         };
         let absent = AggregateFieldSchema::new("absent", u64::MAX).unwrap();
         let error =

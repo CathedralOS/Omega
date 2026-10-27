@@ -34,7 +34,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> finish(72)
     }
 
-    state fold(plain: &mut [u8; 4], text: &[u8; 4] in Utf8, position: i32, last: u8)
+    machine fold(plain: &mut [u8; 4], text: &[u8; 4] in Utf8, position: i32, last: u8)
         requires 0 <= position && position <= 4
     {
         transition position < 4 {
@@ -43,7 +43,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state lower(plain: &mut [u8; 4], text: &[u8; 4] in Utf8, position: i32, last: u8)
+    machine lower(plain: &mut [u8; 4], text: &[u8; 4] in Utf8, position: i32, last: u8)
         requires 0 <= position && position < 4
     {
         let lowered: u8 in Wrapping = plain[position] as u8 in Wrapping + 32;
@@ -51,14 +51,14 @@ machine Main::main(main: &mut Main) reaches Console {
         transition { _ -> fold(plain, text, position + 1, last) }
     }
 
-    state compare(plain: &mut [u8; 4], text: &[u8; 4] in Utf8, last: u8) {
+    machine compare(plain: &mut [u8; 4], text: &[u8; 4] in Utf8, last: u8) {
         transition plain[0] == text[0] && plain[3] == text[3] && last == 69 {
             true -> finish(70)
             _ -> finish(71)
         }
     }
 
-    state finish(code: i32) { Console::exit_process(code); }
+    machine finish(code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

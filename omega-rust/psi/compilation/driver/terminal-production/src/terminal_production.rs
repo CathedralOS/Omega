@@ -150,6 +150,8 @@ impl<'a> TerminalProductionRequest<'a> {
             .map_err(TerminalArtifactProductionError::BuildContext)?;
         let filesystem_calls = crate::build_filesystem::capture(checked, optimized.lowered())
             .map_err(TerminalArtifactProductionError::BuildContext)?;
+        let query_calls = crate::build_queries::capture(checked, optimized.lowered())
+            .map_err(TerminalArtifactProductionError::BuildContext)?;
         let program = observer
             .record_result(PsiCompilationStage::Publication, || {
                 lowered_psi_to_terminal_psi::finalize_terminal_program(optimized, self.publication)
@@ -170,8 +172,12 @@ impl<'a> TerminalProductionRequest<'a> {
                 Ok(receipt)
             })
             .collect();
-        let build_bindings =
-            crate::TerminalBuildBindings::new(program.view(), binding_calls, declaration_requests);
+        let build_bindings = crate::TerminalBuildBindings::new(
+            program.view(),
+            binding_calls,
+            declaration_requests,
+            query_calls,
+        );
         let build_requests = crate::TerminalBuildRequests::new(program.view(), request_calls);
         let build_filesystem =
             crate::TerminalBuildFilesystem::new(program.view(), filesystem_calls);
@@ -217,49 +223,3 @@ impl TerminalArtifactProductionError {
 diagnostics::debug_display!(TerminalArtifactProductionError);
 
 impl std::error::Error for TerminalArtifactProductionError {}
-
-/// Exact callable and semantic parameter origins after source erasure. Native
-/// callers consume this correspondence rather than invoking a Psi stage.
-pub struct RetainedCallableSignature {
-    pub machine: semantic_vocabulary::MachineId,
-    pub scalar_source_positions: Vec<u32>,
-    pub structural_source_positions: Vec<u32>,
-}
-
-pub fn retained_callable_signature(
-    checked: &CheckedTrees,
-    source: symbols::SymbolHandle,
-    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
-    artifact: &terminal_codec::CanonicalTerminalArtifact,
-) -> Result<RetainedCallableSignature, Vec<Diagnostic>> {
-    let machine = lowered_psi_to_terminal_psi::retained_source_machine(
-        checked,
-        source,
-        exact_toolchain_sources,
-        artifact.semantic_module(),
-    )
-    .map_err(|error| TerminalArtifactProductionError::EntryReceipt(error).diagnostics())?;
-    let entry = checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .callable_entry_for_machine(source)
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "retained callable has no unique checked entry signature",
-            )]
-        })?;
-    Ok(RetainedCallableSignature {
-        machine: machine.id,
-        scalar_source_positions: entry
-            .scalar_parameters
-            .iter()
-            .map(|parameter| parameter.source_position)
-            .collect(),
-        structural_source_positions: entry
-            .structural_parameters
-            .iter()
-            .map(|parameter| parameter.position)
-            .collect(),
-    })
-}

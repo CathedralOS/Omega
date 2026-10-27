@@ -22,7 +22,7 @@ requires
 machine Main::main(main: &mut Main) {
     let mut copy: Player = main.player;
     transition { _ -> arrived(copy) }
-    state arrived(player: Player in Player::Alive)
+    machine arrived(player: Player in Player::Alive)
     {
         Main::inspect(player);
     }

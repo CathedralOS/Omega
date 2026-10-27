@@ -14,9 +14,9 @@ machine nan() -> i32 { (0.0f64 / 0.0) as i32 }
 data MutableValue { value: f64; converted: i32; }
 machine stale_guard(subject: &mut MutableValue) {
     transition subject.value == 3.0 { true -> guarded(subject) false -> done() }
-    state guarded(subject: &mut MutableValue) {
+    machine guarded(subject: &mut MutableValue) {
         subject.value = 3.5;
         subject.converted = subject.value as i32;
     }
-    state done() {}
+    machine done() {}
 }

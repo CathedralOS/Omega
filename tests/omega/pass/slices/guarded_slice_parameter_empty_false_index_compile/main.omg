@@ -7,14 +7,14 @@ machine main() -> i32 {
         _ -> 0
     }
 
-    state choose(entries: &[Entry]) -> i32 {
+    machine choose(entries: &[Entry]) -> i32 {
         transition entries.len == 0 {
             true -> 0
             false -> accept(entries[0].value)
         }
     }
 
-    state accept(value: i32) -> i32 {
+    machine accept(value: i32) -> i32 {
         transition {
             _ -> value
         }

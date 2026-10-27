@@ -60,7 +60,7 @@ terminates;
 {
     let room: u64 = game.camera.room;
     transition room < ROOM_COUNT { true -> install(game, room) _ -> done() }
-    state install(game: &mut Game, room: u64) requires room < ROOM_COUNT {
+    machine install(game: &mut Game, room: u64) requires room < ROOM_COUNT {
         game.progress.rooms[room].visited = true;
         game.actors.items[1] = Actor { position: Position { x: 192, y: 48 }, vitality: Vitality { current: 2, maximum: 2 }, room: room, facing: 3, speed: 1, faction: 1, kind: ActorKind::Bat, traversal: Traversal::Air, active: true };
         transition !game.dungeon.rooms[room].inhabited || game.progress.rooms[room].cleared {
@@ -68,11 +68,11 @@ terminates;
             _ -> done()
         }
     }
-    state empty(game: &mut Game) {
+    machine empty(game: &mut Game) {
         game.actors.items[1].active = false;
         game.actors.items[1].vitality = Vitality { current: 0, maximum: 2 };
     }
-    state done() {}
+    machine done() {}
 }
 
 public machine Game::walk(game: &mut Game, direction: i32)
@@ -88,14 +88,14 @@ terminates;
 requires direction >= -1 && direction < 4 {
     let selected: u64 = game.camera.actor;
     transition selected < ACTOR_CAPACITY { true -> playing(game, direction, swing, selected) _ -> idle() }
-    state playing(game: &mut Game, direction: i32, swing: bool, selected: u64)
+    machine playing(game: &mut Game, direction: i32, swing: bool, selected: u64)
     requires direction >= -1 && direction < 4 && selected < ACTOR_CAPACITY {
         transition game.actors.items[selected].vitality.current > 0 && !game.progress.won {
             true -> update(game, direction, swing)
             _ -> idle()
         }
     }
-    state update(game: &mut Game, direction: i32, swing: bool)
+    machine update(game: &mut Game, direction: i32, swing: bool)
     requires direction >= -1 && direction < 4 {
         game.clock = advance_clock(game.clock);
         Game::commands(game, Command { direction: direction, attack: swing });
@@ -105,7 +105,7 @@ requires direction >= -1 && direction < 4 {
         Game::combat(game);
         Game::rewards(game);
     }
-    state idle() {}
+    machine idle() {}
 }
 
 machine Game::commands(game: &mut Game, command: Command) {
@@ -124,15 +124,15 @@ machine Game::move(game: &mut Game) {
 machine Game::settle(game: &mut Game) {
     let selected: u64 = game.camera.actor;
     transition selected < ACTOR_CAPACITY { true -> follow(game, selected) _ -> done() }
-    state follow(game: &mut Game, selected: u64) requires selected < ACTOR_CAPACITY {
+    machine follow(game: &mut Game, selected: u64) requires selected < ACTOR_CAPACITY {
         let room: u64 = game.actors.items[selected].room;
         transition room < ROOM_COUNT && room != game.camera.room { true -> arrive(game, room) _ -> done() }
     }
-    state arrive(game: &mut Game, room: u64) requires room < ROOM_COUNT {
+    machine arrive(game: &mut Game, room: u64) requires room < ROOM_COUNT {
         game.camera.room = room;
         Game::enter(game);
     }
-    state done() {}
+    machine done() {}
 }
 
 machine Game::combat(game: &mut Game) {
@@ -143,11 +143,11 @@ machine Game::rewards(game: &mut Game) {
     let selected: u64 = game.camera.actor;
     let room: u64 = game.camera.room;
     transition selected < ACTOR_CAPACITY && room < ROOM_COUNT { true -> cleared(game, selected, room) _ -> done() }
-    state cleared(game: &mut Game, selected: u64, room: u64) requires selected < ACTOR_CAPACITY && room < ROOM_COUNT {
+    machine cleared(game: &mut Game, selected: u64, room: u64) requires selected < ACTOR_CAPACITY && room < ROOM_COUNT {
         let hostile: bool = room_has_hostiles<ROOM_COUNT>(&game.actors.items[..game.actors.count], room, game.actors.items[selected].faction);
         transition !hostile { true -> mark(game, selected, room) _ -> done() }
     }
-    state mark(game: &mut Game, selected: u64, room: u64) requires selected < ACTOR_CAPACITY && room < ROOM_COUNT {
+    machine mark(game: &mut Game, selected: u64, room: u64) requires selected < ACTOR_CAPACITY && room < ROOM_COUNT {
         game.progress.rooms[room].cleared = true;
         let position: Position = game.actors.items[selected].position;
         transition !game.progress.rooms[room].reward_taken && position.x >= 112 && position.x <= 144 && position.y >= 32 && position.y <= 64 {
@@ -155,7 +155,7 @@ machine Game::rewards(game: &mut Game) {
             _ -> done()
         }
     }
-    state reward(game: &mut Game, selected: u64, room: u64) requires selected < ACTOR_CAPACITY && room < ROOM_COUNT {
+    machine reward(game: &mut Game, selected: u64, room: u64) requires selected < ACTOR_CAPACITY && room < ROOM_COUNT {
         transition game.dungeon.rooms[room].reward {
             Reward::None -> done()
             Reward::Key -> key(game, room)
@@ -163,14 +163,14 @@ machine Game::rewards(game: &mut Game) {
             Reward::Relic -> relic(game, room)
         }
     }
-    state key(game: &mut Game, room: u64) requires room < ROOM_COUNT { game.progress.key = true; game.progress.rooms[room].reward_taken = true; }
-    state heal(game: &mut Game, selected: u64, room: u64) requires selected < ACTOR_CAPACITY && room < ROOM_COUNT {
+    machine key(game: &mut Game, room: u64) requires room < ROOM_COUNT { game.progress.key = true; game.progress.rooms[room].reward_taken = true; }
+    machine heal(game: &mut Game, selected: u64, room: u64) requires selected < ACTOR_CAPACITY && room < ROOM_COUNT {
         let vitality: Vitality = game.actors.items[selected].vitality;
         game.actors.items[selected].vitality = Vitality { current: vitality.maximum, maximum: vitality.maximum };
         game.progress.rooms[room].reward_taken = true;
     }
-    state relic(game: &mut Game, room: u64) requires room < ROOM_COUNT { game.progress.won = true; game.progress.rooms[room].reward_taken = true; }
-    state done() {}
+    machine relic(game: &mut Game, room: u64) requires room < ROOM_COUNT { game.progress.won = true; game.progress.rooms[room].reward_taken = true; }
+    machine done() {}
 }
 
 public machine Game::capture(game: &Game) -> Frame
@@ -179,7 +179,7 @@ terminates;
     let selected: u64 = game.camera.actor;
     let room: u64 = game.camera.room;
     transition selected < ACTOR_CAPACITY && room < ROOM_COUNT { true -> snapshot(game, selected, room) _ -> (Frame {}) }
-    state snapshot(game: &Game, selected: u64, room: u64) -> Frame requires selected < ACTOR_CAPACITY && room < ROOM_COUNT {
+    machine snapshot(game: &Game, selected: u64, room: u64) -> Frame requires selected < ACTOR_CAPACITY && room < ROOM_COUNT {
         let subject: Actor<ROOM_COUNT> = game.actors.items[selected];
         let enemy: Actor<ROOM_COUNT> = game.actors.items[1];
         Frame { room: room as i32, subject: subject, enemy: enemy, clock: game.clock,

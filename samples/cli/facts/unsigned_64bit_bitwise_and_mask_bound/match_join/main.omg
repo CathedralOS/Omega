@@ -18,14 +18,14 @@ machine exercise(raw: u64) -> u64 crashes Trap {
         true -> step(masked, true)
         _ -> bad()
     }
-    state step(m: u64, flag: bool) -> u64 {
+    machine step(m: u64, flag: bool) -> u64 {
         let joined: u64 = match flag {
             true -> m
             false -> m
         };
         verify_masked(joined)
     }
-    state bad() { crash Trap; }
+    machine bad() -> u64 { crash Trap; }
 }
 
 machine main() crashes Trap {
@@ -34,6 +34,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -11,5 +11,5 @@ machine main() crashes Trap {
  let mut cursor:Cursor=Cursor{calls:0,trace:0};
  let observed:u32 in Wrapping=keep(cells[select(&mut cursor,1)][select(&mut cursor,2)].value);
  transition observed==7 && cursor.calls==2 && cursor.trace==12 {true->done() _->bad()}
- state done(){} state bad(){crash Trap;}
+ machine done(){} machine bad(){crash Trap;}
 }

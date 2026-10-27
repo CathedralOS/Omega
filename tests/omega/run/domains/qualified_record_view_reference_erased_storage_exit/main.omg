@@ -16,6 +16,6 @@ machine main() crashes Trap {
         && rooms[1].bytes == "new!" && rooms[1].bytes.len == 4 && rooms[1].marker == 37 {
         true -> done() false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

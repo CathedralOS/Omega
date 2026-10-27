@@ -25,7 +25,7 @@ crashes Trap
     Big::fill(&mut main.big, 70);
     transition { _ -> finish(main) }
 
-    state finish(main: &mut Main) {
+    machine finish(main: &mut Main) {
         Console::exit_process(main.big.bytes[33554431] as i32);
     }
 }

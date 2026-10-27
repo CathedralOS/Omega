@@ -32,7 +32,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> step(&text, &mut output, 0)
     }
 
-    state step(text: &[u8; 5] in Utf8, output: &mut [u8; 5], position: i32)
+    machine step(text: &[u8; 5] in Utf8, output: &mut [u8; 5], position: i32)
         requires 0 <= position && position <= 5
     {
         transition position < 5 {
@@ -41,7 +41,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state shift(text: &[u8; 5] in Utf8, output: &mut [u8; 5], position: i32)
+    machine shift(text: &[u8; 5] in Utf8, output: &mut [u8; 5], position: i32)
         requires 0 <= position && position < 5
     {
         let shifted: u8 in Wrapping = text[position] as u8 in Wrapping + 3;
@@ -53,14 +53,14 @@ machine Main::main(main: &mut Main) reaches Console {
 
     // Modular byte arithmetic constructs bytes; validate the completed value
     // before lending a qualified view to the console.
-    state show(output: &mut [u8; 5]) {
+    machine show(output: &mut [u8; 5]) {
         transition valid_utf8(output) {
             true -> show_valid(output)
             false -> wrong()
         }
     }
 
-    state show_valid(output: &mut [u8; 5])
+    machine show_valid(output: &mut [u8; 5])
     requires valid_utf8(output)
     {
         Console::write_line(output);
@@ -70,7 +70,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state ok() {
+    machine ok() {
         Console::write_line("PASS: ciphertext starts with 'K' -- shift applied correctly (exit 0)");
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
@@ -78,7 +78,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::exit_process(0);
     }
 
-    state wrong() {
+    machine wrong() {
         Console::write_line("FAIL: out[0] != 'K' -- byte shift wrong (exit 1)");
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];

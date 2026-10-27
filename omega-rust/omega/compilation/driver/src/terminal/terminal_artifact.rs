@@ -8,7 +8,6 @@ use super::behavior_exclusions::TerminalBehaviorExclusions;
 use crate::checked::CheckedCompilation;
 use crate::execution_settlement::SelectedProviderCustody;
 use crate::observations::PsiStageTimings;
-use crate::terminal::native_proposal;
 use artifacts::compile_timings::{CompileTimings, StageMeta};
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationSelections;
@@ -434,15 +433,27 @@ pub(crate) fn finish_terminal_application(
     checked: &CheckedCompilation,
     produced: ProducedTerminalApplication,
     selections: &OptimizationSelections,
-    exported_provider_plans: &[&effects::provider_plan::ProviderPlan],
+    exported_calling_applications: &[calling_conventions::BoundaryCallingApplication],
 ) -> Result<compilation_products::RetainedTerminalArtifact, Vec<Diagnostic>> {
-    let proposal = native_proposal::project_terminal_native_realization_proposal(
-        checked,
-        &produced.artifact,
-        produced.receipt,
-        selections,
-        exported_provider_plans,
-    )?;
+    let request =
+        checked.terminal_native_proposal_request(selections, exported_calling_applications)?;
+    let mut proposal =
+        terminal_psi_to_abstract_operations::project_terminal_native_realization_proposal(
+            &produced.artifact,
+            produced.receipt,
+            request,
+        )?;
+    if checked
+        .execution()
+        .selected_program_entry
+        .as_ref()
+        .and_then(|entry| entry.physical_adapter())
+        .is_some()
+    {
+        proposal
+            .bind_physical_adapter(&produced.artifact)
+            .map_err(|message| vec![Diagnostic::error(message)])?;
+    }
     let providers = publish_target_providers(checked, &produced.artifact, selections);
     Ok(
         compilation_products::RetainedTerminalArtifact::new_with_native_realization_proposal(

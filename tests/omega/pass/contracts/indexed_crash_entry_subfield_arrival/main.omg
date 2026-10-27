@@ -6,7 +6,7 @@ requires index < 2
 crashes Trap items[index] == 0
 {
     transition items[index] == 0 { true -> bad() false -> (items[index]) }
-    state bad() { crash Trap; }
+    machine bad() -> u64 { crash Trap; }
 }
 public data Holder { items: [u64; 2]; }
 public machine read_seven(holder: &Holder, index: u64) -> u64
@@ -14,15 +14,15 @@ requires index < 2
 requires holder.items[index] == 7
 {
     transition { _ -> consume(&holder.items, index) }
-    state consume(values: &[u64; 2], selected: u64) -> u64
+    machine consume(values: &[u64; 2], selected: u64) -> u64
     requires selected < 2
     { maybe_zero(values, selected) }
 }
 machine main() crashes Trap {
     let holder: Holder = Holder { items: [7, 11] };
     transition holder.items[0] == 7 { true -> finish(read_seven(&holder, 0)) _ -> bad() }
-    state finish(observed: u64) {
+    machine finish(observed: u64) {
         transition observed == 7 { true -> done() _ -> bad() }
     }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }

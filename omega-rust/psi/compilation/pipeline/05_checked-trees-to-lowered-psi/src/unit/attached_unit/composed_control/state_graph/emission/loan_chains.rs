@@ -1130,7 +1130,9 @@ impl ChainExit<'_> {
             terminal_psi::terminator_return_pair_pattern!(cleanup_actions, ..) => {
                 self.insert_actions(cleanup_actions, next_obligation)
             }
-            Terminator::Crash { .. } | Terminator::ExternalCompletion { .. } => Ok(()),
+            Terminator::InvokeNoNormal { .. }
+            | Terminator::Crash { .. }
+            | Terminator::ExternalCompletion { .. } => Ok(()),
         }
     }
 

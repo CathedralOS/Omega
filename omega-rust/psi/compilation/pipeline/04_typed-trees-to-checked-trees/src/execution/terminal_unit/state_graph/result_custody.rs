@@ -56,7 +56,8 @@ pub(super) fn account<'calls>(
 ) -> Option<()> {
     let statements = program.statement_table.statements(state.statement_nodes);
     trace.phase("state graph: result custody accounting");
-    let abandons_custody = terminator.abandons_custody(operations, &facts.flow.guarded_exits)?;
+    let has_normal_continuation =
+        terminator.has_normal_continuation(operations, &facts.flow.guarded_exits)?;
     // The first guard executes before selecting any exit. Later ordered
     // guards execute only on a remaining path; their transfers cannot stand
     // in for unconditional ownership. The retained computation itself owns
@@ -298,43 +299,44 @@ pub(super) fn account<'calls>(
             facts
                 .flow
                 .ownership
-                .owned_selections
-                .iter()
-                .any(|(_, receipt)| {
-                    receipt.machine == machine.symbol
-                        && receipt.state == state.symbol
-                        && facts
-                            .flow
-                            .ownership
-                            .selection_sources
-                            .span_or_empty(receipt.sources)
-                            .iter()
-                            .any(|source| {
-                                if source.retains_storage
-                                    && (result.multiplicity != Multiplicity::Affine
-                                        || receipt.death != PermissionEventSource::StateExit)
-                                {
-                                    return false;
-                                }
-                                let boundary = operations
-                                    .iter()
-                                    .position(|operation| {
-                                        operation.source_statement_index().is_some_and(
-                                            |statement| statement >= receipt.statement_ordinal,
-                                        )
-                                    })
-                                    .unwrap_or(operations.len());
-                                super::super::local_storage::source(
-                                    program,
-                                    state,
-                                    &operations[..boundary],
-                                    source.symbol,
-                                ) == Some(
-                                    CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                                        binding_ordinal: result.binding_ordinal,
-                                    },
-                                )
-                            })
+                .with_state_owned_selections(state.symbol, |handles| {
+                    handles.iter().copied().any(|handle| {
+                        let receipt = facts.flow.ownership.owned_selections.get(handle);
+                        receipt.machine == machine.symbol
+                            && receipt.state == state.symbol
+                            && facts
+                                .flow
+                                .ownership
+                                .selection_sources
+                                .span_or_empty(receipt.sources)
+                                .iter()
+                                .any(|source| {
+                                    if source.retains_storage
+                                        && (result.multiplicity != Multiplicity::Affine
+                                            || receipt.death != PermissionEventSource::StateExit)
+                                    {
+                                        return false;
+                                    }
+                                    let boundary = operations
+                                        .iter()
+                                        .position(|operation| {
+                                            operation.source_statement_index().is_some_and(
+                                                |statement| statement >= receipt.statement_ordinal,
+                                            )
+                                        })
+                                        .unwrap_or(operations.len());
+                                    super::super::local_storage::source(
+                                        program,
+                                        state,
+                                        &operations[..boundary],
+                                        source.symbol,
+                                    ) == Some(
+                                        CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                                            binding_ordinal: result.binding_ordinal,
+                                        },
+                                    )
+                                })
+                    })
                 });
         // A mutable view's result owner is its one checked loan release. A
         // selected edge may additionally transfer that view or return a
@@ -623,7 +625,7 @@ pub(super) fn account<'calls>(
         let return_arm_owns =
             |arm: &CheckedConditionalReturnArm,
              uses: &[(usize, CheckedUnitStructuralArgumentPlan)]| {
-                arm.abandons_custody()
+                !arm.has_normal_continuation()
                     || arm.definite_call_transfers(
                         &facts.values,
                         call_schedules,
@@ -639,7 +641,7 @@ pub(super) fn account<'calls>(
         // With no normal exit there is no transfer/disposal owner here to
         // count beside an earlier in-sequence consumption.
         let has_normal_exit = !terminator.successors().is_empty()
-            || return_arms.iter().any(|arm| !arm.abandons_custody());
+            || return_arms.iter().any(|arm| arm.has_normal_continuation());
         let mut closed_sum_all_reference_returns = false;
         // Every normal completion owes its own transfer or exact cleanup
         // receipt. A move in one alternative cannot cover a sibling return.
@@ -845,7 +847,9 @@ pub(super) fn account<'calls>(
                 }
             }
             // A crash abandons custody; it owns no normal disposal.
-            CheckedComposedUnitControlTerminatorPlan::Crash { .. } => false,
+            CheckedComposedUnitControlTerminatorPlan::Crash { .. }
+            | CheckedComposedUnitControlTerminatorPlan::InvokeNoNormal { .. }
+            | CheckedComposedUnitControlTerminatorPlan::EvaluateNoNormal => false,
         } || selection_source_disposition;
         // A whole owned argument ends an affine local's custody at the call,
         // just as it ends a linear result or an inline operand's custody.
@@ -999,7 +1003,7 @@ pub(super) fn account<'calls>(
             + construction_transfers
             + reference_releases
             + independent_view_releases;
-        if total != 1 && !(total == 0 && abandons_custody) {
+        if total != 1 && !(total == 0 && !has_normal_continuation) {
             trace.phase(if total == 0 {
                 "state graph: structural result has no selected disposition"
             } else if construction_transfers != 0 && reference_releases != 0 {

@@ -70,6 +70,42 @@ pub(super) fn append_guard_context(
         statement_index,
         transition_target,
     };
+    append_boolean_observations(
+        program,
+        semantic,
+        build,
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        expression,
+        value,
+        point,
+        entry_writes,
+        entry_unknown_write,
+        active_contexts,
+        active_constraints,
+    );
+}
+
+/// Every selective Boolean consumer publishes one evaluated decision. Expression
+/// matches and transitions share capture recovery, polarity, storage epochs and
+/// bound grouping; neither executes the saved predicate again.
+#[allow(clippy::too_many_arguments)]
+fn append_boolean_observations(
+    program: &dyn ::validation::CheckingInput,
+    semantic: &mut FactPlan,
+    build: &mut FlowBuildContext,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    value: bool,
+    point: ProgramPoint,
+    entry_writes: HandleSpan<checked_trees::FlowOperandReferent>,
+    entry_unknown_write: bool,
+    active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
+    active_constraints: &mut HandleSpan<FlowConstraintRef>,
+) {
     // Dispatch tests the saved decision, not its initializer again. Recover
     // that decision once for every guard consumer; numeric bounds must not
     // have a private recovery route that case and Boolean evidence miss.
@@ -899,6 +935,8 @@ pub(in crate::flow) fn append_match_pattern_context(
     statement_index: usize,
     payload: FactPayload,
     point: ProgramPoint,
+    entry_writes: HandleSpan<checked_trees::FlowOperandReferent>,
+    entry_unknown_write: bool,
     active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
     active_constraints: &mut HandleSpan<FlowConstraintRef>,
 ) {
@@ -979,8 +1017,8 @@ pub(in crate::flow) fn append_match_pattern_context(
             expression,
             matched,
             point,
-            HandleSpan::empty(),
-            true,
+            entry_writes,
+            entry_unknown_write,
             active_contexts,
             active_constraints,
         );
@@ -1011,6 +1049,28 @@ pub(in crate::flow) fn append_match_pattern_context(
         || !match_input_has_builtin_meaning(program, build.operators, pattern)
     {
         return;
+    }
+    if let ExpressionNode::Boolean(expected) = program.expression_table.expression(pattern)
+        && validation::match_subject_primitive_type(program, dispatch)
+            == Some(typed_trees::types::PrimitiveType::Bool)
+        && let Some((machine_position, _)) = build.state_location(program, state_symbol)
+    {
+        let machine_symbol = program.machines()[machine_position].symbol;
+        append_boolean_observations(
+            program,
+            semantic,
+            build,
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            subject,
+            matched == *expected,
+            point,
+            entry_writes,
+            entry_unknown_write,
+            active_contexts,
+            active_constraints,
+        );
     }
     if !build.active_completed_copies.is_empty()
         && let Some(predicate) = crate::facts::boolean_predicates::bind_current_match(
@@ -1183,9 +1243,7 @@ fn append_observation_context(
         }
         let place =
             crate::semantic::places::append_place(semantic, observed.root, &observed.segments);
-        if !places.contains(&place) {
-            places.push(place);
-        }
+        crate::collections::push_unique(&mut places, place);
     }
     let mut refs = HandleSpan::empty();
     let mut dependent = Handle::invalid();

@@ -7,9 +7,9 @@
 //! invocation whose normal result completes this machine. Two placements
 //! exist, and neither bypasses the ordinary call plan:
 //!
-//! - An unconditional final arm (`transition { _ -> self.finish() }`) is the
+//! - An unconditional final arm (`transition { _ -> finish(value) }`) is the
 //!   state's last operation. The shared statement sequence plans it through
-//!   `call_occurrences::terminal_named_call`, exactly as a single-state body
+//!   `call_occurrences::terminal_invocation`, exactly as a single-state body
 //!   does, so its occurrence counts against the state's call roster and its
 //!   value result binds as the state's returned value; `completion` then
 //!   completes the state with that result, whatever its kind.
@@ -42,15 +42,13 @@
 use super::{
     CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
-    ScalarCalleeClosure, TransitionExit, TransitionTargetNode, control,
+    ScalarCalleeClosure, TransitionExit, control,
 };
 use crate::execution::terminal_unit::calls::{ExpectedCallValueResult, build_call_operation};
 use crate::execution::terminal_unit::control::{
     bind_scalar_call_result, bind_structural_call_result, checked_structural_result_type,
 };
-use crate::execution::terminal_unit::types::{
-    ShapeCollector, is_unit, machine_binders, state_flow,
-};
+use crate::execution::terminal_unit::types::{ShapeCollector, machine_binders, state_flow};
 
 /// The exact callable destination an arm invokes. Local state transfers and
 /// entry re-entry remain state-graph edges; requirements keep their declaration
@@ -68,15 +66,12 @@ pub(super) fn invoked_callable(
     {
         return None;
     }
-    let TransitionTargetNode::Named { path, .. } =
-        program.statement_table.transition_target(transition.target)
-    else {
-        return None;
-    };
+    let invocation = validation::completing_transition_invocation(program, transition.target)?;
     // The static binder records source reach custody after specialization.
     // Invocation classification follows the resolved target, not that retained
     // provenance marker. Unresolved binders still have no executable call plan.
-    validation::terminal_callable_target(program, machine, path.symbol).map(|(target, _)| target)
+    validation::terminal_callable_target(program, machine, invocation.target)
+        .map(|(target, _)| target)
 }
 
 /// Only a destination outside the retained graph needs a call operation.
@@ -88,8 +83,10 @@ pub(super) fn external_callable(
     fused: &super::FusedStates<'_>,
     transition: &typed_trees::statement::TableTransition,
 ) -> Option<symbols::SymbolHandle> {
-    invoked_callable(program, machine, transition)
-        .filter(|target| super::fused_target_index(program, fused, *target).is_none())
+    let target = invoked_callable(program, machine, transition)?;
+    super::fused_target_index(program, fused, target)
+        .is_none()
+        .then_some(target)
 }
 
 /// Complete a state whose unconditional final arm invokes a machine outside
@@ -116,6 +113,11 @@ pub(super) fn completion(
     let call = calls.next()?;
     if calls.next().is_some() {
         return None;
+    }
+    if *call.result() == checked_trees::CheckedUnitCallResult::NoNormal {
+        return Some(CheckedComposedUnitControlTerminatorPlan::InvokeNoNormal {
+            coordinate: call.coordinate,
+        });
     }
     match (result, call.result()) {
         (
@@ -189,45 +191,40 @@ pub(super) fn arm_call(
     let target = invoked_callable(program, machine, transition)?;
     trace.phase("state graph: terminator: terminal call arm: completion");
     trace.statement(Some(statement_ordinal));
-    let return_type = validation::call_target_return_type(program, target)?;
-    // The callee's normal result is this machine's result, so the two
-    // signatures must agree exactly; checking rejects any other pairing.
-    let (scalar_result, mut structural_result) = match result {
-        checked_trees::CheckedControlResultPlan::Unit if is_unit(program, return_type) => {
-            (None, None)
-        }
-        checked_trees::CheckedControlResultPlan::Scalar { primitive_type }
-            if program.primitive_type_reference(return_type) == Some(*primitive_type)
-                && program.normalized_type_identity(return_type)
-                    == program.normalized_type_identity(state.return_type) =>
-        {
-            (
+    // Bind the receiving result, including its checked qualifications. The
+    // ordinary call builder checks the callee's carrier/access/multiplicity;
+    // completed-call guarantees, not syntactic qualified-type equality,
+    // justify the stronger receiving facts and exact returned claims.
+    let no_normal = validation::call_target_state(program, target)
+        .is_some_and(|state| validation::normal_completion_possible(program, state) == Some(false));
+    let (scalar_result, mut structural_result) = if no_normal {
+        (None, None)
+    } else {
+        match result {
+            checked_trees::CheckedControlResultPlan::Unit => (None, None),
+            checked_trees::CheckedControlResultPlan::Scalar { primitive_type } => (
                 Some(checked_trees::CheckedUnitScalarResultBindingPlan {
                     statement_index: statement_ordinal,
                     binding_ordinal: u32::try_from(next_scalar_binding).ok()?,
                     primitive_type: *primitive_type,
                 }),
                 None,
-            )
-        }
-        checked_trees::CheckedControlResultPlan::Structural(expected)
-            if program.normalized_type_identity(return_type)
-                == program.normalized_type_identity(state.return_type) =>
-        {
-            let binding = checked_structural_result_type(
-                program,
-                shapes,
-                return_type,
-                &machine_binders(program, machine),
-            )?;
-            if binding.type_identity != expected.type_identity
-                || binding.multiplicity != expected.multiplicity
-            {
-                return None;
+            ),
+            checked_trees::CheckedControlResultPlan::Structural(expected) => {
+                let binding = checked_structural_result_type(
+                    program,
+                    shapes,
+                    state.return_type,
+                    &machine_binders(program, machine),
+                )?;
+                if binding.type_identity != expected.type_identity
+                    || binding.multiplicity != expected.multiplicity
+                {
+                    return None;
+                }
+                (None, Some(binding))
             }
-            (None, Some(binding))
         }
-        _ => return None,
     };
     trace.phase("state graph: terminator: terminal call arm: occurrence");
     trace.statement(Some(statement_ordinal));
@@ -236,16 +233,14 @@ pub(super) fn arm_call(
     let mut occurrences = calls.iter().filter(|call| {
         call.statement_index == statement_ordinal as usize
             && !facts.flow.control.is_retired(state.symbol, call)
-            && matches!(
-                validation::find_call_site(
-                    program,
-                    machine.symbol,
-                    state.symbol,
-                    call.statement_index,
-                    call.call_ordinal,
-                ),
-                Some(validation::CallSite::TransitionNamed { .. })
+            && validation::find_call_site(
+                program,
+                machine.symbol,
+                state.symbol,
+                call.statement_index,
+                call.call_ordinal,
             )
+            .is_some_and(|site| site.completes_transition(program, transition.target))
             && validation::transition_call_target(
                 program,
                 machine,
@@ -269,7 +264,7 @@ pub(super) fn arm_call(
     let mut preparation = preamble.to_vec();
     let predecessor_count = preparation.len();
     let mut structural_count = super::returns::next_result_ordinal(preamble)?;
-    control::structural_operands::plan_call_operands(
+    let completion = control::structural_operands::plan_call_operands(
         program,
         facts,
         scalar_callees,
@@ -286,6 +281,16 @@ pub(super) fn arm_call(
         trace,
         &mut crate::execution::terminal_unit::borrowed_windows::OpenWindows::default(),
     )?;
+    if completion == checked_trees::CheckedValueCompletion::NoNormal {
+        return Some(
+            checked_trees::CheckedConditionalReturnArm::EvaluateNoNormal {
+                statement_ordinal,
+                operations: checked_trees::CheckedOperandSequence::new(
+                    preparation.split_off(predecessor_count),
+                ),
+            },
+        );
+    }
     if let Some(binding) = &mut structural_result {
         binding.statement_index = statement_ordinal;
         binding.binding_ordinal = u32::try_from(structural_count).ok()?;
@@ -326,6 +331,15 @@ pub(super) fn arm_call(
     let planned = operation.call()?;
     if planned.coordinate.statement_index != statement_ordinal {
         return None;
+    }
+    if *planned.result() == checked_trees::CheckedUnitCallResult::NoNormal {
+        control::statement_sequence::consume_results(&mut preparation, &operation)?;
+        preparation.drain(..predecessor_count);
+        return Some(checked_trees::CheckedConditionalReturnArm::Call {
+            operands: checked_trees::CheckedOperandSequence::new(preparation),
+            operation,
+            completions: checked_trees::CheckedOperandSequence::new(Vec::new()),
+        });
     }
     let operation = match (scalar_result, structural_result) {
         (Some(result), None) => bind_scalar_call_result(facts, operation, result, true)?,

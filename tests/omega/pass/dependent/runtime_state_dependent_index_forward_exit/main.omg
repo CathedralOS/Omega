@@ -18,12 +18,12 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> bad(main)
     }
 
-    state read(main: &mut Main, index: u32) requires index <= main.count {
+    machine read(main: &mut Main, index: u32) requires index <= main.count {
         let captured: u32 = index;
         transition { _ -> deeper(main, captured) }
     }
 
-    state deeper(main: &mut Main, index: u32) requires index <= main.count {
+    machine deeper(main: &mut Main, index: u32) requires index <= main.count {
         let observed: u8 = main.items[index];
         transition observed == 42 {
             true -> done(main)
@@ -31,8 +31,8 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state done(main: &mut Main) { Console::exit_process(0); }
-    state bad(main: &mut Main) { Console::exit_process(86); }
+    machine done(main: &mut Main) { Console::exit_process(0); }
+    machine bad(main: &mut Main) { Console::exit_process(86); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -178,7 +178,7 @@ machine consume_choice(choice: ReceiptChoice) -> u64 reaches Console {
         ReceiptChoice::Empty -> 0
         ReceiptChoice::Held { receipt, token } -> finish(receipt, token)
     }
-    state finish(receipt: Receipt, token: Token) -> u64 { receipt.value }
+    machine finish(receipt: Receipt, token: Token) -> u64 { receipt.value }
 }
 machine optional_record(enabled: bool, slot: ReceiptChoice, expected: u64) -> bool reaches Console {
     let holder: ReceiptHolder = ReceiptHolder { slot: slot };
@@ -203,8 +203,8 @@ machine linear_replacement(enabled: bool) -> bool {
 machine verify(accepted: bool) reaches Console crashes Trap {
     Console::write_byte(10);
     transition accepted { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 data Main { }

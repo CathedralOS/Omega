@@ -90,6 +90,9 @@ impl<'program> Evaluator<'program> {
             })?
             .clone();
         let operation = match &binding {
+            BuildSelectionRequest::ProviderReadiness(_) => {
+                return trap("provider readiness requires a retained Terminal Build activation");
+            }
             BuildSelectionRequest::Exclusion(_) => "exclude",
             BuildSelectionRequest::Entry(binding) => match binding.implementation {
                 RootBindingOperand::AuthoredPath(_) => "bind",
@@ -100,6 +103,7 @@ impl<'program> Evaluator<'program> {
                 _ => "select",
             },
         };
+        let requires_selecting_machine = binding.requires_lexical_subject();
         let preparation = protocol.and_then(|name| match name {
             "prepare" => Some(true),
             name if name == operation => Some(false),
@@ -159,6 +163,9 @@ impl<'program> Evaluator<'program> {
             );
         }
         let selection = match binding {
+            BuildSelectionRequest::ProviderReadiness(_) => {
+                return trap("provider readiness requires a retained Terminal Build activation");
+            }
             BuildSelectionRequest::Exclusion(request) => {
                 let [_, value] = arguments else {
                     return trap("behavior exclusion requires its evaluated code");
@@ -229,8 +236,10 @@ impl<'program> Evaluator<'program> {
                     } else {
                         CompositionMode::Fused
                     }),
-                    BuildOperation::RepresentationSelection | BuildOperation::ServiceExclusion
-                        if independent.is_none() =>
+                    operation
+                        if operation.selects_product_declarations()
+                            && operation != BuildOperation::ProviderSelection
+                            && independent.is_none() =>
                     {
                         None
                     }
@@ -240,7 +249,7 @@ impl<'program> Evaluator<'program> {
                         );
                     }
                 };
-                let selecting_machine = if request.operation == BuildOperation::ServiceExclusion {
+                let selecting_machine = if requires_selecting_machine {
                     Some(
                         self.program
                             .symbols

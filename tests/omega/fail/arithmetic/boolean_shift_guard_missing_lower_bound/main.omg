@@ -4,6 +4,6 @@ machine shift(count: i32) -> u64 {
         true -> calculate(count)
         false -> empty()
     }
-    state calculate(count: i32) -> u64 { 8u64 >> count }
-    state empty() -> u64 { 0 }
+    machine calculate(count: i32) -> u64 { 8u64 >> count }
+    machine empty() -> u64 { 0 }
 }

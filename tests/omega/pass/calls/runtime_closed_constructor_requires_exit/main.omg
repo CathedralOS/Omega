@@ -17,41 +17,41 @@ machine take_projection(point: Point) -> u64 requires point.x == Point::zero().x
 machine Main::main(main: &mut Main) reaches Console {
     let result: u64 = take(Point { x: 0, y: 0 });
     transition result == 0 { true -> parameter(main) _ -> wrong(main) }
-    state parameter(main: &mut Main) {
+    machine parameter(main: &mut Main) {
         let result: u64 = take_parameter(Point { x: 0, y: 0 });
         transition result == 0 { true -> local_return(main) _ -> wrong(main) }
     }
-    state local_return(main: &mut Main) {
+    machine local_return(main: &mut Main) {
         let result: u64 = take_local(Point { x: 0, y: 0 });
         transition result == 0 { true -> terminal(main) _ -> wrong(main) }
     }
-    state terminal(main: &mut Main) {
+    machine terminal(main: &mut Main) {
         let result: u64 = take_terminal(Point { x: 0, y: 0 });
         transition result == 0 { true -> local_argument(main) _ -> wrong(main) }
     }
-    state local_argument(main: &mut Main) {
+    machine local_argument(main: &mut Main) {
         let value: Point = Point { x: 0, y: 0 };
         let result: u64 = take(value);
         transition result == 0 { true -> field_argument(main) _ -> wrong(main) }
     }
-    state field_argument(main: &mut Main) {
+    machine field_argument(main: &mut Main) {
         main.point = Point { x: 0, y: 0 };
         let result: u64 = take(main.point);
         transition result == 0 { true -> copied_store(main) _ -> wrong(main) }
     }
-    state copied_store(main: &mut Main) {
+    machine copied_store(main: &mut Main) {
         main.point = Point { x: 0, y: 0 };
         let saved: Point = main.point;
         main.point = Point { x: 1, y: 0 };
         let result: u64 = take(saved);
         transition result == 0 { true -> projection(main) _ -> wrong(main) }
     }
-    state projection(main: &mut Main) {
+    machine projection(main: &mut Main) {
         let result: u64 = take_projection(Point { x: 0, y: 0 });
         transition result == 0 { true -> done(main) _ -> wrong(main) }
     }
-    state done(main: &mut Main) { Console::write_line("constructor checks=8"); Console::exit_process(0); }
-    state wrong(main: &mut Main) { Console::exit_process(9); }
+    machine done(main: &mut Main) { Console::write_line("constructor checks=8"); Console::exit_process(0); }
+    machine wrong(main: &mut Main) { Console::exit_process(9); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

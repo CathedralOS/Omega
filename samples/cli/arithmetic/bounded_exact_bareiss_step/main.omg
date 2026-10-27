@@ -40,7 +40,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
     store(&mut main.cells);
     store_at(&mut main.extra, 0, 6);
     transition { _ -> reduce(main) }
-    state reduce(main: &mut Main) {
+    machine reduce(main: &mut Main) {
         let diagonal: i64 = main.cells[0];
         let value: i64 = main.cells[1];
         let left: i64 = main.cells[2];
@@ -54,11 +54,11 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
             _ -> bad()
         }
     }
-    state report() {
+    machine report() {
         Console::write_line("exact=6");
         Console::exit_process(0);
     }
-    state bad() {
+    machine bad() {
         Console::write_line("exact=miss");
         Console::exit_process(2);
     }

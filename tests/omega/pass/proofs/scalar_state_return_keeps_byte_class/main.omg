@@ -10,11 +10,11 @@ machine mapped_byte(value: u16) -> u8 {
         true -> outside()
         _ -> inside(value)
     }
-    state inside(value: u16) -> u8 {
+    machine inside(value: u16) -> u8 {
         let masked: u16 = value & 127;
         masked as u8
     }
-    state outside() -> u8 { 255 }
+    machine outside() -> u8 { 255 }
 }
 
 data Main { bytes: [u8; 1] in Utf8; value: u16; }

@@ -44,8 +44,8 @@ machine Main::main(context: &mut Main) reaches Character crashes Trap {
     let nested: i32 = Character::echo(Character::echo(context.value));
     _ = Character::echo(value);
     transition value == 65 && nested == 65 && context.phase == 2 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

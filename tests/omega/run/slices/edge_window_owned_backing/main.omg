@@ -20,7 +20,7 @@ machine from_parameter(payload: Payload) -> u64 {
         true -> sized(payload.bytes[range_start(&mut sequence)..range_end(&mut sequence)], sequence.digits as u64)
         false -> (255)
     }
-    state sized(bytes: &[u8], digits: u64) -> u64 {
+    machine sized(bytes: &[u8], digits: u64) -> u64 {
         transition digits == 23 && bytes.len == 3 { true -> (0) false -> (255) }
     }
 }
@@ -33,7 +33,7 @@ machine from_local() -> u64 {
         true -> sized(payload.bytes[range_start(&mut sequence)..range_end(&mut sequence)], sequence.digits as u64)
         false -> (255)
     }
-    state sized(bytes: &[u8], digits: u64) -> u64 {
+    machine sized(bytes: &[u8], digits: u64) -> u64 {
         transition digits == 23 && bytes.len == 3 { true -> (0) false -> (255) }
     }
 }
@@ -43,6 +43,6 @@ machine main() crashes Trap {
     let parameter_count: u64 = from_parameter(payload);
     let local_count: u64 = from_local();
     transition parameter_count == 0 && local_count == 0 { true -> done() false -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

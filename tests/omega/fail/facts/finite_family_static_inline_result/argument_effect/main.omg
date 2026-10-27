@@ -9,5 +9,5 @@ machine main() crashes Trap {
     let mut limit: u32 = 16;
     let item: Indexed<32> = Family::row<16>(Selected as dyn Family, change(&mut limit));
     transition limit == 32 && item.value == 7 { true -> done() false -> bad() }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }

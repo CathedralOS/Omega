@@ -181,7 +181,39 @@ pub fn evaluate_via_bindings(
     selected_target: Option<TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
 ) -> Result<EvaluatedViaBindingTable, Vec<Diagnostic>> {
-    let typed = context.typed;
+    evaluate_program_via_bindings(
+        build_time_evaluation::BuildTimeProgram::Typed(context.typed),
+        context.scope,
+        selected_target,
+        package_inputs,
+    )
+}
+
+pub fn evaluate_checked_via_bindings(
+    checked: &checked_trees::CheckedTrees,
+    scope: source::DependencyScope,
+    selected_target: Option<TargetProfile>,
+    package_inputs: Option<&PackageCompilationInputs>,
+) -> Result<EvaluatedViaBindingTable, Vec<Diagnostic>> {
+    evaluate_program_via_bindings(
+        build_time_evaluation::BuildTimeProgram::Checked(checked),
+        scope,
+        selected_target,
+        package_inputs,
+    )
+}
+
+fn evaluate_program_via_bindings(
+    program: build_time_evaluation::BuildTimeProgram<'_>,
+    scope: source::DependencyScope,
+    selected_target: Option<TargetProfile>,
+    package_inputs: Option<&PackageCompilationInputs>,
+) -> Result<EvaluatedViaBindingTable, Vec<Diagnostic>> {
+    let typed = match program {
+        build_time_evaluation::BuildTimeProgram::Typed(typed) => typed,
+        build_time_evaluation::BuildTimeProgram::Checked(checked) => &checked.typed,
+    };
+    let context = ProviderPlanningContext::new(typed, scope);
     let pending = typed
         .machines()
         .iter()
@@ -235,7 +267,7 @@ pub fn evaluate_via_bindings(
             }
         };
         match evaluate_one(
-            typed,
+            program,
             &admission,
             &vocabulary,
             target,

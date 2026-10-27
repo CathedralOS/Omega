@@ -120,9 +120,7 @@ pub(crate) fn captured_observation_roots(
         if !referent.root.is_valid() {
             return None;
         }
-        if !roots.contains(&referent.root) {
-            roots.push(referent.root);
-        }
+        crate::collections::push_unique(&mut roots, referent.root);
     }
     Some(roots)
 }
@@ -352,6 +350,21 @@ pub(crate) fn captured_operand_values<'capture>(
             };
             for value in &mut selected {
                 value.choices.push(choice);
+                // A selected primitive copy is one completed observation;
+                // its producer and conditions remain per arm. Live descriptors
+                // keep their per-arm observation geometry and loan evidence.
+                if validation::project_type_reference_from_segments(program, type_reference, path)
+                    .and_then(|reference| program.primitive_type_reference(reference))
+                    .is_some()
+                {
+                    value.observation = operand;
+                    value.observation_type = type_reference;
+                    value.observation_projection = super::LiteralExpressionProjection {
+                        expression: operand.expression,
+                        remaining: path.to_vec(),
+                        destination: Vec::new(),
+                    };
+                }
             }
             values.extend(selected);
         }
@@ -427,6 +440,29 @@ pub(crate) fn captured_operand_values<'capture>(
             choices: Vec::new(),
             producer_epoch: None,
         };
+        // A primitive receiving read detached contents from its actual
+        // descriptor. Keep that complete source inventory, not only literal
+        // snapshots: call guarantees and qualifications belong to this read's
+        // post-receiver epoch even after later writes change the referent.
+        if let Some(source) = primitive_read_source(program, control, captured, selected_type) {
+            let mut origins = captured_operand_values(
+                program,
+                flow,
+                semantic,
+                state,
+                source,
+                source.type_reference,
+                &[],
+            )?;
+            for origin in &mut origins {
+                origin.producer_epoch = Some(captured);
+                origin.observation = value.observation;
+                origin.observation_type = value.observation_type;
+                origin.observation_projection = value.observation_projection.clone();
+            }
+            values.extend(origins);
+            continue;
+        }
         if let Some(mut stored) =
             reaching_store_values(program, flow, semantic, state, &value, None)
         {
@@ -460,6 +496,26 @@ pub(crate) fn captured_operand_values<'capture>(
         }
     }
     Some(values)
+}
+
+/// Only the typed primitive read crosses this boundary. A field's container
+/// backing is not its value, and a representation view needs its own scalar
+/// interpretation rather than equal-width pointer geometry.
+fn primitive_read_source<'capture>(
+    program: &dyn validation::CheckingInput,
+    control: &'capture FlowControlFacts,
+    captured: CapturedOperand<'capture>,
+    selected_type: TypeReferenceHandle,
+) -> Option<CapturedOperand<'capture>> {
+    let primitive = program.primitive_type_reference(selected_type)?;
+    if program.primitive_type_reference(captured.type_reference) != Some(primitive) {
+        return None;
+    }
+    let source = CapturedOperand::recorded(control, captured.backing)?;
+    let shell = validation::reference_shell(program, source.type_reference)?;
+    (shell.access.is_readable()
+        && program.primitive_type_reference(shell.referee) == Some(primitive))
+    .then_some(source)
 }
 
 /// An invocation observes a borrowed scalar after every operand completes.

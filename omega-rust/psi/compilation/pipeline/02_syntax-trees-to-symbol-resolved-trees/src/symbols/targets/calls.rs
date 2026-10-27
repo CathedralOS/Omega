@@ -562,6 +562,24 @@ pub(in crate::symbols) fn assign_call_machine_argument_symbols(
     let proof_static = proof_static_call_target(symbols, target_symbol);
     for (index, argument) in machine_arguments.iter_mut().enumerate() {
         match operand_route {
+            Some(BuildOperation::ProviderReadiness) if index == 0 => {
+                // Only the backing is deferred. Resolve the requirement head
+                // and its ordinary static operands under the caller's scope.
+                let mut application = argument.application.take();
+                assign_provider_selection_argument_symbol(symbols, argument, true);
+                if let Some(application) = &mut application {
+                    for operand in &mut application.arguments {
+                        assign_static_argument_symbols(
+                            symbols,
+                            machine.symbol,
+                            machine.type_parameters,
+                            operand,
+                            true,
+                        );
+                    }
+                }
+                argument.application = application;
+            }
             Some(BuildOperation::AssumedBindingContract) => {
                 assign_assumed_binding_argument_symbol(symbols, argument);
             }
@@ -573,7 +591,9 @@ pub(in crate::symbols) fn assign_call_machine_argument_symbols(
                 argument,
                 matches!(
                     operation,
-                    BuildOperation::ProviderSelection | BuildOperation::BoundaryAcceptance
+                    BuildOperation::ProviderSelection
+                        | BuildOperation::ProviderReadiness
+                        | BuildOperation::BoundaryAcceptance
                 ) && index == 0,
             ),
             None => {
@@ -614,7 +634,7 @@ pub(in crate::symbols) fn build_operand_route(
     target_symbol: SymbolHandle,
 ) -> Option<BuildOperation> {
     let operation = BuildOperation::from_call_target(target)?;
-    (!target_symbol.is_valid() && operation.selects_product_declarations()).then_some(operation)
+    (!target_symbol.is_valid() && operation.has_designated_operands()).then_some(operation)
 }
 
 /// A bound selection argument (already carrying a type reference, evidence,

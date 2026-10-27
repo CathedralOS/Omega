@@ -13,6 +13,7 @@
 
 pub use declarations::traits::conformance_applications;
 pub mod execution_projection;
+pub mod product_queries;
 pub use declarations::operators::{
     OperatorApplicationScope, ScopedOperatorApplication, ScopedOperatorResolution,
     build_operator_facts, derive_checked_operator_crash_contracts,
@@ -98,8 +99,9 @@ pub use proof_contracts::arithmetic_domains::{
     selected_scalar_interval,
 };
 pub use proof_contracts::collection_predicates::{
-    PredicateIntegerOperand, PredicateIntegerSubject, exact_predicate_intervals,
-    exact_predicate_ordering, length_member, predicate_ordering_consequences,
+    PredicateIntegerOperand, PredicateIntegerReadSubject, PredicateIntegerSubject,
+    exact_predicate_conjunction, exact_predicate_intervals, exact_predicate_ordering,
+    length_member, predicate_integer_operand, predicate_ordering_consequences,
     premises_prove_expression,
 };
 pub use proof_contracts::contract_entailment::call_projection_identity::{
@@ -126,12 +128,17 @@ pub use proof_contracts::contract_entailment::ranking_range::{
     closed_collection_length_at_place, closed_collection_length_under_matches,
     unique_literal_field,
 };
+pub use proof_contracts::contract_entailment::{
+    ImmutableEntryReadIdentity, immutable_entry_indexed_read_identity,
+    immutable_entry_integer_projection, instantiate_immutable_entry_indexed_read_identity,
+};
 pub use proof_contracts::contract_results::{
     ReservedResultPlace, callable_contract_scopes, reserved_result_owner, reserved_result_place,
 };
 pub use proof_contracts::domains::{
-    integer_domain_membership, scalar_domain_predicate, scalar_domain_value_predicate,
-    scalar_field_domain_predicate, scalar_field_restriction, scalar_membership_carrier,
+    integer_domain_membership, scalar_domain_definition_predicate, scalar_domain_local_predicate,
+    scalar_domain_predicate, scalar_domain_value_predicate, scalar_field_domain_predicate,
+    scalar_field_restriction, scalar_membership_carrier, scalar_membership_is_tag,
     scalar_membership_predicates, scalar_membership_value_carrier,
     scalar_membership_value_predicates, scalar_predicate_domains, scalar_type_routed_domains,
     scalar_type_tags, validate_executable_domain_test_carriers,
@@ -168,7 +175,9 @@ pub use value_custody::scalar_case_constructor::{
     scalar_case_constructor, scalar_case_value_source, structural_case_constructor,
 };
 pub use value_custody::scalar_representation_range::scalar_representation_range;
-pub use value_custody::source_liveness::{statement_uses_symbol, transition_target_uses_symbol};
+pub use value_custody::source_liveness::{
+    statement_uses_symbol, transition_target_uses_symbol, transition_target_uses_symbol_except,
+};
 pub use value_custody::storage_contents::{
     ContentsRequirement, data_has_contents, has_contents, has_owned_or_shared_view_fields,
 };
@@ -204,13 +213,13 @@ pub use value_custody::places::{
     collection_length_receiver, declaration_storage_label, declared_collection_extent,
     ensured_range_call_endpoints, exact_attached_field, exact_attached_storage_field,
     exact_data_member_field, exact_self_field, expression_names_attached_storage,
-    fixed_array_type_length, has_builtin_subslice_meaning, indexed_operation_has_builtin_meaning,
-    mutable_byte_slice_parameter_element, place_has_builtin_coordinates,
-    range_operator_establishes_endpoint_extent, saved_dispatch_call, saved_dispatch_subject,
-    structural_atomic_field, structural_scalar_field, structural_scalar_field_at_coordinate,
-    structural_scalar_field_in_parameters, structural_scalar_field_of_evaluated_receiver,
-    structural_source, subslice_expression, value_element_has_builtin_coordinate,
-    value_has_builtin_coordinates,
+    fixed_array_type_extent, fixed_array_type_length, has_builtin_subslice_meaning,
+    indexed_operation_has_builtin_meaning, mutable_byte_slice_parameter_element,
+    place_has_builtin_coordinates, range_operator_establishes_endpoint_extent, saved_dispatch_call,
+    saved_dispatch_subject, structural_atomic_field, structural_scalar_field,
+    structural_scalar_field_at_coordinate, structural_scalar_field_in_parameters,
+    structural_scalar_field_of_evaluated_receiver, structural_source, subslice_expression,
+    value_element_has_builtin_coordinate, value_has_builtin_coordinates,
 };
 
 pub use proof_contracts::bound_expression_meaning::{
@@ -239,14 +248,14 @@ pub use crate::declarations::selection_authority::{
     DeclarationSelectionAuthority, validate_authored_declaration_selections,
 };
 pub use crate::machine_calls::call_cycles::{
-    RankRelevance, RuntimeRankBodyWitness, RuntimeRankComponents, ValidatedProofRankingRelation,
-    ValidatedProofRecursiveCallSite, ValidatedProofRecursiveComponent, ValidatedProofRecursiveEdge,
-    ValidatedProofRecursiveMember, ValidatedProofRecursiveTransitionLane,
-    ValidatedRuntimeNaturalComponent, ValidatedRuntimeNaturalEdge, ValidatedRuntimeNaturalState,
-    activation_target_state_index, internal_state_index, machine_call_dependency_symbols,
-    prepare_runtime_rank_components, rank_relevance, retain_runtime_rank_component,
-    retained_internal_rank_nonincrease, retained_runtime_natural_components,
-    retained_runtime_recursive_components,
+    RankRelevance, RuntimeRankBodyWitness, RuntimeRankComponents, ValidatedProofCallComponent,
+    ValidatedProofRankInterval, ValidatedProofRankingRelation, ValidatedProofRecursiveCallSite,
+    ValidatedProofRecursiveComponent, ValidatedProofRecursiveEdge, ValidatedProofRecursiveMember,
+    ValidatedProofRecursiveTransitionLane, ValidatedRuntimeNaturalComponent,
+    ValidatedRuntimeNaturalEdge, ValidatedRuntimeNaturalState, activation_target_state_index,
+    internal_state_index, machine_call_dependency_symbols, prepare_runtime_rank_components,
+    rank_relevance, retain_runtime_rank_component, retained_internal_rank_nonincrease,
+    retained_runtime_natural_components, retained_runtime_recursive_components,
 };
 pub use crate::machine_calls::calls::{
     AssignmentStorageOrigins, AssignmentWriteTarget, CallFrameResolver, CallWriteOrigins,
@@ -427,9 +436,6 @@ pub use proof_contracts::arithmetic_domains::immutable_integer_expression_bounds
 pub use proof_contracts::arithmetic_domains::integer_widen_is_total;
 pub use proof_contracts::arithmetic_domains::normal_return_integer_bounds;
 pub use proof_contracts::arithmetic_domains::normal_return_length_collection;
-pub use proof_contracts::arithmetic_domains::{
-    occurrence_integer_expression_bounds, occurrence_integer_expression_recipe,
-};
 pub use proof_contracts::arithmetic_domains::occurrence_integer_expression_fits_range;
 pub use proof_contracts::arithmetic_domains::occurrence_integer_expressions_bounds;
 pub use proof_contracts::arithmetic_domains::state_parameter_integer_interval;
@@ -439,6 +445,9 @@ pub use proof_contracts::arithmetic_domains::{
     StoredIntegerReach, standing_integer_bounds, stored_integer_bounds,
     stored_integer_source_projection, stored_integer_source_projections,
     stored_integer_source_reach,
+};
+pub use proof_contracts::arithmetic_domains::{
+    occurrence_integer_expression_bounds, occurrence_integer_expression_recipe,
 };
 pub use proof_contracts::contract_entailment::arithmetic_judgment::integer_embedding_sources_equal;
 pub use proof_contracts::contract_entailment::call_requirements::selected_value_call_requirement_entailed;
@@ -554,10 +563,11 @@ pub use expression_traversal::{
 };
 pub use machine_calls::calls::{
     CallSite, CompletingTransfer, call_is_unconditional, call_receiver_parts,
-    call_site_argument_expressions, call_site_evidence_arguments, call_target_parameters,
-    call_target_return_type, call_target_state, call_target_symbol, call_target_type_parameters,
-    collect_call_sites_in_statement, completing_call_transfer, completing_transition_invocation,
-    completing_transition_transfer, find_call_site, find_call_site_in_state, find_machine,
+    call_site_argument_expressions, call_site_evidence_arguments, call_target_entry_symbol,
+    call_target_parameters, call_target_return_type, call_target_state, call_target_symbol,
+    call_target_type_parameters, collect_call_sites_in_statement, completing_call_transfer,
+    completing_transition_invocation, completing_transition_transfer,
+    expression_normal_completion_possible, find_call_site, find_call_site_in_state, find_machine,
     find_machine_by_entry_state, find_machine_head, find_state, find_state_for_exit,
     find_state_in_machine, find_state_on_machine, invocation_output_parameter,
     machine_parameter_signature_symbol, machine_state_by_symbols, machine_state_count,
@@ -640,3 +650,5 @@ pub use value_custody::completed_storage;
 pub use value_custody::places::storage_path_relations;
 
 pub use value_custody::membership_evidence;
+
+pub use machine_calls::terminal_transitions::normalize_terminal_transition_calls;

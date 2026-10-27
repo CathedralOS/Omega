@@ -420,8 +420,38 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     } else {
                         symbols::SymbolHandle::invalid()
                     };
+                    if let Some(operation) = crate::expressions::product_queries::operation(
+                        program,
+                        namespace,
+                        call.target_symbol,
+                        call.target.as_str(),
+                    ) {
+                        if !call.machine_arguments.is_empty() || !call.evidence_arguments.is_empty()
+                        {
+                            return Err(Diagnostic::error(
+                                "Product queries accept only their ordinary value arguments",
+                            ));
+                        }
+                        let arguments = self
+                            .source
+                            .expression_handles(call.arguments)
+                            .to_vec()
+                            .into_iter()
+                            .map(|argument| self.lower_value(argument))
+                            .collect::<Result<Vec<_>, Diagnostic>>()?;
+                        return crate::expressions::product_queries::lower(
+                            program,
+                            self.target_trees,
+                            operation,
+                            arguments,
+                            self.source.source_span(expression),
+                            call.operational_acknowledgement,
+                        );
+                    }
                     if let Some(request) = crate::expressions::product_selections::request(
                         program,
+                        self.target_trees,
+                        self.source.authored_expression_exposure(expression),
                         namespace,
                         call.target_symbol,
                         call.target.as_str(),
@@ -557,6 +587,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     .target()
                     .insert(typed::expression::ExpressionNode::Call(
                         typed::expression::TableCallExpression {
+                            authored_call_binding: call.authored_call_binding,
                             authored_machine_application: Default::default(),
                             exact_coercion_target: typed::types::TypeReferenceHandle::invalid(),
                             requirement_application,

@@ -46,13 +46,13 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad(main)
     }
 
-    state ok(main: &mut Main) {
+    machine ok(main: &mut Main) {
         Console::write_line("PASS: buffer matches '25' (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(70);
     }
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::write_line("FAIL: formatted text mismatch (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

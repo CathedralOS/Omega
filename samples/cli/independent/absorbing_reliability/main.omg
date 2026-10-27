@@ -19,16 +19,16 @@ machine Main::main(main: &mut Main) reaches Console {
         LineReadResult::LineComplete { count } -> length(main, count)
         _ -> invalid(main)
     }
-    state length(main: &mut Main, count: u64) {
+    machine length(main: &mut Main, count: u64) {
         transition count == 3 { true -> digits(main) _ -> invalid(main) }
     }
-    state digits(main: &mut Main) {
+    machine digits(main: &mut Main) {
         transition main.input[0] >= 48 && main.input[0] <= 53 && main.input[1] >= 48 && main.input[1] <= 56 && main.input[2] == 10 {
             true -> setup(main)
             _ -> invalid(main)
         }
     }
-    state setup(main: &mut Main) {
+    machine setup(main: &mut Main) {
         main.variant = (main.input[0] as u64 in Wrapping) - 48;
         main.horizon = (main.input[1] as u64 in Wrapping) - 48;
         domain::process::initialize(&mut main.process, main.variant);
@@ -36,13 +36,13 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("step healthy degraded failed survival denominator");
         transition { _ -> row(main) }
     }
-    state row(main: &mut Main) {
+    machine row(main: &mut Main) {
         transition main.process.healthy + main.process.degraded + main.process.failed == main.process.denominator {
             true -> emit(main)
             _ -> failure(main)
         }
     }
-    state emit(main: &mut Main) {
+    machine emit(main: &mut Main) {
         // Stage copied scalars before borrowing the formatter context mutably.
         let step: u64 in Wrapping = main.step;
         let healthy: u64 in Wrapping = main.process.healthy;
@@ -64,12 +64,12 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_byte(10);
         transition main.step < main.horizon { true -> next(main) _ -> finish(main) }
     }
-    state next(main: &mut Main) {
+    machine next(main: &mut Main) {
         domain::process::advance(&mut main.process);
         main.step = main.step + 1;
         transition { _ -> row(main) }
     }
-    state finish(main: &mut Main) {
+    machine finish(main: &mut Main) {
         let lifetime: u64 in Wrapping = main.process.lifetime;
         let denominator: u64 in Wrapping = main.process.denominator;
         Console::write("expected_min_lifetime ");
@@ -79,11 +79,11 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_byte(10);
         Console::exit_process(0);
     }
-    state invalid(main: &mut Main) {
+    machine invalid(main: &mut Main) {
         Console::write_line("invalid input: expected variant 0..5 and horizon 0..8 followed by LF");
         Console::exit_process(64);
     }
-    state failure(main: &mut Main) {
+    machine failure(main: &mut Main) {
         Console::write_line("probability conservation failed");
         Console::exit_process(70);
     }
@@ -93,26 +93,26 @@ machine Main::decimal(main: &mut Main, number: u64 in Wrapping) reaches Console 
     main.number = number;
     main.divisor = 1;
     transition { _ -> scale(main) }
-    state scale(main: &mut Main) {
+    machine scale(main: &mut Main) {
         transition main.divisor <= main.number / 10 {
             true -> increase(main)
             _ -> digit(main)
         }
     }
-    state increase(main: &mut Main) {
+    machine increase(main: &mut Main) {
         main.divisor = main.divisor * 10;
         transition { _ -> scale(main) }
     }
-    state digit(main: &mut Main) {
+    machine digit(main: &mut Main) {
         transition main.divisor != 0 { true -> write(main) _ -> done() }
     }
-    state write(main: &mut Main) {
+    machine write(main: &mut Main) {
         let digit: u64 in Wrapping = (main.number / main.divisor) % 10;
         Console::write_byte(digit as i32 + 48);
         main.divisor = main.divisor / 10;
         transition { _ -> digit(main) }
     }
-    state done() { }
+    machine done() { }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

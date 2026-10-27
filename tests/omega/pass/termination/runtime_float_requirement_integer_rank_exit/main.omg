@@ -49,7 +49,7 @@ terminates by count in 0..=4;
         true -> reading.value
         false -> advance(reading, count - 1)
     }
-    state advance(current: &Reading, pending: u64)
+    machine advance(current: &Reading, pending: u64) -> f64
     requires current.value >= 0.0 && pending <= 4;
     {
         transition pending == 0 {
@@ -83,7 +83,7 @@ machine main() crashes Trap {
         true -> check(&reading, value, direct, smaller)
         false -> bad()
     }
-    state check(reading: &Reading, value: f64, direct: f64, smaller: f32)
+    machine check(reading: &Reading, value: f64, direct: f64, smaller: f32)
     requires reading.value >= 0.0;
     {
         let field: f64 = ranged(reading, 3);
@@ -93,7 +93,7 @@ machine main() crashes Trap {
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 

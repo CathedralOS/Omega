@@ -12,7 +12,7 @@ machine Duo::code(duo: &Duo) -> u64 in Wrapping {
         Duo::Left { a } -> value(a)
         Duo::Right { b, c } -> value(b + c)
     }
-    state value(code: u64 in Wrapping) -> u64 in Wrapping {
+    machine value(code: u64 in Wrapping) -> u64 in Wrapping {
         code
     }
 }
@@ -22,7 +22,7 @@ machine Duo::code_mutable(duo: &mut Duo) -> u64 in Wrapping {
         Duo::Left { a } -> value(a)
         Duo::Right { b, c } -> value(b + c)
     }
-    state value(code: u64 in Wrapping) -> u64 in Wrapping {
+    machine value(code: u64 in Wrapping) -> u64 in Wrapping {
         code
     }
 }
@@ -39,6 +39,6 @@ machine Main::main(main: &mut Main) crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

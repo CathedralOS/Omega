@@ -7,7 +7,7 @@ machine wrong(original: &mut Counter) -> Status
 requires original.value == 9
 ensures result.code == 7 && original.value != 0; {
     transition { _ -> next(original) }
-    state next(renamed: &mut Counter) {
+    machine next(renamed: &mut Counter) -> Status {
         renamed.value = 0;
         Status { code: 7 }
     }

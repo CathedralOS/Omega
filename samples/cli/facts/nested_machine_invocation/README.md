@@ -48,6 +48,37 @@ an explicit, incompatible Abort ceiling and rejects. Native crash status is
 host-specific; the corpus pins `trap`, not a portable numeric exit. Terminal
 execution of that unchanged artifact also traps under all four target selections.
 
+[Unit completion](unit_completion/main.omg) forwards a whole terminal invocation
+with explicit static operands and a caller-owned mutable argument. Case-selected
+invocations execute exactly once, without running another arm. Its
+[reject twin](unit_completion/invalid/main.omg) requires a scalar result from
+that same Unit helper. This exercises the ordinary call operation, not a
+synthetic value local; guarded blocking completion is also exercised by the
+migrated [Horner program](../../algorithms/horner_eval/main.omg).
+
+[Indexed constant identity](nominal_index/main.omg) preserves a nominal constant
+index through a nested call, equates constants with the same checked value,
+and checks the corresponding integer constant/literal identity. Its
+[reject twin](nominal_index/invalid/main.omg) supplies a different nominal
+carrier with the same field shape. These are prerequisites exposed by the
+bundled standard library when migrating ordinary state-loop samples.
+
+[Ranked callee](ranked_callee/main.omg) leaves an acyclic terminating wrapper
+around a nested shrinking-slice loop, with a separate caller-owned counter.
+The empty path leaves the counter unchanged; three elements increment it three
+times. The [reject twin](ranked_callee/invalid/main.omg) passes the whole slice
+back instead of its tail. A wrapper's termination promise does not manufacture
+a local loop rank: lowering must retain exactly the observations required by
+each admitted body, including fused callees. A value cast reading the counter
+must not be confused with embedding a reference as a mathematical integer.
+This is the control for the shared console adapters' nested-machine migration.
+
+[Copied payload](copied_payload/main.omg) passes a case's copied scalar into a
+nested helper that mutates the original case. The copied observation ends before
+the invocation; the [reject twin](copied_payload/invalid/main.omg) instead retains
+a shared reference and must still reject overlapping mutation. The source
+customer is the standard permissions adapter's nested-machine migration.
+
 The row establishes static binder identity, explicit argument composition,
 result checking, continuation, and end-to-end erasure/realization for these
 calls. All four hosted target bindings are authored; executable observations
@@ -58,3 +89,10 @@ The parent outcome remains open: complete call-contract/custody acceptance,
 joint ranking and physical stack-bound evidence, product-compiler support,
 and migration/removal of all retired source-state paths are not established
 by this row. Existing unrelated baseline corpus regressions are not reclassified.
+
+[Private invocation requirements](inferred_requirement/README.md) retain required
+facts at every actual arrival, including ordinary hoisted results and terminal
+calls, without a duplicate handwritten requirement on each nested helper.
+That row also contains public-contract, callback escape and proof-erasure
+controls. Its host observations are recorded separately from this row's earlier
+Windows qualification.

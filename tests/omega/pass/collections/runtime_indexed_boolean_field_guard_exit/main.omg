@@ -38,7 +38,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.cells[3].ready = true;
     transition { _ -> inspect(main, 0) }
 
-    state inspect(main: &mut Main, k: u64) requires k <= 3 {
+    machine inspect(main: &mut Main, k: u64) requires k <= 3 {
         let armed: bool = main.cells[k].armed;
         transition main.cells[k].ready {
             true -> confirm(main, k, armed)
@@ -46,28 +46,28 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state confirm(main: &mut Main, k: u64, armed: bool) requires k <= 3 {
+    machine confirm(main: &mut Main, k: u64, armed: bool) requires k <= 3 {
         transition armed {
             true -> advance(main, k)
             false -> found(main, k)
         }
     }
 
-    state advance(main: &mut Main, k: u64) requires k <= 3 {
+    machine advance(main: &mut Main, k: u64) requires k <= 3 {
         transition k < 3 {
             true -> inspect(main, k + 1)
             false -> finish(main, 72)
         }
     }
 
-    state found(main: &mut Main, k: u64) {
+    machine found(main: &mut Main, k: u64) {
         transition k == 2 {
             true -> finish(main, 70)
             false -> finish(main, 71)
         }
     }
 
-    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

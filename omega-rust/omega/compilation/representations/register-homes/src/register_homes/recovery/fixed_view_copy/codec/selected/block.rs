@@ -15,7 +15,7 @@ use super::{
     provenance::{decode_fuel, encode_fuel},
 };
 use crate::register_homes::recovery::fixed_view_copy::codec::{
-    primitives::{Cursor, decode_id, length},
+    primitives::{Cursor, decode_id, decode_list, length},
     values::{decode_scalar, encode_scalar},
 };
 
@@ -50,6 +50,15 @@ pub(super) fn encode_block(bytes: &mut Vec<u8>, block: &SelectedBlock) {
         encode_instruction(bytes, instruction);
     }
     match &block.terminator {
+        SelectedTerminator::InvokeNoNormal {
+            instruction,
+            psi_edge,
+        } => {
+            bytes.push(8);
+            encode_instruction(bytes, instruction);
+            crate::codec_bytes::push_encoded(bytes, psi_edge.get().to_le_bytes());
+        }
+
         SelectedTerminator::OperationTrap {
             instruction,
             operation,
@@ -163,11 +172,7 @@ pub(super) fn decode_block(
         },
         tag => return Err(FixedViewCopyDecodeError::UnknownBlockOrigin(tag)),
     };
-    let instruction_count = cursor.length()?;
-    let mut instructions = Vec::with_capacity(instruction_count.min(cursor.remaining()));
-    for _ in 0..instruction_count {
-        instructions.push(decode_instruction(cursor)?);
-    }
+    let instructions = decode_list(cursor, decode_instruction)?;
     let terminator = match cursor.byte()? {
         7 => SelectedTerminator::OperationTrap {
             instruction: decode_instruction(cursor)?,
@@ -190,11 +195,9 @@ pub(super) fn decode_block(
                         .map_err(|_| FixedViewCopyDecodeError::InvalidCrashPredicate)?;
                 site_guard.push(terminal_psi::CrashPredicateTerm::new(proposition));
             }
-            let count = cursor.length()?;
-            let mut frontier_lower_bound = Vec::with_capacity(count.min(cursor.remaining()));
-            for _ in 0..count {
-                frontier_lower_bound.push(decode_id(cursor, semantic_vocabulary::ClaimId::new)?);
-            }
+            let frontier_lower_bound = decode_list(cursor, |cursor| {
+                decode_id(cursor, semantic_vocabulary::ClaimId::new)
+            })?;
             SelectedTerminator::Crash {
                 instruction,
                 psi_edge,
@@ -203,6 +206,10 @@ pub(super) fn decode_block(
                 frontier_lower_bound,
             }
         }
+        8 => SelectedTerminator::InvokeNoNormal {
+            instruction: decode_instruction(cursor)?,
+            psi_edge: decode_id(cursor, EdgeId::new)?,
+        },
         5 => SelectedTerminator::HostedExitProcess {
             instruction: decode_instruction(cursor)?,
             completion_edge: decode_id(cursor, EdgeId::new)?,
@@ -572,11 +579,7 @@ fn decode_case(
             transport,
         });
     }
-    let count = cursor.length()?;
-    let mut cleanup_actions = Vec::with_capacity(count.min(cursor.remaining()));
-    for _ in 0..count {
-        cleanup_actions.push(super::structural::decode_cleanup(cursor)?);
-    }
+    let cleanup_actions = decode_list(cursor, super::structural::decode_cleanup)?;
     Ok(Some(selected_instructions::SelectedStructuralCaseEdge {
         source,
         case,

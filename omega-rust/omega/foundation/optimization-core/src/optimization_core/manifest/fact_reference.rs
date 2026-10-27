@@ -1,7 +1,5 @@
 //! Canonical closed vocabulary for evidence consumed by optimization rules.
 
-use std::fmt;
-
 use crate::{
     AcceptedObligationFactIdentity, OwnershipFrontierFactIdentity, ScalarConstantFactIdentity,
     ValueRangeFactIdentity,
@@ -70,13 +68,7 @@ pub enum OptimizationFactReferenceDecodeError {
     UnknownTag(u8),
 }
 
-impl fmt::Display for OptimizationFactReferenceDecodeError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            formatter,
-            "invalid optimization fact reference encoding: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for OptimizationFactReferenceDecodeError {}
+crate::invalid_error_display!(
+    OptimizationFactReferenceDecodeError,
+    "optimization fact reference encoding"
+);

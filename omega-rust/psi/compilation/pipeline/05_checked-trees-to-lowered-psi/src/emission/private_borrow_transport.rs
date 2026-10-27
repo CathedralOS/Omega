@@ -335,7 +335,11 @@ fn forward_from(
             // Guards and proof propositions keep their original storage
             // identities. Edge aliases establish the fresh runtime names;
             // no operation or proof result is manufactured by this transfer.
-            Terminator::ExternalCompletion {
+            Terminator::InvokeNoNormal {
+                structural_arguments,
+                ..
+            }
+            | Terminator::ExternalCompletion {
                 structural_arguments,
                 ..
             } => {

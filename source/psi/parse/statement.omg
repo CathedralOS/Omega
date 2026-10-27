@@ -22,7 +22,7 @@ crashes Trap
     parser.body_first_statement = parser.output.statement_count as u64 in Trapping;
     transition { _ -> next(parser, input, unsupported) }
 
-    state next(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+    machine next(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
         Parser::load_current(parser, input);
         transition parser.current_present {
             true -> classify(parser, input, unsupported)
@@ -30,7 +30,7 @@ crashes Trap
         }
     }
 
-    state classify(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+    machine classify(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
         let token: Token = input.tokens[parser.current_index];
         parser.statement_start = token.start;
         transition token {
@@ -49,7 +49,7 @@ crashes Trap
 
     // `crash` is a contextual word: it always opens a crash statement. `_`
     // before `=` opens an intentional discard.
-    state word(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+    machine word(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
         let crash: bool = Parser::at_word(parser, input, "crash");
         let underscore: bool = Parser::at_word(parser, input, "_");
         let assigned: bool = Parser::next_is_punctuation(parser, input, PunctuationKind::Equal);
@@ -59,14 +59,14 @@ crashes Trap
         }
     }
 
-    state discard_or_value(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, discard: bool) {
+    machine discard_or_value(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, discard: bool) {
         transition discard {
             true -> discard_statement(parser, input, unsupported)
             _ -> expression_statement(parser, input, unsupported)
         }
     }
 
-    state discard_statement(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+    machine discard_statement(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
         Parser::take_current(parser, input);
         Parser::take_current(parser, input);
         Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedAssignmentValue, true, true);
@@ -76,7 +76,7 @@ crashes Trap
         }
     }
 
-    state discard_end(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, value: u64 in Trapping) {
+    machine discard_end(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, value: u64 in Trapping) {
         Parser::expect_punctuation(parser, input, PunctuationKind::Semicolon,
             ParseDiagnosticCode::ExpectedAssignmentSemicolon
         );
@@ -86,7 +86,7 @@ crashes Trap
         }
     }
 
-    state discard_retained(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, value: u64 in Trapping) {
+    machine discard_retained(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, value: u64 in Trapping) {
         let statement: Statement = Statement {
             kind: StatementKind::Discard,
             name: Parser::identifier_span(parser, 0, 0),
@@ -103,7 +103,7 @@ crashes Trap
         transition { _ -> store(parser, input, unsupported, statement) }
     }
 
-    state crash_statement(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+    machine crash_statement(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
         Parser::take_current(parser, input);
         let trap: bool = Parser::at_word(parser, input, "Trap");
         transition trap {
@@ -112,7 +112,7 @@ crashes Trap
         }
     }
 
-    state crash_abort(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+    machine crash_abort(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
         let abort: bool = Parser::at_word(parser, input, "Abort");
         transition abort {
             true -> crash_cause(parser, input, unsupported, CrashCause::Abort)
@@ -120,7 +120,7 @@ crashes Trap
         }
     }
 
-    state crash_cause(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, cause: CrashCause) {
+    machine crash_cause(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, cause: CrashCause) {
         Parser::take_current(parser, input);
         Parser::expect_punctuation(parser, input, PunctuationKind::Semicolon, ParseDiagnosticCode::ExpectedCrashEnd);
         transition parser.output.accepted {
@@ -129,7 +129,7 @@ crashes Trap
         }
     }
 
-    state crash_retained(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, cause: CrashCause) {
+    machine crash_retained(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, cause: CrashCause) {
         let statement: Statement = Statement {
             kind: StatementKind::Crash,
             name: Parser::identifier_span(parser, 0, 0),
@@ -146,7 +146,7 @@ crashes Trap
         transition { _ -> store(parser, input, unsupported, statement) }
     }
 
-    state let_statement(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+    machine let_statement(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
         Parser::take_current(parser, input);
         let mutable: bool = Parser::at_word(parser, input, "mut");
         transition mutable {
@@ -157,7 +157,7 @@ crashes Trap
 
     // `mut` marks mutability only before a name; `let mut: T` declares a
     // local named `mut`.
-    state let_mut(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+    machine let_mut(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
         Parser::take_current(parser, input);
         let named: bool = Parser::at_name(parser, input);
         transition named {
@@ -166,14 +166,14 @@ crashes Trap
         }
     }
 
-    state let_named_mut(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+    machine let_named_mut(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
         parser.local_mutable = false;
         parser.local_name_start = parser.token_start;
         parser.local_name_end = parser.token_end;
         transition { _ -> let_marker(parser, input, unsupported) }
     }
 
-    state let_marker(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+    machine let_marker(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
         Parser::parse_erased_marker(parser, input);
         transition parser.output.accepted {
             true -> let_colon(parser, input, unsupported)
@@ -181,7 +181,7 @@ crashes Trap
         }
     }
 
-    state let_name(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, mutable: bool) {
+    machine let_name(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, mutable: bool) {
         parser.local_mutable = mutable;
         Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedLocalDataName);
         transition parser.output.accepted {
@@ -190,13 +190,13 @@ crashes Trap
         }
     }
 
-    state let_named(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+    machine let_named(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
         parser.local_name_start = parser.name_start;
         parser.local_name_end = parser.name_end;
         transition { _ -> let_marker(parser, input, unsupported) }
     }
 
-    state let_colon(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+    machine let_colon(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
         Parser::expect_punctuation(parser, input, PunctuationKind::Colon, ParseDiagnosticCode::ExpectedLocalDataColon);
         transition parser.output.accepted {
             true -> let_type(parser, input, unsupported)
@@ -204,7 +204,7 @@ crashes Trap
         }
     }
 
-    state let_type(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+    machine let_type(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
         Parser::parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedLocalDataType);
         transition parser.output.accepted {
             true -> let_initializer(parser, input, unsupported)
@@ -212,7 +212,7 @@ crashes Trap
         }
     }
 
-    state let_initializer(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+    machine let_initializer(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
         parser.local_type = parser.type_result;
         let initialized: bool = Parser::at_punctuation(parser, input, PunctuationKind::Equal);
         transition initialized {
@@ -221,7 +221,7 @@ crashes Trap
         }
     }
 
-    state let_value(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+    machine let_value(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
         Parser::take_current(parser, input);
         Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedLocalDataInitialValue, true, true);
         transition parser.output.accepted {
@@ -230,7 +230,7 @@ crashes Trap
         }
     }
 
-    state let_end(
+    machine let_end(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -244,7 +244,7 @@ crashes Trap
         }
     }
 
-    state let_retained(
+    machine let_retained(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -270,7 +270,7 @@ crashes Trap
         transition { _ -> store(parser, input, unsupported, statement) }
     }
 
-    state expression_statement(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+    machine expression_statement(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
         Parser::parse_expression(parser, input, unsupported, true, true);
         transition parser.output.accepted {
             true -> after_expression(parser, input, unsupported, parser.expression_result)
@@ -278,7 +278,7 @@ crashes Trap
         }
     }
 
-    state after_expression(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, value: u64 in Trapping) {
+    machine after_expression(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, value: u64 in Trapping) {
         Parser::load_current(parser, input);
         transition parser.current_present {
             true -> statement_end(parser, input, unsupported, value)
@@ -286,7 +286,7 @@ crashes Trap
         }
     }
 
-    state statement_end(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, value: u64 in Trapping) {
+    machine statement_end(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, value: u64 in Trapping) {
         let token: Token = input.tokens[parser.current_index];
         transition token {
             Token::Punctuation { punctuation: PunctuationKind::Equal, .. } -> assignment(parser, input, unsupported, value)
@@ -296,7 +296,7 @@ crashes Trap
         }
     }
 
-    state assignment(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, target: u64 in Trapping) {
+    machine assignment(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, target: u64 in Trapping) {
         Parser::take_current(parser, input);
         Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedAssignmentValue, true, true);
         transition parser.output.accepted {
@@ -305,7 +305,7 @@ crashes Trap
         }
     }
 
-    state assignment_end(
+    machine assignment_end(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -321,7 +321,7 @@ crashes Trap
         }
     }
 
-    state assignment_retained(
+    machine assignment_retained(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -344,7 +344,7 @@ crashes Trap
         transition { _ -> store(parser, input, unsupported, statement) }
     }
 
-    state terminated(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, value: u64 in Trapping) {
+    machine terminated(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, value: u64 in Trapping) {
         Parser::take_current(parser, input);
         let statement: Statement = Statement {
             kind: StatementKind::Expression,
@@ -363,7 +363,7 @@ crashes Trap
     }
 
     // The body's `}` stays for the caller; the tail ends at its expression.
-    state tail(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, value: u64 in Trapping) {
+    machine tail(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, value: u64 in Trapping) {
         let expression: Expression = SyntaxTrees::expression(&parser.output, value);
         let statement: Statement = Statement {
             kind: StatementKind::Tail,
@@ -381,14 +381,14 @@ crashes Trap
         transition { _ -> store(parser, input, unsupported, statement) }
     }
 
-    state store(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, statement: Statement) {
+    machine store(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, statement: Statement) {
         transition parser.output.statement_count < 16384 {
             true -> store_bounded(parser, input, unsupported, statement)
             _ -> reject(parser, input, ParseDiagnosticCode::StatementCapacityExceeded)
         }
     }
 
-    state store_bounded(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, statement: Statement) {
+    machine store_bounded(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, statement: Statement) {
         parser.output.statements[parser.output.statement_count] = statement;
         parser.output.statement_count = parser.output.statement_count + 1;
         transition { _ -> next(parser, input, unsupported) }
@@ -397,7 +397,7 @@ crashes Trap
     // `transition { guard -> target ... }` or `transition subject { pattern
     // -> target ... }`. The subject admits no construction: its `{` opens
     // the arms.
-    state transition_statement(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+    machine transition_statement(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
         Parser::take_current(parser, input);
         let open: bool = Parser::at_punctuation(parser, input, PunctuationKind::LeftBrace);
         transition open {
@@ -406,7 +406,7 @@ crashes Trap
         }
     }
 
-    state transition_subject(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+    machine transition_subject(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
         Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedTransitionSubject, false, true);
         transition parser.output.accepted {
             true -> subject_open(parser, input, unsupported, parser.expression_result)
@@ -414,7 +414,7 @@ crashes Trap
         }
     }
 
-    state subject_open(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, subject: u64 in Trapping) {
+    machine subject_open(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, subject: u64 in Trapping) {
         let open: bool = Parser::at_punctuation(parser, input, PunctuationKind::LeftBrace);
         transition open {
             true -> arms_open(parser, input, unsupported, true, subject)
@@ -422,7 +422,7 @@ crashes Trap
         }
     }
 
-    state arms_open(
+    machine arms_open(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -434,7 +434,7 @@ crashes Trap
         transition { _ -> arm(parser, input, unsupported, has_subject, subject) }
     }
 
-    state arm(
+    machine arm(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -448,7 +448,7 @@ crashes Trap
         }
     }
 
-    state arm_start(
+    machine arm_start(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -462,7 +462,7 @@ crashes Trap
         }
     }
 
-    state arm_pattern(
+    machine arm_pattern(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -482,7 +482,7 @@ crashes Trap
         }
     }
 
-    state wildcard_arm(
+    machine wildcard_arm(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -493,7 +493,7 @@ crashes Trap
         transition { _ -> arm_guard(parser, input, unsupported, has_subject, subject, ArmPatternKind::Wildcard, 0, 0, 0) }
     }
 
-    state arm_expression(
+    machine arm_expression(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -509,7 +509,7 @@ crashes Trap
 
     // A subjectless block's arms are guards; a subject's arms are case paths
     // or literal patterns.
-    state arm_classify(
+    machine arm_classify(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -524,7 +524,7 @@ crashes Trap
         }
     }
 
-    state subject_pattern(
+    machine subject_pattern(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -539,7 +539,7 @@ crashes Trap
         }
     }
 
-    state case_pattern(
+    machine case_pattern(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -556,7 +556,7 @@ crashes Trap
         }
     }
 
-    state pattern_fields_open(
+    machine pattern_fields_open(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -567,7 +567,7 @@ crashes Trap
         transition { _ -> pattern_field_or_end(parser, input, unsupported, subject, pattern) }
     }
 
-    state pattern_field_or_end(
+    machine pattern_field_or_end(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -582,7 +582,7 @@ crashes Trap
         }
     }
 
-    state pattern_field_or_rest(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, subject: u64 in Trapping, pattern: u64 in Trapping, rest: bool) {
+    machine pattern_field_or_rest(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, subject: u64 in Trapping, pattern: u64 in Trapping, rest: bool) {
         transition rest {
             true -> pattern_rest(parser, input, unsupported, subject, pattern)
             _ -> pattern_field(parser, input, unsupported, subject, pattern)
@@ -591,7 +591,7 @@ crashes Trap
 
     // Rest opts out of drift checking without creating a field or binder.
     // It uses the same separator path as fields, including a trailing comma.
-    state pattern_rest(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, subject: u64 in Trapping, pattern: u64 in Trapping) {
+    machine pattern_rest(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, subject: u64 in Trapping, pattern: u64 in Trapping) {
         parser.arm_has_rest = true;
         Parser::take_current(parser, input);
         let separator: bool = Parser::at_punctuation(parser, input, PunctuationKind::Comma);
@@ -601,7 +601,7 @@ crashes Trap
         }
     }
 
-    state pattern_field(
+    machine pattern_field(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -615,7 +615,7 @@ crashes Trap
         }
     }
 
-    state pattern_field_named(
+    machine pattern_field_named(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -635,7 +635,7 @@ crashes Trap
 
     // `field as name` binds the field under another name; `field as _`
     // waives it.
-    state pattern_field_binder(
+    machine pattern_field_binder(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -650,7 +650,7 @@ crashes Trap
         }
     }
 
-    state pattern_field_rename(
+    machine pattern_field_rename(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -668,7 +668,7 @@ crashes Trap
         }
     }
 
-    state pattern_field_value(
+    machine pattern_field_value(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -683,7 +683,7 @@ crashes Trap
         }
     }
 
-    state pattern_field_valued(
+    machine pattern_field_valued(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -696,7 +696,7 @@ crashes Trap
             Parser::valued_pattern_field(parser, value, expression.source_span.span.end)) }
     }
 
-    state pattern_field_store(
+    machine pattern_field_store(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -710,7 +710,7 @@ crashes Trap
         }
     }
 
-    state pattern_field_stored(
+    machine pattern_field_stored(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -727,7 +727,7 @@ crashes Trap
         }
     }
 
-    state pattern_field_separator(
+    machine pattern_field_separator(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -738,7 +738,7 @@ crashes Trap
         transition { _ -> pattern_field_or_end(parser, input, unsupported, subject, pattern) }
     }
 
-    state pattern_field_end(
+    machine pattern_field_end(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -752,7 +752,7 @@ crashes Trap
         }
     }
 
-    state pattern_fields_close(
+    machine pattern_fields_close(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -768,7 +768,7 @@ crashes Trap
     // `if condition` after any pattern guards the arm: the condition is an
     // expression over the pattern's binders and the body's names, read
     // before the arrow.
-    state arm_guard(
+    machine arm_guard(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -786,7 +786,7 @@ crashes Trap
         }
     }
 
-    state guard_condition(
+    machine guard_condition(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -807,7 +807,7 @@ crashes Trap
         }
     }
 
-    state arm_arrow(
+    machine arm_arrow(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -828,7 +828,7 @@ crashes Trap
     // A target is `{}`, the explicit Unit completion, or an expression: a
     // call naming a declaration or any terminal value. A value may be a
     // construction, since no arm begins with `{`.
-    state arm_target(
+    machine arm_target(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -846,7 +846,7 @@ crashes Trap
         }
     }
 
-    state terminal_target(
+    machine terminal_target(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -879,7 +879,7 @@ crashes Trap
         }
     }
 
-    state call_target(
+    machine call_target(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -901,7 +901,7 @@ crashes Trap
     // A call target names a state or machine: a bare name (a state first)
     // or an owned machine path such as `Owner::step`. Every other expression
     // but an acknowledgement is a terminal value.
-    state call_target_shape(
+    machine call_target_shape(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -925,7 +925,7 @@ crashes Trap
         }
     }
 
-    state unary_target(
+    machine unary_target(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -947,7 +947,7 @@ crashes Trap
         }
     }
 
-    state value_target(
+    machine value_target(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -980,7 +980,7 @@ crashes Trap
     // A target may acknowledge its call's operational effects
     // (`-> suspend block read(source)`); the arm keeps the acknowledged node,
     // whose operand must be a call.
-    state acknowledged_target(
+    machine acknowledged_target(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -1002,7 +1002,7 @@ crashes Trap
         }
     }
 
-    state call_target_callee(
+    machine call_target_callee(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -1036,7 +1036,7 @@ crashes Trap
         }
     }
 
-    state store_arm(
+    machine store_arm(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -1050,7 +1050,7 @@ crashes Trap
         }
     }
 
-    state arm_stored(
+    machine arm_stored(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -1063,7 +1063,7 @@ crashes Trap
         transition { _ -> arm(parser, input, unsupported, has_subject, subject) }
     }
 
-    state transition_close(
+    machine transition_close(
         parser: &mut Parser,
         input: &TokenStream,
         unsupported: ParseDiagnosticCode,
@@ -1087,15 +1087,15 @@ crashes Trap
         transition { _ -> store(parser, input, unsupported, statement) }
     }
 
-    state reject_at(parser: &mut Parser, code: ParseDiagnosticCode, source_span: SourceSpan) {
+    machine reject_at(parser: &mut Parser, code: ParseDiagnosticCode, source_span: SourceSpan) {
         SyntaxTrees::reject(&mut parser.output, code, source_span.source, source_span.span.start, source_span.span.end);
     }
 
-    state reject(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
+    machine reject(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
         Parser::reject_current(parser, input, code);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Whether `operator` is a call acknowledgement prefix.
@@ -1107,11 +1107,11 @@ machine Parser::acknowledges(operator: OperatorKind) -> bool {
         _ -> other()
     }
 
-    state acknowledgement() {
+    machine acknowledgement() -> bool {
         true
     }
 
-    state other() {
+    machine other() -> bool {
         false
     }
 }

@@ -1,0 +1,200 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Omega",
+  "scopeName": "source.omega",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#declarations"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#names"
+    },
+    {
+      "include": "#punctuation"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.documentation.omega",
+          "match": "///.*$"
+        },
+        {
+          "name": "comment.line.double-slash.omega",
+          "match": "//.*$"
+        },
+        {
+          "include": "#block-comment"
+        }
+      ]
+    },
+    "block-comment": {
+      "name": "comment.block.omega",
+      "begin": "/\\*",
+      "end": "\\*/",
+      "patterns": [
+        {
+          "include": "#block-comment"
+        }
+      ]
+    },
+    "strings": {
+      "name": "string.quoted.double.omega",
+      "begin": "\"",
+      "end": "\"|$",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.begin.omega"
+        }
+      },
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.end.omega"
+        }
+      },
+      "patterns": [
+        {
+          "name": "constant.character.escape.omega",
+          "match": "\\\\(?:[\"\\\\nrt0]|x[0-9a-fA-F]{2})"
+        },
+        {
+          "name": "invalid.illegal.escape.omega",
+          "match": "\\\\."
+        }
+      ]
+    },
+    "declarations": {
+      "patterns": [
+        {
+          "match": "\\b(machine|state)\\s+([A-Za-z_][A-Za-z_0-9]*)",
+          "captures": {
+            "1": {
+              "name": "storage.type.function.omega"
+            },
+            "2": {
+              "name": "entity.name.function.omega"
+            }
+          }
+        },
+        {
+          "match": "\\b(data|struct|trait|domain|type)\\s+([A-Za-z_][A-Za-z_0-9]*)",
+          "captures": {
+            "1": {
+              "name": "storage.type.omega"
+            },
+            "2": {
+              "name": "entity.name.type.omega"
+            }
+          }
+        },
+        {
+          "match": "\\b(case)\\s+([A-Za-z_][A-Za-z_0-9]*)",
+          "captures": {
+            "1": {
+              "name": "keyword.declaration.omega"
+            },
+            "2": {
+              "name": "entity.name.type.enum.omega"
+            }
+          }
+        },
+        {
+          "match": "\\b(const)\\s+([A-Za-z_][A-Za-z_0-9]*)",
+          "captures": {
+            "1": {
+              "name": "storage.modifier.omega"
+            },
+            "2": {
+              "name": "constant.other.omega"
+            }
+          }
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "constant.language.boolean.omega",
+          "match": "\\b(?:true|false)\\b"
+        },
+        {
+          "name": "storage.type.primitive.omega",
+          "match": "\\b(?:bool|[ui](?:8|16|32|64|128|size)|f(?:16|32|64|128))\\b"
+        },
+        {
+          "name": "keyword.control.omega",
+          "match": "\\b(?:as|boundary|calling_convention|capability|case|const|contains|crash|data|decreases|discharges|dispatches|domain|dyn|else|ensures|exists|exports|foreign|forall|host|if|implements|imports|in|invariant|invokes|layout|let|library|loop|machine|match|module|mut|on|operator|owns|platform|proof|proposition|public|reaches|requires|return|satisfies|self|state|static|struct|target|theorem|then|trait|transition|type|use|when|where|while|witness|write)\\b"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.omega",
+          "match": "\\b0(?:[xX][0-9a-fA-F][0-9a-fA-F_]*|[bB][01][01_]*|[oO][0-7][0-7_]*)(?:[ui](?:8|16|32|64|128|size))?\\b"
+        },
+        {
+          "name": "constant.numeric.omega",
+          "match": "(?<![\\w.])\\.[0-9][0-9_]*(?:[eE][+-]?[0-9][0-9_]*)?(?:f(?:16|32|64|128))?\\b"
+        },
+        {
+          "name": "constant.numeric.omega",
+          "match": "\\b[0-9][0-9_]*(?:\\.(?!\\.|[A-Za-z_])[0-9_]*)?(?:[eE][+-]?[0-9][0-9_]*)?(?:(?:[ui](?:8|16|32|64|128|size))|(?:f(?:16|32|64|128)))?\\b"
+        }
+      ]
+    },
+    "names": {
+      "patterns": [
+        {
+          "name": "support.function.omega",
+          "match": "\\b(?:size_of|align_of|address_of|offset_of|bit_offset_of|code_layout)\\b"
+        },
+        {
+          "name": "entity.name.function.omega",
+          "match": "\\b[A-Za-z_][A-Za-z_0-9]*(?=\\s*(?:<[^<>\\n]*>\\s*)?\\()"
+        },
+        {
+          "name": "constant.other.omega",
+          "match": "\\b[A-Z][A-Z_0-9]+\\b"
+        },
+        {
+          "name": "entity.name.type.omega",
+          "match": "\\b[A-Z][A-Za-z_0-9]*\\b"
+        }
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "name": "punctuation.accessor.omega",
+          "match": "::"
+        },
+        {
+          "name": "keyword.operator.omega",
+          "match": "->|=>|\\.\\.=|\\.\\.|&&|\\|\\||<<|>>|[+*/%=!<>|&~^?-]"
+        },
+        {
+          "name": "punctuation.section.omega",
+          "match": "[{}\\[\\]()]"
+        },
+        {
+          "name": "punctuation.separator.omega",
+          "match": "[,;:.]"
+        }
+      ]
+    }
+  }
+}

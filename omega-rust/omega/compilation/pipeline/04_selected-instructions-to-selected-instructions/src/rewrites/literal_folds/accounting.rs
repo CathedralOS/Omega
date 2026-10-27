@@ -260,44 +260,17 @@ pub(super) fn add_usage(
     left: OptimizationWorkUsage,
     right: OptimizationWorkUsage,
 ) -> Result<OptimizationWorkUsage, OptimizedLiteralFoldCustodyError> {
-    Ok(OptimizationWorkUsage {
-        rule_evaluations: left
-            .rule_evaluations
-            .checked_add(right.rule_evaluations)
-            .ok_or(OptimizedLiteralFoldCustodyError::WorkOverflow)?,
-        candidates: left
-            .candidates
-            .checked_add(right.candidates)
-            .ok_or(OptimizedLiteralFoldCustodyError::WorkOverflow)?,
-        validation_steps: left
-            .validation_steps
-            .checked_add(right.validation_steps)
-            .ok_or(OptimizedLiteralFoldCustodyError::WorkOverflow)?,
-        commits: left
-            .commits
-            .checked_add(right.commits)
-            .ok_or(OptimizedLiteralFoldCustodyError::WorkOverflow)?,
-        iterations: left
-            .iterations
-            .checked_add(right.iterations)
-            .ok_or(OptimizedLiteralFoldCustodyError::WorkOverflow)?,
-    })
+    crate::work_accounting::combine(left, right)
+        .map_err(|_| OptimizedLiteralFoldCustodyError::WorkOverflow)
 }
 
 pub(super) fn ensure_selected_lowering_budget(
     usage: OptimizationWorkUsage,
     budget: OptimizationWorkBudget,
 ) -> Result<(), OptimizedLiteralFoldCustodyError> {
-    if usage.within(budget) {
-        Ok(())
-    } else {
-        Err(
-            OptimizedLiteralFoldCustodyError::SelectedLoweringBudgetExceeded {
-                required: usage,
-                budget,
-            },
-        )
-    }
+    crate::work_accounting::admit(usage, budget, |required, budget| {
+        OptimizedLiteralFoldCustodyError::SelectedLoweringBudgetExceeded { required, budget }
+    })
 }
 
 pub(super) fn validate_selected_lowering_policies(

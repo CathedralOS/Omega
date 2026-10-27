@@ -31,7 +31,8 @@ mod descriptor_sources;
 mod fixed_byte_freshness;
 pub(crate) use byte_predicates::{
     byte_field_predicates, byte_write_predicates, concatenation_preserves_predicates,
-    copied_field_predicates_at_transfer, replacement_preserves_predicates, whole_source_predicates,
+    copied_field_predicates_at_invocation, copied_field_predicates_at_transfer,
+    replacement_preserves_predicates, whole_source_predicates,
 };
 pub(crate) use byte_views::byte_field_store_capacity;
 pub use byte_views::declared_descriptor_home;

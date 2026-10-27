@@ -342,48 +342,66 @@ fn admit_provider_selections(
     assumptions: &[AssumedBindingSelection],
 ) -> Result<AdmittedProviderSelections, ProviderInstallationError> {
     let mut installed = BTreeMap::new();
-    for selection in selections {
-        let mut candidates = module.provider_candidates.iter().filter(|candidate| {
-            candidate.boundary == selection.boundary
-                && module.identities.text(candidate.provider_identity)
-                    == Some(selection.provider_identity.as_str())
-                && module
-                    .identities
-                    .text(candidate.provider_declaration.identity())
-                    == Some(selection.provider_declaration.as_str())
-                && candidate.candidate == selection.candidate
-        });
-        let candidate = candidates.next();
-        if selection.provider_identity.is_empty()
-            || selection.provider_declaration.is_empty()
-            || module
-                .boundary_machine(selection.boundary)
-                .is_none_or(|boundary| {
-                    boundary.role != terminal_psi::BoundaryDeclarationRole::Callable
-                })
-            || installed.contains_key(&selection.boundary)
-            || candidates.next().is_some()
-        {
-            return Err(ProviderInstallationError::UnknownOrDuplicateSelection {
-                boundary: selection.boundary,
-                candidate: selection.candidate,
-            });
+    if !selections.is_empty() {
+        let mut candidates_by_boundary = BTreeMap::<
+            BoundaryMachineId,
+            Vec<&terminal_psi::ProviderCandidateConformance>,
+        >::new();
+        for candidate in &module.provider_candidates {
+            candidates_by_boundary
+                .entry(candidate.boundary)
+                .or_default()
+                .push(candidate);
         }
-        let Some(candidate) = candidate else {
-            return Err(ProviderInstallationError::UnknownOrDuplicateSelection {
-                boundary: selection.boundary,
-                candidate: selection.candidate,
-            });
-        };
-        installed.insert(
-            selection.boundary,
-            AdmittedProviderSelection {
-                candidate: candidate.candidate,
-                provider_declaration: candidate.provider_declaration.clone(),
-                receiving_application: candidate.receiving_application,
-                receiving_region_arguments: candidate.receiving_region_arguments.clone(),
-            },
-        );
+        let callable_boundaries: BTreeSet<BoundaryMachineId> = module
+            .boundary_machines
+            .iter()
+            .filter(|boundary| boundary.role == terminal_psi::BoundaryDeclarationRole::Callable)
+            .map(|boundary| boundary.id)
+            .collect();
+        for selection in selections {
+            let mut candidates = candidates_by_boundary
+                .get(&selection.boundary)
+                .into_iter()
+                .flatten()
+                .copied()
+                .filter(|candidate| {
+                    module.identities.text(candidate.provider_identity)
+                        == Some(selection.provider_identity.as_str())
+                        && module
+                            .identities
+                            .text(candidate.provider_declaration.identity())
+                            == Some(selection.provider_declaration.as_str())
+                        && candidate.candidate == selection.candidate
+                });
+            let candidate = candidates.next();
+            if selection.provider_identity.is_empty()
+                || selection.provider_declaration.is_empty()
+                || !callable_boundaries.contains(&selection.boundary)
+                || installed.contains_key(&selection.boundary)
+                || candidates.next().is_some()
+            {
+                return Err(ProviderInstallationError::UnknownOrDuplicateSelection {
+                    boundary: selection.boundary,
+                    candidate: selection.candidate,
+                });
+            }
+            let Some(candidate) = candidate else {
+                return Err(ProviderInstallationError::UnknownOrDuplicateSelection {
+                    boundary: selection.boundary,
+                    candidate: selection.candidate,
+                });
+            };
+            installed.insert(
+                selection.boundary,
+                AdmittedProviderSelection {
+                    candidate: candidate.candidate,
+                    provider_declaration: candidate.provider_declaration.clone(),
+                    receiving_application: candidate.receiving_application,
+                    receiving_region_arguments: candidate.receiving_region_arguments.clone(),
+                },
+            );
+        }
     }
     let assumed_bindings = admit_assumed_bindings(module, &installed, assumptions)?;
     Ok(AdmittedProviderSelections {

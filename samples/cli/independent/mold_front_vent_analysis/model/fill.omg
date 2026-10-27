@@ -22,7 +22,7 @@ public machine neighbours(mask: i32 in Wrapping) -> i32 in Wrapping {
 // every connected cell regardless of the path shape, without a heap or queue.
 public machine air_closure(air: i32 in Wrapping, seeds: i32 in Wrapping) -> i32 in Wrapping {
     transition { _ -> expand(air, seeds & air, 0) }
-    state expand(air: i32 in Wrapping, reached: i32 in Wrapping,
+    machine expand(air: i32 in Wrapping, reached: i32 in Wrapping,
                  round: i32 in Wrapping) -> i32 in Wrapping {
         transition round < 16 {
             true -> expand(air, reached | (neighbours(reached) & air), round + 1)
@@ -33,7 +33,7 @@ public machine air_closure(air: i32 in Wrapping, seeds: i32 in Wrapping) -> i32 
 
 public machine cell_count(mask: i32 in Wrapping) -> i32 in Wrapping {
     transition { _ -> bit(mask & 65535, 0) }
-    state bit(rest: i32 in Wrapping, count: i32 in Wrapping) -> i32 in Wrapping {
+    machine bit(rest: i32 in Wrapping, count: i32 in Wrapping) -> i32 in Wrapping {
         transition rest != 0 {
             true -> bit(rest >> 1, count + (rest & 1))
             _ -> (count)
@@ -63,24 +63,24 @@ public machine Cavity::simulate(cavity: &mut Cavity) {
     cavity.used = cell_count(cavity.gates);
     cavity.tick = 0;
     transition { _ -> initialize(cavity, 0, 1) }
-    state initialize(cavity: &mut Cavity, index: i32 in Wrapping, bit: i32 in Wrapping) {
+    machine initialize(cavity: &mut Cavity, index: i32 in Wrapping, bit: i32 in Wrapping) {
         transition index >= 0 && index < 16 {
             true -> initial_cell(cavity, index, bit)
             _ -> round(cavity)
         }
     }
-    state initial_cell(cavity: &mut Cavity, index: i32 in Wrapping, bit: i32 in Wrapping) {
+    machine initial_cell(cavity: &mut Cavity, index: i32 in Wrapping, bit: i32 in Wrapping) {
         cavity.arrival[index] = 0 - 1;
         transition (cavity.gates & bit) != 0 {
             true -> gate(cavity, index, bit)
             _ -> initialize(cavity, index + 1, bit << 1)
         }
     }
-    state gate(cavity: &mut Cavity, index: i32 in Wrapping, bit: i32 in Wrapping) {
+    machine gate(cavity: &mut Cavity, index: i32 in Wrapping, bit: i32 in Wrapping) {
         cavity.arrival[index] = 0;
         transition { _ -> initialize(cavity, index + 1, bit << 1) }
     }
-    state round(cavity: &mut Cavity) {
+    machine round(cavity: &mut Cavity) {
         Cavity::classify(cavity);
         let candidates: i32 in Wrapping = neighbours(cavity.filled) & cavity.vented;
         transition cavity.used < cavity.budget && candidates != 0 {
@@ -88,35 +88,35 @@ public machine Cavity::simulate(cavity: &mut Cavity) {
             _ -> done()
         }
     }
-    state begin_batch(cavity: &mut Cavity, candidates: i32 in Wrapping) {
+    machine begin_batch(cavity: &mut Cavity, candidates: i32 in Wrapping) {
         cavity.tick = cavity.tick + 1;
         transition { _ -> select(cavity, candidates, 0, 1, 0) }
     }
-    state select(cavity: &mut Cavity, candidates: i32 in Wrapping,
+    machine select(cavity: &mut Cavity, candidates: i32 in Wrapping,
                  index: i32 in Wrapping, bit: i32 in Wrapping, batch: i32 in Wrapping) {
         transition index >= 0 && index < 16 && cavity.used < cavity.budget {
             true -> candidate(cavity, candidates, index, bit, batch)
             _ -> apply(cavity, batch)
         }
     }
-    state candidate(cavity: &mut Cavity, candidates: i32 in Wrapping,
+    machine candidate(cavity: &mut Cavity, candidates: i32 in Wrapping,
                     index: i32 in Wrapping, bit: i32 in Wrapping, batch: i32 in Wrapping) {
         transition (candidates & bit) != 0 {
             true -> accept(cavity, candidates, index, bit, batch)
             _ -> select(cavity, candidates, index + 1, bit << 1, batch)
         }
     }
-    state accept(cavity: &mut Cavity, candidates: i32 in Wrapping,
+    machine accept(cavity: &mut Cavity, candidates: i32 in Wrapping,
                  index: i32 in Wrapping, bit: i32 in Wrapping, batch: i32 in Wrapping) {
         cavity.arrival[index] = cavity.tick;
         cavity.used = cavity.used + 1;
         transition { _ -> select(cavity, candidates, index + 1, bit << 1, batch | bit) }
     }
-    state apply(cavity: &mut Cavity, batch: i32 in Wrapping) {
+    machine apply(cavity: &mut Cavity, batch: i32 in Wrapping) {
         cavity.filled = cavity.filled | batch;
         transition { _ -> round(cavity) }
     }
-    state done() { }
+    machine done() { }
 }
 
 // This check is a postcondition on reported physical partitions, rather than

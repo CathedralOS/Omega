@@ -29,6 +29,6 @@ machine main() crashes Trap {
  let first:Observation=probe(9,10,true);
  let second:Observation=probe(9,10,false);
  transition first.payload==8 && first.limit==9 && second.payload==8 && second.limit==10 && first.after==4294967295 && second.after==4294967295 { true->done() _->bad() }
- state done(){}
- state bad(){crash Trap;}
+ machine done(){}
+ machine bad(){crash Trap;}
 }

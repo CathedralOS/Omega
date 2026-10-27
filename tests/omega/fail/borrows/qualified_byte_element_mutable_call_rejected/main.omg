@@ -10,8 +10,8 @@ machine Packet::main(packet: &mut Packet) {
         true -> change(packet)
         _ -> done(packet)
     }
-    state done(packet: &mut Packet) {}
-    state change(packet: &mut Packet) requires packet.bytes.len > 1 {
+    machine done(packet: &mut Packet) {}
+    machine change(packet: &mut Packet) requires packet.bytes.len > 1 {
         let changed: bool = corrupt(&mut packet.bytes[1]);
     }
 }

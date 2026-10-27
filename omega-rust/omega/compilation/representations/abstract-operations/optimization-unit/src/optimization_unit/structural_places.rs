@@ -12,8 +12,8 @@ use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     RecordFieldValue, StructuralAccess, StructuralArgument, StructuralCaseDeclaration,
-    StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
-    StructuralPlaceDeclaration, StructuralTypeShape, TerminalIdentityIndex,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralOperationResult,
+    StructuralPathSegment, StructuralPlaceDeclaration, StructuralTypeShape, TerminalIdentityIndex,
 };
 
 use super::{
@@ -142,6 +142,29 @@ pub fn declared_structural_type(
             .structural()
             .and_then(|result| (result.place == declaration.id).then_some(result.structural_type)),
     }
+}
+
+/// Whether `function` rosters `result.place` as the operation result
+/// `producer` declares with exactly `result`'s structural type. This is the
+/// placement every producer contract admits a fresh result against before it
+/// reads the operation's own operands; the roster, not the operation, decides
+/// what the result place is.
+pub fn operation_result_placement(
+    function: &PsiOptimizationFunction,
+    result: &StructuralOperationResult,
+    producer: OperationId,
+) -> bool {
+    function
+        .structural_place(result.place)
+        .is_some_and(|place| {
+            matches!(
+                place.kind,
+                StructuralPlaceKind::OperationResult {
+                    producer: declared,
+                    structural_type,
+                } if declared == producer && structural_type == result.structural_type
+            )
+        })
 }
 
 /// The `EstablishRecord` or `EstablishCase` node's field initializers when

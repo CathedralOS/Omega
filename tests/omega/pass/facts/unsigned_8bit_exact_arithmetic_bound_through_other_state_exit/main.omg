@@ -8,7 +8,7 @@ requires lhs >= 30u8 && lhs <= 80u8 && rhs >= 40u8 && rhs <= 100u8
     transition {
         _ -> step(lhs + rhs)
     }
-    state step(sum: u8) -> i32
+    machine step(sum: u8) -> i32
     requires sum >= 70u8 && sum <= 180u8
     {
         let headroom: u8 = 180u8 - sum;
@@ -30,6 +30,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

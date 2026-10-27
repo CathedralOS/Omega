@@ -11,11 +11,11 @@ machine build(builder: &mut Build) {
         true -> install(builder)
         false -> not_ready(builder)
     }
-    state install(builder: &mut Build) {
+    machine install(builder: &mut Build) {
         Build::bind(builder, windows_x86_64::ProgramEntry, main);
         Build::bind(builder, linux_x86_64::ProgramEntry, main);
         Build::bind(builder, linux_arm64::ProgramEntry, main);
         Build::bind(builder, macos_arm64::ProgramEntry, main);
     }
-    state not_ready(builder: &mut Build) {}
+    machine not_ready(builder: &mut Build) {}
 }

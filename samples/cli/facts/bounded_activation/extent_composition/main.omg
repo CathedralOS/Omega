@@ -9,7 +9,7 @@ machine mark(bytes: &mut [u8]) -> u8 {
         true -> access(bytes)
         false -> (0u8)
     }
-    state access(bytes: &mut [u8]) -> u8
+    machine access(bytes: &mut [u8]) -> u8
     requires bytes.len >= 8 {
         bytes[7] = 11u8;
         bytes[7]
@@ -21,7 +21,7 @@ machine mark_second(bytes: &mut [u8]) -> u8 {
         true -> access(bytes)
         false -> (0u8)
     }
-    state access(bytes: &mut [u8]) -> u8
+    machine access(bytes: &mut [u8]) -> u8
     requires bytes.len >= 8 {
         bytes[7] = 22u8;
         bytes[7]
@@ -33,7 +33,7 @@ machine mark_wide(bytes: &mut [u8]) -> u8 {
         true -> access(bytes)
         false -> (0u8)
     }
-    state access(bytes: &mut [u8]) -> u8
+    machine access(bytes: &mut [u8]) -> u8
     requires bytes.len >= 16 {
         bytes[15] = 16u8;
         bytes[15]
@@ -45,7 +45,7 @@ machine mark_narrow(bytes: &mut [u8]) -> u8 {
         true -> access(bytes)
         false -> (0u8)
     }
-    state access(bytes: &mut [u8]) -> u8
+    machine access(bytes: &mut [u8]) -> u8
     requires bytes.len >= 12 {
         bytes[11] = 12u8;
         bytes[11]
@@ -57,13 +57,13 @@ machine main() crashes Trap {
         ActivationClaimAttempt::Established { claim } -> first(claim)
         ActivationClaimAttempt::Rejected -> bad()
     }
-    state first(first: ActivationClaim) {
+    machine first(first: ActivationClaim) {
         transition Activation::try_claim<8>(8) {
             ActivationClaimAttempt::Established { claim } -> both(first, claim)
             ActivationClaimAttempt::Rejected -> release_first(first)
         }
     }
-    state both(first: ActivationClaim, second: ActivationClaim) {
+    machine both(first: ActivationClaim, second: ActivationClaim) {
         let mut first_owner: ActivationClaim = first;
         let mut second_owner: ActivationClaim = second;
         let first_bytes: &mut [u8] = ActivationClaim::bytes(&mut first_owner);
@@ -77,13 +77,13 @@ machine main() crashes Trap {
             false -> narrow()
         }
     }
-    state wide() {
+    machine wide() {
         transition Activation::try_claim<16>(16) {
             ActivationClaimAttempt::Established { claim } -> wide_live(claim)
             ActivationClaimAttempt::Rejected -> bad()
         }
     }
-    state wide_live(claim: ActivationClaim) {
+    machine wide_live(claim: ActivationClaim) {
         let mut owner: ActivationClaim = claim;
         let bytes: &mut [u8] = ActivationClaim::bytes(&mut owner);
         let mark: u8 = mark_wide(bytes);
@@ -93,13 +93,13 @@ machine main() crashes Trap {
             false -> bad()
         }
     }
-    state narrow() {
+    machine narrow() {
         transition Activation::try_claim<12>(12) {
             ActivationClaimAttempt::Established { claim } -> narrow_live(claim)
             ActivationClaimAttempt::Rejected -> bad()
         }
     }
-    state narrow_live(claim: ActivationClaim) {
+    machine narrow_live(claim: ActivationClaim) {
         let mut owner: ActivationClaim = claim;
         let bytes: &mut [u8] = ActivationClaim::bytes(&mut owner);
         let mark: u8 = mark_narrow(bytes);
@@ -109,10 +109,10 @@ machine main() crashes Trap {
             false -> bad()
         }
     }
-    state release_first(claim: ActivationClaim) {
+    machine release_first(claim: ActivationClaim) {
         ActivationClaim::release(claim);
         crash Trap;
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

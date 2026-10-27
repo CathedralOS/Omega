@@ -12,8 +12,8 @@ machine forward_eval(p: u64) -> i32
         true -> pass()
         _ -> fail()
     }
-    state pass() -> i32 { 0 }
-    state fail() -> i32 { 1 }
+    machine pass() -> i32 { 0 }
+    machine fail() -> i32 { 1 }
 }
 
 machine multiply_other_machine(lhs: u64, rhs: u64) -> i32
@@ -33,6 +33,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

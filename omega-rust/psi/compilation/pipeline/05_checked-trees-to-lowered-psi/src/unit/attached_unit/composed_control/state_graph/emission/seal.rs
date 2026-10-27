@@ -57,6 +57,10 @@ impl StateGraphEmission<'_, '_> {
         // schedule. Capture a projected result on its transport edge before
         // selected cleanup; whole results are excluded from that partition.
         if !is_guarded_return
+            && matches!(
+                &terminator,
+                terminal_psi::Terminator::ReturnStructural { .. }
+            )
             && let CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result } =
                 &state.terminator
         {

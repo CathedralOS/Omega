@@ -34,6 +34,13 @@ use terminal_psi::{
 /// only selects them away after its rule found them empty.
 pub(crate) struct DirectCall {
     pub(crate) callee: MachineId,
+    pub(crate) inputs: ModuleInvocationArguments,
+    pub(crate) result: DirectCallResult,
+}
+
+/// Completed ordinary invocation entry lanes, independent of whether control
+/// returns and of what a normal return would publish in the caller.
+pub(crate) struct ModuleInvocationArguments {
     pub(crate) arguments: Vec<ValueId>,
     pub(crate) erased_arguments: Vec<ScalarTerm>,
     pub(crate) erased_proof_arguments: Vec<ProofTerm>,
@@ -41,7 +48,6 @@ pub(crate) struct DirectCall {
     pub(crate) claim_transfers: Vec<ClaimTransfer>,
     pub(crate) requirement_obligations: Vec<ObligationId>,
     pub(crate) crash_continuations: Vec<CrashRouteBucket>,
-    pub(crate) result: DirectCallResult,
 }
 
 impl DirectCall {
@@ -62,13 +68,15 @@ impl DirectCall {
     ) -> Self {
         DirectCall {
             callee,
-            arguments,
-            erased_arguments,
-            erased_proof_arguments,
-            structural_arguments,
-            claim_transfers,
-            requirement_obligations,
-            crash_continuations,
+            inputs: ModuleInvocationArguments {
+                arguments,
+                erased_arguments,
+                erased_proof_arguments,
+                structural_arguments,
+                claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+            },
             result,
         }
     }
@@ -156,6 +164,10 @@ impl DirectCall {
     pub(crate) fn into_operation_kind(self) -> OperationKind {
         let Self {
             callee,
+            inputs,
+            result,
+        } = self;
+        let ModuleInvocationArguments {
             arguments,
             erased_arguments,
             erased_proof_arguments,
@@ -163,8 +175,7 @@ impl DirectCall {
             claim_transfers,
             requirement_obligations,
             crash_continuations,
-            result,
-        } = self;
+        } = inputs;
         match result {
             DirectCallResult::Unit => OperationKind::CallUnit {
                 callee,
@@ -218,4 +229,4 @@ impl DirectCall {
     }
 }
 
-pub(crate) use terminal_psi::{DirectCallParts, DirectCallRole, direct_call_parts};
+pub(crate) use terminal_psi::{DirectCallRole, direct_call_parts};

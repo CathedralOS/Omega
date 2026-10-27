@@ -15,7 +15,7 @@ terminates by remaining in 0..=cap;
         true -> hold(main, remaining, cap)
         false -> remaining
     }
-    state hold(main: &mut Main, pending: u64, bound: u64) {
+    machine hold(main: &mut Main, pending: u64, bound: u64) -> u64 {
         transition pending > 0 {
             true -> Main::inner(main, pending, bound)
             false -> pending

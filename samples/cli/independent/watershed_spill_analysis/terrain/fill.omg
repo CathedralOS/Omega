@@ -5,13 +5,13 @@ use terrain::raster;
 // interior parent was settled earlier, so equal-height plateaus cannot cycle.
 machine fill(raster: &mut Raster) -> bool {
     transition { _ -> initialize(raster, 0) }
-    state initialize(raster: &mut Raster, index: i32 in Wrapping) -> bool {
+    machine initialize(raster: &mut Raster, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 25 {
             true -> initialize_cell(raster, index)
             _ -> scan(raster, 0, 0 - 1, 99)
         }
     }
-    state initialize_cell(raster: &mut Raster, index: i32 in Wrapping) -> bool {
+    machine initialize_cell(raster: &mut Raster, index: i32 in Wrapping) -> bool {
         raster.settled[index] = false;
         raster.volumes[index] = 0;
         raster.parents[index] = index;
@@ -21,22 +21,22 @@ machine fill(raster: &mut Raster) -> bool {
             _ -> interior(raster, index)
         }
     }
-    state initialize_boundary(raster: &mut Raster, index: i32 in Wrapping) -> bool {
+    machine initialize_boundary(raster: &mut Raster, index: i32 in Wrapping) -> bool {
         raster.filled[index] = raster.heights[index];
         transition { _ -> initialize(raster, index + 1) }
     }
-    state interior(raster: &mut Raster, index: i32 in Wrapping) -> bool {
+    machine interior(raster: &mut Raster, index: i32 in Wrapping) -> bool {
         raster.filled[index] = 99;
         transition { _ -> initialize(raster, index + 1) }
     }
-    state scan(raster: &mut Raster, index: i32 in Wrapping,
+    machine scan(raster: &mut Raster, index: i32 in Wrapping,
                best: i32 in Wrapping, level: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 25 {
             true -> candidate(raster, index, best, level)
             _ -> selected(raster, best)
         }
     }
-    state candidate(raster: &mut Raster, index: i32 in Wrapping,
+    machine candidate(raster: &mut Raster, index: i32 in Wrapping,
                     best: i32 in Wrapping, level: i32 in Wrapping) -> bool {
         let cost: i32 in Wrapping = raster.filled[index];
         let done: bool = raster.settled[index];
@@ -45,24 +45,24 @@ machine fill(raster: &mut Raster) -> bool {
             _ -> scan(raster, index + 1, best, level)
         }
     }
-    state selected(raster: &mut Raster, best: i32 in Wrapping) -> bool {
+    machine selected(raster: &mut Raster, best: i32 in Wrapping) -> bool {
         transition best >= 0 && best < 25 {
             true -> settle(raster, best)
             _ -> true
         }
     }
-    state settle(raster: &mut Raster, best: i32 in Wrapping) -> bool {
+    machine settle(raster: &mut Raster, best: i32 in Wrapping) -> bool {
         raster.settled[best] = true;
         transition { _ -> neighbors(raster, best, 0) }
     }
-    state neighbors(raster: &mut Raster, best: i32 in Wrapping,
+    machine neighbors(raster: &mut Raster, best: i32 in Wrapping,
                     index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 25 && best >= 0 && best < 25 {
             true -> adjacent(raster, best, index)
             _ -> scan(raster, 0, 0 - 1, 99)
         }
     }
-    state adjacent(raster: &mut Raster, best: i32 in Wrapping,
+    machine adjacent(raster: &mut Raster, best: i32 in Wrapping,
                    index: i32 in Wrapping) -> bool {
         let adjacent: bool = (index / 5 == best / 5 && (index == best + 1 || best == index + 1))
             || (index % 5 == best % 5 && (index == best + 5 || best == index + 5));
@@ -71,7 +71,7 @@ machine fill(raster: &mut Raster) -> bool {
             _ -> neighbors(raster, best, index + 1)
         }
     }
-    state elevation(raster: &mut Raster, best: i32 in Wrapping,
+    machine elevation(raster: &mut Raster, best: i32 in Wrapping,
                     index: i32 in Wrapping) -> bool {
         let level: i32 in Wrapping = raster.filled[best];
         let height: i32 in Wrapping = raster.heights[index];
@@ -80,14 +80,14 @@ machine fill(raster: &mut Raster) -> bool {
             _ -> improve(raster, best, index, level)
         }
     }
-    state improve(raster: &mut Raster, best: i32 in Wrapping,
+    machine improve(raster: &mut Raster, best: i32 in Wrapping,
                   index: i32 in Wrapping, level: i32 in Wrapping) -> bool {
         transition level < raster.filled[index] {
             true -> update(raster, best, index, level)
             _ -> neighbors(raster, best, index + 1)
         }
     }
-    state update(raster: &mut Raster, best: i32 in Wrapping,
+    machine update(raster: &mut Raster, best: i32 in Wrapping,
                  index: i32 in Wrapping, level: i32 in Wrapping) -> bool {
         raster.filled[index] = level;
         raster.parents[index] = best;
@@ -99,13 +99,13 @@ machine fill(raster: &mut Raster) -> bool {
 machine sum_volumes(raster: &mut Raster) -> bool {
     raster.total = 0;
     transition { _ -> cell(raster, 0) }
-    state cell(raster: &mut Raster, index: i32 in Wrapping) -> bool {
+    machine cell(raster: &mut Raster, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 25 {
             true -> label(raster, index)
             _ -> true
         }
     }
-    state label(raster: &mut Raster, index: i32 in Wrapping) -> bool {
+    machine label(raster: &mut Raster, index: i32 in Wrapping) -> bool {
         let outlet: i32 in Wrapping = raster.outlets[index];
         let depth: i32 in Wrapping = raster.filled[index] - raster.heights[index];
         transition outlet >= 0 && outlet < 25 && depth >= 0 && depth <= 9 {
@@ -113,7 +113,7 @@ machine sum_volumes(raster: &mut Raster) -> bool {
             _ -> false
         }
     }
-    state accumulate(raster: &mut Raster, index: i32 in Wrapping,
+    machine accumulate(raster: &mut Raster, index: i32 in Wrapping,
                      outlet: i32 in Wrapping, depth: i32 in Wrapping) -> bool {
         raster.volumes[outlet] = raster.volumes[outlet] + depth;
         raster.total = raster.total + depth;

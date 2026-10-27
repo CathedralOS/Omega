@@ -29,6 +29,53 @@ pub(crate) struct PreparedLoanCompletion {
     )>,
 }
 
+/// The returned region's checked field qualifications are catalog dependencies
+/// as well as publications. Selection and emission must use the same roster.
+pub(crate) fn qualification_facts<'a>(
+    checked: &'a CheckedTrees,
+    region: &'a checked_trees::FlowLoanCompletionFact,
+) -> impl Iterator<Item = &'a facts::Fact> {
+    checked
+        .facts
+        .semantic
+        .facts
+        .iter()
+        .filter_map(move |(_, fact)| {
+            let facts::ProgramPoint::CallEnsures {
+                machine_symbol,
+                state_symbol,
+                statement_index,
+                call_ordinal,
+            } = fact.point
+            else {
+                return None;
+            };
+            if fact.origin != facts::FactOrigin::CallEnsures
+                || machine_symbol != region.machine
+                || state_symbol != region.state
+                || !matches!(region.source, PermissionEventSource::Call {
+                statement_index: source_statement, call_ordinal: source_ordinal, ..
+            } if source_statement == statement_index && source_ordinal == call_ordinal)
+                || fact.payload.domain_membership().is_none()
+            {
+                return None;
+            }
+            let place = checked.facts.semantic.places.get(fact.place.as_place()?);
+            let segments = checked
+                .facts
+                .semantic
+                .place_segments
+                .span_or_empty(place.segments);
+            let region_segments = checked
+                .facts
+                .flow
+                .ownership
+                .segments
+                .span_or_empty(region.segments);
+            (place.root == region.root && segments.starts_with(region_segments)).then_some(fact)
+        })
+}
+
 pub(crate) fn prepare(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
@@ -82,7 +129,13 @@ pub(crate) fn prepare(
             )?,
         );
         let mut claims = Vec::new();
-        for (_, event) in checked.facts.flow.ownership.permissions.iter() {
+        let state_permissions = checked
+            .facts
+            .flow
+            .ownership
+            .with_state_permissions(coordinate.state, |handles| handles.to_vec());
+        for handle in state_permissions {
+            let event = checked.facts.flow.ownership.permissions.get(handle);
             let event_path = checked
                 .facts
                 .flow
@@ -112,32 +165,17 @@ pub(crate) fn prepare(
             );
             claims.push((event.claim_identity, terminal_path, introduces));
         }
-        let point = facts::ProgramPoint::CallEnsures {
-            machine_symbol: machine,
-            state_symbol: coordinate.state,
-            statement_index: coordinate.statement_index,
-            call_ordinal: coordinate.call_ordinal,
-        };
         let mut qualifications = Vec::new();
-        for (_, fact) in checked.facts.semantic.facts.iter() {
-            if fact.origin != facts::FactOrigin::CallEnsures || fact.point != point {
-                continue;
-            }
+        for fact in qualification_facts(checked, region) {
             let Some(place_handle) = fact.place.as_place() else {
                 continue;
             };
             let place = checked.facts.semantic.places.get(place_handle);
-            if place.root != region.root {
-                continue;
-            }
             let segments = checked
                 .facts
                 .semantic
                 .place_segments
                 .span_or_empty(place.segments);
-            if !segments.starts_with(canonical) {
-                continue;
-            }
             let Some((_, _, _domain_symbol, semantic_domain)) = fact.payload.domain_membership()
             else {
                 continue;

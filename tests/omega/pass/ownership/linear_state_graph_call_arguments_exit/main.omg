@@ -34,7 +34,7 @@ machine main() crashes Trap {
     let issued: Receipt = Receipt { code: 1 };
     transition { _ -> holding(issued, 3) }
 
-    state holding(held: Receipt, extra: i32) {
+    machine holding(held: Receipt, extra: i32) {
         let paired: i32 = settle(Pair { left: held, right: Receipt { code: 2 } });
         let direct: i32 = consume(Receipt { code: extra });
         let local: Receipt = Receipt { code: 4 };
@@ -48,7 +48,7 @@ machine main() crashes Trap {
         }
     }
 
-    state finishing(last: Receipt) {
+    machine finishing(last: Receipt) {
         let observed: i32 = consume(last);
         transition observed == 11 {
             true -> done()
@@ -56,11 +56,11 @@ machine main() crashes Trap {
         }
     }
 
-    state abandoning(last: Receipt) {
+    machine abandoning(last: Receipt) {
         let observed: i32 = consume(last);
         transition { _ -> bad() }
     }
 
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

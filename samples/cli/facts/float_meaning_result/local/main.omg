@@ -20,6 +20,6 @@ machine main() crashes Trap {
     let value: f32 = forward(1.0, 2.0);
     let result: f32 = require_min(value);
     transition result == 1.0 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

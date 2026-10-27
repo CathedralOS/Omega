@@ -1,8 +1,5 @@
 //! Optimizer module role: executable entrance. Unreachable-machine validation.
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
-use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationSafetyClass,
-};
 use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 
 mod replay;
@@ -11,18 +8,10 @@ pub(crate) fn validate_unreachable_private_machines_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
-    super::super::contract::validate(
+    super::super::contract::admit(
         input,
         candidate,
-        b"omega.psi-rule.unreachable-private-machine-pruning.v1",
-        AnalysisSet::new([AnalysisKind::CallGraph]),
-        AnalysisInvalidationSet::new([
-            AnalysisKind::ControlFlowGraph,
-            AnalysisKind::CallGraph,
-            AnalysisKind::UseDefinition,
-            AnalysisKind::EffectSummaries,
-        ]),
-        OptimizationSafetyClass::StructuralIdentity,
+        &super::super::contract::UNREACHABLE_PRIVATE_MACHINE_PRUNING,
     )?;
     if !candidate.affected_blocks().is_empty() || !candidate.substitutions().is_empty() {
         return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);

@@ -358,6 +358,11 @@ impl ExpressionTable {
                     unreachable!();
                 };
                 call.target_symbol = remapped(call.target_symbol, symbols);
+                if let Some(binding) = &mut call.authored_call_binding {
+                    binding.selected = remapped(binding.selected, symbols);
+                    // The copied occurrence still names its original ledger row.
+                    // Only the executable target follows this specialization.
+                }
                 if let Some(query) = &mut call.native_code_layout {
                     query.operand.remap_symbols(symbols);
                 }
@@ -673,6 +678,7 @@ impl ExpressionTable {
                         call.static_requirement_dispatch,
                     );
                 self.insert(ExpressionNode::Call(TableCallExpression {
+                    authored_call_binding: call.authored_call_binding,
                     authored_machine_application,
                     requirement_application: call.requirement_application,
                     exact_coercion_target: call.exact_coercion_target,

@@ -15,6 +15,22 @@ use terminal_psi::{BoundaryMachineDeclaration, ProviderCandidateConformance, Ter
 /// Every structural domain names a known carrier type.
 pub(super) fn validate_domains(module: &TerminalModule) -> Result<(), CodecError> {
     for domain in &module.structural_domains {
+        if !domain.required_memberships_are_well_formed(&module.structural_domains) {
+            return malformed(
+                "structural domain has ambiguous, cyclic or wrong-carrier prerequisites",
+            );
+        }
+        if domain.complete_predicate_theory
+            && domain
+                .required_domain_closure(&module.structural_domains)
+                .is_none_or(|nodes| {
+                    nodes
+                        .into_iter()
+                        .any(|node| !node.complete_predicate_theory || node.predicate.is_none())
+                })
+        {
+            return malformed("complete structural domain lost part of its required theory");
+        }
         if domain
             .establishment_routes
             .windows(2)

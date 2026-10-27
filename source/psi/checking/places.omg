@@ -61,13 +61,13 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(checker: &Checker, index: u64 in Trapping) -> Place
+    machine read(checker: &Checker, index: u64 in Trapping) -> Place
     requires index < 256
     {
         checker.places[index]
     }
 
-    state invalid() -> Place {
+    machine invalid() -> Place {
         crash Trap;
     }
 }
@@ -85,11 +85,11 @@ crashes Trap
         _ -> none()
     }
 
-    state found(builtin: BuiltinType) -> BuiltinType {
+    machine found(builtin: BuiltinType) -> BuiltinType {
         builtin
     }
 
-    state none() -> BuiltinType {
+    machine none() -> BuiltinType {
         BuiltinType::Never
     }
 }
@@ -127,7 +127,7 @@ crashes Trap
 {
     transition { _ -> search(checker, typing, kind, handle, parent, type_handle, 0) }
 
-    state search(
+    machine search(
         checker: &mut Checker,
         typing: &Typing,
         kind: PlaceKind,
@@ -142,7 +142,7 @@ crashes Trap
         }
     }
 
-    state compare(
+    machine compare(
         checker: &mut Checker,
         typing: &Typing,
         kind: PlaceKind,
@@ -159,11 +159,11 @@ crashes Trap
         }
     }
 
-    state found(index: u64 in Trapping) -> u64 in Trapping {
+    machine found(index: u64 in Trapping) -> u64 in Trapping {
         index + 1
     }
 
-    state enter(
+    machine enter(
         checker: &mut Checker,
         typing: &Typing,
         kind: PlaceKind,
@@ -179,7 +179,7 @@ crashes Trap
         }
     }
 
-    state room(
+    machine room(
         checker: &mut Checker,
         kind: PlaceKind,
         handle: u64 in Trapping,
@@ -194,7 +194,7 @@ crashes Trap
         }
     }
 
-    state plain(
+    machine plain(
         checker: &mut Checker,
         kind: PlaceKind,
         handle: u64 in Trapping,
@@ -205,7 +205,7 @@ crashes Trap
         transition { _ -> stored(checker, place) }
     }
 
-    state subject(
+    machine subject(
         checker: &mut Checker,
         kind: PlaceKind,
         handle: u64 in Trapping,
@@ -220,7 +220,7 @@ crashes Trap
         }
     }
 
-    state numbered(
+    machine numbered(
         checker: &mut Checker,
         kind: PlaceKind,
         handle: u64 in Trapping,
@@ -236,7 +236,7 @@ crashes Trap
         transition { _ -> stored(checker, place) }
     }
 
-    state stored(checker: &mut Checker, place: Place) -> u64 in Trapping {
+    machine stored(checker: &mut Checker, place: Place) -> u64 in Trapping {
         let index: u64 = checker.place_count;
         Checker::store_place(checker, index, place);
         let position: u64 in Trapping = index as u64 in Trapping;
@@ -250,18 +250,18 @@ crashes Trap
     }
 
     // A field a construction wrote there holds its value.
-    state field(checker: &mut Checker, place: Place, position: u64 in Trapping, next: u64 in Trapping) -> u64 in Trapping {
+    machine field(checker: &mut Checker, place: Place, position: u64 in Trapping, next: u64 in Trapping) -> u64 in Trapping {
         Checker::note_field(checker, position);
         Checker::take_pending(checker, place);
         next
     }
 
-    state entered(next: u64 in Trapping) -> u64 in Trapping {
+    machine entered(next: u64 in Trapping) -> u64 in Trapping {
         next
     }
 
     // A full table loses the place; the body rejects once it ends.
-    state full(checker: &mut Checker) -> u64 in Trapping {
+    machine full(checker: &mut Checker) -> u64 in Trapping {
         checker.overflowed = true;
         0
     }
@@ -276,11 +276,11 @@ crashes Trap
         _ -> typed(typing, type_handle)
     }
 
-    state length() -> BuiltinType {
+    machine length() -> BuiltinType {
         BuiltinType::U64
     }
 
-    state typed(typing: &Typing, type_handle: u64 in Trapping) -> BuiltinType {
+    machine typed(typing: &Typing, type_handle: u64 in Trapping) -> BuiltinType {
         let carrier: BuiltinType = Checker::carrier(typing, type_handle);
         carrier
     }
@@ -293,14 +293,14 @@ crashes Trap
 {
     transition { _ -> search(checker, kind, handle, parent, 0) }
 
-    state search(checker: &Checker, kind: PlaceKind, handle: u64 in Trapping, parent: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
+    machine search(checker: &Checker, kind: PlaceKind, handle: u64 in Trapping, parent: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
         transition index < checker.place_count {
             true -> compare(checker, kind, handle, parent, index)
             _ -> absent()
         }
     }
 
-    state compare(checker: &Checker, kind: PlaceKind, handle: u64 in Trapping, parent: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
+    machine compare(checker: &Checker, kind: PlaceKind, handle: u64 in Trapping, parent: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
         let place: Place = Checker::place_at(checker, index);
         let same: bool = Checker::same_place(place, kind, handle, parent);
         transition same {
@@ -309,11 +309,11 @@ crashes Trap
         }
     }
 
-    state found(place: u64 in Trapping) -> u64 in Trapping {
+    machine found(place: u64 in Trapping) -> u64 in Trapping {
         place
     }
 
-    state absent() -> u64 in Trapping {
+    machine absent() -> u64 in Trapping {
         0
     }
 }
@@ -330,11 +330,11 @@ crashes Trap
         _ -> invalid()
     }
 
-    state write(checker: &mut Checker, index: u64, place: Place) {
+    machine write(checker: &mut Checker, index: u64, place: Place) {
         checker.places[index] = place;
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }
@@ -355,14 +355,14 @@ crashes Trap
     // The range is a fact of the place's type, so it holds on every path:
     // a zone saved before the place was entered (an open `&&`/`||` context
     // or transition) takes it too, or a later join would lose it.
-    state saved(checker: &mut Checker, subject: u64 in Trapping, upper: Bound, lower: Bound, index: u64 in Trapping) {
+    machine saved(checker: &mut Checker, subject: u64 in Trapping, upper: Bound, lower: Bound, index: u64 in Trapping) {
         transition index < checker.saved_count && index < 8 {
             true -> ranged(checker, subject, upper, lower, index)
             _ -> done()
         }
     }
 
-    state ranged(checker: &mut Checker, subject: u64 in Trapping, upper: Bound, lower: Bound, index: u64 in Trapping)
+    machine ranged(checker: &mut Checker, subject: u64 in Trapping, upper: Bound, lower: Bound, index: u64 in Trapping)
     requires index < 8
     {
         checker.merged = checker.saved[index];
@@ -372,7 +372,7 @@ crashes Trap
         transition { _ -> saved(checker, subject, upper, lower, index + 1) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Every subject place's carrier range, again. A state's arrival replaces the
@@ -384,14 +384,14 @@ crashes Trap
 {
     transition { _ -> next(checker, typing, 0) }
 
-    state next(checker: &mut Checker, typing: &Typing, index: u64 in Trapping) {
+    machine next(checker: &mut Checker, typing: &Typing, index: u64 in Trapping) {
         transition index < checker.place_count {
             true -> visit(checker, typing, index)
             _ -> done()
         }
     }
 
-    state visit(checker: &mut Checker, typing: &Typing, index: u64 in Trapping) {
+    machine visit(checker: &mut Checker, typing: &Typing, index: u64 in Trapping) {
         let candidate: Place = Checker::place_at(checker, index);
         transition candidate.subject > 0 {
             true -> ranged(checker, typing, index, candidate)
@@ -399,13 +399,13 @@ crashes Trap
         }
     }
 
-    state ranged(checker: &mut Checker, typing: &Typing, index: u64 in Trapping, candidate: Place) {
+    machine ranged(checker: &mut Checker, typing: &Typing, index: u64 in Trapping, candidate: Place) {
         let carrier: BuiltinType = Checker::place_carrier(typing, candidate.kind, candidate.type_handle);
         Checker::enter_range(checker, candidate.subject, carrier);
         transition { _ -> next(checker, typing, index + 1) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Forget every fact about `place` and the places it contains, as a write to
@@ -429,7 +429,7 @@ crashes Trap
         _ -> done()
     }
 
-    state entered(checker: &mut Checker, typing: &Typing, place: u64 in Trapping) {
+    machine entered(checker: &mut Checker, typing: &Typing, place: u64 in Trapping) {
         let entry: Place = Checker::place_at(checker, place - 1);
         transition entry.kind == PlaceKind::Referent && entry.handle > 0 && entry.parent > 0 {
             true -> backing(checker, typing, entry.parent)
@@ -437,11 +437,11 @@ crashes Trap
         }
     }
 
-    state backing(checker: &mut Checker, typing: &Typing, collection: u64 in Trapping) {
+    machine backing(checker: &mut Checker, typing: &Typing, collection: u64 in Trapping) {
         Checker::forget_storage(checker, typing, collection, true);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // An element store changes collection contents, not the collection's own
@@ -461,14 +461,14 @@ crashes Trap
     Checker::forget_aliases(checker, place);
     transition { _ -> next(checker, typing, place, contents, 0) }
 
-    state next(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, contents: bool, index: u64 in Trapping) {
+    machine next(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, contents: bool, index: u64 in Trapping) {
         transition index < checker.place_count {
             true -> visit(checker, typing, place, contents, index)
             _ -> done(checker, place)
         }
     }
 
-    state visit(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, contents: bool, index: u64 in Trapping) {
+    machine visit(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, contents: bool, index: u64 in Trapping) {
         let within: bool = Checker::within(checker, index + 1, place);
         let candidate: Place = Checker::place_at(checker, index);
         let length: bool = contents && candidate.kind == PlaceKind::Length && candidate.parent == place;
@@ -478,14 +478,14 @@ crashes Trap
         }
     }
 
-    state clear(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, contents: bool, index: u64 in Trapping, candidate: Place) {
+    machine clear(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, contents: bool, index: u64 in Trapping, candidate: Place) {
         let carrier: BuiltinType = Checker::place_carrier(typing, candidate.kind, candidate.type_handle);
         Zone::forget(&mut checker.zone, candidate.subject);
         Checker::enter_range(checker, candidate.subject, carrier);
         transition { _ -> next(checker, typing, place, contents, index + 1) }
     }
 
-    state done(checker: &mut Checker, place: u64 in Trapping) {
+    machine done(checker: &mut Checker, place: u64 in Trapping) {
         Checker::reopen_domains(checker, place);
     }
 }
@@ -501,7 +501,7 @@ crashes Trap
         _ -> none()
     }
 
-    state stored(checker: &Checker, syntax: &SyntaxTrees, typing: &Typing, place: u64 in Trapping) -> u64 in Trapping {
+    machine stored(checker: &Checker, syntax: &SyntaxTrees, typing: &Typing, place: u64 in Trapping) -> u64 in Trapping {
         let entry: Place = Checker::place_at(checker, place - 1);
         transition entry.kind == PlaceKind::Field && entry.parent > 0 {
             true -> parent(checker, syntax, typing, entry.parent)
@@ -509,7 +509,7 @@ crashes Trap
         }
     }
 
-    state parent(checker: &Checker, syntax: &SyntaxTrees, typing: &Typing, parent: u64 in Trapping) -> u64 in Trapping {
+    machine parent(checker: &Checker, syntax: &SyntaxTrees, typing: &Typing, parent: u64 in Trapping) -> u64 in Trapping {
         let owner: Place = Checker::place_at(checker, parent - 1);
         let constrained: bool = Checker::constrained(syntax, typing, owner.type_handle);
         transition constrained {
@@ -518,11 +518,11 @@ crashes Trap
         }
     }
 
-    state found(parent: u64 in Trapping) -> u64 in Trapping {
+    machine found(parent: u64 in Trapping) -> u64 in Trapping {
         parent
     }
 
-    state none() -> u64 in Trapping {
+    machine none() -> u64 in Trapping {
         0
     }
 }
@@ -533,21 +533,21 @@ crashes Trap
 {
     transition { _ -> step(checker, inner, outer, 0) }
 
-    state step(checker: &Checker, current: u64 in Trapping, outer: u64 in Trapping, depth: u64 in Trapping) -> bool {
+    machine step(checker: &Checker, current: u64 in Trapping, outer: u64 in Trapping, depth: u64 in Trapping) -> bool {
         transition current == outer {
             true -> yes()
             _ -> climb(checker, current, outer, depth)
         }
     }
 
-    state climb(checker: &Checker, current: u64 in Trapping, outer: u64 in Trapping, depth: u64 in Trapping) -> bool {
+    machine climb(checker: &Checker, current: u64 in Trapping, outer: u64 in Trapping, depth: u64 in Trapping) -> bool {
         transition current > 0 && depth < 256 {
             true -> parent(checker, current, outer, depth)
             _ -> no()
         }
     }
 
-    state parent(checker: &Checker, current: u64 in Trapping, outer: u64 in Trapping, depth: u64 in Trapping) -> bool {
+    machine parent(checker: &Checker, current: u64 in Trapping, outer: u64 in Trapping, depth: u64 in Trapping) -> bool {
         let place: Place = Checker::place_at(checker, current - 1);
         transition place.kind == PlaceKind::Field || place.kind == PlaceKind::Length || place.kind == PlaceKind::Referent {
             true -> step(checker, place.parent, outer, depth + 1)
@@ -555,11 +555,11 @@ crashes Trap
         }
     }
 
-    state yes() -> bool {
+    machine yes() -> bool {
         true
     }
 
-    state no() -> bool {
+    machine no() -> bool {
         false
     }
 }
@@ -589,33 +589,33 @@ crashes Trap
         _ -> unbounded()
     }
 
-    state constant_value(syntax: &SyntaxTrees, typing: &Typing, constant: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
+    machine constant_value(syntax: &SyntaxTrees, typing: &Typing, constant: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
         let value: Value = Checker::constant_value(syntax, typing, constant, type_handle);
         value
     }
 
     // A domain predicate's subject binder: the value it is decided for.
-    state subject(checker: &Checker) -> Value {
+    machine subject(checker: &Checker) -> Value {
         transition checker.subjecting {
             true -> subject_value(checker)
             _ -> unbounded()
         }
     }
 
-    state subject_value(checker: &Checker) -> Value {
+    machine subject_value(checker: &Checker) -> Value {
         let value: Value = checker.subject;
         value
     }
 
     // An `ensures` fact's `result`: the returned value it is decided for.
-    state returned(checker: &Checker) -> Value {
+    machine returned(checker: &Checker) -> Value {
         transition checker.returning {
             true -> returned_value(checker)
             _ -> unbounded()
         }
     }
 
-    state returned_value(checker: &Checker) -> Value {
+    machine returned_value(checker: &Checker) -> Value {
         let value: Value = checker.returned;
         value
     }
@@ -623,7 +623,7 @@ crashes Trap
     // A `where` fact's field name: the value a construction writes there
     // while its facts are decided, else the field of `fields_parent` while
     // that value's domain is installed.
-    state field_name(checker: &mut Checker, typing: &Typing, field: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
+    machine field_name(checker: &mut Checker, typing: &Typing, field: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
         transition checker.field_values && field >= checker.field_first {
             true -> written(checker, field - checker.field_first)
             _ -> installed(checker, typing, field, type_handle)
@@ -632,7 +632,7 @@ crashes Trap
 
     // A case fact's payload name: what the construction writes there, or the
     // arm's binder for it, while the case's facts are decided or assumed.
-    state payload_name(checker: &Checker, field: u64 in Trapping) -> Value {
+    machine payload_name(checker: &Checker, field: u64 in Trapping) -> Value {
         transition checker.payload_values && field >= checker.payload_first {
             true -> written(checker, checker.payload_slot + (field - checker.payload_first))
             _ -> unbounded()
@@ -640,19 +640,19 @@ crashes Trap
     }
 
     // A construction's fact: the value written to the field.
-    state written(checker: &Checker, offset: u64 in Trapping) -> Value {
+    machine written(checker: &Checker, offset: u64 in Trapping) -> Value {
         let value: Value = Checker::argument_value(checker, offset);
         value
     }
 
-    state installed(checker: &mut Checker, typing: &Typing, field: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
+    machine installed(checker: &mut Checker, typing: &Typing, field: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
         transition checker.fields_parent > 0 {
             true -> member(checker, typing, field, checker.fields_parent, type_handle)
             _ -> unbounded()
         }
     }
 
-    state member(checker: &mut Checker, typing: &Typing, field: u64 in Trapping, parent: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
+    machine member(checker: &mut Checker, typing: &Typing, field: u64 in Trapping, parent: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
         let place: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Field, field, parent, type_handle);
         let value: Value = Checker::reference_value(checker, typing, place);
         value
@@ -660,7 +660,7 @@ crashes Trap
 
     // While a target's `requires` or `ensures` facts are decided, its
     // parameters stand for the call's arguments.
-    state parameter(checker: &mut Checker, typing: &Typing, parameter: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
+    machine parameter(checker: &mut Checker, typing: &Typing, parameter: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
         let substituted: bool = checker.substituting
             && parameter >= checker.argument_first
             && parameter - checker.argument_first < checker.argument_count;
@@ -673,7 +673,7 @@ crashes Trap
     // The argument slot holds what was passed; a reference parameter stands
     // for that argument's referent, as reading the parameter does, so a
     // fact about `index` with `index: &mut u64` binds to the lent storage.
-    state argument(checker: &mut Checker, typing: &Typing, offset: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
+    machine argument(checker: &mut Checker, typing: &Typing, offset: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
         let value: Value = Checker::argument_value(checker, offset);
         let row: TypeRow = TypeTable::row(&typing.types, type_handle);
         transition row.kind == TypeKind::Reference && value.place > 0 {
@@ -682,22 +682,22 @@ crashes Trap
         }
     }
 
-    state referent(checker: &mut Checker, typing: &Typing, place: u64 in Trapping) -> Value {
+    machine referent(checker: &mut Checker, typing: &Typing, place: u64 in Trapping) -> Value {
         let value: Value = Checker::reference_value(checker, typing, place);
         value
     }
 
-    state passed(value: Value) -> Value {
+    machine passed(value: Value) -> Value {
         value
     }
 
-    state rooted(checker: &mut Checker, typing: &Typing, kind: PlaceKind, binding: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
+    machine rooted(checker: &mut Checker, typing: &Typing, kind: PlaceKind, binding: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
         let place: u64 in Trapping = Checker::place(checker, typing, kind, binding, 0, type_handle);
         let value: Value = Checker::reference_value(checker, typing, place);
         value
     }
 
-    state unbounded() -> Value {
+    machine unbounded() -> Value {
         let value: Value = Value::unknown();
         value
     }
@@ -717,13 +717,13 @@ crashes Trap
         _ -> typed(row)
     }
 
-    state exact(typing: &Typing, declaration: ConstantItem) -> Value {
+    machine exact(typing: &Typing, declaration: ConstantItem) -> Value {
         let landed: ExactInteger = Typing::value(typing, declaration.value);
         let value: Value = Value::constant(landed);
         value
     }
 
-    state typed(row: TypeRow) -> Value {
+    machine typed(row: TypeRow) -> Value {
         let value: Value = Value::typed(row);
         value
     }
@@ -751,7 +751,7 @@ crashes Trap
     }
 
     // Qualification never changes a fixed array's declaration-owned extent.
-    state length(checker: &mut Checker, typing: &Typing, expression: Expression, parent: u64 in Trapping, type_handle: u64 in Trapping, row: TypeRow) -> Value {
+    machine length(checker: &mut Checker, typing: &Typing, expression: Expression, parent: u64 in Trapping, type_handle: u64 in Trapping, row: TypeRow) -> Value {
         let collection: TypeRow = Checker::collection_row(typing, expression.left);
         transition collection.kind == TypeKind::Array {
             true -> fixed(typing, collection)
@@ -759,12 +759,12 @@ crashes Trap
         }
     }
 
-    state fixed(typing: &Typing, collection: TypeRow) -> Value {
+    machine fixed(typing: &Typing, collection: TypeRow) -> Value {
         let extent: Value = Checker::array_extent(typing, collection);
         extent
     }
 
-    state member(
+    machine member(
         checker: &mut Checker,
         typing: &Typing,
         kind: PlaceKind,
@@ -779,18 +779,18 @@ crashes Trap
         }
     }
 
-    state projected(checker: &mut Checker, typing: &Typing, kind: PlaceKind, binding: u64 in Trapping, parent: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
+    machine projected(checker: &mut Checker, typing: &Typing, kind: PlaceKind, binding: u64 in Trapping, parent: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
         let place: u64 in Trapping = Checker::place(checker, typing, kind, binding, parent, type_handle);
         let value: Value = Checker::reference_value(checker, typing, place);
         value
     }
 
-    state carried(row: TypeRow) -> Value {
+    machine carried(row: TypeRow) -> Value {
         let value: Value = Value::typed(row);
         value
     }
 
-    state unbounded() -> Value {
+    machine unbounded() -> Value {
         let value: Value = Value::unknown();
         value
     }
@@ -805,7 +805,7 @@ crashes Trap
         _ -> unbounded()
     }
 
-    state entered(checker: &Checker, place: u64 in Trapping) -> Value {
+    machine entered(checker: &Checker, place: u64 in Trapping) -> Value {
         let entry: Place = Checker::place_at(checker, place - 1);
         transition entry.subject > 0 {
             true -> term(checker, place, entry.subject)
@@ -813,18 +813,18 @@ crashes Trap
         }
     }
 
-    state term(checker: &Checker, place: u64 in Trapping, subject: u64 in Trapping) -> Value {
+    machine term(checker: &Checker, place: u64 in Trapping, subject: u64 in Trapping) -> Value {
         let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0 };
         let value: Value = Checker::term_value(checker, place, subject, zero);
         value
     }
 
-    state located(place: u64 in Trapping) -> Value {
+    machine located(place: u64 in Trapping) -> Value {
         let value: Value = Value::at_place(place);
         value
     }
 
-    state unbounded() -> Value {
+    machine unbounded() -> Value {
         let value: Value = Value::unknown();
         value
     }
@@ -839,14 +839,14 @@ crashes Trap
         _ -> absent()
     }
 
-    state next(checker: &Checker, subject: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
+    machine next(checker: &Checker, subject: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
         transition index < checker.place_count {
             true -> candidate(checker, subject, index)
             _ -> absent()
         }
     }
 
-    state candidate(checker: &Checker, subject: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
+    machine candidate(checker: &Checker, subject: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
         let place: Place = Checker::place_at(checker, index);
         transition place.subject == subject {
             true -> found(index + 1)
@@ -854,11 +854,11 @@ crashes Trap
         }
     }
 
-    state found(place: u64 in Trapping) -> u64 in Trapping {
+    machine found(place: u64 in Trapping) -> u64 in Trapping {
         place
     }
 
-    state absent() -> u64 in Trapping {
+    machine absent() -> u64 in Trapping {
         0
     }
 }
@@ -878,14 +878,14 @@ crashes Trap
     }
 
     // Places the copy enters lie past `end`.
-    state next(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping) {
+    machine next(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping) {
         transition index < end && index < 256 {
             true -> candidate(checker, typing, target, source, index, end)
             _ -> done()
         }
     }
 
-    state candidate(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping) {
+    machine candidate(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping) {
         let entry: Place = Checker::place_at(checker, index);
         let path: ArrivalPath = Checker::path_below(checker, source, index + 1, 0);
         transition entry.subject > 0 && path.depth > 0 {
@@ -894,7 +894,7 @@ crashes Trap
         }
     }
 
-    state copied(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping, subject: u64 in Trapping, path: ArrivalPath) {
+    machine copied(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping, subject: u64 in Trapping, path: ArrivalPath) {
         let copy: u64 in Trapping = Checker::enter_path(checker, typing, target, path);
         transition copy > 0 {
             true -> equated(checker, typing, target, source, index, end, subject, copy)
@@ -903,7 +903,7 @@ crashes Trap
     }
 
     // copy - source <= 0 and source - copy <= 0.
-    state equated(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping, subject: u64 in Trapping, copy: u64 in Trapping) {
+    machine equated(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping, subject: u64 in Trapping, copy: u64 in Trapping) {
         let copied: Place = Checker::place_at(checker, copy - 1);
         let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0 };
         let unknown: Value = Value::unknown();
@@ -915,12 +915,12 @@ crashes Trap
         }
     }
 
-    state related(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping, original: Value, duplicate: Value) {
+    machine related(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping, original: Value, duplicate: Value) {
         let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0 };
         Checker::constrain_difference(checker, original, duplicate, zero);
         Checker::constrain_difference(checker, duplicate, original, zero);
         transition { _ -> next(checker, typing, target, source, index + 1, end) }
     }
 
-    state done() {}
+    machine done() {}
 }

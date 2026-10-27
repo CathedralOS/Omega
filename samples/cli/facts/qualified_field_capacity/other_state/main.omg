@@ -30,7 +30,7 @@ machine allocate(strategy: Strategy, length: u64, select: bool) -> Issued
 requires length <= strategy.remaining
 {
     transition { _ -> take(strategy, length) }
-    state take(strategy: Strategy, length: u64) -> Issued
+    machine take(strategy: Strategy, length: u64) -> Issued
     requires length <= strategy.remaining
     {
     let parts: Parts = split(strategy.tail, length);
@@ -50,6 +50,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

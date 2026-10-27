@@ -132,7 +132,7 @@ machine scope_transition() reaches Console {
     let first: Token = Token { ready: true, byte: 67 };
     let second: Token = Token { ready: true, byte: 68 };
     transition { _ -> done() }
-    state done() { Console::write_byte(69); }
+    machine done() { Console::write_byte(69); }
 }
 
 data Main { }

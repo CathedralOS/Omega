@@ -107,7 +107,7 @@ machine exercise(pick: bool) reaches Console crashes Trap {
     let observed_output: u64 = output.value;
     let observed_spare: u64 = spare.value;
     transition { _ -> finish(selected) }
-    state finish(receiver: Carrier) {
+    machine finish(receiver: Carrier) {
         observe(&Keeper { carrier: receiver, code: 41 });
     }
 }

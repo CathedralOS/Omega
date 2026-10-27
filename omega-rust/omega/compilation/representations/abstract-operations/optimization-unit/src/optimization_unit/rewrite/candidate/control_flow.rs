@@ -11,6 +11,26 @@ use super::super::{
     StateArgumentSpecializationRewrite, UnreachablePrivateMachinesRewrite,
 };
 impl PsiRewriteCandidate {
+    #[rustfmt::skip]
+    structural_identity_constructors![
+        ( new_linear_empty_block, LinearEmptyBlockRewrite, ThreadLinearEmptyBlock ),
+        ( new_path_qualified_empty_block, PathQualifiedEmptyBlockRewrite, ThreadPathQualifiedEmptyBlock ),
+        ( new_state_argument_specialization, StateArgumentSpecializationRewrite, SpecializeStateArgument ),
+        ( new_case_membership_specialization, CaseMembershipSpecializationRewrite, SpecializeCaseMembership ),
+        ( new_unreachable_private_machines, UnreachablePrivateMachinesRewrite, PruneUnreachablePrivateMachines ),
+    ];
+
+    #[rustfmt::skip]
+    substituted_structural_identity_constructors![
+        ( new_non_adjacent_block_merge, NonAdjacentBlockMergeRewrite, MergeNonAdjacentBlock ),
+        ( new_shared_jump_fusion, SharedJumpFusionRewrite, FuseSharedTerminalJump ),
+        ( new_field_value_specialization, FieldValueSpecializationRewrite, SpecializeFieldValue ),
+    ];
+
+    #[rustfmt::skip]
+    condition_fact_constructors![( new_constant_conditional, ConstantConditionalRewrite, FoldConstantConditional ),];
+
+    #[allow(clippy::too_many_arguments)]
     pub fn new_redundant_block_parameter(
         input: OptimizationUnitIdentity,
         contract: OptimizationRuleContract,
@@ -48,70 +68,6 @@ impl PsiRewriteCandidate {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn new_constant_conditional(
-        input: OptimizationUnitIdentity,
-        contract: OptimizationRuleContract,
-        affected_blocks: Vec<BlockId>,
-        provenance: Vec<ProvenanceRewrite>,
-        condition_fact: ScalarConstantFactIdentity,
-        predicted_cost_delta: i64,
-        patch: ConstantConditionalRewrite,
-    ) -> Result<Self, PsiRewriteCandidateError> {
-        Self::new(
-            input,
-            contract,
-            affected_blocks,
-            Vec::new(),
-            provenance,
-            PsiRewriteWitness::ScalarEvaluation(ScalarEvaluationWitness::Unary {
-                operand_fact: condition_fact,
-            }),
-            predicted_cost_delta,
-            PsiRewritePatch::FoldConstantConditional(patch),
-        )
-    }
-
-    pub fn new_linear_empty_block(
-        input: OptimizationUnitIdentity,
-        contract: OptimizationRuleContract,
-        affected_blocks: Vec<BlockId>,
-        provenance: Vec<ProvenanceRewrite>,
-        predicted_cost_delta: i64,
-        patch: LinearEmptyBlockRewrite,
-    ) -> Result<Self, PsiRewriteCandidateError> {
-        Self::new(
-            input,
-            contract,
-            affected_blocks,
-            Vec::new(),
-            provenance,
-            PsiRewriteWitness::StructuralIdentity,
-            predicted_cost_delta,
-            PsiRewritePatch::ThreadLinearEmptyBlock(patch),
-        )
-    }
-
-    pub fn new_path_qualified_empty_block(
-        input: OptimizationUnitIdentity,
-        contract: OptimizationRuleContract,
-        affected_blocks: Vec<BlockId>,
-        provenance: Vec<ProvenanceRewrite>,
-        predicted_cost_delta: i64,
-        patch: PathQualifiedEmptyBlockRewrite,
-    ) -> Result<Self, PsiRewriteCandidateError> {
-        Self::new(
-            input,
-            contract,
-            affected_blocks,
-            Vec::new(),
-            provenance,
-            PsiRewriteWitness::StructuralIdentity,
-            predicted_cost_delta,
-            PsiRewritePatch::ThreadPathQualifiedEmptyBlock(patch),
-        )
-    }
-
-    #[allow(clippy::too_many_arguments)]
     pub fn new_adjacent_block_merge(
         input: OptimizationUnitIdentity,
         contract: OptimizationRuleContract,
@@ -138,133 +94,6 @@ impl PsiRewriteCandidate {
             PsiRewriteWitness::OwnershipFrontiers(ownership_witness),
             predicted_cost_delta,
             PsiRewritePatch::MergeAdjacentBlock(patch),
-        )
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub fn new_non_adjacent_block_merge(
-        input: OptimizationUnitIdentity,
-        contract: OptimizationRuleContract,
-        affected_blocks: Vec<BlockId>,
-        substitutions: Vec<ScalarSubstitution>,
-        provenance: Vec<ProvenanceRewrite>,
-        predicted_cost_delta: i64,
-        patch: NonAdjacentBlockMergeRewrite,
-    ) -> Result<Self, PsiRewriteCandidateError> {
-        Self::new(
-            input,
-            contract,
-            affected_blocks,
-            substitutions,
-            provenance,
-            PsiRewriteWitness::StructuralIdentity,
-            predicted_cost_delta,
-            PsiRewritePatch::MergeNonAdjacentBlock(patch),
-        )
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub fn new_shared_jump_fusion(
-        input: OptimizationUnitIdentity,
-        contract: OptimizationRuleContract,
-        affected_blocks: Vec<BlockId>,
-        substitutions: Vec<ScalarSubstitution>,
-        provenance: Vec<ProvenanceRewrite>,
-        predicted_cost_delta: i64,
-        patch: SharedJumpFusionRewrite,
-    ) -> Result<Self, PsiRewriteCandidateError> {
-        Self::new(
-            input,
-            contract,
-            affected_blocks,
-            substitutions,
-            provenance,
-            PsiRewriteWitness::StructuralIdentity,
-            predicted_cost_delta,
-            PsiRewritePatch::FuseSharedTerminalJump(patch),
-        )
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub fn new_state_argument_specialization(
-        input: OptimizationUnitIdentity,
-        contract: OptimizationRuleContract,
-        affected_blocks: Vec<BlockId>,
-        provenance: Vec<ProvenanceRewrite>,
-        predicted_cost_delta: i64,
-        patch: StateArgumentSpecializationRewrite,
-    ) -> Result<Self, PsiRewriteCandidateError> {
-        Self::new(
-            input,
-            contract,
-            affected_blocks,
-            Vec::new(),
-            provenance,
-            PsiRewriteWitness::StructuralIdentity,
-            predicted_cost_delta,
-            PsiRewritePatch::SpecializeStateArgument(patch),
-        )
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub fn new_case_membership_specialization(
-        input: OptimizationUnitIdentity,
-        contract: OptimizationRuleContract,
-        affected_blocks: Vec<BlockId>,
-        provenance: Vec<ProvenanceRewrite>,
-        predicted_cost_delta: i64,
-        patch: CaseMembershipSpecializationRewrite,
-    ) -> Result<Self, PsiRewriteCandidateError> {
-        Self::new(
-            input,
-            contract,
-            affected_blocks,
-            Vec::new(),
-            provenance,
-            PsiRewriteWitness::StructuralIdentity,
-            predicted_cost_delta,
-            PsiRewritePatch::SpecializeCaseMembership(patch),
-        )
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub fn new_field_value_specialization(
-        input: OptimizationUnitIdentity,
-        contract: OptimizationRuleContract,
-        affected_blocks: Vec<BlockId>,
-        substitutions: Vec<ScalarSubstitution>,
-        provenance: Vec<ProvenanceRewrite>,
-        predicted_cost_delta: i64,
-        patch: FieldValueSpecializationRewrite,
-    ) -> Result<Self, PsiRewriteCandidateError> {
-        Self::new(
-            input,
-            contract,
-            affected_blocks,
-            substitutions,
-            provenance,
-            PsiRewriteWitness::StructuralIdentity,
-            predicted_cost_delta,
-            PsiRewritePatch::SpecializeFieldValue(patch),
-        )
-    }
-
-    pub fn new_unreachable_private_machines(
-        input: OptimizationUnitIdentity,
-        contract: OptimizationRuleContract,
-        provenance: Vec<ProvenanceRewrite>,
-        predicted_cost_delta: i64,
-        patch: UnreachablePrivateMachinesRewrite,
-    ) -> Result<Self, PsiRewriteCandidateError> {
-        Self::new(
-            input,
-            contract,
-            Vec::new(),
-            Vec::new(),
-            provenance,
-            PsiRewriteWitness::StructuralIdentity,
-            predicted_cost_delta,
-            PsiRewritePatch::PruneUnreachablePrivateMachines(patch),
         )
     }
 }

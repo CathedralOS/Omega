@@ -12,8 +12,8 @@ machine Main::check(n: u64 in Tiny) -> u64 {
         3 -> hit()
         _ -> miss()
     }
-    state hit() -> u64 { 70 }
-    state miss() -> u64 { 71 }
+    machine hit() -> u64 { 70 }
+    machine miss() -> u64 { 71 }
 }
 
 machine Main::main(main: &mut Main) {

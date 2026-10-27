@@ -72,10 +72,10 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> broken(main)
     }
 
-    state accepted_overlong(main: &mut Main)  { Console::exit_process(66); }
-    state accepted_overflow(main: &mut Main)  { Console::exit_process(68); }
-    state proven(main: &mut Main)             { Console::exit_process(70); }
-    state broken(main: &mut Main)             { Console::exit_process(71); }
+    machine accepted_overlong(main: &mut Main)  { Console::exit_process(66); }
+    machine accepted_overflow(main: &mut Main)  { Console::exit_process(68); }
+    machine proven(main: &mut Main)             { Console::exit_process(70); }
+    machine broken(main: &mut Main)             { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -4,11 +4,11 @@ data Main { rows: [Row; 4]; index: u64; }
 machine write(row: &mut Row, value: i64 in Wrapping) { row.value = value; }
 machine choose(rows: &mut [Row; 4], index: u64) -> i64 in Wrapping requires index < 4 {
     transition index == 2 { true -> two(rows, index) _ -> other(rows, index) }
-    state two(rows: &mut [Row; 4], index: u64) requires index < 4 {
+    machine two(rows: &mut [Row; 4], index: u64) -> i64 in Wrapping requires index < 4 {
         write(&mut rows[index], 17);
         rows[index].value
     }
-    state other(rows: &mut [Row; 4], index: u64) requires index < 4 {
+    machine other(rows: &mut [Row; 4], index: u64) -> i64 in Wrapping requires index < 4 {
         write(&mut rows[index], 29);
         rows[index].value
     }
@@ -22,8 +22,8 @@ machine Main::main(main: &mut Main) crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

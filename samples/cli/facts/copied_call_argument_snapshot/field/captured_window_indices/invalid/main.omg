@@ -51,5 +51,5 @@ machine main() crashes Trap {
     transition direct_start == 0 && public_start == 0 && direct_counter.value && public_counter.value && difference == 0 && public_difference == 0 && direct.bytes.len == 9 && public.bytes.len == 9 && direct.sibling.len == 4 && public.sibling.len == 4 {
         true -> done() false -> wrong()
     }
-    state done() {} state wrong() { crash Trap; }
+    machine done() {} machine wrong() { crash Trap; }
 }

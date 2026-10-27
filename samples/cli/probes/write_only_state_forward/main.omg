@@ -4,7 +4,7 @@ machine replace(destination: &write i32, value: i32) {
 }
 machine forward(destination: &write i32, value: i32) {
     transition { _ -> write_value(&write destination, value) }
-    state write_value(destination: &write i32, value: i32) {
+    machine write_value(destination: &write i32, value: i32) {
         replace(&write destination, value);
     }
 }
@@ -14,7 +14,7 @@ machine Main::main(main: &mut Main) {
     forward(&write main.value, 70);
     forward(&write main.neighbor, 4);
     transition { _ -> read(main) }
-    state read(main: &mut Main) { let value: i32 = main.value; }
+    machine read(main: &mut Main) { let value: i32 = main.value; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

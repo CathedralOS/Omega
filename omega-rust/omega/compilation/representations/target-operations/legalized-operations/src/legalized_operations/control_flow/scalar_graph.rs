@@ -1358,6 +1358,15 @@ impl LegalizedStructuralCaseSource {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarTerminator {
+    InvokeNoNormal {
+        psi_edge: EdgeId,
+        call: LegalizedScalarCall,
+        /// Declared ABI result mechanics without a semantic receiving value.
+        declared_result: abstract_operations::AbstractFunctionResult,
+        fuel: Vec<FuelSettlement>,
+        effect: EffectLink,
+        ownership: Vec<OwnershipEvent>,
+    },
     ExternalCompletion {
         psi_edge: EdgeId,
         boundary: BoundaryMachineId,
@@ -1489,6 +1498,11 @@ impl LegalizedScalarTerminator {
                 })
         };
         match self {
+            Self::InvokeNoNormal { call, .. } => call.arguments.iter().any(|argument| {
+                argument.scalar_source() == Some(value)
+                    || matches!(argument, LegalizedScalarArgument::Structural { indices, .. }
+                        if indices.iter().any(|index| index.operand.value == value))
+            }),
             Self::ExternalCompletion { arguments, .. } => arguments
                 .iter()
                 .any(|argument| argument.source.source_value() == value),

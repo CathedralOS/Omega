@@ -137,8 +137,7 @@
 //! `\n`, `\r` and `\t`.
 
 use compiler::{
-    CheckedCompileRequest, CompileOptions, CompileRequest, OptimizationRollback,
-    RequestedCompileProduct,
+    CheckedCompileRequest, CompileRequest, OptimizationRollback, RequestedCompileProduct,
 };
 use std::path::{Path, PathBuf};
 use std::{env, fs, process};
@@ -465,84 +464,42 @@ struct TerminalSemanticLeg {
 /// the Psi rules' rewrites -- Omega realization normalizes them away -- so
 /// the rollback pair compares here rather than at the executable.
 fn produce_terminal_semantic(
-    root_path: &Path,
+    discovered: fixture_package_inputs::DiscoveredFixture,
     build_dir: PathBuf,
     target: Option<String>,
     rollback: Option<&OptimizationRollback>,
 ) -> Result<TerminalSemanticLeg, Vec<diagnostics::Diagnostic>> {
-    let mut prepared = reviewed_repository_fixture_package_inputs(root_path, target.as_deref())?;
-    if prepared.assumed_permissions.is_some()
-        || (prepared.package_inputs.is_some() && target.is_some())
-    {
-        let request = fixture_package_inputs::accepted_fixture_product_request(
-            &mut prepared,
-            target.as_deref(),
-            build_dir.clone(),
-            compiler::CompilationProduct::Terminal(rollback.cloned().unwrap_or_default()),
-        )?;
-        let report =
-            fixture_package_inputs::produce_accepted_fixture(&mut prepared.session, request)?;
-        let receipt = report
-            .optimization_rollback_receipt()
-            .map(std::string::ToString::to_string);
-        let artifact = report.into_retained_terminal_artifact().ok_or_else(|| {
-            vec![diagnostics::Diagnostic::error(
-                "Terminal product retained no artifact",
-            )]
-        })?;
-        let fingerprint = artifact
-            .artifact()
-            .manifest()
-            .semantic()
-            .program_fingerprint
-            .to_string();
-        let _ = fs::remove_dir_all(&build_dir);
-        return Ok(TerminalSemanticLeg {
-            fingerprint: fingerprint[..16].to_owned(),
-            artifact,
-            receipt,
-        });
-    }
-    let build_snapshot = fixture_build_snapshot(&prepared.root_path)?;
-    let options = CompileOptions {
-        root_path: prepared.root_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: target,
-    };
-    let mut request = CompileRequest::new(options)
-        .with_requested_product(RequestedCompileProduct::TerminalArtifact);
-    if let Some(rollback) = rollback {
-        request = request.with_optimization_rollback(rollback.clone());
-    }
-    if let Some(package_inputs) = prepared.package_inputs {
-        request = request.with_package_inputs(package_inputs);
-    }
-    if let Some(snapshot) = build_snapshot {
-        request = request.with_build_snapshot(snapshot);
-    }
-    let report = omega_build::compile_sources(&mut prepared.session, request)
-        .and_then(compiler::CompileOutcomes::into_single_report)?;
+    let profile = target::TargetProfile::from_omega_target_name(target.as_deref())
+        .map_err(|error| vec![error])?;
+    let mut prepared = fixture_package_inputs::review_fixture(
+        discovered,
+        &[profile],
+        compiler::CompilationProduct::Terminal(rollback.cloned().unwrap_or_default()),
+    )?;
+    let output = fixture_package_inputs::produce_fixture(&mut prepared, target.as_deref())?;
+    let report = output
+        .into_report()
+        .map_err(compiler::CompilationProductError::into_diagnostics)?;
     let receipt = report
         .optimization_rollback_receipt()
-        .map(std::string::ToString::to_string);
+        .map(ToString::to_string);
     let retained = report.into_retained_terminal_artifact().ok_or_else(|| {
         vec![diagnostics::Diagnostic::error(
-            "Terminal-artifact product retained no artifact",
+            "Terminal product retained no artifact",
         )]
     })?;
-    let artifact = retained.artifact();
-    let fingerprint = artifact
+    let fingerprint = retained
+        .artifact()
         .manifest()
         .semantic()
         .program_fingerprint
         .to_string();
-    let leg = TerminalSemanticLeg {
+    let _ = fs::remove_dir_all(&build_dir);
+    Ok(TerminalSemanticLeg {
         fingerprint: fingerprint[..16].to_owned(),
         artifact: retained,
         receipt,
-    };
-    let _ = fs::remove_dir_all(&build_dir);
-    Ok(leg)
+    })
 }
 
 /// A fixture declaring `rollback.txt` runs the check leg as a
@@ -562,14 +519,20 @@ fn rollback_pair_facts(
     sequence: usize,
 ) -> (Vec<String>, Result<(), Vec<diagnostics::Diagnostic>>) {
     let build_dir = unique_build_dir(sequence);
-    let target = declared_realization_target(root_path);
+    let discovered = match discover_fixture(root_path) {
+        Ok(discovered) => discovered,
+        Err(errors) => return (Vec::new(), Err(errors)),
+    };
+    let target = discovered.targets.first().cloned();
     let rolled = produce_terminal_semantic(
-        root_path,
+        discovered,
         build_dir.join("rolled"),
         target.clone(),
         Some(rollback),
     );
-    let unrolled = produce_terminal_semantic(root_path, build_dir.join("unrolled"), target, None);
+    let unrolled = discover_fixture(root_path).and_then(|discovered| {
+        produce_terminal_semantic(discovered, build_dir.join("unrolled"), target, None)
+    });
     let _ = fs::remove_dir_all(&build_dir);
     let (rolled, unrolled) = match (rolled, unrolled) {
         (Ok(rolled), Ok(unrolled)) => (rolled, unrolled),
@@ -622,44 +585,19 @@ fn published_files(
 ) -> Result<Vec<String>, String> {
     let build_dir = unique_build_dir(sequence).join("publication");
     let compiled = (|| {
-        let mut prepared = reviewed_repository_fixture_package_inputs(
-            root_path,
-            declared_realization_target(root_path).as_deref(),
+        let discovered = discover_fixture(root_path)?;
+        let target = discovered.targets.first().cloned();
+        let profile = target::TargetProfile::from_omega_target_name(target.as_deref())
+            .map_err(|error| vec![error])?;
+        let mut prepared = fixture_package_inputs::review_fixture(
+            discovered,
+            &[profile],
+            compiler::CompilationProduct::Terminal(rollback.cloned().unwrap_or_default()),
         )?;
-        if prepared.assumed_permissions.is_some()
-            || (prepared.package_inputs.is_some()
-                && declared_realization_target(root_path).is_some())
-        {
-            let request = fixture_package_inputs::accepted_fixture_product_request(
-                &mut prepared,
-                declared_realization_target(root_path).as_deref(),
-                build_dir.clone(),
-                compiler::CompilationProduct::Terminal(rollback.cloned().unwrap_or_default()),
-            )?;
-            return fixture_package_inputs::produce_accepted_fixture(
-                &mut prepared.session,
-                request,
-            );
-        }
-        let build_snapshot = fixture_build_snapshot(&prepared.root_path)?;
-        let options = CompileOptions {
-            root_path: prepared.root_path,
-            build_dir: Some(build_dir.clone()),
-            target_name: declared_realization_target(root_path),
-        };
-        let mut request = CompileRequest::new(options)
-            .with_requested_product(RequestedCompileProduct::TerminalArtifact);
-        if let Some(rollback) = rollback {
-            request = request.with_optimization_rollback(rollback.clone());
-        }
-        if let Some(package_inputs) = prepared.package_inputs {
-            request = request.with_package_inputs(package_inputs);
-        }
-        if let Some(snapshot) = build_snapshot {
-            request = request.with_build_snapshot(snapshot);
-        }
-        omega_build::compile_sources(&mut prepared.session, request)
-            .and_then(compiler::CompileOutcomes::into_single_report)
+        let output = fixture_package_inputs::produce_fixture(&mut prepared, target.as_deref())?;
+        output
+            .into_report()
+            .map_err(compiler::CompilationProductError::into_diagnostics)
     })();
     let listing = match compiled {
         Ok(report) => compilation_products::publication::publish_compilation(report, &build_dir)
@@ -706,23 +644,17 @@ fn completed_files(sets: &Path) -> Result<Vec<String>, String> {
 /// The pass/run tier of `production_compile` restricted to the Check product:
 /// reviewed package inputs plus `omega_build::compile_sources`, targetless.
 fn check_pass_fixture(
-    root_path: &Path,
+    discovered: fixture_package_inputs::DiscoveredFixture,
     build_dir: PathBuf,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
-    let mut prepared = reviewed_repository_fixture_package_inputs(root_path, None)?;
-    let build_snapshot = fixture_build_snapshot(&prepared.root_path)?;
-    let mut request =
-        CompileRequest::for_targets(prepared.root_path, build_dir.clone(), vec![None])
-            .with_requested_product(RequestedCompileProduct::Check);
-    if let Some(package_inputs) = prepared.package_inputs {
-        request = request.with_package_inputs(package_inputs);
-    }
-    if let Some(snapshot) = build_snapshot {
-        request = request.with_build_snapshot(snapshot);
-    }
-    let result = omega_build::compile_sources(&mut prepared.session, request)
-        .and_then(compiler::CompileOutcomes::into_single_report)
-        .map(|_| ());
+    let profile =
+        target::TargetProfile::from_omega_target_name(None).map_err(|error| vec![error])?;
+    let mut prepared = fixture_package_inputs::review_fixture(
+        discovered,
+        &[profile],
+        compiler::CompilationProduct::Check,
+    )?;
+    let result = fixture_package_inputs::produce_fixture(&mut prepared, None).map(|_| ());
     let _ = fs::remove_dir_all(&build_dir);
     result
 }
@@ -794,8 +726,9 @@ fn interpret_fixture(
         Ok(allowance) => allowance,
         Err(error) => return terminal_execution::Observation::failure(error),
     };
-    let leg = match produce_terminal_semantic(root_path, build_dir, Some(target.clone()), rollback)
-    {
+    let leg = match discover_fixture(root_path).and_then(|discovered| {
+        produce_terminal_semantic(discovered, build_dir, Some(target.clone()), rollback)
+    }) {
         Ok(leg) => leg,
         Err(errors) => {
             return terminal_execution::Observation {
@@ -833,15 +766,11 @@ fn interpret_checked_fixture(
 ) -> terminal_execution::Observation {
     let compile_checked = || {
         let mut prepared = reviewed_repository_fixture_package_inputs(root_path, Some(target))?;
-        let snapshot = fixture_build_snapshot(&prepared.root_path)?;
-        let mut request = CheckedCompileRequest::new(&prepared.root_path, Some(target));
-        request.package_inputs = prepared.package_inputs.take();
-        request.build.snapshot = snapshot;
-        request.build.directory = Some(build_dir.clone());
-        if let Some(rollback) = rollback {
-            request.optimization_rollback = rollback.clone();
-        }
-        fixture_package_inputs::check_fixture_request(&mut prepared, request)
+        fixture_package_inputs::check_fixture(
+            &mut prepared,
+            target,
+            rollback.cloned().unwrap_or_default(),
+        )
     };
     let checked = compile_checked();
     let _ = fs::remove_dir_all(&build_dir);
@@ -1072,7 +1001,7 @@ fn interpreter_agreement(facts: &[String]) -> Option<String> {
 /// `None` when the request carried no overlay -- so the record names the
 /// subtraction the executable was realized from.
 fn build_native_fixture(
-    root_path: &Path,
+    discovered: fixture_package_inputs::DiscoveredFixture,
     build_dir: &Path,
     target: &str,
     rollback: Option<&OptimizationRollback>,
@@ -1114,77 +1043,51 @@ fn build_native_fixture(
             }
         }
     }
-    let mut prepared = reviewed_repository_fixture_package_inputs(root_path, Some(target))?;
-    let accepted_reports = if prepared.package_inputs.is_some() {
-        let mut primary_prepared = false;
+    let profiles = targets
+        .iter()
+        .map(|profile| profile.unwrap_or(target_profile))
+        .collect::<Vec<_>>();
+    let root_path = discovered.authored_root_path.clone();
+    let native = compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
+        private_entry_ram: entry_inputs::load(&root_path)?,
+        terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
+        terminal_authority_permission_policy: None,
+        optimization_rollback: rollback.cloned().unwrap_or_default(),
+    });
+    let mut prepared = fixture_package_inputs::review_fixture(discovered, &profiles, native)?;
+    let mut reports = if prepared.package_inputs.is_some() {
         let requests = targets
             .iter()
             .map(|profile| {
                 let name = profile.map(|profile| profile.target_name());
-                // The primary target was already reviewed above. Reuse that
-                // exact activation instead of repeating its discovery Build.
-                let mut sibling;
-                let preparation = if *profile == Some(target_profile) && !primary_prepared {
-                    primary_prepared = true;
-                    &mut prepared
-                } else {
-                    sibling = reviewed_repository_fixture_package_inputs(root_path, name)?;
-                    &mut sibling
-                };
-                fixture_package_inputs::accepted_fixture_product_request(
-                    preparation,
-                    name,
-                    build_dir.to_path_buf(),
-                    compiler::CompilationProduct::Native(
-                        compilation_products::NativeProductRequest {
-                            private_entry_ram: entry_inputs::load(root_path)?,
-                            terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
-                            terminal_authority_permission_policy: None,
-                            optimization_rollback: rollback.cloned().unwrap_or_default(),
-                        },
-                    ),
-                )
+                fixture_package_inputs::accepted_fixture_product_request(&mut prepared, name)
             })
             .collect::<Result<Vec<_>, Vec<diagnostics::Diagnostic>>>()?;
-        let outcomes = omega_build::compile_packages(&mut prepared.session, requests);
-        Some(
-            targets
-                .iter()
-                .copied()
-                .zip(outcomes)
-                .map(|(profile, outcome)| {
-                    outcome
-                        .map_err(|error| error.failure.into_diagnostics())
-                        .and_then(|output| {
-                            output
-                                .into_report()
-                                .map_err(compiler::CompilationProductError::into_diagnostics)
-                        })
-                        .map(|report| (profile, report))
-                })
-                .collect::<Result<Vec<_>, Vec<diagnostics::Diagnostic>>>()?,
-        )
+        fixture_package_inputs::produce_fixture_products(&mut prepared, requests)?
+            .into_iter()
+            .map(|(profile, output)| {
+                output
+                    .into_report()
+                    .map(|report| (Some(profile), report))
+                    .map_err(compiler::CompilationProductError::into_diagnostics)
+            })
+            .collect::<Result<Vec<_>, _>>()?
     } else {
-        None
-    };
-    let build_snapshot = fixture_build_snapshot(&prepared.root_path)?;
-    let mut request =
-        CompileRequest::for_targets(prepared.root_path, build_dir.to_path_buf(), targets)
-            .with_requested_product(RequestedCompileProduct::NativeArtifact)
-            .with_private_entry_ram(entry_inputs::load(root_path)?);
-    if let Some(rollback) = rollback {
-        request = request.with_optimization_rollback(rollback.clone());
-    }
-    if let Some(package_inputs) = prepared.package_inputs {
-        request = request.with_package_inputs(package_inputs);
-    }
-    if let Some(snapshot) = build_snapshot {
-        request = request.with_build_snapshot(snapshot);
-    }
-    let mut reports = if let Some(reports) = accepted_reports {
-        reports
-    } else {
-        let outcomes = omega_build::compile_sources(&mut prepared.session, request)?;
+        let execution = prepared
+            .execution
+            .take()
+            .expect("standalone fixture inputs");
+        let mut request =
+            CompileRequest::for_targets(prepared.root_path, build_dir.to_path_buf(), targets)
+                .with_requested_product(RequestedCompileProduct::NativeArtifact)
+                .with_private_entry_ram(entry_inputs::load(&root_path)?);
+        if let Some(rollback) = rollback {
+            request = request.with_optimization_rollback(rollback.clone());
+        }
+        if let Some(snapshot) = execution.snapshot {
+            request = request.with_build_snapshot(snapshot);
+        }
+        let outcomes = omega_build::compile_sources(prepared.session.compiler(), request)?;
         let mut reports = Vec::new();
         let mut failures = Vec::new();
         for outcome in outcomes.into_outcomes().into_vec() {
@@ -1208,11 +1111,15 @@ fn build_native_fixture(
             )]
         })?;
     let report = &reports[primary].1;
+    if let Some(capture) = capture {
+        capture
+            .observe_components(report)
+            .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
+    }
     native_component_descriptions::inspect(
         report,
-        root_path.parent().unwrap_or(root_path),
+        root_path.parent().unwrap_or(&root_path),
         build_dir,
-        capture,
     )
     .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
     if let Some(artifact) = report.retained_native_artifact() {
@@ -1449,29 +1356,13 @@ fn check_fail_fixture(
     build_dir: PathBuf,
     rollback: Option<&OptimizationRollback>,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
-    let target_name = declared_realization_target(root_path);
     let publishes = root_path
         .parent()
         .is_some_and(|directory| directory.join("expected_published.txt").is_file());
     let private_entry_ram = entry_inputs::load(root_path)?;
-    let native_product = (target_name.is_some() || publishes).then(|| compilation_products::NativeProductRequest {
-        private_entry_ram,
-        terminal_authority_policy:
-            terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
-        terminal_authority_permission_policy: None,
-        optimization_rollback: rollback.cloned().unwrap_or_default(),
-    });
-    let mut prepared =
-        reviewed_repository_fixture_package_inputs(root_path, target_name.as_deref())?;
-    let build_snapshot = fixture_build_snapshot(&prepared.root_path)?;
-    let mut request = CheckedCompileRequest::new(&prepared.root_path, target_name.as_deref());
-    request.package_inputs = prepared.package_inputs.take();
+    let build_snapshot = fixture_build_snapshot(root_path)?;
+    let mut request = CheckedCompileRequest::new(root_path, None);
     request.build.snapshot = build_snapshot;
-    // A fail fixture's build machine may still reach the build filesystem
-    // before the rule it is pinned on refuses, and the staging a compilation
-    // defaults to is beside its root source, which is the sealed snapshot
-    // here. Name the same private directory every other leg uses.
-    request.build.directory = Some(build_dir.clone());
     let unaccepted_output = root_path
         .parent()
         .map(|directory| directory.join("unaccepted_build_output.txt"))
@@ -1507,6 +1398,7 @@ fn check_fail_fixture(
                 build_time_evaluation::BuildMachineFilesystemSponsor::new(account_root)
                     .map_err(|error| vec![diagnostics::Diagnostic::error(error.to_string())])?,
             );
+            request.build.directory = Some(build_dir.clone());
             // This control stops before execution. Pin its semantic request
             // profile so the shared check golden does not record the host's
             // otherwise different request meaning; no foreign Build runs.
@@ -1619,53 +1511,29 @@ fn check_fail_fixture(
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
         Err(error) => return Err(vec![diagnostics::Diagnostic::error(error.to_string())]),
     }
-    let reuse_session = absent_outputs.is_empty() && request.build.evaluation_sponsor.is_none();
-    let package_mode = target_name.is_some() && request.package_inputs.is_some();
-    let mut request = Some(request);
-    let package_occurrences = if package_mode {
-        Some(fixture_package_inputs::fixture_occurrences(
-            &prepared,
-            request.take().expect("root request"),
-        )?)
-    } else {
-        None
-    };
-    let mut session = if reuse_session {
-        prepared.session
-    } else {
-        compiler::CompilationSession::default()
-    };
-    let mut result = if let Some(occurrences) = package_occurrences {
-        let product = native_product.map_or(
+    let mut result = (|| {
+        let discovered = fixture_package_inputs::discover_fixture(
+            root_path,
+            std::mem::take(&mut request.build),
+        )?;
+        let target_name = discovered.targets.first().cloned();
+        let native_product = (target_name.is_some() || publishes).then(|| compilation_products::NativeProductRequest {
+        private_entry_ram,
+        terminal_authority_policy:
+            terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
+        terminal_authority_permission_policy: None,
+        optimization_rollback: rollback.cloned().unwrap_or_default(),
+    });
+
+        let product = native_product.clone().map_or(
             compiler::CompilationProduct::Check,
             compiler::CompilationProduct::Native,
         );
-        omega_build::compile_packages(
-            &mut session,
-            vec![compiler::PackageCompilationRequest {
-                occurrences,
-                product,
-                terminal_permissions: prepared.assumed_permissions,
-            }],
-        )
-        .pop()
-        .expect("one fixture product")
-        .map(|_| ())
-        .map_err(|error| error.failure.into_diagnostics())
-    } else if let Some(native_product) = native_product {
-        omega_build::produce_source(
-            &mut session,
-            request.take().expect("root request"),
-            compiler::CompilationProduct::Native(native_product),
-        )
-        .map(|_| ())
-        .map_err(compiler::CompilationProductError::into_diagnostics)
-    } else {
-        omega_build::check_source(&mut session, request.take().expect("root request"))
-            .result
-            .map(|_| ())
-            .map_err(|failure| failure.into_diagnostics())
-    };
+        let profile = target::TargetProfile::from_omega_target_name(target_name.as_deref())
+            .map_err(|error| vec![error])?;
+        let mut prepared = fixture_package_inputs::review_fixture(discovered, &[profile], product)?;
+        fixture_package_inputs::produce_fixture(&mut prepared, target_name.as_deref()).map(|_| ())
+    })();
     for output in absent_outputs {
         if build_dir.join(&output).try_exists().map_err(|error| {
             vec![diagnostics::Diagnostic::error(format!(
@@ -1694,151 +1562,48 @@ fn check_fail_fixture(
 /// roster the fixture's own root binding claims. Realizing accounts that roster:
 /// an omitted plan records `rejected` instead of `checked`.
 fn realize_fixture(
-    root_path: &Path,
+    discovered: fixture_package_inputs::DiscoveredFixture,
     build_dir: PathBuf,
     target_name: Option<String>,
     rollback: Option<&OptimizationRollback>,
     interpretation: Option<(&Path, &mut Option<terminal_execution::Observation>)>,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
-    let runtime_target = target::TargetProfile::from_omega_target_name(target_name.as_deref())
-        .map_err(|diagnostic| vec![diagnostic])?
-        .target_name();
-    let mut prepared =
-        reviewed_repository_fixture_package_inputs(root_path, target_name.as_deref())?;
-    let build_snapshot = fixture_build_snapshot(&prepared.root_path)?;
-    if prepared.assumed_permissions.is_some()
-        || (prepared.package_inputs.is_some() && target_name.is_some())
-    {
-        let product =
-            compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
-                private_entry_ram: entry_inputs::load(root_path)?,
-                terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
-                terminal_authority_permission_policy: None,
-                optimization_rollback: rollback.cloned().unwrap_or_default(),
-            });
-        let request = fixture_package_inputs::accepted_fixture_product_request(
-            &mut prepared,
-            target_name.as_deref(),
-            build_dir.clone(),
-            product,
-        )?;
-        let result =
-            fixture_package_inputs::produce_accepted_fixture(&mut prepared.session, request).map(
-                |report| {
-                    if let Some((fixture_dir, observation)) = interpretation {
-                        *observation = Some(interpret_native_report(
-                            &report,
-                            fixture_dir,
-                            runtime_target,
-                            &[],
-                        ));
-                    }
-                },
-            );
-        let _ = fs::remove_dir_all(&build_dir);
-        return result;
+    let profile = target::TargetProfile::from_omega_target_name(target_name.as_deref())
+        .map_err(|diagnostic| vec![diagnostic])?;
+    let product = compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
+        private_entry_ram: entry_inputs::load(&discovered.authored_root_path)?,
+        terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
+        terminal_authority_permission_policy: None,
+        optimization_rollback: rollback.cloned().unwrap_or_default(),
+    });
+    let mut prepared = fixture_package_inputs::review_fixture(discovered, &[profile], product)?;
+    let output = fixture_package_inputs::produce_fixture(&mut prepared, target_name.as_deref())?;
+    let report = output
+        .into_report()
+        .map_err(compiler::CompilationProductError::into_diagnostics)?;
+    if let Some((fixture_dir, observation)) = interpretation {
+        *observation = Some(interpret_native_report(
+            &report,
+            fixture_dir,
+            profile.target_name(),
+            &[],
+        ));
     }
-    let options = CompileOptions {
-        root_path: prepared.root_path,
-        build_dir: Some(build_dir.clone()),
-        target_name,
-    };
-    let mut request = CompileRequest::new(options)
-        .with_requested_product(RequestedCompileProduct::NativeArtifact)
-        .with_private_entry_ram(entry_inputs::load(root_path)?);
-    if let Some(rollback) = rollback {
-        request = request.with_optimization_rollback(rollback.clone());
-    }
-    if let Some(package_inputs) = prepared.package_inputs {
-        request = request.with_package_inputs(package_inputs);
-    }
-    if let Some(snapshot) = build_snapshot {
-        request = request.with_build_snapshot(snapshot);
-    }
-    let result = omega_build::compile_sources(&mut prepared.session, request)
-        .and_then(compiler::CompileOutcomes::into_single_report)
-        .map(|report| {
-            if let Some((fixture_dir, observation)) = interpretation {
-                *observation = Some(interpret_native_report(
-                    &report,
-                    fixture_dir,
-                    runtime_target,
-                    &[],
-                ));
-            }
-        });
     let _ = fs::remove_dir_all(&build_dir);
-    result
+    Ok(())
 }
 
-/// Every target the fixture's own `build.omg` binds a program-entry root for,
-/// in declaration order. Empty for a fixture with no build declaration or no
-/// bound root: such a fixture claims no realizable program, and asking for one
-/// answers "native-artifact production requires one exact selected program
-/// entry", which is this harness demanding an entry the fixture never
-/// declared.
-fn declared_realization_targets(root_path: &Path) -> Vec<String> {
-    let Some(parent) = root_path.parent() else {
-        return Vec::new();
-    };
-    let Ok(text) = fs::read_to_string(parent.join("build.omg")) else {
-        return Vec::new();
-    };
-    let Ok(tokens) = source_files_to_tokens::Lexer::new(&text).tokenize() else {
-        return Vec::new();
-    };
-    let Ok(syntax) = tokens_to_syntax_trees::parse_syntax_trees(&tokens) else {
-        return Vec::new();
-    };
-    let mut targets = Vec::new();
-    // Read the slot operand structurally. An explicit Build argument can be
-    // a call containing commas, and comments may contain example bindings;
-    // neither should change which target this fixture actually declares.
-    // Candidate discovery follows the declaration graph. Native admission
-    // still executes Build and requires an actually selected root; seeing a
-    // source binding here supplies no execution or entry authority.
-    let mut pending = syntax
-        .root_item_handles()
-        .iter()
-        .rev()
-        .copied()
-        .collect::<Vec<_>>();
-    while let Some(item) = pending.pop() {
-        let syntax_trees::item::Item::Machine(machine) = syntax.items.item(item) else {
-            continue;
-        };
-        let nested = machine.nested_machines.handles().collect::<Vec<_>>();
-        pending.extend(nested.into_iter().rev());
-        for state in syntax.items.state_handles(machine.states) {
-            let state = syntax.items.state(*state);
-            for statement in syntax.items.statements(state.statements) {
-                let syntax_trees::statement::StatementNode::RootBinding(binding) =
-                    syntax.statements.statement(*statement)
-                else {
-                    continue;
-                };
-                let [target, .., slot] = binding.slot.as_ref() else {
-                    continue;
-                };
-                if slot.as_str(&syntax) == "ProgramEntry"
-                    && !targets.iter().any(|seen| seen == target.as_str(&syntax))
-                {
-                    targets.push(target.as_str(&syntax).to_owned());
-                }
-            }
-        }
-    }
-    targets
-}
-
-/// The first target the fixture's own `build.omg` binds a program-entry root
-/// for. A fixture that declares only `uefi_x86_64` or `windows_x86_64` refuses
-/// an absent `--target` with "selected target `<host>` has no bound required
-/// root slot", which is this harness choosing a target the fixture never
-/// declared, not the refusal the fixture pins. `None` keeps the host default
-/// for a fixture with no build declaration.
-fn declared_realization_target(root_path: &Path) -> Option<String> {
-    declared_realization_targets(root_path).into_iter().next()
+/// Assemble fixture-owned execution inputs before ordinary package discovery.
+fn discover_fixture(
+    root_path: &Path,
+) -> Result<fixture_package_inputs::DiscoveredFixture, Vec<diagnostics::Diagnostic>> {
+    fixture_package_inputs::discover_fixture(
+        root_path,
+        package_compilation::BuildExecutionInputs {
+            snapshot: fixture_build_snapshot(root_path)?,
+            ..Default::default()
+        },
+    )
 }
 
 /// The target the native leg realizes one pass/run fixture for, and whether
@@ -1852,12 +1617,11 @@ fn declared_realization_target(root_path: &Path) -> Option<String> {
 /// The check leg deliberately does not share this chooser -- see
 /// [`CHECK_LEG_TARGET_PREFERENCE`] -- and unifying the two would put a
 /// target-scoped verdict back into the one golden every host shares.
-fn pass_realization_target(root_path: &Path, host: &str) -> Option<(String, bool)> {
-    let declared = declared_realization_targets(root_path);
+fn pass_realization_target(declared: &[String], host: &str) -> Option<(String, bool)> {
     if declared.iter().any(|target| target == host) {
         return Some((host.to_owned(), true));
     }
-    declared.into_iter().next().map(|target| (target, false))
+    declared.first().cloned().map(|target| (target, false))
 }
 
 /// The order the check leg prefers among the targets a fixture's own
@@ -1901,13 +1665,12 @@ const CHECK_LEG_TARGET_PREFERENCE: &[&str] = &["macos_arm64", "linux_x86_64", "w
 /// roster against, read from the fixture's own `build.omg` and never from
 /// the recording host. `None` when the fixture binds no program-entry root
 /// at all -- nothing claims a realizable program.
-fn check_leg_realization_target(root_path: &Path) -> Option<String> {
-    let declared = declared_realization_targets(root_path);
+fn check_leg_realization_target(declared: &[String]) -> Option<String> {
     CHECK_LEG_TARGET_PREFERENCE
         .iter()
         .find(|preferred| declared.iter().any(|target| target == *preferred))
         .map(|preferred| (*preferred).to_owned())
-        .or_else(|| declared.into_iter().next())
+        .or_else(|| declared.first().cloned())
 }
 
 /// Whether the fixture's expected fragments all appear in the diagnostics it
@@ -1993,11 +1756,23 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
                 .join(format!("expected_native_exit.{}.txt", host.target_name()))
                 .is_file()
         });
+    let (mut discovered, discovery_error) = if tier == "fail" {
+        (None, None)
+    } else {
+        match discover_fixture(main) {
+            Ok(discovered) => (Some(discovered), None),
+            Err(errors) => (None, Some(errors)),
+        }
+    };
+    let targets = discovered
+        .as_ref()
+        .map(|fixture| fixture.targets.clone())
+        .unwrap_or_default();
     // A pass/run fixture is realized only for a target it binds a program
     // entry for. Realizing one that binds none, or binding the host in its
     // place, reports this harness's own selection rather than the fixture's
     // behavior.
-    let realization = native_target().and_then(|host| pass_realization_target(main, host));
+    let realization = native_target().and_then(|host| pass_realization_target(&targets, host));
     // Prefer the native leg's actual selection, including a foreign-only
     // fixture. Otherwise prefer a declared host root and then a declared foreign
     // root. The interpreter must not demand an absent host RootBinding.
@@ -2008,14 +1783,14 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
                 .map(|(target, _)| target.clone())
                 .or_else(|| {
                     target::TargetProfile::host_if_supported()
-                        .and_then(|host| pass_realization_target(main, host.target_name()))
+                        .and_then(|host| pass_realization_target(&targets, host.target_name()))
                         .map(|(target, _)| target)
                 })
-                .or_else(|| declared_realization_target(main))
+                .or_else(|| targets.first().cloned())
         })
         .flatten();
     let mut interpreter_observation = None;
-    let mut shared_interpreter_request = false;
+    let mut shared_interpreter_request = discovery_error.is_some();
     // A declared rollback overlay rides every leg the fixture compiles on.
     // A malformed declaration becomes the fixture's own rejected record.
     let (declared_rollback, rollback_error) = match declared_optimization_rollback(&fixture_dir) {
@@ -2024,160 +1799,167 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
         None => (None, None),
     };
     let mut realized = false;
-    let mut outcome = match (&rollback_error, tier, &realization) {
-        (Some(message), _, _) => Err(vec![diagnostics::Diagnostic::error(message.clone())]),
-        (_, "fail", _) => {
-            check_fail_fixture(main, unique_build_dir(sequence), declared_rollback.as_ref())
-        }
-        (_, _, Some((target, executes_here))) => {
-            realized = true;
-            let build_dir = unique_build_dir(sequence);
-            let interpretation = (terminal_target_oracle
-                || (!checked_interpreter_leg() && interpreter_target.as_ref() == Some(target)))
-            .then(|| {
-                shared_interpreter_request = !checked_interpreter_leg();
-                (fixture_dir.as_path(), &mut interpreter_observation)
-            });
-            let capture = artifact_capture::Capture::from_environment(tier, &rel, target);
-            let mut built = match &capture {
-                Ok(capture) => build_native_fixture(
-                    main,
-                    &build_dir,
-                    target,
-                    declared_rollback.as_ref(),
-                    interpretation,
-                    capture.as_ref(),
-                ),
-                Err(error) => Err(vec![diagnostics::Diagnostic::error(error.clone())]),
-            };
-            let mut integrity_error = None;
-            if let Ok((executable, receipt, private_entry_ram)) = &built {
-                if let Some(receipt) = receipt {
-                    facts.push(format!("rollback:{}", space_free(receipt)));
-                }
-                let execution = (|| -> Result<(), String> {
-                    let before = if let Ok(Some(capture)) = &capture {
-                        Some(capture.verify_executable(executable)?)
-                    } else {
-                        None
-                    };
-                    if *executes_here
-                        && runnable
-                        && let Some(launcher) = native_launcher(target)
-                    {
-                        facts.extend(execute_fixture(
-                            executable,
-                            &launcher,
-                            &fixture_dir,
-                            sequence,
-                            private_entry_ram,
-                        ));
-                    }
-                    if let Ok(Some(capture)) = &capture
-                        && before != Some(capture.verify_executable(executable)?)
-                    {
-                        return Err(
-                            "executing corpus image identity or timestamps changed".to_owned()
-                        );
-                    }
-                    Ok(())
-                })();
-                integrity_error = execution.err();
+    let mut outcome = if let Some(errors) = discovery_error {
+        Err(errors)
+    } else {
+        match (&rollback_error, tier, &realization) {
+            (Some(message), _, _) => Err(vec![diagnostics::Diagnostic::error(message.clone())]),
+            (_, "fail", _) => {
+                check_fail_fixture(main, unique_build_dir(sequence), declared_rollback.as_ref())
             }
-            if let Some(error) = integrity_error {
-                built = Err(vec![diagnostics::Diagnostic::error(error)]);
-            }
-            let _ = fs::remove_dir_all(&build_dir);
-            built.map(|_| ())
-        }
-        // An authored installation matrix observes one exact portable product,
-        // not separately compiled native products for its named target rows.
-        (_, _, _) if terminal_target_oracle => {
-            shared_interpreter_request = !checked_interpreter_leg();
-            let check_target = check_leg_realization_target(main);
-            let leg = produce_terminal_semantic(
-                main,
-                unique_build_dir(sequence),
-                check_target.clone(),
-                declared_rollback.as_ref(),
-            );
-            match leg {
-                Ok(leg) => {
-                    if let Some(receipt) = &leg.receipt {
-                        facts.push(format!("rollback:{}", space_free(receipt)));
-                    }
-                    if let Some(target) = &check_target {
-                        facts.push(format!("check-target:{target}"));
-                    }
-                    interpreter_observation = Some(observe_retained_terminal(
-                        leg.artifact.artifact(),
-                        None,
-                        leg.artifact
-                            .native_realization_proposal()
-                            .map_or(&[], |proposal| proposal.target_provider_proposals()),
-                        interpreter_target.as_deref(),
-                        &fixture_dir,
-                        &[],
-                    ));
-                    Ok(())
-                }
-                Err(errors) => Err(errors),
-            }
-        }
-        // A pass or run fixture that binds a program-entry root claims an
-        // executable roster the targetless `Check` product never demands:
-        // `omega --check` on the same root selects that entry and refuses
-        // when its unit plan is omitted, while this route would record
-        // `checked`. Realize the fixture for one target its own build binds,
-        // so the roster is accounted before the row reads as executable, and
-        // record that target: the realization verdict is a verdict about it,
-        // and this golden has no other place to say so
-        // (`CHECK_LEG_TARGET_PREFERENCE`).
-        (_, _, _) => {
-            let check_target = check_leg_realization_target(main);
-            let interpretation = (!checked_interpreter_leg()
-                && check_target.is_some()
-                && check_target == interpreter_target)
+            (_, _, Some((target, executes_here))) => {
+                realized = true;
+                let build_dir = unique_build_dir(sequence);
+                let interpretation = (terminal_target_oracle
+                    || (!checked_interpreter_leg() && interpreter_target.as_ref() == Some(target)))
                 .then(|| {
-                    shared_interpreter_request = true;
+                    shared_interpreter_request = !checked_interpreter_leg();
                     (fixture_dir.as_path(), &mut interpreter_observation)
                 });
-            let check_outcome = match (&declared_rollback, &check_target) {
-                // A declared rollback runs the check leg as a Terminal-artifact
-                // pair whose facts pin the overlay contract, then still realizes
-                // the fixture's bound-entry roster the `Check` product never
-                // demands, under the same overlay the legs share.
-                (Some(rollback), target) => {
-                    let (pair_facts, pair) = rollback_pair_facts(main, rollback, sequence);
-                    facts.extend(pair_facts);
-                    match (pair, target) {
-                        (Err(errors), _) => Err(errors),
-                        (Ok(()), Some(target)) => realize_fixture(
-                            main,
-                            unique_build_dir(sequence),
-                            Some(target.clone()),
-                            Some(rollback),
-                            interpretation,
-                        ),
-                        (Ok(()), None) => Ok(()),
+                let capture = artifact_capture::Capture::from_environment(tier, &rel, target);
+                let mut built = match &capture {
+                    Ok(capture) => build_native_fixture(
+                        discovered.take().expect("successful fixture discovery"),
+                        &build_dir,
+                        target,
+                        declared_rollback.as_ref(),
+                        interpretation,
+                        capture.as_ref(),
+                    ),
+                    Err(error) => Err(vec![diagnostics::Diagnostic::error(error.clone())]),
+                };
+                let mut integrity_error = None;
+                if let Ok((executable, receipt, private_entry_ram)) = &built {
+                    if let Some(receipt) = receipt {
+                        facts.push(format!("rollback:{}", space_free(receipt)));
                     }
+                    let execution = (|| -> Result<(), String> {
+                        let before = if let Ok(Some(capture)) = &capture {
+                            Some(capture.verify_executable(executable)?)
+                        } else {
+                            None
+                        };
+                        if *executes_here
+                            && runnable
+                            && let Some(launcher) = native_launcher(target)
+                        {
+                            facts.extend(execute_fixture(
+                                executable,
+                                &launcher,
+                                &fixture_dir,
+                                sequence,
+                                private_entry_ram,
+                            ));
+                        }
+                        if let Ok(Some(capture)) = &capture
+                            && before != Some(capture.verify_executable(executable)?)
+                        {
+                            return Err(
+                                "executing corpus image identity or timestamps changed".to_owned()
+                            );
+                        }
+                        Ok(())
+                    })();
+                    integrity_error = execution.err();
                 }
-                (None, Some(target)) => realize_fixture(
-                    main,
-                    unique_build_dir(sequence),
-                    Some(target.clone()),
-                    None,
-                    interpretation,
-                ),
-                (None, None) => check_pass_fixture(main, unique_build_dir(sequence)),
-            };
-            // Named even when realization refused: the diagnostics below are
-            // this target's refusal, and a row that does not say which target
-            // it realized cannot be read as a verdict on any.
-            if let Some(target) = &check_target {
-                facts.push(format!("check-target:{target}"));
+                if let Some(error) = integrity_error {
+                    built = Err(vec![diagnostics::Diagnostic::error(error)]);
+                }
+                let _ = fs::remove_dir_all(&build_dir);
+                built.map(|_| ())
             }
-            check_outcome
+            // An authored installation matrix observes one exact portable product,
+            // not separately compiled native products for its named target rows.
+            (_, _, _) if terminal_target_oracle => {
+                shared_interpreter_request = !checked_interpreter_leg();
+                let check_target = check_leg_realization_target(&targets);
+                let leg = produce_terminal_semantic(
+                    discovered.take().expect("successful fixture discovery"),
+                    unique_build_dir(sequence),
+                    check_target.clone(),
+                    declared_rollback.as_ref(),
+                );
+                match leg {
+                    Ok(leg) => {
+                        if let Some(receipt) = &leg.receipt {
+                            facts.push(format!("rollback:{}", space_free(receipt)));
+                        }
+                        if let Some(target) = &check_target {
+                            facts.push(format!("check-target:{target}"));
+                        }
+                        interpreter_observation = Some(observe_retained_terminal(
+                            leg.artifact.artifact(),
+                            None,
+                            leg.artifact
+                                .native_realization_proposal()
+                                .map_or(&[], |proposal| proposal.target_provider_proposals()),
+                            interpreter_target.as_deref(),
+                            &fixture_dir,
+                            &[],
+                        ));
+                        Ok(())
+                    }
+                    Err(errors) => Err(errors),
+                }
+            }
+            // A pass or run fixture that binds a program-entry root claims an
+            // executable roster the targetless `Check` product never demands:
+            // `omega --check` on the same root selects that entry and refuses
+            // when its unit plan is omitted, while this route would record
+            // `checked`. Realize the fixture for one target its own build binds,
+            // so the roster is accounted before the row reads as executable, and
+            // record that target: the realization verdict is a verdict about it,
+            // and this golden has no other place to say so
+            // (`CHECK_LEG_TARGET_PREFERENCE`).
+            (_, _, _) => {
+                let check_target = check_leg_realization_target(&targets);
+                let interpretation = (!checked_interpreter_leg()
+                    && check_target.is_some()
+                    && check_target == interpreter_target)
+                    .then(|| {
+                        shared_interpreter_request = true;
+                        (fixture_dir.as_path(), &mut interpreter_observation)
+                    });
+                let check_outcome = match (&declared_rollback, &check_target) {
+                    // A declared rollback runs the check leg as a Terminal-artifact
+                    // pair whose facts pin the overlay contract, then still realizes
+                    // the fixture's bound-entry roster the `Check` product never
+                    // demands, under the same overlay the legs share.
+                    (Some(rollback), target) => {
+                        let (pair_facts, pair) = rollback_pair_facts(main, rollback, sequence);
+                        facts.extend(pair_facts);
+                        match (pair, target) {
+                            (Err(errors), _) => Err(errors),
+                            (Ok(()), Some(target)) => realize_fixture(
+                                discovered.take().expect("successful fixture discovery"),
+                                unique_build_dir(sequence),
+                                Some(target.clone()),
+                                Some(rollback),
+                                interpretation,
+                            ),
+                            (Ok(()), None) => Ok(()),
+                        }
+                    }
+                    (None, Some(target)) => realize_fixture(
+                        discovered.take().expect("successful fixture discovery"),
+                        unique_build_dir(sequence),
+                        Some(target.clone()),
+                        None,
+                        interpretation,
+                    ),
+                    (None, None) => check_pass_fixture(
+                        discovered.take().expect("successful fixture discovery"),
+                        unique_build_dir(sequence),
+                    ),
+                };
+                // Named even when realization refused: the diagnostics below are
+                // this target's refusal, and a row that does not say which target
+                // it realized cannot be read as a verdict on any.
+                if let Some(target) = &check_target {
+                    facts.push(format!("check-target:{target}"));
+                }
+                check_outcome
+            }
         }
     };
     let mut interpreter_diagnostics = Vec::new();
@@ -2561,32 +2343,6 @@ fn main() {
     // alphabetical interleaves heavy groups with light ones naturally.
     // `order` still exists so record output stays alphabetical even if a
     // future scheduler reorders execution.
-    // The bundled ProgramEntry binding is one check per target per process.
-    // Derive it before any fixture clock starts so a record is that fixture's
-    // compile, not whichever fixture happened to miss the memo.
-    if env::var_os("OMEGA_CORPUS_NATIVE").is_none() {
-        let mut entry_targets = Vec::new();
-        for (_, _, main, _) in &jobs {
-            if let Some(target) = check_leg_realization_target(main)
-                && !entry_targets.iter().any(|seen| seen == &target)
-            {
-                entry_targets.push(target);
-            }
-        }
-        for target in entry_targets {
-            if let Err(errors) = fixture_package_inputs::prewarm_bundled_program_entry(&target) {
-                eprintln!(
-                    "corpus_runner: program entry prewarm failed: {}",
-                    errors
-                        .iter()
-                        .map(|error| error.message.clone())
-                        .collect::<Vec<_>>()
-                        .join("; ")
-                );
-                process::exit(1);
-            }
-        }
-    }
     let order: Vec<usize> = (0..jobs.len()).collect();
     let order = std::sync::Arc::new(order);
     let jobs = std::sync::Arc::new(jobs);

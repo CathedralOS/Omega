@@ -25,8 +25,14 @@ impl SourceRootRole {
 
 mod acquisition;
 mod workspace_acquisition;
-pub use acquisition::{AcquiredBuildSource, BuildSourceAcquisitionError, BuildSourceAcquisitions};
-pub use workspace_acquisition::{AcquiredWorkspaceBuild, AcquiredWorkspaceMembers};
+pub(crate) use acquisition::SourceAcquisitionOrigin;
+pub use acquisition::{
+    AcquiredBuildSource, AcquiredSourceSelection, BuildSourceAcquisitionError,
+    BuildSourceAcquisitions,
+};
+pub use workspace_acquisition::{
+    AcquiredWorkspaceBuild, AcquiredWorkspaceMembers, WorkspaceMemberObservation,
+};
 mod build_resolution;
 mod custody;
 pub use build_resolution::{

@@ -28,7 +28,7 @@ requires root.l1.l2.l3.l4.val >= 40 && root.l1.l2.l3.l4.val <= 80
     transition {
         _ -> step(root)
     }
-    state step(r: RootRec) -> u64
+    machine step(r: RootRec) -> u64
     requires r.l1.l2.l3.l4.val >= 40 && r.l1.l2.l3.l4.val <= 80
     {
         let res: u64 = r.l1.l2.l3.l4.val;
@@ -58,6 +58,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -9,6 +9,6 @@ requires Length <= 8 && embed(Length) + 1 == embed(NextLength)
 machine main() crashes Trap {
     let result: u64 = remain<0, 1, 7>();
     transition result == 73 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

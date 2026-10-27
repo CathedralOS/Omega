@@ -349,6 +349,12 @@ impl ResultClaimOrigin {
 pub(crate) enum SuspendedCallResult {
     Scalar(ValueId),
     Unit,
+    /// An ordinary module invocation proved to have no normal continuation.
+    /// Its declared result ABI supplies no receiving value or completion here.
+    NoNormal {
+        callee: MachineId,
+        edge: EdgeId,
+    },
     /// A selected checked body entered from a domain-ending edge has no
     /// return continuation. Its eventual leaf, not this frame, ends the domain.
     ExternalCompletion {
@@ -1220,6 +1226,9 @@ impl<'artifact> TerminalExecution<'artifact> {
                 .ok_or(TerminalInterpretError::VerifiedBlockMissing)?
                 .terminator;
             let flow = match &terminator {
+                Terminator::InvokeNoNormal { .. } => {
+                    self.settle_invoke_no_normal(terminator, meter)?
+                }
                 Terminator::Jump { .. } => self.settle_jump(terminator, meter)?,
                 Terminator::Conditional { .. } => self.settle_conditional(terminator, meter)?,
                 Terminator::StructuralCase { .. } => {

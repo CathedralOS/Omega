@@ -127,6 +127,9 @@ pub type StaticArgumentClassifier = fn(&TypedTrees, StaticArgumentCall<'_>) -> S
 /// A consumer of exact typed references. Return false from an arena callback
 /// when a node was already visited; symbol consumers may preserve repeated edges.
 pub trait TypedReferences: Extend<SymbolHandle> {
+    /// A called or supplied callable, distinct from a declaration's signature
+    /// or satisfaction row. This retains the exact executable application.
+    fn callable_use(&mut self, _: SymbolHandle) {}
     /// A callable's exact parameter/result scope, before its nested telescope
     /// and contract facts are visited. This describes ownership, not admission.
     fn callable_signature(&mut self, _: &crate::signature::StateSignature) {}
@@ -174,6 +177,7 @@ pub trait TypedReferences: Extend<SymbolHandle> {
 pub struct ProgramReferences {
     pub declarations: Vec<SymbolHandle>,
     pub symbols: HashSet<SymbolHandle>,
+    pub callable_uses: HashSet<SymbolHandle>,
     /// Declaration dependencies retained as descriptions, not executable edges.
     pub descriptor_symbols: HashSet<SymbolHandle>,
     pub expressions: HashSet<ExpressionHandle>,
@@ -188,6 +192,7 @@ struct ReferenceCollector {
     selection: DeclarationSelection,
     declarations: Vec<SymbolHandle>,
     symbols: HashSet<SymbolHandle>,
+    callable_uses: HashSet<SymbolHandle>,
     descriptor_symbols: HashSet<SymbolHandle>,
     classify_static_arguments: Option<StaticArgumentClassifier>,
     expressions: HashSet<ExpressionHandle>,
@@ -202,6 +207,11 @@ impl Extend<SymbolHandle> for ReferenceCollector {
     }
 }
 impl TypedReferences for ReferenceCollector {
+    fn callable_use(&mut self, symbol: SymbolHandle) {
+        if symbol.is_valid() {
+            self.callable_uses.insert(symbol);
+        }
+    }
     fn declaration_description_dependency(&mut self, symbol: SymbolHandle) {
         self.descriptor_symbols.insert(symbol);
     }
@@ -380,15 +390,27 @@ impl Extend<SymbolHandle> for TypeOccurrences {
 
 impl TypedReferences for TypeOccurrences {
     fn call_arguments(&mut self, program: &TypedTrees, call: StaticArgumentCall<'_>) -> bool {
-        if let StaticArgumentCall::Expression(_, call) = call
-            && call.requirement_application.is_valid()
-        {
-            let occurrence = TypeOccurrence {
-                lexical_owner: self.owner,
-                reference: call.requirement_application,
+        if let StaticArgumentCall::Expression(_, call) = call {
+            let readiness = match program
+                .expression_table
+                .build_selection_request(call.build_selection)
+            {
+                Some(crate::expression::BuildSelectionRequest::ProviderReadiness(request)) => {
+                    request.requirement
+                }
+                _ => Default::default(),
             };
-            if !self.requirement_applications.contains(&occurrence) {
-                self.requirement_applications.push(occurrence);
+            for reference in [call.requirement_application, readiness] {
+                if !reference.is_valid() {
+                    continue;
+                }
+                let occurrence = TypeOccurrence {
+                    lexical_owner: self.owner,
+                    reference,
+                };
+                if !self.requirement_applications.contains(&occurrence) {
+                    self.requirement_applications.push(occurrence);
+                }
             }
         }
         for handle in [call.application(), call.selection_application()] {
@@ -609,6 +631,7 @@ fn finish_references(roots: ReferenceCollector) -> ProgramReferences {
     let mut proof_facts = roots.facts.into_iter().collect::<Vec<_>>();
     proof_facts.sort_unstable_by_key(|handle| (handle.arena_index(), handle.generation()));
     ProgramReferences {
+        callable_uses: roots.callable_uses,
         declarations: roots.declarations,
         symbols: roots.symbols,
         descriptor_symbols: roots.descriptor_symbols,
@@ -784,6 +807,7 @@ fn visit_callable_symbol(
     retained: &mut impl TypedReferences,
     symbol: SymbolHandle,
 ) {
+    retained.callable_use(symbol);
     visit_symbol(retained, symbol);
     for (_, plan) in program.placement_lifecycle_plans.iter() {
         if let crate::typed_trees::PlacementLifecyclePlan::Evaluated {
@@ -1761,6 +1785,12 @@ fn visit_call_expression(
     if call.requirement_application.is_valid() {
         visit_type_reference(program, retained, call.requirement_application);
     }
+    if let Some(crate::expression::BuildSelectionRequest::ProviderReadiness(request)) = program
+        .expression_table
+        .build_selection_request(call.build_selection)
+    {
+        visit_type_reference(program, retained, request.requirement);
+    }
     if let Some(dispatch) = &call.static_requirement_dispatch {
         visit_static_requirement_dispatch(
             program,
@@ -1880,6 +1910,7 @@ fn visit_statement(
                         visit_authored_selection(program, retained, *occurrence);
                     }
                     visit_symbol(retained, path.symbol);
+                    visit_symbol(retained, path.receiver_symbol);
                     visit_symbol(retained, path.head_symbol);
                 }
             }
@@ -1979,6 +2010,7 @@ fn visit_machine_with_sidecars(
         }
     }
     let mut visit_specialization = |specialization: &crate::typed_trees::MachineSpecialization| {
+        visit_symbol(retained, specialization.template);
         visit_type_parameters(program, retained, specialization.template_parameters);
         visit_static_machine_bindings(program, retained, specialization.binding_application);
         for realization in &specialization.operator_realizations {
@@ -2171,6 +2203,7 @@ mod conformance_occurrence_tests {
             program
                 .expression_table
                 .insert(ExpressionNode::Call(TableCallExpression {
+                    authored_call_binding: None,
                     authored_machine_application: application,
                     requirement_application: Default::default(),
                     exact_coercion_target: Default::default(),

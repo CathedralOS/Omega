@@ -15,5 +15,5 @@ machine main() crashes Trap {
     let package: Package<Token<SEVEN>, EIGHT> = Package { item: item };
     let observed: u64 = read(package.item);
     transition observed == 7 { true -> done() _ -> bad() }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }

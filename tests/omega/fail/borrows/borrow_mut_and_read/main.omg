@@ -8,7 +8,7 @@ machine Main::main(main: &mut Main) -> i32 {
     }
     
 
-    state copy(out_value: &mut i32, input_value: i32) {
+    machine copy(out_value: &mut i32, input_value: i32) -> i32 {
         out_value = input_value;
 
         transition {
@@ -16,7 +16,7 @@ machine Main::main(main: &mut Main) -> i32 {
         }
     }
 
-    state shutdown() {
+    machine shutdown() -> i32 {
         0
     }
 }

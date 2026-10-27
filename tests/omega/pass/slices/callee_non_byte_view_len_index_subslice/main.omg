@@ -38,7 +38,7 @@ machine Main::inspect(sub: &[Entry], index: u64) -> i32 {
         false -> 0
     }
 
-    state confirmed(sub: &[Entry], index: u64) -> i32 {
+    machine confirmed(sub: &[Entry], index: u64) -> i32 {
         let first: i32 = Main::confirm(sub[1..], sub[index].value);
         (first)
     }
@@ -50,7 +50,7 @@ machine Main::confirm(tail: &[Entry], chosen: i32) -> i32 {
         false -> chosen
     }
 
-    state emit(first: i32) -> i32 {
+    machine emit(first: i32) -> i32 {
         transition {
             _ -> first
         }

@@ -19,7 +19,7 @@ machine choose(left: bool, value: f64) -> f64 in TravelTime {
 }
 machine named(value: f64) -> f64 in TravelTime {
  transition { _ -> finish(value) }
- state finish(value: f64) -> f64 in TravelTime { measure(value) }
+ machine finish(value: f64) -> f64 in TravelTime { measure(value) }
 }
 machine transition_tail(value: f64) -> f64 in TravelTime {
  transition { _ -> (measure(value)) }
@@ -50,11 +50,11 @@ machine Main::main(main: &mut Main) reaches Console {
  transition checked == 70 && a == 2.5 && b == 2.5 && c == 25.0 && d == 2.5 && e == 4.0 && f == 2.5 && g == 2.5 && ordinary == 2500.0 && field == 2.5 && argument == 2.5 {
   true -> good(main) false -> bad(main)
  }
- state good(main: &mut Main) {
+ machine good(main: &mut Main) {
   Console::write_line("time 2.5 offset 25 alternate 4 default 2500");
   Console::exit_process(0);
  }
- state bad(main: &mut Main) { Console::exit_process(77); }
+ machine bad(main: &mut Main) { Console::exit_process(77); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

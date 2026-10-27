@@ -58,52 +58,52 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad_total(main)
     }
 
-    state check_split(main: &mut Main) {
+    machine check_split(main: &mut Main) {
         transition main.watch.last_split == 40 {
             true -> check_lap(main)
             _ -> bad_split(main)
         }
     }
 
-    state check_lap(main: &mut Main) {
+    machine check_lap(main: &mut Main) {
         transition main.watch.last_lap == 30 {
             true -> check_elapsed(main)
             _ -> bad_lap(main)
         }
     }
 
-    state check_elapsed(main: &mut Main) {
+    machine check_elapsed(main: &mut Main) {
         transition main.watch.elapsed == 40 {
             true -> good(main)
             _ -> bad_elapsed(main)
         }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::write_line("PASS: total=70, split=40, lap=30, elapsed=40 all verified (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(70);
     }
-    state bad_total(main: &mut Main) {
+    machine bad_total(main: &mut Main) {
         Console::write_line("FAIL: total was not 70 after the command script (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(71);
     }
-    state bad_split(main: &mut Main) {
+    machine bad_split(main: &mut Main) {
         Console::write_line("FAIL: last split was not 40 (exit 72)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(72);
     }
-    state bad_lap(main: &mut Main) {
+    machine bad_lap(main: &mut Main) {
         Console::write_line("FAIL: last lap was not 30 (exit 73)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(73);
     }
-    state bad_elapsed(main: &mut Main) {
+    machine bad_elapsed(main: &mut Main) {
         Console::write_line("FAIL: elapsed was not 40 (exit 74)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
@@ -120,21 +120,21 @@ machine Main::send(main: &mut Main, cmd: Command) {
         _ -> done()
     }
 
-    state do_tick(main: &mut Main, n: i32 in Saturating) {
+    machine do_tick(main: &mut Main, n: i32 in Saturating) {
         main.watch.elapsed = main.watch.elapsed + n;
         main.watch.total = main.watch.total + n;
     }
 
-    state do_lap(main: &mut Main) {
+    machine do_lap(main: &mut Main) {
         main.watch.last_lap = main.watch.elapsed;
         main.watch.elapsed = 0;
     }
 
-    state do_split(main: &mut Main) {
+    machine do_split(main: &mut Main) {
         main.watch.last_split = main.watch.elapsed;
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -11,12 +11,12 @@ machine stamp(buffer: &mut [u8; 48], offset: u32) {
         false -> done()
     }
 
-    state write(buffer: &mut [u8; 48], offset: u32) requires offset < 48 {
+    machine write(buffer: &mut [u8; 48], offset: u32) requires offset < 48 {
         let borrowed: &mut u8 = &mut buffer[offset];
         borrowed = 9;
     }
 
-    state done() {}
+    machine done() {}
 }
 
 data Main { }
@@ -30,8 +30,8 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> bad()
     }
 
-    state done() { Console::exit_process(0); }
-    state bad() { Console::exit_process(1); }
+    machine done() { Console::exit_process(0); }
+    machine bad() { Console::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

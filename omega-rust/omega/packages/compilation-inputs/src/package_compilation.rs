@@ -111,6 +111,34 @@ struct PackageCompilationSourceRecord {
 }
 
 impl PackageCompilationInputs {
+    pub(crate) fn require_same_shared_product_sources(&self, other: &Self) -> Result<(), String> {
+        for (identity, record) in &self.source.packages {
+            if let Some(previous) = other.source.packages.get(identity) {
+                if record.source_root != previous.source_root
+                    || record.canonical_name != previous.canonical_name
+                    || record.captured_source != previous.captured_source
+                    || record.captured_build_source != previous.captured_build_source
+                    || record.dependencies != previous.dependencies
+                {
+                    return Err(
+                        "Product query graphs disagree about a shared package source".into(),
+                    );
+                }
+            }
+            if other
+                .source
+                .packages
+                .iter()
+                .any(|(other_identity, other_record)| {
+                    other_identity != identity && other_record.source_root == record.source_root
+                })
+            {
+                return Err("Product query source root has different package owners".into());
+            }
+        }
+        Ok(())
+    }
+
     /// Retain source acquisition's exact requests and selected package custody.
     /// A later Build must issue these same values before the sources can settle
     /// its ledger. Merely supplying an alias graph is not that evidence.

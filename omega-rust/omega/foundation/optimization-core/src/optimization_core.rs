@@ -52,38 +52,23 @@ const SELECTION_ENCODING_MAGIC: &[u8; 8] = b"OMGOPT\0\0";
 const SELECTION_ENCODING_VERSION: u32 = 15;
 const SELECTION_IDENTITY_DOMAIN: &[u8] = b"omega.optimization-selections.v15\0";
 
-/// Closed execution phase for one explicitly named optimization. Phase
-/// projection routes a complete source-visible suite; it never replaces that
-/// suite's identity or creates an optimization-level alias.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[repr(u8)]
-pub enum OptimizationExecutionPhase {
-    CheckedTrees = 1,
-    Psi = 2,
-    AbstractOperations = 3,
-    TargetOperations = 4,
-    SelectedLowering = 5,
-    PreAllocation = 6,
-    AllocationRecovery = 7,
-    PostAllocationMachine = 8,
-    FunctionRelativeLayout = 9,
-}
-
-impl OptimizationExecutionPhase {
-    /// Canonical pipeline order, including phases whose current exact
-    /// selection is necessarily empty. Empty phases still execute as identity
-    /// validation boundaries rather than selecting another pipeline.
-    pub const ALL: [Self; 9] = [
-        Self::CheckedTrees,
-        Self::Psi,
-        Self::AbstractOperations,
-        Self::TargetOperations,
-        Self::SelectedLowering,
-        Self::PreAllocation,
-        Self::AllocationRecovery,
-        Self::PostAllocationMachine,
-        Self::FunctionRelativeLayout,
-    ];
+crate::tagged_vocabulary! {
+    9;
+    /// Closed execution phase for one explicitly named optimization. Phase
+    /// projection routes a complete source-visible suite; it never replaces that
+    /// suite's identity or creates an optimization-level alias.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub enum OptimizationExecutionPhase {
+        CheckedTrees = 1,
+        Psi = 2,
+        AbstractOperations = 3,
+        TargetOperations = 4,
+        SelectedLowering = 5,
+        PreAllocation = 6,
+        AllocationRecovery = 7,
+        PostAllocationMachine = 8,
+        FunctionRelativeLayout = 9,
+    }
 }
 
 macro_rules! optimization_vocabulary {

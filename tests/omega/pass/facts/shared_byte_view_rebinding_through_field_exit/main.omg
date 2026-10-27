@@ -13,8 +13,8 @@ requires original.len == 1 && replacement.len == 1 {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 data Carrier<'storage> { selected: &'storage [u8]; marker: u64; }
 machine main() crashes Trap {
@@ -24,6 +24,6 @@ machine main() crashes Trap {
     let observed: u8 = replace(carrier.selected, &replacement[..]);
     let retained: bool = carrier.selected[0] == 5 && carrier.marker == 73;
     transition retained { true -> verify(observed, &original[..], &replacement[..]) _ -> bad() }
-    state verify(observed: u8, original: &[u8], replacement: &[u8]) requires original.len == 1 && replacement.len == 1 { finish(observed, original, replacement); }
-    state bad() { crash Trap; }
+    machine verify(observed: u8, original: &[u8], replacement: &[u8]) requires original.len == 1 && replacement.len == 1 { finish(observed, original, replacement); }
+    machine bad() { crash Trap; }
 }

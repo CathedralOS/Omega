@@ -12,5 +12,5 @@ machine main() crashes Trap {
  transition first == 8388609.0f32 && second == -8388609.0f32 {
   true -> done() false -> bad()
  }
- state done() { } state bad() { crash Trap; }
+ machine done() { } machine bad() { crash Trap; }
 }

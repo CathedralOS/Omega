@@ -208,6 +208,10 @@ impl CheckedConditionalReturnArm {
                 CheckedScalarExpressionRole::Return,
             ),
             Self::Structural(operation) => transfers.operation(operation),
+            Self::EvaluateNoNormal { operations, .. } => operations
+                .iter()
+                .map(|operation| transfers.operation(operation))
+                .sum(),
             Self::Call {
                 operands,
                 operation,
@@ -263,7 +267,8 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
             // cannot claim that a jump consumed this owner. Abnormal exits
             // have no normal custody successor and are absent from the meet.
             CheckedScalarBranchDestination::Jump(_) => Some(0),
-            CheckedScalarBranchDestination::Crash { .. } => None,
+            CheckedScalarBranchDestination::Crash { .. }
+            | CheckedScalarBranchDestination::InvokeNoNormal { .. } => None,
         }
     }
 
@@ -716,7 +721,9 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
                             _ => self.operation(operation),
                         })
                         .sum::<usize>()
-                        + self.operation(call.operation())
+                        + call
+                            .operation()
+                            .map_or(0, |operation| self.operation(operation))
                 }),
             CheckedStructuralValueKind::Case(case) => self.case(case),
             crate::record_or_structural_case_pattern!(fields, ..) => plans
@@ -841,6 +848,9 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
                 crate::CheckedUnitLocalBindingPlan::TrivialAffine { .. }
                 | crate::CheckedUnitLocalBindingPlan::Structural { .. } => 0,
             },
+            CheckedUnitEffectOperationPlan::EvaluateStructuralValue { value, calls, .. } => {
+                self.structural(*value, calls)
+            }
             // An installed binding that names a structural local is the
             // local's whole occurrence, counted as an ordinary argument.
             CheckedUnitEffectOperationPlan::Store(store) => match &store.value {

@@ -32,12 +32,12 @@ machine Loader::run(
     // cycle call moves through `drive`; the granted extents ride this
     // machine's block parameters as plain extents, retained beneath the
     // invocation for the whole cycle life.
-    state launch(loader: &mut Loader, image: Extent, storage: Extent) {
+    machine launch(loader: &mut Loader, image: Extent, storage: Extent) {
         Loader::drive(loader);
         transition { _ -> retain(image, storage) }
     }
 
-    state retain(image: Extent, storage: Extent) {
+    machine retain(image: Extent, storage: Extent) {
         transition { _ -> retain(image, storage) }
     }
 }

@@ -443,25 +443,25 @@ impl TerminalExecution<'_> {
                 self.consume_affine_call_argument(&mut caller_affine_frontier, argument)?;
             }
         }
-        let (loan_completions, resume_operation) =
-            if matches!(result, SuspendedCallResult::ExternalCompletion { .. }) {
-                // There is no normal completion of this invocation, hence no
-                // operation continuation or returned-loan retirement.
-                (Vec::new(), self.next_operation)
-            } else {
-                let caller = self.program.verified_machine(self.current_machine)?;
-                let operation = caller
-                    .block(&self.current)
-                    .and_then(|block| block.operations.get(self.next_operation))
-                    .ok_or_else(malformed)?
-                    .id;
-                let completions =
-                    self.loan_completions_for_operation(operation)
-                        .map_err(|error| {
-                            error.in_argument_preparation("retain call loan completions")
-                        })?;
-                (completions, self.next_operation + 1)
-            };
+        let (loan_completions, resume_operation) = if matches!(
+            result,
+            SuspendedCallResult::ExternalCompletion { .. } | SuspendedCallResult::NoNormal { .. }
+        ) {
+            // There is no normal completion of this invocation, hence no
+            // operation continuation or returned-loan retirement.
+            (Vec::new(), self.next_operation)
+        } else {
+            let caller = self.program.verified_machine(self.current_machine)?;
+            let operation = caller
+                .block(&self.current)
+                .and_then(|block| block.operations.get(self.next_operation))
+                .ok_or_else(malformed)?
+                .id;
+            let completions = self
+                .loan_completions_for_operation(operation)
+                .map_err(|error| error.in_argument_preparation("retain call loan completions"))?;
+            (completions, self.next_operation + 1)
+        };
         let caller = self.suspend_with(result, loan_completions)?;
         caller.next_operation = resume_operation;
         retire_transferred_call_sources(
@@ -539,6 +539,34 @@ impl TerminalExecution<'_> {
             prepared,
             &[],
             SuspendedCallResult::ExternalCompletion { boundary, edge },
+        )
+    }
+
+    /// Enter an ordinary no-normal invocation through the same funded frame
+    /// and argument/claim transaction as returning calls. The callee's declared
+    /// result shape is independent of the absence of a receiving continuation.
+    pub(crate) fn begin_no_normal_call(
+        &mut self,
+        callee_id: MachineId,
+        edge: semantic_vocabulary::EdgeId,
+        scalar_arguments: &[TerminalScalarValue],
+        structural_arguments: &[StructuralArgument],
+        claim_transfers: &[ClaimTransfer],
+    ) -> Result<(), TerminalInterpretError> {
+        let program = std::sync::Arc::clone(&self.program);
+        let callee = program.verified_machine(callee_id)?;
+        let prepared = self.prepare_structural_call_arguments(callee_id, structural_arguments)?;
+        self.enter_call(
+            callee_id,
+            callee,
+            scalar_arguments,
+            structural_arguments,
+            prepared,
+            claim_transfers,
+            SuspendedCallResult::NoNormal {
+                callee: callee_id,
+                edge,
+            },
         )
     }
 

@@ -40,7 +40,9 @@ pub fn stage_optimized_fixed_view_copies(
 
 /// Exact named fixed-view copy materialization over the complete source
 /// legality chain. It mutates only its private selected-CFG realization and
-/// grants no allocation, emission, or publication authority.
+/// grants no allocation, emission, or publication authority; copy
+/// materialization does not change the admitted environment its source stage
+/// published.
 #[derive(Debug)]
 pub struct StagedOptimizedFixedViewCopies {
     source: StagedOptimizedFixedPrecoloredSegmentHomes,
@@ -49,30 +51,10 @@ pub struct StagedOptimizedFixedViewCopies {
 }
 
 impl StagedOptimizedFixedViewCopies {
-    pub const fn source_legality_stage(&self) -> &StagedOptimizedAllocationLegality {
-        self.source.source_legality_stage()
-    }
-
-    /// The target register environment governing the transformed program.
-    /// Copy materialization does not change the admitted environment.
-    pub const fn register_environment(&self) -> &ValidatedTargetRegisterEnvironment {
-        self.source.register_environment()
-    }
-
-    /// The environment-derived allocator availability governing the program.
-    pub const fn allocator_availability(&self) -> &ValidatedAllocatorAvailability {
-        self.source.allocator_availability()
-    }
-
-    /// The governing optimizer selections for this admission.
-    pub fn selections(&self) -> &OptimizationSelections {
-        self.source.selections()
-    }
-
-    /// The per-pass work budget admitted beside the same evidence.
-    pub fn budget_per_pass(&self) -> OptimizationWorkBudget {
-        self.source.budget_per_pass()
-    }
+    staged_producer_accessors!(
+        source; source_legality_stage, register_environment, allocator_availability, selections,
+        budget_per_pass
+    );
 
     /// The current program: the copy-materialized selected CFG.
     pub const fn copies(&self) -> &ValidatedFixedViewCopies {

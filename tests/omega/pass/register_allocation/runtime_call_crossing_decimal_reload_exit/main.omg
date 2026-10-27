@@ -9,18 +9,18 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
     let mut configuration: Settings;
     let accepted: bool = block settings(&mut configuration);
     transition accepted { true -> header(&configuration) _ -> invalid() }
-    state header(configuration: &Settings) {
+    machine header(configuration: &Settings) {
         Console::write_line("raw,code,reconstructed_num,reconstructed_den,clip,error_num,error_den,bound_num,bound_den");
         transition { _ -> sample(configuration, 0) }
     }
-    state sample(configuration: &Settings, index: i64 in Wrapping) {
+    machine sample(configuration: &Settings, index: i64 in Wrapping) {
         transition index < configuration.count { true -> read(configuration, index) _ -> trailing() }
     }
-    state read(configuration: &Settings, index: i64 in Wrapping) {
+    machine read(configuration: &Settings, index: i64 in Wrapping) {
         let raw: i64 in Wrapping = block number();
         transition raw >= -1000 && raw <= 1000 { true -> convert(configuration, index, raw) _ -> invalid() }
     }
-    state convert(configuration: &Settings, index: i64 in Wrapping, raw: i64 in Wrapping) {
+    machine convert(configuration: &Settings, index: i64 in Wrapping, raw: i64 in Wrapping) {
         let mut result: Conversion;
         quantize(configuration, raw, &mut result);
         integer(raw); Console::write(",");
@@ -34,12 +34,12 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
         integer(result.bound_denominator); Console::write_line("");
         transition { _ -> sample(configuration, index + 1) }
     }
-    state trailing() {
+    machine trailing() {
         let extra: i64 in Wrapping = block number();
         transition extra == 2002 { true -> done() _ -> invalid() }
     }
-    state done() { Console::exit_process(0); }
-    state invalid() { Console::write_line("ERROR: malformed ADC settings or readings"); Console::exit_process(64); }
+    machine done() { Console::exit_process(0); }
+    machine invalid() { Console::write_line("ERROR: malformed ADC settings or readings"); Console::exit_process(64); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

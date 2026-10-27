@@ -3,9 +3,10 @@
 //! Element positions bind types and length positions bind integer constants.
 //! Nominal const positions additionally preserve Boolean identity and kind.
 //! Arrays, slices, references and nominal applications share recursion;
-//! anonymous references compare exact access, not borrow compatibility. Named
-//! lifetime occurrences remain undecidable until their lexical binders are
-//! retained here; neither matching a name nor erasing it proves type equality.
+//! references compare exact access, not borrow compatibility. A selected
+//! callable may introduce fresh invocation regions; its declared telescope
+//! gives those tags binder role. Captured actual regions still require lexical
+//! custody, never matching names or region-erased type identity.
 //! `applications` selects the
 //! exact declaration and parameter kinds of each nominal head. Closed leaves
 //! use the existing identity owner. This is not an arithmetic solver or a new
@@ -136,6 +137,29 @@ pub(super) fn collect_binder_mentions(
 }
 
 impl Solver<'_, '_> {
+    // Only the selected callable's own telescope introduces invocation variables.
+    // Data applications supply their regions explicitly; captured tags and named
+    // actuals remain subject to lexical identity rather than spelling equality.
+    fn require_invocation_lifetime(
+        &self,
+        lifetime: &syntax_trees::identifier::Identifier,
+        span: SourceSpan,
+    ) -> Result<(), Diagnostic> {
+        if self
+            .base_info
+            .invocation_lifetimes
+            .iter()
+            .any(|parameter| parameter.as_str(self.syntax) == lifetime.as_str(self.syntax))
+        {
+            Ok(())
+        } else {
+            Err(self.type_structure_error(
+                "reference region is not a declared invocation lifetime",
+                span,
+            ))
+        }
+    }
+
     /// Materialize only the type grammar retained in an ambiguous expression
     /// operand. Classification already established the opposite type binder;
     /// every resulting node rejoins the same constructor matcher below.
@@ -216,8 +240,11 @@ impl Solver<'_, '_> {
             TypeReferenceNode::Reference {
                 referee,
                 access,
-                lifetime: None,
+                lifetime,
             } => {
+                if let Some(lifetime) = lifetime {
+                    self.require_invocation_lifetime(&lifetime, span)?;
+                }
                 let TypeReferenceNode::Reference {
                     referee: actual_referee,
                     access: actual_access,
@@ -225,7 +252,7 @@ impl Solver<'_, '_> {
                 } = self.syntax.type_references.type_reference(actual).clone()
                 else {
                     return Err(self.type_structure_error(
-                        "requires the same anonymous reference constructor",
+                        "requires the same reference constructor with an elided actual region",
                         span,
                     ));
                 };
@@ -422,16 +449,21 @@ impl Solver<'_, '_> {
             TypeReferenceNode::Reference {
                 referee,
                 access,
-                lifetime: None,
+                lifetime,
             } => {
+                if let Some(lifetime) = &lifetime {
+                    self.require_invocation_lifetime(lifetime, span)?;
+                }
                 let Some(referee) = self.construct_type_structure(referee, span)? else {
                     return Ok(None);
                 };
-                return Ok(Some(
-                    self.syntax
-                        .type_references
-                        .insert_reference(referee, access),
-                ));
+                return Ok(Some(self.syntax.type_references.insert(
+                    TypeReferenceNode::Reference {
+                        referee,
+                        access,
+                        lifetime,
+                    },
+                )));
             }
             TypeReferenceNode::Slice { element_type } => {
                 let Some(element_type) = self.construct_type_structure(element_type, span)? else {

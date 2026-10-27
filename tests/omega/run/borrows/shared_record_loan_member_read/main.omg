@@ -16,11 +16,11 @@ machine Main::main(main: &mut Main) reaches Console {
     let plain: &Desc = &main.desc;
     transition plain.tag == main.buf[0] as u32 { true -> done(main) _ -> bad(main) }
 
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::exit_process(0);
     }
 
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::exit_process(1);
     }
 }

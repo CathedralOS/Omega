@@ -9,6 +9,6 @@ machine Main::main(main: &mut Main) {
         _ -> other(main)
     }
 
-    state seed(main: &mut Main, value: u64) { main.answer = value; }
-    state other(main: &mut Main) { main.answer = 0; }
+    machine seed(main: &mut Main, value: u64) { main.answer = value; }
+    machine other(main: &mut Main) { main.answer = 0; }
 }

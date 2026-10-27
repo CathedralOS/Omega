@@ -82,6 +82,17 @@ pub(crate) fn scalar_storage_read_with_selectors(
         authored_parameters,
         selector,
     )?;
+    scalar_storage_read_projection(program, expression, authored_parameters, projection)
+}
+
+/// Classify a typed read after its owner has substituted the exact formal root
+/// and selector namespace. The original occurrence and ordered path survive.
+pub(crate) fn scalar_storage_read_projection(
+    program: &dyn ::validation::CheckingInput,
+    expression: ExpressionHandle,
+    authored_parameters: &[StateParameter],
+    projection: ScalarStorageProjection,
+) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
     let first_index = projection.path.iter().position(|segment| {
         matches!(
             segment,

@@ -3,6 +3,45 @@
 use super::*;
 
 pub(super) fn validate(module: &TerminalModule) -> Result<(), &'static str> {
+    for invocation in &module.proof_output_calls {
+        if invocation.runtime_call.is_some_and(|call| {
+            matches!(
+                call.site,
+                semantic_vocabulary::InvocationSite::ExternalCompletion(_)
+            )
+        }) {
+            return Err("ordinary evidence invocation names an external completion");
+        }
+        let no_normal =
+            invocation.runtime_result == Some(terminal_psi::ProofOutputRuntimeResult::NoNormal);
+        let edge = invocation.runtime_call.is_some_and(|call| {
+            matches!(
+                call.site,
+                semantic_vocabulary::InvocationSite::InvokeNoNormal(_)
+            )
+        });
+        if no_normal || edge {
+            if !no_normal || !edge || !invocation.outputs.is_empty() {
+                return Err("nonreturning evidence invocation has a normal result or output");
+            }
+            let retained = invocation
+                .runtime_call
+                .ok_or("nonreturning evidence invocation has no call")?;
+            let caller = module
+                .machine(invocation.caller)
+                .ok_or("nonreturning evidence invocation has no caller")?;
+            let mut calls = caller
+                .module_invocations()
+                .filter(|call| call.site == retained.site);
+            if calls
+                .next()
+                .is_none_or(|call| call.inputs.callee != retained.callee)
+                || calls.next().is_some()
+            {
+                return Err("nonreturning evidence invocation has no exact executable edge");
+            }
+        }
+    }
     let consumes_snapshots = module
         .proof_output_calls
         .iter()
@@ -36,7 +75,7 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), &'static str> {
                     continue;
                 };
                 calls.push(RuntimeEvidenceOperation {
-                    id: operation.id,
+                    site: semantic_vocabulary::InvocationSite::Operation(operation.id),
                     position: (
                         block.id,
                         u32::try_from(index)
@@ -59,6 +98,24 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), &'static str> {
                         }
                     },
                     selected_evidence: parts.selected_evidence.to_vec(),
+                });
+            }
+            if let Some(invocation) = block.terminator.module_invocation() {
+                calls.push(RuntimeEvidenceOperation {
+                    site: semantic_vocabulary::InvocationSite::InvokeNoNormal(
+                        block.terminator.edge(),
+                    ),
+                    position: (
+                        block.id,
+                        u32::try_from(block.operations.len())
+                            .map_err(|_| "evidence invocation position exceeds u32")?,
+                    ),
+                    callee: invocation.callee,
+                    role: terminal_psi::DirectCallRole::NoNormal,
+                    arguments: invocation.arguments.to_vec(),
+                    structural_arguments: invocation.structural_arguments.to_vec(),
+                    result: RuntimeEvidenceResult::NoNormal,
+                    selected_evidence: Vec::new(),
                 });
             }
         }

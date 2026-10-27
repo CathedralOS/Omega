@@ -30,6 +30,6 @@ requires addr::Bound == 18446744073709551616
 {
     let value: u64 = convert(35 as addr);
     transition value == 35 { true -> done() _ -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

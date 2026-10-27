@@ -8,13 +8,13 @@ machine Main::main(main: &mut Main) reaches Console {
     main.j = 5;
     let view: &[u8] = &main.buf[..];
     transition main.j < view.len { true -> read(main, view) _ -> bad(main) }
-    state read(main: &mut Main, items: &[u8])
+    machine read(main: &mut Main, items: &[u8])
         requires main.j < items.len
     {
         main.out = items[main.j] as i32;
         Console::exit_process(main.out);
     }
-    state bad(main: &mut Main) { Console::exit_process(9); }
+    machine bad(main: &mut Main) { Console::exit_process(9); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

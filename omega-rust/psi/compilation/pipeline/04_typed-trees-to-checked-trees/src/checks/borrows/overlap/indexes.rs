@@ -21,6 +21,9 @@ pub(super) enum BorrowCompatibilitySelectorPosition {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum NormalizedBound {
     Integer(i64),
+    /// Typed builtin runtime element value under one immutable formal frame.
+    /// This is neither a structural place key nor evidence of an index bound.
+    EntryRead(validation::ImmutableEntryReadIdentity),
     Symbol {
         symbol: SymbolHandle,
         offset: i64,
@@ -79,6 +82,7 @@ pub(super) enum NormalizedBound {
 /// evidence.
 fn bound_terms_equal(left: NormalizedBound, right: NormalizedBound) -> bool {
     match (left, right) {
+        (NormalizedBound::EntryRead(left), NormalizedBound::EntryRead(right)) => left == right,
         (NormalizedBound::Integer(_), NormalizedBound::Integer(_)) => true,
         (
             NormalizedBound::Symbol {
@@ -130,6 +134,7 @@ fn bound_terms_equal(left: NormalizedBound, right: NormalizedBound) -> bool {
 fn bound_offset(bound: NormalizedBound) -> Option<i64> {
     match bound {
         NormalizedBound::Integer(value) => Some(value),
+        NormalizedBound::EntryRead(_) => Some(0),
         NormalizedBound::Symbol { offset, .. } => Some(offset),
         NormalizedBound::Storage { .. } => Some(0),
         NormalizedBound::Projected { .. } | NormalizedBound::StorageProjected { .. } => Some(0),
@@ -205,9 +210,7 @@ impl<'a> SelectorEvaluation<'a> {
             .filter_map(StatedOrderingPremise::equality_candidates)
             .flatten()
         {
-            if !candidates.contains(&candidate) {
-                candidates.push(candidate);
-            }
+            crate::collections::push_unique(&mut candidates, candidate);
         }
         let mut pending = vec![(left, right)];
         let mut visited = Vec::new();
@@ -628,7 +631,7 @@ fn exclusive_end_bound(
                     .map(|offset| NormalizedBound::Symbol { symbol, offset }),
                 // `call result + 1` is outside the result vocabulary, so
                 // an inclusive call end reports unknown.
-                NormalizedBound::CallResult { .. } => None,
+                NormalizedBound::CallResult { .. } | NormalizedBound::EntryRead(_) => None,
                 // `storage + 1` is outside the storage vocabulary, so an
                 // inclusive mutable end reports unknown.
                 NormalizedBound::Storage { .. } => None,
@@ -803,6 +806,20 @@ pub(super) fn normalized_bound(
     lookup: &validation::ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<NormalizedBound> {
+    if program
+        .expression_table
+        .indexed_node(expression)
+        .is_some_and(|indexed| {
+            program
+                .expression_table
+                .constant_integer_value(indexed.index)
+                .is_none()
+        })
+        && let Some(identity) =
+            validation::immutable_entry_indexed_read_identity(program, expression)
+    {
+        return Some(NormalizedBound::EntryRead(identity));
+    }
     // A call result has no place identity: the occurrence's own expression
     // handle is its bound, so a nested call's `ensures` minted in the same
     // statement names this exact production — and any resolved projection
@@ -851,14 +868,13 @@ pub(super) fn normalized_bound(
     };
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(value) => value.value_i64().map(NormalizedBound::Integer),
-        ExpressionNode::Name(path) => {
-            let members = program.expression_table.name_path_members(path.members);
-            (members.len() == 1 && path.symbol.is_valid() && path.head_symbol == path.symbol)
-                .then_some(NormalizedBound::Symbol {
-                    symbol: path.symbol,
-                    offset: 0,
-                })
-        }
+        ExpressionNode::Name(path) => program
+            .expression_table
+            .name_path_is_single_member(path)
+            .then_some(NormalizedBound::Symbol {
+                symbol: path.symbol,
+                offset: 0,
+            }),
         _ => None,
     }
 }

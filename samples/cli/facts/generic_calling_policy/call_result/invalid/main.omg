@@ -19,10 +19,10 @@ machine scalar_plan(signature: BoundarySignature, allow_vectors: bool, width: u6
         true -> select_result(signature, signature.result, allow_vectors, width, convention, register, regime, shadow)
         _ -> reject()
     }
-    state select_result(signature: BoundarySignature, result: u64, allow_vectors: bool, width: u64, convention: CallingConvention, register: MachineRegister, regime: MachineRegime, shadow: u64) -> BoundaryPlanResult {
+    machine select_result(signature: BoundarySignature, result: u64, allow_vectors: bool, width: u64, convention: CallingConvention, register: MachineRegister, regime: MachineRegime, shadow: u64) -> BoundaryPlanResult {
         transition result < 256 { true -> accept(signature, result, allow_vectors, width, convention, register, regime, shadow) _ -> reject() }
     }
-    state accept(signature: BoundarySignature, result: u64, allow_vectors: bool, width: u64, convention: CallingConvention, register: MachineRegister, regime: MachineRegime, shadow: u64) -> BoundaryPlanResult {
+    machine accept(signature: BoundarySignature, result: u64, allow_vectors: bool, width: u64, convention: CallingConvention, register: MachineRegister, regime: MachineRegime, shadow: u64) -> BoundaryPlanResult {
         let mut plan: BoundaryEntryPlan;
         plan.call.convention = convention;
         plan.call.has_result = true;
@@ -44,7 +44,7 @@ machine scalar_plan(signature: BoundarySignature, allow_vectors: bool, width: u6
         plan.state.preemption = Preemption::NotApplicable;
         BoundaryPlanResult::Accepted { plan: plan }
     }
-    state reject() -> BoundaryPlanResult {
+    machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "one scalar result" } }
     }
 }
@@ -74,6 +74,6 @@ machine acquire() -> u64 reaches LocalEntry { LocalEntry::value() }
 machine main() reaches LocalEntry crashes Trap {
     let value: u64 = acquire();
     transition value == 42 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

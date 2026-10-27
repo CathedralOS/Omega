@@ -201,6 +201,7 @@ dependencies = [
  "target",
  "terminal-codec",
  "terminal-fuel",
+ "terminal-installation",
  "terminal-interpreter",
  "terminal-psi",
  "trust-model",
@@ -378,6 +379,7 @@ dependencies = [
  "lowered-psi",
  "numerics",
  "optimization",
+ "phase-profile",
  "proof-admission",
  "semantic-vocabulary",
  "source",
@@ -479,6 +481,7 @@ dependencies = [
  "package-evidence",
  "package-manager",
  "package-source",
+ "phase-profile",
  "platform-custody",
  "proof-admission",
  "provider-planning",
@@ -488,9 +491,7 @@ dependencies = [
  "selected-dispatch",
  "semantic-vocabulary",
  "source",
- "source-files-to-tokens",
  "symbols",
- "syntax-trees",
  "target",
  "target-operations",
  "task-plans",
@@ -502,7 +503,6 @@ dependencies = [
  "terminal-psi-to-abstract-operations",
  "terminal-runtime",
  "terminal-semantics",
- "tokens-to-syntax-trees",
  "trust-model",
  "typed-trees",
  "validation",
@@ -1364,6 +1364,7 @@ dependencies = [
  "semantic-vocabulary",
  "target",
  "terminal-codec",
+ "terminal-runtime",
 ]
 
 [[package]]
@@ -1684,7 +1685,6 @@ dependencies = [
  "task-plans",
  "terminal-codec",
  "terminal-psi",
- "typed-trees",
 ]
 
 [[package]]
@@ -2507,7 +2507,6 @@ dependencies = [
  "source",
  "symbols",
  "typed-trees",
- "validation",
 ]
 
 [[package]]

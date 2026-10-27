@@ -128,7 +128,7 @@ machine outgoing(byte: i32) -> i32 reaches Console {
 machine choose(first_path: bool) -> i32 reaches Console {
     transition { _ -> finish(first_path) }
 
-    state finish(first_path: bool) {
+    machine finish(first_path: bool) -> i32 {
         let first: Token = Token { ready: true, byte: 65 };
         let second: Token = Token { ready: true, byte: 66 };
         transition first_path {
@@ -151,7 +151,7 @@ reaches Console
 machine choose_consuming(first_path: bool) -> i32 reaches Console {
     transition { _ -> finish(first_path) }
 
-    state finish(first_path: bool) {
+    machine finish(first_path: bool) -> i32 {
         let first: Token = Token { ready: true, byte: 65 };
         let second: Token = Token { ready: true, byte: 66 };
         transition first_path {
@@ -168,7 +168,7 @@ data Choice { case Empty; case Some(value: i32); }
 machine choose_selected(first_path: bool) -> i32 reaches Console {
     transition { _ -> finish(first_path) }
 
-    state finish(first_path: bool) {
+    machine finish(first_path: bool) -> i32 {
         let left: Choice = Choice::Some { value: 67 };
         let marker: Token = Token { ready: true, byte: 65 };
         let right: Choice = Choice::Empty;
@@ -189,7 +189,7 @@ data Payload { case First(value: i32); case Second(value: i32); }
 machine choose_payload(payload: &Payload) -> i32 reaches Console {
     transition { _ -> finish(payload) }
 
-    state finish(payload: &Payload) {
+    machine finish(payload: &Payload) -> i32 {
         let marker: Token = Token { ready: true, byte: 65 };
         transition payload {
             Payload::First { value } -> (value)

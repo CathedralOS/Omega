@@ -12,8 +12,8 @@ machine Main::run(context: &mut Main, s: Slot) reaches Console {
         Slot::Found { index } -> use_it(context, index + 65)
         Slot::Full            -> done(context)
     }
-    state use_it(context: &mut Main, n: i32) { Console::exit_process(n); }
-    state done(context: &mut Main) { Console::exit_process(0); }
+    machine use_it(context: &mut Main, n: i32) { Console::exit_process(n); }
+    machine done(context: &mut Main) { Console::exit_process(0); }
 }
 machine Main::main(context: &mut Main) { Main::run(context, Slot::Found { index: 5 }); }
 

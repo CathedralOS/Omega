@@ -46,7 +46,7 @@ machine accumulate(total: i32 in Wrapping, previous: i32 in Wrapping,
 machine parse_roman(text: &[u8; 7] in Utf8) -> RomanParse {
     transition { _ -> step(text, 0, 0, 0) }
 
-    state step(text: &[u8; 7] in Utf8, index: i32,
+    machine step(text: &[u8; 7] in Utf8, index: i32,
                previous: i32 in Wrapping, total: i32 in Wrapping) -> RomanParse
     requires index >= 0
     {
@@ -56,7 +56,7 @@ machine parse_roman(text: &[u8; 7] in Utf8) -> RomanParse {
         }
     }
 
-    state read(text: &[u8; 7] in Utf8, index: i32,
+    machine read(text: &[u8; 7] in Utf8, index: i32,
                previous: i32 in Wrapping, total: i32 in Wrapping) -> RomanParse
     requires index >= 0
     {
@@ -68,7 +68,7 @@ machine parse_roman(text: &[u8; 7] in Utf8) -> RomanParse {
         }
     }
 
-    state advance(text: &[u8; 7] in Utf8, index: i32,
+    machine advance(text: &[u8; 7] in Utf8, index: i32,
                   previous: i32 in Wrapping, total: i32 in Wrapping) -> RomanParse
     requires index >= 0
     {
@@ -79,7 +79,7 @@ machine parse_roman(text: &[u8; 7] in Utf8) -> RomanParse {
         }
     }
 
-    state bump(text: &[u8; 7] in Utf8, index: i32,
+    machine bump(text: &[u8; 7] in Utf8, index: i32,
                previous: i32 in Wrapping, total: i32 in Wrapping) -> RomanParse
     requires index >= 0 && index < 16
     {
@@ -97,22 +97,22 @@ machine Main::main(main: &mut Main) reaches Console {
         RomanParse::Invalid -> bad()
     }
 
-    state check(total: i32 in Wrapping) {
+    machine check(total: i32 in Wrapping) {
         transition total == 1994 { true -> ok() false -> mismatch() }
     }
-    state ok() {
+    machine ok() {
         Console::write_line("PASS: MCMXCIV parsed to 1994 (exit 70)");
         transition { _ -> finish(70) }
     }
-    state mismatch() {
+    machine mismatch() {
         Console::write_line("FAIL: parse total did not equal 1994 (exit 71)");
         transition { _ -> finish(71) }
     }
-    state bad() {
+    machine bad() {
         Console::write_line("FAIL: unknown symbol or index guard tripped (exit 99)");
         transition { _ -> finish(99) }
     }
-    state finish(code: i32) {
+    machine finish(code: i32) {
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
         _ = block Console::read_line(&mut pause);

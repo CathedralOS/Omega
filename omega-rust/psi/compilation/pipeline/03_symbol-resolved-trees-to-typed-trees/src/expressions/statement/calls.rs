@@ -10,8 +10,47 @@ pub(super) fn lower_call_statement(
     lowerer: &mut Lowerer,
     call: &resolved::statement::TableCall,
 ) -> Result<typed::statement::StatementNode, Diagnostic> {
+    if let Some(operation) = crate::expressions::product_queries::operation(
+        lowerer.source_trees,
+        call.receiver_symbol,
+        call.target_symbol,
+        call.target.as_str(),
+    ) {
+        if !call.machine_arguments.is_empty() || !call.evidence_arguments.is_empty() {
+            return Err(Diagnostic::error(
+                "Product queries accept only their ordinary value arguments",
+            ));
+        }
+        // Preserve ordinary statement disposition, including explicit discard.
+        // Turning this into an expression would lose that authored obligation.
+        let mut lowered = lower_ordinary_call(lowerer, call)?;
+        let protocol = lowerer
+            .source_trees
+            .traits
+            .iter()
+            .find(|definition| definition.symbol == operation.namespace)
+            .ok_or_else(|| Diagnostic::error("Product query lost its toolchain protocol"))?;
+        lowered.receiver = Default::default();
+        lowerer.typed_trees.statement_table.push_name_path_member(
+            &mut lowered.receiver,
+            crate::lowerer::name::lower_name(&protocol.name),
+        );
+        lowered.receiver_root_symbol = operation.namespace;
+        lowered.receiver_symbol = operation.namespace;
+        lowered.target_symbol = operation.target;
+        let signature = lowerer
+            .source_trees
+            .trait_machine_signatures(protocol.machines)
+            .iter()
+            .find(|signature| signature.symbol == operation.target)
+            .ok_or_else(|| Diagnostic::error("Product query lost its exact operation"))?;
+        lowered.target = crate::lowerer::name::lower_name(&signature.name);
+        return Ok(typed::statement::StatementNode::Call(lowered));
+    }
     if let Some(request) = crate::expressions::product_selections::request(
         lowerer.source_trees,
+        &mut lowerer.typed_trees,
+        lowerer.type_reference_exposure,
         call.receiver_symbol,
         call.target_symbol,
         call.target.as_str(),
@@ -21,9 +60,6 @@ pub(super) fn lower_call_statement(
         call.target.source_span(),
     )? {
         let mut occurrences = call.authored_call_selection.into_iter().collect::<Vec<_>>();
-        if let language_semantics::declaration_selection::BuildSelectionRequest::Declaration(
-            binding,
-        ) = &request
         {
             occurrences.extend(
                 lowerer
@@ -31,7 +67,7 @@ pub(super) fn lower_call_statement(
                     .authored_declaration_selections()
                     .iter()
                     .filter(|selection| {
-                        binding.operands.iter().any(|operand| {
+                        request.designated_operands().iter().any(|operand| {
                             let span = selection.source_span();
                             span.source_id == operand.source_span.source_id
                                 && span.span.start >= operand.source_span.span.start

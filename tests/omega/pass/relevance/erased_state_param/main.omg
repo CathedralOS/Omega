@@ -7,7 +7,7 @@ machine Main::record(n: i32, bound [erased]: i32)
     requires n < bound
 {
     transition { _ -> store(n, bound) }
-    state store(n: i32, bound [erased]: i32)
+    machine store(n: i32, bound [erased]: i32)
         requires n < bound
     {
         let mut total: i32 = n;

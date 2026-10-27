@@ -12,7 +12,7 @@ reaches Output
         false -> finish(newline)
     }
 
-    state emit(byte: u8, bytes: &[u8], newline: bool) {
+    machine emit(byte: u8, bytes: &[u8], newline: bool) {
         let mut output: u8 = byte;
         Provider::emit_byte(output as i32);
         transition bytes.len > 0 {
@@ -21,19 +21,19 @@ reaches Output
         }
     }
 
-    state finish(newline: bool) {
+    machine finish(newline: bool) {
         transition newline {
             true -> emit_newline(10)
             false -> done()
         }
     }
 
-    state emit_newline(byte: u8) {
+    machine emit_newline(byte: u8) {
         let mut output: u8 = byte;
         Provider::emit_byte(output as i32);
     }
 
-    state done() { }
+    machine done() { }
 }
 
 public boundary machine > Unrelated::greater(left: f32, right: f32) -> bool;

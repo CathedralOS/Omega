@@ -63,6 +63,15 @@ provider execution, no prefix replay and premature-call/adapter/rebinding
 refusals. Build dependency acquisition and exact backing preparation are still
 application-coordinator work, not interpreter responsibilities.
 
+`poll_host_computation` yields `HostComputationPending` when a synchronous host
+operation needs executor work before returning. The full invocation, prepared
+arguments and borrowed storage remain live; polling neither replays effects nor
+charges the guest operation again. This is an executor pause like a fuel slice,
+not a source-language suspension. It cannot authorize component installation.
+External provider readiness continues through `poll_effect_readiness` and
+requires a checked suspension crossing. Product-query scheduling belongs to
+the Build application, not to either interpreter hook.
+
 After normal return, `TerminalInstance::observe_borrowed_entry` reads a semantic
 leaf of an original host-lent structural argument by dense argument index and
 canonical declaration path. The original home survives retired helper/entry

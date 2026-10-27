@@ -2,5 +2,5 @@
 // A counter allowed to equal sixteen must not transfer to a state bounded by sixteen.
 machine invalid_transition(step: u64) requires step <= 16 {
     transition { _ -> bounded(step + 1) }
-    state bounded(step: u64) requires step <= 16 { }
+    machine bounded(step: u64) requires step <= 16 { }
 }

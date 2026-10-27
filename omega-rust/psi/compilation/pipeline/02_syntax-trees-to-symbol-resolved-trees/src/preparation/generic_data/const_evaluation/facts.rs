@@ -262,12 +262,17 @@ fn evaluate_const_fact_expression_at(
             // `has_builtin_const_operator` answers before operand carriers
             // are known: an authored spelling on an incompatible carrier
             // (the core `Nat` `<=` and `-` machines) makes it decline facts
-            // the authored machine could never bind. A subject-bound replay
-            // keeps that opaque answer — its scalar binding is carrier-lossy
-            // — while closed operands let `authored_operator_can_bind`
-            // decide by carrier.
+            // the authored machine could never bind. An untyped integer
+            // subject keeps that conservative answer. Declared integers and
+            // Booleans retain their exact carrier, so the completed operands
+            // below can exclude incompatible authored meanings normally.
             let builtin = has_builtin_const_operator(syntax, binary);
-            if !builtin && subject.and_then(ConstFactSubject::scalar).is_some() {
+            if !builtin
+                && matches!(
+                    subject.and_then(ConstFactSubject::scalar),
+                    Some(ConstScalarValue::Integer(_))
+                )
+            {
                 return Ok(None);
             }
             validate_anonymous_remainder(syntax, binary)?;
@@ -1803,7 +1808,12 @@ fn evaluate_const_domain_expression(
         }
         ExpressionNode::Binary(binary) => {
             let builtin = has_builtin_const_operator(syntax, binary);
-            if !builtin && subject.and_then(ConstFactSubject::scalar).is_some() {
+            if !builtin
+                && matches!(
+                    subject.and_then(ConstFactSubject::scalar),
+                    Some(ConstScalarValue::Integer(_))
+                )
+            {
                 return Ok(None);
             }
             validate_anonymous_remainder(syntax, binary)?;

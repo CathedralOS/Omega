@@ -31,71 +31,63 @@ psi_rule_contract!(
     ),
 );
 
-impl PsiOptimizationRule for FieldValueSpecializationRule {
-    psi_rule_contract!(@adapter);
-
-    fn propose(
-        &self,
-        unit: &PsiOptimizationUnit,
-        analyses: RuleAnalysisView<'_>,
-    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-        required_analysis!(analyses, AnalysisKind::StronglyConnectedComponents => Some(AnalysisProduct::StronglyConnectedComponents(scc)));
-        // This specialization preserves cyclic machines byte-for-byte.
-        let frozen = scc.cyclic_machines(unit);
-        let mut candidates = Vec::new();
-        for function in &unit.functions {
-            if frozen.contains(&function.machine) {
+psi_rule_impl!(FieldValueSpecializationRule, |unit, analyses| {
+    required_analysis!(analyses, AnalysisKind::StronglyConnectedComponents => Some(AnalysisProduct::StronglyConnectedComponents(scc)));
+    // This specialization preserves cyclic machines byte-for-byte.
+    let frozen = scc.cyclic_machines(unit);
+    let mut candidates = Vec::new();
+    for function in &unit.functions {
+        if frozen.contains(&function.machine) {
+            continue;
+        }
+        for declaration in &function.structural_places {
+            let Some(patch) =
+                field_value_specialization::propose::plan(unit, function, declaration.id)
+            else {
+                continue;
+            };
+            if patch.reads.is_empty() {
                 continue;
             }
-            for declaration in &function.structural_places {
-                let Some(patch) =
-                    field_value_specialization::propose::plan(unit, function, declaration.id)
-                else {
-                    continue;
-                };
-                if patch.reads.is_empty() {
-                    continue;
-                }
-                // Every `Forward` row carries exactly one substitution — the
-                // read's result rebinds to the proven initializer — and the
-                // candidate's region and custody ledger come from the same
-                // accounting the independent replay recomputes.
-                let mut substitutions = patch
-                    .reads
-                    .iter()
-                    .filter_map(|row| match &row.resolution {
-                        FieldValueResolution::Forward(forwarded) => Some(ScalarSubstitution {
-                            from: row.result,
-                            to: forwarded.initializer,
-                            scalar_type: forwarded.scalar_type,
-                        }),
-                        FieldValueResolution::Constant(_) => None,
-                    })
-                    .collect::<Vec<_>>();
-                substitutions.sort();
-                let Some((affected_blocks, provenance)) =
-                    field_value_specialization::accounting::plan_accounting(function, &patch)
-                else {
-                    continue;
-                };
-                let predicted_cost_delta = -i64::try_from(patch.reads.len()).unwrap_or(i64::MAX);
-                candidates.push(
-                    PsiRewriteCandidate::new_field_value_specialization(
-                        unit.identity,
-                        Self::contract(),
-                        affected_blocks,
-                        substitutions,
-                        provenance,
-                        predicted_cost_delta,
-                        patch,
-                    )
-                    .map_err(RuleProposalError::InvalidCandidate)?,
-                );
-            }
+            // Every `Forward` row carries exactly one substitution — the
+            // read's result rebinds to the proven initializer — and the
+            // candidate's region and custody ledger come from the same
+            // accounting the independent replay recomputes.
+            let mut substitutions = patch
+                .reads
+                .iter()
+                .filter_map(|row| match &row.resolution {
+                    FieldValueResolution::Forward(forwarded) => Some(ScalarSubstitution {
+                        from: row.result,
+                        to: forwarded.initializer,
+                        scalar_type: forwarded.scalar_type,
+                    }),
+                    FieldValueResolution::Constant(_) => None,
+                })
+                .collect::<Vec<_>>();
+            substitutions.sort();
+            let Some((affected_blocks, provenance)) =
+                field_value_specialization::accounting::plan_accounting(function, &patch)
+            else {
+                continue;
+            };
+            let predicted_cost_delta = -i64::try_from(patch.reads.len()).unwrap_or(i64::MAX);
+            candidates.push(
+                PsiRewriteCandidate::new_field_value_specialization(
+                    unit.identity,
+                    Self::contract(),
+                    affected_blocks,
+                    substitutions,
+                    provenance,
+                    predicted_cost_delta,
+                    patch,
+                )
+                .map_err(RuleProposalError::InvalidCandidate)?,
+            );
         }
-        Ok(candidates)
     }
-}
+    Ok(candidates)
+});
 
 /// The exact local rule order for this pass.
 pub(super) fn built_in_registrations() -> Vec<BuiltInRuleRegistration> {

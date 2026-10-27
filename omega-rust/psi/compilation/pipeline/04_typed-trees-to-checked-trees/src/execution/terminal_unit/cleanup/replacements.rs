@@ -285,9 +285,7 @@ pub(super) fn actions(
                 if destination.path.starts_with(&region.path) {
                     region = destination.clone();
                 }
-                if !selected_regions.contains(&region) {
-                    selected_regions.push(region);
-                }
+                crate::collections::push_unique(&mut selected_regions, region);
             }
             let selected_actions = super::actions::disposition_actions(
                 program,

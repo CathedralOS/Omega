@@ -18,8 +18,8 @@ machine Main::apply(main: &mut Main, m: Msg) reaches Console {
         Msg::Move { dx as step, dy as _ } if step == 30 -> good(main, step)
         _ -> bad(main)
     }
-    state good(main: &mut Main, step: i32 in Step) { let code: i32 = step + 40; Console::exit_process(code); }
-    state bad(main: &mut Main) { Console::exit_process(1); }
+    machine good(main: &mut Main, step: i32 in Step) { let code: i32 = step + 40; Console::exit_process(code); }
+    machine bad(main: &mut Main) { Console::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

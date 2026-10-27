@@ -15,7 +15,7 @@ machine Controller::initialize(controller: &mut Controller, selected: Direction,
     controller.mode = Mode::Exploring;
     controller.direction = selected;
     transition { _ -> finish(controller, seed) }
-    state finish(controller: &mut Controller, seed: u64) {
+    machine finish(controller: &mut Controller, seed: u64) {
         controller.mode = Mode::Counter { step: seed };
         Controller::after(controller);
     }
@@ -27,19 +27,19 @@ machine Main::main(main: &mut Main) reaches Console {
         Mode::Counter { step } -> observe(main, step)
         _ -> finish(main, 1)
     }
-    state observe(main: &mut Main, step: u64) {
+    machine observe(main: &mut Main, step: u64) {
         transition step == 7 && main.controller.count == 2 {
             true -> observe_direction(main)
             false -> finish(main, 2)
         }
     }
-    state observe_direction(main: &mut Main) {
+    machine observe_direction(main: &mut Main) {
         transition main.controller.direction {
             Direction::Right -> finish(main, 70)
             _ -> finish(main, 3)
         }
     }
-    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

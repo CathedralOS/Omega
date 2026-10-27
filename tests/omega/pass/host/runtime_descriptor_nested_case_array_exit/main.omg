@@ -57,7 +57,7 @@ machine observe(variant: &Variant) -> bool {
         Variant::Right { revision as _, value, bytes } -> check(variant, value, bytes)
         _ -> (false)
     }
-    state check(variant: &Variant, value: u32, bytes: &Bytes) -> bool {
+    machine check(variant: &Variant, value: u32, bytes: &Bytes) -> bool {
         variant.revision == 7 && value == 9 && bytes.values[0] == 65
             && bytes.values[1] == 66 && bytes.values[2] == 67 && bytes.values[3] == 10
     }
@@ -67,7 +67,7 @@ machine publish(variant: &Variant) -> i64 reaches ByteIo {
         Variant::Right { revision as _, value as _, bytes } -> write(bytes)
         _ -> (-1)
     }
-    state write(bytes: &Bytes) -> i64 {
+    machine write(bytes: &Bytes) -> i64 {
         ByteIo::write(1, &bytes.values)
     }
 }
@@ -84,8 +84,8 @@ machine Main::main(main: &mut Main) reaches PacketIo, ByteIo blocks; crashes Tra
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

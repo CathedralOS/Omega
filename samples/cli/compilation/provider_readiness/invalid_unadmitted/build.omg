@@ -1,0 +1,8 @@
+use omega::language::core::program_image;
+
+machine build(builder: &mut Build) suspends; {
+    Build::application(builder, "readiness_unadmitted");
+    Build::build_depend_as(builder, "backing", Source::Path { location: "backing" });
+    suspend Build::await_provider<ProgramImage, backing::Selected>(builder);
+    let observed: addr = ProgramImage::retained_suffix_start();
+}

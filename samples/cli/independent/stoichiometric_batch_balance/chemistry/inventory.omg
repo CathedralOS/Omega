@@ -23,25 +23,25 @@ requires balance.coefficients[0] > 0 && balance.coefficients[1] > 0 {
     let capacity: i64 in Wrapping = minimum(first, second);
     batch.extent = minimum(capacity, reaction.cap);
     transition first == capacity { true -> first_limit(reaction, balance, batch, second, capacity) false -> second_limit(reaction, balance, batch, second, capacity) }
-    state first_limit(reaction: &chemistry::model::Reaction, balance: &chemistry::model::Balance, batch: &mut chemistry::model::Batch, second: i64 in Wrapping, capacity: i64 in Wrapping) {
+    machine first_limit(reaction: &chemistry::model::Reaction, balance: &chemistry::model::Balance, batch: &mut chemistry::model::Batch, second: i64 in Wrapping, capacity: i64 in Wrapping) {
         batch.limiting = 1;
         transition { _ -> second_limit(reaction, balance, batch, second, capacity) }
     }
-    state second_limit(reaction: &chemistry::model::Reaction, balance: &chemistry::model::Balance, batch: &mut chemistry::model::Batch, second: i64 in Wrapping, capacity: i64 in Wrapping) {
+    machine second_limit(reaction: &chemistry::model::Reaction, balance: &chemistry::model::Balance, batch: &mut chemistry::model::Batch, second: i64 in Wrapping, capacity: i64 in Wrapping) {
         transition second == capacity { true -> add_second(reaction, balance, batch, capacity) false -> cap_limit(reaction, balance, batch, capacity) }
     }
-    state add_second(reaction: &chemistry::model::Reaction, balance: &chemistry::model::Balance, batch: &mut chemistry::model::Batch, capacity: i64 in Wrapping) {
+    machine add_second(reaction: &chemistry::model::Reaction, balance: &chemistry::model::Balance, batch: &mut chemistry::model::Batch, capacity: i64 in Wrapping) {
         batch.limiting = batch.limiting + 2;
         transition { _ -> cap_limit(reaction, balance, batch, capacity) }
     }
-    state cap_limit(reaction: &chemistry::model::Reaction, balance: &chemistry::model::Balance, batch: &mut chemistry::model::Batch, capacity: i64 in Wrapping) {
+    machine cap_limit(reaction: &chemistry::model::Reaction, balance: &chemistry::model::Balance, batch: &mut chemistry::model::Batch, capacity: i64 in Wrapping) {
         transition reaction.cap < capacity { true -> capped(reaction, balance, batch) false -> propose(reaction, balance, batch) }
     }
-    state capped(reaction: &chemistry::model::Reaction, balance: &chemistry::model::Balance, batch: &mut chemistry::model::Batch) {
+    machine capped(reaction: &chemistry::model::Reaction, balance: &chemistry::model::Balance, batch: &mut chemistry::model::Batch) {
         batch.cap_limited = 1;
         transition { _ -> propose(reaction, balance, batch) }
     }
-    state propose(reaction: &chemistry::model::Reaction, balance: &chemistry::model::Balance, batch: &mut chemistry::model::Batch) {
+    machine propose(reaction: &chemistry::model::Reaction, balance: &chemistry::model::Balance, batch: &mut chemistry::model::Batch) {
         let third: i64 in Wrapping = reaction.stock[2] + batch.extent * balance.coefficients[2];
         let fourth: i64 in Wrapping = reaction.stock[3] + batch.extent * balance.coefficients[3];
         transition third <= 2147483647 && fourth <= 2147483647 {
@@ -49,11 +49,11 @@ requires balance.coefficients[0] > 0 && balance.coefficients[1] > 0 {
             false -> overflow(batch)
         }
     }
-    state commit(reaction: &chemistry::model::Reaction, balance: &chemistry::model::Balance, batch: &mut chemistry::model::Batch, third: i64 in Wrapping, fourth: i64 in Wrapping) {
+    machine commit(reaction: &chemistry::model::Reaction, balance: &chemistry::model::Balance, batch: &mut chemistry::model::Batch, third: i64 in Wrapping, fourth: i64 in Wrapping) {
         batch.inventory[0] = reaction.stock[0] - batch.extent * balance.coefficients[0];
         batch.inventory[1] = reaction.stock[1] - batch.extent * balance.coefficients[1];
         batch.inventory[2] = third;
         batch.inventory[3] = fourth;
     }
-    state overflow(batch: &mut chemistry::model::Batch) { batch.overflow = true; }
+    machine overflow(batch: &mut chemistry::model::Batch) { batch.overflow = true; }
 }

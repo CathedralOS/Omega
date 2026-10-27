@@ -37,7 +37,7 @@ machine Main::main(main: &mut Main) reaches Console {
 
     // Each view borrows the entry's local buffer. Coordinates and the
     // accumulator travel as values instead of persistent context fields.
-    state walk(buffer: &[u8; 48], descriptor_size: u32, offset: u32, total: u32 in Wrapping) requires offset <= 32 {
+    machine walk(buffer: &[u8; 48], descriptor_size: u32, offset: u32, total: u32 in Wrapping) requires offset <= 32 {
         let descriptor: &Desc = &buffer[offset] as &Desc;
         let pages: u64 = descriptor.pages;
         transition descriptor.kind >= 4 {
@@ -45,27 +45,27 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> step(buffer, descriptor_size, offset, total)
         }
     }
-    state tally(buffer: &[u8; 48], descriptor_size: u32, offset: u32, total: u32 in Wrapping, pages: u64) requires offset <= 32 {
+    machine tally(buffer: &[u8; 48], descriptor_size: u32, offset: u32, total: u32 in Wrapping, pages: u64) requires offset <= 32 {
         let counted: u32 in Wrapping =
             narrow_u64_to_u32_wrapping(pages) as u32 in Wrapping;
         let updated_total: u32 in Wrapping = total + counted;
         transition { _ -> step(buffer, descriptor_size, offset, updated_total) }
     }
-    state step(buffer: &[u8; 48], descriptor_size: u32, offset: u32, total: u32 in Wrapping) requires offset <= 32 {
+    machine step(buffer: &[u8; 48], descriptor_size: u32, offset: u32, total: u32 in Wrapping) requires offset <= 32 {
         let stride: u32 = descriptor_size;
         transition stride > 0 && stride <= 16 {
             true -> advance(buffer, descriptor_size, offset, total, stride)
             _ -> done(total)
         }
     }
-    state advance(buffer: &[u8; 48], descriptor_size: u32, offset: u32, total: u32 in Wrapping, stride: u32) requires offset <= 32 requires stride <= 16 {
+    machine advance(buffer: &[u8; 48], descriptor_size: u32, offset: u32, total: u32 in Wrapping, stride: u32) requires offset <= 32 requires stride <= 16 {
         let next: u32 = offset + stride;
         transition next <= 32 {
             true -> walk(buffer, descriptor_size, next, total)
             _ -> done(total)
         }
     }
-    state done(total: u32 in Wrapping) {
+    machine done(total: u32 in Wrapping) {
         let code: i32 = narrow_u32_to_i32_trapping(total as u32);
         Console::exit_process(code);
     }

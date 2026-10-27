@@ -228,7 +228,7 @@ fn parses_x86_control_registers_as_structured_value_operations() {
 }
 
 #[test]
-fn parses_multi_instruction_asm_in_states_and_trait_defaults() {
+fn parses_multi_instruction_asm_in_nested_machines_and_trait_defaults() {
     let source = r#"
         trait Idle<Processor> {
             machine idle(value: &mut Processor) {
@@ -241,7 +241,7 @@ fn parses_multi_instruction_asm_in_states_and_trait_defaults() {
         machine Main::main(main: &mut Main) {
             transition { _ -> next() }
 
-            state next() {
+            machine next() {
                 asm { hlt; hlt }
             }
         }
@@ -265,12 +265,15 @@ fn parses_multi_instruction_asm_in_states_and_trait_defaults() {
         "trait default should retain both asm instructions"
     );
     let machine = super::root_machine(&parsed, "machine root item");
-    let explicit = parsed
-        .items
-        .state_handles(machine.states)
-        .get(1)
-        .copied()
-        .expect("explicit state");
+    let child = machine
+        .nested_machines
+        .handles()
+        .find_map(|handle| match parsed.items.item(handle) {
+            syntax_trees::item::Item::Machine(child) => Some(child),
+            _ => None,
+        })
+        .expect("nested machine");
+    let explicit = parsed.items.state_handles(child.states)[0];
     assert_eq!(
         instruction_statements(
             &parsed,
@@ -280,7 +283,7 @@ fn parses_multi_instruction_asm_in_states_and_trait_defaults() {
         )
         .len(),
         2,
-        "explicit state should retain both asm instructions"
+        "nested machine should retain both asm instructions"
     );
 }
 
@@ -313,7 +316,7 @@ fn rejects_ambiguous_or_empty_multi_instruction_asm_blocks() {
 
             machine Main::main(main: &mut Main) {{
                 {block}
-                state done() {{}}
+                machine done() {{}}
             }}
             "#
         );

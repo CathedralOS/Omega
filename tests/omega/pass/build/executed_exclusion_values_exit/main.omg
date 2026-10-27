@@ -1,5 +1,19 @@
 // Expected exit: 0
 // Build selects only the normal entry; unused code may retain a Trap.
-machine normal() {}
+machine normal() reaches AcceptedService crashes Trap {
+    transition AcceptedService::value() == 7 {
+        true -> done()
+        false -> wrong_value()
+    }
+    machine done() {}
+    machine wrong_value() crashes Trap { crash Trap; }
+}
 machine trapping() crashes Trap { crash Trap; }
 boundary trait UnusedService { machine operation() reaches; }
+
+boundary trait UntakenService { machine operation() reaches; }
+
+boundary trait AcceptedService { machine value() -> u64 reaches; }
+AcceptedProvider satisfies AcceptedService {
+    machine value() -> u64 { 7 }
+}

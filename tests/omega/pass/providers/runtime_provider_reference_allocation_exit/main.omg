@@ -38,13 +38,13 @@ NativeHeap satisfies Heap {
 machine main() reaches Heap crashes Trap {
  let allocation: Allocation in AllocationIssued = Heap::allocate(1, 64);
  transition allocation.pointer != 0 { true -> initialize_frame(allocation) false -> failed(allocation) }
- state initialize_frame(allocation: Allocation in AllocationIssued) requires allocation.pointer != 0; {
+ machine initialize_frame(allocation: Allocation in AllocationIssued) requires allocation.pointer != 0; {
   let frame: &mut Frame<i32> = Heap::initialize(allocation, 0, 64);
   frame.result = Slot::Full { value: 42 };
   transition frame.result { Slot::Full { value } -> check(value) Slot::Empty -> bad() }
  }
- state check(value: i32) { transition value == 42 { true -> done() false -> bad() } }
- state done() {}
- state failed(allocation: Allocation in AllocationIssued) { crash Trap; }
- state bad() { crash Trap; }
+ machine check(value: i32) { transition value == 42 { true -> done() false -> bad() } }
+ machine done() {}
+ machine failed(allocation: Allocation in AllocationIssued) { crash Trap; }
+ machine bad() { crash Trap; }
 }

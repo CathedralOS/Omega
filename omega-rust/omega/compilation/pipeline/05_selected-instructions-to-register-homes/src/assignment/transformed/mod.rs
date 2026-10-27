@@ -8,10 +8,8 @@ mod custody;
 mod projection;
 
 use crate::{
-    RegisterHomeError, RegisterHomeIdentity, ValidatedPostAllocationOptimizationManifest,
-    ValidatedRegisterHomes,
+    RegisterHomeError, ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes,
 };
-use optimization_core::PostAllocationOptimizationManifestIdentity;
 use register_homes::PostAllocationOptimizationManifestError;
 use selected_instructions_to_selected_instructions::{
     OptimizedLiteralFoldCustodyError, OptimizedPreAllocationCustodyError, SelectedProgramRef,
@@ -20,6 +18,8 @@ use selected_instructions_to_selected_instructions::{
     StagedSelectedLoweringOptimizationCustodyReceipt, StagedSelectedLoweringOptimizationRun,
     ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
 };
+
+use super::PostHomeCustodyReceipt;
 
 /// Assignment probe over a completed selected-lowering run's final facts.
 /// Computing the assignment without consuming the run lets the route answer
@@ -149,26 +149,10 @@ impl StagedOptimizedRegisterHomesAfterLiteralFolds {
     });
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StagedOptimizedPostLiteralFoldHomeCustodyReceipt {
-    source: StagedOptimizedLiteralFoldCustodyReceipt,
-    homes: RegisterHomeIdentity,
-    post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
-    function_count: usize,
-    assignment_count: usize,
-}
-
-impl StagedOptimizedPostLiteralFoldHomeCustodyReceipt {
-    receipt_accessor_rows!(borrow StagedOptimizedPostLiteralFoldHomeCustodyReceipt {
-        source: &StagedOptimizedLiteralFoldCustodyReceipt,
-    });
-    receipt_accessor_rows!(ref StagedOptimizedPostLiteralFoldHomeCustodyReceipt {
-        homes: RegisterHomeIdentity,
-        post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
-        function_count: usize,
-        assignment_count: usize,
-    });
-}
+/// The literal-fold route's receipt: the fold chain's custody, over the one
+/// post-home shape every staging route publishes.
+pub type StagedOptimizedPostLiteralFoldHomeCustodyReceipt =
+    PostHomeCustodyReceipt<StagedOptimizedLiteralFoldCustodyReceipt>;
 
 /// Strict homes after a complete named selected-lowering suite. The suite's
 /// completion identity is retained even when its transformation ledger is
@@ -248,26 +232,10 @@ impl StagedOptimizedRegisterHomesAfterSelectedLowering {
     });
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StagedOptimizedPostSelectedLoweringHomeCustodyReceipt {
-    source: StagedSelectedLoweringOptimizationCustodyReceipt,
-    homes: RegisterHomeIdentity,
-    post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
-    function_count: usize,
-    assignment_count: usize,
-}
-
-impl StagedOptimizedPostSelectedLoweringHomeCustodyReceipt {
-    receipt_accessor_rows!(borrow StagedOptimizedPostSelectedLoweringHomeCustodyReceipt {
-        source: &StagedSelectedLoweringOptimizationCustodyReceipt,
-    });
-    receipt_accessor_rows!(ref StagedOptimizedPostSelectedLoweringHomeCustodyReceipt {
-        homes: RegisterHomeIdentity,
-        post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
-        function_count: usize,
-        assignment_count: usize,
-    });
-}
+/// The selected-lowering route's receipt: the lowering run's custody, over the
+/// one post-home shape every staging route publishes.
+pub type StagedOptimizedPostSelectedLoweringHomeCustodyReceipt =
+    PostHomeCustodyReceipt<StagedSelectedLoweringOptimizationCustodyReceipt>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedPostSelectedLoweringHomeCustodyError {
@@ -353,26 +321,10 @@ impl StagedOptimizedRegisterHomesAfterPreAllocation {
     });
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StagedOptimizedPostPreAllocationHomeCustodyReceipt {
-    source: StagedPreAllocationOptimizationCustodyReceipt,
-    homes: RegisterHomeIdentity,
-    post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
-    function_count: usize,
-    assignment_count: usize,
-}
-
-impl StagedOptimizedPostPreAllocationHomeCustodyReceipt {
-    receipt_accessor_rows!(borrow StagedOptimizedPostPreAllocationHomeCustodyReceipt {
-        source: &StagedPreAllocationOptimizationCustodyReceipt,
-    });
-    receipt_accessor_rows!(ref StagedOptimizedPostPreAllocationHomeCustodyReceipt {
-        homes: RegisterHomeIdentity,
-        post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
-        function_count: usize,
-        assignment_count: usize,
-    });
-}
+/// The pre-allocation route's receipt: the run's custody, over the one
+/// post-home shape every staging route publishes.
+pub type StagedOptimizedPostPreAllocationHomeCustodyReceipt =
+    PostHomeCustodyReceipt<StagedPreAllocationOptimizationCustodyReceipt>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedPostPreAllocationHomeCustodyError {

@@ -613,9 +613,7 @@ impl<'program> CurrentScalarValues<'program> {
             for hypothesis in
                 self.capture_condition(program, machine, state, binary.right, holds, depth + 1)
             {
-                if !hypotheses.contains(&hypothesis) {
-                    hypotheses.push(hypothesis);
-                }
+                crate::collections::push_unique(&mut hypotheses, hypothesis);
             }
             return hypotheses;
         }
@@ -1243,14 +1241,7 @@ fn length_occurrence<'lengths>(
             LengthSubject::Result(owner)
         } else {
             let name = program.expression_table.name_path_node(member.receiver)?;
-            if !name.symbol.is_valid()
-                || name.symbol != name.head_symbol
-                || program
-                    .expression_table
-                    .name_path_members(name.members)
-                    .len()
-                    != 1
-            {
+            if !program.expression_table.name_path_is_single_member(name) {
                 return None;
             }
             LengthSubject::Storage(name.symbol)
@@ -1630,9 +1621,7 @@ fn scoped(
             ExpressionNode::Name(_)
                 if program.expression_table.names_reserved_result(expression) => {}
             ExpressionNode::Name(name) if name.symbol == name.head_symbol => {
-                if !symbols.contains(&name.symbol) {
-                    symbols.push(name.symbol);
-                }
+                crate::collections::push_unique(&mut symbols, name.symbol);
             }
             ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => {}
             ExpressionNode::Cast(_) => {

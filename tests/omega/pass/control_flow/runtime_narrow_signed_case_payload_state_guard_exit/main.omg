@@ -8,13 +8,13 @@ machine main() crashes Trap {
   Token::Values { tiny, short, word, positive } -> verify(tiny, short, word, positive)
   _ -> bad()
  }
- state verify(tiny: i8, short: i16, word: i32, positive: u16) {
+ machine verify(tiny: i8, short: i16, word: i32, positive: u16) {
   transition tiny < 0 && short < 0 && word < 0 && positive == 65535
    && tiny == -7 && short == -257 && word == -1 {
    true -> done()
    _ -> bad()
   }
  }
- state done() {}
- state bad() { crash Trap; }
+ machine done() {}
+ machine bad() { crash Trap; }
 }

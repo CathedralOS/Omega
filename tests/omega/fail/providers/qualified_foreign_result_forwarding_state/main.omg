@@ -18,7 +18,7 @@ machine wrong(table: &Table, original: &mut Guid) -> Status
 requires original in Guid::Selected
 ensures result.code == 0; {
     transition { _ -> next(table, original) }
-    state next(table: &Table, renamed: &mut Guid) {
+    machine next(table: &Table, renamed: &mut Guid) -> Status {
         renamed.value = 0;
         Table::read(table, renamed)
     }

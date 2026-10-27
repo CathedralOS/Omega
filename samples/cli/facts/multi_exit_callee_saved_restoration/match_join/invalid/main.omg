@@ -22,7 +22,7 @@ machine multi_exit_probe(selector: u64, x: u64) -> u64
         _ -> path_two(x)
     }
 
-    state path_zero(x: u64) -> u64 {
+    machine path_zero(x: u64) -> u64 {
         let a1: u64 = 5u64;
         let a2: u64 = 5u64;
         let a3: u64 = 5u64;
@@ -36,7 +36,7 @@ machine multi_exit_probe(selector: u64, x: u64) -> u64
         sum
     }
 
-    state path_one(x: u64) -> u64 {
+    machine path_one(x: u64) -> u64 {
         let b1: u64 = 4u64;
         let b2: u64 = 6u64;
         let b3: u64 = 4u64;
@@ -50,7 +50,7 @@ machine multi_exit_probe(selector: u64, x: u64) -> u64
         sum
     }
 
-    state path_two(x: u64) -> u64 {
+    machine path_two(x: u64) -> u64 {
         let c1: u64 = 1u64;
         let c2: u64 = 9u64;
         let c3: u64 = 2u64;
@@ -90,6 +90,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

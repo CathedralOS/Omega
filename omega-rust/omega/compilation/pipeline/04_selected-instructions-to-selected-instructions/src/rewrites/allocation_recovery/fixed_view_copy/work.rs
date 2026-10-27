@@ -12,13 +12,8 @@ pub(super) fn combined_usage(
     evidence: OptimizationWorkUsage,
     transformation: OptimizationWorkUsage,
 ) -> Result<OptimizationWorkUsage, FixedViewCopyError> {
-    Ok(OptimizationWorkUsage {
-        rule_evaluations: add(evidence.rule_evaluations, transformation.rule_evaluations)?,
-        candidates: add(evidence.candidates, transformation.candidates)?,
-        validation_steps: add(evidence.validation_steps, transformation.validation_steps)?,
-        commits: add(evidence.commits, transformation.commits)?,
-        iterations: add(evidence.iterations, transformation.iterations)?,
-    })
+    crate::work_accounting::combine(evidence, transformation)
+        .map_err(|_| FixedViewCopyError::WorkOverflow)
 }
 
 pub(super) fn add(left: u64, right: u64) -> Result<u64, FixedViewCopyError> {

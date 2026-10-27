@@ -15,13 +15,13 @@ machine Main::main(main: &mut Main) reaches Console {
 }
 machine Table::load(table: &mut Table) {
     transition { _ -> row(table, 0) }
-    state row(table: &mut Table, position: u64 in Wrapping) {
+    machine row(table: &mut Table, position: u64 in Wrapping) {
         transition position < 8 {
             true -> store(table, position)
             false -> { }
         }
     }
-    state store(table: &mut Table, position: u64 in Wrapping) {
+    machine store(table: &mut Table, position: u64 in Wrapping) {
         table.rows[position].cost = position + 2;
         table.rows[position].score = position * 3 + 5;
         table.rows[position].feasible = position + 1;
@@ -37,13 +37,13 @@ machine Main::number(main: &mut Main, value: u64 in Wrapping) reaches Console {
 }
 machine Main::report(main: &mut Main, table: &Table, budget: &Budget) reaches Console {
     transition { _ -> row(main, table, budget, 0) }
-    state row(main: &mut Main, table: &Table, budget: &Budget, position: u64 in Wrapping) {
+    machine row(main: &mut Main, table: &Table, budget: &Budget, position: u64 in Wrapping) {
         transition position < 8 {
             true -> emit(main, table, budget, position)
             false -> finish(main, budget)
         }
     }
-    state emit(main: &mut Main, table: &Table, budget: &Budget, position: u64 in Wrapping) {
+    machine emit(main: &mut Main, table: &Table, budget: &Budget, position: u64 in Wrapping) {
         Console::write("row="); Main::number(main, position);
         Console::write(" cost="); Main::number(main, table.rows[position].cost);
         Console::write(" score="); Main::number(main, table.rows[position].score);
@@ -52,7 +52,7 @@ machine Main::report(main: &mut Main, table: &Table, budget: &Budget) reaches Co
         Console::write_byte(10);
         transition { _ -> row(main, table, budget, position + 1) }
     }
-    state finish(main: &mut Main, budget: &Budget) {
+    machine finish(main: &mut Main, budget: &Budget) {
         Console::write("minimum="); Main::number(main, budget.minimum);
         Console::write_byte(10);
     }

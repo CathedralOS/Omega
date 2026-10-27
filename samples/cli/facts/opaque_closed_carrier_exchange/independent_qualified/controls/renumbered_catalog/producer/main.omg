@@ -106,7 +106,7 @@ public machine component_entry() reaches AddressBridge, AddressParts invokes Add
  let address: InternetAddress = AddressBridge::make(10, 66051);
  let host: u32 = AddressParts::host(address);
  transition host == 66051 { true -> done() _ -> failed() }
- state done() {} state failed() { crash Trap; }
+ machine done() {} machine failed() { crash Trap; }
 }
 
 public data AdmissionMarker { accepted: bool; }

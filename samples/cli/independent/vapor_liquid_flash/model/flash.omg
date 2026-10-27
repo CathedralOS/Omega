@@ -13,35 +13,35 @@ machine midpoint(mut lower: f64, upper: f64) -> f64 {
 }
 public machine residual(feed: &io::input::Feed, beta: f64) -> f64 {
     transition { _ -> scan(feed, beta, 0, 0.0) }
-    state scan(feed: &io::input::Feed, beta: f64, position: u32, total: f64) -> f64 {
+    machine scan(feed: &io::input::Feed, beta: f64, position: u32, total: f64) -> f64 {
         transition position < feed.count && position < 8 {
             true -> term(feed, beta, position, total)
             false -> done(total)
         }
     }
-    state term(feed: &io::input::Feed, beta: f64, position: u32, total: f64) -> f64 requires position < 8 {
+    machine term(feed: &io::input::Feed, beta: f64, position: u32, total: f64) -> f64 requires position < 8 {
         let difference: f64 = feed.ratios[position] - 1.0;
         let value: f64 = feed.fractions[position] * difference / (1.0 + beta * difference);
         transition { _ -> scan(feed, beta, position + 1, total + value) }
     }
-    state done(total: f64) -> f64 { total }
+    machine done(total: f64) -> f64 { total }
 }
 public machine solve(feed: &io::input::Feed, solution: &mut Solution) {
     transition { _ -> identifiable(feed, solution, 0) }
-    state identifiable(feed: &io::input::Feed, solution: &mut Solution, position: u32) {
+    machine identifiable(feed: &io::input::Feed, solution: &mut Solution, position: u32) {
         transition position < feed.count && position < 8 {
             true -> active(feed, solution, position)
             false -> ambiguous(solution)
         }
     }
-    state active(feed: &io::input::Feed, solution: &mut Solution, position: u32) requires position < 8 {
+    machine active(feed: &io::input::Feed, solution: &mut Solution, position: u32) requires position < 8 {
         transition feed.fractions[position] > 0.0 && feed.ratios[position] != 1.0 {
             true -> endpoints(feed, solution)
             false -> identifiable(feed, solution, position + 1)
         }
     }
-    state ambiguous(solution: &mut Solution) { solution.status = 3; }
-    state endpoints(feed: &io::input::Feed, solution: &mut Solution) {
+    machine ambiguous(solution: &mut Solution) { solution.status = 3; }
+    machine endpoints(feed: &io::input::Feed, solution: &mut Solution) {
         let bubble: f64 = residual(feed, 0.0);
         let dew: f64 = residual(feed, 1.0);
         let bubble_tolerance: f64 = magnitude(feed, 0.0) * 0.000000000000002;
@@ -51,60 +51,60 @@ public machine solve(feed: &io::input::Feed, solution: &mut Solution) {
             false -> upper(feed, solution, dew, dew_tolerance)
         }
     }
-    state liquid(feed: &io::input::Feed, solution: &mut Solution, bubble: f64, tolerance: f64) {
+    machine liquid(feed: &io::input::Feed, solution: &mut Solution, bubble: f64, tolerance: f64) {
         solution.beta = 0.0;
         transition bubble >= 0.0 - tolerance {
             true -> boundary_liquid(feed, solution)
             false -> single_liquid(feed, solution)
         }
     }
-    state boundary_liquid(feed: &io::input::Feed, solution: &mut Solution) { solution.status = 4; compose(feed, solution); }
-    state single_liquid(feed: &io::input::Feed, solution: &mut Solution) { solution.status = 0; compose(feed, solution); }
-    state upper(feed: &io::input::Feed, solution: &mut Solution, dew: f64, tolerance: f64) {
+    machine boundary_liquid(feed: &io::input::Feed, solution: &mut Solution) { solution.status = 4; compose(feed, solution); }
+    machine single_liquid(feed: &io::input::Feed, solution: &mut Solution) { solution.status = 0; compose(feed, solution); }
+    machine upper(feed: &io::input::Feed, solution: &mut Solution, dew: f64, tolerance: f64) {
         transition dew >= 0.0 - tolerance {
             true -> vapor(feed, solution, dew, tolerance)
             false -> split(feed, solution, 0.0, 1.0, 0)
         }
     }
-    state vapor(feed: &io::input::Feed, solution: &mut Solution, dew: f64, tolerance: f64) {
+    machine vapor(feed: &io::input::Feed, solution: &mut Solution, dew: f64, tolerance: f64) {
         solution.beta = 1.0;
         transition dew <= tolerance {
             true -> boundary_vapor(feed, solution)
             false -> single_vapor(feed, solution)
         }
     }
-    state boundary_vapor(feed: &io::input::Feed, solution: &mut Solution) { solution.status = 5; compose(feed, solution); }
-    state single_vapor(feed: &io::input::Feed, solution: &mut Solution) { solution.status = 1; compose(feed, solution); }
-    state split(feed: &io::input::Feed, solution: &mut Solution, low: f64, high: f64, iteration: u32) {
+    machine boundary_vapor(feed: &io::input::Feed, solution: &mut Solution) { solution.status = 5; compose(feed, solution); }
+    machine single_vapor(feed: &io::input::Feed, solution: &mut Solution) { solution.status = 1; compose(feed, solution); }
+    machine split(feed: &io::input::Feed, solution: &mut Solution, low: f64, high: f64, iteration: u32) {
         transition iteration < 60 {
             true -> bisect(feed, solution, low, high, iteration)
             false -> resolved(feed, solution, midpoint(low, high))
         }
     }
-    state bisect(feed: &io::input::Feed, solution: &mut Solution, low: f64, high: f64, iteration: u32) {
+    machine bisect(feed: &io::input::Feed, solution: &mut Solution, low: f64, high: f64, iteration: u32) {
         let middle: f64 = midpoint(low, high);
         transition residual(feed, middle) > 0.0 {
             true -> split(feed, solution, middle, high, iteration + 1)
             false -> split(feed, solution, low, middle, iteration + 1)
         }
     }
-    state resolved(feed: &io::input::Feed, solution: &mut Solution, beta: f64) { solution.status = 2; solution.beta = beta; compose(feed, solution); }
+    machine resolved(feed: &io::input::Feed, solution: &mut Solution, beta: f64) { solution.status = 2; solution.beta = beta; compose(feed, solution); }
 }
 machine compose(feed: &io::input::Feed, solution: &mut Solution) {
     transition { _ -> scan(feed, solution, 0) }
-    state scan(feed: &io::input::Feed, solution: &mut Solution, position: u32) {
+    machine scan(feed: &io::input::Feed, solution: &mut Solution, position: u32) {
         transition position < feed.count && position < 8 {
             true -> phase(feed, solution, position)
             false -> done()
         }
     }
-    state phase(feed: &io::input::Feed, solution: &mut Solution, position: u32) requires position < 8 {
+    machine phase(feed: &io::input::Feed, solution: &mut Solution, position: u32) requires position < 8 {
         transition solution.status == 2 {
             true -> split(feed, solution, position)
             false -> single(feed, solution, position)
         }
     }
-    state split(feed: &io::input::Feed, solution: &mut Solution, position: u32) requires position < 8 {
+    machine split(feed: &io::input::Feed, solution: &mut Solution, position: u32) requires position < 8 {
         let liquid: f64 = feed.fractions[position] / (1.0 + solution.beta * (feed.ratios[position] - 1.0));
         let vapor: f64 = feed.ratios[position] * liquid;
         solution.liquid[position] = liquid;
@@ -112,58 +112,58 @@ machine compose(feed: &io::input::Feed, solution: &mut Solution) {
         solution.reconstructed[position] = (1.0 - solution.beta) * liquid + solution.beta * vapor;
         transition { _ -> closure(feed, solution, position) }
     }
-    state single(feed: &io::input::Feed, solution: &mut Solution, position: u32) requires position < 8 {
+    machine single(feed: &io::input::Feed, solution: &mut Solution, position: u32) requires position < 8 {
         solution.reconstructed[position] = feed.fractions[position];
         transition solution.beta == 0.0 {
             true -> liquid(feed, solution, position)
             false -> vapor(feed, solution, position)
         }
     }
-    state liquid(feed: &io::input::Feed, solution: &mut Solution, position: u32) requires position < 8 { solution.liquid[position] = feed.fractions[position]; transition { _ -> closure(feed, solution, position) } }
-    state vapor(feed: &io::input::Feed, solution: &mut Solution, position: u32) requires position < 8 { solution.vapor[position] = feed.fractions[position]; transition { _ -> closure(feed, solution, position) } }
-    state closure(feed: &io::input::Feed, solution: &mut Solution, position: u32) requires position < 8 {
+    machine liquid(feed: &io::input::Feed, solution: &mut Solution, position: u32) requires position < 8 { solution.liquid[position] = feed.fractions[position]; transition { _ -> closure(feed, solution, position) } }
+    machine vapor(feed: &io::input::Feed, solution: &mut Solution, position: u32) requires position < 8 { solution.vapor[position] = feed.fractions[position]; transition { _ -> closure(feed, solution, position) } }
+    machine closure(feed: &io::input::Feed, solution: &mut Solution, position: u32) requires position < 8 {
         let error: f64 = solution.reconstructed[position] - feed.fractions[position];
         transition error < 0.0 {
             true -> negative(feed, solution, position, error)
             false -> positive(feed, solution, position, error)
         }
     }
-    state negative(feed: &io::input::Feed, solution: &mut Solution, position: u32, error: f64) requires position < 8 { solution.closure[position] = 0.0 - error; transition { _ -> scan(feed, solution, position + 1) } }
-    state positive(feed: &io::input::Feed, solution: &mut Solution, position: u32, error: f64) requires position < 8 { solution.closure[position] = error; transition { _ -> scan(feed, solution, position + 1) } }
-    state done() { }
+    machine negative(feed: &io::input::Feed, solution: &mut Solution, position: u32, error: f64) requires position < 8 { solution.closure[position] = 0.0 - error; transition { _ -> scan(feed, solution, position + 1) } }
+    machine positive(feed: &io::input::Feed, solution: &mut Solution, position: u32, error: f64) requires position < 8 { solution.closure[position] = error; transition { _ -> scan(feed, solution, position + 1) } }
+    machine done() { }
 }
 // Refuse a numerical result if closure or present-phase normalization fails.
 public machine verify(feed: &io::input::Feed, solution: &Solution) -> bool {
     transition { _ -> scan(feed, solution, 0, 0.0, 0.0) }
-    state scan(feed: &io::input::Feed, solution: &Solution, position: u32, liquid_sum: f64, vapor_sum: f64) -> bool {
+    machine scan(feed: &io::input::Feed, solution: &Solution, position: u32, liquid_sum: f64, vapor_sum: f64) -> bool {
         transition position < feed.count && position < 8 {
             true -> row(feed, solution, position, liquid_sum, vapor_sum)
             false -> sums(solution, liquid_sum, vapor_sum)
         }
     }
-    state row(feed: &io::input::Feed, solution: &Solution, position: u32, liquid_sum: f64, vapor_sum: f64) -> bool requires position < 8 {
+    machine row(feed: &io::input::Feed, solution: &Solution, position: u32, liquid_sum: f64, vapor_sum: f64) -> bool requires position < 8 {
         transition solution.closure[position] <= 0.0000000001 {
             true -> scan(feed, solution, position + 1, liquid_sum + solution.liquid[position], vapor_sum + solution.vapor[position])
             false -> bad()
         }
     }
-    state sums(solution: &Solution, liquid_sum: f64, vapor_sum: f64) -> bool {
+    machine sums(solution: &Solution, liquid_sum: f64, vapor_sum: f64) -> bool {
         (solution.beta == 1.0 || (liquid_sum >= 0.99999999 && liquid_sum <= 1.00000001)) && (solution.beta == 0.0 || (vapor_sum >= 0.99999999 && vapor_sum <= 1.00000001))
     }
-    state bad() -> bool { false }
+    machine bad() -> bool { false }
 }
 
 // Bound cancellation roundoff relative to endpoint term magnitudes, so a small
 // K contrast alone does not manufacture a boundary. No fixed absolute epsilon.
 machine magnitude(feed: &io::input::Feed, beta: f64) -> f64 {
     transition { _ -> scan(feed, beta, 0, 0.0) }
-    state scan(feed: &io::input::Feed, beta: f64, position: u32, total: f64) -> f64 {
+    machine scan(feed: &io::input::Feed, beta: f64, position: u32, total: f64) -> f64 {
         transition position < feed.count && position < 8 {
             true -> term(feed, beta, position, total)
             false -> done(total)
         }
     }
-    state term(feed: &io::input::Feed, beta: f64, position: u32, total: f64) -> f64 requires position < 8 {
+    machine term(feed: &io::input::Feed, beta: f64, position: u32, total: f64) -> f64 requires position < 8 {
         let difference: f64 = feed.ratios[position] - 1.0;
         let value: f64 = feed.fractions[position] * difference / (1.0 + beta * difference);
         transition value < 0.0 {
@@ -171,5 +171,5 @@ machine magnitude(feed: &io::input::Feed, beta: f64) -> f64 {
             false -> scan(feed, beta, position + 1, total + value)
         }
     }
-    state done(total: f64) -> f64 { total }
+    machine done(total: f64) -> f64 { total }
 }

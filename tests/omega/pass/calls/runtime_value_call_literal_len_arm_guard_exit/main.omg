@@ -13,8 +13,8 @@ machine Main::classify(main: &mut Main, path: &[u8]) -> i32 {
         true -> big()
         false -> small()
     }
-    state big() -> i32 { 2 }
-    state small() -> i32 { 1 }
+    machine big() -> i32 { 2 }
+    machine small() -> i32 { 1 }
 }
 machine Main::main(main: &mut Main) reaches Console {
     let a: i32 = Main::classify(main, "a/b/c");
@@ -23,11 +23,11 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> check_b(main, b)
         _ -> bad(main, 71)
     }
-    state check_b(main: &mut Main, b: i32) {
+    machine check_b(main: &mut Main, b: i32) {
         transition b == 1 { true -> good(main) _ -> bad(main, 72) }
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

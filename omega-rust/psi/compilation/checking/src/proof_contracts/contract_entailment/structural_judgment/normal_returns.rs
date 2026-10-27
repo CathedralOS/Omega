@@ -21,6 +21,7 @@ use super::{MembershipGuarantee, StructuralJudge, StructuralJudgment, Structural
 use crate::expression_traversal::children;
 use crate::machine_calls::contract_dependencies::independent_call_application;
 use facts::NormalizedWriteFrame;
+use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, MatchPattern};
@@ -1076,10 +1077,8 @@ impl<'program> StructuralJudge<'program> {
                             .has_no_new_non_boolean_facts_since(&pre_binary_judge)
                     });
                 if can_merge_sc {
-                    let sc_judges: Vec<&Self> = sc_indices
-                        .iter()
-                        .map(|&idx| &outcomes[idx].judge)
-                        .collect();
+                    let sc_judges: Vec<&Self> =
+                        sc_indices.iter().map(|&idx| &outcomes[idx].judge).collect();
                     let rejoined_sc =
                         pre_binary_judge.rejoin_pure_outcomes(&sc_judges, Some(expression));
                     let mut merged_sc = Some(
@@ -1087,7 +1086,8 @@ impl<'program> StructuralJudge<'program> {
                             .at_expression(expression, demand),
                     );
                     let first_sc = sc_indices[0];
-                    let mut merged_outcomes = Vec::with_capacity(outcomes.len() - sc_indices.len() + 1);
+                    let mut merged_outcomes =
+                        Vec::with_capacity(outcomes.len() - sc_indices.len() + 1);
                     for (idx, outcome) in outcomes.into_iter().enumerate() {
                         if idx == first_sc {
                             if let Some(merged) = merged_sc.take() {
@@ -1733,6 +1733,31 @@ impl<'program> StructuralJudge<'program> {
                     && crate::reference_shell(program, reference).is_none()
                 {
                     judge.observe_completed_storage_read(scope.0, scope.1, expression, value.clone());
+                }
+                if let Some(actual_type) = crate::expression_result_type_reference(
+                    program, scope.0, scope.1, expression,
+                ) && crate::fixed_array_type_extent(program, actual_type).is_some()
+                    && let Some(extent) = super::super::structural_terms::observed_collection_measure(
+                        program,
+                        actual_type,
+                        CollectionMeasure::Length,
+                        || None,
+                    )
+                {
+                    // Capture immutable geometry on the completed actual before
+                    // a receiving slice formal attenuates its declared carrier.
+                    // This exact descriptor identity supplies no element facts,
+                    // initializer replay, or additional reference authority.
+                    let descriptor = value.clone().into_collection_descriptor();
+                    if descriptor.observation_identity_key().is_some() {
+                        judge.assume_normal_equation(
+                            StructuralTerm::CollectionMeasure {
+                                measure: CollectionMeasure::Length,
+                                collection: Box::new(descriptor),
+                            },
+                            extent,
+                        );
+                    }
                 }
                 Some(Some(
                     NormalReturnPath::observed(value, judge).at_expression(expression, demand),
@@ -2580,6 +2605,24 @@ impl<'program> StructuralJudge<'program> {
                 owner_symbol(&owner),
             );
         }
+        if let (Some(captured), Some(result_presentation)) = (&captured, &result_presentation)
+            && let SelectedCallContract::Concrete(callee, selected_state) = &owner
+        {
+            equations.extend(self.returned_field_equations(
+                callee,
+                selected_state,
+                parameters,
+                actuals,
+                captured,
+            ));
+        }
+        for (left, right) in equations {
+            std::sync::Arc::make_mut(&mut self.captured_result_equations)
+                .push((left.clone(), right.clone()));
+            std::sync::Arc::make_mut(&mut self.normal_guarantees)
+                .push((left.clone(), right.clone()));
+            self.intake_equation(left, right, 0);
+        }
         if let (Some(captured), Some(result_presentation)) = (captured, result_presentation) {
             let result_type = result_presentation.type_reference;
             self.intake_admitted_value_predicates(result_type, captured.clone());
@@ -2593,25 +2636,9 @@ impl<'program> StructuralJudge<'program> {
                 result_presentation.parameters,
                 &result_presentation.bindings,
             );
-            if let SelectedCallContract::Concrete(callee, selected_state) = &owner {
-                equations.extend(self.returned_field_equations(
-                    callee,
-                    selected_state,
-                    parameters,
-                    actuals,
-                    &captured,
-                ));
-            }
             // A construction describes payload, never the identity or admission of
             // this call's result. Equal field geometry cannot merge linear roots.
             std::sync::Arc::make_mut(&mut self.normal_results).push((expression, captured));
-        }
-        for (left, right) in equations {
-            std::sync::Arc::make_mut(&mut self.captured_result_equations)
-                .push((left.clone(), right.clone()));
-            std::sync::Arc::make_mut(&mut self.normal_guarantees)
-                .push((left.clone(), right.clone()));
-            self.intake_equation(left, right, 0);
         }
         for guarantee in &case_guarantees {
             self.intake_case_guarantee(guarantee);

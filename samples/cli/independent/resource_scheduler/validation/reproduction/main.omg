@@ -9,7 +9,7 @@ machine Main::main(main: &mut Main) reaches Console {
         1 -> show(main, &bytes)
         _ -> show(main, &bytes)
     }
-    state show(main: &mut Main, bytes: &[u8; 4]) {
+    machine show(main: &mut Main, bytes: &[u8; 4]) {
         Console::write_line(bytes);
         Console::exit_process(0);
     }

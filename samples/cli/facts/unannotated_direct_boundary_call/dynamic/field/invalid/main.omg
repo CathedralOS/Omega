@@ -15,6 +15,6 @@ data Hold { value: u64; }
 machine main() reaches crashes Trap {
     let hold: Hold = Hold { value: call_mark(Selected as dyn ReadContract) };
     transition hold.value == 7 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

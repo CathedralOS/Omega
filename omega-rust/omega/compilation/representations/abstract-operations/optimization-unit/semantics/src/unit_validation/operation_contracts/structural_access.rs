@@ -267,6 +267,29 @@ pub(crate) fn structural_arguments_match<'declaration, Formal>(
 where
     abstract_operations::StructuralCallFormal<'declaration>: From<&'declaration Formal>,
 {
+    structural_arguments_match_at_invocation(
+        caller,
+        consumer.map(Into::into),
+        arguments,
+        parameters,
+        types,
+        domains,
+        projection,
+    )
+}
+
+pub(crate) fn structural_arguments_match_at_invocation<'declaration, Formal>(
+    caller: &PsiOptimizationFunction,
+    consumer: Option<semantic_vocabulary::InvocationSite>,
+    arguments: &[terminal_psi::StructuralArgument],
+    parameters: &'declaration [Formal],
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
+    projection: StructuralProjectionPolicy,
+) -> bool
+where
+    abstract_operations::StructuralCallFormal<'declaration>: From<&'declaration Formal>,
+{
     if arguments.len() != parameters.len() {
         return false;
     }
@@ -382,14 +405,8 @@ where
             )
             .is_some())
                 || owned_bounded_owner_loan(caller, argument, parameter, &source, types, domains))
-            && !caller
-                .entry_claim_declarations
-                .iter()
-                .any(|claim| claim.input == argument.place)
-            && !caller
-                .content_entry_claims
-                .iter()
-                .any(|claim| claim.input.root == argument.place);
+            && !caller.entry_claim_declared(argument.place)
+            && !caller.content_entry_claim_declared(argument.place);
 
         // A projection through a reference carrier names the carrier's exact
         // primitive referent, never a byte of the carrier itself. This mirrors
@@ -535,14 +552,8 @@ where
                 && result.qualifications.is_empty()
                 && result.projected_qualifications.is_empty()
                 && result.qualification_establishments.is_empty()
-        }) && !caller
-            .entry_claim_declarations
-            .iter()
-            .any(|claim| claim.input == argument.place)
-            && !caller
-                .content_entry_claims
-                .iter()
-                .any(|claim| claim.input.root == argument.place);
+        }) && !caller.entry_claim_declared(argument.place)
+            && !caller.content_entry_claim_declared(argument.place);
         let completed_affine_result =
             completed_result && source.multiplicity == terminal_psi::StructuralMultiplicity::Affine;
         let unrestricted_mutable_subloan = static_borrowed_path
@@ -673,14 +684,8 @@ where
                 qualifications: source.qualifications.to_vec(),
                 projected_qualifications: source.projected_qualifications.to_vec(),
             })
-            && !caller
-                .entry_claim_declarations
-                .iter()
-                .any(|claim| claim.input == argument.place)
-            && !caller
-                .content_entry_claims
-                .iter()
-                .any(|claim| claim.input.root == argument.place);
+            && !caller.entry_claim_declared(argument.place)
+            && !caller.content_entry_claim_declared(argument.place);
         // Raw carrier equality cannot weaken a qualified owner's exclusive loan.
         if borrowed_owner_expected && !bounded_owner_presentation {
             return false;
@@ -890,20 +895,14 @@ where
             && source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
             && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
             && parameter.projected_qualifications.is_empty()
-            && !caller
-                .entry_claim_declarations
-                .iter()
-                .any(|claim| claim.input == argument.place)
-            && !caller
-                .content_entry_claims
-                .iter()
-                .any(|claim| claim.input.root == argument.place)
+            && !caller.entry_claim_declared(argument.place)
+            && !caller.content_entry_claim_declared(argument.place)
             && terminal_semantics::byte_parameter_predicates_in(
                 domains.values().copied(),
                 parameter,
             )
             .zip(consumer.and_then(|consumer| {
-                crate::unit_validation::function_structure::copied_field_predicates_at_transfer(
+                crate::unit_validation::function_structure::copied_field_predicates_at_invocation(
                     types.values().copied(),
                     caller,
                     argument.place,

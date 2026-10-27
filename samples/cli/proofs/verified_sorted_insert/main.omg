@@ -26,7 +26,7 @@ terminates by remaining in 0..=15;
         true -> inspect(values, remaining)
         false -> (true)
     }
-    state inspect(values: &[i32; 16], remaining: u64) -> bool
+    machine inspect(values: &[i32; 16], remaining: u64) -> bool
         requires remaining >= 1
         requires remaining <= 15
     {
@@ -59,7 +59,7 @@ terminates by width -> Nat::Descending in 0..=16;
         true -> split(values, lo, hi, width, key)
         false -> lo
     }
-    state split(values: &[i32; 16], lo: u64, hi: u64, width: u64, key: i32) -> u64
+    machine split(values: &[i32; 16], lo: u64, hi: u64, width: u64, key: i32) -> u64
         requires lo < hi
         requires hi <= 16
         requires width == hi - lo
@@ -72,7 +72,7 @@ terminates by width -> Nat::Descending in 0..=16;
             false -> lo
         }
     }
-    state probe(values: &[i32; 16], lo: u64, hi: u64, width: u64, half: u64, key: i32) -> u64
+    machine probe(values: &[i32; 16], lo: u64, hi: u64, width: u64, half: u64, key: i32) -> u64
         requires lo < hi
         requires hi <= 16
         requires width == hi - lo
@@ -87,7 +87,7 @@ terminates by width -> Nat::Descending in 0..=16;
             false -> lo
         }
     }
-    state compare(values: &[i32; 16], lo: u64, mid: u64, hi: u64, width: u64, key: i32) -> u64
+    machine compare(values: &[i32; 16], lo: u64, mid: u64, hi: u64, width: u64, key: i32) -> u64
         requires lo <= mid
         requires mid < hi
         requires mid < 16
@@ -99,7 +99,7 @@ terminates by width -> Nat::Descending in 0..=16;
             false -> descend_left(values, lo, mid, hi, width, key)
         }
     }
-    state descend_left(values: &[i32; 16], lo: u64, mid: u64, hi: u64, width: u64, key: i32) -> u64
+    machine descend_left(values: &[i32; 16], lo: u64, mid: u64, hi: u64, width: u64, key: i32) -> u64
         requires lo <= mid
         requires mid < hi
         requires hi <= 16
@@ -113,7 +113,7 @@ terminates by width -> Nat::Descending in 0..=16;
             false -> lo
         }
     }
-    state descend_right(values: &[i32; 16], lo: u64, mid: u64, hi: u64, width: u64, key: i32) -> u64
+    machine descend_right(values: &[i32; 16], lo: u64, mid: u64, hi: u64, width: u64, key: i32) -> u64
         requires lo <= mid
         requires mid < hi
         requires hi <= 16
@@ -145,7 +145,7 @@ terminates by cursor -> Nat::Descending in 0..=15;
         true -> shift(context, key, pos, live, cursor)
         false -> place(context, key, pos, live)
     }
-    state shift(context: &mut Main, key: i32, pos: u64, live: u64, cursor: u64) -> u64
+    machine shift(context: &mut Main, key: i32, pos: u64, live: u64, cursor: u64) -> u64
         requires pos < cursor
         requires cursor <= live
         requires live <= 15
@@ -157,7 +157,7 @@ terminates by cursor -> Nat::Descending in 0..=15;
             false -> trap()
         }
     }
-    state place(context: &mut Main, key: i32, pos: u64, live: u64) -> u64
+    machine place(context: &mut Main, key: i32, pos: u64, live: u64) -> u64
         requires pos <= live
         requires live <= 15
     {
@@ -165,7 +165,7 @@ terminates by cursor -> Nat::Descending in 0..=15;
         context.live = live + 1;
         transition { _ -> (live + 1) }
     }
-    state trap() -> u64 { crash Trap; }
+    machine trap() -> u64 { crash Trap; }
 }
 
 // Fill the table: four live cells ascending, the rest pinned at i32's
@@ -198,7 +198,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
 
     // The seed's `ensures` guarantee discharges `search`'s sortedness
     // contract; the fact rides into `probe` on the state's own `requires`.
-    state probe(main: &mut Main)
+    machine probe(main: &mut Main)
         requires sorted(&main.values) == true
     {
         let p5: u64 = search(&main.values, 0, 4, 4, 5);
@@ -212,7 +212,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
     }
     // Positions were measured on the seed table, so insert the larger key
     // first: appending 20 keeps the prefix, then 2 shifts the tail right.
-    state insert_stage(main: &mut Main) {
+    machine insert_stage(main: &mut Main) {
         let l1: u64 = insert(main, 20, 4, 4, 4);
         let l2: u64 = insert(main, 2, 1, 5, 5);
         transition l1 == 5 && l2 == 6 && main.live == 6 && sorted(&main.values) == true {
@@ -220,15 +220,15 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
             false -> bad(main)
         }
     }
-    state attest(main: &mut Main) {
+    machine attest(main: &mut Main) {
         transition main.values[0] == 1 && main.values[1] == 2 && main.values[2] == 3
             && main.values[3] == 5 && main.values[4] == 7 && main.values[5] == 20 {
             true -> good(main)
             false -> bad(main)
         }
     }
-    state good(main: &mut Main) { Console::exit_process(58); }
-    state bad(main: &mut Main)  { crash Trap; }
+    machine good(main: &mut Main) { Console::exit_process(58); }
+    machine bad(main: &mut Main)  { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

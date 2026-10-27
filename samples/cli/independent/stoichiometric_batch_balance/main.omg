@@ -19,13 +19,13 @@ machine Main::main(context: &mut Main) reaches Console {
     let produced: chemistry::model::Signature = chemistry::balance::signature_of(3, 2, 1, 2, 1);
     let local_fourth: i64 in Wrapping = produced.fourth;
     transition { _ -> hold(context, produced, local_fourth) }
-    state hold(context: &mut Main, parameter: chemistry::model::Signature, local_fourth: i64 in Wrapping) {
+    machine hold(context: &mut Main, parameter: chemistry::model::Signature, local_fourth: i64 in Wrapping) {
         transition parameter.active == 3 && parameter.fourth == 0 && local_fourth == 0 {
             true -> store(context, parameter)
             false -> signature_mismatch(context)
         }
     }
-    state store(context: &mut Main, parameter: chemistry::model::Signature) {
+    machine store(context: &mut Main, parameter: chemistry::model::Signature) {
         context.signature = parameter;
         let called: chemistry::model::Signature = chemistry::balance::signature_of(4, 1, 1, 1, 1);
         transition context.signature.active == 3 && context.signature.fourth == 0 && called.active == 4 && called.fourth == 1 {
@@ -33,7 +33,7 @@ machine Main::main(context: &mut Main) reaches Console {
             false -> signature_mismatch(context)
         }
     }
-    state rows(context: &mut Main) {
+    machine rows(context: &mut Main) {
         let first: [i64 in Wrapping; 4] = [2, 0, 1, 0];
         let second: [i64 in Wrapping; 4] = [0, 1, 0, 0];
         let third: [i64 in Wrapping; 4] = [0, 0, 0, 1];
@@ -46,7 +46,7 @@ machine Main::main(context: &mut Main) reaches Console {
             false -> signature_mismatch(context)
         }
     }
-    state windows(context: &mut Main) {
+    machine windows(context: &mut Main) {
         let mut coefficients: [i64 in Wrapping; 4] = [0, 0, 0, 0];
         let reactants_mut: &mut [i64 in Wrapping] = chemistry::balance::mutable_reactant_window(&mut coefficients, 0);
         chemistry::balance::write_reactants(reactants_mut);
@@ -59,7 +59,7 @@ machine Main::main(context: &mut Main) reaches Console {
             false -> signature_mismatch(context)
         }
     }
-    state consume(context: &mut Main) {
+    machine consume(context: &mut Main) {
         let mut input: Input;
         block Main::read(context, &mut input);
         transition input.status == 0 && input.count == 19 {
@@ -67,7 +67,7 @@ machine Main::main(context: &mut Main) reaches Console {
             false -> invalid(context)
         }
     }
-    state declare(context: &mut Main, input: &Input) {
+    machine declare(context: &mut Main, input: &Input) {
         let mut reaction: chemistry::model::Reaction;
         reaction.species = input.values[0];
         reaction.bound = input.values[1];
@@ -93,20 +93,20 @@ machine Main::main(context: &mut Main) reaches Console {
             false -> invalid(context)
         }
     }
-    state atoms(context: &mut Main, reaction: &chemistry::model::Reaction, input: &Input, index: u64) {
+    machine atoms(context: &mut Main, reaction: &chemistry::model::Reaction, input: &Input, index: u64) {
         transition index < 14 {
             true -> atom(context, reaction, input, index)
             false -> nonempty(context, reaction)
         }
     }
-    state atom(context: &mut Main, reaction: &chemistry::model::Reaction, input: &Input, index: u64)
+    machine atom(context: &mut Main, reaction: &chemistry::model::Reaction, input: &Input, index: u64)
     requires index < 14 {
         transition input.values[index] <= 16 {
             true -> atoms(context, reaction, input, index + 1)
             false -> invalid(context)
         }
     }
-    state nonempty(context: &mut Main, reaction: &chemistry::model::Reaction) {
+    machine nonempty(context: &mut Main, reaction: &chemistry::model::Reaction) {
         let first: i64 in Wrapping = reaction.first[0] + reaction.second[0] + reaction.third[0];
         let second: i64 in Wrapping = reaction.first[1] + reaction.second[1] + reaction.third[1];
         let third: i64 in Wrapping = reaction.first[2] + reaction.second[2] + reaction.third[2];
@@ -116,13 +116,13 @@ machine Main::main(context: &mut Main) reaches Console {
             false -> invalid(context)
         }
     }
-    state fourth_species(context: &mut Main, reaction: &chemistry::model::Reaction, fourth: i64 in Wrapping) {
+    machine fourth_species(context: &mut Main, reaction: &chemistry::model::Reaction, fourth: i64 in Wrapping) {
         transition (reaction.species == 4 && fourth > 0) || (reaction.species == 3 && fourth == 0 && reaction.stock[3] == 0) {
             true -> balance(context, reaction)
             false -> invalid(context)
         }
     }
-    state balance(context: &mut Main, reaction: &chemistry::model::Reaction) {
+    machine balance(context: &mut Main, reaction: &chemistry::model::Reaction) {
         let mut result: chemistry::model::Balance;
         chemistry::balance::solve(reaction, &mut result);
         transition result.solutions > 0 && result.coefficients[0] > 0 && result.coefficients[1] > 0 {
@@ -130,7 +130,7 @@ machine Main::main(context: &mut Main) reaches Console {
             false -> impossible(context)
         }
     }
-    state batch(context: &mut Main, reaction: &chemistry::model::Reaction, balance: &chemistry::model::Balance)
+    machine batch(context: &mut Main, reaction: &chemistry::model::Reaction, balance: &chemistry::model::Balance)
     requires balance.coefficients[0] > 0 && balance.coefficients[1] > 0 {
         let mut result: chemistry::model::Batch;
         chemistry::inventory::process(reaction, balance, &mut result);
@@ -139,7 +139,7 @@ machine Main::main(context: &mut Main) reaches Console {
             false -> verify(context, reaction, balance, &result)
         }
     }
-    state verify(context: &mut Main, reaction: &chemistry::model::Reaction, balance: &chemistry::model::Balance, batch: &chemistry::model::Batch) {
+    machine verify(context: &mut Main, reaction: &chemistry::model::Reaction, balance: &chemistry::model::Balance, batch: &chemistry::model::Batch) {
         let before_first: i64 in Wrapping = chemistry::model::element_total(&reaction.first, &reaction.stock);
         let before_second: i64 in Wrapping = chemistry::model::element_total(&reaction.second, &reaction.stock);
         let before_third: i64 in Wrapping = chemistry::model::element_total(&reaction.third, &reaction.stock);
@@ -151,7 +151,7 @@ machine Main::main(context: &mut Main) reaches Console {
             false -> corrupt(context)
         }
     }
-    state report(context: &mut Main, balance: &chemistry::model::Balance, batch: &chemistry::model::Batch, first: i64 in Wrapping, second: i64 in Wrapping, third: i64 in Wrapping) {
+    machine report(context: &mut Main, balance: &chemistry::model::Balance, batch: &chemistry::model::Batch, first: i64 in Wrapping, second: i64 in Wrapping, third: i64 in Wrapping) {
         Console::write_line("BALANCED");
         Console::write("coefficients ");
         chemistry::report::line_four(&balance.coefficients);
@@ -174,25 +174,25 @@ machine Main::main(context: &mut Main) reaches Console {
         Console::write_line("CONSERVATION_OK");
         Console::exit_process(0);
     }
-    state signature_mismatch(context: &mut Main) {
+    machine signature_mismatch(context: &mut Main) {
         Console::write_line("SIGNATURE_MISMATCH");
         Console::exit_process(71);
     }
-    state invalid(context: &mut Main) {
+    machine invalid(context: &mut Main) {
         Console::write_line("INVALID_INPUT");
         Console::exit_process(64);
     }
-    state impossible(context: &mut Main) {
+    machine impossible(context: &mut Main) {
         Console::write_line("NO_BALANCE_WITHIN_BOUND");
         Console::exit_process(65);
     }
-    state overflow(context: &mut Main, result: &chemistry::model::Batch) {
+    machine overflow(context: &mut Main, result: &chemistry::model::Batch) {
         Console::write_line("OVERFLOW_REFUSED");
         Console::write("inventory ");
         chemistry::report::line_four(&result.inventory);
         Console::exit_process(66);
     }
-    state corrupt(context: &mut Main) {
+    machine corrupt(context: &mut Main) {
         Console::write_line("CONSERVATION_FAILURE");
         Console::exit_process(70);
     }
@@ -208,26 +208,26 @@ machine Main::read(context: &mut Main, input: &mut Input) reaches Console {
     input.count = 0;
     input.status = 0;
     transition { _ -> scan(context, input, 0, false, 0) }
-    state scan(context: &mut Main, input: &mut Input, value: i64 in Wrapping, digits: bool, consumed: i64 in Wrapping) {
+    machine scan(context: &mut Main, input: &mut Input, value: i64 in Wrapping, digits: bool, consumed: i64 in Wrapping) {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> end(context, input, value, digits)
             ByteRead::Byte { value as byte } -> byte_value(context, input, value, digits, consumed, byte)
         }
     }
-    state byte_value(context: &mut Main, input: &mut Input, value: i64 in Wrapping, digits: bool, consumed: i64 in Wrapping, byte: i32) {
+    machine byte_value(context: &mut Main, input: &mut Input, value: i64 in Wrapping, digits: bool, consumed: i64 in Wrapping, byte: i32) {
         transition consumed < 1024 {
             true -> classify(context, input, value, digits, consumed + 1, byte)
             false -> invalid(input)
         }
     }
-    state classify(context: &mut Main, input: &mut Input, value: i64 in Wrapping, digits: bool, consumed: i64 in Wrapping, byte: i32) {
+    machine classify(context: &mut Main, input: &mut Input, value: i64 in Wrapping, digits: bool, consumed: i64 in Wrapping, byte: i32) {
         transition byte >= 48 && byte <= 57 {
             true -> digit(context, input, value, consumed, byte)
             false -> separator(context, input, value, digits, consumed, byte)
         }
     }
-    state digit(context: &mut Main, input: &mut Input, value: i64 in Wrapping, consumed: i64 in Wrapping, byte: i32) {
+    machine digit(context: &mut Main, input: &mut Input, value: i64 in Wrapping, consumed: i64 in Wrapping, byte: i32) {
         let wide: i64 in Wrapping = widen_i32_to_i64(byte) as i64 in Wrapping;
         let next: i64 in Wrapping = value * 10 + wide - 48;
         transition next <= 2147483647 {
@@ -235,51 +235,51 @@ machine Main::read(context: &mut Main, input: &mut Input) reaches Console {
             false -> invalid(input)
         }
     }
-    state separator(context: &mut Main, input: &mut Input, value: i64 in Wrapping, digits: bool, consumed: i64 in Wrapping, byte: i32) {
+    machine separator(context: &mut Main, input: &mut Input, value: i64 in Wrapping, digits: bool, consumed: i64 in Wrapping, byte: i32) {
         transition byte == 9 || byte == 10 || byte == 13 || byte == 32 {
             true -> whitespace(context, input, value, digits, consumed)
             false -> invalid(input)
         }
     }
-    state whitespace(context: &mut Main, input: &mut Input, value: i64 in Wrapping, digits: bool, consumed: i64 in Wrapping) {
+    machine whitespace(context: &mut Main, input: &mut Input, value: i64 in Wrapping, digits: bool, consumed: i64 in Wrapping) {
         transition digits {
             true -> commit(context, input, value, consumed)
             false -> scan(context, input, 0, false, consumed)
         }
     }
-    state commit(context: &mut Main, input: &mut Input, value: i64 in Wrapping, consumed: i64 in Wrapping) {
+    machine commit(context: &mut Main, input: &mut Input, value: i64 in Wrapping, consumed: i64 in Wrapping) {
         let index: u64 = input.count;
         transition index < 19 {
             true -> store(context, input, value, consumed, index)
             false -> invalid(input)
         }
     }
-    state store(context: &mut Main, input: &mut Input, value: i64 in Wrapping, consumed: i64 in Wrapping, index: u64)
+    machine store(context: &mut Main, input: &mut Input, value: i64 in Wrapping, consumed: i64 in Wrapping, index: u64)
     requires index < 19 {
         input.values[index] = value;
         input.count = index + 1;
         transition { _ -> scan(context, input, 0, false, consumed) }
     }
-    state end(context: &mut Main, input: &mut Input, value: i64 in Wrapping, digits: bool) {
+    machine end(context: &mut Main, input: &mut Input, value: i64 in Wrapping, digits: bool) {
         transition digits {
             true -> finish(input, value)
             false -> done()
         }
     }
-    state finish(input: &mut Input, value: i64 in Wrapping) {
+    machine finish(input: &mut Input, value: i64 in Wrapping) {
         let index: u64 = input.count;
         transition index < 19 {
             true -> final_store(input, value, index)
             false -> invalid(input)
         }
     }
-    state final_store(input: &mut Input, value: i64 in Wrapping, index: u64)
+    machine final_store(input: &mut Input, value: i64 in Wrapping, index: u64)
     requires index < 19 {
         input.values[index] = value;
         input.count = index + 1;
     }
-    state invalid(input: &mut Input) { input.status = 1; }
-    state done() { }
+    machine invalid(input: &mut Input) { input.status = 1; }
+    machine done() { }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

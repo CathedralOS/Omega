@@ -12,7 +12,7 @@ machine Main::main(main:&mut Main) crashes Trap {
  let envelope:Envelope=Envelope{input:Input{value:7}};
  let observed:i32=keep(safe(&envelope.input));
  transition observed==7 {true->done() _->bad()}
- state done(){} state bad(){crash Trap;}
+ machine done(){} machine bad(){crash Trap;}
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -23,7 +23,7 @@ machine returned_handle(descriptor: i32) -> Handle in Open requires descriptor >
 machine stored_handle(descriptor: i32) -> Handle in Open requires descriptor >= 0 {
     let stored: Storage = Storage { value: encode(descriptor) };
     transition { _ -> issue(stored) }
-    state issue(stored: Storage) -> Handle in Open
+    machine issue(stored: Storage) -> Handle in Open
     requires stored.value > 0 && stored.value <= 2147483648 {
         Handle { value: stored.value }
     }
@@ -49,6 +49,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

@@ -14,8 +14,8 @@ requires original.len == 1 && replacement.len == 1 {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine forwarded<'storage>(view: &'storage [u8]) -> &'storage [u8] requires view.len == 1 ensures result.len == 1 { identity(view) }
 machine main() crashes Trap {

@@ -18,11 +18,11 @@ machine exercise(base: u16) -> u16 crashes Trap {
         true -> step(combined)
         _ -> bad()
     }
-    state step(c: u16) -> u16 {
+    machine step(c: u16) -> u16 {
         let loc: u16 = c;
         verify_combined(loc)
     }
-    state bad() { crash Trap; }
+    machine bad() -> u16 { crash Trap; }
 }
 
 machine main() crashes Trap {
@@ -31,6 +31,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

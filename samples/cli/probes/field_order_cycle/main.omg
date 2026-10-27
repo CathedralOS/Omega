@@ -22,21 +22,21 @@ machine Storage::walk(storage: &mut Storage, choose_left: bool) {
         true -> seed_left(storage)
         false -> seed_right(storage)
     }
-    state first(storage: &mut Storage) {
+    machine first(storage: &mut Storage) {
         transition true { true -> second(storage) false -> done(storage) }
     }
-    state second(storage: &mut Storage) {
+    machine second(storage: &mut Storage) {
         transition true { true -> first(storage) false -> done(storage) }
     }
-    state seed_left(storage: &mut Storage) {
+    machine seed_left(storage: &mut Storage) {
         storage.pair = Pair { left: 1, right: 2 };
         transition true { true -> first(storage) false -> first(storage) }
     }
-    state seed_right(storage: &mut Storage) {
+    machine seed_right(storage: &mut Storage) {
         storage.pair = Pair { right: 2, left: 1 };
         transition true { true -> second(storage) false -> second(storage) }
     }
-    state done(storage: &mut Storage) {
+    machine done(storage: &mut Storage) {
         storage.pair.left = 2;
     }
 }
@@ -50,8 +50,8 @@ machine Main::main(main: &mut Main) {
         true -> pass(main)
         _ -> fail(main)
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

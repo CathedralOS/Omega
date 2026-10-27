@@ -13,7 +13,7 @@ use super::collecting::{
     collect_owned_root_calls, collect_range_calls, collect_root_calls,
     collect_structural_argument_calls,
 };
-use super::{ordered_statement_call, terminal_named_call};
+use super::{is_terminal_call_occurrence, ordered_statement_call};
 use crate::execution::terminal_unit::control::{statement_sequence, structural_operands};
 
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
@@ -170,7 +170,8 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
                         return None;
                     };
                     if call.statement_index != statement_index
-                        || call.target_symbol != authored.target_symbol
+                        || call.target_symbol
+                            != validation::call_target_entry_symbol(program, authored.target_symbol)
                         || facts.flow.control.is_retired(state.symbol, call)
                     {
                         return None;
@@ -178,9 +179,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
                     // The structural producer owns this authored factory
                     // occurrence once. Execution establishes its captured loan;
                     // it does not also invoke the bodyless declaration.
-                    if !consumed.contains(&handle) {
-                        consumed.push(handle);
-                    }
+                    consumed.record_once(handle);
                 }
                 match node.kind {
                     checked_trees::CheckedStructuralValueKind::NativeCodeLayout { .. } => {}
@@ -210,9 +209,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
                         {
                             return None;
                         }
-                        if !consumed.contains(&handle) {
-                            consumed.push(handle);
-                        }
+                        consumed.record_once(handle);
                         pending.extend(arguments.iter().rev().copied());
                     }
                     checked_trees::CheckedStructuralValueKind::Call { source_call } => {
@@ -593,7 +590,11 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
             let (expression, authored) =
                 ordered_statement_call(program, owner, state, call.statement_index)?;
             if call.authored_expression != expression
-                || call.target_symbol != validation::call_target_symbol(program, authored)
+                || call.target_symbol
+                    != validation::call_target_entry_symbol(
+                        program,
+                        validation::call_target_symbol(program, authored),
+                    )
             {
                 return None;
             }
@@ -612,8 +613,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
         // Non-completing named transitions remain selected control edges,
         // never unconditional calls emitted by this linear sequence.
         if let StatementNode::Transition(transition) = statement
-            && terminal_named_call(program, owner, state, call.statement_index)
-                != Some(call.target_symbol)
+            && !is_terminal_call_occurrence(program, owner, state, call)
         {
             if matches!(
                 program.statement_table.transition_target(transition.target),
@@ -634,12 +634,10 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
         )?;
         // Occurrence traversal marks every transition target as selected.
         // The exact terminal named occurrence instead has its control authority
-        // from terminal_named_call: final Always, no preceding transition or
+        // from terminal_invocation: final Always, no preceding transition or
         // continuation, and an ordinary result matching the enclosing return.
         // Nested expression calls cannot inherit that completion proof.
-        let terminal_completion = matches!(site, validation::CallSite::TransitionNamed { .. })
-            && terminal_named_call(program, owner, state, call.statement_index)
-                == Some(call.target_symbol);
+        let terminal_completion = is_terminal_call_occurrence(program, owner, state, call);
         if !terminal_completion {
             validation::call_is_unconditional(
                 program,
@@ -667,7 +665,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
                     .map_or(path.symbol, |(callable, _)| callable)
             }
         };
-        if target != call.target_symbol {
+        if validation::call_target_entry_symbol(program, target) != call.target_symbol {
             return None;
         }
         let arguments = validation::call_site_argument_expressions(program, &site);

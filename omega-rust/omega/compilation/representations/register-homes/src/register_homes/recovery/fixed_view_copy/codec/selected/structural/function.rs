@@ -2,7 +2,8 @@
 use super::{call::*, normalized_foreign::*, settlements::*, signature::*};
 use crate::FixedViewCopyDecodeError;
 use crate::register_homes::recovery::fixed_view_copy::codec::primitives::{
-    Cursor, decode_accepted_fact, decode_id, decode_option_u64, encode_option_u64, length,
+    Cursor, decode_accepted_fact, decode_id, decode_list, decode_option_u64, encode_option_u64,
+    length,
 };
 use selected_instructions::{
     OutgoingArgumentSlotId, SelectedBlockId, SelectedBoundarySettlement, SelectedFunction,
@@ -14,6 +15,17 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn dec
     cursor: &mut Cursor<'_>,
 ) -> Result<selected_instructions::LocalStorageSlotId, FixedViewCopyDecodeError> {
     let tag = cursor.byte()?;
+    if tag == 8 || tag == 9 {
+        let edge = decode_id(cursor, semantic_vocabulary::EdgeId::new)?;
+        return Ok(if tag == 8 {
+            selected_instructions::LocalStorageSlotId::InvocationResult { edge }
+        } else {
+            selected_instructions::LocalStorageSlotId::InvocationArgument {
+                edge,
+                argument_index: cursor.u32()?,
+            }
+        });
+    }
     if tag == 6 {
         return Ok(selected_instructions::LocalStorageSlotId::EdgeSnapshot {
             edge: decode_id(cursor, semantic_vocabulary::EdgeId::new)?,
@@ -60,10 +72,10 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn dec
 
 pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn decode_invocation_site(
     cursor: &mut Cursor<'_>,
-) -> Result<semantic_vocabulary::BoundaryInvocationSite, FixedViewCopyDecodeError> {
+) -> Result<semantic_vocabulary::InvocationSite, FixedViewCopyDecodeError> {
     let tag = cursor.byte()?;
     let identity = cursor.u64()?;
-    semantic_vocabulary::BoundaryInvocationSite::from_tagged_identity(tag, identity).ok_or_else(
+    semantic_vocabulary::InvocationSite::from_tagged_identity(tag, identity).ok_or_else(
         || match tag {
             0 | 1 => FixedViewCopyDecodeError::InvalidSemanticId(identity),
             _ => FixedViewCopyDecodeError::UnknownOption(tag),
@@ -297,37 +309,23 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn dec
         |c| Ok(decode_signature(c)?),
         FixedViewCopyDecodeError::UnknownOption,
     )?;
-    let local_count = cursor.length()?;
-    for _ in 0..local_count {
-        function
-            .local_storage_slots
-            .push(selected_instructions::SelectedLocalStorageSlot {
-                id: decode_local_slot(cursor)?,
-                byte_size: cursor.u32()?,
-                alignment: cursor.u16()?,
-            });
-    }
-    let count = cursor.length()?;
-    for _ in 0..count {
-        function
-            .outgoing_arguments
-            .push(SelectedOutgoingArgumentSlot {
-                id: decode_slot(cursor)?,
-                byte_size: cursor.u32()?,
-                alignment: cursor.u16()?,
-                abi_stack_byte_offset: cursor.u32()?,
-            });
-    }
-    let count = cursor.length()?;
-    for _ in 0..count {
-        function.calls.push(decode_call(cursor)?);
-    }
-    let count = cursor.length()?;
-    for _ in 0..count {
-        function
-            .normalized_foreign_calls
-            .push(decode_normalized_foreign_call(cursor)?);
-    }
+    function.local_storage_slots = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
+        Ok(selected_instructions::SelectedLocalStorageSlot {
+            id: decode_local_slot(cursor)?,
+            byte_size: cursor.u32()?,
+            alignment: cursor.u16()?,
+        })
+    })?;
+    function.outgoing_arguments = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
+        Ok(SelectedOutgoingArgumentSlot {
+            id: decode_slot(cursor)?,
+            byte_size: cursor.u32()?,
+            alignment: cursor.u16()?,
+            abi_stack_byte_offset: cursor.u32()?,
+        })
+    })?;
+    function.calls = decode_list(cursor, decode_call)?;
+    function.normalized_foreign_calls = decode_list(cursor, decode_normalized_foreign_call)?;
     let count = cursor.length()?;
     for _ in 0..count {
         let instruction = SelectedInstructionId(cursor.u32()?);

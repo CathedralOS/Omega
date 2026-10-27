@@ -116,9 +116,9 @@ reaches TimeHost
         _ -> measured(counter)
     }
 
-    state measured(counter: i64) -> u64 { narrow_i64_to_u64_saturating(counter) }
+    machine measured(counter: i64) -> u64 { narrow_i64_to_u64_saturating(counter) }
 
-    state degraded() -> u64 { 0 }
+    machine degraded() -> u64 { 0 }
 }
 
 windows_x86_64 machine TimeHostNativeProvider::monotonic_ticks_per_second() -> u64
@@ -132,9 +132,9 @@ reaches TimeHost
         _ -> measured(frequency)
     }
 
-    state measured(frequency: i64) -> u64 { narrow_i64_to_u64_saturating(frequency) }
+    machine measured(frequency: i64) -> u64 { narrow_i64_to_u64_saturating(frequency) }
 
-    state degraded() -> u64 { 0 }
+    machine degraded() -> u64 { 0 }
 }
 
 windows_x86_64 machine TimeHostNativeProvider::wall_clock_raw() -> u64
@@ -145,7 +145,7 @@ reaches TimeHost
     WindowsTimeRead::system_time_as_file_time(&mut file_time);
     transition { _ -> measured(file_time) }
 
-    state measured(file_time: u64) -> u64 { file_time }
+    machine measured(file_time: u64) -> u64 { file_time }
 }
 
 // FILETIME ticks are 100-nanosecond intervals.

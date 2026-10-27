@@ -11,8 +11,8 @@ linux_x86_64 machine fill() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 windows_x86_64 machine fill() crashes Trap {
     let mut values: [u32; 2] = [7, 9];
@@ -24,8 +24,8 @@ windows_x86_64 machine fill() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 macos_x86_64 machine fill() crashes Trap {
     let mut values: [u32; 2] = [7, 9];
@@ -37,6 +37,6 @@ macos_x86_64 machine fill() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

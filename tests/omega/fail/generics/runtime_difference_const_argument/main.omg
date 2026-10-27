@@ -3,6 +3,6 @@ machine main() crashes Trap {
     let degree: u64 = 1;
     let value: i64 in Wrapping = step<degree - 1>(10);
     transition value == 10 { true -> done() _ -> bad() }
-    state done() { }
-    state bad() { crash Trap; }
+    machine done() { }
+    machine bad() { crash Trap; }
 }

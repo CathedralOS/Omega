@@ -132,7 +132,7 @@ reaches Console
 {
     let local: Token = Token { ready: true, byte: 68 };
     transition { _ -> finish(input.left, outgoing()) }
-    state finish(selected: Token, byte: i32)
+    machine finish(selected: Token, byte: i32)
     requires selected.ready
     {
         Console::write_byte(byte);
@@ -179,8 +179,8 @@ machine exercise_scalar_temporaries() reaches Console {
     let mut count: u64 = 0;
     let captured: u64 = read_temporaries(&make_temporary_pair(&mut count).first, &make_temporary_token(&mut count));
     transition captured == 70 && count == 2 { true -> done() false -> bad() }
-    state done() { Console::write_byte(10); }
-    state bad() { Console::exit_process(1); }
+    machine done() { Console::write_byte(10); }
+    machine bad() { Console::exit_process(1); }
 }
 
 // A Unit consumer observes the selected child before the complete anonymous

@@ -91,9 +91,7 @@ impl ClaimOutcomePreparation {
         let Some(target) = validation::call_target_state(program, call.target_symbol) else {
             return;
         };
-        if !self.dependencies.contains(&target.symbol) {
-            self.dependencies.push(target.symbol);
-        }
+        crate::collections::push_unique(&mut self.dependencies, target.symbol);
         if let Some(map) = self
             .maps
             .iter()
@@ -261,29 +259,15 @@ fn derive_claim_outcome_hypothesis(
             },
         ))
         .collect::<Vec<_>>();
-    let mut entries =
-        return_entries
-            .iter()
-            .flatten()
-            .cloned()
-            .fold(Vec::new(), |mut entries, entry| {
-                if !entries.contains(&entry) {
-                    entries.push(entry);
-                }
-                entries
-            });
+    let mut entries = crate::collections::unique_in_order(return_entries.iter().flatten().cloned());
     entries.retain(|entry| expected_paths.contains(&entry.output_path));
     for path in &expected_paths {
-        let sources = entries
-            .iter()
-            .filter(|entry| entry.output_path == *path)
-            .map(|entry| &entry.source)
-            .fold(Vec::new(), |mut sources, source| {
-                if !sources.contains(&source) {
-                    sources.push(source);
-                }
-                sources
-            });
+        let sources = crate::collections::unique_in_order(
+            entries
+                .iter()
+                .filter(|entry| entry.output_path == *path)
+                .map(|entry| &entry.source),
+        );
         if sources.len() != 1 {
             if sources.is_empty()
                 && claim_path_is_statically_inactive(
@@ -1048,9 +1032,7 @@ fn claim_outcomes_for_owned_selection(
                 output_path,
                 source,
             };
-            if !entries.contains(&entry) {
-                entries.push(entry);
-            }
+            crate::collections::push_unique(&mut entries, entry);
         }
     }
     if entries.is_empty() {
@@ -1131,26 +1113,22 @@ fn claim_origin_for_source(
             parameter_symbol,
             path,
         } => {
-            let origins = permission_events
-                .iter()
-                .filter(|event| {
-                    event.state_symbol == state.symbol
-                        && event.source == PermissionEventSource::StateEntry
-                        && event.kind == PermissionEventKind::Establish
-                        && event.access == PermissionAccess::Owned
-                        && event.obligation_live
-                        && event.root == facts::PlaceRoot::Symbol(*parameter_symbol)
-                        && segments.span_or_empty(event.segments) == path
-                        && event.claim_identity != PermissionClaimIdentity::Unknown
-                        && event.provenance != PermissionProvenance::Unknown
-                })
-                .map(|event| (event.provenance, event.claim_identity))
-                .fold(Vec::new(), |mut origins, origin| {
-                    if !origins.contains(&origin) {
-                        origins.push(origin);
-                    }
-                    origins
-                });
+            let origins = crate::collections::unique_in_order(
+                permission_events
+                    .iter()
+                    .filter(|event| {
+                        event.state_symbol == state.symbol
+                            && event.source == PermissionEventSource::StateEntry
+                            && event.kind == PermissionEventKind::Establish
+                            && event.access == PermissionAccess::Owned
+                            && event.obligation_live
+                            && event.root == facts::PlaceRoot::Symbol(*parameter_symbol)
+                            && segments.span_or_empty(event.segments) == path
+                            && event.claim_identity != PermissionClaimIdentity::Unknown
+                            && event.provenance != PermissionProvenance::Unknown
+                    })
+                    .map(|event| (event.provenance, event.claim_identity)),
+            );
             let [origin] = origins.as_slice() else {
                 return None;
             };
@@ -1222,32 +1200,28 @@ fn bind_claim_outcome_source_at_arguments(
         projection.expression,
     )?;
     place.segments.extend_from_slice(&projection.remaining);
-    let sources = permission_events
-        .iter()
-        .filter(|event| {
-            event.state_symbol == caller_state.symbol
-                && permission_event_statement_index(event.source) == Some(statement_index)
-                && event.kind == PermissionEventKind::Transfer
-                && event.access == PermissionAccess::Owned
-                && event.obligation_live
-                && event.root == place.root
-                && segments.span_or_empty(event.segments) == place.segments
-        })
-        .map(|event| {
-            claim_outcome_source_for_event(
-                program,
-                caller_state,
-                event,
-                segments,
-                permission_events,
-            )
-        })
-        .fold(Vec::new(), |mut sources, source| {
-            if !sources.contains(&source) {
-                sources.push(source);
-            }
-            sources
-        });
+    let sources = crate::collections::unique_in_order(
+        permission_events
+            .iter()
+            .filter(|event| {
+                event.state_symbol == caller_state.symbol
+                    && permission_event_statement_index(event.source) == Some(statement_index)
+                    && event.kind == PermissionEventKind::Transfer
+                    && event.access == PermissionAccess::Owned
+                    && event.obligation_live
+                    && event.root == place.root
+                    && segments.span_or_empty(event.segments) == place.segments
+            })
+            .map(|event| {
+                claim_outcome_source_for_event(
+                    program,
+                    caller_state,
+                    event,
+                    segments,
+                    permission_events,
+                )
+            }),
+    );
     let [source] = sources.as_slice() else {
         return None;
     };
@@ -1339,41 +1313,36 @@ fn call_result_origin_rewrite(
     let map = maps
         .iter()
         .find(|map| map.state_symbol == target_state.symbol)?;
-    let matching = map
-        .entries
-        .iter()
-        .filter(|entry| entry.output_path == receiving_path)
-        // Only an input correspondence forwards a caller-held identity.
-        // A callee establishment is a template shared by all invocations;
-        // its completed result keeps the receiving occurrence's identity
-        // and joins its exact return source through a call receipt.
-        .filter(|entry| matches!(entry.source, CheckedClaimOutcomeSource::Input { .. }))
-        // Forwarding preserves one identity only when it names one receiving
-        // location. A case-dependent location instead needs the existing
-        // occurrence-local join, whose alternatives authenticate the live path.
-        .filter(|entry| {
-            !map.entries
-                .iter()
-                .any(|other| other.source == entry.source && other.output_path != entry.output_path)
-        })
-        .filter_map(|entry| {
-            bind_claim_outcome_source_at_call(
-                program,
-                state,
-                statement_index,
-                call,
-                target_state,
-                &entry.source,
-                segments,
-                permission_events,
-            )
-        })
-        .fold(Vec::new(), |mut sources, source| {
-            if !sources.contains(&source) {
-                sources.push(source);
-            }
-            sources
-        });
+    let matching = crate::collections::unique_in_order(
+        map.entries
+            .iter()
+            .filter(|entry| entry.output_path == receiving_path)
+            // Only an input correspondence forwards a caller-held identity.
+            // A callee establishment is a template shared by all invocations;
+            // its completed result keeps the receiving occurrence's identity
+            // and joins its exact return source through a call receipt.
+            .filter(|entry| matches!(entry.source, CheckedClaimOutcomeSource::Input { .. }))
+            // Forwarding preserves one identity only when it names one receiving
+            // location. A case-dependent location instead needs the existing
+            // occurrence-local join, whose alternatives authenticate the live path.
+            .filter(|entry| {
+                !map.entries.iter().any(|other| {
+                    other.source == entry.source && other.output_path != entry.output_path
+                })
+            })
+            .filter_map(|entry| {
+                bind_claim_outcome_source_at_call(
+                    program,
+                    state,
+                    statement_index,
+                    call,
+                    target_state,
+                    &entry.source,
+                    segments,
+                    permission_events,
+                )
+            }),
+    );
     let [source] = matching.as_slice() else {
         return None;
     };

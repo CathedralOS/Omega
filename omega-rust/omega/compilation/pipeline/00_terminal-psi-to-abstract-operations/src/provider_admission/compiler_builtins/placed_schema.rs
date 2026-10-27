@@ -1,7 +1,7 @@
 //! Join an untrusted selected scalar schema to its independently admitted
 //! Terminal declaration. A digest of the supplied schema cannot make this join.
 
-use effects::provider_plan::ProviderPlan;
+use effects::provider_plan::{ProviderPlan, ServiceSchema};
 use semantic_vocabulary::{IeeeFloatFormat, IntegerSign, ScalarType};
 use terminal_psi::{
     BoundaryMachineDeclaration, StructuralAccess, TerminalModule, TerminalPlacedAccessorKind,
@@ -12,12 +12,12 @@ pub(super) fn validate(
     module: &TerminalModule,
     boundary: &BoundaryMachineDeclaration,
     plan: &ProviderPlan,
+    schema: &ServiceSchema,
     demand: &PlacedScalarBoundaryDemand,
 ) -> Result<(), String> {
     let invalid = || {
         "placed scalar selected schema does not match its Terminal signature and effects".to_owned()
     };
-    let schema = &plan.schema;
     let [method] = schema.methods.as_slice() else {
         return Err(invalid());
     };

@@ -6,5 +6,5 @@ requires index < Bound
 machine main() crashes Trap {
     let value: u64 = scale<4>(1);
     transition { _ -> done(value) }
-    state done(value: u64) { }
+    machine done(value: u64) { }
 }

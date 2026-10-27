@@ -16,19 +16,15 @@ use crate::rules::catalog::BuiltInRuleRegistration;
 use crate::rules::control_flow_cleanup::node_realized_provenance;
 use crate::{AnalysisProduct, RuleAnalysisView, RuleProposalError};
 
-mod divide_by_one;
 mod identity_rewrite;
-mod multiply_by_zero;
 mod negative_one_shift_right;
 mod proof_certified_dead_scalar_elimination;
 mod remainder_by_one;
-mod scalar_identities;
+mod scalar_identity_rules;
 mod self_divide;
 mod self_remainder;
 mod self_subtract;
 mod signed_remainder_by_negative_one;
-mod zero_dividend;
-mod zero_value_shift;
 
 /// The contract every proof-check-elision rule states by hand — pass,
 /// version, invalidation set and safety class are fixed; only the rule
@@ -47,18 +43,20 @@ fn proof_check_elision_rule_contract(
     )
 }
 
-pub(crate) use divide_by_one::LiveProofCertifiedIntegerDivideByOneEliminationRule;
-pub(crate) use multiply_by_zero::LiveProofCertifiedExactIntegerMultiplyByZeroEliminationRule;
 pub(crate) use negative_one_shift_right::LiveProofCertifiedExactSignedIntegerNegativeOneShiftRightEliminationRule;
 pub(crate) use proof_certified_dead_scalar_elimination::ProofCertifiedDeadScalarEliminationRule;
 pub(crate) use remainder_by_one::LiveProofCertifiedIntegerRemainderByOneEliminationRule;
-pub(crate) use scalar_identities::LiveProofCertifiedIntegerIdentityEliminationRule;
+pub(crate) use scalar_identity_rules::{
+    LiveProofCertifiedExactIntegerMultiplyByZeroEliminationRule,
+    LiveProofCertifiedExactIntegerZeroValueShiftEliminationRule,
+    LiveProofCertifiedIntegerDivideByOneEliminationRule,
+    LiveProofCertifiedIntegerIdentityEliminationRule,
+    LiveProofCertifiedIntegerZeroDividendEliminationRule,
+};
 pub(crate) use self_divide::LiveProofCertifiedIntegerSelfDivideEliminationRule;
 pub(crate) use self_remainder::LiveProofCertifiedIntegerSelfRemainderEliminationRule;
 pub(crate) use self_subtract::LiveProofCertifiedExactIntegerSelfSubtractEliminationRule;
 pub(crate) use signed_remainder_by_negative_one::LiveProofCertifiedSignedIntegerRemainderByNegativeOneEliminationRule;
-pub(crate) use zero_dividend::LiveProofCertifiedIntegerZeroDividendEliminationRule;
-pub(crate) use zero_value_shift::LiveProofCertifiedExactIntegerZeroValueShiftEliminationRule;
 
 /// The exact local rule order for this pass.
 pub(super) fn built_in_registrations() -> Vec<BuiltInRuleRegistration> {

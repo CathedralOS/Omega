@@ -113,8 +113,8 @@ machine Token::drop(token: &mut Token) reaches Console {
         true -> first()
         false -> second()
     }
-    state first() { Console::write_byte(65); }
-    state second() { Console::write_byte(66); }
+    machine first() { Console::write_byte(65); }
+    machine second() { Console::write_byte(66); }
 }
 
 data Output { value: i32; }
@@ -144,8 +144,8 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> passed(main)
         false -> failed(main)
     }
-    state passed(main: &mut Main) { Console::exit_process(70); }
-    state failed(main: &mut Main) { Console::exit_process(71); }
+    machine passed(main: &mut Main) { Console::exit_process(70); }
+    machine failed(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

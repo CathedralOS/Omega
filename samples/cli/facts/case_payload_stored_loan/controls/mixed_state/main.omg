@@ -8,7 +8,7 @@ machine lend<'storage>(source: &'storage mut Cell) -> Loan<'storage> {
 }
 machine choose<'storage>(incoming: Loan<'storage>, other: &'storage mut Cell, moved: bool) -> Loan<'storage> {
     transition { _ -> finish(moved, other, incoming) }
-    state finish(moved: bool, other: &'storage mut Cell, incoming: Loan<'storage>) -> Loan<'storage> {
+    machine finish(moved: bool, other: &'storage mut Cell, incoming: Loan<'storage>) -> Loan<'storage> {
         transition moved {
             true -> (incoming)
             false -> (Loan::Active { target: other })
@@ -37,6 +37,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

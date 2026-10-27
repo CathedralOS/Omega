@@ -10,7 +10,7 @@ requires remaining <= 9;
 terminates by remaining in 0..=9;
 {
     transition { _ -> scan(values, remaining) }
-    state scan(values: &mut [u32; 2], mut remaining: u32) -> u32
+    machine scan(values: &mut [u32; 2], mut remaining: u32) -> u32
     requires remaining <= 9;
     {
         // The store misses remaining, but evaluating its index resets it.

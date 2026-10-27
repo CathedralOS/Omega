@@ -19,7 +19,7 @@ requires lhs >= 40i8 && lhs <= 80i8 && rhs >= 10i8 && rhs <= 20i8
     transition {
         _ -> step(sum_wrap as i8)
     }
-    state step(sum: i8) -> i32
+    machine step(sum: i8) -> i32
     requires sum >= 50i8 && sum <= 100i8
     {
         verify_sum(sum)
@@ -35,6 +35,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

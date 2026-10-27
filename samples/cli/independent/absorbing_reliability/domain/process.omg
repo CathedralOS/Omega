@@ -31,29 +31,29 @@ machine initialize(process: &mut Process, variant: u64 in Wrapping) {
         5 -> degraded(process)
         _ -> done()
     }
-    state repair(process: &mut Process) {
+    machine repair(process: &mut Process) {
         process.degraded_repairs = 1;
     }
-    state unreachable(process: &mut Process) {
+    machine unreachable(process: &mut Process) {
         process.healthy_stays = 3;
         process.healthy_degrades = 1;
         process.degraded_repairs = 1;
         process.degraded_stays = 3;
     }
-    state absorbed(process: &mut Process) {
+    machine absorbed(process: &mut Process) {
         process.healthy = 0;
         process.failed = 1;
     }
-    state deterministic(process: &mut Process) {
+    machine deterministic(process: &mut Process) {
         process.healthy_stays = 0;
         process.healthy_degrades = 4;
         process.degraded_stays = 0;
     }
-    state degraded(process: &mut Process) {
+    machine degraded(process: &mut Process) {
         process.healthy = 0;
         process.degraded = 1;
     }
-    state done() { }
+    machine done() { }
 }
 machine advance(process: &mut Process) {
     let healthy: u64 in Wrapping = process.healthy * process.healthy_stays + process.degraded * process.degraded_repairs;

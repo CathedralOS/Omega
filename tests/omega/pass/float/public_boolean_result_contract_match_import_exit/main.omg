@@ -5,12 +5,12 @@ machine finite(value: f32, first: bool) -> bool
 ensures result == F32::is_finite(value) {
     let observed: bool = match first { true -> F32::is_finite(value), false -> F32::is_finite(value) };
     transition { _ -> forward(observed) }
-    state forward(observed: bool) -> bool { observed }
+    machine forward(observed: bool) -> bool { observed }
 }
 
 machine main() crashes Trap {
     let observed: bool = finite(1.0f32, false);
     transition observed { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

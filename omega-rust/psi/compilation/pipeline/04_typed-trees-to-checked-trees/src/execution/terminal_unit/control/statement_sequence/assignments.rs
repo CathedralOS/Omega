@@ -195,7 +195,7 @@ pub(super) fn plan(
             return None;
         }
         assignment_phase("statement sequence: assignment: structural operand custody");
-        let calls = super::prepare_value_operands(
+        let (calls, completion) = super::prepare_value_operands(
             program,
             facts,
             scalar_callees,
@@ -213,6 +213,15 @@ pub(super) fn plan(
             trace,
             windows,
         )?;
+        if completion == checked_trees::CheckedValueCompletion::NoNormal {
+            operations.push(CheckedUnitEffectOperationPlan::EvaluateStructuralValue {
+                statement_index,
+                value: root.root,
+                calls,
+                operand_source: None,
+            });
+            return Some(AssignmentPlan::Planned);
+        }
         assignment_phase("statement sequence: assignment: structural result type");
         // The installed carrier is the destination's stored value: a rebind
         // keeps the reference descriptor, and a write through it keeps the

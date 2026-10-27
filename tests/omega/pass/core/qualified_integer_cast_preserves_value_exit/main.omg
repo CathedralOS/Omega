@@ -28,7 +28,7 @@ machine bounded() -> u16 ensures result <= 255 { 200u16 }
 machine forwarded(value: u16) -> u16 {
     let copied: u16 = value;
     transition { _ -> finish(copied) }
-    state finish(value: u16) -> u16 { value & 255u16 }
+    machine finish(value: u16) -> u16 { value & 255u16 }
 }
 machine accept(value: u8 in Wrapping) -> u8 { (value + 100) as u8 }
 machine main() crashes Trap {
@@ -43,6 +43,6 @@ machine main() crashes Trap {
         true -> good()
         _ -> bad()
     }
-    state good() {}
-    state bad() { crash Trap; }
+    machine good() {}
+    machine bad() { crash Trap; }
 }

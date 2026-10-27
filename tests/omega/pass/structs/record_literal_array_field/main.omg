@@ -79,7 +79,7 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> bad(main)
     }
 
-    state check(main: &mut Main) {
+    machine check(main: &mut Main) {
         let ok: bool = main.filled.samples[0] == 4
             && main.filled.samples[1] == 0 - 2
             && main.filled.samples[2] == 7
@@ -102,11 +102,11 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(0);
     }
 
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::exit_process(1);
     }
 }

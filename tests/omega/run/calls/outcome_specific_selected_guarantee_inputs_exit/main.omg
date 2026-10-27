@@ -30,12 +30,12 @@ ensures Outcome::Success -> { selected: selected_ready(); }
         false -> fail()
     }
 
-    state succeed() {
+    machine succeed() -> Outcome {
         selected = Fresh;
         Outcome::Success
     }
 
-    state fail() {
+    machine fail() -> Outcome {
         Outcome::Failure
     }
 }
@@ -47,18 +47,18 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad(main)
     }
 
-    state low(main: &mut Main, threshold: u32) {
+    machine low(main: &mut Main, threshold: u32) {
         transition pick(threshold) {
             Outcome::Success { ; selected: proof } -> bad(main)
             _ -> ok(main)
         }
     }
 
-    state ok(main: &mut Main) {
+    machine ok(main: &mut Main) {
         Console::exit_process(0);
     }
 
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::exit_process(1);
     }
 }

@@ -27,7 +27,7 @@ pub(in crate::exit_contract) fn validate_process_exit(
         // uncharged trap may execute: no result or normal continuation.
         let mut rows = function.normalized_foreign_calls.iter().filter(|row| {
             row.invocation_site
-                == semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(completion_edge)
+                == semantic_vocabulary::InvocationSite::ExternalCompletion(completion_edge)
         });
         let foreign = rows.next();
         let mut checked = function.calls.iter().filter(|row| {

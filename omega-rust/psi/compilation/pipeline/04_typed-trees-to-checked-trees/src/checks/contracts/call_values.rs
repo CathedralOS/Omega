@@ -587,6 +587,12 @@ fn current_actual(
     let capture = captured.observation.row();
     let projection = &captured.observation_projection;
     let expression = projection.expression;
+    let observed_type = validation::project_type_reference_from_segments(
+        program,
+        captured.observation_type,
+        &projection.remaining,
+    )
+    .and_then(|reference| validation::field_domains::readable_type_reference(program, reference))?;
     // A completed copy has its own observed coordinate. Re-lowering its
     // authored place would bind the former storage instead and fail to join
     // guards already expressed on this exact detached value. Shared reference
@@ -594,17 +600,19 @@ fn current_actual(
     if matches!(
         capture.completion,
         checked_trees::FlowOperandCompletion::Copied { .. }
+            | checked_trees::FlowOperandCompletion::Selected(_)
     ) {
         let places = crate::flow::captured_observation_places(program, &facts.flow, captured)?;
         let [place] = places.as_slice() else {
             return None;
         };
-        return bind_current(
+        return bind_observation(
             program,
             facts,
             state,
             call,
             place.projected.clone(),
+            observed_type,
             primitive,
             contexts,
             fold_observed_values,
@@ -656,12 +664,13 @@ fn current_actual(
         expression,
     )?;
     place.extend_segments(&projection.remaining);
-    bind_current(
+    bind_observation(
         program,
         facts,
         state,
         call,
         place,
+        observed_type,
         primitive,
         contexts,
         fold_observed_values,
@@ -686,6 +695,33 @@ fn bind_current(
         call.statement_index,
         &place,
     )?;
+    bind_observation(
+        program,
+        facts,
+        state,
+        call,
+        place,
+        type_reference,
+        primitive,
+        contexts,
+        fold_observed_values,
+        bindings,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn bind_observation(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    call: &FlowCallFact,
+    place: CanonicalPlace,
+    type_reference: typed_trees::types::TypeReferenceHandle,
+    primitive: typed_trees::types::PrimitiveType,
+    contexts: &[FactContextHandle],
+    fold_observed_values: bool,
+    bindings: &mut Vec<crate::facts::boolean_predicates::BoundObservation>,
+) -> Option<CheckedScalarExpression> {
     if program.primitive_type_reference(type_reference) != Some(primitive) {
         return None;
     }
@@ -745,7 +781,7 @@ fn scalar_at(
     })
 }
 
-fn observed_literal(
+pub(super) fn observed_literal(
     value: facts::ScalarValue,
     primitive: typed_trees::types::PrimitiveType,
 ) -> Option<CheckedScalarExpression> {
@@ -837,6 +873,49 @@ fn proves_bound_predicate_mode<'program>(
     // Judge one formula in the observed-value namespace. Producer evidence
     // joins each exact copied value independently, rather than requiring all
     // operands to retain the same context or choosing one global proof mode.
+    // A joined storage read may have no common branch context. Retain only
+    // independently proved equal scalar read cuts; the storage DAG still owes
+    // complete predecessor coverage and preservation before using any of them.
+    let mut read_cuts = Vec::new();
+    if fold_observed_values && let Some(frames) = frames {
+        for observation in &predicate.bindings {
+            let Some(actual) = actual(observation) else {
+                continue;
+            };
+            let Some(values) = captured_values(program, facts, state, call, &actual) else {
+                continue;
+            };
+            if !values.iter().any(|value| value.producer_epoch.is_some()) {
+                continue;
+            }
+            let Some(capture) = captured_operand(program, facts, state, call, &actual) else {
+                continue;
+            };
+            let Some(value) = super::prover::captured_scalar_at_path(
+                program,
+                facts,
+                state,
+                capture.row(),
+                &actual.path,
+                call.statement_index + 1,
+                call.entry_constraints,
+                frames,
+            ) else {
+                continue;
+            };
+            let Some(primitive) = observation.operand.primitive_type() else {
+                continue;
+            };
+            super::prover::captured_values::retain_reads(
+                program,
+                facts,
+                &values,
+                primitive,
+                &value,
+                &mut read_cuts,
+            );
+        }
+    }
     let mut selected_contexts: Option<Vec<FactContextHandle>> = None;
     let mut binding_epochs: Vec<&checked_trees::FlowOperandFact> = Vec::new();
     let mut captures = Vec::new();
@@ -845,7 +924,59 @@ fn proves_bound_predicate_mode<'program>(
     if crate::facts::boolean_predicates::map_observations(&mut current.expression, &mut |operand| {
         let observation = predicate.binding(&operand)?;
         let actual = actual(observation)?;
-        let captured = captured_value(program, facts, state, call, &actual)?;
+        // Scalar observation is a universal judgment over the completed value
+        // inventory, including selected alternatives. Do it before asking for
+        // one symbolic producer; several agreeing values are still one exact
+        // scalar, while differing or unproved alternatives establish nothing.
+        if fold_observed_values
+            && let Some(frames) = frames
+            && let Some(capture) = captured_operand(program, facts, state, call, &actual)
+            && let Some(value) = super::prover::captured_scalar_at_path(
+                program,
+                facts,
+                state,
+                capture.row(),
+                &actual.path,
+                call.statement_index.checked_add(1)?,
+                call.entry_constraints,
+                frames,
+            )
+            && let Some(literal) = observed_literal(value, operand.primitive_type()?)
+        {
+            *operand = literal;
+            return Some(());
+        }
+        if fold_observed_values
+            && !read_cuts.is_empty()
+            && let Some(values) = captured_values(program, facts, state, call, &actual)
+            && let Some(value) = super::prover::captured_values::scalar_preserved_at_values(
+                program,
+                facts,
+                &values,
+                operand.primitive_type()?,
+                call.invocation_storage,
+                &read_cuts,
+            )
+            && let Some(literal) = observed_literal(value, operand.primitive_type()?)
+        {
+            *operand = literal;
+            return Some(());
+        }
+        let values = captured_values(program, facts, state, call, &actual)?;
+        let captured = values.first()?;
+        let observation = captured.observation.recorded_in(&facts.flow.control)?;
+        if !values.iter().all(|value| {
+            value.observation.recorded_in(&facts.flow.control) == Some(observation)
+                && value.observation_type == captured.observation_type
+                && value.observation_projection.expression
+                    == captured.observation_projection.expression
+                && value.observation_projection.remaining
+                    == captured.observation_projection.remaining
+        }) {
+            return None;
+        }
+        // Only the authenticated common observation drives value binding.
+        // Every reaching producer remains a separate evidence obligation below.
         let capture = captured.observation.row();
         let capture_type = captured.observation_type;
         let operand_contexts = crate::flow::operand_contexts(
@@ -898,15 +1029,17 @@ fn proves_bound_predicate_mode<'program>(
             }
         }
         binding_epochs.resize(current.bindings.len(), epoch);
-        captured_predicates::retain_bindings(
-            program,
-            facts,
-            &captured,
-            epoch,
-            &current.bindings[first_binding..],
-            first_binding,
-            &mut captures,
-        );
+        for value in &values {
+            captured_predicates::retain_bindings(
+                program,
+                facts,
+                value,
+                epoch,
+                &current.bindings[first_binding..],
+                first_binding,
+                &mut captures,
+            );
+        }
         Some(())
     })
     .is_none()
@@ -938,14 +1071,19 @@ fn proves_bound_predicate_mode<'program>(
             frames,
         ));
     }
-    retained.extend(captured_predicates::transport(
+    let transported = captured_predicates::transport(
         program,
         facts,
         state,
         &mut current,
         &captures,
+        &retained,
         frames,
-    ));
+    );
+    if fold_observed_values && transported.proves_required {
+        return true;
+    }
+    retained.extend(transported.predicates);
     // A normal guarantee may establish an exact scalar, then justify the
     // receiving bound. Use the shared completed-value equation closure; the
     // required bound is never one of its premises and unseeded cycles prove

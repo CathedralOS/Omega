@@ -5,7 +5,7 @@ ensures result == value { value }
 machine invalid() -> bool
 ensures result == true {
     transition { _ -> finish() }
-    state finish() -> bool {
+    machine finish() -> bool {
         let unused: bool = identity(true) || identity(true);
         false
     }

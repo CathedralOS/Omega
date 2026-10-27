@@ -32,6 +32,7 @@ pub(crate) fn retain_shapes(
     plans: &CheckedScalarComputationPlans,
     structural_values: &checked_trees::CheckedStructuralValuePlans,
     state: SymbolHandle,
+    is_executable: impl Fn(u32) -> bool,
     shapes: &mut Vec<CheckedUnitStructuralTypePlan>,
 ) -> Option<()> {
     let retained = (|| {
@@ -41,6 +42,12 @@ pub(crate) fn retain_shapes(
         // speculative arena nodes; recursive pointer catalogs stay finite.
         let mut retained_values = Vec::new();
         for root in structural_values.roots_for_state(state) {
+            // Erased argument roots retain proof/custody identity, but own no
+            // executable constructor storage. Live dependencies still follow
+            // their complete retained value graph below.
+            if !is_executable(root.statement_ordinal) {
+                continue;
+            }
             for value in structural_values.value_dependencies(root.root)? {
                 if retained_values.contains(&value) {
                     continue;
@@ -113,7 +120,12 @@ pub(crate) fn retain_shapes(
                 }
             }
         }
-        let mut pending = plans.roots_for_state(state);
+        let mut pending: Vec<_> = plans
+            .root_records_for_state(state)
+            .into_iter()
+            .filter(|root| is_executable(root.statement_ordinal))
+            .map(|root| root.root)
+            .collect();
         let mut visited = Vec::new();
         while let Some(handle) = pending.pop() {
             if !plans.nodes.is_valid(handle) {

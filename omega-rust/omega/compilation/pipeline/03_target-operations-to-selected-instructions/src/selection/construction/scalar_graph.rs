@@ -36,6 +36,7 @@ mod ieee_comparison;
 mod ieee_float_arithmetic;
 mod integer_arithmetic;
 pub(in crate::selection) mod integer_conversion;
+mod no_normal;
 mod normalized_foreign;
 mod operation_control;
 mod placed_scalar_access;

@@ -16,19 +16,19 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> start(request.identifier, request.horizon)
         false -> invalid()
     }
-    state start(identifier: u64 in Saturating, horizon: u64 in Saturating) {
+    machine start(identifier: u64 in Saturating, horizon: u64 in Saturating) {
         let model: LineModel = preset(identifier as u64);
         let mut tree: ReflectionTree;
         Console::write_line("transmission_line_reflections v1 micro-units");
         transition { _ -> simulate(&mut tree, &model, 0, horizon) }
     }
-    state simulate(tree: &mut ReflectionTree, model: &LineModel, tick: u64 in Saturating, horizon: u64 in Saturating) {
+    machine simulate(tree: &mut ReflectionTree, model: &LineModel, tick: u64 in Saturating, horizon: u64 in Saturating) {
         transition tick < horizon && tick < 24 {
             true -> step(tree, model, tick, horizon)
             false -> finish()
         }
     }
-    state step(tree: &mut ReflectionTree, model: &LineModel, tick: u64 in Saturating, horizon: u64 in Saturating)
+    machine step(tree: &mut ReflectionTree, model: &LineModel, tick: u64 in Saturating, horizon: u64 in Saturating)
     requires tick < 24
     {
         let okay: bool = propagate(tree, model, tick as u64);
@@ -37,7 +37,7 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> failed()
         }
     }
-    state emit(tree: &mut ReflectionTree, model: &LineModel, tick: u64 in Saturating, horizon: u64 in Saturating)
+    machine emit(tree: &mut ReflectionTree, model: &LineModel, tick: u64 in Saturating, horizon: u64 in Saturating)
     requires tick < 24
     {
         report(tick as u64, tree);
@@ -47,9 +47,9 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> failed()
         }
     }
-    state finish() { Console::write_line("END"); Console::exit_process(0); }
-    state invalid() { Console::write_line("ERROR input: expected case 0..5 and horizon 1..24 followed by LF"); Console::exit_process(64); }
-    state failed() { Console::write_line("ERROR simulation invariant"); Console::exit_process(70); }
+    machine finish() { Console::write_line("END"); Console::exit_process(0); }
+    machine invalid() { Console::write_line("ERROR input: expected case 0..5 and horizon 1..24 followed by LF"); Console::exit_process(64); }
+    machine failed() { Console::write_line("ERROR simulation invariant"); Console::exit_process(70); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

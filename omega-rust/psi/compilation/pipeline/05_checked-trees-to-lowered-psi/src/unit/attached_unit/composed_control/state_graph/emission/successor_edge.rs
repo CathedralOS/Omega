@@ -253,6 +253,50 @@ impl StateGraphEmission<'_, '_> {
                 );
                 let mut loan_backing_home = None;
                 let mut place = match transfer.source {
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::EvaluateNoNormal { operations: ref selected } => {
+                            let state_bindings = operations.structural_values.clone();
+                            let planned = selected.iter().cloned().collect::<Vec<_>>();
+                            let emitted = super::super::super::emission::emit_call_operations(
+                                identities, checked, owner, state, &planned, self.catalogs,
+                                state_parameters, &mut edge_evaluation, &mut edge_values,
+                                &self.state_erased[position], next_value, next_block, next_edge,
+                                operations, &mut sequence,
+                            );
+                            operations.structural_values = state_bindings;
+                            emitted?;
+                            let terminator = operations.take_invocation_completion(next_edge)?
+                                .ok_or(LoweringError::Unsupported("stopped successor operand lost its exact invocation"))?;
+                            let selection_edge = edge_id(allocate_dense(next_edge)?);
+                            if let Some(rank) = current_rank {
+                                self.block_ranks.insert(staged, rank);
+                                self.block_ranks.insert(edge_evaluation.current, rank);
+                                self.block_ranks.extend(edge_evaluation.blocks.iter().map(|block| (block.id, rank)));
+                                self.preserve_edges(edge_evaluation.blocks.iter().flat_map(|block| block.terminator.edges()), rank);
+                                self.rank_edges.insert(selection_edge, (rank, terminal_psi::TerminalNaturalRankComparison::Preserving));
+                            }
+                            edge_blocks.extend(edge_evaluation.blocks);
+                            edge_blocks.push(Block {
+                                id: edge_evaluation.current,
+                                parameters: edge_evaluation.parameters,
+                                erased_scalar_formals: self.state_erased[position].clone(),
+                                erased_proof_formals: crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+                                    identities, checked, &self.state_erased_proof[position],
+                                ),
+                                structural_parameters: edge_evaluation.block_structural_parameters,
+                                operations: operations[edge_evaluation.operation_start..].to_vec(),
+                                terminator,
+                            });
+                            return Ok(SuccessorEdge {
+                                edge: selection_edge, target: staged, arguments: Vec::new(),
+                                erased_arguments: Vec::new(),
+                                erased_proof_arguments: (0..self.state_erased_proof[position].len()).map(|position| {
+                                    semantic_vocabulary::ProofTerm::Formal {
+                                        position: u32::try_from(position).expect("erased-proof roster positions fit u32"),
+                                    }
+                                }).collect(),
+                                structural_arguments: Vec::new(), cleanup_actions: Vec::new(),
+                            });
+                        }
                         checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue { ref operands, ref establishment, ref presentation } => {
                             // The edge performs its ordinary establishment
                             // through the state's operation emitter, so the

@@ -27,7 +27,7 @@ machine Main::main(selected: bool, tag: u64) reaches Sink {
         true -> kept(result, marker)
         false -> kept(result, marker)
     }
-    state kept(result: Choice, marker: Marker) {
+    machine kept(result: Choice, marker: Marker) {
         let bonus: u64 = match result in Choice::Some {
             true -> 1u64,
             false -> 2u64

@@ -17,7 +17,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     // One hailstone step, or stop once the sequence has collapsed to 1.
-    state step(value: i32 in Wrapping, steps: i32 in Wrapping) {
+    machine step(value: i32 in Wrapping, steps: i32 in Wrapping) {
         transition value == 1 {
             true -> done(steps)
             _ -> advance(value, steps)
@@ -25,7 +25,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     // Count this step, then branch on parity.
-    state advance(value: i32 in Wrapping, steps: i32 in Wrapping) {
+    machine advance(value: i32 in Wrapping, steps: i32 in Wrapping) {
         let next_steps: i32 in Wrapping = steps + 1;
         let remainder: i32 = (value % 2) as i32;
         transition remainder == 0 {
@@ -34,21 +34,21 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state halve(value: i32 in Wrapping, steps: i32 in Wrapping) {
+    machine halve(value: i32 in Wrapping, steps: i32 in Wrapping) {
         let next: i32 in Wrapping = value / 2;
         transition {
             _ -> step(next, steps)
         }
     }
 
-    state climb(value: i32 in Wrapping, steps: i32 in Wrapping) {
+    machine climb(value: i32 in Wrapping, steps: i32 in Wrapping) {
         let next: i32 in Wrapping = value * 3 + 1;
         transition {
             _ -> step(next, steps)
         }
     }
 
-    state done(steps: i32 in Wrapping) {
+    machine done(steps: i32 in Wrapping) {
         Console::write_line("result: the step count, 111 for seed 27 (the exit code)");
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];

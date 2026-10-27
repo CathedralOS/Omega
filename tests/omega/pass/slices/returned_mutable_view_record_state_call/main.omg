@@ -11,7 +11,7 @@ machine need_three(values: &[u8]) requires values.len == 3 {}
 machine observed<'row>(held: Held<'row>) -> bool
 requires held.values.len == 3 {
     transition { _ -> inspect(held) }
-    state inspect(held: Held<'row>) -> bool requires held.values.len == 3 {
+    machine inspect(held: Held<'row>) -> bool requires held.values.len == 3 {
         need_three(held.values);
         held.values.len == 3 && held.values[2] == 30
     }
@@ -23,6 +23,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

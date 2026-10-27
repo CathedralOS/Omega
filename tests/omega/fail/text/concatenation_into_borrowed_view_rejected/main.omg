@@ -26,7 +26,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> render(main)
     }
 
-    state render(main: &mut Main) {
+    machine render(main: &mut Main) {
         let room: Room;
         let mut out_line: &[u8] in Utf8;
 
@@ -39,11 +39,11 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(193);
     }
 
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::exit_process(194);
     }
 }

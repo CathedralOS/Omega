@@ -14,11 +14,11 @@ machine emit(device: &mut Device, enabled: bool) reaches PortIo {
     asm where clobbers r10, r11, r15, rax, rdx { out 0x3F8, 0x41 }
     second(device);
     transition enabled { true -> selected(device) false -> done() }
-    state selected(device: &mut Device) {
+    machine selected(device: &mut Device) {
         asm where clobbers r10, r11, r15, rax, rdx { out 0x3F8, 0x43 }
         device.marker = 3;
     }
-    state done() {}
+    machine done() {}
 }
 machine main() reaches PortSequence + PortIo {
     let mut device: Device = Device { marker: 0 };

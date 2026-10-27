@@ -12,15 +12,15 @@ public data Community {
 }
 public machine choose(total: u64 in Wrapping, depth: u64 in Wrapping) -> u64 in Wrapping {
     transition depth <= total { true -> accumulate(total, depth, 1, 1) false -> 0 }
-    state accumulate(total: u64 in Wrapping, depth: u64 in Wrapping,
-                     position: u64 in Wrapping, value: u64 in Wrapping) {
+    machine accumulate(total: u64 in Wrapping, depth: u64 in Wrapping,
+                     position: u64 in Wrapping, value: u64 in Wrapping) -> u64 in Wrapping {
         transition position <= depth && position > 0 {
             true -> step(total, depth, position, value)
             false -> value
         }
     }
-    state step(total: u64 in Wrapping, depth: u64 in Wrapping,
-               position: u64 in Wrapping, value: u64 in Wrapping)
+    machine step(total: u64 in Wrapping, depth: u64 in Wrapping,
+               position: u64 in Wrapping, value: u64 in Wrapping) -> u64 in Wrapping
     requires position > 0 {
         transition { _ -> accumulate(total, depth, position+1, value*(total-position+1)/position) }
     }
@@ -35,20 +35,20 @@ requires richness < 13 { row[richness] = row[richness]+weight; }
 public machine analyze(community: &mut Community) {
     community.weights[0][0] = 1;
     transition { _ -> species(community, 0) }
-    state species(community: &mut Community, species_index: u64 in Wrapping) {
+    machine species(community: &mut Community, species_index: u64 in Wrapping) {
         transition species_index < community.species && species_index < 12 {
             true -> clear(community, species_index, 0, 0)
             false -> done()
         }
     }
-    state clear(community: &mut Community, species_index: u64 in Wrapping,
+    machine clear(community: &mut Community, species_index: u64 in Wrapping,
                 depth: u64 in Wrapping, richness: u64 in Wrapping) {
         transition depth < 33 && richness < 13 {
             true -> clear_cell(community, species_index, depth, richness)
             false -> source_depth(community, species_index, 0, 0)
         }
     }
-    state clear_cell(community: &mut Community, species_index: u64 in Wrapping,
+    machine clear_cell(community: &mut Community, species_index: u64 in Wrapping,
                      depth: u64 in Wrapping, richness: u64 in Wrapping)
     requires depth < 33 && richness < 13 {
         community.next[depth][richness] = 0;
@@ -57,14 +57,14 @@ public machine analyze(community: &mut Community) {
             false -> clear(community, species_index, depth+1, 0)
         }
     }
-    state source_depth(community: &mut Community, species_index: u64 in Wrapping,
+    machine source_depth(community: &mut Community, species_index: u64 in Wrapping,
                        depth: u64 in Wrapping, richness: u64 in Wrapping) {
         transition depth < 33 && richness < 13 && species_index < 12 {
             true -> source_cell(community, species_index, depth, richness)
             false -> copy(community, species_index, 0, 0)
         }
     }
-    state source_cell(community: &mut Community, species_index: u64 in Wrapping,
+    machine source_cell(community: &mut Community, species_index: u64 in Wrapping,
                       depth: u64 in Wrapping, richness: u64 in Wrapping)
     requires depth < 33 && richness < 13 && species_index < 12 {
         let weight: u64 in Wrapping = community.weights[depth][richness];
@@ -73,7 +73,7 @@ public machine analyze(community: &mut Community) {
             false -> advance(community, species_index, depth, richness)
         }
     }
-    state contribution(community: &mut Community, species_index: u64 in Wrapping,
+    machine contribution(community: &mut Community, species_index: u64 in Wrapping,
                        depth: u64 in Wrapping, richness: u64 in Wrapping,
                        taken: u64 in Wrapping, weight: u64 in Wrapping)
     requires species_index < 12 {
@@ -82,7 +82,7 @@ public machine analyze(community: &mut Community) {
             false -> advance(community, species_index, depth, richness)
         }
     }
-    state select_richness(community: &mut Community, species_index: u64 in Wrapping,
+    machine select_richness(community: &mut Community, species_index: u64 in Wrapping,
                          depth: u64 in Wrapping, richness: u64 in Wrapping,
                          taken: u64 in Wrapping, weight: u64 in Wrapping) {
         transition taken == 0 {
@@ -90,7 +90,7 @@ public machine analyze(community: &mut Community) {
             false -> add(community, species_index, depth, richness, taken, weight, richness+1)
         }
     }
-    state add(community: &mut Community, species_index: u64 in Wrapping,
+    machine add(community: &mut Community, species_index: u64 in Wrapping,
               depth: u64 in Wrapping, richness: u64 in Wrapping,
               taken: u64 in Wrapping, weight: u64 in Wrapping,
               target_richness: u64 in Wrapping) {
@@ -99,7 +99,7 @@ public machine analyze(community: &mut Community) {
             false -> advance(community, species_index, depth, richness)
         }
     }
-    state add_cell(community: &mut Community, species_index: u64 in Wrapping,
+    machine add_cell(community: &mut Community, species_index: u64 in Wrapping,
                    depth: u64 in Wrapping, richness: u64 in Wrapping,
                    taken: u64 in Wrapping, weight: u64 in Wrapping,
                    target_richness: u64 in Wrapping)
@@ -109,21 +109,21 @@ public machine analyze(community: &mut Community) {
         accumulate_row(row, target_richness, weight*multiplier);
         transition { _ -> contribution(community, species_index, depth, richness, taken+1, weight) }
     }
-    state advance(community: &mut Community, species_index: u64 in Wrapping,
+    machine advance(community: &mut Community, species_index: u64 in Wrapping,
                   depth: u64 in Wrapping, richness: u64 in Wrapping) {
         transition richness < 12 {
             true -> source_depth(community, species_index, depth, richness+1)
             false -> source_depth(community, species_index, depth+1, 0)
         }
     }
-    state copy(community: &mut Community, species_index: u64 in Wrapping,
+    machine copy(community: &mut Community, species_index: u64 in Wrapping,
                depth: u64 in Wrapping, richness: u64 in Wrapping) {
         transition depth < 33 && richness < 13 {
             true -> copy_cell(community, species_index, depth, richness)
             false -> species(community, species_index+1)
         }
     }
-    state copy_cell(community: &mut Community, species_index: u64 in Wrapping,
+    machine copy_cell(community: &mut Community, species_index: u64 in Wrapping,
                     depth: u64 in Wrapping, richness: u64 in Wrapping)
     requires depth < 33 && richness < 13 {
         community.weights[depth][richness] = community.next[depth][richness];
@@ -132,5 +132,5 @@ public machine analyze(community: &mut Community) {
             false -> copy(community, species_index, depth+1, 0)
         }
     }
-    state done() {}
+    machine done() {}
 }

@@ -24,7 +24,7 @@ machine owned(value: Packet) -> bool {
 
 machine forwarded(value: Packet) -> bool {
     transition { _ -> arrived(value) }
-    state arrived(received: Packet) -> bool {
+    machine arrived(received: Packet) -> bool {
         let length: u64 = count(&received.segments[0]);
         length == 2 && received.sequence == 41
     }
@@ -132,6 +132,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

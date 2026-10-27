@@ -20,12 +20,12 @@ machine exercise(lhs: i32 in Wrapping, rhs: i32 in Wrapping) -> i32 crashes Trap
         true -> step(diff)
         _ -> bad()
     }
-    state step(d: i32) -> i32 {
+    machine step(d: i32) -> i32 {
         let val: i32 = d;
         let v: i32 = val;
         verify_diff(v)
     }
-    state bad() { crash Trap; }
+    machine bad() -> i32 { crash Trap; }
 }
 
 machine main() crashes Trap {
@@ -34,6 +34,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

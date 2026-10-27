@@ -1,0 +1,24 @@
+// A private proof helper forwards the descended subject without another annotation.
+data Branch {
+    case End;
+    case Next(child: Branch);
+}
+
+machine descend(subject: Branch)
+terminates by subject;
+{
+    transition subject {
+        Branch::End -> done()
+        Branch::Next { child } -> forward(child)
+    }
+
+    machine forward(child: Branch) {
+        descend(child);
+    }
+
+    machine done() {}
+}
+
+machine main() {
+    descend(Branch::Next { child: Branch::End });
+}

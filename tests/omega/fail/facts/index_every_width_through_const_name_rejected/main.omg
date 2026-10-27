@@ -16,6 +16,6 @@ machine read_all(values: [u64; 4]) -> u64
 machine main() crashes Trap {
     let values: [u64; 4] = [1, 2, 4, 8];
     transition read_all(values) == 12 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

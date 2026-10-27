@@ -11,7 +11,7 @@ machine observed(main: &mut Main) -> i32 {
 machine Main::main(main: &mut Main) {
     main.calls = 0;
     transition { _ -> guarded(main) _ -> bad(main) }
-    state guarded(main: &mut Main) {
+    machine guarded(main: &mut Main) {
         transition {
             main.calls == 1 -> bad(main)
             main.calls == 2 -> bad(main)
@@ -19,10 +19,10 @@ machine Main::main(main: &mut Main) {
             _ -> skipped(observed(main), main)
         }
     }
-    state verify(main: &mut Main) {
+    machine verify(main: &mut Main) {
         transition main.calls == 0 { true -> good(main) _ -> bad(main) }
     }
-    state skipped(value: i32, main: &mut Main) {}
-    state good(main: &mut Main) {}
-    state bad(main: &mut Main) {}
+    machine skipped(value: i32, main: &mut Main) {}
+    machine good(main: &mut Main) {}
+    machine bad(main: &mut Main) {}
 }

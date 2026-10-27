@@ -288,17 +288,19 @@ fn call_write_places(
         return Some(unattributed_writes(regions));
     }
 
-    let summarized_places = instantiate_known_call_mutation_summary_places(
-        program,
-        caller_machine_symbol,
-        caller_state_symbol,
-        borrow,
-        borrow_call,
-        state_mutation_summaries,
-        namespace,
-        call_frames,
-        loan,
-    );
+    let summarized_places = phase_profile::scope("05.d.3.b.flow.mutation.1_summary", || {
+        instantiate_known_call_mutation_summary_places(
+            program,
+            caller_machine_symbol,
+            caller_state_symbol,
+            borrow,
+            borrow_call,
+            state_mutation_summaries,
+            namespace,
+            call_frames,
+            loan,
+        )
+    });
     if summarized_places.is_none() && matches!(namespace, WritePlaceNamespace::Storage) {
         let boundary_target = program.traits().iter().any(|definition| {
             definition.is_boundary
@@ -310,30 +312,34 @@ fn call_write_places(
             // Boundary effects retain their exact receiver and argument footprint,
             // including shared interior authority; a signature ceiling is not a
             // replacement for that separately owned contract.
-            return shared_call_storage_regions(
-                program,
-                caller_machine_symbol,
-                caller_state_symbol,
-                borrow,
-                borrow_call,
-                call_frames,
-            )
-            .map(unattributed_writes);
+            return phase_profile::scope("05.d.3.b.flow.mutation.2_boundary", || {
+                shared_call_storage_regions(
+                    program,
+                    caller_machine_symbol,
+                    caller_state_symbol,
+                    borrow,
+                    borrow_call,
+                    call_frames,
+                )
+                .map(unattributed_writes)
+            });
         }
         // Flow invalidation is the invocation after its operands completed.
         // Borrow argument accesses also contain nested operand calls; replaying
         // those here would retire facts those completed calls just restored.
         // The callee's declared authority bounds an unknown invocation. An
         // unrepresentable ceiling stays unknown and invalidates all contexts.
-        return ceiling::signature_ceiling_regions(
-            program,
-            caller_machine_symbol,
-            caller_state_symbol,
-            Some(borrow),
-            borrow_call,
-            call_frames,
-        )
-        .map(unattributed_writes);
+        return phase_profile::scope("05.d.3.b.flow.mutation.3_ceiling", || {
+            ceiling::signature_ceiling_regions(
+                program,
+                caller_machine_symbol,
+                caller_state_symbol,
+                Some(borrow),
+                borrow_call,
+                call_frames,
+            )
+            .map(unattributed_writes)
+        });
     }
     if let Some(summarized_places) = summarized_places {
         // A complete frame describes actual writes, not everything exclusive
@@ -375,9 +381,7 @@ fn exclusive_loan_places(
                 segments: Vec::new(),
             };
             place.extend_segments(borrow.access_segments.span_or_empty(access.segments));
-            if !places.contains(&place) {
-                places.push(place);
-            }
+            crate::collections::push_unique(&mut places, place);
         }
     }
 
@@ -465,9 +469,7 @@ fn codec_frame_storage_regions(
         )
         .or_else(|| state_root_place(program, state, path.as_str()))?;
         let region = StorageRegion::Declared(place);
-        if !regions.contains(&region) {
-            regions.push(region);
-        }
+        crate::collections::push_unique(&mut regions, region);
     }
     Some(regions)
 }
@@ -565,9 +567,7 @@ fn shared_call_storage_regions(
             call_frames,
         )? {
             let StorageRegion::Declared(coarse) = region else {
-                if !places.contains(&region) {
-                    places.push(region);
-                }
+                crate::collections::push_unique(&mut places, region);
                 continue;
             };
             // The durable frame path deliberately drops index selectors to the
@@ -596,16 +596,12 @@ fn shared_call_storage_regions(
             };
             if refinements.is_empty() {
                 let region = StorageRegion::Declared(coarse);
-                if !places.contains(&region) {
-                    places.push(region);
-                }
+                crate::collections::push_unique(&mut places, region);
                 continue;
             }
             for refined in refinements {
                 let region = StorageRegion::Declared(refined);
-                if !places.contains(&region) {
-                    places.push(region);
-                }
+                crate::collections::push_unique(&mut places, region);
             }
         }
     }
@@ -670,9 +666,7 @@ fn boundary_frame_access_places(
             break;
         };
         for rebased in rebased {
-            if !exclusive_referents.contains(&rebased) {
-                exclusive_referents.push(rebased);
-            }
+            crate::collections::push_unique(&mut exclusive_referents, rebased);
         }
     }
     if refinable
@@ -732,9 +726,7 @@ fn boundary_frame_access_places(
                 ) {
                     Some(rebased) => {
                         for anchor in rebased {
-                            if !coarse_anchors.contains(&anchor) {
-                                coarse_anchors.push(anchor);
-                            }
+                            crate::collections::push_unique(&mut coarse_anchors, anchor);
                         }
                     }
                     None => {
@@ -767,9 +759,7 @@ fn boundary_frame_access_places(
         ) {
             Some(rebased) => {
                 for receiver in rebased {
-                    if !coarse_anchors.contains(&receiver) {
-                        coarse_anchors.push(receiver);
-                    }
+                    crate::collections::push_unique(&mut coarse_anchors, receiver);
                 }
             }
             None => refinable = false,
@@ -953,9 +943,7 @@ pub(crate) fn frame_storage_writes(
             source,
             call_frames,
         )? {
-            if !places.contains(&place) {
-                places.push(place);
-            }
+            crate::collections::push_unique(&mut places, place);
         }
     }
     local_origins::close_storage_places_over_aliases(

@@ -34,7 +34,7 @@ crashes Trap {
         true -> (selected.bytes.len)
         false -> wrong()
     }
-    state wrong() -> u64 { crash Trap; }
+    machine wrong() -> u64 { crash Trap; }
 }
 machine main() crashes Trap {
     let storage: [u8; 9] = [11, 2, 29, 4, 5, 6, 7, 8, 9];
@@ -49,6 +49,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

@@ -13,56 +13,44 @@ pub struct TerminalCallbackThunkArtifact {
     artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
     entry: semantic_vocabulary::MachineId,
     /// Dense semantic formal ordinals in the body's scalar-then-structural
-    /// parameter order. These are produced from the checked entry before
-    /// source erasure, never inferred from equal native shapes.
+    /// parameter order. Derived from the canonical body's retained runtime
+    /// order, never inferred from equal native shapes or checked source.
     parameter_formals: Vec<u32>,
 }
 
 impl TerminalCallbackThunkArtifact {
-    pub fn new(
+    /// Join the retained callback occurrence to its unique canonical body.
+    /// Formal ordering is part of that body, never a source-side sidecar.
+    pub fn for_application(
         artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
-        entry: semantic_vocabulary::MachineId,
-        scalar_source_positions: &[u32],
-        structural_source_positions: &[u32],
+        application_index: u32,
     ) -> Result<Self, &'static str> {
         let module = artifact.semantic_module();
-        let Some(machine) = module.machine(entry) else {
-            return Err("Terminal callback thunk artifact does not contain its entry machine");
-        };
-        if machine.declaration.is_none() {
-            return Err("Terminal callback thunk has no checked declaration identity");
-        }
-        if machine.parameters.len() != scalar_source_positions.len()
-            || machine.structural_parameters.len() != structural_source_positions.len()
-            || scalar_source_positions
-                .windows(2)
-                .any(|pair| pair[0] >= pair[1])
-            || structural_source_positions
-                .windows(2)
-                .any(|pair| pair[0] >= pair[1])
-        {
-            return Err("callback checked and Terminal entry parameter lanes disagree");
-        }
-        let mut runtime_positions = scalar_source_positions
-            .iter()
-            .chain(structural_source_positions)
-            .copied()
-            .collect::<Vec<_>>();
-        runtime_positions.sort_unstable();
-        if runtime_positions.windows(2).any(|pair| pair[0] == pair[1]) {
-            return Err("callback checked entry has duplicate runtime formal positions");
-        }
-        let parameter_formals = scalar_source_positions
-            .iter()
-            .chain(structural_source_positions)
-            .map(|position| {
-                runtime_positions
-                    .binary_search(position)
-                    .ok()
-                    .and_then(|ordinal| u32::try_from(ordinal).ok())
-                    .ok_or("callback entry formal cannot be represented")
+        let application = module
+            .callback_applications
+            .binary_search_by_key(&application_index, |application| {
+                application.application_index
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .ok()
+            .map(|position| &module.callback_applications[position])
+            .ok_or("Terminal callback thunk has no retained application")?;
+        let mut bodies = module.machines.iter().filter(|machine| {
+            machine.declaration.as_ref().is_some_and(|declaration| {
+                declaration.same_identity_as(
+                    &module.identities,
+                    &application.body,
+                    &module.identities,
+                )
+            })
+        });
+        let body = bodies
+            .next()
+            .ok_or("Terminal callback application has no exact retained body")?;
+        if bodies.next().is_some() {
+            return Err("Terminal callback application has ambiguous retained bodies");
+        }
+        let entry = body.id;
+        let parameter_formals = body.runtime_parameter_formals()?;
         Ok(Self {
             artifact,
             entry,

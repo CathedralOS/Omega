@@ -11,47 +11,47 @@ data Main { input: Input; analysis: Analysis; }
 machine Main::main(main: &mut Main) reaches Console {
  block Input::read(&mut main.input);
  transition main.input.valid && main.input.count >= 3 { true -> header(main) false -> invalid(main) }
- state header(main: &mut Main) {
+ machine header(main: &mut Main) {
   transition (main.input.values[0] == 0.0 || main.input.values[0] == 1.0) && main.input.values[1] >= 3.0 && main.input.values[1] <= 16.0 && main.input.values[2] >= 2.0 && main.input.values[2] <= 4.0 { true -> dimensions(main) false -> invalid(main) }
  }
- state dimensions(main: &mut Main) {
+ machine dimensions(main: &mut Main) {
   let rows: u64 in Saturating = U64::from_f64(main.input.values[1]);
   let features: u64 in Saturating = U64::from_f64(main.input.values[2]);
   main.analysis.rows = rows as u64 in Wrapping; main.analysis.features = features as u64 in Wrapping;
   transition F64::from_u64(rows as u64 in Wrapping) == main.input.values[1] && F64::from_u64(features as u64 in Wrapping) == main.input.values[2] && main.input.count == 3 + (rows as u64 in Wrapping) * (features as u64 in Wrapping) { true -> mode(main) false -> invalid(main) }
  }
- state mode(main: &mut Main) {
+ machine mode(main: &mut Main) {
   transition main.input.values[0] == 1.0 { true -> correlation(main) false -> covariance(main) }
  }
- state correlation(main: &mut Main) { main.analysis.mode = 1; transition { _ -> copy(main, 0) } }
- state covariance(main: &mut Main) { main.analysis.mode = 0; transition { _ -> copy(main, 0) } }
- state copy(main: &mut Main, index: u64 in Wrapping) {
+ machine correlation(main: &mut Main) { main.analysis.mode = 1; transition { _ -> copy(main, 0) } }
+ machine covariance(main: &mut Main) { main.analysis.mode = 0; transition { _ -> copy(main, 0) } }
+ machine copy(main: &mut Main, index: u64 in Wrapping) {
   transition index < 64 { true -> slot(main, index) false -> solve(main) }
  }
- state slot(main: &mut Main, index: u64 in Wrapping) {
+ machine slot(main: &mut Main, index: u64 in Wrapping) {
   transition index / 4 < main.analysis.rows && index % 4 < main.analysis.features { true -> measurement(main, index) false -> padding(main, index) }
  }
- state measurement(main: &mut Main, index: u64 in Wrapping) {
+ machine measurement(main: &mut Main, index: u64 in Wrapping) {
   let offset: u64 in Wrapping = 3 + (index / 4) * main.analysis.features + index % 4;
   transition offset < 67 { true -> store(main, index, offset) false -> invalid(main) }
  }
- state store(main: &mut Main, index: u64 in Wrapping, offset: u64 in Wrapping) {
+ machine store(main: &mut Main, index: u64 in Wrapping, offset: u64 in Wrapping) {
   main.analysis.values[index % 64] = main.input.values[offset];
   transition { _ -> copy(main, index + 1) }
  }
- state padding(main: &mut Main, index: u64 in Wrapping) { main.analysis.values[index % 64] = 0.0; transition { _ -> copy(main, index + 1) } }
- state solve(main: &mut Main) {
+ machine padding(main: &mut Main, index: u64 in Wrapping) { main.analysis.values[index % 64] = 0.0; transition { _ -> copy(main, index + 1) } }
+ machine solve(main: &mut Main) {
   analyze(&mut main.analysis);
   transition main.analysis.status { 0 -> quality(main) 65 -> constant(main) _ -> numerical(main) }
  }
- state quality(main: &mut Main) {
+ machine quality(main: &mut Main) {
   qualify(&mut main.analysis);
   transition main.analysis.status == 0 { true -> output(main) false -> numerical(main) }
  }
- state output(main: &mut Main) { report(&main.analysis); Console::exit_process(0); }
- state invalid(main: &mut Main) { Console::write_line("error invalid input"); Console::exit_process(64); }
- state constant(main: &mut Main) { Console::write_line("error constant feature in correlation mode"); Console::exit_process(65); }
- state numerical(main: &mut Main) { Console::write_line("error numerical range or convergence"); Console::exit_process(66); }
+ machine output(main: &mut Main) { report(&main.analysis); Console::exit_process(0); }
+ machine invalid(main: &mut Main) { Console::write_line("error invalid input"); Console::exit_process(64); }
+ machine constant(main: &mut Main) { Console::write_line("error constant feature in correlation mode"); Console::exit_process(65); }
+ machine numerical(main: &mut Main) { Console::write_line("error numerical range or convergence"); Console::exit_process(66); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

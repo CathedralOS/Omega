@@ -26,6 +26,7 @@ package-compilation = { path = "../../packages/compilation-inputs" }
 provider-planning = { path = "../realization/provider-planning" }
 trust-model = { path = "../realization/trust-model" }
 boundary-applications = { path = "../backend/artifacts/boundary-applications" }
+calling-conventions = { path = "../backend/calling-conventions" }
 optimization = { path = "../../../psi/foundation/optimization-selections" }
 optimization-core = { path = "../../foundation/optimization-core" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
@@ -48,6 +49,7 @@ selected-dispatch = { path = "../realization/selected-dispatch" }
 image-emission = { path = "../backend/images/image-emission" }
 native-artifact = { path = "../backend/artifacts/native-artifact" }
 terminal-psi-to-abstract-operations = { path = "../pipeline/00_terminal-psi-to-abstract-operations" }
+phase-profile = { path = "../../../psi/foundation/phase-profile" }
 
 [build-dependencies]
 optimization-core = { path = "../../foundation/optimization-core" }
@@ -66,16 +68,12 @@ numerics = { path = "../../../psi/foundation/numerics" }
 terminal-semantics = { path = "../../../psi/compilation/representations/terminal-psi/semantics" }
 terminal-fuel = { path = "../../../psi/compilation/representations/terminal-psi/fuel" }
 terminal-interpreter = { path = "../../../psi/interpreter/terminal-interpreter" }
-calling-conventions = { path = "../backend/calling-conventions" }
 access-plans = { path = "../../../psi/foundation/access-plans" }
 extents = { path = "../../../psi/foundation/extents" }
 platform-custody = { path = "../../foundation/platform-custody" }
 checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
-syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
 task-plans = { path = "../backend/runtime/task-plans" }
-source-files-to-tokens = { path = "../../../psi/compilation/pipeline/00_source-files-to-tokens" }
 installation-evidence = { path = "../backend/runtime/installation-evidence" }
-tokens-to-syntax-trees = { path = "../../../psi/compilation/pipeline/01_tokens-to-syntax-trees" }
 object-file = { path = "../backend/object/object-file" }
 mimalloc = { version = "0.1", default-features = false }
 package-compilation = { path = "../../packages/compilation-inputs", features = ["test-support"] }
@@ -120,6 +118,10 @@ path = "tests/terminal_behavior_exclusions.rs"
 name = "terminal_effect_readiness"
 path = "tests/terminal_effect_readiness.rs"
 
+[[test]]
+name = "product_query_suspension"
+path = "tests/product_query_suspension.rs"
+
 # Loose roots intentionally have no fixture-supplied package owner. This
 # boundary test derives that owner, reloads its artifact and runs consumers
 # against the exact supplied identity; ordinary corpus setup masks this path.
@@ -130,3 +132,7 @@ path = "tests/anonymous_module_owner.rs"
 [[test]]
 name = "package_review"
 path = "tests/package_review.rs"
+
+[[test]]
+name = "executed_fixture_discovery"
+path = "tests/executed_fixture_discovery.rs"

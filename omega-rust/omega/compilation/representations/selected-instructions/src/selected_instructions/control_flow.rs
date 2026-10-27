@@ -182,6 +182,11 @@ pub enum SelectedSuccessorRole {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SelectedTerminator {
+    /// A funded ordinary invocation keeps this activation suspended.
+    InvokeNoNormal {
+        instruction: SelectedInstruction,
+        psi_edge: EdgeId,
+    },
     /// Failed runtime assertion inside a native operation's implementation.
     /// This has no normal continuation, authored Crash edge, or custody exit.
     /// The containing operation owns the failure and its abandoned state.
@@ -352,7 +357,8 @@ pub enum SelectedValueTransport {
 macro_rules! terminator_instruction_match {
     ($terminator:expr) => {
         match $terminator {
-            SelectedTerminator::ConditionalBranch { instruction, .. }
+            SelectedTerminator::InvokeNoNormal { instruction, .. }
+            | SelectedTerminator::ConditionalBranch { instruction, .. }
             | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
             | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
             | SelectedTerminator::Jump { instruction, .. }
@@ -403,7 +409,8 @@ macro_rules! terminator_successors_match {
                 when_not_less,
                 ..
             } => vec![when_less, when_not_less],
-            SelectedTerminator::Return { .. }
+            SelectedTerminator::InvokeNoNormal { .. }
+            | SelectedTerminator::Return { .. }
             | SelectedTerminator::Crash { .. }
             | SelectedTerminator::OperationTrap { .. }
             | SelectedTerminator::HostedExitProcess { .. } => Vec::new(),
@@ -427,7 +434,8 @@ pub fn terminator_successors_mut(
 #[macro_export]
 macro_rules! terminator_no_successor_pattern {
     ($($fields:tt)*) => {
-        $crate::SelectedTerminator::Crash { $($fields)* }
+        $crate::SelectedTerminator::InvokeNoNormal { $($fields)* }
+            | $crate::SelectedTerminator::Crash { $($fields)* }
             | $crate::SelectedTerminator::OperationTrap { $($fields)* }
             | $crate::SelectedTerminator::HostedExitProcess { $($fields)* }
             | $crate::SelectedTerminator::Return { $($fields)* }

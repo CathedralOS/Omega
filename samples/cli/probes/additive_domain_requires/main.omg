@@ -44,5 +44,5 @@ machine additive_domain_requires() {
         _ -> done(71)
     }
 
-    state done(code: i32) {}
+    machine done(code: i32) {}
 }

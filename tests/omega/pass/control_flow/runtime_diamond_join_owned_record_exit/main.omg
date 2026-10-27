@@ -10,9 +10,9 @@ machine route(token: Token, flag: bool) {
         true -> left(token)
         false -> right(token)
     }
-    state left(held: Token) { transition { _ -> join(held) } }
-    state right(held: Token) { transition { _ -> join(held) } }
-    state join(finished: Token) {}
+    machine left(held: Token) { transition { _ -> join(held) } }
+    machine right(held: Token) { transition { _ -> join(held) } }
+    machine join(finished: Token) {}
 }
 
 machine Main::main(main: &mut Main) reaches Console {

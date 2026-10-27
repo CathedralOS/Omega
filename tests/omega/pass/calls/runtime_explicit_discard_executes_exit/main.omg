@@ -32,7 +32,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> discard_call(main)
     }
 
-    state discard_call(main: &mut Main) {
+    machine discard_call(main: &mut Main) {
         _ = Main::roll(&mut main.tally);
 
         transition {
@@ -40,7 +40,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state report(main: &mut Main) {
+    machine report(main: &mut Main) {
         transition {
             main.tally.calls == 41 -> exit_correct(main)
             main.tally.calls == 40 -> exit_lost(main)
@@ -49,10 +49,10 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state exit_correct(main: &mut Main) { Console::exit_process(70); }
-    state exit_lost(main: &mut Main) { Console::exit_process(10); }
-    state exit_doubled(main: &mut Main) { Console::exit_process(3); }
-    state exit_other(main: &mut Main) { Console::exit_process(77); }
+    machine exit_correct(main: &mut Main) { Console::exit_process(70); }
+    machine exit_lost(main: &mut Main) { Console::exit_process(10); }
+    machine exit_doubled(main: &mut Main) { Console::exit_process(3); }
+    machine exit_other(main: &mut Main) { Console::exit_process(77); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

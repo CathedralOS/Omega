@@ -13,7 +13,7 @@ ensures result.len == 2
         _ -> &mut samples[2..4]
     };
     transition { _ -> carry(selected) }
-    state carry(selected: &'samples mut [f64]) -> &'samples mut [f64]
+    machine carry(selected: &'samples mut [f64]) -> &'samples mut [f64]
     requires selected.len == 2
     { selected }
 }
@@ -44,8 +44,8 @@ machine exercise(which: i64) crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 machine main() crashes Trap {
     exercise(0);

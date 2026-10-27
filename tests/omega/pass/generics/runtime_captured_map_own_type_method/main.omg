@@ -9,6 +9,6 @@ machine choose<Operations satisfies Identity>(value: i32) -> i32 blocks; {
 machine main() blocks; crashes Trap {
     let observed: i32 = block choose<Selected<bool>>(53);
     transition observed == 53 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

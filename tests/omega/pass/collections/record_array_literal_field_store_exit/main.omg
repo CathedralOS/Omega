@@ -13,13 +13,13 @@ data Main {
 machine Main::main(context: &mut Main) reaches Console {
     context.points = [Point { x: 1, y: 2 }, Point { x: 3, y: 4 }, Point { x: 5, y: 20 }];
     transition { _ -> check(context) }
-    state check(context: &mut Main) {
+    machine check(context: &mut Main) {
         transition context.points[2].y == 20 && context.points[0].x == 1 && context.points[1].y == 4 {
             true -> finish(context, 25)
             _ -> finish(context, 1)
         }
     }
-    state finish(context: &mut Main, code: i32) {
+    machine finish(context: &mut Main, code: i32) {
         Console::exit_process(code);
     }
 }

@@ -34,6 +34,10 @@ struct RegisteredPackageRoot {
 }
 
 impl SourceStorage {
+    pub(crate) fn default_package_root(&self) -> &Path {
+        &self.default_package_root
+    }
+
     /// Initialize exact package roots and product dependency authority before loading.
     /// Build-only dependencies never authorize product source selection.
     pub fn prepare(

@@ -23,7 +23,7 @@ machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
     let access: AccessPlan = AccessPlan::inaccessible(&schema);
     transition { _ -> place_status(schema, access, entries) }
 
-    state place_status(
+    machine place_status(
         schema: Schema,
         access: AccessPlan,
         entries: [FieldEntry; 64]
@@ -44,7 +44,7 @@ machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
         ) }
     }
 
-    state place_transmit(
+    machine place_transmit(
         schema: Schema,
         access: AccessPlan,
         entries: [FieldEntry; 64]
@@ -63,7 +63,7 @@ machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
         ) }
     }
 
-    state finish(
+    machine finish(
         access: AccessPlan,
         entries: [FieldEntry; 64]
     ) -> PlacementPlan {
@@ -90,9 +90,30 @@ machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
 machine finish(view: &mut Placed<RegPlacement, Registers>, code: u8) requires code == 9u8 crashes Trap {
     let observed: u32 = view.status.read(&view.status);
     transition observed == 41u32 { true -> write(view, code) _ -> bad() }
-    state write(view: &mut Placed<RegPlacement, Registers>, code: u8) requires code == 9u8 {
+    machine write(view: &mut Placed<RegPlacement, Registers>, code: u8) requires code == 9u8 {
         view.transmit.write(&mut view.transmit, code);
     }
-    state bad() { crash Trap; }
+    machine bad() { crash Trap; }
 }
-machine start(view: &mut Placed<RegPlacement, Registers>) crashes Trap { let flag: bool = false; let code: u8 = match flag { true -> 8u8 _ -> 8u8 }; finish(view, code); }
+data Selection { code: u8; branch_tag: u8; }
+
+machine write_selected(view: &mut Placed<RegPlacement, Registers>, flag: bool, expected_tag: u8) crashes Trap {
+    let selected: Selection = match flag {
+        true -> Selection { code: 8u8, branch_tag: 11u8 },
+        _ -> Selection { code: 8u8, branch_tag: 13u8 },
+    };
+    finish(view, selected.code);
+    transition selected.branch_tag == expected_tag {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}
+
+machine start(view: &mut Placed<RegPlacement, Registers>) crashes Trap {
+    let first_status: u32 = view.status.read(&view.status);
+    write_selected(view, first_status == 41u32, 11u8);
+    let second_status: u32 = view.status.read(&view.status);
+    write_selected(view, second_status != 41u32, 13u8);
+}

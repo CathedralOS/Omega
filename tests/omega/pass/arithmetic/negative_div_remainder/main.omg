@@ -9,12 +9,12 @@ machine Main::main(main: &mut Main) {
         true -> finish((0i32 - 17) / 5i32 + (0i32 - 17) % 5i32)
         false -> bad()
     }
-    state finish(value: i32) {
+    machine finish(value: i32) {
         transition value == (0i32 - 5) {
             true -> done()
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() {}
+    machine done() {}
+    machine bad() {}
 }

@@ -15,6 +15,6 @@ machine main() crashes Trap {
     let c: i32 in Wrapping = sum(&Pair { left: 20, right: 3 });
     let d: i32 in Wrapping = peek(&Pair { left: 4, right: 9 }.right);
     transition a == 7 && b == 19 && c == 23 && d == 9 { true -> done() false -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

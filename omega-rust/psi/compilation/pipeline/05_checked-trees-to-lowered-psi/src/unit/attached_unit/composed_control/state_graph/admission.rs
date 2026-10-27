@@ -62,7 +62,7 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
     // The ordinary callable contract publishes the checked requirements and
     // guarantees. Result custody below independently transports linear claims;
     // a linear carrier does not require a second source-contract admission.
-    super::ranking::require_witness_ranks(machine, plan)?;
+    super::ranking::require_witness_ranks(checked, plan)?;
     super::super::admission::reject_attachment(plan)?;
     // A fused roster admits foreign states: each position resolves its own
     // authored owner, no state may repeat, and the dispatch machine's authored

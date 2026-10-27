@@ -5,6 +5,6 @@ const SOURCE: [Cell; SIZE] = [Cell { value: 3 }];
 const ALIAS: [Cell; 1] = SOURCE;
 machine main() crashes Trap {
     transition ALIAS[0].value == 3 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -164,6 +164,6 @@ machine main() crashes Trap {
         && returned_difference == 0 && returned_original.bytes.len == 9 && returned_original.bytes[0] == 91u8 && returned_original.sibling.len == 4 && returned_source.bytes.len == 8 {
         true -> done() false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

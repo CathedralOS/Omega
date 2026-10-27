@@ -14,7 +14,7 @@ requires lhs >= 10 && lhs <= 20 && rhs >= 5 && rhs <= 10
     transition {
         _ -> step(lhs, rhs)
     }
-    state step(l: u16, r: u16) -> u16
+    machine step(l: u16, r: u16) -> u16
     requires l >= 10 && l <= 20 && r >= 5 && r <= 10
     {
         let a: u16 in Saturating = l as u16 in Saturating;
@@ -34,6 +34,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -16,5 +16,5 @@ machine build(builder: &mut Build) {
 // opaque description back; `roots.bind` rejoins it to the exact machine the
 // query chose.
 machine choose(builder: &mut Build, slot: &[u8]) -> ProductEntryRef {
-    BuildProduct::entry(&builder.product, "right::Runner::run", slot)
+    BuildProduct::entry(&builder.product, "right::run", slot)
 }

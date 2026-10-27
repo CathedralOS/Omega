@@ -17,6 +17,6 @@ machine produce() -> [u16; 4] in ZeroTail {
 machine main() crashes Trap {
     let answer: u16 = consume(produce());
     transition answer == 65535u16 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

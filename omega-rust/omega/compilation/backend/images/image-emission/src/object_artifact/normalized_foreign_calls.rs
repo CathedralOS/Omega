@@ -220,9 +220,7 @@ pub fn derive_normalized_foreign_call_custody(
                             psi_operation,
                             ..
                         } if record.invocation_site
-                            == semantic_vocabulary::BoundaryInvocationSite::Operation(
-                                *psi_operation,
-                            ) =>
+                            == semantic_vocabulary::InvocationSite::Operation(*psi_operation) =>
                         {
                             Some(index)
                         }
@@ -230,7 +228,7 @@ pub fn derive_normalized_foreign_call_custody(
                             psi_edge,
                             ..
                         } if record.invocation_site
-                            == semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(
+                            == semantic_vocabulary::InvocationSite::ExternalCompletion(
                                 *psi_edge,
                             ) =>
                         {
@@ -1476,15 +1474,16 @@ pub(crate) fn image_foreign_calls_match_object(
 /// one from a constructor's numeric identity or discard its charges.
 pub fn foreign_invocation_provenance_matches(
     provenance: &selected_instructions::SelectedInstructionProvenance,
-    site: semantic_vocabulary::BoundaryInvocationSite,
+    site: semantic_vocabulary::InvocationSite,
 ) -> bool {
     match site {
-        semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
+        semantic_vocabulary::InvocationSite::InvokeNoNormal(_) => false,
+        semantic_vocabulary::InvocationSite::Operation(operation) => {
             provenance.operations.last() == Some(&operation)
                 && provenance.edges.is_empty()
                 && provenance.fuel_settles_only_claimed_sites()
         }
-        semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+        semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
             provenance.edges.as_slice() == [edge] && provenance.fuel_settles_only_claimed_sites()
         }
     }

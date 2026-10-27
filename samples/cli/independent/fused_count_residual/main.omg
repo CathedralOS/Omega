@@ -35,7 +35,7 @@ machine difference(moment: &Moment, index: i32 in Wrapping) -> f64 {
         true -> read(moment, index)
         false -> 0.0
     }
-    state read(moment: &Moment, index: i32 in Wrapping) -> f64
+    machine read(moment: &Moment, index: i32 in Wrapping) -> f64
     requires index >= 0 && index < 3 {
         moment.differences[index]
     }
@@ -44,19 +44,19 @@ machine difference(moment: &Moment, index: i32 in Wrapping) -> f64 {
 machine accumulate(moment: &mut Moment) {
     moment.chain = 0.0;
     transition { _ -> step(moment, 0) }
-    state step(moment: &mut Moment, index: i32 in Wrapping) {
+    machine step(moment: &mut Moment, index: i32 in Wrapping) {
         transition index >= 0 && index < 3 {
             true -> square(moment, index)
             false -> done()
         }
     }
-    state square(moment: &mut Moment, index: i32 in Wrapping)
+    machine square(moment: &mut Moment, index: i32 in Wrapping)
     requires index >= 0 && index < 3 {
         let value: f64 = difference(moment, index);
         moment.chain = fused_parameter(value, value, moment.chain);
         transition { _ -> step(moment, index + 1) }
     }
-    state done() { }
+    machine done() { }
 }
 
 data Main {
@@ -69,7 +69,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.moment.differences[2] = 2.5;
     transition { _ -> cancel(main) }
 
-    state cancel(main: &mut Main) {
+    machine cancel(main: &mut Main) {
         let left: f64 = 1.0000000000000002220446049250313080847263336181640625;
         let addend: f64 = 0.0 - 1.000000000000000444089209850062616169452667236328125;
         let local_fused: f64 = F64::fused_multiply_add(left, left, addend);
@@ -83,11 +83,11 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> fail(main)
         }
     }
-    state scan(main: &mut Main) {
+    machine scan(main: &mut Main) {
         accumulate(&mut main.moment);
         transition { _ -> exact(main) }
     }
-    state exact(main: &mut Main) {
+    machine exact(main: &mut Main) {
         let fused_product: f64 = fused_parameter(2.0, 3.0, 4.0);
         let separate_product: f64 = separate_parameter(2.0, 3.0, 4.0);
         transition main.moment.chain == 8.75
@@ -97,11 +97,11 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> fail(main)
         }
     }
-    state pass(main: &mut Main) {
+    machine pass(main: &mut Main) {
         Console::write_line("PASS");
         Console::exit_process(0);
     }
-    state fail(main: &mut Main) {
+    machine fail(main: &mut Main) {
         Console::write_line("FAIL");
         Console::exit_process(1);
     }

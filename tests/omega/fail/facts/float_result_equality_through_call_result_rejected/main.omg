@@ -18,6 +18,6 @@ machine main() crashes Trap {
     let item: Ends = Ends { kept: 7.0, other: 1.0 };
     let saved: f64 = read_kept(&item);
     transition agree(saved, item.kept) == 7.0 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

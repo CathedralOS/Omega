@@ -9,7 +9,7 @@ machine replace(at: u64, bytes: &mut [u8; 2] in Ascii, value: u8) -> bool {
         true -> write(at, bytes, value, true)
         _ -> false
     }
-    state write(at: u64, bytes: &mut [u8; 2] in Ascii, value: u8, repeat: bool) -> bool {
+    machine write(at: u64, bytes: &mut [u8; 2] in Ascii, value: u8, repeat: bool) -> bool {
         bytes[at] = value;
         transition repeat {
             true -> write(at, bytes, value, false)

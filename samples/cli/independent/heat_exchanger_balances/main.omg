@@ -17,27 +17,27 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> validate_input(&raw, &mut input, &mut solution)
         false -> invalid()
     }
-    state validate_input(raw: &io::input::Raw, input: &mut io::input::Input, solution: &mut model::stages::Solution) {
+    machine validate_input(raw: &io::input::Raw, input: &mut io::input::Input, solution: &mut model::stages::Solution) {
         transition io::input::validate(raw, input) {
             true -> calculate(input, solution)
             false -> invalid()
         }
     }
-    state calculate(input: &io::input::Input, solution: &mut model::stages::Solution) {
+    machine calculate(input: &io::input::Input, solution: &mut model::stages::Solution) {
         transition model::stages::solve(input, solution) {
             true -> output(input, solution)
             false -> failed()
         }
     }
-    state output(input: &io::input::Input, solution: &model::stages::Solution) {
+    machine output(input: &io::input::Input, solution: &model::stages::Solution) {
         io::report::emit(input, solution);
         Console::exit_process(0);
     }
-    state invalid() {
+    machine invalid() {
         Console::write_line("INVALID bounded counterflow input");
         Console::exit_process(64);
     }
-    state failed() {
+    machine failed() {
         Console::write_line("FAIL numerical balance");
         Console::exit_process(65);
     }

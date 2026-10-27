@@ -137,7 +137,7 @@ machine prefix() reaches Console {
     triple.right = Token { value: 42, byte: 66 };
     triple.left = Token { value: 42, byte: 65 };
     transition { _ -> done() }
-    state done() {}
+    machine done() {}
 }
 
 // Completion changes the cleanup boundary: whole hook, then last/right/left.
@@ -147,7 +147,7 @@ machine complete() reaches Console {
     triple.left = Token { value: 42, byte: 65 };
     triple.last = Token { value: 42, byte: 67 };
     transition { _ -> done() }
-    state done() {}
+    machine done() {}
 }
 
 // Replacement disposes B once, and D takes the later establishment position.
@@ -157,7 +157,7 @@ machine replace() reaches Console {
     triple.left = Token { value: 42, byte: 65 };
     triple.right = Token { value: 42, byte: 68 };
     transition { _ -> done() }
-    state done() {}
+    machine done() {}
 }
 
 machine make_pair() -> Pair {

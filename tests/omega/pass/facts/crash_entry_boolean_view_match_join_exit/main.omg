@@ -4,7 +4,7 @@ machine maybe_clear(value: bool) -> bool
 crashes Trap value == false
 {
     transition value == false { true -> bad() false -> (value) }
-    state bad() { crash Trap; }
+    machine bad() -> bool { crash Trap; }
 }
 public data Byte where value >= 0 && value <= 1 { value: u8; }
 public machine read_flag(byte: &Byte, flag: bool) -> bool
@@ -20,5 +20,5 @@ machine main() crashes Trap {
     let first: bool = read_flag(&byte, true);
     let second: bool = read_flag(&byte, false);
     transition first == true && second == true { true -> done() _ -> bad() }
-    state done() {} state bad() { crash Trap; }
+    machine done() {} machine bad() { crash Trap; }
 }

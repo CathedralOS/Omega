@@ -9,6 +9,18 @@ pub use source_custody::{
 };
 use terminal_psi::{TerminalDebugMap, TerminalModule};
 
+/// A checked Build selection joined to its exact emitted requirement slots.
+/// Source coordinates disappear at publication; the declaration, application
+/// and slots become invocation-bound Build companion context.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LoweredBuildProviderRequirement {
+    pub selection: arena::Handle<checked_trees::expression::BuildSelectionRequest>,
+    pub source_state: symbols::SymbolHandle,
+    pub declaration: terminal_psi::NominalDeclarationIdentity,
+    pub application: terminal_psi::TerminalIdentityIndex,
+    pub boundaries: Vec<semantic_vocabulary::BoundaryMachineId>,
+}
+
 /// Producer-private source joins used by explicit source-correspondence audits.
 /// Publication discards these; native settlement reads canonical Terminal rows.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -20,6 +32,7 @@ pub struct LoweredSourceCustody {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoweredPsi {
     pub semantic_module: TerminalModule,
+    pub build_provider_requirements: Vec<LoweredBuildProviderRequirement>,
     /// Explicit application roots kept through optimization. Publication need
     /// not encode this producer demand: entry receipts name the exact retained
     /// declarations in the completed artifact, and confer no runtime authority.

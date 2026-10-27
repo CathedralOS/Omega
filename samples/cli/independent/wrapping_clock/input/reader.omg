@@ -15,38 +15,38 @@ blocks;
 crashes Trap
 {
     transition { _ -> scan(0, 0) }
-    state scan(value: i64 in Wrapping, digits: i64 in Wrapping) -> Token {
+    machine scan(value: i64 in Wrapping, digits: i64 in Wrapping) -> Token {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> end(value, digits)
             ByteRead::Byte { value as byte } -> classify(value, digits, byte)
         }
     }
-    state end(value: i64 in Wrapping, digits: i64 in Wrapping) -> Token {
+    machine end(value: i64 in Wrapping, digits: i64 in Wrapping) -> Token {
         transition digits == 0 {
             true -> (Token::End)
             false -> (Token::Number { value: value })
         }
     }
-    state classify(value: i64 in Wrapping, digits: i64 in Wrapping, byte: i32) -> Token {
+    machine classify(value: i64 in Wrapping, digits: i64 in Wrapping, byte: i32) -> Token {
         transition byte == 32 || byte == 10 || byte == 13 || byte == 9 {
             true -> whitespace(value, digits)
             false -> digit(value, digits, byte)
         }
     }
-    state whitespace(value: i64 in Wrapping, digits: i64 in Wrapping) -> Token {
+    machine whitespace(value: i64 in Wrapping, digits: i64 in Wrapping) -> Token {
         transition digits == 0 {
             true -> scan(0, 0)
             false -> (Token::Number { value: value })
         }
     }
-    state digit(value: i64 in Wrapping, digits: i64 in Wrapping, byte: i32) -> Token {
+    machine digit(value: i64 in Wrapping, digits: i64 in Wrapping, byte: i32) -> Token {
         transition byte >= 48 && byte <= 57 && digits < 19 {
             true -> bounded(value, digits, (widen_i32_to_i64(byte) as i64 in Wrapping) - 48)
             false -> (Token::Invalid)
         }
     }
-    state bounded(value: i64 in Wrapping, digits: i64 in Wrapping, digit: i64 in Wrapping) -> Token {
+    machine bounded(value: i64 in Wrapping, digits: i64 in Wrapping, digit: i64 in Wrapping) -> Token {
         transition value < 922337203685477580 || (value == 922337203685477580 && digit <= 7) {
             true -> scan(value * 10 + digit, digits + 1)
             false -> (Token::Invalid)
@@ -61,24 +61,24 @@ crashes Trap
     acquisition.used = 0;
     acquisition.error = 0;
     transition { _ -> read(acquisition) }
-    state read(acquisition: &mut Acquisition) {
+    machine read(acquisition: &mut Acquisition) {
         transition block next_token() {
             Token::End -> done()
             Token::Invalid -> invalid(acquisition)
             Token::Number { value } -> store(acquisition, value)
         }
     }
-    state store(acquisition: &mut Acquisition, value: i64 in Wrapping) {
+    machine store(acquisition: &mut Acquisition, value: i64 in Wrapping) {
         transition acquisition.used < 53 && acquisition.used >= 0 {
             true -> append(acquisition, value)
             false -> invalid(acquisition)
         }
     }
-    state append(acquisition: &mut Acquisition, value: i64 in Wrapping) {
+    machine append(acquisition: &mut Acquisition, value: i64 in Wrapping) {
         acquisition.tokens[acquisition.used] = value;
         acquisition.used = acquisition.used + 1;
         transition { _ -> read(acquisition) }
     }
-    state invalid(acquisition: &mut Acquisition) { acquisition.error = 1; }
-    state done() { }
+    machine invalid(acquisition: &mut Acquisition) { acquisition.error = 1; }
+    machine done() { }
 }

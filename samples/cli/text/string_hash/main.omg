@@ -27,7 +27,7 @@ machine hash_text(text: &[u8; 5] in Utf8) -> u32 in Wrapping {
     transition { _ -> step(text, 0, 2166136261) }
 
     // Loop over the string's bytes, bounded by its runtime length.
-    state step(text: &[u8; 5] in Utf8, position: i32,
+    machine step(text: &[u8; 5] in Utf8, position: i32,
                hash: u32 in Wrapping) -> u32 in Wrapping
     requires position >= 0
     {
@@ -38,7 +38,7 @@ machine hash_text(text: &[u8; 5] in Utf8) -> u32 in Wrapping {
     }
 
     // Fold the current byte into the hash (FNV-1a: xor then multiply).
-    state mix(text: &[u8; 5] in Utf8, position: i32,
+    machine mix(text: &[u8; 5] in Utf8, position: i32,
               hash: u32 in Wrapping) -> u32 in Wrapping
     requires position >= 0
     {
@@ -52,7 +52,7 @@ machine hash_text(text: &[u8; 5] in Utf8) -> u32 in Wrapping {
         }
     }
 
-    state bump(text: &[u8; 5] in Utf8, position: i32,
+    machine bump(text: &[u8; 5] in Utf8, position: i32,
                hash: u32 in Wrapping) -> u32 in Wrapping
     requires position >= 0 && position < 8
     {

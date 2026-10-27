@@ -74,14 +74,14 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad_sum(main)
     }
 
-    state bad_sum(main: &mut Main) {
+    machine bad_sum(main: &mut Main) {
         Console::write_line("FAIL: recursive sum did not equal 50 (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(71);
     }
 
-    state check_count(main: &mut Main) {
+    machine check_count(main: &mut Main) {
         // Compute count via recursive value-returning call.
         let s2: &[i32 in Wrapping] = &main.arr[..];
         let cnt: i32 = count(s2, 0);
@@ -93,14 +93,14 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state bad_count(main: &mut Main) {
+    machine bad_count(main: &mut Main) {
         Console::write_line("FAIL: recursive count did not equal 4 (exit 72)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(72);
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::write_line("PASS: sum=50 and count=4 both verified (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

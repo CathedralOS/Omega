@@ -40,5 +40,5 @@ machine main() crashes Trap {
     let observed: u64 = receive_ordered(Installing::install(Installer as dyn Installing, &mut source, 6), snapshot(source.value, &mut counter), overwrite(&mut source.value));
     let difference: u64 = observed - 7;
     transition counter.value && difference == 0 && source.value == 9 { true -> done() false -> wrong() }
-    state done() {} state wrong() { crash Trap; }
+    machine done() {} machine wrong() { crash Trap; }
 }

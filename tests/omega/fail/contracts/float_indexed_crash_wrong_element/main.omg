@@ -6,7 +6,7 @@ crashes Trap values[0].value < 0.0 {
         true -> invalid()
         false -> (values[1].value)
     }
-    state invalid() -> f64 { crash Trap; }
+    machine invalid() -> f64 { crash Trap; }
 }
 machine main() crashes Trap {
     let values: [Reading<f64>; 2] = [Reading { value: -1.0 }, Reading { value: 2.0 }];
@@ -15,6 +15,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

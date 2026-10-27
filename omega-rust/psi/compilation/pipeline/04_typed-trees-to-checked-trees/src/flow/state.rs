@@ -209,7 +209,7 @@ pub(super) fn build_state_flow_fact<'plans>(
     let execution_order = program
         .statement_table
         .admitted_execution_order(state.statement_nodes);
-    let state_calls = {
+    let state_calls = phase_profile::scope("05.d.3.b.flow.state_statements", || {
         append_state_statement_flow_facts(
             program,
             borrow,
@@ -224,7 +224,7 @@ pub(super) fn build_state_flow_fact<'plans>(
             borrow_state,
             &execution_order,
         )
-    };
+    });
     active_constraints = filter_expired_borrow_loans(
         &mut build.borrow_lifetimes.weakenings,
         &mut build.contexts.constraint_refs,

@@ -16,8 +16,8 @@ machine ascii_windows(bytes: &[u8] in Ascii) -> bool {
         true -> inspect(bytes)
         false -> short()
     }
-    state short() -> bool { false }
-    state inspect(bytes: &[u8] in Ascii) -> bool {
+    machine short() -> bool { false }
+    machine inspect(bytes: &[u8] in Ascii) -> bool {
         let mut window: &[u8] = bytes[1..3];
         let saved: &[u8] = window;
         let nested: &[u8] = saved[0..1];
@@ -31,8 +31,8 @@ machine no_nul_windows(bytes: &[u8] in NoNul) -> bool {
         true -> inspect(bytes)
         false -> short()
     }
-    state short() -> bool { false }
-    state inspect(bytes: &[u8] in NoNul) -> bool {
+    machine short() -> bool { false }
+    machine inspect(bytes: &[u8] in NoNul) -> bool {
         let prefix: &[u8] = bytes[0..2];
         let empty: &[u8] = prefix[1..1];
         no_nul_matches(prefix, "Pa") && no_nul_matches(empty, "")
@@ -44,6 +44,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

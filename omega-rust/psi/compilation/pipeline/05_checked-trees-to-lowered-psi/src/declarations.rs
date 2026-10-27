@@ -94,10 +94,6 @@ pub(crate) fn target_signature(
             parameter_coordinates: ParameterCoordinates::Authored,
         });
     }
-    // A bodyless external leaf's call source is its exact boundary
-    // requirement; the leaf declares no body to supply one.
-    let external_leaf =
-        validation::exact_external_leaf_boundary_requirement(program, source_target);
     // Captured calls retain the authored machine head, while execution names
     // its entry state. Resolve only the signature here: replacing the source
     // identity would break exact flow and borrow occurrence custody.
@@ -111,9 +107,7 @@ pub(crate) fn target_signature(
             .iter()
             .filter_map(move |state| (state.symbol == target_state).then_some((machine, state)))
     });
-    if external_leaf.is_none()
-        && let Some((machine, state)) = states.next()
-    {
+    if let Some((machine, state)) = states.next() {
         if states.next().is_some() || !machine.symbol.is_valid() {
             return unsupported("call source custody disagrees with its authored callee owner");
         }
@@ -138,9 +132,9 @@ pub(crate) fn target_signature(
             parameter_coordinates: ParameterCoordinates::Authored,
         });
     }
-    let requirement = if let Some((requirement, _)) = external_leaf {
-        requirement
-    } else if let Some((owner, signature)) = program.machine_parameter_signature(source_target) {
+    let requirement = if let Some((owner, signature)) =
+        program.machine_parameter_signature(source_target)
+    {
         if owner.symbol != caller_machine {
             return unsupported("call source custody uses another machine's callable parameter");
         }

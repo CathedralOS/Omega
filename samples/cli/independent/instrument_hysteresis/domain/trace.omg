@@ -23,42 +23,42 @@ machine identify(trace: &mut Trace, stimulus: i32 in Wrapping) {
         true -> first(trace, stimulus)
         false -> compare(trace, stimulus)
     }
-    state first(trace: &mut Trace, stimulus: i32 in Wrapping) {
+    machine first(trace: &mut Trace, stimulus: i32 in Wrapping) {
         trace.previous = stimulus;
         trace.rows = 1;
         trace.ambiguous = 1;
     }
-    state compare(trace: &mut Trace, stimulus: i32 in Wrapping) {
+    machine compare(trace: &mut Trace, stimulus: i32 in Wrapping) {
         transition stimulus == trace.previous {
             true -> plateau(trace, stimulus)
             false -> movement(trace, stimulus)
         }
     }
-    state plateau(trace: &mut Trace, stimulus: i32 in Wrapping) {
+    machine plateau(trace: &mut Trace, stimulus: i32 in Wrapping) {
         trace.plateaus = trace.plateaus + 1;
         transition { _ -> finish(trace, stimulus) }
     }
-    state movement(trace: &mut Trace, stimulus: i32 in Wrapping) {
+    machine movement(trace: &mut Trace, stimulus: i32 in Wrapping) {
         transition stimulus > trace.previous {
             true -> direction(trace, stimulus, 1)
             false -> direction(trace, stimulus, 2)
         }
     }
-    state direction(trace: &mut Trace, stimulus: i32 in Wrapping, branch: i32 in Wrapping) {
+    machine direction(trace: &mut Trace, stimulus: i32 in Wrapping, branch: i32 in Wrapping) {
         transition trace.branch != 0 && trace.branch != branch {
             true -> reversal(trace, stimulus, branch)
             false -> assign(trace, stimulus, branch)
         }
     }
-    state reversal(trace: &mut Trace, stimulus: i32 in Wrapping, branch: i32 in Wrapping) {
+    machine reversal(trace: &mut Trace, stimulus: i32 in Wrapping, branch: i32 in Wrapping) {
         trace.reversals = trace.reversals + 1;
         transition { _ -> assign(trace, stimulus, branch) }
     }
-    state assign(trace: &mut Trace, stimulus: i32 in Wrapping, branch: i32 in Wrapping) {
+    machine assign(trace: &mut Trace, stimulus: i32 in Wrapping, branch: i32 in Wrapping) {
         trace.branch = branch;
         transition { _ -> finish(trace, stimulus) }
     }
-    state finish(trace: &mut Trace, stimulus: i32 in Wrapping) {
+    machine finish(trace: &mut Trace, stimulus: i32 in Wrapping) {
         trace.previous = stimulus;
         trace.rows = trace.rows + 1;
         transition trace.branch == 0 {
@@ -66,8 +66,8 @@ machine identify(trace: &mut Trace, stimulus: i32 in Wrapping) {
             false -> done()
         }
     }
-    state ambiguous(trace: &mut Trace) { trace.ambiguous = trace.ambiguous + 1; }
-    state done() { }
+    machine ambiguous(trace: &mut Trace) { trace.ambiguous = trace.ambiguous + 1; }
+    machine done() { }
 }
 machine magnitude(value: i32 in Wrapping) -> i32 in Wrapping {
     transition value < 0 { true -> (0 - value) false -> (value) }
@@ -78,12 +78,12 @@ machine residual_statistics(trace: &mut Trace, residual: i32 in Wrapping) {
         true -> forward(trace, absolute)
         false -> reverse(trace, absolute)
     }
-    state forward(trace: &mut Trace, absolute: i32 in Wrapping) {
+    machine forward(trace: &mut Trace, absolute: i32 in Wrapping) {
         trace.forward_count = trace.forward_count + 1;
         trace.forward_sum = trace.forward_sum + absolute;
         trace.forward_max = max_i32(trace.forward_max as i32, absolute as i32) as i32 in Wrapping;
     }
-    state reverse(trace: &mut Trace, absolute: i32 in Wrapping) {
+    machine reverse(trace: &mut Trace, absolute: i32 in Wrapping) {
         trace.reverse_count = trace.reverse_count + 1;
         trace.reverse_sum = trace.reverse_sum + absolute;
         trace.reverse_max = max_i32(trace.reverse_max as i32, absolute as i32) as i32 in Wrapping;

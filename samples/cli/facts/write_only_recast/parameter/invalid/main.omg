@@ -8,6 +8,6 @@ machine main() crashes Trap {
     let mut original: Original = Original { value: 0 };
     overwrite(&write original);
     transition original.value == 73 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -101,6 +101,14 @@ impl IntegerObservations<'_> {
         primitive: PrimitiveType,
         value: &Polynomial,
     ) -> Option<()> {
+        if primitive != PrimitiveType::Addr
+            && let Some(constant) = value.constant_value()
+            && let Some((minimum, maximum)) = primitive.integer_bounds()
+            && constant >= BigInt::from_i128(minimum)
+            && constant <= BigInt::from_i128(maximum)
+        {
+            return Some(());
+        }
         if self
             .carrier_bounds
             .iter()
@@ -386,10 +394,11 @@ impl StructuralJudge<'_> {
         for (index, position) in unresolved.into_iter().enumerate() {
             // Shared false grants no negative fact. Preserve the original
             // goal-first sufficient proof when the goal registered operations.
-            proofs[position] = match shared.as_ref().and_then(|values| values.get(index)).copied().flatten() {
-                Some(proven) => proven,
-                None => self.proves_observed_integer_predicate(&predicates[position]),
-            };
+            proofs[position] =
+                match shared.as_ref().and_then(|values| values.get(index)).copied().flatten() {
+                    Some(proven) => proven,
+                    None => self.proves_observed_integer_predicate(&predicates[position]),
+                };
         }
         proofs
     }
@@ -399,15 +408,10 @@ impl StructuralJudge<'_> {
         predicates: &[StructuralTerm],
         unresolved: &[usize],
     ) -> Option<Vec<Option<bool>>> {
-        if !self.runtime_body_values || self.case_facts_only || unresolved.len() < 2 {
+        if !self.runtime_body_values || self.case_facts_only || unresolved.is_empty() {
             return None;
         }
         let prepared = self.prepare_integer_premises()?;
-        let prepared_queries = prepared.observations.engine.lower_bound_queries();
-        let engine_contradictory = prepared_queries.prove_at_least(
-            &Polynomial::constant(BigInt::from_i64(-1)),
-            &BigInt::zero(),
-        );
         let base_atoms = prepared.observations.atoms.len();
         let base_bounds = prepared.observations.carrier_bounds.len();
         let base_param_atoms = prepared.observations.engine.parameter_atoms.len();
@@ -415,6 +419,20 @@ impl StructuralJudge<'_> {
             .observations
             .engine
             .integer_projection_registrations();
+        let has_premises = prepared.observations.installed_carrier_bounds > 0
+            || base_atoms > 0
+            || base_engine_reg != (0, 0, 0, 0);
+        let prepared_queries = std::sync::OnceLock::new();
+        let queries_and_contradictory = || {
+            prepared_queries.get_or_init(|| {
+                let queries = prepared.observations.engine.lower_bound_queries();
+                let contradictory = queries.prove_at_least(
+                    &Polynomial::constant(BigInt::from_i64(-1)),
+                    &BigInt::zero(),
+                );
+                (queries, contradictory)
+            })
+        };
         let mut work = prepared.for_goal();
         Some(
             unresolved
@@ -427,7 +445,8 @@ impl StructuralJudge<'_> {
                         .project_integer_comparison(&predicates[*position], &mut work)
                     {
                         IntegerComparisonProjection::Comparison(comparison) => comparison,
-                        IntegerComparisonProjection::NotInteger => {
+                        IntegerComparisonProjection::NotInteger
+                        | IntegerComparisonProjection::UnavailableOperand => {
                             work.operations.clear();
                             if work.engine.integer_projection_registrations().1 != base_engine_reg.1
                             {
@@ -435,34 +454,35 @@ impl StructuralJudge<'_> {
                             }
                             return Some(false);
                         }
-                        IntegerComparisonProjection::UnavailableOperand => {
-                            work.operations.clear();
-                            if work.engine.integer_projection_registrations().1 != base_engine_reg.1
-                            {
-                                work = prepared.for_goal();
-                            }
-                            return None;
-                        }
                     };
                     let (operator, left, right) = comparison;
-                    if work.operations.is_empty()
-                        && work.engine.integer_projection_registrations().1 == base_engine_reg.1
+                    let goal_only_linear_ops = work.operations.iter().all(|op| {
+                        matches!(
+                            op.operator,
+                            BinaryOperator::Add
+                                | BinaryOperator::Subtract
+                                | BinaryOperator::Multiply
+                        )
+                    });
+                    if work.engine.integer_projection_registrations().1 == base_engine_reg.1
                         && !work.carrier_bounds[base_bounds..]
                             .iter()
                             .any(|bound| bound.primitive == PrimitiveType::Addr)
                     {
-                        if matches!(
-                            operator,
-                            BinaryOperator::Equal
-                                | BinaryOperator::LessOrEqual
-                                | BinaryOperator::GreaterOrEqual
-                        ) && left == right
+                        if work.operations.is_empty()
+                            && matches!(
+                                operator,
+                                BinaryOperator::Equal
+                                    | BinaryOperator::LessOrEqual
+                                    | BinaryOperator::GreaterOrEqual
+                            )
+                            && left == right
                         {
                             return Some(true);
                         }
                         if operator == BinaryOperator::Equal
-                            && !engine_contradictory
                             && work.atoms.len() > base_atoms
+                            && goal_only_linear_ops
                         {
                             let diff = left.sub(&right);
                             if (base_atoms..work.atoms.len()).any(|index| {
@@ -470,17 +490,27 @@ impl StructuralJudge<'_> {
                                 diff.terms
                                     .keys()
                                     .any(|monomial| monomial.contains_key(&name))
-                            }) {
+                            }) && !(has_premises && queries_and_contradictory().1)
+                            {
+                                work.operations.clear();
                                 return Some(false);
                             }
                         }
-                        if work.carrier_bounds.len() == base_bounds {
-                            return Some(IntegerObservations::comparison_holds(
-                                &prepared_queries,
+                        if work.carrier_bounds.len() == base_bounds && goal_only_linear_ops {
+                            if !has_premises && operator == BinaryOperator::Equal && left != right {
+                                work.operations.clear();
+                                return Some(false);
+                            }
+                            let holds = IntegerObservations::comparison_holds(
+                                &queries_and_contradictory().0,
                                 operator,
                                 &left,
                                 &right,
-                            ));
+                            );
+                            if !holds || work.operations.is_empty() {
+                                work.operations.clear();
+                                return Some(holds);
+                            }
                         }
                     }
                     let mut observations = work.clone();
@@ -611,7 +641,10 @@ impl StructuralJudge<'_> {
                 // Keep each side's operation obligations on this premise so
                 // the equation cannot establish its own formation.
                 let start = observations.operations.len();
-                let before = observations.projection_registrations();
+                let before_atoms = observations.atoms.len();
+                let before_bounds = observations.carrier_bounds.len();
+                let before_param_atoms = observations.engine.parameter_atoms.len();
+                let before_engine = observations.engine.integer_projection_registrations();
                 if let (Some(left), Some(right)) = (
                     self.mathematical_value(predicate, observations, 0),
                     self.mathematical_value(&truth, observations, 0),
@@ -620,7 +653,15 @@ impl StructuralJudge<'_> {
                         (BinaryOperator::Equal, left, right),
                         start..observations.operations.len(),
                     ));
-                } else if before != observations.projection_registrations() {
+                } else if observations.operations.len() == start
+                    && observations.engine.integer_projection_registrations().1 == before_engine.1
+                    && observations.engine.integer_projection_registrations().2 == before_engine.2
+                    && observations.engine.integer_projection_registrations().3 == before_engine.3
+                {
+                    observations.atoms.truncate(before_atoms);
+                    observations.carrier_bounds.truncate(before_bounds);
+                    observations.engine.parameter_atoms.truncate(before_param_atoms);
+                } else {
                     complete = false;
                 }
                 continue;
@@ -633,12 +674,32 @@ impl StructuralJudge<'_> {
                 continue;
             };
             let start = observations.operations.len();
+            let before_atoms = observations.atoms.len();
+            let before_bounds = observations.carrier_bounds.len();
+            let before_param_atoms = observations.engine.parameter_atoms.len();
+            let before_engine = observations.engine.integer_projection_registrations();
             let (operator, left, right) =
                 match self.project_integer_comparison(predicate, observations) {
                     IntegerComparisonProjection::Comparison(comparison) => comparison,
                     IntegerComparisonProjection::NotInteger => continue,
                     IntegerComparisonProjection::UnavailableOperand => {
-                        complete = false;
+                        if observations.operations.len() == start
+                            && observations.engine.integer_projection_registrations().1
+                                == before_engine.1
+                            && observations.engine.integer_projection_registrations().2
+                                == before_engine.2
+                            && observations.engine.integer_projection_registrations().3
+                                == before_engine.3
+                        {
+                            observations.atoms.truncate(before_atoms);
+                            observations.carrier_bounds.truncate(before_bounds);
+                            observations
+                                .engine
+                                .parameter_atoms
+                                .truncate(before_param_atoms);
+                        } else {
+                            complete = false;
+                        }
                         continue;
                     }
                 };

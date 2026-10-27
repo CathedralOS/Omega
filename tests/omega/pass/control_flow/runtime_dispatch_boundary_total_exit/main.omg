@@ -20,9 +20,9 @@ machine tuple(first: bool, second: bool) -> u64 crashes Trap {
         (false, false) -> seventy_two()
     }
     crash Trap;
-    state seventy() -> u64 { 70 }
-    state seventy_one() -> u64 { 71 }
-    state seventy_two() -> u64 { 72 }
+    machine seventy() -> u64 { 70 }
+    machine seventy_one() -> u64 { 71 }
+    machine seventy_two() -> u64 { 72 }
 }
 machine computed(take: bool) -> u64 crashes Trap {
     transition identity(take) { true -> (70) false -> (71) }
@@ -34,13 +34,13 @@ machine case_result(choice: Choice) -> u64 crashes Trap {
         Choice::Second -> seventy_one()
     }
     crash Trap;
-    state seventy() -> u64 { 70 }
-    state seventy_one() -> u64 { 71 }
+    machine seventy() -> u64 { 70 }
+    machine seventy_one() -> u64 { 71 }
 }
 machine reference(node: &mut Node, take: bool) -> &mut Node crashes Trap {
     transition take { true -> (node) false -> first_failure(node) }
-    state first_failure(node: &mut Node) -> &mut Node { transition { _ -> failed(node) } }
-    state failed(node: &mut Node) -> &mut Node {
+    machine first_failure(node: &mut Node) -> &mut Node { transition { _ -> failed(node) } }
+    machine failed(node: &mut Node) -> &mut Node {
         crash Trap;
         let inactive: u64 = 7;
         node
@@ -61,6 +61,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

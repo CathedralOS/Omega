@@ -30,6 +30,7 @@ pub(in crate::flow) struct ArgumentSources<'program, 'writes> {
 /// Scratch custody copied before publication mutates the flow arenas. Paths
 /// identify destination children; later writes retain each child's own epoch.
 struct CapturedSource {
+    operand: FlowOperandFact,
     position: usize,
     destination: Vec<PlaceSegment>,
     expression: ExpressionHandle,
@@ -112,6 +113,7 @@ fn retain_capture(
         Vec::new()
     };
     captures.push(CapturedSource {
+        operand: *capture,
         position,
         destination: destination.clone(),
         expression: capture.expression,
@@ -226,6 +228,60 @@ impl<'program, 'writes> ArgumentSources<'program, 'writes> {
             writes,
             captures,
         })
+    }
+
+    pub(in crate::flow) fn retained_sources(
+        &self,
+        control: &FlowControlFacts,
+        position: usize,
+    ) -> Option<crate::flow::retained_borrows::RetainedSources> {
+        let captured = self
+            .captures
+            .iter()
+            .find(|capture| capture.position == position && capture.destination.is_empty())?;
+        crate::flow::retained_borrows::captured_sources(
+            self.program,
+            control,
+            &captured.operand,
+            &[],
+            &|operand, source| {
+                // This names the holder at its captured binding epoch. Later
+                // content writes do not erase a moved value's retained loans.
+                // A preceding descriptor replacement withholds association
+                // with the statement-entry loan roster.
+                crate::flow::binding_origin_is_stable(
+                    self.program,
+                    control,
+                    operand.entry_binding_writes,
+                    operand.entry_binding_unknown_write,
+                    source,
+                )
+            },
+        )
+    }
+
+    pub(in crate::flow) fn completed_calls(
+        &self,
+        control: &FlowControlFacts,
+    ) -> Vec<ExpressionHandle> {
+        let mut calls = Vec::new();
+        for capture in self
+            .captures
+            .iter()
+            .filter(|capture| capture.destination.is_empty())
+        {
+            for expression in crate::flow::retained_borrows::completed_calls(
+                control,
+                &capture.operand,
+                self.state,
+                self.statement,
+            ) {
+                if !calls.contains(&expression) {
+                    calls.push(expression);
+                }
+            }
+        }
+        calls
     }
 
     pub(in crate::flow) fn observation_survives(

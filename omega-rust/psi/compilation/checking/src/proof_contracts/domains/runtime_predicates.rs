@@ -53,6 +53,90 @@ struct ScalarApplication<'program> {
     indices: Vec<(symbols::SymbolHandle, numerics::bignum::BigInt)>,
 }
 
+/// Only the declaration's own value clauses. Every skipped same-subject
+/// membership must be retained separately by the caller's domain catalog;
+/// this projection supplies no parent membership or establishment authority.
+pub fn scalar_domain_local_predicate(
+    program: &dyn crate::CheckingInput,
+    domain: &DomainDefinition,
+) -> Option<Boolean> {
+    typed_trees::domain::required_subject_memberships(program.typed_program(), domain)?;
+    let facts = program.proof_facts(domain);
+    if facts
+        .iter()
+        .all(|fact| matches!(fact, ProofFact::Membership(_)))
+    {
+        return Some(Boolean::Constant(true));
+    }
+    // Open index operands are not closed by their name or receiving carrier.
+    if !domain.type_parameters.is_empty() || !domain.index_arguments.is_empty() {
+        return None;
+    }
+    let primitive = program.primitive_type_reference(domain.target_type)?;
+    let subject = Scalar::Parameter {
+        position: 0,
+        primitive_type: primitive,
+    };
+    let spelling = Predicate {
+        program,
+        domain,
+        subject: &subject,
+        primitive,
+        indices: Vec::new(),
+    };
+    let mut predicates = Vec::new();
+    for fact in facts {
+        match fact {
+            ProofFact::Expression(expression) => {
+                predicates.push(spelling.boolean(*expression, 0)?);
+            }
+            ProofFact::Membership(_) => {}
+            ProofFact::Proposition(_) => return None,
+        }
+    }
+    Some(
+        predicates
+            .into_iter()
+            .reduce(conjunction)
+            .unwrap_or(Boolean::Constant(true)),
+    )
+}
+
+/// Canonical full value component of one retained closed application. Unlike
+/// a use-site restriction, its argument pack comes from the source instance
+/// owner. Nominal and establishment duties remain separate from this value.
+pub fn scalar_domain_definition_predicate(
+    program: &dyn crate::CheckingInput,
+    symbol: symbols::SymbolHandle,
+    identity: language_semantics::SemanticDomainId,
+) -> Option<Boolean> {
+    let definition = program
+        .typed_program()
+        .domain_definition_for_instance(symbol, identity)?;
+    let arguments = program
+        .typed_program()
+        .domain_arguments_for_instance(symbol, identity)?;
+    let primitive_type = program.primitive_type_reference(definition.target_type)?;
+    let subject = Scalar::Parameter {
+        position: 0,
+        primitive_type,
+    };
+    let predicates = project(
+        program,
+        symbol,
+        identity,
+        arguments,
+        &subject,
+        &mut Vec::new(),
+    )?;
+    Some(
+        predicates
+            .into_iter()
+            .reduce(conjunction)
+            .unwrap_or(Boolean::Constant(true)),
+    )
+}
+
 /// Select the exact application once before projecting any of its predicates.
 /// Closed index values keep their declaration identities and primitive bounds.
 fn scalar_application<'program>(

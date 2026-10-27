@@ -14,6 +14,6 @@ machine main() crashes Trap {
   nop
  }
  transition (snapshot & ZF_MASK) == ZF_MASK { true -> done() false -> bad() }
- state done() {}
- state bad() { crash Trap; }
+ machine done() {}
+ machine bad() { crash Trap; }
 }

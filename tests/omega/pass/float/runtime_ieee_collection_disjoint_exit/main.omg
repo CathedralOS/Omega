@@ -11,7 +11,7 @@ requires index < 2,
         true -> finish(I32::from_f64(reading.values[index]), reading.other)
         false -> finish(0, reading.other)
     }
-    state finish(converted: i32, observed: f64) -> i32 {
+    machine finish(converted: i32, observed: f64) -> i32 {
         transition observed == 200000000000000000000.0 {
             true -> converted
             false -> -999
@@ -25,6 +25,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

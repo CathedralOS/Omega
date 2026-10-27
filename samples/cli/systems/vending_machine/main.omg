@@ -36,15 +36,15 @@ machine Main::price_of(context: &mut Main, item: i32 in Wrapping) -> i32 in Wrap
         true -> cheap()
         _ -> upper(item)
     }
-    state cheap() -> i32 in Wrapping { 35 }
-    state upper(item: i32 in Wrapping) {
+    machine cheap() -> i32 in Wrapping { 35 }
+    machine upper(item: i32 in Wrapping) -> i32 in Wrapping {
         transition item == 1 {
             true -> mid()
             _ -> dear()
         }
     }
-    state mid() -> i32 in Wrapping { 50 }
-    state dear() -> i32 in Wrapping { 65 }
+    machine mid() -> i32 in Wrapping { 50 }
+    machine dear() -> i32 in Wrapping { 65 }
 }
 
 // A dispatch-bodied STRUCT result: quarters greedily, arms are PURE (bare
@@ -55,10 +55,10 @@ machine Main::make_change(paid: i32 in Wrapping, price: i32 in Wrapping) -> Chan
         true -> coin(owed)
         _ -> rest(owed)
     }
-    state coin(owed: i32 in Wrapping) -> Change {
+    machine coin(owed: i32 in Wrapping) -> Change {
         Change { quarters: 1, remainder: owed - 25 }
     }
-    state rest(owed: i32 in Wrapping) -> Change {
+    machine rest(owed: i32 in Wrapping) -> Change {
         Change { quarters: 0, remainder: owed }
     }
 }
@@ -71,22 +71,22 @@ machine Main::main(context: &mut Main) reaches Console {
     // A value call directly in the guard subject.
     transition Main::price_of(context, 1) == 50 { true -> buy(context) _ -> bad(context, 90) }
 
-    state buy(context: &mut Main) {
+    machine buy(context: &mut Main) {
         // Struct result delivered straight into a field.
         context.change = Main::make_change(100, 65);
         transition context.change.quarters == 1 { true -> chk_rem(context) _ -> bad(context, 91) }
     }
 
-    state chk_rem(context: &mut Main) {
+    machine chk_rem(context: &mut Main) {
         transition context.change.remainder == 10 { true -> handoff(context) _ -> bad(context, 92) }
     }
 
-    state handoff(context: &mut Main) {
+    machine handoff(context: &mut Main) {
         // Value calls as transition arguments (different + repeated callees).
         transition context.a == 35 { true -> report(context, Main::make_change(100, 55), 17) _ -> bad(context, 93) }
     }
 
-    state report(context: &mut Main, extra: Change, bonus: i32 in Wrapping) {
+    machine report(context: &mut Main, extra: Change, bonus: i32 in Wrapping) {
         // 35 + 50 - 65 + 40 + 10 - 20 + 3 + 17 = 70
         let sum: i32 in Wrapping = context.a + context.b - 65
             + context.change.quarters * 40
@@ -97,8 +97,8 @@ machine Main::main(context: &mut Main) reaches Console {
         transition sum == 70 { true -> good(context) _ -> bad(context, 94) }
     }
 
-    state good(context: &mut Main) { Console::exit_process(70); }
-    state bad(context: &mut Main, code: i32) { Console::exit_process(code); }
+    machine good(context: &mut Main) { Console::exit_process(70); }
+    machine bad(context: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

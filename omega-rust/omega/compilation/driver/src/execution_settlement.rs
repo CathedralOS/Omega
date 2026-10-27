@@ -21,7 +21,7 @@ use selected_dispatch::{
 };
 use std::sync::Arc;
 
-mod constant_recipe_closure;
+pub(crate) mod constant_recipe_closure;
 pub(crate) use constant_recipe_closure::same_checked_program;
 
 /// One target's complete provider selection beside the shared source custody.
@@ -123,7 +123,7 @@ impl SelectedProductTarget {
         let applications = self
             .custody
             .settlement
-            .calling_applications()
+            .calling_applications(&[])
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
         for (description, component) in descriptions.iter().zip(verified) {
             let mut matching = products.iter().filter(|product| {
@@ -260,7 +260,13 @@ fn select_checked_providers(
         &build_config.opaque_representation_selections,
         &selected_provider_plan_facts,
         &selected_provider_provenance,
-        |target| prepare_target_provider_selection(source, Some(target), package_inputs),
+        |target| {
+            let selected = prepare_target_provider_selection(source, Some(target), package_inputs)?;
+            Ok(constant_recipe_closure::ConstantProviders {
+                facts: selected.selected_provider_plan_facts,
+                provenance: selected.selected_provider_provenance,
+            })
+        },
     )?;
     let root_grants = build_config.root_grant_selectors();
     let checked = bind_checked_providers(

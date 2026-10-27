@@ -9,6 +9,6 @@ machine establish() -> u64 in Small {
 machine probe() -> u64 { 5u64 - establish() }
 machine main() crashes Trap {
     transition probe() == 2 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

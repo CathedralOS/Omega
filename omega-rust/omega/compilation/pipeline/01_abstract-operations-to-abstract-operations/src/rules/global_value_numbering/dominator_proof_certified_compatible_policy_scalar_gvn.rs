@@ -16,14 +16,9 @@ psi_rule_contract!(
     ),
 );
 
-impl PsiOptimizationRule for DominatorProofCertifiedCompatiblePolicyScalarGvnRule {
-    psi_rule_contract!(@adapter);
-
-    fn propose(
-        &self,
-        unit: &PsiOptimizationUnit,
-        analyses: RuleAnalysisView<'_>,
-    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+psi_rule_impl!(
+    DominatorProofCertifiedCompatiblePolicyScalarGvnRule,
+    |unit, analyses| {
         super::propose_dominating_scalar_gvn(
             unit,
             analyses,
@@ -57,4 +52,4 @@ impl PsiOptimizationRule for DominatorProofCertifiedCompatiblePolicyScalarGvnRul
             },
         )
     }
-}
+);

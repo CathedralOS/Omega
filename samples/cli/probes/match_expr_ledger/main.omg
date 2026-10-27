@@ -52,12 +52,12 @@ machine match_expr_ledger() {
         Category::Other -> done(71)
     }
 
-    state verify(first: u64, r: Record) {
+    machine verify(first: u64, r: Record) {
         transition first == 7 && r.number == 5 && choose(9) == 9 {
             true -> done(70)
             _ -> done(71)
         }
     }
 
-    state done(code: i32) {}
+    machine done(code: i32) {}
 }

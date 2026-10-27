@@ -23,12 +23,12 @@ machine main() crashes Trap {
     let held: Held = Held { values: view };
     take(held.values);
     transition { _ -> parameter(held.values) }
-    state parameter(window: &[u8]) requires window.len >= 2 {
+    machine parameter(window: &[u8]) requires window.len >= 2 {
         transition window.len == 2 {
             true -> done()
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

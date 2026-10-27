@@ -10,8 +10,8 @@ machine read_guarded(view: &[u64]) -> i32
         true -> done()
         _ -> bad()
     }
-    state done() -> i32 { 0 }
-    state bad() -> i32 { 1 }
+    machine done() -> i32 { 0 }
+    machine bad() -> i32 { 1 }
 }
 
 machine main() crashes Trap {
@@ -22,6 +22,6 @@ machine main() crashes Trap {
         true -> pass()
         _ -> fail()
     }
-    state pass() {}
-    state fail() { crash Trap; }
+    machine pass() {}
+    machine fail() { crash Trap; }
 }

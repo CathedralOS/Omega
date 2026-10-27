@@ -765,6 +765,8 @@ pub(crate) struct EquationTemplate<'template> {
     pub(crate) kind: &'static str,
     pub(crate) name: &'template str,
     pub(crate) parameters: arena::HandleSpan<TypeParameter>,
+    /// Fresh invocation regions, separate from runtime generic arguments.
+    pub(crate) invocation_lifetimes: &'template [Identifier],
     pub(crate) parameter_names: &'template [String],
     pub(crate) const_parameter_types: &'template [Option<TypeReferenceHandle>],
     pub(crate) type_equations: &'template [TypeEquation],

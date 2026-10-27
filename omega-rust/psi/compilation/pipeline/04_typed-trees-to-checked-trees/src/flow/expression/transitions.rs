@@ -21,6 +21,7 @@ impl Execution<'_, '_, '_> {
         self.context.active_completed_copies =
             self.capture_dispatch_payloads(transition, target, contexts, constraints);
         let mut returned_value = arena::Handle::invalid();
+        let mut normal_outgoing = true;
         let mut operands = Vec::new();
         let mut captured_operands = Vec::new();
         let mut values = Vec::new();
@@ -89,7 +90,12 @@ impl Execution<'_, '_, '_> {
                     contexts,
                     constraints,
                 );
-                returned_value = self.context.control.operands.append(completed.capture);
+                normal_outgoing =
+                    validation::expression_normal_completion_possible(self.program, *expression)
+                        != Some(false);
+                if normal_outgoing {
+                    returned_value = self.context.control.operands.append(completed.capture);
+                }
             }
             TransitionTargetNode::Terminal => {}
         }
@@ -125,18 +131,20 @@ impl Execution<'_, '_, '_> {
             &values,
             argument_qualifications,
         );
-        super::super::exits::append_outgoing_state_fact(
-            self.context,
-            self.machine.symbol,
-            self.state.symbol,
-            self.statement_index,
-            target,
-            operand_entry_constraints,
-            *constraints,
-            returned_value,
-            self.context.active_completed_copies,
-        );
-        let stores = self.invoke(
+        if normal_outgoing {
+            super::super::exits::append_outgoing_state_fact(
+                self.context,
+                self.machine.symbol,
+                self.state.symbol,
+                self.statement_index,
+                target,
+                operand_entry_constraints,
+                *constraints,
+                returned_value,
+                self.context.active_completed_copies,
+            );
+        }
+        let completed = self.invoke(
             InvocationSite::Transition(target),
             super::InvocationInputs {
                 operands: &captured_operands,
@@ -145,7 +153,7 @@ impl Execution<'_, '_, '_> {
             contexts,
             constraints,
         );
-        self.install_call_stores(stores);
+        self.install_call_stores(completed.stores);
         self.context.active_completed_copies = previous_copies;
     }
 }

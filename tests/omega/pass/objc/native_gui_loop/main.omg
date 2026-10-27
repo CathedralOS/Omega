@@ -181,10 +181,10 @@ machine Main::main(main: &mut Main) reaches
     main.mask = 4294967295;
     main.frame = 0;
     transition main.win != 0 { true -> frame_loop(main) _ -> bad(main) }
-    state frame_loop(main: &mut Main) {
+    machine frame_loop(main: &mut Main) {
         transition main.frame < 3 { true -> render(main) _ -> teardown(main) }
     }
-    state render(main: &mut Main) {
+    machine render(main: &mut Main) {
         // "render" a frame: stamp the buffer, blit it into the image view.
         main.pixels[0] = main.frame;
         main.ctx = CoreGraphics::bitmap_context(&mut main.pixels, 4, 4, 8, 16, main.space, 8198);
@@ -199,17 +199,17 @@ machine Main::main(main: &mut Main) reaches
         // Guard BEFORE the increment so the edge carries the bound (keystone).
         transition main.frame < 8 { true -> bump(main) _ -> teardown(main) }
     }
-    state bump(main: &mut Main) {
+    machine bump(main: &mut Main) {
         main.frame = main.frame + 1;
         transition { _ -> frame_loop(main) }
     }
-    state teardown(main: &mut Main) {
+    machine teardown(main: &mut Main) {
         main.sel = ObjectiveC::register_selector("isVisible");
         main.alive = ObjectiveC::send(main.win, main.sel);
         main.sel = ObjectiveC::register_selector("close");
         main.rc = ObjectiveC::send_scalar(main.win, main.sel, 0);
         transition { _ -> good(main) }
     }
-    state good(main: &mut Main) { Console::exit_process(4); }
-    state bad(main: &mut Main)  { Console::exit_process(1); }
+    machine good(main: &mut Main) { Console::exit_process(4); }
+    machine bad(main: &mut Main)  { Console::exit_process(1); }
 }

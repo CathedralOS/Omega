@@ -26,8 +26,8 @@ machine Main::main(main: &mut Main) reaches Character crashes Trap {
     let forwarded: i32 = relay();
     let borrowed: i32 = outer(inner(30));
     transition direct == 10 && forwarded == 20 && borrowed == 30 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

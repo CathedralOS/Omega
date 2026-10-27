@@ -27,12 +27,9 @@ struct SourceTheorem {
 }
 
 pub(super) fn produce(
-    request: compiler::CheckedCompileRequest,
+    checked: &compiler::CheckedCompilation,
     machine: &str,
 ) -> Result<CanonicalTerminalArtifact, String> {
-    let checked = omega_build::check_source(&mut compiler::CompilationSession::default(), request)
-        .result
-        .map_err(|errors| format!("indexed inspection source checking: {errors:?}"))?;
     let program = &checked.execution().program;
     let facts = &program.facts.proof;
     // This policy is captured from the checked source before any artifact
@@ -600,6 +597,10 @@ fn mathematical_actuals(module: &TerminalModule) -> Vec<&semantic_vocabulary::Pr
                 Terminator::Jump {
                     erased_proof_arguments,
                     ..
+                }
+                | Terminator::InvokeNoNormal {
+                    erased_proof_arguments,
+                    ..
                 } => found.extend(erased_proof_arguments.iter().filter(|term| {
                     matches!(term, semantic_vocabulary::ProofTerm::Mathematical { .. })
                 })),
@@ -750,6 +751,17 @@ fn first_mathematical_actual_mut(
                 }) {
                     return Ok((callee, term));
                 }
+            }
+            if let terminal_psi::Terminator::InvokeNoNormal {
+                callee,
+                erased_proof_arguments,
+                ..
+            } = &mut block.terminator
+                && let Some(term) = erased_proof_arguments.iter_mut().find(|term| {
+                    matches!(term, semantic_vocabulary::ProofTerm::Mathematical { .. })
+                })
+            {
+                return Ok((*callee, term));
             }
         }
     }

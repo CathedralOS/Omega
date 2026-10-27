@@ -56,7 +56,7 @@ ensures representative(left, amount) == representative(right, amount)
 
 machine lifted(value: EquivalenceClass) -> i32 {
     transition { _ -> apply(value) }
-    state apply(item: EquivalenceClass) -> i32 {
+    machine apply(item: EquivalenceClass) -> i32 {
         Quotient::lift<representative, representative_respects>(item, 3i32)
     }
 }
@@ -64,6 +64,6 @@ machine lifted(value: EquivalenceClass) -> i32 {
 machine main() crashes Trap {
     let item: EquivalenceClass = Representative { value: 11 } as EquivalenceClass;
     transition lifted(item) == 3 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

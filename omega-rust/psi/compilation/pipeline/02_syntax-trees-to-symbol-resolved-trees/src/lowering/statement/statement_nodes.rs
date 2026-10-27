@@ -334,19 +334,7 @@ pub(crate) fn lower_statement_node(
             // (`state go(..) -> f64 { ..; self.sin(x) }`) hoists into the
             // let-bound spelling, exactly as the transition-value face.
             // Trailing returns are unconditional, so no guard gate applies.
-            let expression = if matches!(
-                lowerer.current_state_return_type,
-                None | Some(TypeReference::Unit)
-            ) {
-                // Preserve the authored terminal expression in a Unit context.
-                // This does not classify the callee or discard its result:
-                // checking must still require an actual Unit-producing call.
-                // A synthetic local would instead require value storage and
-                // return-type inference for a call that may have no value.
-                expression
-            } else {
-                hoist_terminal_value_machine_call(lowerer, expression, &mut hoisted)
-            };
+            let expression = hoist_terminal_value_machine_call(lowerer, expression, &mut hoisted);
             hoisted.push(Statement::Expression(expression));
             Ok(hoisted)
         }
@@ -418,21 +406,18 @@ pub(crate) fn lower_statement_node(
                 &mut hoisted,
                 unconditional,
             )?;
-            // Free scalar return calls keep their exact destination for checked
-            // computation lowering. Other unconditional calls retain the older
-            // let-bound route. A guarded arm's calls are not moved at all:
-            // they stay at their authored evaluation point inside the arm,
-            // where the arm evaluates them left to right only when it is
-            // selected, and checking reads each result there.
+            // Value-producing terminal calls retain their result binding for
+            // checking. Unit invocations have no value to bind: the shared
+            // normalization leaves their full call and acknowledgement intact.
             if unconditional
                 && let TransitionTarget::Value(expression) = target
                 && !is_scalar_return_computation(lowerer, expression)
             {
-                let rewritten =
-                    hoist_terminal_value_machine_call(lowerer, expression, &mut hoisted);
-                if rewritten != expression {
-                    target = TransitionTarget::Value(rewritten);
-                }
+                target = TransitionTarget::Value(hoist_terminal_value_machine_call(
+                    lowerer,
+                    expression,
+                    &mut hoisted,
+                ));
             }
             // A continuation arm runs only when the guard fails, so its calls
             // are never hoisted ahead of the transition either. A lone
@@ -582,6 +567,7 @@ fn retain_build_declaration_call_expression(lowerer: &mut Lowerer, call: Call) -
     };
     let source_span = call.target.source_span();
     let expression = expression_table.insert(ExpressionNode::Call(TableCallExpression {
+        authored_call_binding: None,
         receiver,
         target_symbol: call.target_symbol,
         target: call.target,
@@ -763,6 +749,7 @@ fn lower_transition_target_node(
                 }
             }
             Ok(TransitionTarget::Named(NamedTransitionTarget {
+                receiver_symbol: Default::default(),
                 head_symbol: SymbolHandle::invalid(),
                 symbol: SymbolHandle::invalid(),
                 storage: NamedTransitionTargetStorage {

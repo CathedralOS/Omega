@@ -16,22 +16,22 @@ public machine fixture(lab:&mut Lab,choice:i32) {
   9 -> restitution(lab)
   _ -> done()
  }
- state grazing(lab:&mut Lab) {lab.disks[1].x=2.0;lab.disks[1].y=2.0;}
- state simultaneous(lab:&mut Lab) {
+ machine grazing(lab:&mut Lab) {lab.disks[1].x=2.0;lab.disks[1].y=2.0;}
+ machine simultaneous(lab:&mut Lab) {
   lab.count=4;lab.disks[1].mass=1.0;
   lab.disks[2]=Disk{x:0.0,y:10.0,vx:1.0,vy:0.0,radius:1.0,mass:2.0};
   lab.disks[3]=Disk{x:4.0,y:10.0,vx:0.0,vy:0.0,radius:1.0,mass:2.0};
  }
- state separating(lab:&mut Lab) {lab.disks[0].vx=-1.0;}
- state exhausted(lab:&mut Lab) {
+ machine separating(lab:&mut Lab) {lab.disks[0].vx=-1.0;}
+ machine exhausted(lab:&mut Lab) {
   lab.budget=1;lab.count=4;lab.disks[1].mass=1.0;
   lab.disks[2]=Disk{x:0.0,y:10.0,vx:1.0,vy:0.0,radius:1.0,mass:2.0};
   lab.disks[3]=Disk{x:4.0,y:10.0,vx:0.0,vy:0.0,radius:1.0,mass:2.0};
  }
- state inelastic(lab:&mut Lab) {lab.restitution=0.5;}
- state oblique(lab:&mut Lab) {lab.disks[1].x=3.2;lab.disks[1].y=1.6;lab.disks[1].mass=1.0;}
- state mass(lab:&mut Lab) {lab.disks[0].mass=0.0;}
- state overlap(lab:&mut Lab) {lab.disks[1].x=1.0;}
- state restitution(lab:&mut Lab) {lab.restitution=1.5;}
- state done() {}
+ machine inelastic(lab:&mut Lab) {lab.restitution=0.5;}
+ machine oblique(lab:&mut Lab) {lab.disks[1].x=3.2;lab.disks[1].y=1.6;lab.disks[1].mass=1.0;}
+ machine mass(lab:&mut Lab) {lab.disks[0].mass=0.0;}
+ machine overlap(lab:&mut Lab) {lab.disks[1].x=1.0;}
+ machine restitution(lab:&mut Lab) {lab.restitution=1.5;}
+ machine done() {}
 }

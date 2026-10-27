@@ -5,7 +5,7 @@ machine advance(window: &mut Window, consumed: u64) -> bool {
         true -> valid(window, consumed)
         false -> false
     }
-    state valid(window: &mut Window, consumed: u64) -> bool
+    machine valid(window: &mut Window, consumed: u64) -> bool
     requires consumed <= window.values.len {
         window.values = &mut window.values[consumed..];
         true

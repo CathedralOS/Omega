@@ -621,25 +621,12 @@ pub(super) fn admit<'source>(
             )?;
         }
     }
-    let copy = environment
-        .constraint(environment.selected_keys().copy_i64)
-        .ok_or(StoredLoadForwardingError::ConstraintMismatch)?;
-    if copy.operands.len() != 2
-        || copy.operands[0].operand != 0
-        || copy.operands[0].access != RegisterOperandAccess::Use
-        || copy.operands[0].class != value_register.class
-        || copy.operands[1].operand != 1
-        || copy.operands[1].access != RegisterOperandAccess::Def
-        || copy.operands[1].class != output_register.class
-        || !copy.implicit_uses.is_empty()
-        || !copy.implicit_defs.is_empty()
-        || !copy.clobbers.is_empty()
-        || copy.operands.iter().any(|operand| {
-            operand.fixed_view.is_some() || operand.tied_to.is_some() || operand.early_clobber
-        })
-    {
-        return Err(StoredLoadForwardingError::ConstraintMismatch);
-    }
+    let copy = crate::rewrites::integer_copy_row(
+        environment,
+        value_register.class,
+        output_register.class,
+        || StoredLoadForwardingError::ConstraintMismatch,
+    )?;
     // The replacement keeps the load's exact read width: a same-width store
     // and load round-trip the register's low bits in the target's own byte
     // order, so `ZeroExtend` reconstructs the loaded value without any

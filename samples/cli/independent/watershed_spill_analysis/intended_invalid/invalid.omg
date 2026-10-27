@@ -7,12 +7,12 @@ machine Main::main(main: &mut Main) reaches Console {
         ByteRead::Eof -> finish(main)
         ByteRead::Byte { value } -> unsafe_read(main, value)
     }
-    state unsafe_read(main: &mut Main, index: i32) {
+    machine unsafe_read(main: &mut Main, index: i32) {
         let elevations: [i32; 25];
         let height: i32 = elevations[index];
         Console::exit_process(height);
     }
-    state finish(main: &mut Main) { Console::exit_process(0); }
+    machine finish(main: &mut Main) { Console::exit_process(0); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

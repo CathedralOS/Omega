@@ -10,7 +10,7 @@ machine observe(cell: &Cell) -> u64 {
         Optional::Some { value } -> read(value)
         Optional::None -> 0
     }
-    state read(value: &mut Cell) -> u64 {
+    machine read(value: &mut Cell) -> u64 {
         value.value = 73;
         value.value
     }

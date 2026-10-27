@@ -68,8 +68,8 @@ machine Main::main(main: &mut Main) reaches AddressParts + Console {
         true -> passed(main)
         _ -> failed(main)
     }
-    state passed(main: &mut Main) { Console::exit_process(70); }
-    state failed(main: &mut Main) { Console::exit_process(71); }
+    machine passed(main: &mut Main) { Console::exit_process(70); }
+    machine failed(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -15,11 +15,11 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, unchanged)
         false -> bad(main)
     }
-    state finish(main: &mut Main, value: u64)
+    machine finish(main: &mut Main, value: u64)
     requires value < 192 {
         Console::exit_process(value as i32);
     }
-    state bad(main: &mut Main) { Console::exit_process(200); }
+    machine bad(main: &mut Main) { Console::exit_process(200); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

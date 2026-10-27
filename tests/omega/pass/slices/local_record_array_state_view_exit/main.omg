@@ -16,7 +16,7 @@ machine Main::main(main: &mut Main) reaches Console {
     let packet: Packet = Packet { samples: Samples { items: [70, 2, 3, 5] }, marker: 9 };
     transition { _ -> check(packet) }
 
-    state check(packet: Packet) {
+    machine check(packet: Packet) {
         let view: &[i32] = &packet.samples.items[..];
         let observed: i32 = read(view);
         transition observed == 70 && packet.samples.items[0] == 70
@@ -25,8 +25,8 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> failed()
         }
     }
-    state done() { Console::exit_process(70); }
-    state failed() { Console::exit_process(71); }
+    machine done() { Console::exit_process(70); }
+    machine failed() { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

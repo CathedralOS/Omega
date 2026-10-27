@@ -22,6 +22,22 @@ fn executed_values_keep_helper_identity_and_omit_untaken_exclusions() {
     let checked = omega_build::check_source(&mut CompilationSession::default(), request)
         .result
         .expect("executed Build checks");
+    let grants = &checked.build().config.grants;
+    assert_eq!(
+        grants.len(),
+        1,
+        "the untaken trust acceptance grants nothing"
+    );
+    assert_eq!(grants[0].selector, "AcceptedService");
+    assert_eq!(
+        checked
+            .execution()
+            .program
+            .symbols
+            .name(grants[0].selecting_machine),
+        "configure",
+        "acceptance retains its helper rather than attributing it to build"
+    );
     let rows = &checked.build().config.behavior_exclusions;
     exclusion_tickets_reject_foreign_receivers_and_replay(&checked);
     assert_eq!(
@@ -58,10 +74,15 @@ fn executed_values_keep_helper_identity_and_omit_untaken_exclusions() {
         }
     )));
     assert!(rows.iter().any(|row| matches!(&row.kind, effects::AuthoredBehaviorExclusionKind::Service { name, .. } if name == "UnusedService")));
-    let targets = vec![
-        Some(target::TargetProfile::from_omega_target_name(Some("windows_x86_64")).unwrap()),
-        target::TargetProfile::host_if_supported(),
-    ];
+    let host = target::TargetProfile::host_if_supported();
+    let windows =
+        Some(target::TargetProfile::from_omega_target_name(Some("windows_x86_64")).unwrap());
+    let foreign = if host == windows {
+        Some(target::TargetProfile::from_omega_target_name(Some("macos_arm64")).unwrap())
+    } else {
+        windows
+    };
+    let targets = vec![foreign, host];
     let output = fixture_package_inputs::repo_root().join("build/executed-exclusions-native");
     let mut request = CompileRequest::for_targets(prepared.root_path, output.clone(), targets)
         .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact);
@@ -107,6 +128,7 @@ fn exclusion_tickets_reject_foreign_receivers_and_replay(checked: &compiler::Che
         artifact,
         produced.build_bindings(),
         original.clone(),
+        None,
     )
     .unwrap();
     let calls = produced.build_bindings().calls_for(artifact).unwrap();

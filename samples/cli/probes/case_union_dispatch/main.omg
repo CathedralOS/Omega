@@ -37,8 +37,8 @@ machine Main::main(main: &mut Main) {
         Command::Quit -> miss(main)
         Command::Interactive -> hit(main)
     }
-    state hit(main: &mut Main) { main.hits = 1; }
-    state miss(main: &mut Main) { main.hits = -1; }
+    machine hit(main: &mut Main) { main.hits = 1; }
+    machine miss(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

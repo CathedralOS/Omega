@@ -24,8 +24,8 @@ machine observe(matrix: &mut Matrix, cursor: &mut Cursor) -> u32 in Wrapping {
         true -> captured(earlier + copied.value)
         _ -> missing()
     }
-    state captured(value: u32 in Wrapping) -> u32 in Wrapping { value }
-    state missing() -> u32 in Wrapping { 0 }
+    machine captured(value: u32 in Wrapping) -> u32 in Wrapping { value }
+    machine missing() -> u32 in Wrapping { 0 }
 }
 
 machine main() crashes Trap {
@@ -38,6 +38,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

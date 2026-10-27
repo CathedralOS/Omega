@@ -26,12 +26,12 @@ machine Main::run(main: &mut Main) -> i32 {
         _ -> consume_second(receipt)
     }
 
-    state consume_first(receipt: Receipt) -> i32 {
+    machine consume_first(receipt: Receipt) -> i32 {
         Receipt::ack(receipt);
         70
     }
 
-    state consume_second(receipt: Receipt) -> i32 {
+    machine consume_second(receipt: Receipt) -> i32 {
         Receipt::ack(receipt);
         71
     }

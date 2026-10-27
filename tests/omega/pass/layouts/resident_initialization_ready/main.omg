@@ -46,8 +46,8 @@ reaches ResourceProfileSupply crashes Trap
         PlacementOutcome::Ready { view } -> finish(view)
         PlacementOutcome::Rejected { returned, reason } -> unexpected(returned)
     }
-    state finish(storage: Extent in Granted & Resident<WordPlacement, Word>)
+    machine finish(storage: Extent in Granted & Resident<WordPlacement, Word>)
         -> Extent in Granted & Resident<WordPlacement, Word> { carry(storage) }
-    state unexpected(returned: PlacementReturn<Extent in Granted & Vacant, Word>)
+    machine unexpected(returned: PlacementReturn<Extent in Granted & Vacant, Word>)
         -> Extent in Granted & Resident<WordPlacement, Word> { crash Trap; }
 }

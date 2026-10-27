@@ -2,14 +2,14 @@ machine quotient(divisor: u64) -> u64 {
     let nonzero: bool = divisor != 0u64;
     transition { _ -> classify(nonzero, divisor) }
 
-    state classify(nonzero: bool, divisor: u64) -> u64 {
+    machine classify(nonzero: bool, divisor: u64) -> u64 {
         transition nonzero {
             true -> divide(divisor)
             false -> empty()
         }
     }
-    state divide(divisor: u64) -> u64 { 64u64 / divisor }
-    state empty() -> u64 { 0 }
+    machine divide(divisor: u64) -> u64 { 64u64 / divisor }
+    machine empty() -> u64 { 0 }
 }
 
 machine main() crashes Trap {
@@ -19,6 +19,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

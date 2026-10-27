@@ -57,7 +57,7 @@ fn enable_machine() -> String {
     for optimization in Optimization::ALL {
         let counter = optimization.build_counter_field();
         text.push_str(&format!(
-            "\n    state {counter}(optimizations: &mut Optimizations) {{\n        optimizations.{counter} = optimizations.{counter} + 1;\n    }}\n"
+            "\n    machine {counter}(optimizations: &mut Optimizations) {{\n        optimizations.{counter} = optimizations.{counter} + 1;\n    }}\n"
         ));
     }
     text.push_str("}\n");

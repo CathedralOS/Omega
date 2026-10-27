@@ -10,7 +10,7 @@ data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let amount: Amount = Amount { value: 70 };
     transition { _ -> arrived(amount) }
-    state arrived(amount: Amount) {
+    machine arrived(amount: Amount) {
         let observed: i32 = consume(amount);
         Console::exit_process(observed);
     }

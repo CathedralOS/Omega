@@ -67,7 +67,7 @@ crashes Trap
         _ -> done()
     }
 
-    state imports(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine imports(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
         Resolver::check_imports(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> declarations(resolver, sources, syntax)
@@ -75,7 +75,7 @@ crashes Trap
         }
     }
 
-    state declarations(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine declarations(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
         Resolver::declare_roots(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> members(resolver, sources, syntax)
@@ -83,7 +83,7 @@ crashes Trap
         }
     }
 
-    state members(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine members(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
         Resolver::check_members(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> measures(resolver, sources, syntax)
@@ -91,7 +91,7 @@ crashes Trap
         }
     }
 
-    state measures(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine measures(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
         Resolver::check_measures(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> declaration_generics(resolver, sources, syntax)
@@ -99,7 +99,7 @@ crashes Trap
         }
     }
 
-    state declaration_generics(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine declaration_generics(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
         Resolver::check_declaration_namespaces(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> contracts(resolver, sources, syntax)
@@ -107,7 +107,7 @@ crashes Trap
         }
     }
 
-    state contracts(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine contracts(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
         Resolver::bind_machine_contracts(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> identities(resolver, sources, syntax)
@@ -115,7 +115,7 @@ crashes Trap
         }
     }
 
-    state identities(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine identities(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
         Resolver::check_stable_identities(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> domain_carriers(resolver, sources, syntax)
@@ -123,7 +123,7 @@ crashes Trap
         }
     }
 
-    state domain_carriers(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine domain_carriers(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
         Resolver::bind_domain_carriers(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> domains(resolver, sources, syntax)
@@ -131,7 +131,7 @@ crashes Trap
         }
     }
 
-    state domains(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine domains(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
         Resolver::check_domains(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> references(resolver, sources, syntax)
@@ -139,7 +139,7 @@ crashes Trap
         }
     }
 
-    state references(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine references(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
         Resolver::bind_references(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> declaration_references(resolver, sources, syntax)
@@ -147,7 +147,7 @@ crashes Trap
         }
     }
 
-    state declaration_references(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine declaration_references(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
         Resolver::bind_declaration_references(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> machine_references(resolver, sources, syntax)
@@ -155,7 +155,7 @@ crashes Trap
         }
     }
 
-    state machine_references(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine machine_references(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
         Resolver::bind_machine_references(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> body_references(resolver, sources, syntax)
@@ -163,7 +163,7 @@ crashes Trap
         }
     }
 
-    state body_references(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine body_references(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
         Resolver::bind_body_references(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> machines(resolver, sources, syntax)
@@ -171,7 +171,7 @@ crashes Trap
         }
     }
 
-    state machines(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine machines(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
         Resolver::check_machines(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> operators(resolver, sources, syntax)
@@ -179,7 +179,7 @@ crashes Trap
         }
     }
 
-    state operators(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine operators(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
         Resolver::bind_operator_homes(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> paths(resolver, sources, syntax)
@@ -187,7 +187,7 @@ crashes Trap
         }
     }
 
-    state paths(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine paths(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
         Resolver::bind_conformance_rows(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> domain_paths(resolver, sources, syntax)
@@ -195,7 +195,7 @@ crashes Trap
         }
     }
 
-    state domain_paths(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine domain_paths(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
         Resolver::bind_domain_paths(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> names(resolver, sources, syntax)
@@ -203,7 +203,7 @@ crashes Trap
         }
     }
 
-    state names(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine names(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
         Resolver::bind_body_names(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> facts(resolver, sources, syntax)
@@ -211,7 +211,7 @@ crashes Trap
         }
     }
 
-    state facts(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine facts(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
         Resolver::bind_fact_names(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> clauses(resolver, sources, syntax)
@@ -219,7 +219,7 @@ crashes Trap
         }
     }
 
-    state clauses(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine clauses(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
         Resolver::bind_clause_names(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> publish(resolver, syntax)
@@ -227,14 +227,14 @@ crashes Trap
         }
     }
 
-    state publish(resolver: &mut Resolver, syntax: &SyntaxTrees) {
+    machine publish(resolver: &mut Resolver, syntax: &SyntaxTrees) {
         resolver.output.binding_count = syntax.type_reference_count;
         resolver.output.value_binding_count = syntax.expression_count;
         resolver.output.path_binding_count = syntax.name_path_count;
         resolver.output.requirement_count = syntax.clause_count;
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // The namespace a root's name occupies within its module: data, traits and
@@ -270,12 +270,12 @@ crashes Trap
         _ -> none(root)
     }
 
-    state declared(syntax: &SyntaxTrees, root: RootItem, space: RootNamespace, kind: DeclarationKind) -> RootName {
+    machine declared(syntax: &SyntaxTrees, root: RootItem, space: RootNamespace, kind: DeclarationKind) -> RootName {
         let path: DeclarationPath = Resolver::declaration_path(syntax, kind, root.item_index);
         RootName { kind: root.kind, space: space, has_owner: path.has_owner, owner: path.owner, name: path.name }
     }
 
-    state none(root: RootItem) -> RootName {
+    machine none(root: RootItem) -> RootName {
         let span: IdentifierSpan = IdentifierSpan { source_span: root.source_span };
         RootName { kind: root.kind, space: RootNamespace::None, has_owner: false, owner: span, name: span }
     }
@@ -292,14 +292,14 @@ crashes Trap
 {
     transition { _ -> next(resolver, sources, syntax, 0) }
 
-    state next(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine next(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.root_count {
             true -> root(resolver, sources, syntax, index)
             _ -> done()
         }
     }
 
-    state root(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine root(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         let declared: RootName = Resolver::root_name(syntax, index);
         transition declared.space {
             RootNamespace::None -> next(resolver, sources, syntax, index + 1)
@@ -308,7 +308,7 @@ crashes Trap
         }
     }
 
-    state builtin_shadow(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, declared: RootName) {
+    machine builtin_shadow(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, declared: RootName) {
         let builtin: TypeBinding = Resolver::builtin_type(sources, declared.name.source_span);
         transition builtin {
             TypeBinding::Unresolved -> earlier(resolver, sources, syntax, index, declared, 0)
@@ -316,7 +316,7 @@ crashes Trap
         }
     }
 
-    state earlier(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, declared: RootName, prior: u64 in Trapping) {
+    machine earlier(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, declared: RootName, prior: u64 in Trapping) {
         transition prior < index {
             true -> compare(resolver, sources, syntax, index, declared, prior)
             _ -> competing(resolver, sources, syntax, index, declared)
@@ -325,14 +325,14 @@ crashes Trap
 
     // A constant's path is a value path that a case (`Owner::Case`) or a
     // machine of its module must not also spell.
-    state competing(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, declared: RootName) {
+    machine competing(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, declared: RootName) {
         transition declared.space == RootNamespace::Constant {
             true -> constant_path(resolver, sources, syntax, index, declared)
             _ -> next(resolver, sources, syntax, index + 1)
         }
     }
 
-    state constant_path(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, declared: RootName) {
+    machine constant_path(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, declared: RootName) {
         let spelled: bool = Resolver::value_path_taken(&resolver.output, sources, syntax, declared);
         transition spelled {
             true -> reject(resolver, ResolveDiagnosticCode::DuplicateDeclaration, declared.name)
@@ -340,7 +340,7 @@ crashes Trap
         }
     }
 
-    state compare(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, declared: RootName, prior: u64 in Trapping) {
+    machine compare(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, declared: RootName, prior: u64 in Trapping) {
         let other: RootName = Resolver::root_name(syntax, prior);
         let named: bool = SourceSet::spans_equal(sources, declared.name.source_span, other.name.source_span);
         let owner_named: bool = SourceSet::spans_equal(sources, declared.owner.source_span, other.owner.source_span);
@@ -353,18 +353,18 @@ crashes Trap
         }
     }
 
-    state duplicate(resolver: &mut Resolver, declared: RootName, other: RootName) {
+    machine duplicate(resolver: &mut Resolver, declared: RootName, other: RootName) {
         transition declared.kind == RootItemKind::Data && other.kind == RootItemKind::Data {
             true -> reject(resolver, ResolveDiagnosticCode::DuplicateData, declared.name)
             _ -> reject(resolver, ResolveDiagnosticCode::DuplicateDeclaration, declared.name)
         }
     }
 
-    state reject(resolver: &mut Resolver, code: ResolveDiagnosticCode, name: IdentifierSpan) {
+    machine reject(resolver: &mut Resolver, code: ResolveDiagnosticCode, name: IdentifierSpan) {
         NameResolution::reject(&mut resolver.output, code, name.source_span);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Whether a case or a machine of `declared`'s module spells its path: a
@@ -375,14 +375,14 @@ crashes Trap
 {
     transition { _ -> machine_at(resolution, sources, syntax, declared, 0) }
 
-    state machine_at(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, declared: RootName, index: u64 in Trapping) -> bool {
+    machine machine_at(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, declared: RootName, index: u64 in Trapping) -> bool {
         transition index < syntax.machine_count {
             true -> machine_path(resolution, sources, syntax, declared, index)
             _ -> owner_data(sources, syntax, declared, 0)
         }
     }
 
-    state machine_path(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, declared: RootName, index: u64 in Trapping) -> bool {
+    machine machine_path(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, declared: RootName, index: u64 in Trapping) -> bool {
         let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
         let spelled: bool = Resolver::machine_spells(resolution, sources, item, index, declared.has_owner,
             declared.owner.source_span, declared.name.source_span);
@@ -394,14 +394,14 @@ crashes Trap
         }
     }
 
-    state owner_data(sources: &SourceSet, syntax: &SyntaxTrees, declared: RootName, index: u64 in Trapping) -> bool {
+    machine owner_data(sources: &SourceSet, syntax: &SyntaxTrees, declared: RootName, index: u64 in Trapping) -> bool {
         transition declared.has_owner && index < syntax.data_count {
             true -> owner_named(sources, syntax, declared, index)
             _ -> free()
         }
     }
 
-    state owner_named(sources: &SourceSet, syntax: &SyntaxTrees, declared: RootName, index: u64 in Trapping) -> bool {
+    machine owner_named(sources: &SourceSet, syntax: &SyntaxTrees, declared: RootName, index: u64 in Trapping) -> bool {
         let item: DataItem = SyntaxTrees::data_item(syntax, index);
         let named: bool = SourceSet::spans_equal(sources, item.name.source_span, declared.owner.source_span);
         let same_module: bool = Resolver::same_module(sources, declared.name.source_span.source.value as u64 in Trapping,
@@ -412,14 +412,14 @@ crashes Trap
         }
     }
 
-    state case_at(sources: &SourceSet, syntax: &SyntaxTrees, declared: RootName, index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) -> bool {
+    machine case_at(sources: &SourceSet, syntax: &SyntaxTrees, declared: RootName, index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) -> bool {
         transition offset < item.case_count {
             true -> case_named(sources, syntax, declared, index, item, offset)
             _ -> owner_data(sources, syntax, declared, index + 1)
         }
     }
 
-    state case_named(sources: &SourceSet, syntax: &SyntaxTrees, declared: RootName, index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) -> bool {
+    machine case_named(sources: &SourceSet, syntax: &SyntaxTrees, declared: RootName, index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) -> bool {
         let data_case: DataCase = SyntaxTrees::data_case(syntax, item.first_case + offset);
         let named: bool = SourceSet::spans_equal(sources, data_case.name.source_span, declared.name.source_span);
         transition named {
@@ -428,11 +428,11 @@ crashes Trap
         }
     }
 
-    state taken() -> bool {
+    machine taken() -> bool {
         true
     }
 
-    state free() -> bool {
+    machine free() -> bool {
         false
     }
 }
@@ -445,56 +445,56 @@ crashes Trap
 {
     transition { _ -> traits(resolver, sources, syntax, 0) }
 
-    state traits(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine traits(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.trait_count && resolver.output.accepted {
             true -> trait_generics(resolver, sources, syntax, index)
             _ -> conformances(resolver, sources, syntax, 0)
         }
     }
 
-    state trait_generics(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine trait_generics(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         let item: TraitItem = SyntaxTrees::trait_item(syntax, index);
         let scope: TypeScope = Resolver::scope(item.first_generic_parameter, item.generic_parameter_count);
         Resolver::check_generic_names(resolver, sources, syntax, scope);
         transition { _ -> traits(resolver, sources, syntax, index + 1) }
     }
 
-    state conformances(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine conformances(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.conformance_count && resolver.output.accepted {
             true -> conformance_generics(resolver, sources, syntax, index)
             _ -> domains(resolver, sources, syntax, 0)
         }
     }
 
-    state conformance_generics(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine conformance_generics(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         let item: ConformanceItem = SyntaxTrees::conformance_item(syntax, index);
         let scope: TypeScope = Resolver::scope(item.first_generic_parameter, item.generic_parameter_count);
         Resolver::check_generic_names(resolver, sources, syntax, scope);
         transition { _ -> conformances(resolver, sources, syntax, index + 1) }
     }
 
-    state domains(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine domains(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.domain_count && resolver.output.accepted {
             true -> domain_generics(resolver, sources, syntax, index)
             _ -> propositions(resolver, sources, syntax, 0)
         }
     }
 
-    state domain_generics(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine domain_generics(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         let item: DomainItem = SyntaxTrees::domain_item(syntax, index);
         let scope: TypeScope = Resolver::scope(item.first_generic_parameter, item.generic_parameter_count);
         Resolver::check_generic_names(resolver, sources, syntax, scope);
         transition { _ -> domains(resolver, sources, syntax, index + 1) }
     }
 
-    state propositions(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine propositions(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.proposition_count && resolver.output.accepted {
             true -> proposition_generics(resolver, sources, syntax, index)
             _ -> done()
         }
     }
 
-    state proposition_generics(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine proposition_generics(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         let item: PropositionItem = SyntaxTrees::proposition_item(syntax, index);
         let scope: TypeScope = Resolver::scope(item.first_generic_parameter, item.generic_parameter_count);
         Resolver::check_generic_names(resolver, sources, syntax, scope);
@@ -504,12 +504,12 @@ crashes Trap
         }
     }
 
-    state proposition_parameters(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, item: PropositionItem) {
+    machine proposition_parameters(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, item: PropositionItem) {
         Resolver::check_parameter_names(resolver, sources, syntax, item.first_parameter, item.parameter_count);
         transition { _ -> propositions(resolver, sources, syntax, index + 1) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Member namespaces of each data declaration. Direct fields and cases share
@@ -520,14 +520,14 @@ crashes Trap
 {
     transition { _ -> next_data(resolver, sources, syntax, 0) }
 
-    state next_data(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping) {
+    machine next_data(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping) {
         transition data_index < syntax.data_count {
             true -> data_members(resolver, sources, syntax, data_index)
             _ -> done()
         }
     }
 
-    state data_members(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping) {
+    machine data_members(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping) {
         let item: DataItem = SyntaxTrees::data_item(syntax, data_index);
         let scope: TypeScope = Resolver::data_scope(item);
         Resolver::check_generic_names(resolver, sources, syntax, scope);
@@ -537,27 +537,27 @@ crashes Trap
         }
     }
 
-    state member(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) {
+    machine member(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) {
         transition offset < item.member_count {
             true -> member_named(resolver, sources, syntax, data_index, item, offset)
             _ -> cases(resolver, sources, syntax, data_index, item, 0)
         }
     }
 
-    state member_named(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) {
+    machine member_named(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) {
         let data_member: DataMember = SyntaxTrees::data_member(syntax, item.first_member + offset);
         let name: IdentifierSpan = SyntaxTrees::member_name(syntax, data_member);
         transition { _ -> member_prior(resolver, sources, syntax, data_index, item, offset, name, 0) }
     }
 
-    state member_prior(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping, name: IdentifierSpan, prior: u64 in Trapping) {
+    machine member_prior(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping, name: IdentifierSpan, prior: u64 in Trapping) {
         transition prior < offset {
             true -> member_compare(resolver, sources, syntax, data_index, item, offset, name, prior)
             _ -> member(resolver, sources, syntax, data_index, item, offset + 1)
         }
     }
 
-    state member_compare(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping, name: IdentifierSpan, prior: u64 in Trapping) {
+    machine member_compare(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping, name: IdentifierSpan, prior: u64 in Trapping) {
         let prior_member: DataMember = SyntaxTrees::data_member(syntax, item.first_member + prior);
         let prior_name: IdentifierSpan = SyntaxTrees::member_name(syntax, prior_member);
         let equal: bool = SourceSet::spans_equal(sources, name.source_span,
@@ -569,38 +569,38 @@ crashes Trap
         }
     }
 
-    state cases(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping) {
+    machine cases(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping) {
         transition case_offset < item.case_count {
             true -> case_payload(resolver, sources, syntax, data_index, item, case_offset)
             _ -> next_data(resolver, sources, syntax, data_index + 1)
         }
     }
 
-    state case_payload(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping) {
+    machine case_payload(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping) {
         let data_case: DataCase = SyntaxTrees::data_case(syntax, item.first_case + case_offset);
         transition { _ -> payload(resolver, sources, syntax, data_index, item, case_offset, data_case, 0) }
     }
 
-    state payload(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping) {
+    machine payload(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping) {
         transition field_offset < data_case.payload_field_count {
             true -> payload_named(resolver, sources, syntax, data_index, item, case_offset, data_case, field_offset)
             _ -> cases(resolver, sources, syntax, data_index, item, case_offset + 1)
         }
     }
 
-    state payload_named(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping) {
+    machine payload_named(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping) {
         let field: DataField = SyntaxTrees::payload_field(syntax, data_case.first_payload_field + field_offset);
         transition { _ -> payload_prior(resolver, sources, syntax, data_index, item, case_offset, data_case, field_offset, field.name, 0) }
     }
 
-    state payload_prior(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping, name: IdentifierSpan, prior: u64 in Trapping) {
+    machine payload_prior(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping, name: IdentifierSpan, prior: u64 in Trapping) {
         transition prior < field_offset {
             true -> payload_compare(resolver, sources, syntax, data_index, item, case_offset, data_case, field_offset, name, prior)
             _ -> common(resolver, sources, syntax, data_index, item, case_offset, data_case, field_offset, name, 0)
         }
     }
 
-    state payload_compare(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping, name: IdentifierSpan, prior: u64 in Trapping) {
+    machine payload_compare(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping, name: IdentifierSpan, prior: u64 in Trapping) {
         let prior_field: DataField = SyntaxTrees::payload_field(syntax, data_case.first_payload_field + prior);
         let equal: bool = SourceSet::spans_equal(sources, name.source_span,
             prior_field.name.source_span
@@ -611,14 +611,14 @@ crashes Trap
         }
     }
 
-    state common(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping, name: IdentifierSpan, common_offset: u64 in Trapping) {
+    machine common(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping, name: IdentifierSpan, common_offset: u64 in Trapping) {
         transition common_offset < item.field_count {
             true -> common_compare(resolver, sources, syntax, data_index, item, case_offset, data_case, field_offset, name, common_offset)
             _ -> payload(resolver, sources, syntax, data_index, item, case_offset, data_case, field_offset + 1)
         }
     }
 
-    state common_compare(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping, name: IdentifierSpan, common_offset: u64 in Trapping) {
+    machine common_compare(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping, name: IdentifierSpan, common_offset: u64 in Trapping) {
         let common_field: DataField = SyntaxTrees::field(syntax, item.first_field + common_offset);
         let equal: bool = SourceSet::spans_equal(sources, name.source_span,
             common_field.name.source_span
@@ -629,11 +629,11 @@ crashes Trap
         }
     }
 
-    state reject(resolver: &mut Resolver, code: ResolveDiagnosticCode, name: IdentifierSpan) {
+    machine reject(resolver: &mut Resolver, code: ResolveDiagnosticCode, name: IdentifierSpan) {
         NameResolution::reject(&mut resolver.output, code, name.source_span);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Type references of each data declaration: its generic-parameter
@@ -644,14 +644,14 @@ crashes Trap
 {
     transition { _ -> next_data(resolver, sources, syntax, 0) }
 
-    state next_data(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping) {
+    machine next_data(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping) {
         transition data_index < syntax.data_count {
             true -> data_references(resolver, sources, syntax, data_index)
             _ -> done()
         }
     }
 
-    state data_references(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping) {
+    machine data_references(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping) {
         let item: DataItem = SyntaxTrees::data_item(syntax, data_index);
         let scope: TypeScope = Resolver::data_scope(item);
         Resolver::bind_generic_annotations(resolver, sources, syntax, scope);
@@ -661,14 +661,14 @@ crashes Trap
         }
     }
 
-    state member(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) {
+    machine member(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) {
         transition offset < item.member_count {
             true -> member_kind(resolver, sources, syntax, data_index, item, offset)
             _ -> next_data(resolver, sources, syntax, data_index + 1)
         }
     }
 
-    state member_kind(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) {
+    machine member_kind(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) {
         let data_member: DataMember = SyntaxTrees::data_member(syntax, item.first_member + offset);
         transition data_member.kind {
             DataMemberKind::Field -> field_reference(resolver, sources, syntax, data_index, item, offset, data_member.item_index)
@@ -676,7 +676,7 @@ crashes Trap
         }
     }
 
-    state field_reference(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping, handle: u64 in Trapping) {
+    machine field_reference(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping, handle: u64 in Trapping) {
         let field: DataField = SyntaxTrees::field(syntax, handle);
         let scope: TypeScope = Resolver::data_scope(item);
         Resolver::bind_type_reference(resolver, sources, syntax, scope, field.type_reference, TypeRole::Type);
@@ -686,19 +686,19 @@ crashes Trap
         }
     }
 
-    state case_references(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping, handle: u64 in Trapping) {
+    machine case_references(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping, handle: u64 in Trapping) {
         let data_case: DataCase = SyntaxTrees::data_case(syntax, handle);
         transition { _ -> payload(resolver, sources, syntax, data_index, item, offset, data_case, 0) }
     }
 
-    state payload(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping) {
+    machine payload(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping) {
         transition field_offset < data_case.payload_field_count {
             true -> payload_reference(resolver, sources, syntax, data_index, item, offset, data_case, field_offset)
             _ -> member(resolver, sources, syntax, data_index, item, offset + 1)
         }
     }
 
-    state payload_reference(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping) {
+    machine payload_reference(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping) {
         let field: DataField = SyntaxTrees::payload_field(syntax, data_case.first_payload_field + field_offset);
         let scope: TypeScope = Resolver::data_scope(item);
         Resolver::bind_type_reference(resolver, sources, syntax, scope, field.type_reference, TypeRole::Type);
@@ -708,7 +708,7 @@ crashes Trap
         }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // A data declaration's type scope: its own generic parameters.
@@ -736,7 +736,7 @@ machine Resolver::scope_position(scope: TypeScope, parameter: u64 in Trapping) -
         _ -> own(parameter - scope.first_outer_parameter)
     }
 
-    state own(position: u64 in Trapping) -> u64 in Trapping {
+    machine own(position: u64 in Trapping) -> u64 in Trapping {
         position
     }
 }
@@ -751,41 +751,41 @@ crashes Trap
 {
     transition { _ -> traits(resolver, sources, syntax, 0) }
 
-    state traits(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine traits(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.trait_count && resolver.output.accepted {
             true -> trait_annotations(resolver, sources, syntax, index)
             _ -> conformances(resolver, sources, syntax, 0)
         }
     }
 
-    state trait_annotations(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine trait_annotations(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         let item: TraitItem = SyntaxTrees::trait_item(syntax, index);
         let scope: TypeScope = Resolver::scope(item.first_generic_parameter, item.generic_parameter_count);
         Resolver::bind_generic_annotations(resolver, sources, syntax, scope);
         transition { _ -> parents(resolver, sources, syntax, index, item, scope, 0) }
     }
 
-    state parents(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, item: TraitItem, scope: TypeScope, offset: u64 in Trapping) {
+    machine parents(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, item: TraitItem, scope: TypeScope, offset: u64 in Trapping) {
         transition offset < item.parent_count && resolver.output.accepted {
             true -> parent(resolver, sources, syntax, index, item, scope, offset)
             _ -> traits(resolver, sources, syntax, index + 1)
         }
     }
 
-    state parent(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, item: TraitItem, scope: TypeScope, offset: u64 in Trapping) {
+    machine parent(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, item: TraitItem, scope: TypeScope, offset: u64 in Trapping) {
         let row: u64 in Trapping = SyntaxTrees::trait_parent(syntax, item.first_parent + offset);
         Resolver::bind_type_reference(resolver, sources, syntax, scope, row, TypeRole::Trait);
         transition { _ -> parents(resolver, sources, syntax, index, item, scope, offset + 1) }
     }
 
-    state conformances(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine conformances(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.conformance_count && resolver.output.accepted {
             true -> conformance(resolver, sources, syntax, index)
             _ -> constants(resolver, sources, syntax, 0)
         }
     }
 
-    state conformance(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine conformance(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         let item: ConformanceItem = SyntaxTrees::conformance_item(syntax, index);
         let scope: TypeScope = Resolver::scope(item.first_generic_parameter, item.generic_parameter_count);
         Resolver::bind_generic_annotations(resolver, sources, syntax, scope);
@@ -793,28 +793,28 @@ crashes Trap
         transition { _ -> conformances(resolver, sources, syntax, index + 1) }
     }
 
-    state constants(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine constants(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.constant_count && resolver.output.accepted {
             true -> constant(resolver, sources, syntax, index)
             _ -> propositions(resolver, sources, syntax, 0)
         }
     }
 
-    state constant(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine constant(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         let item: ConstantItem = SyntaxTrees::constant_item(syntax, index);
         let scope: TypeScope = Resolver::empty_scope();
         Resolver::bind_type_reference(resolver, sources, syntax, scope, item.type_reference, TypeRole::Type);
         transition { _ -> constants(resolver, sources, syntax, index + 1) }
     }
 
-    state propositions(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine propositions(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.proposition_count && resolver.output.accepted {
             true -> proposition(resolver, sources, syntax, index)
             _ -> done()
         }
     }
 
-    state proposition(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine proposition(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         let item: PropositionItem = SyntaxTrees::proposition_item(syntax, index);
         let scope: TypeScope = Resolver::scope(item.first_generic_parameter, item.generic_parameter_count);
         Resolver::bind_generic_annotations(resolver, sources, syntax, scope);
@@ -824,7 +824,7 @@ crashes Trap
         }
     }
 
-    state proposition_signature(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, item: PropositionItem, scope: TypeScope) {
+    machine proposition_signature(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, item: PropositionItem, scope: TypeScope) {
         Resolver::bind_signature(resolver, sources, syntax, scope, item.first_parameter, item.parameter_count, false, 0);
         transition resolver.output.accepted && item.body == PropositionBody::Evidence {
             true -> evidence(resolver, sources, syntax, index, item, scope)
@@ -832,12 +832,12 @@ crashes Trap
         }
     }
 
-    state evidence(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, item: PropositionItem, scope: TypeScope) {
+    machine evidence(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, item: PropositionItem, scope: TypeScope) {
         Resolver::bind_type_reference(resolver, sources, syntax, scope, item.evidence, TypeRole::Type);
         transition { _ -> propositions(resolver, sources, syntax, index + 1) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // The generic parameters of one declaration share one namespace, whatever
@@ -847,26 +847,26 @@ crashes Trap
 {
     transition { _ -> next(resolver, sources, syntax, scope, 0) }
 
-    state next(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, offset: u64 in Trapping) {
+    machine next(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, offset: u64 in Trapping) {
         transition offset < scope.generic_parameter_count {
             true -> named(resolver, sources, syntax, scope, offset)
             _ -> done()
         }
     }
 
-    state named(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, offset: u64 in Trapping) {
+    machine named(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, offset: u64 in Trapping) {
         let parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax, scope.first_generic_parameter + offset);
         transition { _ -> prior(resolver, sources, syntax, scope, offset, parameter.name, 0) }
     }
 
-    state prior(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, offset: u64 in Trapping, name: IdentifierSpan, earlier: u64 in Trapping) {
+    machine prior(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, offset: u64 in Trapping, name: IdentifierSpan, earlier: u64 in Trapping) {
         transition earlier < offset {
             true -> compare(resolver, sources, syntax, scope, offset, name, earlier)
             _ -> next(resolver, sources, syntax, scope, offset + 1)
         }
     }
 
-    state compare(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, offset: u64 in Trapping, name: IdentifierSpan, earlier: u64 in Trapping) {
+    machine compare(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, offset: u64 in Trapping, name: IdentifierSpan, earlier: u64 in Trapping) {
         let earlier_parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax, scope.first_generic_parameter + earlier);
         let equal: bool = SourceSet::spans_equal(sources, name.source_span,
             earlier_parameter.name.source_span
@@ -877,11 +877,11 @@ crashes Trap
         }
     }
 
-    state duplicate(resolver: &mut Resolver, name: IdentifierSpan) {
+    machine duplicate(resolver: &mut Resolver, name: IdentifierSpan) {
         NameResolution::reject(&mut resolver.output, ResolveDiagnosticCode::DuplicateGenericParameter, name.source_span);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // The type annotations of one declaration's value binders (`const N: u64`,
@@ -896,14 +896,14 @@ crashes Trap
 {
     transition { _ -> next(resolver, sources, syntax, scope, 0) }
 
-    state next(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, offset: u64 in Trapping) {
+    machine next(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, offset: u64 in Trapping) {
         transition offset < scope.generic_parameter_count && resolver.output.accepted {
             true -> annotation(resolver, sources, syntax, scope, offset)
             _ -> done()
         }
     }
 
-    state annotation(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, offset: u64 in Trapping) {
+    machine annotation(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, offset: u64 in Trapping) {
         let parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax, scope.first_generic_parameter + offset);
         transition parameter.has_type_reference {
             true -> role(resolver, sources, syntax, scope, offset, parameter)
@@ -911,19 +911,19 @@ crashes Trap
         }
     }
 
-    state role(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, offset: u64 in Trapping, parameter: GenericParameter) {
+    machine role(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, offset: u64 in Trapping, parameter: GenericParameter) {
         transition parameter.kind {
             GenericParameterKind::Evidence -> bind(resolver, sources, syntax, scope, offset, parameter.type_reference, TypeRole::Trait)
             _ -> bind(resolver, sources, syntax, scope, offset, parameter.type_reference, TypeRole::Type)
         }
     }
 
-    state bind(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, offset: u64 in Trapping, reference: u64 in Trapping, role: TypeRole) {
+    machine bind(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, offset: u64 in Trapping, reference: u64 in Trapping, role: TypeRole) {
         Resolver::bind_type_reference(resolver, sources, syntax, scope, reference, role);
         transition { _ -> next(resolver, sources, syntax, scope, offset + 1) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Bind one type in its owner's scope. A type fills a contiguous run of
@@ -944,7 +944,7 @@ crashes Trap
     let root_row: TypeReference = SyntaxTrees::type_reference(syntax, root);
     transition { _ -> next(resolver, sources, syntax, scope, root, role, root_row.first_row) }
 
-    state next(
+    machine next(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -959,7 +959,7 @@ crashes Trap
         }
     }
 
-    state bind(
+    machine bind(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -972,7 +972,7 @@ crashes Trap
         transition { _ -> next(resolver, sources, syntax, scope, root, role, row + 1) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // One row. A trait binds only at the root of a trait position, and a trait
@@ -998,7 +998,7 @@ crashes Trap
         _ -> reject(resolver, ResolveDiagnosticCode::UndeclaredLifetime, whole)
     }
 
-    state kinds(
+    machine kinds(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -1020,7 +1020,7 @@ crashes Trap
 
     // An applied data name supplies as many lifetime arguments as the data
     // declares lifetime binders, or elides them all; other names take none.
-    state arity(
+    machine arity(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -1038,7 +1038,7 @@ crashes Trap
         }
     }
 
-    state named(
+    machine named(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -1063,7 +1063,7 @@ crashes Trap
     // A name no type spells: a static argument may name a machine, for a
     // callee's machine binder (wiki/spec/language/generics.md, Static
     // machine binder categories); anything else is unknown.
-    state unnamed(
+    machine unnamed(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -1079,7 +1079,7 @@ crashes Trap
         }
     }
 
-    state machine_argument(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, row: u64 in Trapping, type_reference: TypeReference) {
+    machine machine_argument(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, row: u64 in Trapping, type_reference: TypeReference) {
         let lookup: Lookup = Resolver::machine_named(&resolver.output, sources, syntax, false, type_reference.name.source_span, type_reference.name.source_span);
         transition lookup {
             Lookup::Found { handle } -> bounded(resolver, sources, syntax, scope, row, type_reference, TypeBinding::Machine { handle: handle })
@@ -1089,7 +1089,7 @@ crashes Trap
     }
 
     // A reference, array or slice holds a type, never a conformance.
-    state holder(
+    machine holder(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -1109,7 +1109,7 @@ crashes Trap
         }
     }
 
-    state placed(
+    machine placed(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -1131,7 +1131,7 @@ crashes Trap
         }
     }
 
-    state admitted(
+    machine admitted(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -1149,7 +1149,7 @@ crashes Trap
         }
     }
 
-    state bounded(
+    machine bounded(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -1164,7 +1164,7 @@ crashes Trap
         }
     }
 
-    state store(
+    machine store(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -1182,7 +1182,7 @@ crashes Trap
         }
     }
 
-    state qualified(
+    machine qualified(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -1193,15 +1193,15 @@ crashes Trap
         Resolver::bind_domain(resolver, sources, syntax, scope, row, type_reference);
     }
 
-    state reject(resolver: &mut Resolver, code: ResolveDiagnosticCode, name: IdentifierSpan) {
+    machine reject(resolver: &mut Resolver, code: ResolveDiagnosticCode, name: IdentifierSpan) {
         NameResolution::reject(&mut resolver.output, code, name.source_span);
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // The declaration a type name denotes in `scope`: an enclosing generic
@@ -1222,7 +1222,7 @@ crashes Trap
         _ -> outer(sources, syntax, scope, name)
     }
 
-    state outer(sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, name: SourceSpan) -> TypeBinding {
+    machine outer(sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, name: SourceSpan) -> TypeBinding {
         let container: Lookup = Resolver::generic_named(sources, syntax, scope.first_outer_parameter, scope.outer_parameter_count, name);
         transition container {
             Lookup::Found { handle } -> found(TypeBinding::GenericParameter { parameter: handle })
@@ -1230,7 +1230,7 @@ crashes Trap
         }
     }
 
-    state builtin(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan) -> TypeBinding {
+    machine builtin(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan) -> TypeBinding {
         let binding: TypeBinding = Resolver::builtin_type(sources, name);
         transition binding {
             TypeBinding::Unresolved -> declared(sources, syntax, name)
@@ -1240,7 +1240,7 @@ crashes Trap
 
     // A visible data declaration, trait or conformance of the spelling; two
     // of them, of any kinds, make the name ambiguous.
-    state declared(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan) -> TypeBinding {
+    machine declared(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan) -> TypeBinding {
         let data: Lookup = Resolver::data_named(sources, syntax, name);
         transition data {
             Lookup::Found { handle } -> data_found(sources, syntax, name, handle)
@@ -1249,7 +1249,7 @@ crashes Trap
         }
     }
 
-    state data_found(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan, item: u64 in Trapping) -> TypeBinding {
+    machine data_found(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan, item: u64 in Trapping) -> TypeBinding {
         let rivals: bool = Resolver::trait_or_conformance_named(sources, syntax, name);
         transition rivals {
             true -> found(TypeBinding::Ambiguous)
@@ -1257,7 +1257,7 @@ crashes Trap
         }
     }
 
-    state traits(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan) -> TypeBinding {
+    machine traits(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan) -> TypeBinding {
         let traits: Lookup = Resolver::declared_named(sources, syntax, DeclarationKind::Trait, false, name, name);
         transition traits {
             Lookup::Found { handle } -> trait_found(sources, syntax, name, handle)
@@ -1266,7 +1266,7 @@ crashes Trap
         }
     }
 
-    state trait_found(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan, item: u64 in Trapping) -> TypeBinding {
+    machine trait_found(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan, item: u64 in Trapping) -> TypeBinding {
         let conformances: Lookup = Resolver::declared_named(sources, syntax, DeclarationKind::Conformance, false, name, name);
         transition conformances {
             Lookup::Absent -> found(TypeBinding::Trait { item: item })
@@ -1274,7 +1274,7 @@ crashes Trap
         }
     }
 
-    state conformances(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan) -> TypeBinding {
+    machine conformances(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan) -> TypeBinding {
         let conformances: Lookup = Resolver::declared_named(sources, syntax, DeclarationKind::Conformance, false, name, name);
         transition conformances {
             Lookup::Found { handle } -> found(TypeBinding::Conformance { item: handle })
@@ -1283,7 +1283,7 @@ crashes Trap
         }
     }
 
-    state found(binding: TypeBinding) -> TypeBinding {
+    machine found(binding: TypeBinding) -> TypeBinding {
         binding
     }
 }
@@ -1298,7 +1298,7 @@ crashes Trap
         _ -> yes()
     }
 
-    state conformances(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan) -> bool {
+    machine conformances(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan) -> bool {
         let conformances: Lookup = Resolver::declared_named(sources, syntax, DeclarationKind::Conformance, false, name, name);
         transition conformances {
             Lookup::Absent -> no()
@@ -1306,11 +1306,11 @@ crashes Trap
         }
     }
 
-    state yes() -> bool {
+    machine yes() -> bool {
         true
     }
 
-    state no() -> bool {
+    machine no() -> bool {
         false
     }
 }
@@ -1322,14 +1322,14 @@ crashes Trap
 {
     transition { _ -> next(sources, syntax, first, count, name, 0) }
 
-    state next(sources: &SourceSet, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: SourceSpan, offset: u64 in Trapping) -> Lookup {
+    machine next(sources: &SourceSet, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: SourceSpan, offset: u64 in Trapping) -> Lookup {
         transition offset < count {
             true -> candidate(sources, syntax, first, count, name, offset)
             _ -> absent()
         }
     }
 
-    state candidate(sources: &SourceSet, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: SourceSpan, offset: u64 in Trapping) -> Lookup {
+    machine candidate(sources: &SourceSet, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: SourceSpan, offset: u64 in Trapping) -> Lookup {
         let parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax, first + offset);
         let equal: bool = SourceSet::spans_equal(sources, name, parameter.name.source_span);
         transition equal && parameter.kind != GenericParameterKind::Lifetime {
@@ -1338,11 +1338,11 @@ crashes Trap
         }
     }
 
-    state found(handle: u64 in Trapping) -> Lookup {
+    machine found(handle: u64 in Trapping) -> Lookup {
         Lookup::Found { handle: handle }
     }
 
-    state absent() -> Lookup {
+    machine absent() -> Lookup {
         Lookup::Absent
     }
 }
@@ -1374,7 +1374,7 @@ crashes Trap
         _ -> bare(resolver, sources, syntax, reference, type_reference.domain)
     }
 
-    state bare(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, reference: u64 in Trapping, domain: IdentifierSpan) {
+    machine bare(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, reference: u64 in Trapping, domain: IdentifierSpan) {
         let known: DomainBinding = Resolver::known_domain(sources, domain.source_span);
         transition known {
             DomainBinding::Unqualified -> declared(resolver, sources, syntax, reference, domain)
@@ -1382,7 +1382,7 @@ crashes Trap
         }
     }
 
-    state declared(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, reference: u64 in Trapping, domain: IdentifierSpan) {
+    machine declared(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, reference: u64 in Trapping, domain: IdentifierSpan) {
         let lookup: Lookup = Resolver::declared_domain(resolver, sources, syntax, reference, domain.source_span);
         transition lookup {
             Lookup::Found { handle } -> bind(resolver, reference, DomainBinding::Declared, handle)
@@ -1391,7 +1391,7 @@ crashes Trap
         }
     }
 
-    state owned(
+    machine owned(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -1411,7 +1411,7 @@ crashes Trap
         }
     }
 
-    state case_domain(resolver: &mut Resolver, reference: u64 in Trapping, whole: SourceSpan, owner: u64 in Trapping, data_case: u64 in Trapping) {
+    machine case_domain(resolver: &mut Resolver, reference: u64 in Trapping, whole: SourceSpan, owner: u64 in Trapping, data_case: u64 in Trapping) {
         let qualified: TypeBinding = NameResolution::type_binding_at(&resolver.output, reference);
         transition qualified {
             TypeBinding::Data { item } -> case_carrier(resolver, reference, whole, item == owner, data_case)
@@ -1419,14 +1419,14 @@ crashes Trap
         }
     }
 
-    state case_carrier(resolver: &mut Resolver, reference: u64 in Trapping, whole: SourceSpan, own: bool, data_case: u64 in Trapping) {
+    machine case_carrier(resolver: &mut Resolver, reference: u64 in Trapping, whole: SourceSpan, own: bool, data_case: u64 in Trapping) {
         transition own {
             true -> bind(resolver, reference, DomainBinding::Case, data_case)
             _ -> reject(resolver, ResolveDiagnosticCode::UnknownDomain, whole)
         }
     }
 
-    state declared_carrier(
+    machine declared_carrier(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -1442,12 +1442,12 @@ crashes Trap
         }
     }
 
-    state bind(resolver: &mut Resolver, reference: u64 in Trapping, binding: DomainBinding, item: u64 in Trapping) {
+    machine bind(resolver: &mut Resolver, reference: u64 in Trapping, binding: DomainBinding, item: u64 in Trapping) {
         resolver.output.domain_bindings[reference] = binding;
         resolver.output.domain_items[reference] = item as u64;
     }
 
-    state reject(resolver: &mut Resolver, code: ResolveDiagnosticCode, source_span: SourceSpan) {
+    machine reject(resolver: &mut Resolver, code: ResolveDiagnosticCode, source_span: SourceSpan) {
         NameResolution::reject(&mut resolver.output, code, source_span);
     }
 }
@@ -1460,116 +1460,116 @@ crashes Trap
     let matched: bool = SourceSet::span_spells(sources, name, "bool");
     transition matched { true -> found(BuiltinType::Bool) _ -> spells_i8(sources, name) }
 
-    state spells_i8(sources: &SourceSet, name: SourceSpan) {
+    machine spells_i8(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = SourceSet::span_spells(sources, name, "i8");
         transition matched { true -> found(BuiltinType::I8) _ -> spells_i16(sources, name) }
     }
 
-    state spells_i16(sources: &SourceSet, name: SourceSpan) {
+    machine spells_i16(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = SourceSet::span_spells(sources, name, "i16");
         transition matched { true -> found(BuiltinType::I16) _ -> spells_i32(sources, name) }
     }
 
-    state spells_i32(sources: &SourceSet, name: SourceSpan) {
+    machine spells_i32(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = SourceSet::span_spells(sources, name, "i32");
         transition matched { true -> found(BuiltinType::I32) _ -> spells_i64(sources, name) }
     }
 
-    state spells_i64(sources: &SourceSet, name: SourceSpan) {
+    machine spells_i64(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = SourceSet::span_spells(sources, name, "i64");
         transition matched { true -> found(BuiltinType::I64) _ -> spells_u8(sources, name) }
     }
 
-    state spells_u8(sources: &SourceSet, name: SourceSpan) {
+    machine spells_u8(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = SourceSet::span_spells(sources, name, "u8");
         transition matched { true -> found(BuiltinType::U8) _ -> spells_u16(sources, name) }
     }
 
-    state spells_u16(sources: &SourceSet, name: SourceSpan) {
+    machine spells_u16(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = SourceSet::span_spells(sources, name, "u16");
         transition matched { true -> found(BuiltinType::U16) _ -> spells_u32(sources, name) }
     }
 
-    state spells_u32(sources: &SourceSet, name: SourceSpan) {
+    machine spells_u32(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = SourceSet::span_spells(sources, name, "u32");
         transition matched { true -> found(BuiltinType::U32) _ -> spells_u64(sources, name) }
     }
 
-    state spells_u64(sources: &SourceSet, name: SourceSpan) {
+    machine spells_u64(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = SourceSet::span_spells(sources, name, "u64");
         transition matched { true -> found(BuiltinType::U64) _ -> spells_addr(sources, name) }
     }
 
-    state spells_addr(sources: &SourceSet, name: SourceSpan) {
+    machine spells_addr(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = SourceSet::span_spells(sources, name, "addr");
         transition matched { true -> found(BuiltinType::Address) _ -> spells_f32(sources, name) }
     }
 
-    state spells_f32(sources: &SourceSet, name: SourceSpan) {
+    machine spells_f32(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = SourceSet::span_spells(sources, name, "f32");
         transition matched { true -> found(BuiltinType::F32) _ -> spells_f64(sources, name) }
     }
 
-    state spells_f64(sources: &SourceSet, name: SourceSpan) {
+    machine spells_f64(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = SourceSet::span_spells(sources, name, "f64");
         transition matched { true -> found(BuiltinType::F64) _ -> spells_slice(sources, name) }
     }
 
-    state spells_slice(sources: &SourceSet, name: SourceSpan) {
+    machine spells_slice(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = SourceSet::span_spells(sources, name, "Slice");
         transition matched { true -> found(BuiltinType::Slice) _ -> spells_result(sources, name) }
     }
 
-    state spells_result(sources: &SourceSet, name: SourceSpan) {
+    machine spells_result(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = SourceSet::span_spells(sources, name, "Result");
         transition matched { true -> found(BuiltinType::Result) _ -> spells_syscallresult(sources, name) }
     }
 
-    state spells_syscallresult(sources: &SourceSet, name: SourceSpan) {
+    machine spells_syscallresult(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = SourceSet::span_spells(sources, name, "SyscallResult");
         transition matched { true -> found(BuiltinType::SyscallResult) _ -> spells_terminal(sources, name) }
     }
 
-    state spells_terminal(sources: &SourceSet, name: SourceSpan) {
+    machine spells_terminal(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = SourceSet::span_spells(sources, name, "Terminal");
         transition matched { true -> found(BuiltinType::Terminal) _ -> spells_never(sources, name) }
     }
 
-    state spells_never(sources: &SourceSet, name: SourceSpan) {
+    machine spells_never(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = SourceSet::span_spells(sources, name, "Never");
         transition matched { true -> found(BuiltinType::Never) _ -> spells_uint(sources, name) }
     }
 
-    state spells_uint(sources: &SourceSet, name: SourceSpan) {
+    machine spells_uint(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = SourceSet::span_spells(sources, name, "UInt");
         transition matched { true -> found(BuiltinType::UInt) _ -> spells_int(sources, name) }
     }
 
-    state spells_int(sources: &SourceSet, name: SourceSpan) {
+    machine spells_int(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = SourceSet::span_spells(sources, name, "Int");
         transition matched { true -> found(BuiltinType::Int) _ -> spells_atomicbool(sources, name) }
     }
 
-    state spells_atomicbool(sources: &SourceSet, name: SourceSpan) {
+    machine spells_atomicbool(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = SourceSet::span_spells(sources, name, "AtomicBool");
         transition matched { true -> found(BuiltinType::AtomicBool) _ -> spells_atomicu32(sources, name) }
     }
 
-    state spells_atomicu32(sources: &SourceSet, name: SourceSpan) {
+    machine spells_atomicu32(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = SourceSet::span_spells(sources, name, "AtomicU32");
         transition matched { true -> found(BuiltinType::AtomicU32) _ -> spells_atomicu64(sources, name) }
     }
 
-    state spells_atomicu64(sources: &SourceSet, name: SourceSpan) {
+    machine spells_atomicu64(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = SourceSet::span_spells(sources, name, "AtomicU64");
         transition matched { true -> found(BuiltinType::AtomicU64) _ -> absent() }
     }
 
-    state found(builtin: BuiltinType) {
+    machine found(builtin: BuiltinType) -> TypeBinding {
         TypeBinding::Builtin { builtin: builtin }
     }
 
-    state absent() {
+    machine absent() -> TypeBinding {
         TypeBinding::Unresolved
     }
 }
@@ -1583,14 +1583,14 @@ crashes Trap
 {
     transition { _ -> next_machine(resolver, sources, syntax, 0) }
 
-    state next_machine(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine next_machine(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count {
             true -> machine_signature(resolver, sources, syntax, index)
             _ -> done()
         }
     }
 
-    state machine_signature(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine machine_signature(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
         let scope: TypeScope = Resolver::machine_scope(&resolver.output, syntax, index);
         Resolver::bind_generic_annotations(resolver, sources, syntax, scope);
@@ -1600,7 +1600,7 @@ crashes Trap
         }
     }
 
-    state entry_signature(
+    machine entry_signature(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -1618,7 +1618,7 @@ crashes Trap
     }
 
     // Each `where machine` contract's signature, in the machine's scope.
-    state contract_signature(
+    machine contract_signature(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -1633,7 +1633,7 @@ crashes Trap
         }
     }
 
-    state bind_contract(
+    machine bind_contract(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -1649,7 +1649,7 @@ crashes Trap
         transition { _ -> contract_signature(resolver, sources, syntax, index, item, scope, offset + 1) }
     }
 
-    state state_signature(
+    machine state_signature(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -1663,7 +1663,7 @@ crashes Trap
         }
     }
 
-    state bind_state(
+    machine bind_state(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -1682,7 +1682,7 @@ crashes Trap
         }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // One signature's parameter types, then its return type when present, in
@@ -1701,7 +1701,7 @@ crashes Trap
 {
     transition { _ -> parameter(resolver, sources, syntax, scope, first_parameter, parameter_count, has_return_type, return_type, 0) }
 
-    state parameter(
+    machine parameter(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -1718,7 +1718,7 @@ crashes Trap
         }
     }
 
-    state bind_parameter(
+    machine bind_parameter(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -1737,7 +1737,7 @@ crashes Trap
         }
     }
 
-    state result(
+    machine result(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -1751,11 +1751,11 @@ crashes Trap
         }
     }
 
-    state bind_result(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, return_type: u64 in Trapping) {
+    machine bind_result(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, return_type: u64 in Trapping) {
         Resolver::bind_type_reference(resolver, sources, syntax, scope, return_type, TypeRole::Type);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 public machine Resolver::empty_scope() -> TypeScope {
@@ -1777,14 +1777,14 @@ crashes Trap
 {
     transition { _ -> next_machine(resolver, sources, syntax, 0) }
 
-    state next_machine(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine next_machine(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count {
             true -> machine_parameters(resolver, sources, syntax, index)
             _ -> done()
         }
     }
 
-    state machine_parameters(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine machine_parameters(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
         let scope: TypeScope = Resolver::scope(item.first_generic_parameter, item.generic_parameter_count);
         Resolver::check_generic_names(resolver, sources, syntax, scope);
@@ -1794,7 +1794,7 @@ crashes Trap
         }
     }
 
-    state machine_parameter_names(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, item: MachineItem) {
+    machine machine_parameter_names(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, item: MachineItem) {
         Resolver::check_parameter_names(resolver, sources, syntax, item.first_parameter, item.parameter_count);
         transition resolver.output.accepted {
             true -> state_names(resolver, sources, syntax, index, item, 0)
@@ -1802,7 +1802,7 @@ crashes Trap
         }
     }
 
-    state state_names(
+    machine state_names(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -1816,7 +1816,7 @@ crashes Trap
         }
     }
 
-    state state_name(
+    machine state_name(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -1834,7 +1834,7 @@ crashes Trap
         }
     }
 
-    state state_prior(
+    machine state_prior(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -1850,7 +1850,7 @@ crashes Trap
         }
     }
 
-    state state_compare(
+    machine state_compare(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -1870,7 +1870,7 @@ crashes Trap
         }
     }
 
-    state overloads(
+    machine overloads(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -1884,7 +1884,7 @@ crashes Trap
         }
     }
 
-    state overload_compare(
+    machine overload_compare(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -1902,11 +1902,11 @@ crashes Trap
         }
     }
 
-    state reject(resolver: &mut Resolver, code: ResolveDiagnosticCode, name: IdentifierSpan) {
+    machine reject(resolver: &mut Resolver, code: ResolveDiagnosticCode, name: IdentifierSpan) {
         NameResolution::reject(&mut resolver.output, code, name.source_span);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Each parameter name of one signature differs from every earlier one.
@@ -1921,7 +1921,7 @@ crashes Trap
 {
     transition { _ -> next(resolver, sources, syntax, first_parameter, parameter_count, 0) }
 
-    state next(
+    machine next(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -1935,7 +1935,7 @@ crashes Trap
         }
     }
 
-    state named(
+    machine named(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -1947,7 +1947,7 @@ crashes Trap
         transition { _ -> prior(resolver, sources, syntax, first_parameter, parameter_count, offset, parameter.name, 0) }
     }
 
-    state prior(
+    machine prior(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -1963,7 +1963,7 @@ crashes Trap
         }
     }
 
-    state compare(
+    machine compare(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -1983,11 +1983,11 @@ crashes Trap
         }
     }
 
-    state duplicate(resolver: &mut Resolver, name: IdentifierSpan) {
+    machine duplicate(resolver: &mut Resolver, name: IdentifierSpan) {
         NameResolution::reject(&mut resolver.output, ResolveDiagnosticCode::DuplicateParameter, name.source_span);
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Whether two machines declare the same overload body: the same path (owner,
@@ -2017,7 +2017,7 @@ crashes Trap
         _ -> different()
     }
 
-    state parameters(
+    machine parameters(
         resolver: &Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -2034,7 +2034,7 @@ crashes Trap
     }
 
     // Bodies for two different targets are members of one family.
-    state targets(sources: &SourceSet, left: MachineItem, right: MachineItem) -> bool {
+    machine targets(sources: &SourceSet, left: MachineItem, right: MachineItem) -> bool {
         let same_target: bool = SourceSet::spans_equal(sources, left.target.source_span, right.target.source_span);
         transition left.has_target && right.has_target && !same_target {
             true -> different()
@@ -2042,11 +2042,11 @@ crashes Trap
         }
     }
 
-    state same() -> bool {
+    machine same() -> bool {
         true
     }
 
-    state different() -> bool {
+    machine different() -> bool {
         false
     }
 }
@@ -2071,7 +2071,7 @@ crashes Trap
         _ -> different()
     }
 
-    state generic(
+    machine generic(
         resolver: &Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -2087,7 +2087,7 @@ crashes Trap
         }
     }
 
-    state generic_kind(
+    machine generic_kind(
         resolver: &Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -2105,7 +2105,7 @@ crashes Trap
         }
     }
 
-    state parameter(
+    machine parameter(
         resolver: &Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -2121,7 +2121,7 @@ crashes Trap
         }
     }
 
-    state compare(
+    machine compare(
         resolver: &Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -2144,11 +2144,11 @@ crashes Trap
         }
     }
 
-    state same() -> bool {
+    machine same() -> bool {
         true
     }
 
-    state different() -> bool {
+    machine different() -> bool {
         false
     }
 }
@@ -2177,7 +2177,7 @@ crashes Trap
         _ -> different()
     }
 
-    state rows(
+    machine rows(
         resolver: &Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -2186,14 +2186,14 @@ crashes Trap
         right_scope: TypeScope,
         right_row: u64 in Trapping,
         left_root: u64 in Trapping
-    ) {
+    ) -> bool {
         transition left_row <= left_root {
             true -> row(resolver, sources, syntax, left_scope, left_row, right_scope, right_row, left_root)
             _ -> equal()
         }
     }
 
-    state row(
+    machine row(
         resolver: &Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -2202,7 +2202,7 @@ crashes Trap
         right_scope: TypeScope,
         right_row: u64 in Trapping,
         left_root: u64 in Trapping
-    ) {
+    ) -> bool {
         let same: bool = Resolver::same_type_row(resolver, sources, syntax, left_scope, left_row, right_scope, right_row);
         transition same {
             true -> rows(resolver, sources, syntax, left_scope, left_row + 1, right_scope, right_row + 1, left_root)
@@ -2210,11 +2210,11 @@ crashes Trap
         }
     }
 
-    state equal() {
+    machine equal() -> bool {
         true
     }
 
-    state different() {
+    machine different() -> bool {
         false
     }
 }
@@ -2238,7 +2238,7 @@ crashes Trap
         _ -> different()
     }
 
-    state spelling(
+    machine spelling(
         resolver: &Resolver,
         sources: &SourceSet,
         left_scope: TypeScope,
@@ -2247,14 +2247,14 @@ crashes Trap
         right: u64 in Trapping,
         left_row: TypeReference,
         right_row: TypeReference
-    ) {
+    ) -> bool {
         transition left_row.kind {
             TypeReferenceKind::Literal -> literal(resolver, sources, left_scope, left, right_scope, right, left_row, right_row)
             _ -> bounded(resolver, left_scope, left, right_scope, right)
         }
     }
 
-    state literal(
+    machine literal(
         resolver: &Resolver,
         sources: &SourceSet,
         left_scope: TypeScope,
@@ -2263,7 +2263,7 @@ crashes Trap
         right: u64 in Trapping,
         left_row: TypeReference,
         right_row: TypeReference
-    ) {
+    ) -> bool {
         let same: bool = SourceSet::spans_equal(sources, left_row.name.source_span,
             right_row.name.source_span
         );
@@ -2273,14 +2273,14 @@ crashes Trap
         }
     }
 
-    state bounded(resolver: &Resolver, left_scope: TypeScope, left: u64 in Trapping, right_scope: TypeScope, right: u64 in Trapping) {
+    machine bounded(resolver: &Resolver, left_scope: TypeScope, left: u64 in Trapping, right_scope: TypeScope, right: u64 in Trapping) -> bool {
         transition left < 65536 && right < 65536 {
             true -> compare(resolver, left_scope, left, right_scope, right)
             _ -> different()
         }
     }
 
-    state compare(resolver: &Resolver, left_scope: TypeScope, left: u64 in Trapping, right_scope: TypeScope, right: u64 in Trapping) {
+    machine compare(resolver: &Resolver, left_scope: TypeScope, left: u64 in Trapping, right_scope: TypeScope, right: u64 in Trapping) -> bool {
         let left_domain: DomainBinding = resolver.output.domain_bindings[left];
         let right_domain: DomainBinding = resolver.output.domain_bindings[right];
         let left_item: u64 = resolver.output.domain_items[left];
@@ -2292,7 +2292,7 @@ crashes Trap
     }
 
     // TypeBinding carries payloads, so its cases are matched pairwise.
-    state same_binding(left_scope: TypeScope, left: TypeBinding, right_scope: TypeScope, right: TypeBinding) {
+    machine same_binding(left_scope: TypeScope, left: TypeBinding, right_scope: TypeScope, right: TypeBinding) -> bool {
         transition left {
             TypeBinding::Builtin { builtin } -> builtin_binding(builtin, right)
             TypeBinding::Data { item } -> data_binding(item, right)
@@ -2306,69 +2306,69 @@ crashes Trap
         }
     }
 
-    state trait_binding(left_item: u64 in Trapping, right: TypeBinding) {
+    machine trait_binding(left_item: u64 in Trapping, right: TypeBinding) -> bool {
         transition right {
             TypeBinding::Trait { item } -> same_handle(left_item, item)
             _ -> different()
         }
     }
 
-    state conformance_binding(left_item: u64 in Trapping, right: TypeBinding) {
+    machine conformance_binding(left_item: u64 in Trapping, right: TypeBinding) -> bool {
         transition right {
             TypeBinding::Conformance { item } -> same_handle(left_item, item)
             _ -> different()
         }
     }
 
-    state machine_binding(left_handle: u64 in Trapping, right: TypeBinding) {
+    machine machine_binding(left_handle: u64 in Trapping, right: TypeBinding) -> bool {
         transition right {
             TypeBinding::Machine { handle } -> same_handle(left_handle, handle)
             _ -> different()
         }
     }
 
-    state builtin_binding(left_builtin: BuiltinType, right: TypeBinding) {
+    machine builtin_binding(left_builtin: BuiltinType, right: TypeBinding) -> bool {
         transition right {
             TypeBinding::Builtin { builtin } -> same_builtin(left_builtin, builtin)
             _ -> different()
         }
     }
 
-    state same_builtin(left: BuiltinType, right: BuiltinType) {
+    machine same_builtin(left: BuiltinType, right: BuiltinType) -> bool {
         left == right
     }
 
-    state data_binding(left_item: u64 in Trapping, right: TypeBinding) {
+    machine data_binding(left_item: u64 in Trapping, right: TypeBinding) -> bool {
         transition right {
             TypeBinding::Data { item } -> same_handle(left_item, item)
             _ -> different()
         }
     }
 
-    state generic_binding(left_scope: TypeScope, left_parameter: u64 in Trapping, right_scope: TypeScope, right: TypeBinding) {
+    machine generic_binding(left_scope: TypeScope, left_parameter: u64 in Trapping, right_scope: TypeScope, right: TypeBinding) -> bool {
         transition right {
             TypeBinding::GenericParameter { parameter } -> same_position(left_scope, left_parameter, right_scope, parameter)
             _ -> different()
         }
     }
 
-    state same_position(left_scope: TypeScope, left_parameter: u64 in Trapping, right_scope: TypeScope, right_parameter: u64 in Trapping) {
+    machine same_position(left_scope: TypeScope, left_parameter: u64 in Trapping, right_scope: TypeScope, right_parameter: u64 in Trapping) -> bool {
         let left_position: u64 in Trapping = Resolver::scope_position(left_scope, left_parameter);
         let right_position: u64 in Trapping = Resolver::scope_position(right_scope, right_parameter);
         left_position == right_position
     }
 
-    state same_handle(left: u64 in Trapping, right: u64 in Trapping) {
+    machine same_handle(left: u64 in Trapping, right: u64 in Trapping) -> bool {
         left == right
     }
 
     // Reference, array, slice and integer rows bind by form, which the
     // kinds already matched.
-    state formed() {
+    machine formed() -> bool {
         true
     }
 
-    state different() {
+    machine different() -> bool {
         false
     }
 }
@@ -2385,21 +2385,21 @@ crashes Trap
 {
     transition { _ -> statement(resolver, sources, syntax, 0, 0) }
 
-    state statement(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, owner: u64 in Trapping) {
+    machine statement(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, owner: u64 in Trapping) {
         transition index < syntax.statement_count && resolver.output.accepted {
             true -> statement_owner(resolver, sources, syntax, index, owner)
             _ -> expressions(resolver, sources, syntax)
         }
     }
 
-    state statement_owner(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, owner: u64 in Trapping) {
+    machine statement_owner(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, owner: u64 in Trapping) {
         transition owner < syntax.machine_count {
             true -> statement_in(resolver, sources, syntax, index, owner)
             _ -> invalid()
         }
     }
 
-    state statement_in(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, owner: u64 in Trapping) {
+    machine statement_in(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, owner: u64 in Trapping) {
         let item: MachineItem = SyntaxTrees::machine_item(syntax, owner);
         let end: u64 in Trapping = Resolver::statement_end(syntax, item);
         transition index < end {
@@ -2408,7 +2408,7 @@ crashes Trap
         }
     }
 
-    state statement_kind(
+    machine statement_kind(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -2424,7 +2424,7 @@ crashes Trap
         }
     }
 
-    state bind_local(
+    machine bind_local(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -2437,14 +2437,14 @@ crashes Trap
         transition { _ -> statement(resolver, sources, syntax, index + 1, owner) }
     }
 
-    state expressions(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine expressions(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
         transition resolver.output.accepted {
             true -> expression(resolver, sources, syntax, 0, 0)
             _ -> done()
         }
     }
 
-    state expression(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, owner: u64 in Trapping) {
+    machine expression(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, owner: u64 in Trapping) {
         transition index < syntax.expression_count && resolver.output.accepted {
             true -> expression_owner(resolver, sources, syntax, index, owner)
             _ -> done()
@@ -2452,7 +2452,7 @@ crashes Trap
     }
 
     // Move the cursor past machines whose run ends at or before `index`.
-    state expression_owner(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, owner: u64 in Trapping) {
+    machine expression_owner(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, owner: u64 in Trapping) {
         let scope: TypeScope = Resolver::detached_scope(syntax, index);
         transition owner < syntax.machine_count {
             true -> expression_in(resolver, sources, syntax, index, owner)
@@ -2460,7 +2460,7 @@ crashes Trap
         }
     }
 
-    state expression_in(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, owner: u64 in Trapping) {
+    machine expression_in(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, owner: u64 in Trapping) {
         let item: MachineItem = SyntaxTrees::machine_item(syntax, owner);
         transition index < item.first_expression + item.expression_count {
             true -> expression_scope(resolver, sources, syntax, index, owner, item)
@@ -2468,7 +2468,7 @@ crashes Trap
         }
     }
 
-    state expression_scope(
+    machine expression_scope(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -2484,7 +2484,7 @@ crashes Trap
         }
     }
 
-    state expression_kind(
+    machine expression_kind(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -2502,7 +2502,7 @@ crashes Trap
 
     // A static application's arguments are types (or integer values) listed
     // in `type_arguments`; each binds like a body type.
-    state static_argument(
+    machine static_argument(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -2518,7 +2518,7 @@ crashes Trap
         }
     }
 
-    state bind_static_argument(
+    machine bind_static_argument(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -2533,7 +2533,7 @@ crashes Trap
         transition { _ -> static_argument(resolver, sources, syntax, index, owner, scope, application, offset + 1) }
     }
 
-    state bind_cast(
+    machine bind_cast(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
@@ -2547,11 +2547,11 @@ crashes Trap
     }
 
     // Every statement lies in a machine's run.
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // The scope of expression `index` outside every machine: a domain's
@@ -2564,14 +2564,14 @@ crashes Trap
 {
     transition { _ -> domain(syntax, index, 0) }
 
-    state domain(syntax: &SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping) -> TypeScope {
+    machine domain(syntax: &SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping) -> TypeScope {
         transition offset < syntax.domain_count {
             true -> domain_facts(syntax, index, offset)
             _ -> proposition(syntax, index, 0)
         }
     }
 
-    state domain_facts(syntax: &SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping) -> TypeScope {
+    machine domain_facts(syntax: &SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping) -> TypeScope {
         let item: DomainItem = SyntaxTrees::domain_item(syntax, offset);
         let holds: bool = Resolver::clauses_hold(syntax, item.first_clause, item.clause_count, index);
         let scope: TypeScope = Resolver::scope(item.first_generic_parameter, item.generic_parameter_count);
@@ -2581,14 +2581,14 @@ crashes Trap
         }
     }
 
-    state proposition(syntax: &SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping) -> TypeScope {
+    machine proposition(syntax: &SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping) -> TypeScope {
         transition offset < syntax.proposition_count {
             true -> proposition_fact(syntax, index, offset)
             _ -> data(syntax, index, 0)
         }
     }
 
-    state proposition_fact(syntax: &SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping) -> TypeScope {
+    machine proposition_fact(syntax: &SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping) -> TypeScope {
         let item: PropositionItem = SyntaxTrees::proposition_item(syntax, offset);
         let holds: bool = Resolver::tree_holds(syntax, item.body == PropositionBody::Transparent, item.fact, index);
         let scope: TypeScope = Resolver::scope(item.first_generic_parameter, item.generic_parameter_count);
@@ -2598,7 +2598,7 @@ crashes Trap
         }
     }
 
-    state data(syntax: &SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping) -> TypeScope {
+    machine data(syntax: &SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping) -> TypeScope {
         let empty: TypeScope = Resolver::empty_scope();
         transition offset < syntax.data_count {
             true -> data_facts(syntax, index, offset)
@@ -2606,7 +2606,7 @@ crashes Trap
         }
     }
 
-    state data_facts(syntax: &SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping) -> TypeScope {
+    machine data_facts(syntax: &SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping) -> TypeScope {
         let item: DataItem = SyntaxTrees::data_item(syntax, offset);
         let holds: bool = Resolver::clauses_hold(syntax, item.first_clause, item.clause_count, index);
         let scope: TypeScope = Resolver::data_scope(item);
@@ -2616,14 +2616,14 @@ crashes Trap
         }
     }
 
-    state case_facts(syntax: &SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping) -> TypeScope {
+    machine case_facts(syntax: &SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping) -> TypeScope {
         transition case_offset < item.case_count {
             true -> case_holds(syntax, index, offset, item, case_offset)
             _ -> data(syntax, index, offset + 1)
         }
     }
 
-    state case_holds(syntax: &SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping) -> TypeScope {
+    machine case_holds(syntax: &SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping) -> TypeScope {
         let data_case: DataCase = SyntaxTrees::data_case(syntax, item.first_case + case_offset);
         let holds: bool = Resolver::clauses_hold(syntax, data_case.first_clause, data_case.clause_count, index);
         let scope: TypeScope = Resolver::data_scope(item);
@@ -2633,7 +2633,7 @@ crashes Trap
         }
     }
 
-    state found(scope: TypeScope) -> TypeScope {
+    machine found(scope: TypeScope) -> TypeScope {
         scope
     }
 }
@@ -2645,14 +2645,14 @@ crashes Trap
 {
     transition { _ -> next(syntax, first, count, index, 0) }
 
-    state next(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, index: u64 in Trapping, offset: u64 in Trapping) -> bool {
+    machine next(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, index: u64 in Trapping, offset: u64 in Trapping) -> bool {
         transition offset < count {
             true -> clause(syntax, first, count, index, offset)
             _ -> no()
         }
     }
 
-    state clause(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, index: u64 in Trapping, offset: u64 in Trapping) -> bool {
+    machine clause(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, index: u64 in Trapping, offset: u64 in Trapping) -> bool {
         let fact: Clause = SyntaxTrees::clause(syntax, first + offset);
         let factual: bool = fact.kind == ClauseKind::Requires || fact.kind == ClauseKind::Ensures || fact.kind == ClauseKind::Where;
         let holds: bool = Resolver::tree_holds(syntax, factual, fact.expression, index);
@@ -2662,11 +2662,11 @@ crashes Trap
         }
     }
 
-    state yes() -> bool {
+    machine yes() -> bool {
         true
     }
 
-    state no() -> bool {
+    machine no() -> bool {
         false
     }
 }
@@ -2681,12 +2681,12 @@ crashes Trap
         _ -> no()
     }
 
-    state run(syntax: &SyntaxTrees, root: u64 in Trapping, index: u64 in Trapping) -> bool {
+    machine run(syntax: &SyntaxTrees, root: u64 in Trapping, index: u64 in Trapping) -> bool {
         let expression: Expression = SyntaxTrees::expression(syntax, root);
         expression.first_row <= index && index <= root
     }
 
-    state no() -> bool {
+    machine no() -> bool {
         false
     }
 }
@@ -2701,12 +2701,12 @@ crashes Trap
         _ -> entry(item)
     }
 
-    state last_state(syntax: &SyntaxTrees, item: MachineItem) -> u64 in Trapping {
+    machine last_state(syntax: &SyntaxTrees, item: MachineItem) -> u64 in Trapping {
         let state_item: StateItem = SyntaxTrees::state_item(syntax, item.first_state + item.state_count - 1);
         state_item.first_statement + state_item.statement_count
     }
 
-    state entry(item: MachineItem) -> u64 in Trapping {
+    machine entry(item: MachineItem) -> u64 in Trapping {
         item.first_statement + item.statement_count
     }
 }
@@ -2723,14 +2723,14 @@ crashes Trap
         _ -> argument(sources, syntax, scope, type_reference, 0)
     }
 
-    state argument(sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, type_reference: TypeReference, offset: u64 in Trapping) -> bool {
+    machine argument(sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, type_reference: TypeReference, offset: u64 in Trapping) -> bool {
         transition offset < type_reference.lifetime_count {
             true -> tag(sources, syntax, scope, type_reference, offset)
             _ -> answer(true)
         }
     }
 
-    state tag(sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, type_reference: TypeReference, offset: u64 in Trapping) -> bool {
+    machine tag(sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, type_reference: TypeReference, offset: u64 in Trapping) -> bool {
         let spelled: IdentifierSpan = SyntaxTrees::type_lifetime(syntax, type_reference.first_lifetime + offset);
         let declared: bool = Resolver::lifetime_named(sources, syntax, scope, spelled.source_span);
         transition declared {
@@ -2739,7 +2739,7 @@ crashes Trap
         }
     }
 
-    state answer(declared: bool) -> bool {
+    machine answer(declared: bool) -> bool {
         declared
     }
 }
@@ -2761,14 +2761,14 @@ crashes Trap
 {
     transition { _ -> next(sources, syntax, first, count, name, 0) }
 
-    state next(sources: &SourceSet, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: SourceSpan, offset: u64 in Trapping) -> bool {
+    machine next(sources: &SourceSet, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: SourceSpan, offset: u64 in Trapping) -> bool {
         transition offset < count {
             true -> candidate(sources, syntax, first, count, name, offset)
             _ -> answer(false)
         }
     }
 
-    state candidate(sources: &SourceSet, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: SourceSpan, offset: u64 in Trapping) -> bool {
+    machine candidate(sources: &SourceSet, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: SourceSpan, offset: u64 in Trapping) -> bool {
         let parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax, first + offset);
         let equal: bool = SourceSet::spans_equal(sources, name, parameter.name.source_span);
         transition equal && parameter.kind == GenericParameterKind::Lifetime {
@@ -2777,7 +2777,7 @@ crashes Trap
         }
     }
 
-    state answer(declared: bool) -> bool {
+    machine answer(declared: bool) -> bool {
         declared
     }
 }
@@ -2792,19 +2792,19 @@ crashes Trap
         _ -> answer(0)
     }
 
-    state data(syntax: &SyntaxTrees, item: u64 in Trapping) -> u64 in Trapping {
+    machine data(syntax: &SyntaxTrees, item: u64 in Trapping) -> u64 in Trapping {
         let declaration: DataItem = SyntaxTrees::data_item(syntax, item);
         transition { _ -> next(syntax, declaration.first_generic_parameter, declaration.generic_parameter_count, 0, 0) }
     }
 
-    state next(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping, found: u64 in Trapping) -> u64 in Trapping {
+    machine next(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping, found: u64 in Trapping) -> u64 in Trapping {
         transition offset < count {
             true -> candidate(syntax, first, count, offset, found)
             _ -> answer(found)
         }
     }
 
-    state candidate(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping, found: u64 in Trapping) -> u64 in Trapping {
+    machine candidate(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping, found: u64 in Trapping) -> u64 in Trapping {
         let parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax, first + offset);
         transition parameter.kind == GenericParameterKind::Lifetime {
             true -> next(syntax, first, count, offset + 1, found + 1)
@@ -2812,7 +2812,7 @@ crashes Trap
         }
     }
 
-    state answer(count: u64 in Trapping) -> u64 in Trapping {
+    machine answer(count: u64 in Trapping) -> u64 in Trapping {
         count
     }
 }

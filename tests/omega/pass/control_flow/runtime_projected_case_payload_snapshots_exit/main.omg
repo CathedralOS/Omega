@@ -7,7 +7,7 @@ machine inspect(choice: &Choice) -> u32 ensures result < 100 {
         Choice::Full { value, ready } -> selected(value, ready)
         Choice::Empty -> (0)
     }
-    state selected(value: u32, ready: bool) -> u32 requires value < 100 {
+    machine selected(value: u32, ready: bool) -> u32 requires value < 100 {
         transition ready { true -> (value) _ -> (0) }
     }
 }
@@ -18,7 +18,7 @@ ensures result < 100 {
         Choice::Full { value, ready } -> selected(value, ready)
         Choice::Empty -> (0)
     }
-    state selected(value: u32, ready: bool) -> u32 requires value < 100 {
+    machine selected(value: u32, ready: bool) -> u32 requires value < 100 {
         transition ready { true -> (value) _ -> (0) }
     }
 }
@@ -34,7 +34,7 @@ machine main() crashes Trap {
         Choice::Full { value, ready } -> saved(&mut frame, value, ready, observed, viewed)
         Choice::Empty -> bad()
     }
-    state saved(frame: &mut Frame, value: u32, ready: bool, observed: u32, viewed: u32)
+    machine saved(frame: &mut Frame, value: u32, ready: bool, observed: u32, viewed: u32)
     requires value < 100, observed < 100, viewed < 100 {
         frame.selected = 0;
         frame.items[1] = Choice::Empty;
@@ -43,6 +43,6 @@ machine main() crashes Trap {
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

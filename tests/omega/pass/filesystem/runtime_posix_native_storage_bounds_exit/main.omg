@@ -11,31 +11,31 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemMetadataQuery + 
     transition result == -22 && main.bytes[0] == 91 && main.bytes[7] == 92 {
         true -> path(main) _ -> bad(10)
     }
-    state path(main: &mut Main) {
+    machine path(main: &mut Main) {
         let result: i32 = PosixFilesystemHost::read_metadata(".", &mut main.bytes);
         transition result == -22 && main.bytes[0] == 91 && main.bytes[7] == 92 {
             true -> symlink(main) _ -> bad(11)
         }
     }
-    state symlink(main: &mut Main) {
+    machine symlink(main: &mut Main) {
         let result: i32 = PosixFilesystemHost::read_symlink_metadata(".", &mut main.bytes);
         transition result == -22 && main.bytes[0] == 91 && main.bytes[7] == 92 {
             true -> relative(main) _ -> bad(12)
         }
     }
-    state relative(main: &mut Main) {
+    machine relative(main: &mut Main) {
         let result: i32 = PosixFilesystemHost::read_metadata_at(-1, ".", &mut main.bytes, 0);
         transition result == -22 && main.bytes[0] == 91 && main.bytes[7] == 92 {
             true -> times(main) _ -> bad(13)
         }
     }
-    state times(main: &mut Main) {
+    machine times(main: &mut Main) {
         let result: i32 = PosixFilesystemHost::set_file_times(-1, &main.bytes);
         transition result == -22 && main.bytes[0] == 91 && main.bytes[7] == 92 {
             true -> exact_record(main) _ -> bad(14)
         }
     }
-    state exact_record(main: &mut Main) {
+    machine exact_record(main: &mut Main) {
         main.record[0] = 93;
         let end: u64 = native_record_end();
         main.record[end] = 94;
@@ -44,7 +44,7 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemMetadataQuery + 
             true -> exact_times(main) _ -> bad(15)
         }
     }
-    state exact_times(main: &mut Main) {
+    machine exact_times(main: &mut Main) {
         main.timestamps[0] = 95;
         main.timestamps[33] = 96;
         // Full valid storage must reach the OS: EBADF, not fabricated EINVAL.
@@ -53,11 +53,11 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemMetadataQuery + 
             true -> create_file(main) _ -> bad(16)
         }
     }
-    state create_file(main: &mut Main) {
+    machine create_file(main: &mut Main) {
         main.descriptor = PosixFilesystemHost::create("native-record-times", 384);
         transition main.descriptor >= 0 { true -> update_times(main) _ -> bad(17) }
     }
-    state update_times(main: &mut Main) {
+    machine update_times(main: &mut Main) {
         // atime = {-1, 100}, mtime = {2, 200}. Negative seconds challenge
         // signed bit preservation rather than only accepting the all-zero pair.
         main.timestamps[1] = 255;
@@ -76,22 +76,22 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemMetadataQuery + 
             true -> read_times(main) _ -> finish(main, 18)
         }
     }
-    state read_times(main: &mut Main) {
+    machine read_times(main: &mut Main) {
         main.record[145] = 97;
         let result: i32 = PosixFilesystemHost::read_file_metadata(main.descriptor, &mut main.record);
         transition result == 0 && main.record[145] == 97 { true -> compare_times(main) _ -> finish(main, 19) }
     }
-    state compare_times(main: &mut Main) {
+    machine compare_times(main: &mut Main) {
         let matches: bool = native_times_match(&main.record);
         transition matches { true -> finish(main, 0) _ -> finish(main, 20) }
     }
-    state finish(main: &mut Main, code: i32) {
+    machine finish(main: &mut Main, code: i32) {
         let closed: i32 = PosixFilesystemHost::close(main.descriptor);
         let removed: i32 = PosixFilesystemHost::remove("native-record-times");
         transition closed == 0 && removed == 0 { true -> bad(code) _ -> bad(21) }
     }
-    state good() { Console::exit_process(0); }
-    state bad(code: i32) { Console::exit_process(code); }
+    machine good() { Console::exit_process(0); }
+    machine bad(code: i32) { Console::exit_process(code); }
 }
 
 linux_arm64 machine native_record_end() -> u64 ensures result >= 129 && result <= 145 { 129 }

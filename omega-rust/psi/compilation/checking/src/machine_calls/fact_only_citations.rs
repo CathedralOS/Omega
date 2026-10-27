@@ -17,8 +17,9 @@
 //!
 //! Eligibility is settled from checked termination, effect, and custody
 //! judgments rather than an empty-body source shape: the cited machine must be
-//! a free checked machine with a `Unit` result, at least one `ensures`
-//! conclusion and no `crashes` or bound-output contracts, an observation-free,
+//! a free checked machine with a `Unit` result, a proof-only classification or
+//! an `ensures` conclusion, no `crashes` or bound-output contracts, an
+//! observation-free,
 //! reach-free, suspension-free, blocking-free, crash-free operational closure,
 //! unconditional checked termination across its closure and any static machine
 //! arguments, read-only non-linear parameters, and work-free arguments.
@@ -121,9 +122,12 @@ pub fn fact_only_theorem<'program>(
                 ) && contract.binding.is_none()
             })
         })
-        // A citation imports conclusions: a machine that states none is an
-        // ordinary call, not a theorem.
-        && (program
+        // A proof-only Unit operation remains erased even when it exports no
+        // conclusion: its body and all invocation premises still check. An
+        // ordinary runtime Unit call instead needs a theorem contract before
+        // entering this lane. Empty conclusions grant no facts to its caller.
+        && (crate::proof_only_classification(program).is_proof_machine(program, machine)
+            || program
             .machine_contracts(machine)
             .iter()
             .any(|contract| contract.kind == SignatureContractKind::Ensures)

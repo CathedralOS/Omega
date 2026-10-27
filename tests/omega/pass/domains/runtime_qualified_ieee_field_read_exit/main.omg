@@ -13,6 +13,6 @@ machine main() crashes Trap {
  transition value == 2.5 && shared == 2.5 && projected == 4.0 {
   true -> good() false -> bad()
  }
- state good() {}
- state bad() { crash Trap; }
+ machine good() {}
+ machine bad() { crash Trap; }
 }

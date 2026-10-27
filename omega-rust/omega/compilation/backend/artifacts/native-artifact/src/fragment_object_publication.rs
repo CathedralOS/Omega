@@ -99,6 +99,7 @@ pub fn publish_fragment_object(
             || !entry.private_entry_ram().is_empty()
                 && !([
                     target::NativeTarget::linux_x64(),
+                    target::NativeTarget::linux_arm64(),
                     target::NativeTarget::macos_arm64(),
                 ]
                 .contains(&object.target())

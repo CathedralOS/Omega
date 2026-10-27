@@ -20,23 +20,23 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> bad(main)
     }
 
-    state other(main: &mut Main) {
+    machine other(main: &mut Main) {
         transition main.sp >= 0 && main.sp < 16 {
             true -> push(main)
             false -> bad(main)
         }
     }
 
-    state push(main: &mut Main) requires main.sp >= 0 && main.sp < 16 {
+    machine push(main: &mut Main) requires main.sp >= 0 && main.sp < 16 {
         let mut y: i32 = main.sp;
         transition y == 7 {
             true -> matched(main)
             false -> unmatched(main)
         }
     }
-    state matched(main: &mut Main) { Console::exit_process(7); }
-    state unmatched(main: &mut Main) { Console::exit_process(0); }
-    state bad(main: &mut Main) { Console::exit_process(8); }
+    machine matched(main: &mut Main) { Console::exit_process(7); }
+    machine unmatched(main: &mut Main) { Console::exit_process(0); }
+    machine bad(main: &mut Main) { Console::exit_process(8); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

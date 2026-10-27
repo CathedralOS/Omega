@@ -9,6 +9,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 
 /// One package-manager selection at an issued purpose-local request ordinal.
 /// Selections retain request order within each purpose.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildDependencySelection {
     pub purpose: DependencyPurpose,
     pub request_ordinal: usize,
@@ -165,6 +166,17 @@ impl ReturnedBuild {
             || inputs.direct_dependencies(DependencyPurpose::Build).count() != build_count
         {
             return Err("joined source graph contains unrequested dependency selections".into());
+        }
+        for demanded in &self.demanded_sources {
+            if !selections.iter().any(|selected| {
+                selected.purpose == demanded.purpose
+                    && selected.request_ordinal == demanded.request_ordinal
+                    && selected.package == demanded.package
+            }) {
+                return Err(
+                    "joined source graph differs from a dependency used during Build".into(),
+                );
+            }
         }
         self.source_join = Some(inputs.source_inputs());
         Ok(())

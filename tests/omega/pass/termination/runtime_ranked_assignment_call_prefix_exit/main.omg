@@ -21,7 +21,7 @@ requires remaining <= 9;
 terminates by remaining in 0..=9;
 {
     transition { _ -> scan(selected, scratch, remaining) }
-    state scan(selected: dyn RankReader, scratch: &mut Scratch, remaining: u32) -> u32
+    machine scan(selected: dyn RankReader, scratch: &mut Scratch, remaining: u32) -> u32
     requires remaining <= 9;
     {
         scratch.observed = RankReader::keep(selected, RankReader::read(selected, &remaining)) + 0;
@@ -42,6 +42,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

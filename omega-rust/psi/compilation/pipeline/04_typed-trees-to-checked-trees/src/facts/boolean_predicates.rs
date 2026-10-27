@@ -507,9 +507,7 @@ pub(crate) fn seed_with_dependencies(
     for dependency in dependencies {
         let place =
             crate::semantic::places::append_place(semantic, dependency.root, &dependency.segments);
-        if !places.contains(&place) {
-            places.push(place);
-        }
+        crate::collections::push_unique(&mut places, place);
     }
     let predicate = semantic.boolean_predicates.append(facts::BooleanPredicate {
         role: facts::BooleanPredicateRole::CurrentObservation,
@@ -817,6 +815,26 @@ fn formula_closure(
                         if b == Some(is_and) {
                             put(&mut additions, left, !is_and)?;
                         }
+                    }
+                }
+                // Checked integer equality denotes one proposition in either
+                // operand order. Preserve both true and false evidence; this
+                // grants no reflexivity rule to IEEE or selected equality.
+                Boolean::IntegerComparison {
+                    kind: checked_trees::CheckedIntegerComparisonKind::Equal,
+                    left,
+                    right,
+                } => {
+                    if let Some(value) = result {
+                        put(
+                            &mut additions,
+                            &Boolean::IntegerComparison {
+                                kind: checked_trees::CheckedIntegerComparisonKind::Equal,
+                                left: right.clone(),
+                                right: left.clone(),
+                            },
+                            value,
+                        )?;
                     }
                 }
                 Boolean::Equal { left, right } => {

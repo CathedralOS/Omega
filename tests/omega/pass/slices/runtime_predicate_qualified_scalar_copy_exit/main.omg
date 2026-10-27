@@ -5,5 +5,5 @@ machine main() crashes Trap {
  let view: &[i32 in Selected] = &items[..];
  let chosen: i32 in Selected = copy(view); items[1]=0;
  transition chosen==38 && items[0]==0 && items[1]==0 && items[2]==0 { true -> done() _ -> bad() }
- state done() {} state bad() { crash Trap; }
+ machine done() {} machine bad() { crash Trap; }
 }

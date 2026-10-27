@@ -14,15 +14,15 @@ machine Main::main(main: &mut Main) crashes Trap {
         Interval::Point { lo, hi } -> take(lo, hi, main)
         Interval::Empty -> fail()
     }
-    state take(lo: u64, hi: u64, main: &mut Main) {
+    machine take(lo: u64, hi: u64, main: &mut Main) {
         main.width = hi - lo;
         transition main.width == 0 {
             true -> pass()
             _ -> fail()
         }
     }
-    state pass() { }
-    state fail() { crash Trap; }
+    machine pass() { }
+    machine fail() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

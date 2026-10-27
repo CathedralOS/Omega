@@ -10,7 +10,7 @@ data Main { }
 // has started, and neither outgoing child is overwritten by that cleanup.
 machine select(first: Triple, second: Triple) -> i32 {
     transition { _ -> finish(first.middle, second.right) }
-    state finish(middle: Leaf, right: Leaf) -> i32 {
+    machine finish(middle: Leaf, right: Leaf) -> i32 {
         middle.value + right.value
     }
 }
@@ -31,7 +31,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> finish(main, 0)
         _ -> finish(main, 1)
     }
-    state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine finish(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

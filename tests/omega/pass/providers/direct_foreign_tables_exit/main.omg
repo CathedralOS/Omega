@@ -51,6 +51,6 @@ machine main() reaches ModuleSymbols + Counter + Process crashes Trap {
         true -> accepted()
         _ -> rejected()
     }
-    state accepted() {}
-    state rejected() { crash Trap; }
+    machine accepted() {}
+    machine rejected() { crash Trap; }
 }

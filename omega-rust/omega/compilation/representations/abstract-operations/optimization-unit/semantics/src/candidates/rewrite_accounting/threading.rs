@@ -1,4 +1,4 @@
-use crate::candidates::{canonicalize_provenance, provenance_realized_at};
+use crate::candidates::{canonicalize_provenance, provenance_realized_at, realize_node_provenance};
 use optimization_unit::{
     NodeLocation, OwnershipFrontierSite, PsiOptimizationFunction, PsiOptimizationUnit,
     PsiRealizationSite, ValueDefinition,
@@ -201,15 +201,12 @@ fn effect_audit(
                 || node.effect.output != expected_effect.checked_add(1)?;
             if effect_changes && except != Some(location) {
                 affected.insert(block.id);
-                if !node.provenance.is_empty() {
-                    let site = PsiRealizationSite::Node(location);
-                    realized.push(provenance_realized_at(
-                        site,
-                        site,
-                        &node.provenance,
-                        &node.fuel,
-                    ));
-                }
+                realize_node_provenance(
+                    function.machine,
+                    block.id,
+                    std::iter::once((node_index, node)),
+                    realized,
+                )?;
             }
             expected_effect = expected_effect.checked_add(1)?;
         }

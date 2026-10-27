@@ -107,7 +107,8 @@ pub(super) fn replay_provider_executions(
                     semantic_vocabulary::BoundaryCompletion::External(kind),
                 )
             }
-            target_operations::CallSiteOwner::CleanupAction { .. } => {
+            target_operations::CallSiteOwner::InvokeNoNormal(_)
+            | target_operations::CallSiteOwner::CleanupAction { .. } => {
                 return Err(ProviderExecutionReplayError::MissingForeignOperationOwner);
             }
         };

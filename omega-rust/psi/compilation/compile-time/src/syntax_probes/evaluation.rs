@@ -60,8 +60,21 @@ impl PreparedEvaluationInputs {
         roots: &[SymbolHandle],
         expressions: &[SourceSpan],
     ) -> EvaluationDomain {
+        let admission = crate::BuildTimeAdmissionPlan::infer(program, None);
+        Self::domain_for_admission(program, &admission, roots, expressions)
+    }
+
+    /// An admission owner already inferred this immutable program's execution
+    /// edges. Reuse that association when selecting its checking premises;
+    /// the resulting projection still owes ordinary preparation and checking.
+    pub(crate) fn domain_for_admission(
+        program: &TypedTrees,
+        admission: &crate::BuildTimeAdmissionPlan,
+        roots: &[SymbolHandle],
+        expressions: &[SourceSpan],
+    ) -> EvaluationDomain {
         let mut execution = roots.to_vec();
-        selected_body_dependencies(program, &mut execution);
+        admission.append_execution_dependencies(program, &mut execution);
         let (work, selection) = declaration_dependencies(program, &execution, expressions, &[]);
         EvaluationDomain::selected(work, selection)
     }
@@ -292,6 +305,29 @@ fn declaration_dependencies(
         }
     }
     loop {
+        let mut changed = false;
+        // A family declaration is one checking unit. Retain its members and
+        // their exact helper, operator, type and proof dependencies in the
+        // private projection. Projection alone grants no invocation authority.
+        for family in &program.target_machine_families {
+            if selection.contains(family.canonical)
+                || family
+                    .members
+                    .iter()
+                    .any(|member| selection.contains(member.machine))
+            {
+                if !selection.contains(family.canonical) {
+                    selection.include(family.canonical);
+                    changed = true;
+                }
+                for member in &family.members {
+                    if !selection.contains(member.machine) {
+                        selection.include(member.machine);
+                        changed = true;
+                    }
+                }
+            }
+        }
         let references = collect_selected_program_references(program, &selection);
         let mut referenced_symbols = references.symbols;
         // Operator meaning is selected from operand types, not necessarily a
@@ -321,7 +357,6 @@ fn declaration_dependencies(
                 })
                 .map(|(_, operator_use)| operator_use.selected_operator_symbol),
         );
-        let mut changed = false;
         for mut symbol in referenced_symbols {
             while symbol.is_valid() {
                 if roster.contains(symbol) && !selection.contains(symbol) {

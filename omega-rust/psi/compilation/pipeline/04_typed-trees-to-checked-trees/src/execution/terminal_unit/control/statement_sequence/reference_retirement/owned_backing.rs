@@ -80,14 +80,21 @@ impl OwnerCandidates {
                 // different source authority. Consume the permission producer's
                 // exact borrowing occurrence; do not reconstruct that distinction
                 // from a reference type or a coincident call coordinate.
-                if !facts.flow.ownership.permissions.iter().any(|(_, event)| {
-                    event.machine_symbol == machine
-                        && event.state_symbol == state
-                        && event.source == row.source
-                        && event.root == row.root
-                        && event.kind == language_semantics::PermissionEventKind::Establish
-                        && event.access != language_semantics::PermissionAccess::Owned
-                }) {
+                if !facts
+                    .flow
+                    .ownership
+                    .with_state_permissions(state, |handles| {
+                        handles.iter().copied().any(|handle| {
+                            let event = facts.flow.ownership.permissions.get(handle);
+                            event.machine_symbol == machine
+                                && event.state_symbol == state
+                                && event.source == row.source
+                                && event.root == row.root
+                                && event.kind == language_semantics::PermissionEventKind::Establish
+                                && event.access != language_semantics::PermissionAccess::Owned
+                        })
+                    })
+                {
                     continue;
                 }
                 if !source.argument_operands().handles().any(|operand| {
@@ -105,9 +112,7 @@ impl OwnerCandidates {
                     let existing = facts.contextual_cleanup.dispositions.get(owner.disposition);
                     existing.root == row.root && existing.source == row.source
                 }) {
-                    if !owner.values.contains(&value_root.root) {
-                        owner.values.push(value_root.root);
-                    }
+                    crate::collections::push_unique(&mut owner.values, value_root.root);
                 } else {
                     owners.push(OwnerCandidate {
                         disposition: handle,

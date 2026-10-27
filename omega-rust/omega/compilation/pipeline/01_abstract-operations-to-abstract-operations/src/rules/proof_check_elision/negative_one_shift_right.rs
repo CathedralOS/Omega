@@ -50,16 +50,9 @@ psi_rule_contract!(
             ),
 );
 
-impl PsiOptimizationRule
-    for LiveProofCertifiedExactSignedIntegerNegativeOneShiftRightEliminationRule
-{
-    psi_rule_contract!(@adapter);
-
-    fn propose(
-        &self,
-        unit: &PsiOptimizationUnit,
-        analyses: RuleAnalysisView<'_>,
-    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+psi_rule_impl!(
+    LiveProofCertifiedExactSignedIntegerNegativeOneShiftRightEliminationRule,
+    |unit, analyses| {
         propose_proof_certified_scalar_identities(
             unit,
             analyses,
@@ -67,4 +60,4 @@ impl PsiOptimizationRule
             proof_certified_exact_signed_integer_negative_one_shift_right_shapes,
         )
     }
-}
+);

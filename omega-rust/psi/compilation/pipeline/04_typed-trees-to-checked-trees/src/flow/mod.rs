@@ -90,6 +90,7 @@ mod transfers;
 mod boundaries;
 mod call_phases;
 pub(crate) mod calls;
+mod retained_borrows;
 
 // What a write drops: the places a statement or call writes, the facts over them
 // and their domain dependencies, and borrow loans that expire or are overwritten.
@@ -161,6 +162,7 @@ pub(crate) use domain::context_survives_place_mutations;
 pub(crate) use domain::filter_contexts_after_place_mutations;
 pub(crate) use domain::relative_place_segments_from_expression;
 use exits::append_state_exit_facts;
+pub(crate) use exits::{exit_parameter_origins, state_exit_parameter_origins};
 pub(crate) use mutation::close_storage_places_over_aliases;
 pub(crate) use mutation::rebase_exact_local_place;
 pub(crate) use mutation::{OriginPrecision, origin_place, sole_local_referent_origin};

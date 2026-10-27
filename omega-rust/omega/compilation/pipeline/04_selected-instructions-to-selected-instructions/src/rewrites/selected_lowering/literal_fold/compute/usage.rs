@@ -172,12 +172,7 @@ pub(super) fn ensure_budget(
     usage: OptimizationWorkUsage,
     budget: OptimizationWorkBudget,
 ) -> Result<(), LiteralFoldError> {
-    if usage.within(budget) {
-        Ok(())
-    } else {
-        Err(LiteralFoldError::BudgetExceeded {
-            required: usage,
-            budget,
-        })
-    }
+    crate::work_accounting::admit(usage, budget, |required, budget| {
+        LiteralFoldError::BudgetExceeded { required, budget }
+    })
 }

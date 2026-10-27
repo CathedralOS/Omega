@@ -6,7 +6,7 @@ use object_file::{RelocationOrigin, relocation_kind_tag};
 use semantic_vocabulary::{IntegerSign, ScalarType};
 use sha2::Digest;
 use sha2::Sha256;
-use target::{Architecture, NativeTarget, ObjectFormat};
+use target::NativeTarget;
 use target_operations::{
     BoundaryRealization, CallSiteOwner, CompilerBuiltinExecution, CompletionClaimSource,
 };
@@ -116,12 +116,16 @@ pub(crate) fn hash_boundary_settlement_record(
     settlement: &machine_code::BoundarySettlementRecord,
 ) -> Result<(), &'static str> {
     match settlement.invocation_site {
-        semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
+        semantic_vocabulary::InvocationSite::Operation(operation) => {
             digest.byte(0);
             digest.raw(&operation.get().to_le_bytes());
         }
-        semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+        semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
             digest.byte(1);
+            digest.raw(&edge.get().to_le_bytes());
+        }
+        semantic_vocabulary::InvocationSite::InvokeNoNormal(edge) => {
+            digest.byte(2);
             digest.raw(&edge.get().to_le_bytes());
         }
     }
@@ -726,17 +730,7 @@ pub(crate) fn hash_target(
     digest: &mut crate::digest_encoder::DomainDigestEncoder,
     target: NativeTarget,
 ) {
-    digest.byte(match target.architecture {
-        Architecture::Aarch64 => 1,
-        Architecture::X86_64 => 2,
-    });
-    digest.byte(match target.object_format {
-        ObjectFormat::Elf => 1,
-        ObjectFormat::MachO => 2,
-        ObjectFormat::Coff => 3,
-    });
-    digest.raw(&canonical_usize(target.pointer_size));
-    digest.raw(&canonical_usize(target.pointer_alignment));
+    digest.raw(&target.wire_identity_bytes());
 }
 
 pub(crate) fn hash_object_symbol(
@@ -809,6 +803,11 @@ pub(crate) fn hash_call_site_owner(
         CallSiteOwner::Operation(operation) => {
             digest.byte(1);
             digest.raw(&operation.get().to_le_bytes());
+            digest.raw(&0_u32.to_le_bytes());
+        }
+        CallSiteOwner::InvokeNoNormal(edge) => {
+            digest.byte(4);
+            digest.raw(&edge.get().to_le_bytes());
             digest.raw(&0_u32.to_le_bytes());
         }
         CallSiteOwner::ExternalCompletion(edge) => {

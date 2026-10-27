@@ -745,6 +745,9 @@ pub struct TableMemberExpression {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableCallExpression {
+    /// Original declaration correspondence certified by source resolution.
+    pub authored_call_binding:
+        Option<language_semantics::declaration_selection::ResolvedAuthoredCallBinding>,
     pub receiver: ExpressionHandle,
     pub target_symbol: SymbolHandle,
     pub target: DiagnosticName,

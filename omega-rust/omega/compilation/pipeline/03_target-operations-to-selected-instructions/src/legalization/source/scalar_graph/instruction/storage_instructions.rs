@@ -3,6 +3,7 @@
 
 use super::super::{AbstractOperationPlan, Error, PsiOptimizationUnit};
 use crate::LegalizationError;
+use crate::legalization::accepted_fact;
 use crate::legalization::scalar_graph_input;
 use abstract_operations::AbstractOperation;
 use legalized_operations::LegalizedScalarInstructionKind;
@@ -366,12 +367,7 @@ pub(super) fn project_byte_sequence_subslice(
             end: *end,
             length: *length,
             obligation: *obligation,
-            accepted_fact: obligation_fact_identity(
-                unit,
-                optimized.machine,
-                *psi_operation,
-                *obligation,
-            )?,
+            accepted_fact: accepted_fact(unit, optimized, *psi_operation, *obligation)?,
         }
     };
     Ok(kind)
@@ -410,12 +406,7 @@ pub(super) fn project_structural_byte_sequence_field_byte_store(
             value: *value,
             length: *length,
             obligation: *obligation,
-            accepted_fact: obligation_fact_identity(
-                unit,
-                optimized.machine,
-                *psi_operation,
-                *obligation,
-            )?,
+            accepted_fact: accepted_fact(unit, optimized, *psi_operation, *obligation)?,
         }
     };
     Ok(kind)
@@ -457,12 +448,7 @@ pub(super) fn project_structural_byte_sequence_field_read(
             index: *index,
             length: *length,
             obligation: *obligation,
-            accepted_fact: obligation_fact_identity(
-                unit,
-                optimized.machine,
-                *psi_operation,
-                *obligation,
-            )?,
+            accepted_fact: accepted_fact(unit, optimized, *psi_operation, *obligation)?,
         },
     )
 }
@@ -498,12 +484,7 @@ pub(super) fn project_structural_byte_sequence_field_store(
             source: *source,
             length: *length,
             obligation: *obligation,
-            accepted_fact: obligation_fact_identity(
-                unit,
-                optimized.machine,
-                *psi_operation,
-                *obligation,
-            )?,
+            accepted_fact: accepted_fact(unit, optimized, *psi_operation, *obligation)?,
         }
     };
     Ok(kind)
@@ -532,12 +513,7 @@ pub(super) fn project_byte_sequence_write(
             value: *value,
             length: *length,
             obligation: *obligation,
-            accepted_fact: obligation_fact_identity(
-                unit,
-                optimized.machine,
-                *psi_operation,
-                *obligation,
-            )?,
+            accepted_fact: accepted_fact(unit, optimized, *psi_operation, *obligation)?,
         }
     };
     Ok(kind)
@@ -565,12 +541,7 @@ pub(super) fn project_byte_sequence_read(
             index: *index,
             length: *length,
             obligation: *obligation,
-            accepted_fact: obligation_fact_identity(
-                unit,
-                optimized.machine,
-                *psi_operation,
-                *obligation,
-            )?,
+            accepted_fact: accepted_fact(unit, optimized, *psi_operation, *obligation)?,
         }
     };
     Ok(kind)
@@ -613,12 +584,7 @@ pub(super) fn project_element_view_write(
             value: *value,
             length: *length,
             obligation: *obligation,
-            accepted_fact: obligation_fact_identity(
-                unit,
-                optimized.machine,
-                *psi_operation,
-                *obligation,
-            )?,
+            accepted_fact: accepted_fact(unit, optimized, *psi_operation, *obligation)?,
         }
     };
     Ok(kind)
@@ -648,12 +614,7 @@ pub(super) fn project_element_view_read(
             index: *index,
             length: *length,
             obligation: *obligation,
-            accepted_fact: obligation_fact_identity(
-                unit,
-                optimized.machine,
-                *psi_operation,
-                *obligation,
-            )?,
+            accepted_fact: accepted_fact(unit, optimized, *psi_operation, *obligation)?,
             path: path.clone(),
             indices: {
                 let element = scalar_graph_input::byte_views::element_type(
@@ -719,12 +680,7 @@ pub(super) fn project_element_view_subslice(
             end: *end,
             length: *length,
             obligation: *obligation,
-            accepted_fact: obligation_fact_identity(
-                unit,
-                optimized.machine,
-                *psi_operation,
-                *obligation,
-            )?,
+            accepted_fact: accepted_fact(unit, optimized, *psi_operation, *obligation)?,
         }
     };
     Ok(kind)
@@ -753,12 +709,7 @@ pub(super) fn project_byte_sequence_concatenation(
             left: left.clone(),
             right: right.clone(),
             capacity_obligation: *capacity_obligation,
-            accepted_fact: obligation_fact_identity(
-                unit,
-                optimized.machine,
-                *psi_operation,
-                *capacity_obligation,
-            )?,
+            accepted_fact: accepted_fact(unit, optimized, *psi_operation, *capacity_obligation)?,
         },
     )
 }
@@ -787,40 +738,8 @@ pub(super) fn project_byte_sequence_store(
         source: *source,
         length: *length,
         obligation: *obligation,
-        accepted_fact: obligation_fact_identity(
-            unit,
-            optimized.machine,
-            *psi_operation,
-            *obligation,
-        )?,
+        accepted_fact: accepted_fact(unit, optimized, *psi_operation, *obligation)?,
     })
-}
-
-/// The obligation fact `obligation` carries on `machine`'s operation
-/// `psi_operation`, or the custody error when the unit recorded none.
-fn obligation_fact_identity(
-    unit: &PsiOptimizationUnit,
-    machine: semantic_vocabulary::MachineId,
-    operation: semantic_vocabulary::OperationId,
-    obligation: semantic_vocabulary::ObligationId,
-) -> Result<optimization_core::AcceptedObligationFactIdentity, Error> {
-    Ok(accepted_obligation_fact(unit, machine, operation, obligation)?.identity)
-}
-
-fn accepted_obligation_fact<'unit>(
-    unit: &'unit PsiOptimizationUnit,
-    machine: semantic_vocabulary::MachineId,
-    operation: semantic_vocabulary::OperationId,
-    obligation: semantic_vocabulary::ObligationId,
-) -> Result<&'unit optimization_unit::AcceptedObligationFact, Error> {
-    unit.accepted_obligation_facts
-        .iter()
-        .find(|fact| {
-            fact.machine == machine
-                && fact.owner == optimization_unit::PsiProvenance::Operation(operation)
-                && fact.obligation == obligation
-        })
-        .ok_or(Error::custody())
 }
 
 /// Address geometry retains backing and selector proofs without reading a leaf.
@@ -843,7 +762,7 @@ pub(super) fn project_storage_address(
     }
     let root = scalar_graph_input::primitive_locals::read_root_type(optimized, *source)
         .ok_or(Error::custody())?;
-    let geometry = crate::structural_inputs::structural_reference_input::reference_source_geometry(
+    let geometry = crate::structural_inputs::structural_reference_input::storage_address_geometry(
         root,
         path,
         &unit.structural_types,

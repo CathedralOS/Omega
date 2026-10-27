@@ -13,9 +13,9 @@ machine Main::main(main: &mut Main) {
         true -> put(main, a, b)
         _ -> done(main)
     }
-    state put(main: &mut Main, a: i32 in Wrapping, b: i32 in Wrapping) {
+    machine put(main: &mut Main, a: i32 in Wrapping, b: i32 in Wrapping) {
         main.grid[b * 20 + a] = 7;
         main.hits = 1;
     }
-    state done(main: &mut Main) { main.hits = -1; }
+    machine done(main: &mut Main) { main.hits = -1; }
 }

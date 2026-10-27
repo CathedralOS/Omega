@@ -147,6 +147,7 @@ pub fn byte_qualification_predicates_in<'domain>(
         if domain.carrier != carrier
             || domain.content_projection.is_some()
             || !domain.establishment_routes.is_empty()
+            || !domain.has_no_required_memberships()
         {
             return None;
         }
@@ -515,6 +516,10 @@ pub fn byte_copied_field_predicates_at_transfer(
         | terminal_psi::Terminator::ExternalCompletion {
             structural_arguments,
             ..
+        }
+        | terminal_psi::Terminator::InvokeNoNormal {
+            structural_arguments,
+            ..
         } => carries(structural_arguments),
         terminal_psi::Terminator::Conditional {
             when_true,
@@ -856,6 +861,7 @@ pub fn byte_literal_qualifications_hold_in<'domain>(
                     domain.carrier == carrier
                         && domain.content_projection.is_none()
                         && domain.establishment_routes.is_empty()
+                        && domain.has_no_required_memberships()
                         && domain
                             .byte_predicate
                             .is_some_and(|predicate| predicate.holds_for(bytes))

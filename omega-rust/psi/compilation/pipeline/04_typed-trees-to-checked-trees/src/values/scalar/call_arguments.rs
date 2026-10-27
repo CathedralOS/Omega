@@ -176,6 +176,7 @@ pub(crate) fn retain_nested_call_arguments(
             }
         }
     }
+    plans.seal_expressions();
 }
 
 /// Read captured occurrences directly. In particular, skipped syntax does not
@@ -228,7 +229,10 @@ pub(crate) fn nested_call_sites<'program>(
             else {
                 return None;
             };
-            if validation::call_target_symbol(program, call) != source.target_symbol
+            if validation::call_target_entry_symbol(
+                program,
+                validation::call_target_symbol(program, call),
+            ) != source.target_symbol
                 || !call.selects_only_nominal_route()
                 || !call.evidence_arguments.is_empty()
                 || (program.dynamic_slot_by_symbol(call.target_symbol).is_none()

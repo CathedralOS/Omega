@@ -20,6 +20,6 @@ machine main() crashes Trap {
     let value: u64 = selected<Selected<3>>();
     let difference: u64 = 7u64 - value;
     transition difference == 7 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -35,10 +35,10 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> good()
         false -> bad()
     }
-    state good() {
+    machine good() {
         Console::exit_process(70);
     }
-    state bad() {
+    machine bad() {
         Console::exit_process(71);
     }
 }

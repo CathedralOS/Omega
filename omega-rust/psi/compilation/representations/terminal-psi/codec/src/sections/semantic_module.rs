@@ -124,7 +124,10 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // declaration owners; older layouts cannot infer these missing coordinates.
 // Suspension capture coordinates include retained ingress permissions, distinct
 // from local formations and evaluated outgoing actuals.
-pub(crate) const FORMAT_MARKER: u16 = 195;
+// This union retains ingress captures, ordinary no-normal invocations and
+// inherited scalar memberships; neither independent marker-196 layout suffices.
+// Machines retain authored runtime ordering across scalar and structural lanes.
+pub(crate) const FORMAT_MARKER: u16 = 198;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

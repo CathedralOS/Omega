@@ -22,10 +22,9 @@
 //   runs in Wrapping-domained lets (obligation-free), whose values are only
 //   USED on the guard arms that prove them meaningful — the wrapped-compare
 //   idiom (`sum < a` iff the u64 add wrapped) needs no u64::MAX literal.
-// - The normalized `subsecond_nanoseconds` store happens in `*_emit` states whose
-//   SINGLE inbound edge is the `<= 999999999` guard: single-predecessor edge
-//   guards flow into the target state, so the store proves. The `false` arms
-//   are unreachable by construction but total (never a silent face).
+// - Emission helpers receive their scalars explicitly and establish the data
+//   predicate at construction. A nested declaration does not inherit its
+//   caller's guard facts; bounds follow its parameters and checked expressions.
 
 // The raw per-OS boundary (`TimeHost`) is declared once in the sibling std
 // module; the `Time` capability below wraps it (the filesystem.omg layering).
@@ -135,16 +134,16 @@ requires divisor > 0
         true -> total_ok(total as u64)
         false -> total_edge(seconds_edge, subsecond_fits, total as u64)
     }
-    state total_ok(total: u64) -> TotalResult {
+    machine total_ok(total: u64) -> TotalResult {
         TotalResult::Ok { total: total }
     }
-    state total_edge(seconds_edge: bool, subsecond_fits: bool, total: u64) -> TotalResult {
+    machine total_edge(seconds_edge: bool, subsecond_fits: bool, total: u64) -> TotalResult {
         transition seconds_edge && subsecond_fits {
             true -> total_ok(total)
             false -> total_overflow()
         }
     }
-    state total_overflow() -> TotalResult {
+    machine total_overflow() -> TotalResult {
         TotalResult::Overflow
     }
 }
@@ -188,7 +187,7 @@ public machine Duration::checked_add(duration: &Duration, other: Duration) -> Du
         false -> add_flat(nanoseconds_total, seconds_sum as u64, seconds_wrapped)
     }
 
-    state add_carried(nanoseconds_total: u32, seconds_sum: u64, seconds_wrapped: bool) -> DurationResult {
+    machine add_carried(nanoseconds_total: u32, seconds_sum: u64, seconds_wrapped: bool) -> DurationResult {
         let seconds_carried: u64 in Wrapping = (seconds_sum as u64 in Wrapping) + 1;
         let carry_wrapped: bool = seconds_carried < seconds_sum;
         let nanoseconds_reduced: u32 in Wrapping = (nanoseconds_total as u32 in Wrapping) - 1000000000;
@@ -197,25 +196,25 @@ public machine Duration::checked_add(duration: &Duration, other: Duration) -> Du
             false -> add_carry_gate(nanoseconds_reduced as u32, seconds_carried as u64, carry_wrapped)
         }
     }
-    state add_carry_gate(nanoseconds_reduced: u32, seconds_carried: u64, carry_wrapped: bool) -> DurationResult {
+    machine add_carry_gate(nanoseconds_reduced: u32, seconds_carried: u64, carry_wrapped: bool) -> DurationResult {
         transition carry_wrapped {
             true -> add_overflow()
             false -> add_gate(seconds_carried, nanoseconds_reduced)
         }
     }
-    state add_flat(nanoseconds_total: u32, seconds_sum: u64, seconds_wrapped: bool) -> DurationResult {
+    machine add_flat(nanoseconds_total: u32, seconds_sum: u64, seconds_wrapped: bool) -> DurationResult {
         transition seconds_wrapped {
             true -> add_overflow()
             false -> add_gate(seconds_sum, nanoseconds_total)
         }
     }
-    state add_gate(seconds_final: u64, nanoseconds_final: u32) -> DurationResult {
+    machine add_gate(seconds_final: u64, nanoseconds_final: u32) -> DurationResult {
         transition nanoseconds_final <= 999999999 {
             true -> add_emit(seconds_final, nanoseconds_final)
             false -> add_overflow()
         }
     }
-    state add_emit(seconds_final: u64, nanoseconds_final: u32) -> DurationResult {
+    machine add_emit(seconds_final: u64, nanoseconds_final: u32) -> DurationResult {
         // `% 1000000000` INLINE in the field value: construction checks are
         // flow-insensitive, and modulo bounds by the divisor, so the ranged
         // store proves right here; the gate already ensured the mod is an
@@ -227,13 +226,13 @@ public machine Duration::checked_add(duration: &Duration, other: Duration) -> Du
             },
         }
     }
-    state add_overflow() -> DurationResult {
+    machine add_overflow() -> DurationResult {
         DurationResult::Overflow
     }
 }
 
 // duration - other; `Overflow` (underflow) when other exceeds duration.
-// Later states carry the arithmetic values they need, not either input borrow.
+// Nested helpers carry the arithmetic values they need, not either input borrow.
 public machine Duration::checked_subtract(duration: &Duration, other: Duration) -> DurationResult {
     let seconds_bigger: bool = duration.seconds > other.seconds;
     let seconds_equal: bool = duration.seconds == other.seconds;
@@ -255,20 +254,20 @@ public machine Duration::checked_subtract(duration: &Duration, other: Duration) 
         false -> subtract_equal_or_less(seconds_equal, nanoseconds_fit, seconds_direct as u64, nanoseconds_direct)
     }
 
-    state subtract_bigger(nanoseconds_fit: bool, seconds_direct: u64, seconds_borrowed: u64, nanoseconds_direct: u32, nanoseconds_borrowed: u32) -> DurationResult {
+    machine subtract_bigger(nanoseconds_fit: bool, seconds_direct: u64, seconds_borrowed: u64, nanoseconds_direct: u32, nanoseconds_borrowed: u32) -> DurationResult {
         // Seconds strictly bigger: a nanosecond borrow cannot underflow.
         transition nanoseconds_fit {
             true -> subtract_emit(seconds_direct, nanoseconds_direct)
             false -> subtract_emit(seconds_borrowed, nanoseconds_borrowed)
         }
     }
-    state subtract_equal_or_less(seconds_equal: bool, nanoseconds_fit: bool, seconds_direct: u64, nanoseconds_direct: u32) -> DurationResult {
+    machine subtract_equal_or_less(seconds_equal: bool, nanoseconds_fit: bool, seconds_direct: u64, nanoseconds_direct: u32) -> DurationResult {
         transition seconds_equal && nanoseconds_fit {
             true -> subtract_emit(seconds_direct, nanoseconds_direct)
             false -> subtract_underflow()
         }
     }
-    state subtract_emit(seconds_final: u64, nanoseconds_final: u32) -> DurationResult {
+    machine subtract_emit(seconds_final: u64, nanoseconds_final: u32) -> DurationResult {
         // Inline `%` bounds the ranged store flow-insensitively; the guarded
         // arms above ensured it is an identity at runtime.
         DurationResult::Ok {
@@ -278,7 +277,7 @@ public machine Duration::checked_subtract(duration: &Duration, other: Duration) 
             },
         }
     }
-    state subtract_underflow() -> DurationResult {
+    machine subtract_underflow() -> DurationResult {
         DurationResult::Overflow
     }
 }
@@ -321,19 +320,19 @@ public machine Duration::checked_multiply(duration: &Duration, factor: u32) -> D
         true -> multiply_carry_gate(product_wrapped, final_wrapped, final_seconds as u64, nano_remainder)
         false -> multiply_overflow()
     }
-    state multiply_carry_gate(product_wrapped: bool, final_wrapped: bool, final_seconds: u64, nano_remainder: u32) -> DurationResult {
+    machine multiply_carry_gate(product_wrapped: bool, final_wrapped: bool, final_seconds: u64, nano_remainder: u32) -> DurationResult {
         transition product_wrapped {
             true -> multiply_overflow()
             false -> multiply_final_gate(final_wrapped, final_seconds, nano_remainder)
         }
     }
-    state multiply_final_gate(final_wrapped: bool, final_seconds: u64, nano_remainder: u32) -> DurationResult {
+    machine multiply_final_gate(final_wrapped: bool, final_seconds: u64, nano_remainder: u32) -> DurationResult {
         transition final_wrapped {
             true -> multiply_overflow()
             false -> multiply_emit(final_seconds, nano_remainder)
         }
     }
-    state multiply_emit(seconds_final: u64, nanoseconds_final: u32) -> DurationResult {
+    machine multiply_emit(seconds_final: u64, nanoseconds_final: u32) -> DurationResult {
         DurationResult::Ok {
             duration: Duration {
                 seconds: seconds_final,
@@ -341,7 +340,7 @@ public machine Duration::checked_multiply(duration: &Duration, factor: u32) -> D
             },
         }
     }
-    state multiply_overflow() -> DurationResult {
+    machine multiply_overflow() -> DurationResult {
         DurationResult::Overflow
     }
 }
@@ -372,7 +371,7 @@ public machine Duration::divide(duration: &Duration, divisor: u32) -> DurationRe
         true -> divide_by_zero()
         false -> divide_emit(seconds_quotient, sub_quotient)
     }
-    state divide_emit(seconds_final: u64, nanoseconds_final: u32) -> DurationResult {
+    machine divide_emit(seconds_final: u64, nanoseconds_final: u32) -> DurationResult {
         DurationResult::Ok {
             duration: Duration {
                 seconds: seconds_final,
@@ -380,7 +379,7 @@ public machine Duration::divide(duration: &Duration, divisor: u32) -> DurationRe
             },
         }
     }
-    state divide_by_zero() -> DurationResult {
+    machine divide_by_zero() -> DurationResult {
         DurationResult::Overflow
     }
 }
@@ -392,8 +391,8 @@ public machine Duration::saturating_add(duration: &Duration, other: Duration) ->
         DurationResult::Ok { duration } -> saturate_add_value(duration)
         DurationResult::Overflow -> saturate_add_max()
     }
-    state saturate_add_value(duration: Duration) -> Duration { duration }
-    state saturate_add_max() -> Duration { Duration::MAX }
+    machine saturate_add_value(duration: Duration) -> Duration { duration }
+    machine saturate_add_max() -> Duration { Duration::MAX }
 }
 
 // duration - other, clamping at ZERO instead of reporting underflow (total, the
@@ -404,8 +403,8 @@ public machine Duration::saturating_subtract(duration: &Duration, other: Duratio
         DurationResult::Ok { duration } -> saturate_value(duration)
         DurationResult::Overflow -> saturate_zero()
     }
-    state saturate_value(duration: Duration) -> Duration { duration }
-    state saturate_zero() -> Duration { Duration::ZERO }
+    machine saturate_value(duration: Duration) -> Duration { duration }
+    machine saturate_zero() -> Duration { Duration::ZERO }
 }
 
 public machine Duration::compare(duration: &Duration, other: Duration) -> Ordering {
@@ -417,27 +416,27 @@ public machine Duration::compare(duration: &Duration, other: Duration) -> Orderi
         true -> compare_greater()
         false -> compare_seconds_rest(seconds_less, nanoseconds_greater, nanoseconds_less)
     }
-    state compare_seconds_rest(seconds_less: bool, nanoseconds_greater: bool, nanoseconds_less: bool) -> Ordering {
+    machine compare_seconds_rest(seconds_less: bool, nanoseconds_greater: bool, nanoseconds_less: bool) -> Ordering {
         transition seconds_less {
             true -> compare_less()
             false -> compare_nanoseconds(nanoseconds_greater, nanoseconds_less)
         }
     }
-    state compare_nanoseconds(nanoseconds_greater: bool, nanoseconds_less: bool) -> Ordering {
+    machine compare_nanoseconds(nanoseconds_greater: bool, nanoseconds_less: bool) -> Ordering {
         transition nanoseconds_greater {
             true -> compare_greater()
             false -> compare_nanoseconds_rest(nanoseconds_less)
         }
     }
-    state compare_nanoseconds_rest(nanoseconds_less: bool) -> Ordering {
+    machine compare_nanoseconds_rest(nanoseconds_less: bool) -> Ordering {
         transition nanoseconds_less {
             true -> compare_less()
             false -> compare_equal()
         }
     }
-    state compare_less() -> Ordering { Ordering::Less }
-    state compare_equal() -> Ordering { Ordering::Equal }
-    state compare_greater() -> Ordering { Ordering::Greater }
+    machine compare_less() -> Ordering { Ordering::Less }
+    machine compare_equal() -> Ordering { Ordering::Equal }
+    machine compare_greater() -> Ordering { Ordering::Greater }
 }
 
 public machine Duration::is_less_than(duration: &Duration, other: Duration) -> bool {
@@ -447,8 +446,8 @@ public machine Duration::is_less_than(duration: &Duration, other: Duration) -> b
         Ordering::Equal -> less_no()
         Ordering::Greater -> less_no()
     }
-    state less_yes() -> bool { true }
-    state less_no() -> bool { false }
+    machine less_yes() -> bool { true }
+    machine less_no() -> bool { false }
 }
 
 public machine Duration::is_greater_than(duration: &Duration, other: Duration) -> bool {
@@ -458,8 +457,8 @@ public machine Duration::is_greater_than(duration: &Duration, other: Duration) -
         Ordering::Less -> greater_no()
         Ordering::Equal -> greater_no()
     }
-    state greater_yes() -> bool { true }
-    state greater_no() -> bool { false }
+    machine greater_yes() -> bool { true }
+    machine greater_no() -> bool { false }
 }
 
 // A point on the MONOTONIC clock, normalized at `now()` (D6): whole seconds +
@@ -494,7 +493,7 @@ public machine Instant::checked_add(instant: &Instant, duration: Duration) -> In
         true -> instant_add_carried(nanoseconds_total, seconds_sum as u64, seconds_wrapped)
         false -> instant_add_flat(nanoseconds_total, seconds_sum as u64, seconds_wrapped)
     }
-    state instant_add_carried(nanoseconds_total: u32, seconds_sum: u64, seconds_wrapped: bool) -> InstantResult {
+    machine instant_add_carried(nanoseconds_total: u32, seconds_sum: u64, seconds_wrapped: bool) -> InstantResult {
         let seconds_carried: u64 in Wrapping = (seconds_sum as u64 in Wrapping) + 1;
         let carry_wrapped: bool = seconds_carried < seconds_sum;
         let nanoseconds_reduced: u32 in Wrapping = (nanoseconds_total as u32 in Wrapping) - 1000000000;
@@ -503,19 +502,19 @@ public machine Instant::checked_add(instant: &Instant, duration: Duration) -> In
             false -> instant_add_carry_gate(nanoseconds_reduced as u32, seconds_carried as u64, carry_wrapped)
         }
     }
-    state instant_add_carry_gate(nanoseconds_reduced: u32, seconds_carried: u64, carry_wrapped: bool) -> InstantResult {
+    machine instant_add_carry_gate(nanoseconds_reduced: u32, seconds_carried: u64, carry_wrapped: bool) -> InstantResult {
         transition carry_wrapped {
             true -> instant_add_overflow()
             false -> instant_add_emit(seconds_carried, nanoseconds_reduced)
         }
     }
-    state instant_add_flat(nanoseconds_total: u32, seconds_sum: u64, seconds_wrapped: bool) -> InstantResult {
+    machine instant_add_flat(nanoseconds_total: u32, seconds_sum: u64, seconds_wrapped: bool) -> InstantResult {
         transition seconds_wrapped {
             true -> instant_add_overflow()
             false -> instant_add_emit(seconds_sum, nanoseconds_total)
         }
     }
-    state instant_add_emit(seconds_final: u64, nanoseconds_final: u32) -> InstantResult {
+    machine instant_add_emit(seconds_final: u64, nanoseconds_final: u32) -> InstantResult {
         InstantResult::Ok {
             instant: Instant {
                 seconds: seconds_final,
@@ -523,7 +522,7 @@ public machine Instant::checked_add(instant: &Instant, duration: Duration) -> In
             },
         }
     }
-    state instant_add_overflow() -> InstantResult { InstantResult::Overflow }
+    machine instant_add_overflow() -> InstantResult { InstantResult::Overflow }
 }
 
 // instant - duration as an earlier Instant; `Overflow` on underflow below the
@@ -544,19 +543,19 @@ public machine Instant::checked_subtract(instant: &Instant, duration: Duration) 
         true -> instant_sub_bigger(nanoseconds_fit, seconds_direct as u64, seconds_borrowed as u64, nanoseconds_direct, nanoseconds_borrowed)
         false -> instant_sub_equal_or_less(seconds_equal, nanoseconds_fit, seconds_direct as u64, nanoseconds_direct)
     }
-    state instant_sub_bigger(nanoseconds_fit: bool, seconds_direct: u64, seconds_borrowed: u64, nanoseconds_direct: u32, nanoseconds_borrowed: u32) -> InstantResult {
+    machine instant_sub_bigger(nanoseconds_fit: bool, seconds_direct: u64, seconds_borrowed: u64, nanoseconds_direct: u32, nanoseconds_borrowed: u32) -> InstantResult {
         transition nanoseconds_fit {
             true -> instant_sub_emit(seconds_direct, nanoseconds_direct)
             false -> instant_sub_emit(seconds_borrowed, nanoseconds_borrowed)
         }
     }
-    state instant_sub_equal_or_less(seconds_equal: bool, nanoseconds_fit: bool, seconds_direct: u64, nanoseconds_direct: u32) -> InstantResult {
+    machine instant_sub_equal_or_less(seconds_equal: bool, nanoseconds_fit: bool, seconds_direct: u64, nanoseconds_direct: u32) -> InstantResult {
         transition seconds_equal && nanoseconds_fit {
             true -> instant_sub_emit(seconds_direct, nanoseconds_direct)
             false -> instant_sub_overflow()
         }
     }
-    state instant_sub_emit(seconds_final: u64, nanoseconds_final: u32) -> InstantResult {
+    machine instant_sub_emit(seconds_final: u64, nanoseconds_final: u32) -> InstantResult {
         InstantResult::Ok {
             instant: Instant {
                 seconds: seconds_final,
@@ -564,7 +563,7 @@ public machine Instant::checked_subtract(instant: &Instant, duration: Duration) 
             },
         }
     }
-    state instant_sub_overflow() -> InstantResult { InstantResult::Overflow }
+    machine instant_sub_overflow() -> InstantResult { InstantResult::Overflow }
 }
 
 // instant - earlier as a Duration; `Overflow` when `earlier` is later than instant
@@ -587,19 +586,19 @@ public machine Instant::checked_duration_since(instant: &Instant, earlier: Insta
         true -> since_bigger(nanoseconds_fit, seconds_direct as u64, seconds_borrowed as u64, nanoseconds_direct, nanoseconds_borrowed)
         false -> since_equal_or_less(seconds_equal, nanoseconds_fit, seconds_direct as u64, nanoseconds_direct)
     }
-    state since_bigger(nanoseconds_fit: bool, seconds_direct: u64, seconds_borrowed: u64, nanoseconds_direct: u32, nanoseconds_borrowed: u32) -> DurationResult {
+    machine since_bigger(nanoseconds_fit: bool, seconds_direct: u64, seconds_borrowed: u64, nanoseconds_direct: u32, nanoseconds_borrowed: u32) -> DurationResult {
         transition nanoseconds_fit {
             true -> since_emit(seconds_direct, nanoseconds_direct)
             false -> since_emit(seconds_borrowed, nanoseconds_borrowed)
         }
     }
-    state since_equal_or_less(seconds_equal: bool, nanoseconds_fit: bool, seconds_direct: u64, nanoseconds_direct: u32) -> DurationResult {
+    machine since_equal_or_less(seconds_equal: bool, nanoseconds_fit: bool, seconds_direct: u64, nanoseconds_direct: u32) -> DurationResult {
         transition seconds_equal && nanoseconds_fit {
             true -> since_emit(seconds_direct, nanoseconds_direct)
             false -> since_backwards()
         }
     }
-    state since_emit(seconds_final: u64, nanoseconds_final: u32) -> DurationResult {
+    machine since_emit(seconds_final: u64, nanoseconds_final: u32) -> DurationResult {
         DurationResult::Ok {
             duration: Duration {
                 seconds: seconds_final,
@@ -607,7 +606,7 @@ public machine Instant::checked_duration_since(instant: &Instant, earlier: Insta
             },
         }
     }
-    state since_backwards() -> DurationResult {
+    machine since_backwards() -> DurationResult {
         DurationResult::Overflow
     }
 }
@@ -621,8 +620,8 @@ public machine Instant::saturating_add(instant: &Instant, duration: Duration) ->
         InstantResult::Ok { instant } -> saturate_add_value(instant)
         InstantResult::Overflow -> saturate_add_max()
     }
-    state saturate_add_value(instant: Instant) -> Instant { instant }
-    state saturate_add_max() -> Instant { Instant::MAX }
+    machine saturate_add_value(instant: Instant) -> Instant { instant }
+    machine saturate_add_max() -> Instant { Instant::MAX }
 }
 
 // instant - duration, clamping at the monotonic EPOCH instead of reporting
@@ -633,8 +632,8 @@ public machine Instant::saturating_subtract(instant: &Instant, duration: Duratio
         InstantResult::Ok { instant } -> saturate_value(instant)
         InstantResult::Overflow -> saturate_epoch()
     }
-    state saturate_value(instant: Instant) -> Instant { instant }
-    state saturate_epoch() -> Instant { Instant::EPOCH }
+    machine saturate_value(instant: Instant) -> Instant { instant }
+    machine saturate_epoch() -> Instant { Instant::EPOCH }
 }
 
 // instant - earlier, clamping at ZERO instead of reporting the backwards case
@@ -648,8 +647,8 @@ public machine Instant::duration_since(instant: &Instant, earlier: Instant) -> D
         DurationResult::Ok { duration } -> since_value(duration)
         DurationResult::Overflow -> since_zero()
     }
-    state since_value(duration: Duration) -> Duration { duration }
-    state since_zero() -> Duration { Duration::ZERO }
+    machine since_value(duration: Duration) -> Duration { duration }
+    machine since_zero() -> Duration { Duration::ZERO }
 }
 
 // A point on the WALL clock (D7): signed Unix-epoch seconds (pre-1970
@@ -718,32 +717,32 @@ public machine SystemTime::duration_since(time: &SystemTime, earlier: SystemTime
         true -> wall_bigger(nanoseconds_fit, seconds_direct as u64, seconds_borrowed as u64, nanoseconds_direct, nanoseconds_borrowed)
         false -> wall_equal_or_less(seconds_equal, nanoseconds_fit, back_nanoseconds_fit, seconds_direct as u64, nanoseconds_direct, back_seconds_direct as u64, back_seconds_borrowed as u64, back_nanoseconds_direct, back_nanoseconds_borrowed)
     }
-    state wall_bigger(nanoseconds_fit: bool, seconds_direct: u64, seconds_borrowed: u64, nanoseconds_direct: u32, nanoseconds_borrowed: u32) -> SystemTimeDifference {
+    machine wall_bigger(nanoseconds_fit: bool, seconds_direct: u64, seconds_borrowed: u64, nanoseconds_direct: u32, nanoseconds_borrowed: u32) -> SystemTimeDifference {
         transition nanoseconds_fit {
             true -> wall_emit_ok(seconds_direct, nanoseconds_direct)
             false -> wall_emit_ok(seconds_borrowed, nanoseconds_borrowed)
         }
     }
-    state wall_equal_or_less(seconds_equal: bool, nanoseconds_fit: bool, back_nanoseconds_fit: bool, seconds_direct: u64, nanoseconds_direct: u32, back_seconds_direct: u64, back_seconds_borrowed: u64, back_nanoseconds_direct: u32, back_nanoseconds_borrowed: u32) -> SystemTimeDifference {
+    machine wall_equal_or_less(seconds_equal: bool, nanoseconds_fit: bool, back_nanoseconds_fit: bool, seconds_direct: u64, nanoseconds_direct: u32, back_seconds_direct: u64, back_seconds_borrowed: u64, back_nanoseconds_direct: u32, back_nanoseconds_borrowed: u32) -> SystemTimeDifference {
         transition seconds_equal && nanoseconds_fit {
             true -> wall_emit_ok(seconds_direct, nanoseconds_direct)
             false -> wall_backwards_split(seconds_equal, back_nanoseconds_fit, back_seconds_direct, back_seconds_borrowed, back_nanoseconds_direct, back_nanoseconds_borrowed)
         }
     }
-    state wall_backwards_split(seconds_equal: bool, back_nanoseconds_fit: bool, back_seconds_direct: u64, back_seconds_borrowed: u64, back_nanoseconds_direct: u32, back_nanoseconds_borrowed: u32) -> SystemTimeDifference {
+    machine wall_backwards_split(seconds_equal: bool, back_nanoseconds_fit: bool, back_seconds_direct: u64, back_seconds_borrowed: u64, back_nanoseconds_direct: u32, back_nanoseconds_borrowed: u32) -> SystemTimeDifference {
         // seconds equal here means time.sub < earlier.sub: no borrow needed.
         transition seconds_equal {
             true -> wall_emit_backwards(back_seconds_direct, back_nanoseconds_direct)
             false -> wall_backwards_borrow(back_nanoseconds_fit, back_seconds_direct, back_seconds_borrowed, back_nanoseconds_direct, back_nanoseconds_borrowed)
         }
     }
-    state wall_backwards_borrow(back_nanoseconds_fit: bool, back_seconds_direct: u64, back_seconds_borrowed: u64, back_nanoseconds_direct: u32, back_nanoseconds_borrowed: u32) -> SystemTimeDifference {
+    machine wall_backwards_borrow(back_nanoseconds_fit: bool, back_seconds_direct: u64, back_seconds_borrowed: u64, back_nanoseconds_direct: u32, back_nanoseconds_borrowed: u32) -> SystemTimeDifference {
         transition back_nanoseconds_fit {
             true -> wall_emit_backwards(back_seconds_direct, back_nanoseconds_direct)
             false -> wall_emit_backwards(back_seconds_borrowed, back_nanoseconds_borrowed)
         }
     }
-    state wall_emit_ok(seconds_final: u64, nanoseconds_final: u32) -> SystemTimeDifference {
+    machine wall_emit_ok(seconds_final: u64, nanoseconds_final: u32) -> SystemTimeDifference {
         SystemTimeDifference::Ok {
             duration: Duration {
                 seconds: seconds_final,
@@ -751,7 +750,7 @@ public machine SystemTime::duration_since(time: &SystemTime, earlier: SystemTime
             },
         }
     }
-    state wall_emit_backwards(seconds_final: u64, nanoseconds_final: u32) -> SystemTimeDifference {
+    machine wall_emit_backwards(seconds_final: u64, nanoseconds_final: u32) -> SystemTimeDifference {
         SystemTimeDifference::Backwards {
             amount: Duration {
                 seconds: seconds_final,
@@ -789,7 +788,7 @@ public machine SystemTime::checked_add(time: &SystemTime, duration: Duration) ->
         true -> wall_add_carried(nanoseconds_total, seconds_sum as i64, sum_biased as u64, add_wrapped)
         false -> wall_add_flat(nanoseconds_total, seconds_sum as i64, add_wrapped)
     }
-    state wall_add_carried(nanoseconds_total: u32, seconds_sum: i64, sum_biased: u64, add_wrapped: bool) -> SystemTimeResult {
+    machine wall_add_carried(nanoseconds_total: u32, seconds_sum: i64, sum_biased: u64, add_wrapped: bool) -> SystemTimeResult {
         let seconds_carried: i64 in Wrapping = (seconds_sum as i64 in Wrapping) + 1;
         let carried_biased: u64 in Wrapping = (sum_biased as u64 in Wrapping) + 1;
         let carry_wrapped: bool = carried_biased < sum_biased;
@@ -799,19 +798,19 @@ public machine SystemTime::checked_add(time: &SystemTime, duration: Duration) ->
             false -> wall_add_carry_gate(nanoseconds_reduced as u32, seconds_carried as i64, carry_wrapped)
         }
     }
-    state wall_add_carry_gate(nanoseconds_reduced: u32, seconds_carried: i64, carry_wrapped: bool) -> SystemTimeResult {
+    machine wall_add_carry_gate(nanoseconds_reduced: u32, seconds_carried: i64, carry_wrapped: bool) -> SystemTimeResult {
         transition carry_wrapped {
             true -> wall_add_overflow()
             false -> wall_add_emit(seconds_carried, nanoseconds_reduced)
         }
     }
-    state wall_add_flat(nanoseconds_total: u32, seconds_sum: i64, add_wrapped: bool) -> SystemTimeResult {
+    machine wall_add_flat(nanoseconds_total: u32, seconds_sum: i64, add_wrapped: bool) -> SystemTimeResult {
         transition add_wrapped {
             true -> wall_add_overflow()
             false -> wall_add_emit(seconds_sum, nanoseconds_total)
         }
     }
-    state wall_add_emit(seconds_final: i64, nanoseconds_final: u32) -> SystemTimeResult {
+    machine wall_add_emit(seconds_final: i64, nanoseconds_final: u32) -> SystemTimeResult {
         SystemTimeResult::Ok {
             time: SystemTime {
                 seconds_since_unix_epoch: seconds_final,
@@ -819,7 +818,7 @@ public machine SystemTime::checked_add(time: &SystemTime, duration: Duration) ->
             },
         }
     }
-    state wall_add_overflow() -> SystemTimeResult { SystemTimeResult::Overflow }
+    machine wall_add_overflow() -> SystemTimeResult { SystemTimeResult::Overflow }
 }
 
 // time - duration; `Overflow` below i64::MIN seconds. Same biased-space
@@ -846,13 +845,13 @@ public machine SystemTime::checked_subtract(time: &SystemTime, duration: Duratio
         true -> wall_sub_flat(seconds_difference as i64, subtract_wrapped, nanoseconds_direct)
         false -> wall_sub_borrowed(seconds_difference as i64, difference_biased as u64, subtract_wrapped, nanoseconds_borrowed)
     }
-    state wall_sub_flat(seconds_difference: i64, subtract_wrapped: bool, nanoseconds_direct: u32) -> SystemTimeResult {
+    machine wall_sub_flat(seconds_difference: i64, subtract_wrapped: bool, nanoseconds_direct: u32) -> SystemTimeResult {
         transition subtract_wrapped {
             true -> wall_sub_overflow()
             false -> wall_sub_emit(seconds_difference, nanoseconds_direct)
         }
     }
-    state wall_sub_borrowed(seconds_difference: i64, difference_biased: u64, subtract_wrapped: bool, nanoseconds_borrowed: u32) -> SystemTimeResult {
+    machine wall_sub_borrowed(seconds_difference: i64, difference_biased: u64, subtract_wrapped: bool, nanoseconds_borrowed: u32) -> SystemTimeResult {
         let seconds_borrowed: i64 in Wrapping = (seconds_difference as i64 in Wrapping) - 1;
         let borrowed_biased: u64 in Wrapping = (difference_biased as u64 in Wrapping) - 1;
         let borrow_wrapped: bool = borrowed_biased > difference_biased;
@@ -861,13 +860,13 @@ public machine SystemTime::checked_subtract(time: &SystemTime, duration: Duratio
             false -> wall_sub_borrow_gate(seconds_borrowed as i64, borrow_wrapped, nanoseconds_borrowed)
         }
     }
-    state wall_sub_borrow_gate(seconds_borrowed: i64, borrow_wrapped: bool, nanoseconds_borrowed: u32) -> SystemTimeResult {
+    machine wall_sub_borrow_gate(seconds_borrowed: i64, borrow_wrapped: bool, nanoseconds_borrowed: u32) -> SystemTimeResult {
         transition borrow_wrapped {
             true -> wall_sub_overflow()
             false -> wall_sub_emit(seconds_borrowed, nanoseconds_borrowed)
         }
     }
-    state wall_sub_emit(seconds_final: i64, nanoseconds_final: u32) -> SystemTimeResult {
+    machine wall_sub_emit(seconds_final: i64, nanoseconds_final: u32) -> SystemTimeResult {
         SystemTimeResult::Ok {
             time: SystemTime {
                 seconds_since_unix_epoch: seconds_final,
@@ -875,7 +874,7 @@ public machine SystemTime::checked_subtract(time: &SystemTime, duration: Duratio
             },
         }
     }
-    state wall_sub_overflow() -> SystemTimeResult { SystemTimeResult::Overflow }
+    machine wall_sub_overflow() -> SystemTimeResult { SystemTimeResult::Overflow }
 }
 
 // time + duration, clamping at SystemTime::MAX instead of reporting
@@ -886,8 +885,8 @@ public machine SystemTime::saturating_add(time: &SystemTime, duration: Duration)
         SystemTimeResult::Ok { time } -> saturate_add_value(time)
         SystemTimeResult::Overflow -> saturate_add_max()
     }
-    state saturate_add_value(time: SystemTime) -> SystemTime { time }
-    state saturate_add_max() -> SystemTime { SystemTime::MAX }
+    machine saturate_add_value(time: SystemTime) -> SystemTime { time }
+    machine saturate_add_max() -> SystemTime { SystemTime::MAX }
 }
 
 // time - duration, clamping at SystemTime::MIN instead of reporting
@@ -899,8 +898,8 @@ public machine SystemTime::saturating_subtract(time: &SystemTime, duration: Dura
         SystemTimeResult::Ok { time } -> saturate_value(time)
         SystemTimeResult::Overflow -> saturate_min()
     }
-    state saturate_value(time: SystemTime) -> SystemTime { time }
-    state saturate_min() -> SystemTime { SystemTime::MIN }
+    machine saturate_value(time: SystemTime) -> SystemTime { time }
+    machine saturate_min() -> SystemTime { SystemTime::MIN }
 }
 
 
@@ -976,20 +975,20 @@ invokes
         true -> wall_now_emit(unix_seconds, subsecond)
         false -> wall_now_before_epoch()
     }
-    state wall_now_emit(unix_seconds: i64, subsecond: u32) -> SystemTime {
+    machine wall_now_emit(unix_seconds: i64, subsecond: u32) -> SystemTime {
         SystemTime {
             seconds_since_unix_epoch: unix_seconds,
             subsecond_nanoseconds: subsecond % 1000000000,
         }
     }
-    state wall_now_before_epoch() -> SystemTime { SystemTime::UNIX_EPOCH }
+    machine wall_now_before_epoch() -> SystemTime { SystemTime::UNIX_EPOCH }
 }
 
 // The stopwatch read: monotonic-now minus `start`, saturating at ZERO (a
 // start Instant from a different process/boot measures garbage; ZERO is the
 // honest total answer). This body combines now()'s normalization with the
 // checked_duration_since arithmetic.
-// The clock capability is an explicit borrowed parameter; arithmetic states
+// The clock capability is an explicit borrowed parameter; arithmetic helpers
 // carry only the values they use, not the clock capability.
 //
 // Shares let names with `now()` deliberately: two same-named-let callees
@@ -1027,19 +1026,19 @@ invokes
         true -> elapsed_bigger(nanoseconds_fit, seconds_direct as u64, seconds_borrowed as u64, nanoseconds_direct, nanoseconds_borrowed)
         false -> elapsed_equal_or_less(seconds_equal, nanoseconds_fit, seconds_direct as u64, nanoseconds_direct)
     }
-    state elapsed_bigger(nanoseconds_fit: bool, seconds_direct: u64, seconds_borrowed: u64, nanoseconds_direct: u32, nanoseconds_borrowed: u32) -> Duration {
+    machine elapsed_bigger(nanoseconds_fit: bool, seconds_direct: u64, seconds_borrowed: u64, nanoseconds_direct: u32, nanoseconds_borrowed: u32) -> Duration {
         transition nanoseconds_fit {
             true -> elapsed_emit(seconds_direct, nanoseconds_direct)
             false -> elapsed_emit(seconds_borrowed, nanoseconds_borrowed)
         }
     }
-    state elapsed_equal_or_less(seconds_equal: bool, nanoseconds_fit: bool, seconds_direct: u64, nanoseconds_direct: u32) -> Duration {
+    machine elapsed_equal_or_less(seconds_equal: bool, nanoseconds_fit: bool, seconds_direct: u64, nanoseconds_direct: u32) -> Duration {
         transition seconds_equal && nanoseconds_fit {
             true -> elapsed_emit(seconds_direct, nanoseconds_direct)
             false -> elapsed_backwards()
         }
     }
-    state elapsed_emit(seconds_final: u64, nanoseconds_final: u32) -> Duration {
+    machine elapsed_emit(seconds_final: u64, nanoseconds_final: u32) -> Duration {
         Duration {
             seconds: seconds_final,
             subsecond_nanoseconds: nanoseconds_final % 1000000000,
@@ -1047,7 +1046,7 @@ invokes
     }
     // A start Instant from a different process/boot can sit "ahead" of now:
     // saturate at ZERO (total, never faulting).
-    state elapsed_backwards() -> Duration { Duration::ZERO }
+    machine elapsed_backwards() -> Duration { Duration::ZERO }
 }
 
 // Sleep for (approximately, never less than the platform grants) the given

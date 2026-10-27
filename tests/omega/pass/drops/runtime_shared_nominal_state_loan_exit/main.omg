@@ -80,8 +80,8 @@ reaches Console
 machine scope() reaches Console crashes Trap {
  let room: Room = Room { count: 10 };
  transition { _ -> observe(&room) }
- state observe(room: &Room) { Console::write_byte(79); transition room.count == 10 { true -> done() false -> bad() } }
- state done() {} state bad() { crash Trap; }
+ machine observe(room: &Room) { Console::write_byte(79); transition room.count == 10 { true -> done() false -> bad() } }
+ machine done() {} machine bad() { crash Trap; }
 }
 data Main {} machine Main::main(main: &mut Main) reaches Console crashes Trap { scope(); }
 

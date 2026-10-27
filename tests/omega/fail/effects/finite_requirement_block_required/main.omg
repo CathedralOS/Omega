@@ -20,6 +20,6 @@ macos_arm64 machine Main::main() reaches Service crashes Trap {
     let first: i32 = Service::echo<4>((17 as i32));
     let second: i32 = Service::echo<8>((25 as i32));
     transition first == 18 && second == 27 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

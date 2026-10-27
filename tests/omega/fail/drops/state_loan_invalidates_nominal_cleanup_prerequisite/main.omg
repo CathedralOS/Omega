@@ -3,5 +3,5 @@ machine Room::drop(room: &mut Room) requires room.count == 10 { room.count = 99;
 machine main() {
  let room: Room = Room { count: 10 };
  transition { _ -> observe(&mut room) }
- state observe(room: &mut Room) { room.count = 11; }
+ machine observe(room: &mut Room) { room.count = 11; }
 }

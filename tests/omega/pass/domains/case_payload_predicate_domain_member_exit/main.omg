@@ -23,8 +23,8 @@ machine Main::main(main: &mut Main) reaches Console {
         Divisor::By { amount } -> quotient(main, 490 / amount)
         Divisor::Unset -> wrong_case(main)
     }
-    state quotient(main: &mut Main, value: i32) { Console::exit_process(value); }
-    state wrong_case(main: &mut Main) { Console::exit_process(71); }
+    machine quotient(main: &mut Main, value: i32) { Console::exit_process(value); }
+    machine wrong_case(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

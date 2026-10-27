@@ -15,8 +15,9 @@
 //! across those operations; package policy borrows execution, not a compiler.
 //! Ordinary CLI products consume executed discovery through package-owned
 //! Product admission. Install/update also execute their staged candidates once
-//! and retain Builds across review passes. Audit uses that same lifecycle;
-//! provider/helper suspension remains migration work.
+//! and retain Builds across review passes. Audit uses that same lifecycle.
+//! Readiness pauses acquire an explicitly requested dependency, produce its
+//! named checked Terminal implementation, and resume the original activation.
 
 mod build;
 mod build_directory;
@@ -54,6 +55,9 @@ use std::path::PathBuf;
 #[derive(Clone, Debug)]
 pub enum ProjectProduct {
     Check,
+    /// Retain the canonical Terminal artifact without native realization or
+    /// publication. Consumers may interpret, inspect, or publish it explicitly.
+    Terminal,
     /// A named machine's Terminal description, with no native realization.
     Inspection {
         machine: String,
@@ -104,7 +108,7 @@ pub struct BuildOutcome {
     pub executable_path: Option<PathBuf>,
 }
 
-/// A check or native outcome ready for compilation-command presentation.
+/// A check, Terminal or native outcome ready for command presentation.
 pub struct BuildReport {
     pub report: CompileReport,
     pub timings: CompileTimings,

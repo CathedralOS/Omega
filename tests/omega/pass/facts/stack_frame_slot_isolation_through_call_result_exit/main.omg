@@ -39,7 +39,7 @@ machine main() crashes Trap {
         true -> run_check(slot_a, slot_b, slot_c)
         _ -> bad()
     }
-    state run_check(a: SlotPair, b: SlotPair, c: SlotPair)
+    machine run_check(a: SlotPair, b: SlotPair, c: SlotPair)
     requires a.left == 10 && a.right == 20 && b.left == 15 && b.right == 25 && c.left == 10 && c.right == 20
     {
         let sum: u64 = a.left + a.right + b.left + b.right + c.left + c.right;
@@ -49,6 +49,6 @@ machine main() crashes Trap {
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

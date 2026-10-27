@@ -7,7 +7,7 @@ data Holder { grid: [[i32 in Wrapping; 4]; 3]; rows: [Row; 3]; }
 machine main() crashes Trap {
     let mut holder: Holder;
     transition { _ -> rmw(&mut holder, 1, 2, 2, 1) }
-    state rmw(holder: &mut Holder, i: u64, j: u64, ri: u64, rj: u64)
+    machine rmw(holder: &mut Holder, i: u64, j: u64, ri: u64, rj: u64)
     requires i <= 2
     requires j <= 3
     requires ri <= 2
@@ -21,6 +21,6 @@ machine main() crashes Trap {
         let rows_got: i32 in Wrapping = holder.rows[2].data[1] + holder.rows[2].tag;
         transition grid_got == 42 && rows_got == 49 { true -> done() _ -> bad() }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

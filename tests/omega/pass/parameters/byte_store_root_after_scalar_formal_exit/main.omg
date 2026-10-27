@@ -41,11 +41,11 @@ machine put(before: &mut [u8], index: u64, target: &mut [u8], after: &mut [u8]) 
         _ -> skip()
     }
 
-    state store(before: &mut [u8], index: u64, target: &mut [u8], after: &mut [u8]) {
+    machine store(before: &mut [u8], index: u64, target: &mut [u8], after: &mut [u8]) {
         target[index] = 9;
     }
 
-    state skip() {}
+    machine skip() {}
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -61,16 +61,16 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> wrong(main)
     }
 
-    state wrong(main: &mut Main) {
+    machine wrong(main: &mut Main) {
         transition main.after.text == "CZC" {
             true -> wrote_after(main)
             _ -> other(main)
         }
     }
 
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state wrote_after(main: &mut Main) { Console::exit_process(71); }
-    state other(main: &mut Main) { Console::exit_process(72); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine wrote_after(main: &mut Main) { Console::exit_process(71); }
+    machine other(main: &mut Main) { Console::exit_process(72); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

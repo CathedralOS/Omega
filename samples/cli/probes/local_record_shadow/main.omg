@@ -29,8 +29,8 @@ machine Main::main(main: &mut Main) crashes Trap {
         true -> passed(main)
         false -> failed(main)
     }
-    state passed(main: &mut Main) { main.hits = 1; }
-    state failed(main: &mut Main) { crash Trap; }
+    machine passed(main: &mut Main) { main.hits = 1; }
+    machine failed(main: &mut Main) { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

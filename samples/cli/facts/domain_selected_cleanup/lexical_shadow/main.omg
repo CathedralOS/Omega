@@ -9,6 +9,6 @@ machine right() -> bool {
 }
 machine main() crashes Trap {
     transition helper(1) == 0 && left() == 7 && right() { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

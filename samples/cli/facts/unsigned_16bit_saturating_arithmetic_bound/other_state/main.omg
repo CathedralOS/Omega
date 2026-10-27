@@ -23,10 +23,10 @@ ensures result == 0u16
         true -> ok()
         _ -> bad()
     }
-    state ok() {
+    machine ok() -> u16 {
         0u16
     }
-    state bad() {
+    machine bad() -> u16 {
         crash Trap;
     }
 }
@@ -38,7 +38,7 @@ ensures result == 0u16
     transition {
         _ -> step(sum)
     }
-    state step(sum: u16) -> u16
+    machine step(sum: u16) -> u16
     requires sum >= 350u16 && sum <= 600u16
     {
         verify_sum(sum)
@@ -50,6 +50,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

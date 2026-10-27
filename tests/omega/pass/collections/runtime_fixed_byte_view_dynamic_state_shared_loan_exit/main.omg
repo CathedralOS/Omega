@@ -23,27 +23,27 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> select(&mut rows, &mut cursor, selected)
         _ -> finish(71)
     }
-    state select(rows: &mut [Row; 2], cursor: &mut Cursor, selected: u64)
+    machine select(rows: &mut [Row; 2], cursor: &mut Cursor, selected: u64)
         requires selected < 2
     {
         transition { _ -> forward(&rows[selected].bytes, reset(cursor)) }
     }
-    state forward(bytes: &[u8; 3], ready: bool) {
+    machine forward(bytes: &[u8; 3], ready: bool) {
         transition { _ -> write(bytes, ready) }
     }
-    state write(bytes: &[u8; 3], ready: bool) {
+    machine write(bytes: &[u8; 3], ready: bool) {
         transition ready && bytes[0] == 22 {
             true -> replace(bytes)
             _ -> finish(72)
         }
     }
-    state replace(bytes: &[u8; 3]) {
+    machine replace(bytes: &[u8; 3]) {
         transition bytes[0] == 22 {
             true -> finish(70)
             _ -> finish(73)
         }
     }
-    state finish(code: i32) { Console::exit_process(code); }
+    machine finish(code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

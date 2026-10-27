@@ -9,7 +9,7 @@ terminates by index -> Nat::IncreasingTo(5);
         true -> step(items, index, best)
         false -> best
     }
-    state step(items: &[i32; 5], index: u64, best: u64) requires index < 5, best < 5 {
+    machine step(items: &[i32; 5], index: u64, best: u64) -> u64 requires index < 5, best < 5 {
         transition items[index] > items[best] {
             true -> argmax(items, index + 1, index)
             false -> argmax(items, index + 1, best)
@@ -23,6 +23,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

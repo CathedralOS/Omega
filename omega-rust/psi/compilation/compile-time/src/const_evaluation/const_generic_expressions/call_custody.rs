@@ -7,6 +7,7 @@
 
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind as Kind, AuthoredDeclarationSelectionTarget as Target,
+    ResolvedAuthoredCallBinding,
 };
 use source::SourceSpan;
 use symbols::{SymbolHandle, SymbolKind};
@@ -42,6 +43,7 @@ pub(crate) struct DependencyValue {
 struct Context<'program> {
     machine: &'program Machine,
     state: &'program State,
+    lexical_owner: SymbolHandle,
     initializer: bool,
 }
 
@@ -428,6 +430,7 @@ fn collect_internal(
     let context = Context {
         machine,
         state,
+        lexical_owner: machine.symbol,
         initializer: true,
     };
     let mut collector = Collector {
@@ -446,10 +449,17 @@ fn collect_internal(
     let mut visited_machines = Vec::new();
     loop {
         if let Some((expression, context)) = collector.expressions.pop() {
-            if visited_expressions.contains(&(expression, context.initializer)) {
+            let occurrence = (
+                expression,
+                context.machine.symbol,
+                context.state.symbol,
+                context.lexical_owner,
+                context.initializer,
+            );
+            if visited_expressions.contains(&occurrence) {
                 continue;
             }
-            visited_expressions.push((expression, context.initializer));
+            visited_expressions.push(occurrence);
             collector.expression(expression, context)?;
         } else if let Some(machine) = collector.machines.pop() {
             if visited_machines.contains(&machine) {
@@ -573,6 +583,18 @@ impl<'program> Collector<'program> {
         }
     }
 
+    fn selected_target_matches(
+        &self,
+        selected: SymbolHandle,
+        target: SymbolHandle,
+        initializer: bool,
+    ) -> Result<bool, String> {
+        // Local alpha copies already name their exact executable declaration.
+        // Ordinary retargeting instead retains the resolver's source target.
+        // Do not project both applications: different tuples can share a template.
+        Ok(selected == target || selected == self.authored_target(target, initializer)?)
+    }
+
     fn call_selection_matches(
         &self,
         site: &validation::CallSite<'_>,
@@ -580,22 +602,36 @@ impl<'program> Collector<'program> {
         authored: SymbolHandle,
     ) -> Result<bool, String> {
         let target = call_selections::retained_target(self.program, site)?;
-        if authored == self.authored_target(target, context.initializer)? {
+        // Resolution owns declaration-copy correspondence. Keep its original
+        // ledger identity separate from the selected callable whose admitted
+        // specialization and binder substitutions are checked below.
+        let selected = if let validation::CallSite::Expression { call, .. } = site
+            && let Some(binding) = call.authored_call_binding
+        {
+            if authored != binding.original {
+                return Err("constant call changed its original binding occurrence".into());
+            }
+            binding.selected
+        } else {
+            authored
+        };
+        if self.selected_target_matches(selected, target, context.initializer)? {
             return Ok(true);
         }
         if call_selections::static_callable_matches(
             self.program,
             context.machine.symbol,
             site,
-            authored,
+            selected,
         )? {
             return Ok(true);
         }
         call_selections::logical_requirement_matches(
             self.program,
             context.machine.symbol,
+            context.lexical_owner,
             site,
-            authored,
+            selected,
         )
     }
 
@@ -607,22 +643,44 @@ impl<'program> Collector<'program> {
         reference: SourceSpan,
     ) -> Result<(), String> {
         let target = call_selections::retained_target(self.program, site)?;
-        if authored == self.authored_target(target, context.initializer)? {
-            return self.call(target, reference, context.initializer);
+        let selected = if let validation::CallSite::Expression { call, .. } = site
+            && let Some(binding) = call.authored_call_binding
+        {
+            if authored != binding.original {
+                return Err("constant call changed its original binding occurrence".into());
+            }
+            binding.selected
+        } else {
+            authored
+        };
+        if self.selected_target_matches(selected, target, context.initializer)? {
+            return self.call(
+                ResolvedAuthoredCallBinding {
+                    selected: target,
+                    original: authored,
+                },
+                reference,
+            );
         }
         if !self.call_selection_matches(site, context, authored)? {
             return Err("constant call differs from its exact logical selection".into());
         }
         // Retain the source's abstract dependency pair. It supplies no body;
         // the independently checked dispatch identifies the private closure.
-        self.call(authored, reference, context.initializer)?;
+        self.call(
+            ResolvedAuthoredCallBinding {
+                selected: authored,
+                original: authored,
+            },
+            reference,
+        )?;
         if self.expand_callees
             && (site.static_requirement_dispatch().is_some()
                 || call_selections::static_callable_matches(
                     self.program,
                     context.machine.symbol,
                     site,
-                    authored,
+                    selected,
                 )?)
         {
             let machine = self
@@ -664,49 +722,32 @@ impl<'program> Collector<'program> {
 
     fn call(
         &mut self,
-        target: SymbolHandle,
+        binding: ResolvedAuthoredCallBinding,
         reference: SourceSpan,
-        initializer: bool,
     ) -> Result<(), String> {
-        let executable = target;
-        let target = self.authored_target(target, initializer)?;
+        let executable = binding.selected;
+        let target = binding.original;
         let symbol = self.program.symbols.get(target);
         let bound_requirement = symbol.kind == SymbolKind::State
             && symbol.parent.is_valid()
             && self.program.symbols.get(symbol.parent).kind == SymbolKind::ConformanceParameter
             && validation::selected_requirement_signature(self.program, target).is_some();
-        if matches!(
+        let trait_requirement = symbol.kind == SymbolKind::State
+            && symbol.parent.is_valid()
+            && self.program.symbols.get(symbol.parent).kind == SymbolKind::Trait;
+        let logical = matches!(
             symbol.kind,
             SymbolKind::Operator | SymbolKind::MachineParameter
         ) || bound_requirement
-        {
-            // An abstract bound call retains the exact public declaration
-            // selected by its authored template. It owns no body to evaluate.
-            // The ordinary checked specialization/dispatch and interpreter still
-            // owe a concrete admitted implementation; this custody row grants
-            // neither that selection nor permission to execute it. Boundary
-            // operators use the same source-pair retention without a body.
-            let declaration = self
-                .program
-                .symbols
-                .symbol_source_span(target)
-                .ok_or("constant logical call lost its exact declaration source")?;
-            let selection = (reference, declaration);
-            if !self.custody.calls.contains(&selection) {
-                self.custody.calls.push(selection);
-            }
-            if !self.custody.call_targets.contains(&(reference, target)) {
-                self.custody.call_targets.push((reference, target));
-            }
-            return Ok(());
-        }
+            || trait_requirement;
         let machine = match symbol.kind {
-            SymbolKind::Machine => target,
+            SymbolKind::Machine => Some(target),
             SymbolKind::State
                 if self.program.symbols.get(symbol.parent).kind == SymbolKind::Machine =>
             {
-                symbol.parent
+                Some(symbol.parent)
             }
+            _ if logical => None,
             _ => {
                 return Err(
                     "constant call has no exact ordinary machine or state selection".into(),
@@ -728,7 +769,7 @@ impl<'program> Collector<'program> {
                     .program
                     .machines()
                     .iter()
-                    .filter(|owner| owner.symbol == machine);
+                    .filter(|owner| Some(owner.symbol) == machine);
                 let owner = owners.next()?;
                 if owners.next().is_some() {
                     return None;
@@ -737,7 +778,7 @@ impl<'program> Collector<'program> {
                 if states.len() != owner.states.len() || states.first()?.symbol != target {
                     return None;
                 }
-                self.program.symbols.symbol_source_span(machine)
+                self.program.symbols.symbol_source_span(machine?)
             })
             .ok_or("constant call lost its exact selected declaration source")?;
         let selection = (reference, declaration);
@@ -748,13 +789,23 @@ impl<'program> Collector<'program> {
             self.custody.call_targets.push((reference, target));
         }
         let executable_symbol = self.program.symbols.get(executable);
-        if self.expand_callees {
-            self.machines
-                .push(if executable_symbol.kind == SymbolKind::State {
-                    executable_symbol.parent
-                } else {
-                    executable
-                });
+        let executable_machine = match executable_symbol.kind {
+            SymbolKind::Machine => Some(executable),
+            SymbolKind::State
+                if self.program.symbols.get(executable_symbol.parent).kind
+                    == SymbolKind::Machine =>
+            {
+                Some(executable_symbol.parent)
+            }
+            _ if logical => None,
+            _ => return Err("constant call lost its selected executable declaration".into()),
+        };
+        // Source custody always names the original requirement. An admitted
+        // realization can supply a separate body, without replacing that row.
+        if self.expand_callees
+            && let Some(machine) = executable_machine
+        {
+            self.machines.push(machine);
         }
         Ok(())
     }
@@ -881,7 +932,13 @@ impl<'program> Collector<'program> {
                 })
                 .collect::<Result<Vec<_>, String>>()?;
             for (reference, target) in calls.into_iter().flatten() {
-                self.call(target, reference, false)?;
+                self.call(
+                    ResolvedAuthoredCallBinding {
+                        selected: target,
+                        original: self.authored_target(target, false)?,
+                    },
+                    reference,
+                )?;
             }
             self.expressions.push((
                 materialized,
@@ -958,27 +1015,9 @@ impl<'program> Collector<'program> {
                 let Some(selected) = selection_target.as_resolved() else {
                     return Err("constant closure retained an unresolved call selection".into());
                 };
-                let mut symbol = selected.selected_symbol();
-                // The ledger names the trait requirement. Execution and the
-                // dependency roster name the supplying row's entry. Retain
-                // that entry for this call's own token; nested selections
-                // keep the declaration they were recorded under.
-                if selection.source_span() == table.source_span(expression)
-                    && let ExpressionNode::Call(call) = table.expression(expression)
-                {
-                    if let Some(entry) =
-                        call_selections::owned_realization_entry(program, call, symbol)
-                    {
-                        symbol = entry;
-                    } else if call_selections::requirement_realized_by(
-                        program,
-                        symbol,
-                        call.target_symbol,
-                    ) {
-                        symbol = call.target_symbol;
-                    }
-                }
-                let target = (selection.source_span(), symbol);
+                // This inventory and the published custody both name the
+                // original ledger declaration, independently of executable routing.
+                let target = (selection.source_span(), selected.selected_symbol());
                 if !self.retained_call_targets.contains(&target) {
                     self.retained_call_targets.push(target);
                 }
@@ -1083,27 +1122,30 @@ impl<'program> Collector<'program> {
                         continue;
                     };
                     let matches = self.call_selection_matches(&site, context, target)?;
-                    // Preparation may rewrite the call to the row's entry
-                    // after the ledger recorded the trait requirement.
-                    let symbol = if call_selections::owned_realization_entry(program, call, target)
-                        == Some(call.target_symbol)
+                    // Keep the requirement as the authored selection even when
+                    // preparation has routed execution to its supplying entry.
+                    let owned_entry =
+                        call_selections::owned_realization_entry(program, call, target);
+                    let realized = owned_entry == Some(call.target_symbol)
                         || call_selections::requirement_realized_by(
                             program,
                             target,
                             call.target_symbol,
-                        ) {
-                        call.target_symbol
-                    } else if matches {
-                        target
-                    } else {
+                        );
+                    if !realized && !matches {
                         continue;
+                    }
+                    let entry = if realized {
+                        Some(call.target_symbol)
+                    } else {
+                        owned_entry
                     };
-                    let selected = (symbol, selection.source_span());
+                    let selected = (target, selection.source_span(), entry);
                     if !selections.contains(&selected) {
                         selections.push(selected);
                     }
                 }
-                let [(authored, reference)] = selections.as_slice() else {
+                let [(authored, reference, entry)] = selections.as_slice() else {
                     return Err(if selections.is_empty() {
                         "constant call lost its exact authored target selection"
                     } else {
@@ -1114,10 +1156,14 @@ impl<'program> Collector<'program> {
                 // A trait requirement names no body. A supplying map's row
                 // entry is the call custody executes. A map that does not
                 // supply the trait rejects here, before that body is walked.
-                if let Some(entry) =
-                    call_selections::owned_realization_entry(program, call, *authored)
-                {
-                    self.call(entry, *reference, context.initializer)?;
+                if let Some(entry) = *entry {
+                    self.call(
+                        ResolvedAuthoredCallBinding {
+                            selected: entry,
+                            original: *authored,
+                        },
+                        *reference,
+                    )?;
                 } else if let Some(message) =
                     call_selections::unsupplied_requirement(program, call, *authored)
                 {
@@ -1167,6 +1213,16 @@ impl<'program> Collector<'program> {
             Context {
                 machine,
                 state: entry,
+                lexical_owner: machine.symbol,
+                initializer: false,
+            },
+        )?;
+        self.type_dependencies(
+            types::Root::Contracts(machine.contracts),
+            Context {
+                machine,
+                state: entry,
+                lexical_owner: machine.symbol,
                 initializer: false,
             },
         )?;
@@ -1181,6 +1237,7 @@ impl<'program> Collector<'program> {
                     Context {
                         machine,
                         state: entry,
+                        lexical_owner: machine.symbol,
                         initializer: false,
                     },
                 ));
@@ -1191,8 +1248,10 @@ impl<'program> Collector<'program> {
             let context = Context {
                 machine,
                 state,
+                lexical_owner: machine.symbol,
                 initializer: false,
             };
+            self.type_dependencies(types::Root::Contracts(state.contracts), context)?;
             let body = table.statements(state.statement_nodes);
             if body.len() != state.statement_nodes.len() {
                 return Err("constant call closure has stale statements".into());

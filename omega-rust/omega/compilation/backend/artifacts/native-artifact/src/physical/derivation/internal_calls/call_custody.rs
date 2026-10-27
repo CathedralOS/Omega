@@ -30,10 +30,11 @@ pub(super) fn rejoin<'publication>(
         image_emission::unique_block_instruction(function, record.instruction)
             .ok_or("selected boundary internal call lacks its selected instruction")?;
     let retains_owner = match occurrence.invocation_site() {
-        semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
+        semantic_vocabulary::InvocationSite::Operation(operation) => {
             instruction.provenance.operations.contains(&operation)
         }
-        semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+        semantic_vocabulary::InvocationSite::ExternalCompletion(edge)
+        | semantic_vocabulary::InvocationSite::InvokeNoNormal(edge) => {
             instruction.provenance.edges.contains(&edge)
         }
     };

@@ -29,7 +29,7 @@ machine later(selected: bool, left: Choice, right: Choice) -> bool {
     transition {
         _ -> settle(selected, right, left)
     }
-    state settle(selected: bool, first: Choice, second: Choice) -> bool {
+    machine settle(selected: bool, first: Choice, second: Choice) -> bool {
         let kept: Choice = match selected {
             true -> first,
             false -> second
@@ -50,6 +50,6 @@ machine main() crashes Trap {
         true -> passed()
         _ -> failed()
     }
-    state passed() {}
-    state failed() { crash Trap; }
+    machine passed() {}
+    machine failed() { crash Trap; }
 }

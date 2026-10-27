@@ -22,7 +22,7 @@ machine main() crashes Trap {
     let observed: u64 = read_handle(&first);
     close_handle(first);
     transition observed == 41 { true -> next() false -> wrong() }
-    state next() {
+    machine next() {
         let second: Handle in Open = through_local(73);
         let observed: u64 = read_handle(&second);
         close_handle(second);
@@ -30,6 +30,6 @@ machine main() crashes Trap {
         let skipped: bool = conditional_consume(issue_handle(7), false);
         transition observed == 73 && consumed && !skipped { true -> done() false -> wrong() }
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

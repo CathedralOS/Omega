@@ -271,8 +271,11 @@ impl ProviderSettlement {
     /// Publish the complete calling catalog from its producing owners. Explicit
     /// policy rows can also own an external import; retain that same application
     /// once. Default native policies retain their materialized geometry here too.
+    /// Export applications arrive from component preparation; merging them
+    /// requires no source lookup or policy execution.
     pub fn calling_applications(
         &self,
+        exported: &[calling_conventions::BoundaryCallingApplication],
     ) -> Result<Vec<calling_conventions::BoundaryCallingApplication>, String> {
         let mut applications = self
             .boundary_calling_plan_realizations
@@ -303,7 +306,7 @@ impl ProviderSettlement {
                 applications.push(application.clone());
             }
         }
-        for application in &self.component_calling_applications {
+        for application in self.component_calling_applications.iter().chain(exported) {
             if let Some(existing) = applications.iter().find(|existing| {
                 existing.requirement_identity == application.requirement_identity
                     && existing.target == application.target
@@ -322,8 +325,67 @@ impl ProviderSettlement {
     }
 }
 
-/// Derive and select providers against the immutable, source-checked roster.
-/// A realization cannot rewrite source contracts or fold target values into them.
+/// Limit selection to executable demands and explicitly authored choices.
+/// Merely declaring an implementation does not install its boundary slots.
+fn demanded_provider_plans(
+    checked: &checked_trees::CheckedTrees,
+    candidates: &[crate::DerivedProviderPlan],
+    defaults: &[ProviderSelection],
+    requested: &[ProviderSelection],
+) -> Vec<crate::DerivedProviderPlan> {
+    // Satisfaction declares a candidate, not a request to install it. Use the
+    // source owner's callable-use inventory, not all nominal references: a
+    // conformance row necessarily mentions its requirement without calling it.
+    let mut uses =
+        checked_trees::typed_trees::references::collect_program_references(&checked.typed)
+            .callable_uses
+            .into_iter()
+            .map(|symbol| {
+                checked
+                    .typed
+                    .closed_requirement_application(symbol)
+                    .map_or(symbol, |application| application.template)
+            })
+            .collect::<std::collections::HashSet<_>>();
+    uses.extend(
+        checked
+            .facts
+            .operators
+            .boundary_applications
+            .iter()
+            .map(|application| application.requirement_symbol),
+    );
+    uses.extend(
+        checked
+            .facts
+            .operators
+            .symbolic_boundary_applications
+            .iter()
+            .map(|application| application.requirement_symbol),
+    );
+    candidates
+        .iter()
+        .filter(|candidate| {
+            candidate
+                .provenance
+                .row_requirements
+                .iter()
+                .any(|requirement| uses.contains(requirement))
+                || defaults.iter().chain(requested).any(|selection| {
+                    candidate.plan.rows.iter().any(|row| {
+                        selection.subject.selects_schema(
+                            candidate.provenance.schema.symbol(),
+                            candidate.plan.identity_text(row.requirement_identity),
+                        )
+                    })
+                })
+        })
+        .cloned()
+        .collect()
+}
+
+/// Derive every candidate, selecting whole maps only for demanded or authored
+/// slots. Unselected exported implementations remain checked review content.
 pub fn settle_checked_providers(
     checked: &checked_trees::CheckedTrees,
     settled_target_machines: SettledTargetMachineDeclarations,
@@ -349,8 +411,9 @@ pub fn settle_checked_providers(
     // PRV4 provider selection mirrors the native pipeline: candidates remain
     // separate by provider type and only the uniquely covering candidate may
     // rewrite adapter calls in the interpreter program.
-    let evaluated_via_bindings = crate::evaluated_via_bindings::evaluate_via_bindings(
-        context,
+    let evaluated_via_bindings = crate::evaluated_via_bindings::evaluate_checked_via_bindings(
+        checked,
+        source::DependencyScope::Product,
         planning_target,
         package_inputs,
     )?;
@@ -362,7 +425,12 @@ pub fn settle_checked_providers(
         &settled_target_machines.origins,
     ))?;
     let selected_provider_plans = crate::select_derived_provider_plans(
-        &derived_provider_plans,
+        &demanded_provider_plans(
+            checked,
+            &derived_provider_plans,
+            &target_provider_defaults,
+            build_provider_selections,
+        ),
         provider_selection_target,
         &target_provider_defaults,
         build_provider_selections,

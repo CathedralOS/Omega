@@ -14,5 +14,5 @@ requires token.ready
 machine main() {
     let token: Token = Token { ready: true };
     transition { _ -> inspect(&token) }
-    state inspect(token: &Token) {}
+    machine inspect(token: &Token) {}
 }

@@ -16,13 +16,17 @@ mod executable_tests;
 mod runtime_predicates;
 pub use executable_tests::validate_executable_domain_test_carriers;
 pub use runtime_predicates::{
-    scalar_domain_predicate, scalar_domain_value_predicate, scalar_field_domain_predicate,
-    scalar_field_restriction, scalar_membership_carrier, scalar_membership_predicates,
-    scalar_membership_value_carrier, scalar_membership_value_predicates,
+    scalar_domain_definition_predicate, scalar_domain_local_predicate, scalar_domain_predicate,
+    scalar_domain_value_predicate, scalar_field_domain_predicate, scalar_field_restriction,
+    scalar_membership_carrier, scalar_membership_predicates, scalar_membership_value_carrier,
+    scalar_membership_value_predicates,
 };
 mod scalar_tags;
 pub(crate) use scalar_tags::scalar_tag_constraint;
-pub use scalar_tags::{scalar_predicate_domains, scalar_type_routed_domains, scalar_type_tags};
+pub use scalar_tags::{
+    scalar_membership_is_tag, scalar_predicate_domains, scalar_type_routed_domains,
+    scalar_type_tags,
+};
 
 use crate::declarations::symbols::TopLevelSymbols;
 use crate::proof_contracts::proof_facts::{ProofFactOwner, validate_domain_fact_payloads};

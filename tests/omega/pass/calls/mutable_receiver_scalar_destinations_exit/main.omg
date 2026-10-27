@@ -40,7 +40,7 @@ machine Main::main(main: &mut Main) reaches Console {
         true -> initializer(main)
         false -> bad(main, 71)
     }
-    state initializer(main: &mut Main) {
+    machine initializer(main: &mut Main) {
         main.hits = 0;
         main.trace = 0;
         let value: u64 in Wrapping = Main::initialized(main);
@@ -49,7 +49,7 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad(main, 72)
         }
     }
-    state assignment(main: &mut Main) {
+    machine assignment(main: &mut Main) {
         main.hits = 0;
         main.trace = 0;
         let value: u64 in Wrapping = Main::assigned(main);
@@ -58,7 +58,7 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad(main, 73)
         }
     }
-    state field_store(main: &mut Main) {
+    machine field_store(main: &mut Main) {
         main.hits = 0;
         main.trace = 0;
         let inner: u64 in Wrapping = Main::bump(main, 9);
@@ -68,8 +68,8 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad(main, 74)
         }
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

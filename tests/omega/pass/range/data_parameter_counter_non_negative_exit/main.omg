@@ -16,20 +16,20 @@ machine Main::main(main: &mut Main) reaches Console {
     transition {
         _ -> step(main)
     }
-    state step(main: &mut Main) {
+    machine step(main: &mut Main) {
         transition main.i < 2 {
             true -> add(main)
             _ -> done(main)
         }
     }
-    state add(main: &mut Main) {
+    machine add(main: &mut Main) {
         main.last = main.nums[main.i];
         main.i = main.i + 1;
         transition {
             _ -> step(main)
         }
     }
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::exit_process(main.last);
     }
 }

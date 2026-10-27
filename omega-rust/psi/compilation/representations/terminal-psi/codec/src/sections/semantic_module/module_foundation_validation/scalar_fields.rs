@@ -226,6 +226,7 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
                                     super::scalar_domain(module, *id).is_some_and(|domain| {
                                         domain.predicate.is_none()
                                             && domain.establishment_routes.is_empty()
+                                            && domain.has_no_required_memberships()
                                     })
                                 })
                             })

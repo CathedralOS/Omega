@@ -23,7 +23,7 @@ machine Main::main(main: &mut Main) crashes Trap {
         true -> capture(main)
         false -> bad()
     }
-    state capture(main: &mut Main)
+    machine capture(main: &mut Main)
     requires ascii_only(main.line.storage) {
         let captured: bool = observe(main.line, Main::replace(main), main.line);
         transition captured && TextBuffer::equal(&main.line, "é") && main.line.used == 2 && main.sibling == 29 {
@@ -31,8 +31,8 @@ machine Main::main(main: &mut Main) crashes Trap {
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 
@@ -45,8 +45,8 @@ machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
         true -> checked(bytes)
         false -> bad()
     }
-    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
-    state bad() { crash Trap; }
+    machine checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    machine bad() -> &[u8] in Utf8 { crash Trap; }
 }
 machine TextBuffer::equal(buffer: &TextBuffer, expected: &[u8]) -> bool crashes Trap {
     let bytes: &[u8] in Utf8 = TextBuffer::view(buffer);

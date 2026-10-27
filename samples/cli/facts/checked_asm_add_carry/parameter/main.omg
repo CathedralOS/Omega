@@ -13,8 +13,8 @@ machine main() crashes Trap {
  }
  consume(snapshot);
  transition (snapshot & 2261u64) == 85u64 { true -> done() false -> bad() }
- state done() {}
- state bad() { crash Trap; }
+ machine done() {}
+ machine bad() { crash Trap; }
 }
 
 machine consume(snapshot: u64) requires (snapshot & 2261u64) == 85u64 {

@@ -2,7 +2,8 @@
 
 use super::super::CodecError;
 use super::super::contract_wire::{
-    decode_crash_predicate, decode_successor_edge, encode_crash_predicate, encode_successor_edge,
+    decode_crash_predicate, decode_crash_routes, decode_successor_edge, encode_crash_predicate,
+    encode_successor_edge,
 };
 use super::super::wire::{Reader, Writer};
 use crate::sections::semantic_module::proof_term_wire::{decode_proof_terms, encode_proof_terms};
@@ -27,6 +28,24 @@ pub(super) fn encode_terminator(
     terminator: &Terminator,
 ) -> Result<(), CodecError> {
     match terminator {
+        Terminator::InvokeNoNormal {
+            edge,
+            static_reach_binding,
+            ..
+        } => {
+            writer.u8(19);
+            writer.id(*edge);
+            writer.boolean(static_reach_binding.is_some());
+            if let Some(binder) = static_reach_binding {
+                writer.u32(*binder);
+            }
+            super::call_operations::encode_module_invocation_inputs(
+                writer,
+                terminator
+                    .module_invocation()
+                    .expect("matched module invocation"),
+            )?;
+        }
         Terminator::ExternalCompletion {
             edge,
             boundary,
@@ -192,6 +211,22 @@ pub(super) fn encode_terminator(
 
 pub(super) fn decode_terminator(reader: &mut Reader<'_>) -> Result<Terminator, CodecError> {
     Ok(match reader.u8()? {
+        19 => Terminator::InvokeNoNormal {
+            edge: reader.id("EdgeId")?,
+            static_reach_binding: if reader.boolean()? {
+                Some(reader.u32()?)
+            } else {
+                None
+            },
+            callee: reader.id("MachineId")?,
+            arguments: decode_ids(reader, "ValueId")?,
+            erased_arguments: decode_scalar_terms(reader)?,
+            erased_proof_arguments: decode_proof_terms(reader)?,
+            structural_arguments: decode_structural_arguments(reader)?,
+            claim_transfers: super::call_operations::decode_claim_transfers(reader)?,
+            requirement_obligations: decode_ids(reader, "ObligationId")?,
+            crash_continuations: decode_crash_routes(reader)?,
+        },
         17 => {
             let edge = reader.id("EdgeId")?;
             let boundary = reader.id("BoundaryMachineId")?;

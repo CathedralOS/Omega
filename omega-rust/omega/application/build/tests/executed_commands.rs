@@ -1,5 +1,5 @@
 //! Real command transactions use executed declarations and retain each Build
-//! across review passes and targets. Kept in one process-isolated test because
+//! across review passes and targets. Run these with nextest's process isolation:
 //! the execution counter measures the complete invocation.
 
 use artifacts::compile_timings::counters;
@@ -22,8 +22,53 @@ fn copy_project(root: &Path, name: &str, files: &[&str]) {
     let destination = root.join(name);
     std::fs::create_dir(&destination).unwrap();
     for file in files {
-        std::fs::copy(source.join(file), destination.join(file)).unwrap();
+        let output = destination.join(file);
+        std::fs::create_dir_all(output.parent().unwrap()).unwrap();
+        std::fs::copy(source.join(file), output).unwrap();
     }
+}
+
+#[test]
+fn product_entry_queries_reuse_build_across_accepted_targets() {
+    let temporary = TemporaryDirectory::create("product-entry-queries", false).unwrap();
+    let root = temporary.path();
+    let fixture = "described_runner_entry_left_exit";
+    copy_project(
+        root,
+        fixture,
+        &["main.omg", "build.omg", "left.omg", "right.omg"],
+    );
+    let project = root.join(fixture);
+    let standard = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../../source/library/std")
+        .canonicalize()
+        .unwrap();
+    let source = std::fs::read_to_string(project.join("build.omg")).unwrap();
+    std::fs::write(
+        project.join("build.omg"),
+        source.replace(
+            "../../../../../source/library/std",
+            &standard.to_string_lossy().replace('\\', "/"),
+        ),
+    )
+    .unwrap();
+    // Full std exceeds the review renderer's output budget. This witness checks
+    // accepted source custody and compilation, not that separate text preview.
+    publish_candidate(
+        &project,
+        PackageCommand::Update {
+            packages: Vec::new(),
+            revision: None,
+        },
+        2,
+    );
+    compile_accepted_project(&project, 2);
+    let accepted = audit(&project, Some(2));
+    assert!(
+        accepted.complete && !accepted.requires_decision,
+        "{}",
+        accepted.report
+    );
 }
 
 fn accept_decisions(paths: &[std::path::PathBuf]) {
@@ -48,6 +93,11 @@ fn accept_decisions(paths: &[std::path::PathBuf]) {
 }
 
 fn command_and_accept(project: &Path, command: PackageCommand, executions: u64) {
+    let report = publish_candidate(project, command, executions);
+    assert!(!report.contains("Source output unavailable"), "{report}");
+}
+
+fn publish_candidate(project: &Path, command: PackageCommand, executions: u64) -> String {
     let mut options = PackageCommandOptions {
         project_root: project.to_path_buf(),
         targets: ["linux_x86_64", "macos_arm64"]
@@ -104,13 +154,9 @@ fn command_and_accept(project: &Path, command: PackageCommand, executions: u64) 
         );
     }
     assert_eq!(outcome.status, PackageCommandStatus::Published);
-    assert!(
-        !outcome.report.contains("Source output unavailable"),
-        "{}",
-        outcome.report
-    );
     assert!(project.join("omega.lock").is_file());
     session.close().unwrap();
+    outcome.report
 }
 
 fn audit(project: &Path, executions: Option<u64>) -> PackageInspectionOutcome {
@@ -412,4 +458,58 @@ fn dynamic_commands_publish_actual_sources_once_and_keep_failures_unpublished() 
         },
         2,
     );
+
+    // Readiness suspends before final source admission. Its dependency and
+    // exact public backing must survive acceptance, lock reload and Product
+    // compilation without executing either Build again for the second target.
+    copy_project(
+        root,
+        "explicit_provider_readiness_exit",
+        &[
+            "main.omg",
+            "build.omg",
+            "backing/main.omg",
+            "backing/build.omg",
+        ],
+    );
+    let project = root.join("explicit_provider_readiness_exit");
+    command_and_accept(
+        &project,
+        PackageCommand::Update {
+            packages: Vec::new(),
+            revision: None,
+        },
+        2,
+    );
+    let accepted_lock = std::fs::read(project.join("omega.lock")).unwrap();
+    compile_accepted_project(&project, 2);
+    let accepted = audit(&project, Some(2));
+    assert!(
+        accepted.complete && !accepted.requires_decision,
+        "{}",
+        accepted.report
+    );
+
+    // Previously accepting the dependency does not authorize its private
+    // implementation. A changed root still has to name a public backing.
+    let declaration = std::fs::read_to_string(project.join("build.omg")).unwrap();
+    std::fs::write(
+        project.join("build.omg"),
+        declaration.replace("backing::TestImage", "backing::PrivateImage"),
+    )
+    .unwrap();
+    let private = audit(&project, Some(2));
+    assert!(
+        !private.complete
+            && private.report.contains(
+                "Build backing names no public implementation in its exact dependency package"
+            ),
+        "{}",
+        private.report
+    );
+    assert_eq!(
+        std::fs::read(project.join("omega.lock")).unwrap(),
+        accepted_lock
+    );
+    assert!(!project.join("build/package-manager/proposal").exists());
 }

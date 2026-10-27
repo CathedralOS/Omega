@@ -28,7 +28,7 @@ machine borrowed_storage() -> bool {
 }
 machine swap(first: Held, second: Held) -> bool {
     transition { _ -> rotate(first, second, 3) }
-    state rotate(first: Held, second: Held, remaining: u64) -> bool
+    machine rotate(first: Held, second: Held, remaining: u64) -> bool
     requires remaining <= 3
     {
         transition remaining == 0 {
@@ -36,7 +36,7 @@ machine swap(first: Held, second: Held) -> bool {
             false -> rotate(second, first, remaining - 1)
         }
     }
-    state inspect(first: Held, second: Held) -> bool {
+    machine inspect(first: Held, second: Held) -> bool {
         first.target.value == 23 && first.stamp == 7
             && second.target.value == 17 && second.stamp == 3
     }
@@ -49,6 +49,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

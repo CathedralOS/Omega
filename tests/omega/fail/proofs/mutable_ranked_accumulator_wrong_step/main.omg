@@ -9,11 +9,11 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad()
     }
 
-    state good() {
+    machine good() {
         Console::exit_process(70);
     }
 
-    state bad() {
+    machine bad() {
         Console::exit_process(71);
     }
 }

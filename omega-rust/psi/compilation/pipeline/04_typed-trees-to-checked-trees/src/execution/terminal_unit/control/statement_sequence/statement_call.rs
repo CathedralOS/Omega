@@ -102,8 +102,9 @@ pub(super) fn plan(
         return None;
     }
     if matches!(statement, StatementNode::Transition(_))
-        && super::super::call_occurrences::terminal_named_call(program, machine, state, index)
-            != Some(call.target_symbol)
+        && !super::super::call_occurrences::is_terminal_call_occurrence(
+            program, machine, state, call,
+        )
     {
         return None;
     }
@@ -116,7 +117,11 @@ pub(super) fn plan(
     if let Some(expression) = authored_expression {
         let authored = program.expression_table.call_node(expression)?;
         if call.authored_expression != expression
-            || call.target_symbol != validation::call_target_symbol(program, authored)
+            || call.target_symbol
+                != validation::call_target_entry_symbol(
+                    program,
+                    validation::call_target_symbol(program, authored),
+                )
         {
             return None;
         }
@@ -140,6 +145,14 @@ pub(super) fn plan(
         trace,
         windows,
     )?;
+    if operations
+        .last()
+        .is_some_and(|operation| !operation.has_normal_continuation())
+    {
+        // A nonreturning operand prevents this enclosing invocation from
+        // executing. Its exact argument prefix remains in the sequence.
+        return Some(());
+    }
     if let Some(contract) = crate::checks::atomic_fences::contract(program, call) {
         call_phase("statement sequence: call: atomic fence ordering");
         if result.is_some() || structural_result.is_some() || !call_result_stores.is_empty() {
@@ -241,6 +254,16 @@ pub(super) fn plan(
         trace,
     )?;
     let coordinate = operation.invocation_coordinate()?;
+    if operation
+        .call()
+        .is_some_and(|call| *call.result() == checked_trees::CheckedUnitCallResult::NoNormal)
+    {
+        // Argument custody crosses before entering the callee, but no receiving
+        // local, replacement store or normal continuation is established.
+        consume_results(operations, &operation)?;
+        operations.push(operation);
+        return Some(());
+    }
     call_phase("statement sequence: call: result binding");
     if let Some(result) = &structural_result
         && !result.local.is_named()

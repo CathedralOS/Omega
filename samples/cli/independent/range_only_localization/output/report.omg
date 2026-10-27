@@ -20,23 +20,23 @@ invokes Console;
         true -> negative(value, &mut decimal)
         false -> positive(value, &mut decimal)
     }
-    state negative(value: i32 in Wrapping, decimal: &mut Decimal) {
+    machine negative(value: i32 in Wrapping, decimal: &mut Decimal) {
         decimal.value = value;
         decimal.bytes[0] = 45;
         decimal.count = 1;
         transition { _ -> scale(decimal) }
     }
-    state positive(value: i32 in Wrapping, decimal: &mut Decimal) {
+    machine positive(value: i32 in Wrapping, decimal: &mut Decimal) {
         decimal.value = -value;
         transition { _ -> scale(decimal) }
     }
-    state scale(decimal: &mut Decimal) {
+    machine scale(decimal: &mut Decimal) {
         transition decimal.divisor >= 1 && decimal.divisor <= 1000000000 && decimal.count < 11 {
             true -> scale_ready(decimal)
             false -> done()
         }
     }
-    state scale_ready(decimal: &mut Decimal)
+    machine scale_ready(decimal: &mut Decimal)
     requires decimal.divisor >= 1 && decimal.divisor <= 1000000000 && decimal.count < 11
     {
         transition decimal.value / decimal.divisor <= -10 && decimal.divisor <= 100000000 {
@@ -44,25 +44,25 @@ invokes Console;
             false -> digit(decimal)
         }
     }
-    state grow(decimal: &mut Decimal) {
+    machine grow(decimal: &mut Decimal) {
         transition decimal.divisor >= 1 && decimal.divisor <= 100000000 && decimal.count < 11 {
             true -> grow_ready(decimal)
             false -> done()
         }
     }
-    state grow_ready(decimal: &mut Decimal)
+    machine grow_ready(decimal: &mut Decimal)
     requires decimal.divisor >= 1 && decimal.divisor <= 100000000 && decimal.count < 11
     {
         decimal.divisor = decimal.divisor * 10;
         transition { _ -> scale(decimal) }
     }
-    state digit(decimal: &mut Decimal) {
+    machine digit(decimal: &mut Decimal) {
         transition decimal.divisor >= 1 && decimal.divisor <= 1000000000 && decimal.count < 11 {
             true -> digit_ready(decimal)
             false -> done()
         }
     }
-    state digit_ready(decimal: &mut Decimal)
+    machine digit_ready(decimal: &mut Decimal)
     requires decimal.divisor >= 1 && decimal.divisor <= 1000000000 && decimal.count < 11
     {
         decimal.bytes[decimal.count] = narrow_i32_to_u8_wrapping((-(decimal.value / decimal.divisor) + 48) as i32);
@@ -72,29 +72,29 @@ invokes Console;
             false -> emit(decimal)
         }
     }
-    state next(decimal: &mut Decimal) {
+    machine next(decimal: &mut Decimal) {
         transition decimal.divisor >= 10 && decimal.divisor <= 1000000000 && decimal.count < 11 {
             true -> next_ready(decimal)
             false -> done()
         }
     }
-    state next_ready(decimal: &mut Decimal)
+    machine next_ready(decimal: &mut Decimal)
     requires decimal.divisor >= 10 && decimal.divisor <= 1000000000 && decimal.count < 11
     {
         decimal.value = decimal.value % decimal.divisor;
         decimal.divisor = decimal.divisor / 10;
         transition { _ -> digit(decimal) }
     }
-    state emit(decimal: &Decimal) {
+    machine emit(decimal: &Decimal) {
         transition decimal.count <= 11 {
             true -> emit_ready(decimal)
             false -> done()
         }
     }
-    state emit_ready(decimal: &Decimal)
+    machine emit_ready(decimal: &Decimal)
     requires decimal.count <= 11
     {
         Console::write(decimal.bytes[..decimal.count]);
     }
-    state done() {}
+    machine done() {}
 }

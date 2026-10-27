@@ -12,6 +12,6 @@ machine main() {
         _ -> other()
     }
 
-    state wrapped() {}
-    state other() {}
+    machine wrapped() {}
+    machine other() {}
 }

@@ -75,5 +75,5 @@ reaches ResourceProfileSupply crashes Trap
         true -> (storage)
         _ -> fail(storage)
     }
-    state fail(storage: Extent in Granted) -> Extent in Granted { crash Trap; }
+    machine fail(storage: Extent in Granted) -> Extent in Granted { crash Trap; }
 }

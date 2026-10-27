@@ -72,8 +72,8 @@ machine verify(correct: bool) crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine settle(receipt: Receipt, first: bool) -> i32 reaches Acknowledgement {
@@ -82,16 +82,16 @@ machine settle(receipt: Receipt, first: bool) -> i32 reaches Acknowledgement {
         _ -> consume_second(receipt)
     }
 
-    state consume_first(receipt: Receipt) -> i32 {
+    machine consume_first(receipt: Receipt) -> i32 {
         let held: Receipt = receipt;
         transition { _ -> later(held) }
     }
 
-    state later(held: Receipt) -> i32 {
+    machine later(held: Receipt) -> i32 {
         Acknowledgement::ack(held)
     }
 
-    state consume_second(receipt: Receipt) -> i32 {
+    machine consume_second(receipt: Receipt) -> i32 {
         let code: i32 = Acknowledgement::ack(receipt);
         code % 100 + 100
     }

@@ -1910,6 +1910,19 @@ pass/facts/applied_requirement_indices_through_other_machine_exit built 2571ms e
 pass/facts/applied_requirement_indices_through_other_state_exit built 2563ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/applied_requirement_indices_through_parameter_exit built 2571ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/applied_requirement_indices_through_target_body_exit built 2533ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/as_slice_views_generic_offset_selector_exit built 3733ms exit:0 interpreter-exit:0 interpreter:agrees @2a8584b4303a
+pass/facts/as_slice_views_generic_root_exit built 3751ms exit:0 interpreter-exit:0 interpreter:agrees @2a8584b4303a
+pass/facts/as_slice_views_generic_shadowed_extent_exit built 3722ms exit:0 interpreter-exit:0 interpreter:agrees @2a8584b4303a
+pass/facts/as_slice_views_generic_stored_reference_selectors_exit built 3741ms exit:0 interpreter-exit:0 interpreter:agrees @2a8584b4303a
+pass/facts/as_slice_views_generic_through_call_result_exit built 3381ms exit:0 interpreter-exit:0 interpreter:agrees @2a8584b4303a
+pass/facts/as_slice_views_generic_through_const_name_exit built 3326ms exit:0 interpreter-exit:0 interpreter:agrees @2a8584b4303a
+pass/facts/as_slice_views_generic_through_field_exit built 3335ms exit:0 interpreter-exit:0 interpreter:agrees @2a8584b4303a
+pass/facts/as_slice_views_generic_through_local_exit built 3295ms exit:0 interpreter-exit:0 interpreter:agrees @2a8584b4303a
+pass/facts/as_slice_views_generic_through_match_join_exit built 3391ms exit:0 interpreter-exit:0 interpreter:agrees @2a8584b4303a
+pass/facts/as_slice_views_generic_through_other_machine_exit built 3381ms exit:0 interpreter-exit:0 interpreter:agrees @2a8584b4303a
+pass/facts/as_slice_views_generic_through_other_state_exit built 3393ms exit:0 interpreter-exit:0 interpreter:agrees @2a8584b4303a
+pass/facts/as_slice_views_generic_through_parameter_exit built 3296ms exit:0 interpreter-exit:0 interpreter:agrees @2a8584b4303a
+pass/facts/as_slice_views_generic_through_target_body_exit built 2907ms exit:0 interpreter-exit:0 interpreter:agrees @2a8584b4303a
 pass/facts/assumed_binding_result_bound_through_call_result_exit built 2210ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/assumed_binding_result_bound_through_const_name_exit built 2234ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/assumed_binding_result_bound_through_field_exit built 2257ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
@@ -2337,8 +2350,6 @@ pass/calls/runtime_numeric_operand_order_exit built 12276ms exit:0 interpreter-e
 pass/calls/runtime_numeric_operand_single_evaluation_exit built 11879ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/calls/runtime_owned_state_scalar_field_store_exit built 17044ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/calls/runtime_qualified_tail_recursion_exit built 16127ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
-pass/calls/runtime_recursive_unit_borrowed_continuation_exit built 16816ms exit:70 stdout:match stderr:match interpreter-exit:70 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @a92f16431042
-pass/calls/runtime_recursive_unit_continuation_exit built 15206ms exit:70 stdout:match stderr:match interpreter-exit:70 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @a92f16431042
 pass/calls/runtime_static_entry_context_exit built 2451ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/calls/runtime_std_math_sin_cos_exit built 16410ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/calls/runtime_terminal_call_state_machine_call_operand_exit built 8258ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
@@ -5867,6 +5878,18 @@ pass/facts/structural_issuer_forwarding_other_state built 1908ms exit:0 interpre
 pass/facts/structural_issuer_forwarding_parameter built 1917ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/structural_issuer_forwarding_target_body built 1886ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/subslice_state_extent_after_write_exit built 1797ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/target_family_callback_guarantee/call_result built 3086ms exit:0 interpreter-exit:0 interpreter:agrees @eb23675fbe3f
+pass/facts/target_family_callback_guarantee/const_name built 3180ms exit:0 interpreter-exit:0 interpreter:agrees @eb23675fbe3f
+pass/facts/target_family_callback_guarantee/distinct_capture built 3289ms @eb23675fbe3f
+pass/facts/target_family_callback_guarantee/field built 3182ms exit:0 interpreter-exit:0 interpreter:agrees @eb23675fbe3f
+pass/facts/target_family_callback_guarantee/local built 3087ms exit:0 interpreter-exit:0 interpreter:agrees @eb23675fbe3f
+pass/facts/target_family_callback_guarantee/match_join built 3157ms exit:0 interpreter-exit:0 interpreter:agrees @eb23675fbe3f
+pass/facts/target_family_callback_guarantee/other_machine built 3120ms exit:0 interpreter-exit:0 interpreter:agrees @eb23675fbe3f
+pass/facts/target_family_callback_guarantee/other_state built 3036ms exit:0 interpreter-exit:0 interpreter:agrees @eb23675fbe3f
+pass/facts/target_family_callback_guarantee/parameter built 3091ms exit:0 interpreter-exit:0 interpreter:agrees @eb23675fbe3f
+pass/facts/target_family_callback_guarantee/sibling_helper built 3213ms exit:0 interpreter-exit:0 interpreter:agrees @eb23675fbe3f
+pass/facts/target_family_callback_guarantee/target_body built 3180ms exit:0 interpreter-exit:0 interpreter:agrees @eb23675fbe3f
+pass/facts/target_family_callback_guarantee/target_values built 3061ms exit:0 interpreter-exit:0 interpreter:agrees @eb23675fbe3f
 pass/facts/target_layout_derived_constant_through_call_result_exit built 2869ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/target_layout_derived_constant_through_const_name_exit built 2816ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/target_layout_derived_constant_through_field_exit built 2608ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042

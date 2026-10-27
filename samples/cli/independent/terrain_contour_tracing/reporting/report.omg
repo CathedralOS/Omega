@@ -28,10 +28,10 @@ machine report(context: &mut Main) reaches Console {
     number(narrow_u64_to_i32_wrapping(context.graph.saddles as u64) as i32 in Wrapping, context);
     Console::write_line("");
     transition { _ -> segment(context, 0) }
-    state segment(context: &mut Main, segment: u64) {
+    machine segment(context: &mut Main, segment: u64) {
         transition segment < context.graph.count && segment < 8 { true -> segment_emit(context, segment) false -> path(context, 0) }
     }
-    state segment_emit(context: &mut Main, segment: u64) requires segment < 8 {
+    machine segment_emit(context: &mut Main, segment: u64) requires segment < 8 {
         Console::write("SEG ");
         number(narrow_u64_to_i32_wrapping(context.graph.owner[segment]) as i32 in Wrapping, context);
         Console::write(" ");
@@ -41,34 +41,34 @@ machine report(context: &mut Main) reaches Console {
         Console::write_line("");
         transition { _ -> segment(context, segment + 1) }
     }
-    state path(context: &mut Main, path: u64) {
+    machine path(context: &mut Main, path: u64) {
         transition path < context.paths.count && path < 8 { true -> header(context, path) false -> done() }
     }
-    state header(context: &mut Main, path: u64) requires path < 8 {
+    machine header(context: &mut Main, path: u64) requires path < 8 {
         Console::write("PATH ");
         number(narrow_u64_to_i32_wrapping(path) as i32 in Wrapping, context);
         transition context.paths.closed[path] { true -> closed(context, path) false -> open(context, path) }
     }
-    state closed(context: &mut Main, path: u64) { Console::write(" closed"); transition { _ -> vertex(context, path, 0) } }
-    state open(context: &mut Main, path: u64) { Console::write(" open"); transition { _ -> vertex(context, path, 0) } }
-    state vertex(context: &mut Main, path: u64, index: u64) {
+    machine closed(context: &mut Main, path: u64) { Console::write(" closed"); transition { _ -> vertex(context, path, 0) } }
+    machine open(context: &mut Main, path: u64) { Console::write(" open"); transition { _ -> vertex(context, path, 0) } }
+    machine vertex(context: &mut Main, path: u64, index: u64) {
         transition path < 8 { true -> length(context, path, index) false -> done() }
     }
-    state length(context: &mut Main, path: u64, index: u64) requires path < 8 {
+    machine length(context: &mut Main, path: u64, index: u64) requires path < 8 {
         let offset: u64 = context.paths.offsets[path];
         transition index < context.paths.lengths[path] && index < 16 && offset < 16 {
             true -> position(context, path, index, offset + index)
             false -> next(context, path)
         }
     }
-    state position(context: &mut Main, path: u64, index: u64, position: u64) {
+    machine position(context: &mut Main, path: u64, index: u64, position: u64) {
         transition position < 16 { true -> read(context, path, index, position) false -> done() }
     }
-    state read(context: &mut Main, path: u64, index: u64, position: u64) requires position < 16 {
+    machine read(context: &mut Main, path: u64, index: u64, position: u64) requires position < 16 {
         let edge: u64 = context.paths.vertices[position];
         transition edge < 12 { true -> emit(context, path, index, edge) false -> done() }
     }
-    state emit(context: &mut Main, path: u64, index: u64, edge: u64) requires edge < 12 {
+    machine emit(context: &mut Main, path: u64, index: u64, edge: u64) requires edge < 12 {
         Console::write(" ");
         number(narrow_u64_to_i32_wrapping(edge) as i32 in Wrapping, context);
         Console::write(":");
@@ -77,9 +77,9 @@ machine report(context: &mut Main) reaches Console {
         number(context.graph.y[edge], context);
         transition { _ -> vertex(context, path, index + 1) }
     }
-    state next(context: &mut Main, path: u64) {
+    machine next(context: &mut Main, path: u64) {
         Console::write_line("");
         transition { _ -> path(context, path + 1) }
     }
-    state done() { }
+    machine done() { }
 }

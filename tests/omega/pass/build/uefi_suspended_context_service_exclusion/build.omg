@@ -1,0 +1,14 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "uefi_suspended_context_service_exclusion");
+    Build::depend_as(builder, "entry_support", Source::Path { location: "../../../packages/uefi-storage-entry" });
+    Build::accept_boundary<ExtentRootProvider>(builder);
+    Build::select_provider<ExtentRootProvider, TestRoots>(builder);
+    Build::select_provider<ProgramStorageEntry, ProgramStorageEntryNativeProvider>(builder);
+    Build::select_provider<entry_support::UefiPhysicalEntry, FirmwareBootstrap>(builder);
+    Build::bind(builder, uefi_x86_64::ProgramEntry, entry_start);
+    Build::accept_boundary<CleanupAudit>(builder);
+    Build::select_provider<CleanupAudit, QuietAudit>(builder);
+    Build::exclude_service<CleanupAudit>(builder);
+    builder.subsystem = Subsystem::EfiApplication;
+    builder.freestanding = true;
+}

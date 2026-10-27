@@ -121,10 +121,8 @@ fn record_expression_owner(
 /// keeps binding same-named declarations to the first symbol; this pass
 /// replaces that provisional symbol with the exact machine, trait-requirement,
 /// or unspelled boundary-operator result overload before downstream consumers.
-mod transition_calls;
 
 pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
-    transition_calls::normalize_boundary_transition_calls(program);
     let expected_calls = collect_expected_expression_calls(program);
     let expression_owner_source_spans = expression_owner_source_spans(program);
     let machine_overloads = MachineOverloadIndex::new(program);
@@ -277,6 +275,7 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
             program
                 .expression_table
                 .insert(ExpressionNode::Call(TableCallExpression {
+                    authored_call_binding: None,
                     authored_machine_application: call.authored_machine_application,
                     requirement_application: Default::default(),
                     exact_coercion_target: typed_trees::types::TypeReferenceHandle::invalid(),

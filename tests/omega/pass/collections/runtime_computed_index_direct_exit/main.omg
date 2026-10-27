@@ -31,7 +31,7 @@ machine Main::main(main: &mut Main) reaches Console
         true -> a2(main)
         false -> no(main)
     }
-    state a2(main: &mut Main)
+    machine a2(main: &mut Main)
     {
         main.acc = 100;
         main.r = main.acc + main.arr[main.k + 1];
@@ -40,7 +40,7 @@ machine Main::main(main: &mut Main) reaches Console
             false -> no(main)
         }
     }
-    state a3(main: &mut Main)
+    machine a3(main: &mut Main)
     {
         main.arr[main.k + 1] = 99;
         main.r = main.arr[3];
@@ -49,7 +49,7 @@ machine Main::main(main: &mut Main) reaches Console
             false -> no(main)
         }
     }
-    state a4(main: &mut Main)
+    machine a4(main: &mut Main)
     {
         main.r = main.arr[1 + main.k];
         transition main.r == 99 {
@@ -57,14 +57,14 @@ machine Main::main(main: &mut Main) reaches Console
             false -> no(main)
         }
     }
-    state a5(main: &mut Main)
+    machine a5(main: &mut Main)
     {
         transition main.k == 2 {
             true -> a5b(main)
             false -> no(main)
         }
     }
-    state a5b(main: &mut Main)
+    machine a5b(main: &mut Main)
     {
         main.r = main.arr[main.k - 1];
         transition main.r == 5 {
@@ -72,7 +72,7 @@ machine Main::main(main: &mut Main) reaches Console
             false -> no(main)
         }
     }
-    state a6(main: &mut Main)
+    machine a6(main: &mut Main)
     {
         main.wh = 1;
         main.wn = 3;
@@ -81,7 +81,7 @@ machine Main::main(main: &mut Main) reaches Console
             false -> no(main)
         }
     }
-    state a6b(main: &mut Main)
+    machine a6b(main: &mut Main)
     {
         main.arr[main.wh + main.wn] = 11;
         main.r = main.arr[4];
@@ -90,9 +90,9 @@ machine Main::main(main: &mut Main) reaches Console
             false -> no(main)
         }
     }
-    state yes(main: &mut Main)
+    machine yes(main: &mut Main)
     { Console::exit_process(1); }
-    state no(main: &mut Main)
+    machine no(main: &mut Main)
     { Console::exit_process(2); }
 }
 

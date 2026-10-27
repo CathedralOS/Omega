@@ -208,9 +208,7 @@ fn context_survival<'mutation, 'dependency>(
         let Some((mutation, dependencies)) = matching_mutation(semantic, fact, place) else {
             continue;
         };
-        if !dropped.contains(&handle) {
-            dropped.push(handle);
-        }
+        crate::collections::push_unique(&mut dropped, handle);
         if let FactPayload::StorageDependency { dependent } = fact.payload
             && !dropped.contains(&dependent)
             && !dependency_is_strict_prefix_of_dependent(semantic, place, dependent)

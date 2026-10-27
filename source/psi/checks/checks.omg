@@ -120,7 +120,7 @@ public machine Checks::reject(checks: &mut Checks, code: CheckDiagnosticCode, so
         _ -> done()
     }
 
-    state first(checks: &mut Checks, code: CheckDiagnosticCode, source_span: SourceSpan) {
+    machine first(checks: &mut Checks, code: CheckDiagnosticCode, source_span: SourceSpan) {
         checks.accepted = false;
         checks.machine_accepted = false;
         let index: u64 = checks.diagnostic_count;
@@ -130,14 +130,14 @@ public machine Checks::reject(checks: &mut Checks, code: CheckDiagnosticCode, so
         }
     }
 
-    state recorded(checks: &mut Checks, code: CheckDiagnosticCode, source_span: SourceSpan, index: u64)
+    machine recorded(checks: &mut Checks, code: CheckDiagnosticCode, source_span: SourceSpan, index: u64)
     requires index < 64
     {
         checks.diagnostics[index] = CheckDiagnostic { code: code, source_span: source_span };
         checks.diagnostic_count = index + 1;
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // The rejection at `index`, in the order checking found them.
@@ -149,13 +149,13 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(checks: &Checks, index: u64 in Trapping) -> CheckDiagnostic
+    machine read(checks: &Checks, index: u64 in Trapping) -> CheckDiagnostic
     requires index < 64
     {
         checks.diagnostics[index]
     }
 
-    state invalid() -> CheckDiagnostic {
+    machine invalid() -> CheckDiagnostic {
         crash Trap;
     }
 }
@@ -168,11 +168,11 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(checks: &Checks, machine: u64 in Trapping) -> CrashRoutes {
+    machine read(checks: &Checks, machine: u64 in Trapping) -> CrashRoutes {
         checks.routes[machine]
     }
 
-    state invalid() -> CrashRoutes {
+    machine invalid() -> CrashRoutes {
         crash Trap;
     }
 }
@@ -185,11 +185,11 @@ crashes Trap
         _ -> invalid()
     }
 
-    state write(checks: &mut Checks, machine: u64 in Trapping, routes: CrashRoutes) {
+    machine write(checks: &mut Checks, machine: u64 in Trapping, routes: CrashRoutes) {
         checks.routes[machine] = routes;
     }
 
-    state invalid() {
+    machine invalid() {
         crash Trap;
     }
 }

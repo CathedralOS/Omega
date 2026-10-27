@@ -1,0 +1,12 @@
+use omega::language::core::program_image;
+
+public TestImage satisfies ProgramImage {
+    machine retained_suffix_start() -> addr { 64 }
+}
+public OtherImage satisfies ProgramImage {
+    machine retained_suffix_start() -> addr { 128 }
+}
+
+PrivateImage satisfies ProgramImage {
+    machine retained_suffix_start() -> addr { 64 }
+}

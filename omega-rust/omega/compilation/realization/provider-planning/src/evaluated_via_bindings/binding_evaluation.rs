@@ -10,7 +10,8 @@ use crate::evaluated_via_bindings::{
     BindingVocabulary, EvaluatedViaBinding, EvaluatedViaBindingRow, MATERIALIZER_SCHEMA_VERSION,
 };
 use build_time_evaluation::{
-    BuildTimeAdmissionPlan, BuildTimeInvocationCustody, CURRENT_EVALUATION_SEMANTICS,
+    BuildTimeAdmissionPlan, BuildTimeInvocationCustody, BuildTimeProgram,
+    CURRENT_EVALUATION_SEMANTICS,
 };
 use checked_trees::typed_trees::TypedTrees;
 use checked_trees::typed_trees::data::{DataDefinition, DataMember, TypeParameterKind};
@@ -28,7 +29,7 @@ use checked_trees::typed_trees::types::{
 };
 
 pub(crate) fn evaluate_one(
-    typed: &TypedTrees,
+    program: BuildTimeProgram<'_>,
     admission: &BuildTimeAdmissionPlan,
     vocabulary: &BindingVocabulary,
     target: TargetProfile,
@@ -36,6 +37,10 @@ pub(crate) fn evaluate_one(
     conformance: &checked_trees::typed_trees::machine::TraitConformance,
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
 ) -> Result<EvaluatedViaBindingRow, Diagnostic> {
+    let typed = match program {
+        BuildTimeProgram::Typed(typed) => typed,
+        BuildTimeProgram::Checked(checked) => &checked.typed,
+    };
     let expression = conformance.via_expression;
     let source_span = typed.expression_table.source_span(expression);
     if conformance.external_binding.is_some() {
@@ -110,8 +115,8 @@ pub(crate) fn evaluate_one(
     // value: the producer result is admitted under ConstEvaluable, with the
     // authored `via` span retained as its invocation custody.
     let measured = admission
-        .evaluate_const_evaluable_machine_symbol_for_invocation_measured(
-            typed,
+        .evaluate_const_evaluable_program_machine_symbol_for_invocation_measured(
+            program,
             producer.symbol,
             Vec::new(),
             custody,
@@ -123,7 +128,7 @@ pub(crate) fn evaluate_one(
             )
         })?;
     let closure = admission
-        .admitted_machine_closure_symbols(typed, producer.symbol, custody)
+        .admitted_program_machine_closure_symbols(program, producer.symbol, custody)
         .map_err(|message| {
             at(
                 source_span,

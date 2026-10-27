@@ -38,7 +38,7 @@ machine selected(message: &Message, trace: &mut u64 in Wrapping) -> u64 {
 machine owned(message: Message) -> u64 { read(&message) }
 machine forwarded(message: Message) -> u64 {
     transition { _ -> arrived(message) }
-    state arrived(value: Message) -> u64 { read(&value) }
+    machine arrived(value: Message) -> u64 { read(&value) }
 }
 machine returned<'input>(cell: &'input Cell) -> Message<'input> {
     Message::Received { stamp: 73, cell: cell }
@@ -195,6 +195,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

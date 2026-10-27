@@ -67,7 +67,7 @@ machine Main::main(main: &mut Main) {
         true -> inspect(main, process)
         _ -> bad(main)
     }
-    state inspect(main: &mut Main, process: i32) requires process > 0 {
+    machine inspect(main: &mut Main, process: i32) requires process > 0 {
         let copied: i32 = ProcessProbe::absolute(process);
         let selected_group: i32 = ProcessProbe::group_id(copied);
         let current_group: i32 = ProcessProbe::group_id(0);
@@ -76,8 +76,8 @@ machine Main::main(main: &mut Main) {
             _ -> bad(main)
         }
     }
-    state good(main: &mut Main) { ProcessProbe::exit_with(70); }
-    state bad(main: &mut Main) { ProcessProbe::exit_with(71); }
+    machine good(main: &mut Main) { ProcessProbe::exit_with(70); }
+    machine bad(main: &mut Main) { ProcessProbe::exit_with(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

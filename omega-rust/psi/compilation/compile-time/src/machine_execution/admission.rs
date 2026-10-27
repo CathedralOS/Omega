@@ -512,7 +512,7 @@ impl BuildTimeAdmissionPlan {
         custody: BuildTimeInvocationCustody,
         discharge_authored_requires: bool,
     ) -> Result<(), BuildTimeAdmissionRejection> {
-        let checked = concrete_invocation::checked_demanded_closure(program, machine.symbol)?;
+        let checked = concrete_invocation::checked_demanded_closure(self, program, machine.symbol)?;
         let execution = checked.typed.as_ref();
         let root = execution
             .machine_by_symbol(machine.symbol)
@@ -664,7 +664,9 @@ impl BuildTimeAdmissionPlan {
         // source sites, whatever this invocation's arguments.
         let discharge_authored_requires = discharge_authored_requires
             || (self.closure_includes_authored_requires(program, machine)
-                && concrete_invocation::argument_independent_closure_discharges(input, machine)?);
+                && concrete_invocation::argument_independent_closure_discharges(
+                    self, input, machine,
+                )?);
         let closure_violation = checked_closure_violation(
             &self.call_edges,
             program,
@@ -786,12 +788,34 @@ impl BuildTimeAdmissionPlan {
         machine_symbol: SymbolHandle,
         custody: BuildTimeInvocationCustody,
     ) -> Result<Vec<SymbolHandle>, String> {
+        self.admitted_program_machine_closure_symbols(
+            BuildTimeProgram::Typed(program),
+            machine_symbol,
+            custody,
+        )
+    }
+
+    pub fn admitted_program_machine_closure_symbols(
+        &self,
+        input: BuildTimeProgram<'_>,
+        machine_symbol: SymbolHandle,
+        custody: BuildTimeInvocationCustody,
+    ) -> Result<Vec<SymbolHandle>, String> {
+        let program = input.typed();
         let machine = program.machine(machine_symbol).ok_or_else(|| {
             format!(
                 "no machine with exact symbol {machine_symbol:?} exists in the evaluated program"
             )
         })?;
-        self.require_common_floor_for_invocation(program, machine, custody)?;
+        match input {
+            BuildTimeProgram::Typed(program) => {
+                self.require_common_floor_for_invocation(program, machine, custody)?;
+            }
+            BuildTimeProgram::Checked(checked) => {
+                concrete_invocation::require_complete_invocation_conditions(checked, machine.symbol)?;
+                self.require_floor(input, machine, Some(custody), false)?;
+            }
+        }
 
         let machine_symbols = program
             .machines()
@@ -953,6 +977,63 @@ impl BuildTimeAdmissionPlan {
         )
     }
 
+    pub fn evaluate_const_evaluable_program_machine_symbol_for_invocation_measured(
+        &self,
+        input: BuildTimeProgram<'_>,
+        machine_symbol: SymbolHandle,
+        arguments: Vec<BuildTimeValue>,
+        custody: BuildTimeInvocationCustody,
+    ) -> Result<crate::MeasuredEvaluation<BuildTimeValue>, String> {
+        match input {
+            BuildTimeProgram::Typed(program) => self
+                .evaluate_const_evaluable_invocation_measured(
+                    program,
+                    machine_symbol,
+                    arguments,
+                    custody,
+                    false,
+                ),
+            BuildTimeProgram::Checked(checked) => {
+                let program = checked.typed.as_ref();
+                let matching: Vec<_> = program
+                    .machines()
+                    .iter()
+                    .filter(|machine| machine.symbol == machine_symbol)
+                    .collect();
+                let [machine] = matching.as_slice() else {
+                    return Err("build-time invocation has no unique exact machine".into());
+                };
+                let discharge_authored_requires = self.zero_argument_invocation_discharge(
+                    program,
+                    machine,
+                    &arguments,
+                    Some(custody),
+                );
+                concrete_invocation::require_complete_invocation_conditions(checked, machine_symbol)?;
+                self.require_floor(
+                    BuildTimeProgram::Checked(checked),
+                    machine,
+                    Some(custody),
+                    discharge_authored_requires,
+                )?;
+                let measured = self
+                    .accounting
+                    .evaluate(
+                        checked_interpreter::BuildMachineProgram::Checked(checked),
+                        BuildMachineEvaluationRequest {
+                            product_entry_compatibility: None,
+                            operators: &self.selected_operators,
+                            machine_bodies: &self.selected_machine_bodies,
+                            ..BuildMachineEvaluationRequest::symbol(machine_symbol, arguments)
+                        },
+                    )
+                    .map(BuildTimeOperationEvaluation::into_measured)?;
+                require_const_evaluable_result(program, machine, measured.value())?;
+                Ok(measured)
+            }
+        }
+    }
+
     fn evaluate_const_evaluable_invocation_measured(
         &self,
         program: &TypedTrees,
@@ -971,7 +1052,7 @@ impl BuildTimeAdmissionPlan {
         };
         let discharge_authored_requires = discharge_authored_requires
             || self.zero_argument_invocation_discharge(program, machine, &arguments, Some(custody));
-        let checked = concrete_invocation::checked_demanded_closure(program, machine_symbol)?;
+        let checked = concrete_invocation::checked_demanded_closure(self, program, machine_symbol)?;
         let execution = checked.typed.as_ref();
         let machine = execution
             .machine_by_symbol(machine_symbol)

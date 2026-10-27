@@ -47,6 +47,20 @@ pub fn layout_field_entry(field: &str, placement: LayoutPlacementReport) -> Layo
     }
 }
 
+/// A field entry row carrying its compiler-retained stable member identity,
+/// for fixtures whose rows must rejoin renamed schemas by identity.
+pub fn numbered_layout_field_entry(
+    field: &str,
+    member_identity: u64,
+    placement: LayoutPlacementReport,
+) -> LayoutFieldEntryReport {
+    LayoutFieldEntryReport {
+        field: field.into(),
+        member_identity: Some(member_identity),
+        placement,
+    }
+}
+
 /// A report shell at fingerprint 1 — fixture tests vary only the rows and
 /// the derived geometry, never the schema fingerprint.
 pub fn layout_report(
@@ -68,39 +82,36 @@ pub fn split_layout() -> LayoutPlanReport {
     LayoutPlanReport {
         schema_report_fingerprint: 1,
         entries: vec![
-            LayoutFieldEntryReport {
-                field: "address".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::Bits {
+            layout_field_entry(
+                "address".into(),
+                LayoutPlacementReport::Bits {
                     container: 0,
                     container_width: 16,
                     destination_lsb: 0,
                     source_lsb: 0,
                     width: 16,
                 },
-            },
-            LayoutFieldEntryReport {
-                field: "address".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::Bits {
+            ),
+            layout_field_entry(
+                "address".into(),
+                LayoutPlacementReport::Bits {
                     container: 2,
                     container_width: 16,
                     destination_lsb: 0,
                     source_lsb: 16,
                     width: 16,
                 },
-            },
-            LayoutFieldEntryReport {
-                field: "address".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::Bits {
+            ),
+            layout_field_entry(
+                "address".into(),
+                LayoutPlacementReport::Bits {
                     container: 8,
                     container_width: 64,
                     destination_lsb: 0,
                     source_lsb: 32,
                     width: 32,
                 },
-            },
+            ),
         ],
         offsets: None,
         size: Some(16),
@@ -116,10 +127,12 @@ pub fn repeated_layout() -> LayoutPlanReport {
     LayoutPlanReport {
         schema_report_fingerprint: 1,
         entries: (0..4)
-            .map(|index| LayoutFieldEntryReport {
-                field: "handlers".into(),
-                member_identity: Some(9),
-                placement: LayoutPlacementReport::At { offset: index * 8 },
+            .map(|index| {
+                numbered_layout_field_entry(
+                    "handlers".into(),
+                    9,
+                    LayoutPlacementReport::At { offset: index * 8 },
+                )
             })
             .collect(),
         offsets: Some(vec![0, 8, 16, 24]),
@@ -139,16 +152,8 @@ pub fn deeply_nested_layout() -> (LayoutPlanReport, SymbolicFieldInnerLayout) {
         LayoutPlanReport {
             schema_report_fingerprint: 1,
             entries: vec![
-                LayoutFieldEntryReport {
-                    field: "header".into(),
-                    member_identity: None,
-                    placement: LayoutPlacementReport::At { offset: 0 },
-                },
-                LayoutFieldEntryReport {
-                    field: "slot".into(),
-                    member_identity: None,
-                    placement: LayoutPlacementReport::At { offset: 8 },
-                },
+                layout_field_entry("header".into(), LayoutPlacementReport::At { offset: 0 }),
+                layout_field_entry("slot".into(), LayoutPlacementReport::At { offset: 8 }),
             ],
             offsets: Some(vec![0, 8]),
             size: Some(40),
@@ -159,16 +164,8 @@ pub fn deeply_nested_layout() -> (LayoutPlanReport, SymbolicFieldInnerLayout) {
             LayoutPlanReport {
                 schema_report_fingerprint: 2,
                 entries: vec![
-                    LayoutFieldEntryReport {
-                        field: "pad".into(),
-                        member_identity: None,
-                        placement: LayoutPlacementReport::At { offset: 0 },
-                    },
-                    LayoutFieldEntryReport {
-                        field: "sub".into(),
-                        member_identity: None,
-                        placement: LayoutPlacementReport::At { offset: 8 },
-                    },
+                    layout_field_entry("pad".into(), LayoutPlacementReport::At { offset: 0 }),
+                    layout_field_entry("sub".into(), LayoutPlacementReport::At { offset: 8 }),
                 ],
                 offsets: Some(vec![0, 8]),
                 size: Some(32),
@@ -180,21 +177,9 @@ pub fn deeply_nested_layout() -> (LayoutPlanReport, SymbolicFieldInnerLayout) {
             LayoutPlanReport {
                 schema_report_fingerprint: 3,
                 entries: vec![
-                    LayoutFieldEntryReport {
-                        field: "entry".into(),
-                        member_identity: None,
-                        placement: LayoutPlacementReport::At { offset: 0 },
-                    },
-                    LayoutFieldEntryReport {
-                        field: "flags".into(),
-                        member_identity: None,
-                        placement: LayoutPlacementReport::At { offset: 8 },
-                    },
-                    LayoutFieldEntryReport {
-                        field: "args".into(),
-                        member_identity: None,
-                        placement: LayoutPlacementReport::At { offset: 16 },
-                    },
+                    layout_field_entry("entry".into(), LayoutPlacementReport::At { offset: 0 }),
+                    layout_field_entry("flags".into(), LayoutPlacementReport::At { offset: 8 }),
+                    layout_field_entry("args".into(), LayoutPlacementReport::At { offset: 16 }),
                 ],
                 offsets: Some(vec![0, 8, 16]),
                 size: Some(24),
@@ -301,15 +286,14 @@ pub fn writer_field_offsets(plan: &crate::SymbolicMaterializationPlan) -> Vec<(&
 pub fn stored_integer_layout() -> LayoutPlanReport {
     LayoutPlanReport {
         schema_report_fingerprint: 1,
-        entries: vec![LayoutFieldEntryReport {
-            field: "address".into(),
-            member_identity: None,
-            placement: LayoutPlacementReport::IntegerAt {
+        entries: vec![layout_field_entry(
+            "address".into(),
+            LayoutPlacementReport::IntegerAt {
                 offset: 0,
                 stored_width: 32,
                 interpretation: IntegerInterpretation::Unsigned,
             },
-        }],
+        )],
         offsets: None,
         size: Some(4),
         align: 4,
@@ -323,10 +307,8 @@ pub fn record_layout(fingerprint: u64, fields: &[(&str, u64)], size: u64) -> Lay
         schema_report_fingerprint: fingerprint,
         entries: fields
             .iter()
-            .map(|&(field, offset)| LayoutFieldEntryReport {
-                field: field.into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::At { offset },
+            .map(|&(field, offset)| {
+                layout_field_entry(field.into(), LayoutPlacementReport::At { offset })
             })
             .collect(),
         offsets: Some(fields.iter().map(|&(_, offset)| offset).collect()),

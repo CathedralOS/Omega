@@ -201,14 +201,19 @@ fn const_index_type_name(
 ) -> Result<String, Diagnostic> {
     use crate::types::{FixedArrayLength, TypeReferenceNode};
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Named { name, .. } => Ok(name.as_str().to_owned()),
-        TypeReferenceNode::FixedArray {
-            element_type,
-            length: FixedArrayLength::Literal(length),
-        } => Ok(format!(
-            "[{}; {length}]",
-            const_index_type_name(program, *element_type)?
-        )),
+        TypeReferenceNode::Named { name, .. }
+            if program
+                .type_reference_table
+                .primitive_type(type_reference)
+                .is_some() =>
+        {
+            Ok(name.as_str().to_owned())
+        }
+        TypeReferenceNode::Named { .. }
+        | TypeReferenceNode::FixedArray {
+            length: FixedArrayLength::Literal(_),
+            ..
+        } => Ok(program.normalized_type_identity_text(type_reference)),
         TypeReferenceNode::Constrained { base_type, .. } => {
             const_index_type_name(program, *base_type)
         }
@@ -262,21 +267,27 @@ fn closed_domain_argument_identity(
             )),
         };
     }
-    if let Some(value) =
-        language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
-    {
+    if let Some(value) = crate::typed_trees::canonical_const_declaration_value(program, *symbol) {
         if value.type_name != expected {
             return Err(Diagnostic::error(format!(
-                "indexed-domain argument has canonical type `{}`, expected `{expected}`",
+                "indexed-domain selected constant has canonical type `{}`, expected `{expected}`",
                 value.type_name
             )));
         }
-        return Ok(format!(
-            "const:{}:{}:{}",
-            value.type_name,
-            value.encoding.len(),
-            value.encoding
-        ));
+        if let Some(retained) =
+            language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
+            && retained.encoding != value.encoding
+        {
+            return Err(Diagnostic::error(
+                "indexed-domain constant differs from its selected declaration value",
+            ));
+        }
+        return canonical_domain_const_identity(&value, expected);
+    }
+    if let Some(value) =
+        language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
+    {
+        return canonical_domain_const_identity(&value, expected);
     }
     if name.as_str().parse::<i128>().is_ok() {
         return Ok(format!("integer:{expected}:{}", name.as_str()));
@@ -468,6 +479,49 @@ pub fn subject_membership_facts<'a>(
         })
 }
 
+/// The complete closed same-subject prerequisite relation. Source value
+/// predicates keep their own projection; this query neither expands them nor
+/// establishes any membership. Unrepresented aliases, indexed applications
+/// and different-subject memberships cannot become an empty relation.
+pub fn required_subject_memberships<'a>(
+    program: &'a TypedTrees,
+    domain: &'a DomainDefinition,
+) -> Option<Vec<&'a ProofMembershipFact>> {
+    if domain.alias.is_some() {
+        return None;
+    }
+    program
+        .proof_facts(domain)
+        .iter()
+        .filter_map(|fact| match fact {
+            ProofFact::Membership(membership) => Some(membership),
+            _ => None,
+        })
+        .map(|membership| {
+            (domain_subject_reference(program, domain, membership.value)
+                && program
+                    .type_reference_table
+                    .type_reference_handles(membership.domain_arguments)
+                    .len()
+                    == membership.domain_arguments.len()
+                && program
+                    .type_reference_table
+                    .type_reference_handles(membership.domain_arguments)
+                    .iter()
+                    .all(|argument| index_argument_is_closed(program, *argument))
+                && membership.domain_symbol.is_valid()
+                && membership.semantic_domain != language_semantics::SemanticDomainId::NULL
+                && program
+                    .domain_definition_for_instance(
+                        membership.domain_symbol,
+                        membership.semantic_domain,
+                    )
+                    .is_some())
+            .then_some(membership)
+        })
+        .collect()
+}
+
 /// Whether one declared domain implies another by normalized semantic identity
 /// or by an explicit domain-membership chain.
 ///
@@ -582,6 +636,23 @@ pub struct AppliedDomainApplication {
 }
 
 impl TypedTrees {
+    pub fn domain_arguments_for_instance(
+        &self,
+        symbol: SymbolHandle,
+        identity: language_semantics::SemanticDomainId,
+    ) -> Option<&[TypeReferenceHandle]> {
+        let declared = self.domain_definition(symbol)?;
+        if declared.semantic_id == identity {
+            return Some(&[]);
+        }
+        self.applied_domain_applications
+            .iter()
+            .find(|application| {
+                application.declaration == symbol && application.theory.semantic_id == identity
+            })
+            .map(|application| application.arguments.as_slice())
+    }
+
     pub fn domain_definition_for_instance(
         &self,
         symbol: SymbolHandle,
@@ -646,4 +717,31 @@ pub fn index_argument_is_closed(
     };
     crate::references::visit_type_reference(program, &mut closure, reference);
     !closure.open
+}
+
+/// Names and literal atoms denote the same admitted value in a domain index.
+/// Carrier admission remains exact; spelling and declaration identity do not
+/// distinguish equal values of that carrier.
+fn canonical_domain_const_identity(
+    value: &language_semantics::const_value::CanonicalConstValue,
+    expected: &str,
+) -> Result<String, Diagnostic> {
+    if value.type_name != expected {
+        return Err(Diagnostic::error(format!(
+            "indexed-domain argument has canonical type `{}`, expected `{expected}`",
+            value.type_name
+        )));
+    }
+    if let Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer {
+        value,
+        ..
+    }) = value.decode_encoding()
+    {
+        return Ok(format!("integer:{expected}:{value}"));
+    }
+    Ok(format!(
+        "const:{expected}:{}:{}",
+        value.encoding.len(),
+        value.encoding
+    ))
 }

@@ -1,9 +1,5 @@
 //! Exit admission retains the checked envelope's ordinary fall-through frame effects.
-use super::validate_non_return;
-use machine_code::{
-    ResolvedPhysicalAddress, ResolvedSelectedFormRow, SelectedFormDecodedFootprint,
-    SelectedFormEncodingRow, SelectedFormEncodingState, SelectedFormMachineDisposition,
-};
+use super::assert_non_return_refused;
 use physical_instructions::PhysicalAddressOperation;
 use selected_instructions::{
     LocalStorageSlotId, MachineAlternativeKey, MachineEncodedControlEffect,
@@ -14,10 +10,7 @@ use semantic_vocabulary::OperationId;
 
 #[test]
 fn floating_control_exit_admission_requires_frame_memory_and_unchanged_stack() {
-    let physical = register_model::validate_physical_register_model(
-        isa_aarch64::aarch64_physical_register_model(),
-    )
-    .unwrap();
+    let physical = super::aarch64_physical_register_model();
     let slot = LocalStorageSlotId::Boundary {
         operation: OperationId::new(7).unwrap(),
     };
@@ -45,54 +38,17 @@ fn floating_control_exit_admission_requires_frame_memory_and_unchanged_stack() {
         )
         .unwrap();
         let instruction = SelectedInstructionId(1);
-        let footprint = &encoded.footprint().encoded;
-        let mut store = machine_code::SelectedFormEncodedRowStore::new();
-        let (code, interned_footprint) = store.intern(
-            encoded.bytes(),
-            SelectedFormDecodedFootprint {
-                register_reads: Vec::new(),
-                register_writes: Vec::new(),
-                implicit_defs: footprint.implicit_unit_defs.clone(),
-                implicit_clobbers: footprint.implicit_unit_clobbers.clone(),
-                encoded: footprint.clone(),
+        let (store, encoding, layout) = super::validated_aarch64_addressed_form_fixture(
+            &encoded,
+            instruction,
+            alternative,
+            kind,
+            if restore {
+                PhysicalAddressOperation::RestoreFloatingControl { slot }
+            } else {
+                PhysicalAddressOperation::SaveFloatingControl { slot }
             },
         );
-        let encoding = SelectedFormEncodingRow {
-            instruction,
-            alternative,
-            machine_disposition: SelectedFormMachineDisposition::RetainedV1,
-            address: Some(ResolvedPhysicalAddress {
-                symbolic: if restore {
-                    PhysicalAddressOperation::RestoreFloatingControl { slot }
-                } else {
-                    PhysicalAddressOperation::SaveFloatingControl { slot }
-                },
-                frame_alignment_bytes: 1,
-                displacement: 16,
-            }),
-            state: SelectedFormEncodingState::Encoded,
-            code,
-            footprint: interned_footprint,
-        };
-        let layout = ResolvedSelectedFormRow {
-            instruction,
-            alternative,
-            offset: 0,
-            bytes: encoded.bytes().to_vec(),
-            branch: None,
-            internal_machine_fixup: None,
-            normalized_foreign_call_fixup: None,
-            image_address_fixup: None,
-        };
-        validate_non_return(
-            target::Architecture::Aarch64,
-            instruction,
-            kind,
-            &encoding,
-            &layout,
-            &store,
-        )
-        .unwrap();
         for mutation in 0..6 {
             // A mutation reaches either the row's own address or the
             // footprint the store holds, so both are cloned per mutation.
@@ -118,17 +74,13 @@ fn floating_control_exit_admission_requires_frame_memory_and_unchanged_stack() {
                     }
                 }
             }
-            assert!(
-                validate_non_return(
-                    target::Architecture::Aarch64,
-                    instruction,
-                    kind,
-                    &changed_row,
-                    &layout,
-                    &changed
-                )
-                .is_err(),
-                "mutation {mutation}"
+            assert_non_return_refused(
+                &format!("mutation {mutation}"),
+                instruction,
+                kind,
+                &changed_row,
+                &layout,
+                &changed,
             );
         }
     }

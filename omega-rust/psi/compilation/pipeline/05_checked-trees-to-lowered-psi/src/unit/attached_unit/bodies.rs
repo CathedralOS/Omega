@@ -117,49 +117,24 @@ impl<'a> UnitBody<'a> {
         plans.for_machine(symbol).is_some() || plans.composed_for_machine(symbol).is_some()
     }
 
-    /// The primitive scalar this body completes with, when it owns one: an
-    /// ordinary body's scalar result binding or scalar control, or a state
-    /// graph's scalar result. Such a body is called through the scalar call
-    /// lane, not as a Unit or structural call.
+    /// The declared primitive result, whether or not any path completes it.
+    /// Receiving homes describe completed values, never a callable's ABI.
     pub(crate) fn scalar_result_type(self) -> Option<checked_trees::types::PrimitiveType> {
-        match self {
-            Self::Ordinary(plan) => plan
-                .scalar_result
-                .as_ref()
-                .map(|result| result.primitive_type)
-                .or_else(|| {
-                    plan.scalar_control
-                        .as_ref()
-                        .map(|control| control.primitive_type)
-                }),
-            Self::Composed(plan) => match plan.result {
-                checked_trees::CheckedControlResultPlan::Scalar { primitive_type } => {
-                    Some(primitive_type)
-                }
-                _ => None,
-            },
+        let result = match self {
+            Self::Ordinary(plan) => &plan.result,
+            Self::Composed(plan) => &plan.result,
+        };
+        match result {
+            checked_trees::CheckedControlResultPlan::Scalar { primitive_type } => {
+                Some(*primitive_type)
+            }
+            _ => None,
         }
     }
 
     pub(crate) fn result(self) -> Result<checked_trees::CheckedControlResultPlan, LoweringError> {
-        if matches!(self, Self::Ordinary(plan) if plan.scalar_result.is_some() || plan.scalar_control.is_some())
-        {
-            return unsupported("scalar operation-body result requires a scalar call catalog");
-        }
         Ok(match self {
-            Self::Ordinary(plan) => plan.structural_result.as_ref().map_or(
-                checked_trees::CheckedControlResultPlan::Unit,
-                |result| {
-                    checked_trees::CheckedControlResultPlan::Structural(
-                        checked_trees::CheckedStructuralResultPlan {
-                            type_identity: result.type_identity.clone(),
-                            multiplicity: result.multiplicity,
-                            qualifications: Vec::new(),
-                            projected_qualifications: Vec::new(),
-                        },
-                    )
-                },
-            ),
+            Self::Ordinary(plan) => plan.result.clone(),
             Self::Composed(plan) => plan.result.clone(),
         })
     }

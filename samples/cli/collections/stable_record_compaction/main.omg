@@ -19,7 +19,7 @@ ensures result <= events.len;
 {
     transition { _ -> scan(events, minimum, 0, 0) }
 
-    state scan(events: &mut [T], minimum: u32, cursor: u64, retained: u64) -> u64
+    machine scan(events: &mut [T], minimum: u32, cursor: u64, retained: u64) -> u64
     requires retained <= cursor && cursor <= events.len {
         transition cursor < events.len {
             true -> visit(events, minimum, cursor, retained)
@@ -27,7 +27,7 @@ ensures result <= events.len;
         }
     }
 
-    state visit(events: &mut [T], minimum: u32, cursor: u64, retained: u64) -> u64
+    machine visit(events: &mut [T], minimum: u32, cursor: u64, retained: u64) -> u64
     requires retained <= cursor && cursor < events.len {
         let selected: bool = Predicate(&events[cursor], minimum);
         transition selected {
@@ -36,7 +36,7 @@ ensures result <= events.len;
         }
     }
 
-    state keep(events: &mut [T], minimum: u32, cursor: u64, retained: u64) -> u64
+    machine keep(events: &mut [T], minimum: u32, cursor: u64, retained: u64) -> u64
     requires retained <= cursor && cursor < events.len {
         events[retained] = events[cursor];
         transition { _ -> scan(events, minimum, cursor + 1, retained + 1) }
@@ -79,6 +79,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

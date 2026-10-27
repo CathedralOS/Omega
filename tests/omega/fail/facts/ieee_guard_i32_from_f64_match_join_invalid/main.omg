@@ -8,8 +8,8 @@ machine bounded_choice(value: f64, flag: bool) -> i32 {
         true -> finish(I32::from_f64(chosen))
         false -> zero()
     }
-    state finish(observed: i32) -> i32 { observed }
-    state zero() -> i32 { 0 }
+    machine finish(observed: i32) -> i32 { observed }
+    machine zero() -> i32 { 0 }
 }
 
 machine main() crashes Trap {
@@ -18,6 +18,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

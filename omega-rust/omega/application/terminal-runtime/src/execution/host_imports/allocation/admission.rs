@@ -26,7 +26,7 @@ pub(super) fn select(
                 b"/usr/lib/libSystem.B.dylib".as_slice(),
                 b"libSystem.B.dylib".as_slice(),
             ],
-            None,
+            Some(b"msvcrt.dll"),
         )? {
             return Ok(Some(operation));
         }

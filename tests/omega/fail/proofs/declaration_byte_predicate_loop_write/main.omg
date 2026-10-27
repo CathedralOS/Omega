@@ -5,7 +5,7 @@ domain Text::Ascii(value) requires ascii_only(value.bytes);
 machine main() {
     let text: Text = Text { bytes: "go!" };
     transition { _ -> repeat(&mut text) }
-    state repeat(text: &mut Text) {
+    machine repeat(text: &mut Text) {
         let invalid: Text in Ascii = Text { bytes: text.bytes };
         text.bytes = [103, 255, 33];
         transition { _ -> repeat(text) }

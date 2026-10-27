@@ -9,7 +9,7 @@ use language_semantics::const_value::{CanonicalConstIdentity, DecodedCanonicalCo
 use symbols::SymbolHandle;
 use typed_trees::data::{TypeParameter, TypeParameterKind};
 use typed_trees::expression::TableCallExpression;
-use typed_trees::operator::{ClosedOperatorApplicationArgument, OperatorConstBinding};
+use typed_trees::operator::OperatorConstBinding;
 use typed_trees::static_applications::StaticMachineBindingValue;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -446,47 +446,20 @@ impl AppliedProofBindings {
                     .collect::<Option<Vec<_>>>()?,
             )
         };
-        if let SelectedCallContract::Operator(operator) = owner {
-            let arguments = typed_trees::operator::closed_operator_application_from_bindings(
-                program,
-                operator,
-                retained.as_ref(),
-            )?;
-            let mut result = Self {
-                types: arguments
-                    .iter()
-                    .filter_map(|argument| match argument {
-                        ClosedOperatorApplicationArgument::Type {
-                            binder_symbol,
-                            type_reference,
-                        } => Some((*binder_symbol, *type_reference)),
-                        _ => None,
-                    })
-                    .collect(),
-                ..Self::default()
-            };
-            for argument in arguments {
-                match argument {
-                    ClosedOperatorApplicationArgument::Type { .. } => {}
-                    ClosedOperatorApplicationArgument::Const {
-                        binder_symbol,
-                        declared_carrier,
-                        value,
-                    } => {
-                        crate::value_custody::type_references::validate_exact_const_identity(
-                            program,
-                            result.project_type(program, declared_carrier),
-                            &value,
-                        )
-                        .ok()?;
-                        result.constants.push(AppliedConstBinding {
-                            symbol: binder_symbol,
-                            value: AppliedConstValue::Closed(value),
-                        });
-                    }
-                }
-            }
-            return Some(result);
+        // Logical applications retain open type and const identities under the
+        // same exact telescope as named calls. Backend realization separately
+        // requires closure; it cannot decide whether a public contract exists.
+        // Preserve the operator categories this intake already supports.
+        if let SelectedCallContract::Operator(operator) = owner
+            && (!operator.lifetime_parameters.is_empty()
+                || parameters.iter().any(|parameter| {
+                    !matches!(
+                        parameter.kind,
+                        TypeParameterKind::Type | TypeParameterKind::Const { .. }
+                    )
+                }))
+        {
+            return None;
         }
         // Machine implementation binders have their own declared bound roster;
         // they are not ordinary Type/Const/Machine parameters. Both rosters

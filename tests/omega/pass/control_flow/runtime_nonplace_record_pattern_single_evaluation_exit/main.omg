@@ -18,7 +18,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Point { x, y } -> check(main, x, y)
         _ -> bad(main)
     }
-    state check(main: &mut Main, x: i32, y: i32) {
+    machine check(main: &mut Main, x: i32, y: i32) {
         transition main.calls {
             1 -> check_values(main, x, y)
             2 -> exit_two(main)
@@ -26,14 +26,14 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> bad(main)
         }
     }
-    state check_values(main: &mut Main, x: i32, y: i32) {
+    machine check_values(main: &mut Main, x: i32, y: i32) {
         transition x == 30 && y == 40 { true -> good(main) _ -> exit_values(main) }
     }
-    state good(main: &mut Main) { Console::exit_process(70); }
-    state exit_two(main: &mut Main) { Console::exit_process(2); }
-    state exit_three(main: &mut Main) { Console::exit_process(3); }
-    state exit_values(main: &mut Main) { Console::exit_process(4); }
-    state bad(main: &mut Main) { Console::exit_process(71); }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine exit_two(main: &mut Main) { Console::exit_process(2); }
+    machine exit_three(main: &mut Main) { Console::exit_process(3); }
+    machine exit_values(main: &mut Main) { Console::exit_process(4); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

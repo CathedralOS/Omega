@@ -36,7 +36,7 @@ machine Main::main(main: &mut Main) reaches Console {
         ByteRead::Byte { value } -> mode(main, value)
         _ -> bad_input(main)
     }
-    state mode(main: &mut Main, value: i32) {
+    machine mode(main: &mut Main, value: i32) {
         transition value {
             48 -> setup(main, 1, false, 2, 58289)
             49 -> setup(main, 4, false, 2, 52296)
@@ -45,7 +45,7 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> bad_input(main)
         }
     }
-    state setup(main: &mut Main, delay: u64, inertial: bool, changes: u64, trace: u64) {
+    machine setup(main: &mut Main, delay: u64, inertial: bool, changes: u64, trace: u64) {
         Network::configure(&mut main.network, delay);
         main.inertial = inertial;
         main.expected_changes = changes;
@@ -53,60 +53,60 @@ machine Main::main(main: &mut Main) reaches Console {
         main.gate = 3;
         transition { _ -> validate(main) }
     }
-    state validate(main: &mut Main) {
+    machine validate(main: &mut Main) {
         transition main.gate < 9 {
             true -> gate_valid(main)
             false -> truth_start(main)
         }
     }
-    state gate_valid(main: &mut Main) {
+    machine gate_valid(main: &mut Main) {
         let definition: Gate = main.network.gates[main.gate];
         transition definition.left < main.gate && definition.right < main.gate && definition.delay > 0 && definition.delay <= 8 && definition.kind >= 1 && definition.kind <= 3 {
             true -> next_validation(main)
             false -> bad_netlist(main)
         }
     }
-    state next_validation(main: &mut Main) {
+    machine next_validation(main: &mut Main) {
         main.gate = (main.gate % 9) + 1;
         transition { _ -> validate(main) }
     }
-    state truth_start(main: &mut Main) {
+    machine truth_start(main: &mut Main) {
         main.row = 0;
         transition { _ -> truth_row(main) }
     }
-    state truth_row(main: &mut Main) {
+    machine truth_row(main: &mut Main) {
         transition main.row < 8 {
             true -> truth_inputs(main)
             false -> initial(main)
         }
     }
-    state truth_inputs(main: &mut Main) {
+    machine truth_inputs(main: &mut Main) {
         main.network.values[0] = main.row / 4 == 1;
         main.network.values[1] = (main.row / 2) % 2 == 1;
         main.network.values[2] = main.row % 2 == 1;
         main.gate = 3;
         transition { _ -> truth_gates(main) }
     }
-    state truth_gates(main: &mut Main) {
+    machine truth_gates(main: &mut Main) {
         transition main.gate < 9 {
             true -> truth_compute(main)
             false -> truth_check(main)
         }
     }
-    state truth_compute(main: &mut Main) {
+    machine truth_compute(main: &mut Main) {
         let result: bool = Network::evaluate(&main.network, main.gate);
         main.network.values[main.gate] = result;
         main.gate = (main.gate % 9) + 1;
         transition { _ -> truth_gates(main) }
     }
-    state truth_check(main: &mut Main) {
+    machine truth_check(main: &mut Main) {
         let expected: bool = (main.network.values[0] && main.network.values[1]) || (!main.network.values[0] && main.network.values[2]);
         transition main.network.values[6] == expected && main.network.values[8] == expected {
             true -> truth_report(main)
             false -> failed(main)
         }
     }
-    state truth_report(main: &mut Main) {
+    machine truth_report(main: &mut Main) {
         Console::write("truth row=");
         let reported_row: u64 = main.row; Main::number(main, reported_row);
         Console::write(" value=");
@@ -115,49 +115,49 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> truth_zero(main)
         }
     }
-    state truth_one(main: &mut Main) { Console::write_line("1"); transition { _ -> truth_next(main) } }
-    state truth_zero(main: &mut Main) { Console::write_line("0"); transition { _ -> truth_next(main) } }
-    state truth_next(main: &mut Main) { main.row = (main.row % 8) + 1; transition { _ -> truth_row(main) } }
-    state initial(main: &mut Main) {
+    machine truth_one(main: &mut Main) { Console::write_line("1"); transition { _ -> truth_next(main) } }
+    machine truth_zero(main: &mut Main) { Console::write_line("0"); transition { _ -> truth_next(main) } }
+    machine truth_next(main: &mut Main) { main.row = (main.row % 8) + 1; transition { _ -> truth_row(main) } }
+    machine initial(main: &mut Main) {
         main.network.values[0] = true;
         main.network.values[1] = true;
         main.network.values[2] = true;
         main.gate = 3;
         transition { _ -> initialize_gates(main) }
     }
-    state initialize_gates(main: &mut Main) {
+    machine initialize_gates(main: &mut Main) {
         transition main.gate < 9 {
             true -> initialize_gate(main)
             false -> stimulus(main)
         }
     }
-    state initialize_gate(main: &mut Main) {
+    machine initialize_gate(main: &mut Main) {
         let result: bool = Network::evaluate(&main.network, main.gate);
         main.network.values[main.gate] = result;
         main.network.desired[main.gate] = result;
         main.gate = (main.gate % 9) + 1;
         transition { _ -> initialize_gates(main) }
     }
-    state stimulus(main: &mut Main) {
+    machine stimulus(main: &mut Main) {
         Console::write_line("initial nodes 0..8=111010111");
         main.calendar[100] = 1; // t=10, input a falls.
         main.time = 0;
         transition { _ -> clock(main) }
     }
-    state clock(main: &mut Main) {
+    machine clock(main: &mut Main) {
         transition main.time < 32 {
             true -> begin_time(main)
             false -> verify(main)
         }
     }
-    state begin_time(main: &mut Main) { main.node = 0; transition { _ -> scan(main) } }
-    state scan(main: &mut Main) {
+    machine begin_time(main: &mut Main) { main.node = 0; transition { _ -> scan(main) } }
+    machine scan(main: &mut Main) {
         transition main.node < 9 {
             true -> inspect(main)
             false -> next_time(main)
         }
     }
-    state inspect(main: &mut Main) {
+    machine inspect(main: &mut Main) {
         let slot: u64 = (main.time % 64) * 10 + (main.node % 10);
         let event: i32 = main.calendar[slot];
         transition event > 0 {
@@ -165,7 +165,7 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> next_node(main)
         }
     }
-    state deliver(main: &mut Main, slot: u64, event: i32)
+    machine deliver(main: &mut Main, slot: u64, event: i32)
     requires slot < 640;
     {
         main.calendar[slot] = 0;
@@ -175,24 +175,24 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> next_node(main)
         }
     }
-    state changed(main: &mut Main, value: bool) {
+    machine changed(main: &mut Main, value: bool) {
         main.network.values[main.node] = value;
         Console::write("wave t="); let reported_time: u64 = main.time; Main::number(main, reported_time);
         Console::write(" node="); let reported_node: u64 = main.node; Main::number(main, reported_node);
         Console::write(" value=");
         transition value { true -> emit_one(main) false -> emit_zero(main) }
     }
-    state emit_one(main: &mut Main) { main.trace = ((main.trace % 65521) * 17 + (main.time % 64) * 100 + (main.node % 10) * 2 + 1) % 65521; Console::write_line("1"); transition { _ -> observe(main) } }
-    state emit_zero(main: &mut Main) { main.trace = ((main.trace % 65521) * 17 + (main.time % 64) * 100 + (main.node % 10) * 2) % 65521; Console::write_line("0"); transition { _ -> observe(main) } }
-    state observe(main: &mut Main) {
+    machine emit_one(main: &mut Main) { main.trace = ((main.trace % 65521) * 17 + (main.time % 64) * 100 + (main.node % 10) * 2 + 1) % 65521; Console::write_line("1"); transition { _ -> observe(main) } }
+    machine emit_zero(main: &mut Main) { main.trace = ((main.trace % 65521) * 17 + (main.time % 64) * 100 + (main.node % 10) * 2) % 65521; Console::write_line("0"); transition { _ -> observe(main) } }
+    machine observe(main: &mut Main) {
         transition main.node == 6 { true -> observe_output(main) false -> reschedule(main) }
     }
-    state observe_output(main: &mut Main) {
+    machine observe_output(main: &mut Main) {
         main.output_changes = (main.output_changes % 64) + 1;
         transition main.network.values[6] { false -> pulse_start(main) true -> pulse_end(main) }
     }
-    state pulse_start(main: &mut Main) { main.fall = main.time; transition { _ -> reschedule(main) } }
-    state pulse_end(main: &mut Main) {
+    machine pulse_start(main: &mut Main) { main.fall = main.time; transition { _ -> reschedule(main) } }
+    machine pulse_end(main: &mut Main) {
         main.glitches = (main.glitches % 64) + 1;
         Console::write("glitch node=06 start="); let reported_fall: u64 = main.fall; Main::number(main, reported_fall);
         Console::write(" end="); let reported_time: u64 = main.time; Main::number(main, reported_time);
@@ -200,54 +200,54 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("");
         transition { _ -> reschedule(main) }
     }
-    state reschedule(main: &mut Main) { main.gate = 3; transition { _ -> gates(main) } }
-    state gates(main: &mut Main) {
+    machine reschedule(main: &mut Main) { main.gate = 3; transition { _ -> gates(main) } }
+    machine gates(main: &mut Main) {
         transition main.gate < 9 { true -> desired(main) false -> next_node(main) }
     }
-    state desired(main: &mut Main) {
+    machine desired(main: &mut Main) {
         let value: bool = Network::evaluate(&main.network, main.gate);
         transition value != main.network.desired[main.gate] {
             true -> schedule(main, value)
             false -> next_gate(main)
         }
     }
-    state schedule(main: &mut Main, value: bool) {
+    machine schedule(main: &mut Main, value: bool) {
         main.network.desired[main.gate] = value;
         transition main.inertial { true -> cancel(main, value) false -> enqueue(main, value) }
     }
-    state cancel(main: &mut Main, value: bool) {
+    machine cancel(main: &mut Main, value: bool) {
         let previous: u64 = main.due[main.gate];
         transition previous < 640 { true -> clear(main, value, previous) false -> enqueue(main, value) }
     }
-    state clear(main: &mut Main, value: bool, previous: u64)
+    machine clear(main: &mut Main, value: bool, previous: u64)
     requires previous < 640;
     { main.calendar[previous] = 0; transition { _ -> enqueue(main, value) } }
-    state enqueue(main: &mut Main, value: bool) {
+    machine enqueue(main: &mut Main, value: bool) {
         let definition: Gate = main.network.gates[main.gate];
         let arrival: u64 = (main.time % 64) + (definition.delay % 9);
         let slot: u64 = (arrival % 64) * 10 + (main.gate % 10);
         main.due[main.gate] = slot;
         transition value { true -> queue_one(main, slot) false -> queue_zero(main, slot) }
     }
-    state queue_one(main: &mut Main, slot: u64)
+    machine queue_one(main: &mut Main, slot: u64)
     requires slot < 640;
     { main.calendar[slot] = 2; transition { _ -> next_gate(main) } }
-    state queue_zero(main: &mut Main, slot: u64)
+    machine queue_zero(main: &mut Main, slot: u64)
     requires slot < 640;
     { main.calendar[slot] = 1; transition { _ -> next_gate(main) } }
-    state next_gate(main: &mut Main) { main.gate = (main.gate % 9) + 1; transition { _ -> gates(main) } }
-    state next_node(main: &mut Main) { main.node = (main.node % 9) + 1; transition { _ -> scan(main) } }
-    state next_time(main: &mut Main) { main.time = (main.time % 32) + 1; transition { _ -> clock(main) } }
-    state verify(main: &mut Main) {
+    machine next_gate(main: &mut Main) { main.gate = (main.gate % 9) + 1; transition { _ -> gates(main) } }
+    machine next_node(main: &mut Main) { main.node = (main.node % 9) + 1; transition { _ -> scan(main) } }
+    machine next_time(main: &mut Main) { main.time = (main.time % 32) + 1; transition { _ -> clock(main) } }
+    machine verify(main: &mut Main) {
         transition main.trace == main.expected_trace && main.output_changes == main.expected_changes && main.glitches == main.expected_changes / 2 && main.network.values[6] && main.network.values[8] {
             true -> success(main)
             false -> failed(main)
         }
     }
-    state success(main: &mut Main) { Console::write_line("PASS truth=08 steady=1 consensus=1"); Console::exit_process(0); }
-    state failed(main: &mut Main) { Console::write_line("FAIL oracle"); Console::exit_process(1); }
-    state bad_input(main: &mut Main) { Console::write_line("REJECT input: expected one byte 0,1,2,d"); Console::exit_process(2); }
-    state bad_netlist(main: &mut Main) { Console::write_line("REJECT netlist: positive delay <=8 and acyclic valid gates required"); Console::exit_process(3); }
+    machine success(main: &mut Main) { Console::write_line("PASS truth=08 steady=1 consensus=1"); Console::exit_process(0); }
+    machine failed(main: &mut Main) { Console::write_line("FAIL oracle"); Console::exit_process(1); }
+    machine bad_input(main: &mut Main) { Console::write_line("REJECT input: expected one byte 0,1,2,d"); Console::exit_process(2); }
+    machine bad_netlist(main: &mut Main) { Console::write_line("REJECT netlist: positive delay <=8 and acyclic valid gates required"); Console::exit_process(3); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

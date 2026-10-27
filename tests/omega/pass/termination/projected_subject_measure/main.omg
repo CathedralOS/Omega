@@ -21,7 +21,7 @@ requires countdown.remaining * 2 <= limit;
 terminates by countdown.remaining -> Countdown::Doubled in 0..=limit;
 -> u64 {
     transition { _ -> step(countdown, limit) }
-    state step(current: Countdown, bound: u64)
+    machine step(current: Countdown, bound: u64) -> u64
         requires 0 <= bound && bound <= 10
     {
         transition current.remaining > 0 {

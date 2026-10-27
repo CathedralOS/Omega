@@ -99,7 +99,18 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn closed_c
         return Some(Vec::new());
     }
     let mut output = Vec::new();
-    for (selection, receipt) in retirement.facts.flow.ownership.owned_selections.iter() {
+    let state_selections = retirement
+        .facts
+        .flow
+        .ownership
+        .with_state_owned_selections(retirement.state.symbol, |handles| handles.to_vec());
+    for selection in state_selections {
+        let receipt = retirement
+            .facts
+            .flow
+            .ownership
+            .owned_selections
+            .get(selection);
         if receipt.machine != retirement.machine
             || receipt.state != retirement.state.symbol
             || receipt.statement_ordinal >= retirement.statement_index

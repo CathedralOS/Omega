@@ -7,8 +7,20 @@
 use language_semantics::declaration_selection::{BuildSelectionRequest, ProductDeclarationRequest};
 use semantic_vocabulary::OperationId;
 
+/// Exact checked application and demanded static slots in this code owner.
+/// This is source-issued companion context, not authority derived from bytes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalBuildProviderRequirement {
+    pub declaration: terminal_psi::NominalDeclarationIdentity,
+    pub application: terminal_psi::TerminalIdentityIndex,
+    pub boundaries: Vec<semantic_vocabulary::BoundaryMachineId>,
+}
+
+pub type TerminalBuildSelectionRequest = BuildSelectionRequest<TerminalBuildProviderRequirement>;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalBuildBindingOperation {
+    AwaitProvider,
     Prepare,
     Bind,
     Select,
@@ -21,7 +33,7 @@ pub struct TerminalBuildBindingCall {
     pub operation: OperationId,
     pub boundary: semantic_vocabulary::BoundaryMachineId,
     pub action: TerminalBuildBindingOperation,
-    pub request: BuildSelectionRequest,
+    pub request: TerminalBuildSelectionRequest,
     pub selecting_machine: Option<source::SourceSpan>,
 }
 
@@ -31,10 +43,17 @@ pub struct TerminalBuildBindingCall {
 pub struct TerminalBuildBindings {
     identity: terminal_codec::TerminalExecutionIdentity,
     calls: Vec<TerminalBuildBindingCall>,
+    queries: Vec<crate::TerminalBuildQueryCall>,
     declarations: Vec<std::sync::Arc<ProductDeclarationRequest>>,
 }
 
 impl TerminalBuildBindings {
+    pub fn queries_for(
+        &self,
+        artifact: terminal_codec::TerminalExecutionView<'_>,
+    ) -> Option<&[crate::TerminalBuildQueryCall]> {
+        (self.identity == artifact.custody_identity()).then_some(&self.queries)
+    }
     pub fn calls_for(
         &self,
         artifact: terminal_codec::TerminalExecutionView<'_>,
@@ -53,10 +72,12 @@ impl TerminalBuildBindings {
         artifact: terminal_codec::TerminalExecutionView<'_>,
         calls: Vec<TerminalBuildBindingCall>,
         declarations: Vec<std::sync::Arc<ProductDeclarationRequest>>,
+        queries: Vec<crate::TerminalBuildQueryCall>,
     ) -> Self {
         Self {
             identity: artifact.custody_identity(),
             calls,
+            queries,
             declarations,
         }
     }
@@ -89,14 +110,14 @@ pub(super) fn capture(
                     "Build call lost its designated operands before publication",
                 )
             })?;
-        let semantic_vocabulary::BoundaryInvocationSite::Operation(operation) =
-            occurrence.terminal_site
+        let semantic_vocabulary::InvocationSite::Operation(operation) = occurrence.terminal_site
         else {
             return Err(diagnostics::Diagnostic::error(
                 "Build binding lost its ordinary result-producing call",
             ));
         };
         let action = match call.target.as_str() {
+            "await_provider" => TerminalBuildBindingOperation::AwaitProvider,
             "prepare" => TerminalBuildBindingOperation::Prepare,
             "bind" | "bind_description" => TerminalBuildBindingOperation::Bind,
             "select" => TerminalBuildBindingOperation::Select,
@@ -134,7 +155,25 @@ pub(super) fn capture(
             operation,
             boundary,
             action,
-            request: request.clone(),
+            request: request.clone().map_requirement(|_| {
+                let selected = lowered
+                    .build_provider_requirements
+                    .iter()
+                    .find(|selected| {
+                        selected.selection == call.build_selection
+                            && selected.source_state == occurrence.source_state
+                    })
+                    .ok_or_else(|| {
+                        diagnostics::Diagnostic::error(
+                            "Build readiness lost its emitted requirement application",
+                        )
+                    })?;
+                Ok::<_, diagnostics::Diagnostic>(TerminalBuildProviderRequirement {
+                    declaration: selected.declaration.clone(),
+                    application: selected.application,
+                    boundaries: selected.boundaries.clone(),
+                })
+            })?,
             selecting_machine,
         });
     }

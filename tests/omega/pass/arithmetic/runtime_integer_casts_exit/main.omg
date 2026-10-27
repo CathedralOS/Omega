@@ -27,23 +27,23 @@ machine Main::main(main: &mut Main) reaches Console {
 
     transition aw == -5 { true -> ck2(main, bw, cn, dw, ew) _ -> bad(main) }
 
-    state ck2(main: &mut Main, bw: i32 in Trapping, cn: u8, dw: i64 in Trapping, ew: u32 in Trapping) {
+    machine ck2(main: &mut Main, bw: i32 in Trapping, cn: u8, dw: i64 in Trapping, ew: u32 in Trapping) {
         transition bw == 200 { true -> ck3(main, cn, dw, ew) _ -> bad(main) }
     }
-    state ck3(main: &mut Main, cn: u8, dw: i64 in Trapping, ew: u32 in Trapping) {
+    machine ck3(main: &mut Main, cn: u8, dw: i64 in Trapping, ew: u32 in Trapping) {
         transition cn == 200 { true -> ck4(main, dw, ew) _ -> bad(main) }
     }
-    state ck4(main: &mut Main, dw: i64 in Trapping, ew: u32 in Trapping) {
+    machine ck4(main: &mut Main, dw: i64 in Trapping, ew: u32 in Trapping) {
         transition dw == -7 { true -> ck5(main, ew) _ -> bad(main) }
     }
-    state ck5(main: &mut Main, ew: u32 in Trapping) {
+    machine ck5(main: &mut Main, ew: u32 in Trapping) {
         transition ew == 32767 { true -> good(main) _ -> bad(main) }
     }
 
-    state good(main: &mut Main) {
+    machine good(main: &mut Main) {
         Console::exit_process(70);
     }
-    state bad(main: &mut Main) {
+    machine bad(main: &mut Main) {
         Console::exit_process(71);
     }
 }

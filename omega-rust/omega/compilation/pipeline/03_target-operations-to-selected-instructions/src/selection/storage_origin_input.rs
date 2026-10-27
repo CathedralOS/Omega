@@ -234,7 +234,7 @@ fn access_coordinates(
             let root = super::reference_input::root_type(function, *source)
                 .ok_or(SelectedInstructionError::custody())?;
             let selected =
-                crate::structural_inputs::structural_reference_input::reference_source_geometry(
+                crate::structural_inputs::structural_reference_input::storage_address_geometry(
                     root,
                     path,
                     &signature.structural_types,

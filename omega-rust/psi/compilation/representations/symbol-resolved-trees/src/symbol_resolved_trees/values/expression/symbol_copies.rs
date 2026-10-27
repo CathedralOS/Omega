@@ -205,6 +205,10 @@ impl SymbolCopy<'_, '_> {
                 self.expression_payloads(call.receiver);
                 self.expression_span_payloads(call.arguments);
                 call.target_symbol = self.symbol(call.target_symbol);
+                if let Some(binding) = &mut call.authored_call_binding {
+                    binding.selected = self.symbol(binding.selected);
+                    // Authored-selection occurrences retain their source binder.
+                }
                 for argument in call.machine_arguments.iter_mut() {
                     self.static_argument(argument);
                 }
@@ -715,6 +719,7 @@ mod tests {
             .bodies
             .expressions
             .insert(ExpressionNode::Call(TableCallExpression {
+                authored_call_binding: None,
                 receiver: ExpressionHandle::invalid(),
                 target_symbol: original,
                 target: DiagnosticName::generated("run"),

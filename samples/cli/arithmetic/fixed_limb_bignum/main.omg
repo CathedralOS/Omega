@@ -34,50 +34,50 @@ data Bignum [copy] {
 machine bignum_zero(out: &mut Bignum) {
     transition { _ -> loop_(out, 0) }
 
-    state loop_(out: &mut Bignum, index: u64) {
+    machine loop_(out: &mut Bignum, index: u64) {
         transition index < 8 {
             true -> clear(out, index)
             _ -> done()
         }
     }
 
-    state clear(out: &mut Bignum, index: u64) {
+    machine clear(out: &mut Bignum, index: u64) {
         out.limbs[index] = 0;
         transition { _ -> loop_(out, index + 1) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 machine bignum_copy(source: &Bignum, out: &mut Bignum) {
     transition { _ -> loop_(source, out, 0) }
 
-    state loop_(source: &Bignum, out: &mut Bignum, index: u64) {
+    machine loop_(source: &Bignum, out: &mut Bignum, index: u64) {
         transition index < 8 {
             true -> copy_limb(source, out, index)
             _ -> done()
         }
     }
 
-    state copy_limb(source: &Bignum, out: &mut Bignum, index: u64) {
+    machine copy_limb(source: &Bignum, out: &mut Bignum, index: u64) {
         out.limbs[index] = source.limbs[index];
         transition { _ -> loop_(source, out, index + 1) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 machine bignum_equals(left: &Bignum, right: &Bignum) -> bool {
     transition { _ -> loop_(left, right, 0) }
 
-    state loop_(left: &Bignum, right: &Bignum, index: u64) -> bool {
+    machine loop_(left: &Bignum, right: &Bignum, index: u64) -> bool {
         transition index < 8 {
             true -> check_limb(left, right, index)
             _ -> (true)
         }
     }
 
-    state check_limb(left: &Bignum, right: &Bignum, index: u64) -> bool {
+    machine check_limb(left: &Bignum, right: &Bignum, index: u64) -> bool {
         let l: u32 = left.limbs[index] as u32;
         let r: u32 = right.limbs[index] as u32;
         transition l == r {
@@ -92,14 +92,14 @@ machine bignum_equals(left: &Bignum, right: &Bignum) -> bool {
 machine bignum_compare(left: &Bignum, right: &Bignum) -> i32 {
     transition { _ -> loop_(left, right, 8) }
 
-    state loop_(left: &Bignum, right: &Bignum, remaining: u64) -> i32 {
+    machine loop_(left: &Bignum, right: &Bignum, remaining: u64) -> i32 {
         transition remaining > 0 && remaining <= 8 {
             true -> inspect(left, right, remaining - 1)
             _ -> (0)
         }
     }
 
-    state inspect(left: &Bignum, right: &Bignum, index: u64) -> i32 {
+    machine inspect(left: &Bignum, right: &Bignum, index: u64) -> i32 {
         let l: u32 = left.limbs[index] as u32;
         let r: u32 = right.limbs[index] as u32;
         transition l < r {
@@ -108,7 +108,7 @@ machine bignum_compare(left: &Bignum, right: &Bignum) -> i32 {
         }
     }
 
-    state check_greater(left: &Bignum, right: &Bignum, index: u64, l: u32, r: u32) -> i32 {
+    machine check_greater(left: &Bignum, right: &Bignum, index: u64, l: u32, r: u32) -> i32 {
         transition l > r {
             true -> (1)
             _ -> loop_(left, right, index)
@@ -121,14 +121,14 @@ machine bignum_compare(left: &Bignum, right: &Bignum) -> i32 {
 machine bignum_add(left: &Bignum, right: &Bignum, out: &mut Bignum) -> u32 {
     transition { _ -> loop_(left, right, out, 0, 0) }
 
-    state loop_(left: &Bignum, right: &Bignum, out: &mut Bignum, index: u64, carry: u32) -> u32 {
+    machine loop_(left: &Bignum, right: &Bignum, out: &mut Bignum, index: u64, carry: u32) -> u32 {
         transition index < 8 && carry <= 1 {
             true -> step(left, right, out, index, carry)
             _ -> (carry)
         }
     }
 
-    state step(left: &Bignum, right: &Bignum, out: &mut Bignum, index: u64, carry: u32) -> u32 {
+    machine step(left: &Bignum, right: &Bignum, out: &mut Bignum, index: u64, carry: u32) -> u32 {
         let l_wrap: u32 in Wrapping = left.limbs[index];
         let r_wrap: u32 in Wrapping = right.limbs[index];
         let c_wrap: u32 in Wrapping = carry as u32 in Wrapping;
@@ -150,14 +150,14 @@ machine bignum_add(left: &Bignum, right: &Bignum, out: &mut Bignum) -> u32 {
 machine bignum_sub(left: &Bignum, right: &Bignum, out: &mut Bignum) -> u32 {
     transition { _ -> loop_(left, right, out, 0, 0) }
 
-    state loop_(left: &Bignum, right: &Bignum, out: &mut Bignum, index: u64, borrow: u32) -> u32 {
+    machine loop_(left: &Bignum, right: &Bignum, out: &mut Bignum, index: u64, borrow: u32) -> u32 {
         transition index < 8 {
             true -> step(left, right, out, index, borrow)
             _ -> (borrow)
         }
     }
 
-    state step(left: &Bignum, right: &Bignum, out: &mut Bignum, index: u64, borrow: u32) -> u32 {
+    machine step(left: &Bignum, right: &Bignum, out: &mut Bignum, index: u64, borrow: u32) -> u32 {
         let l_wrap: u32 in Wrapping = left.limbs[index];
         let r_wrap: u32 in Wrapping = right.limbs[index];
         let b_wrap: u32 in Wrapping = borrow as u32 in Wrapping;
@@ -180,21 +180,21 @@ machine bignum_mul_schoolbook(left: &Bignum, right: &Bignum, out: &mut Bignum) {
     bignum_zero(out);
     transition { _ -> outer(left, right, out, 0) }
 
-    state outer(left: &Bignum, right: &Bignum, out: &mut Bignum, i: u64) {
+    machine outer(left: &Bignum, right: &Bignum, out: &mut Bignum, i: u64) {
         transition i < 4 {
             true -> inner(left, right, out, i, 0, 0)
             _ -> done()
         }
     }
 
-    state inner(left: &Bignum, right: &Bignum, out: &mut Bignum, i: u64, j: u64, carry: u64) {
+    machine inner(left: &Bignum, right: &Bignum, out: &mut Bignum, i: u64, j: u64, carry: u64) {
         transition i < 4 && j < 4 && carry <= 4294967295 {
             true -> mul_step(left, right, out, i, j, carry)
             _ -> finish_row(left, right, out, i, carry)
         }
     }
 
-    state mul_step(left: &Bignum, right: &Bignum, out: &mut Bignum, i: u64, j: u64, carry: u64) {
+    machine mul_step(left: &Bignum, right: &Bignum, out: &mut Bignum, i: u64, j: u64, carry: u64) {
         let pos: u64 = i + j;
         let a64: u64 = (left.limbs[i] as u32) as u64;
         let b64: u64 = (right.limbs[j] as u32) as u64;
@@ -206,14 +206,14 @@ machine bignum_mul_schoolbook(left: &Bignum, right: &Bignum, out: &mut Bignum) {
         transition { _ -> inner(left, right, out, i, j + 1, next_carry) }
     }
 
-    state finish_row(left: &Bignum, right: &Bignum, out: &mut Bignum, i: u64, carry: u64) {
+    machine finish_row(left: &Bignum, right: &Bignum, out: &mut Bignum, i: u64, carry: u64) {
         transition i < 4 && carry <= 4294967295 {
             true -> store_row_carry(left, right, out, i, carry)
             _ -> done()
         }
     }
 
-    state store_row_carry(left: &Bignum, right: &Bignum, out: &mut Bignum, i: u64, carry: u64) {
+    machine store_row_carry(left: &Bignum, right: &Bignum, out: &mut Bignum, i: u64, carry: u64) {
         let tail: u64 = i + 4;
         let cur: u32 in Wrapping = out.limbs[tail];
         let c32: u32 in Wrapping = (carry as u32) as u32 in Wrapping;
@@ -221,7 +221,7 @@ machine bignum_mul_schoolbook(left: &Bignum, right: &Bignum, out: &mut Bignum) {
         transition { _ -> outer(left, right, out, i + 1) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 // Divide 8-limb `dividend` by nonzero small limb `divisor`, storing the 8-limb
@@ -236,21 +236,21 @@ requires
         _ -> (0)
     }
 
-    state loop_(dividend: &Bignum, d64: u64, quotient: &mut Bignum, remaining: u64, rem: u64) -> u32 {
+    machine loop_(dividend: &Bignum, d64: u64, quotient: &mut Bignum, remaining: u64, rem: u64) -> u32 {
         transition remaining == 0 && rem < d64 && d64 <= 4294967295 {
             true -> (rem as u32)
             _ -> check_step(dividend, d64, quotient, remaining, rem)
         }
     }
 
-    state check_step(dividend: &Bignum, d64: u64, quotient: &mut Bignum, remaining: u64, rem: u64) -> u32 {
+    machine check_step(dividend: &Bignum, d64: u64, quotient: &mut Bignum, remaining: u64, rem: u64) -> u32 {
         transition remaining > 0 && remaining <= 8 && d64 > 0 && d64 <= 4294967295 && rem < d64 {
             true -> step(dividend, d64, quotient, remaining - 1, rem)
             _ -> (0)
         }
     }
 
-    state step(dividend: &Bignum, d64: u64, quotient: &mut Bignum, index: u64, rem: u64) -> u32 {
+    machine step(dividend: &Bignum, d64: u64, quotient: &mut Bignum, index: u64, rem: u64) -> u32 {
         let limb64: u64 = (dividend.limbs[index] as u32) as u64;
         let combined: u64 = (rem << 32) | limb64;
         let q_limb64: u64 = combined / d64;
@@ -290,14 +290,14 @@ machine bignum_render_decimal(value: &Bignum, digits: &mut [u8; 40]) {
     bignum_copy(value, &mut work);
     transition { _ -> loop_(&mut work, &mut next_work, digits, 40) }
 
-    state loop_(work: &mut Bignum, next_work: &mut Bignum, digits: &mut [u8; 40], remaining: u64) {
+    machine loop_(work: &mut Bignum, next_work: &mut Bignum, digits: &mut [u8; 40], remaining: u64) {
         transition remaining > 0 && remaining <= 40 {
             true -> extract_digit(work, next_work, digits, remaining - 1)
             _ -> done()
         }
     }
 
-    state extract_digit(work: &mut Bignum, next_work: &mut Bignum, digits: &mut [u8; 40], pos: u64) {
+    machine extract_digit(work: &mut Bignum, next_work: &mut Bignum, digits: &mut [u8; 40], pos: u64) {
         let rem: u32 = bignum_divmod_small(work, 10, next_work);
         bignum_copy(next_work, work);
         let ascii_u32: u32 in Wrapping = (rem as u32 in Wrapping) + 48;
@@ -305,7 +305,7 @@ machine bignum_render_decimal(value: &Bignum, digits: &mut [u8; 40]) {
         transition { _ -> loop_(work, next_work, digits, pos) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 machine bytes40_equal(left: &[u8; 40], right: &[u8]) -> bool {
@@ -314,14 +314,14 @@ machine bytes40_equal(left: &[u8; 40], right: &[u8]) -> bool {
         _ -> (false)
     }
 
-    state loop_(left: &[u8; 40], right: &[u8], index: u64) -> bool {
+    machine loop_(left: &[u8; 40], right: &[u8], index: u64) -> bool {
         transition index < 40 && right.len == 40 {
             true -> check_byte(left, right, index)
             _ -> (true)
         }
     }
 
-    state check_byte(left: &[u8; 40], right: &[u8], index: u64) -> bool {
+    machine check_byte(left: &[u8; 40], right: &[u8], index: u64) -> bool {
         transition left[index] == right[index] {
             true -> loop_(left, right, index + 1)
             _ -> (false)
@@ -455,12 +455,12 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> fail()
     }
 
-    state pass() {
+    machine pass() {
         Console::write_line("PASS: fixed_limb_bignum compare, add, sub, schoolbook mul, divmod, and decimal render verified");
         Console::exit_process(0);
     }
 
-    state fail() {
+    machine fail() {
         Console::write_line("FAIL: fixed_limb_bignum verification mismatch");
         Console::exit_process(1);
     }

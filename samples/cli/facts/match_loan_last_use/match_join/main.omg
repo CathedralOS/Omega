@@ -31,13 +31,13 @@ machine main() crashes Trap {
         Slot::Present { value } -> kept(written, value[0], visits)
         Slot::Absent -> wrong()
     }
-    state kept(written: i64, restored: i64, visits: u64) {
+    machine kept(written: i64, restored: i64, visits: u64) {
         transition written == 41 && restored == 7 && visits == 1 {
             true -> done()
             false -> wrong()
         }
     }
 
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

@@ -27,6 +27,6 @@ machine carry<Role>(first: First, second: Second, values: [u64; 2]) -> bool {
 machine main() crashes Trap {
     let answer: bool = carry<Role>(First { value: 17 }, Second { value: 29 }, [31, 41]);
     transition answer { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

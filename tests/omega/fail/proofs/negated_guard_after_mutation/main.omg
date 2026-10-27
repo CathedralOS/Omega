@@ -8,7 +8,7 @@ ensures !selection.enabled || result == 1
         _ -> overwrite(selection)
     }
 
-    state overwrite(selection: &mut Selection) -> i32 {
+    machine overwrite(selection: &mut Selection) -> i32 {
         selection.enabled = true;
         0
     }

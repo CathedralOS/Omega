@@ -134,8 +134,8 @@ pub use names::{
 pub use object_plan::ObjectPlan;
 pub use object_plan::container::ObjectContainerOutput;
 pub use object_plan::relocations::{
-    RelocationKind, RelocationOrigin, RelocationPlan, RelocationRecord, boundary_relocation_origin,
-    relocation_kind_tag,
+    RelocationKind, RelocationOrigin, RelocationPlan, RelocationRecord,
+    invocation_relocation_origin, relocation_kind_tag,
 };
 pub use object_plan::sections::{SectionKind, SectionPlan};
 pub use object_plan::symbols::{

@@ -145,9 +145,7 @@ impl Execution<'_, '_, '_> {
                     return Err(ReferenceProjectionRefusal::EmptyActualAddress);
                 }
                 for address in addresses {
-                    if !places.contains(&address) {
-                        places.push(address);
-                    }
+                    crate::collections::push_unique(&mut places, address);
                 }
             }
             places
@@ -193,9 +191,7 @@ impl Execution<'_, '_, '_> {
                         lifetime_known = false;
                     }
                     for origin in stored {
-                        if !projected_places.contains(&origin) {
-                            projected_places.push(origin);
-                        }
+                        crate::collections::push_unique(&mut projected_places, origin);
                     }
                 } else if !projected_places.contains(&place) {
                     projected_places.push(place);

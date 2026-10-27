@@ -12,8 +12,8 @@ machine release_keeper(keeper: &mut Keeper) requires keeper.code == 7 {
 machine observe(keeper: &Keeper) {}
 machine check(output: &Counter) crashes Trap {
     transition output.value == 7 && output.invocations == 1 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 data Envelope<T> { keeper: T; }
 machine consume(envelope: Envelope<Keeper in Held>) requires envelope.keeper.code == 7 {}

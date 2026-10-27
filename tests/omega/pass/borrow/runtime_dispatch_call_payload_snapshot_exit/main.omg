@@ -13,7 +13,7 @@ machine run(counter: &mut Counter) -> i32 {
         Message::Captured { value } -> consume(counter, value)
         _ -> (72)
     }
-    state consume(counter: &mut Counter, value: i32) -> i32 {
+    machine consume(counter: &mut Counter, value: i32) -> i32 {
         counter.value = 99;
         transition value == 70 && counter.calls == 1 {
             true -> (70)

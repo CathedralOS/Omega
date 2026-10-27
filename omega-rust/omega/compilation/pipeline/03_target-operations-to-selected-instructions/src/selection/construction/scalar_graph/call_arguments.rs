@@ -19,11 +19,148 @@ use legalized_operations::{
 use selected_instructions::{SelectedCallContract, SelectedInstructionId, SelectedInstructionKind};
 use terminal_psi::StructuralAccess;
 
+/// Invocation transport reads its actual operation or edge identity. It never
+/// allocates an operation to stand in for a terminal call.
+pub(in crate::selection) trait InvocationArgumentSource {
+    fn invocation_site(&self) -> semantic_vocabulary::InvocationSite;
+    fn invocation_call_plan(&self) -> Option<&calling_conventions::CallPlan>;
+    fn invocation_ownership(&self) -> &[optimization_unit::OwnershipEvent];
+    fn invocation_fuel(&self) -> &[optimization_unit::FuelSettlement];
+    fn invocation_argument_place(&self, position: usize) -> Option<semantic_vocabulary::PlaceId>;
+}
+
+impl InvocationArgumentSource for LegalizedScalarInstruction {
+    fn invocation_site(&self) -> semantic_vocabulary::InvocationSite {
+        self.operation.into()
+    }
+    fn invocation_call_plan(&self) -> Option<&calling_conventions::CallPlan> {
+        match &self.kind {
+            legalized_operations::LegalizedScalarInstructionKind::Call(call) => {
+                Some(&call.call_plan)
+            }
+            legalized_operations::LegalizedScalarInstructionKind::NormalizedForeignCall(call) => {
+                Some(&call.binding.boundary_entry_plan.call)
+            }
+            _ => None,
+        }
+    }
+    fn invocation_ownership(&self) -> &[optimization_unit::OwnershipEvent] {
+        &self.ownership
+    }
+    fn invocation_fuel(&self) -> &[optimization_unit::FuelSettlement] {
+        &self.fuel
+    }
+    fn invocation_argument_place(&self, position: usize) -> Option<semantic_vocabulary::PlaceId> {
+        match &self.kind {
+            legalized_operations::LegalizedScalarInstructionKind::Call(call) => {
+                match call.arguments.get(position)? {
+                    legalized_operations::LegalizedScalarArgument::Structural {
+                        semantic, ..
+                    } => Some(semantic.place),
+                    _ => None,
+                }
+            }
+            legalized_operations::LegalizedScalarInstructionKind::NormalizedForeignCall(call) => {
+                let mut arguments = crate::selection::scalar_call_abi::normalized_foreign::structural_parameter_positions(call)
+                    .zip(&call.structural_arguments).filter(|(ordinal,_)| *ordinal == position);
+                let (_, argument) = arguments.next()?;
+                arguments.next().is_none().then_some(argument.place)
+            }
+            _ => None,
+        }
+    }
+}
+
+pub(super) struct TerminalInvocation<'a> {
+    pub edge: semantic_vocabulary::EdgeId,
+    pub call: &'a LegalizedScalarCall,
+    pub ownership: &'a [optimization_unit::OwnershipEvent],
+    pub fuel: &'a [optimization_unit::FuelSettlement],
+}
+
+impl InvocationArgumentSource for TerminalInvocation<'_> {
+    fn invocation_site(&self) -> semantic_vocabulary::InvocationSite {
+        semantic_vocabulary::InvocationSite::InvokeNoNormal(self.edge)
+    }
+    fn invocation_call_plan(&self) -> Option<&calling_conventions::CallPlan> {
+        Some(&self.call.call_plan)
+    }
+    fn invocation_ownership(&self) -> &[optimization_unit::OwnershipEvent] {
+        self.ownership
+    }
+    fn invocation_fuel(&self) -> &[optimization_unit::FuelSettlement] {
+        self.fuel
+    }
+    fn invocation_argument_place(&self, position: usize) -> Option<semantic_vocabulary::PlaceId> {
+        match self.call.arguments.get(position)? {
+            legalized_operations::LegalizedScalarArgument::Structural { semantic, .. } => {
+                Some(semantic.place)
+            }
+            _ => None,
+        }
+    }
+}
+
+pub(in crate::selection) fn invocation_provenance(
+    source: &impl InvocationArgumentSource,
+) -> SelectedInstructionProvenance {
+    match source.invocation_site() {
+        semantic_vocabulary::InvocationSite::Operation(operation) => {
+            SelectedInstructionProvenance {
+                operations: vec![operation],
+                ..Default::default()
+            }
+        }
+        semantic_vocabulary::InvocationSite::ExternalCompletion(edge)
+        | semantic_vocabulary::InvocationSite::InvokeNoNormal(edge) => {
+            SelectedInstructionProvenance {
+                edges: vec![edge],
+                ..Default::default()
+            }
+        }
+    }
+}
+
+pub(in crate::selection) fn invocation_memory_origin(
+    source: &impl InvocationArgumentSource,
+) -> selected_instructions::SelectedMemoryAccessOrigin {
+    match source.invocation_site() {
+        semantic_vocabulary::InvocationSite::Operation(operation) => {
+            selected_instructions::SelectedMemoryAccessOrigin::Operation(operation)
+        }
+        semantic_vocabulary::InvocationSite::ExternalCompletion(edge)
+        | semantic_vocabulary::InvocationSite::InvokeNoNormal(edge) => {
+            selected_instructions::SelectedMemoryAccessOrigin::Edge(edge)
+        }
+    }
+}
+
+pub(super) fn argument_slot(
+    source: &impl InvocationArgumentSource,
+    argument_index: u32,
+) -> selected_instructions::LocalStorageSlotId {
+    match source.invocation_site() {
+        semantic_vocabulary::InvocationSite::Operation(operation) => {
+            selected_instructions::LocalStorageSlotId::StructuralCallArgument {
+                operation,
+                argument_index,
+            }
+        }
+        semantic_vocabulary::InvocationSite::ExternalCompletion(edge)
+        | semantic_vocabulary::InvocationSite::InvokeNoNormal(edge) => {
+            selected_instructions::LocalStorageSlotId::InvocationArgument {
+                edge,
+                argument_index,
+            }
+        }
+    }
+}
+
 /// Place every argument of `call` and return the register operands in the
 /// call row's register order. `invalid` is the caller's refusal.
 pub(super) fn marshal(
     source: &LegalizedScalarFunction,
-    operation: &LegalizedScalarInstruction,
+    operation: &impl InvocationArgumentSource,
     call: &LegalizedScalarCall,
     builder: &mut Builder<'_>,
     invalid: impl Fn() -> SelectedInstructionError,
@@ -31,7 +168,7 @@ pub(super) fn marshal(
     // Ownership belongs to the complete call. A borrowed argument neither
     // transfers a claim nor forbids an owned sibling from transferring one.
     // Keep the origin's exact transfer/completion event before ABI transport.
-    call.validate_source(&operation.ownership)
+    call.validate_source(operation.invocation_ownership())
         .map_err(|_| invalid())?;
     let mut operands = Vec::new();
     for (argument_index, argument) in call.arguments.iter().enumerate() {
@@ -62,7 +199,7 @@ pub(super) fn marshal(
             } => (*value, placement),
         };
         if let Some(output) = scalar_argument(
-            operation.operation.into(),
+            operation.invocation_site(),
             argument_index,
             value,
             placement,
@@ -103,7 +240,7 @@ pub(super) fn register_ordered_operands(
 /// Scalar transport is identical at an ordinary operation and a completion
 /// edge. Stack slots retain that occurrence instead of inventing an operation.
 pub(super) fn scalar_argument(
-    invocation_site: semantic_vocabulary::BoundaryInvocationSite,
+    invocation_site: semantic_vocabulary::InvocationSite,
     argument_index: usize,
     value: semantic_vocabulary::ValueId,
     placement: &calling_conventions::ValuePlacement,
@@ -155,7 +292,7 @@ pub(super) fn scalar_argument(
 /// only selects where a private owned copy is placed.
 pub(super) fn structural_argument(
     source: &LegalizedScalarFunction,
-    operation: &LegalizedScalarInstruction,
+    operation: &impl InvocationArgumentSource,
     argument_index: usize,
     semantic: &terminal_psi::StructuralArgument,
     target: &target_operations::TargetStructuralArgument,
@@ -207,7 +344,12 @@ pub(super) fn structural_argument(
             target,
             indices,
         )?;
-        let block = super::block_containing_operation(source, operation.operation)?;
+        let block = crate::selection::scalar_call_abi::input_site::use_cut(
+            source,
+            operation.invocation_site(),
+        )
+        .ok_or_else(SelectedInstructionError::custody)?
+        .0;
         return super::aggregate_argument::transport(
             operation,
             argument_index,
@@ -237,7 +379,7 @@ pub(super) fn structural_argument(
 fn argument_pointer(
     builder: &mut Builder<'_>,
     source: &LegalizedScalarFunction,
-    operation: &legalized_operations::LegalizedScalarInstruction,
+    operation: &impl InvocationArgumentSource,
     argument_index: usize,
     semantic: &terminal_psi::StructuralArgument,
     target: &target_operations::TargetStructuralArgument,
@@ -271,7 +413,7 @@ struct PreparedReferent {
 fn referent_pointer(
     builder: &mut Builder<'_>,
     source: &LegalizedScalarFunction,
-    operation: &legalized_operations::LegalizedScalarInstruction,
+    operation: &impl InvocationArgumentSource,
     argument_index: usize,
     semantic: &terminal_psi::StructuralArgument,
     target: &target_operations::TargetStructuralArgument,
@@ -326,9 +468,9 @@ fn referent_pointer(
     let byte_field = if referent {
         None
     } else {
-        crate::selection::byte_owner_input::view_argument(
+        crate::selection::byte_owner_input::view_argument_at(
             source,
-            operation.operation,
+            operation.invocation_site(),
             semantic,
             target,
             indices,
@@ -417,12 +559,12 @@ fn referent_pointer(
             structural::stage_descriptor(
                 builder,
                 operation,
-                selected_instructions::LocalStorageSlotId::StructuralCallArgument {
-                    operation: operation.operation,
-                    argument_index: argument_index
+                argument_slot(
+                    operation,
+                    argument_index
                         .try_into()
                         .map_err(|_| SelectedInstructionError::custody())?,
-                },
+                ),
                 pointer,
                 codec_register,
             )?
@@ -476,7 +618,7 @@ fn referent_pointer(
 
 fn place_pointer_argument(
     builder: &mut Builder<'_>,
-    operation: &legalized_operations::LegalizedScalarInstruction,
+    operation: &impl InvocationArgumentSource,
     argument_index: usize,
     pointer_place: semantic_vocabulary::PlaceId,
     target: &target_operations::TargetStructuralArgument,
@@ -491,7 +633,7 @@ fn place_pointer_argument(
     };
     let slot = selected_instructions::OutgoingArgumentSlotId {
         role: selected_instructions::OutgoingArgumentSlotRole::Argument,
-        invocation_site: operation.operation.into(),
+        invocation_site: operation.invocation_site(),
         argument_index: argument_index
             .try_into()
             .map_err(|_| SelectedInstructionError::custody())?,
@@ -507,7 +649,7 @@ fn place_pointer_argument(
         });
     super::structural::memory_at_origin(
         builder,
-        selected_instructions::SelectedMemoryAccessOrigin::Operation(operation.operation),
+        invocation_memory_origin(operation),
         pointer_place,
         0,
         8,
@@ -517,10 +659,7 @@ fn place_pointer_argument(
         selected_instructions::FrameStorageSlotId::Outgoing(slot),
         0,
         pointer,
-        SelectedInstructionProvenance {
-            operations: vec![operation.operation],
-            ..Default::default()
-        },
+        invocation_provenance(operation),
     )?;
     Ok(None)
 }

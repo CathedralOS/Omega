@@ -18,8 +18,8 @@ ensures embed(Weight) <= 10 * embed(Count)
         Chain::Empty { .. } -> done()
         Chain::Link { prior, prior_weight, item, rest, .. } -> step(prior, prior_weight, item, rest)
     }
-    state done() requires Count == 0 && Weight == 0 {}
-    state step(prior: u64, prior_weight: u64, item: u64, rest [erased]: Chain<prior, prior_weight>)
+    machine done() requires Count == 0 && Weight == 0 {}
+    machine step(prior: u64, prior_weight: u64, item: u64, rest [erased]: Chain<prior, prior_weight>)
     requires item <= 10 && embed(prior) + 1 == embed(Count)
              && embed(prior_weight) + embed(item) == embed(Weight)
     {
@@ -39,6 +39,6 @@ machine main() crashes Trap {
     let saved [erased]: Chain<1, 7> = preserve<1, 7>(single);
     let result: u64 = consume<1, 7>(saved);
     transition result == 73 { true -> done() _ -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

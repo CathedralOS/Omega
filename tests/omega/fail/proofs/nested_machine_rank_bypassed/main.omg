@@ -1,0 +1,25 @@
+// A ranked outer entry cannot justify a helper-only cycle.
+data Branch {
+    case End;
+    case Next(child: Branch);
+}
+
+machine descend(subject: Branch)
+terminates by subject;
+{
+    transition subject {
+        Branch::End -> done()
+        Branch::Next { child } -> forward(child)
+    }
+
+    machine forward(subject: Branch) {
+        transition subject {
+            Branch::End -> forward(subject)
+            Branch::Next { child } -> descend(child)
+        }
+    }
+
+    machine done() {}
+}
+
+machine main() {}

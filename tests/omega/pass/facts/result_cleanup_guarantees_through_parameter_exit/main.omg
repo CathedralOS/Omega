@@ -12,6 +12,6 @@ requires seed.ready { read(&make_token(&seed)) }
 machine main() crashes Trap {
     let answer: u64 = through_parameter(Seed { ready: true });
     transition answer == 7 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

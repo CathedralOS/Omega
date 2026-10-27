@@ -5,6 +5,7 @@ use super::{
     AARCH64_BYTE_LITERAL_ADDRESS_PAGE_OFFSET_FIELD_OFFSET, encode_aarch64_selected_form,
     validate_aarch64_selected_form_encoding,
 };
+use crate::test_support::rejects_every_bit_flip;
 use register_model::validate_physical_register_model;
 use selected_instructions::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect,
@@ -54,13 +55,5 @@ fn byte_literal_address_is_an_unresolved_page_pair_into_its_destination() {
         validate_aarch64_selected_form_encoding(&physical, kind, key, &views[1..], encoded.bytes())
             .is_err()
     );
-    for bit in 0..encoded.bytes().len() * 8 {
-        let mut changed = encoded.bytes().to_vec();
-        changed[bit / 8] ^= 1 << (bit % 8);
-        assert!(
-            validate_aarch64_selected_form_encoding(&physical, kind, key, &views[..1], &changed)
-                .is_err(),
-            "changed encoding bit {bit}"
-        );
-    }
+    rejects_every_bit_flip(&physical, kind, key, &views[..1], encoded.bytes());
 }

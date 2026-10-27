@@ -120,7 +120,86 @@ fn admit_memberships(
     Ok(bindings)
 }
 
+/// Compare the conjunction of domain theories without exporting either module's
+/// semantic coordinates. Each required edge keeps its own nominal owner and
+/// issuer alternatives; equal value predicates cannot replace a missing parent.
 fn same_domain(
+    left: &TerminalModule,
+    source: &StructuralDomainDeclaration,
+    right: &TerminalModule,
+    target: &StructuralDomainDeclaration,
+) -> bool {
+    if source
+        .required_domain_closure(&left.structural_domains)
+        .is_none()
+        || target
+            .required_domain_closure(&right.structural_domains)
+            .is_none()
+    {
+        return false;
+    }
+    let mut pending = vec![(source, target)];
+    let mut paired = Vec::new();
+    while let Some((source, target)) = pending.pop() {
+        if paired.iter().any(|(a, b)| {
+            (*a == source.id || *b == target.id) && (*a != source.id || *b != target.id)
+        }) {
+            return false;
+        }
+        if paired.contains(&(source.id, target.id)) {
+            continue;
+        }
+        if !same_domain_definition(left, source, right, target) {
+            return false;
+        }
+        paired.push((source.id, target.id));
+        let (Some(source_required), Some(target_required)) =
+            (&source.required_memberships, &target.required_memberships)
+        else {
+            return false;
+        };
+        if source_required.len() != target_required.len() {
+            return false;
+        }
+        for required in source_required {
+            let Some(source_parent) = required_domain(left, source, *required) else {
+                return false;
+            };
+            let mut matches = target_required.iter().filter_map(|required| {
+                required_domain(right, target, *required).filter(|parent| {
+                    NominalDeclarationIdentity::new(source_parent.identity).same_identity_as(
+                        &left.identities,
+                        &NominalDeclarationIdentity::new(parent.identity),
+                        &right.identities,
+                    )
+                })
+            });
+            let Some(target_parent) = matches.next() else {
+                return false;
+            };
+            if matches.next().is_some() {
+                return false;
+            }
+            pending.push((source_parent, target_parent));
+        }
+    }
+    true
+}
+
+fn required_domain<'a>(
+    module: &'a TerminalModule,
+    child: &StructuralDomainDeclaration,
+    domain: semantic_vocabulary::DomainSemanticId,
+) -> Option<&'a StructuralDomainDeclaration> {
+    let mut matches = module
+        .structural_domains
+        .iter()
+        .filter(|row| row.semantic_domain == domain && row.carrier == child.carrier);
+    let row = matches.next()?;
+    matches.next().is_none().then_some(row)
+}
+
+fn same_domain_definition(
     left: &TerminalModule,
     source: &StructuralDomainDeclaration,
     right: &TerminalModule,

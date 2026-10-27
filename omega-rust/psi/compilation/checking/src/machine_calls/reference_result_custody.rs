@@ -2420,7 +2420,8 @@ pub fn result_loans(
                 && !call.authored_expression.is_valid()
                 && call.statement_index == result.statement_index as usize
                 && call.call_ordinal == 0
-                && authored.target_symbol == call.target_symbol =>
+                && crate::call_target_entry_symbol(program, authored.target_symbol)
+                    == call.target_symbol =>
         {
             return Some(arena::HandleSpan::empty());
         }
@@ -2428,11 +2429,15 @@ pub fn result_loans(
     }
     if !call.authored_expression.is_valid()
         || call.statement_index != result.statement_index as usize
-        || program
-            .expression_table
-            .call_node(call.authored_expression)?
-            .target_symbol
-            != call.target_symbol
+        || crate::call_target_entry_symbol(
+            program,
+            crate::call_target_symbol(
+                program,
+                program
+                    .expression_table
+                    .call_node(call.authored_expression)?,
+            ),
+        ) != call.target_symbol
     {
         return None;
     }

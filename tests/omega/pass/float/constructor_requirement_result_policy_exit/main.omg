@@ -25,20 +25,20 @@ machine verify(observed: &Observation) crashes Trap {
         true -> infinity(observed)
         false -> bad()
     }
-    state infinity(observed: &Observation) {
+    machine infinity(observed: &Observation) {
         transition observed.infinite > observed.maximum {
             true -> nan(observed)
             false -> bad()
         }
     }
-    state nan(observed: &Observation) {
+    machine nan(observed: &Observation) {
         transition observed.unordered != observed.unordered {
             true -> done()
             false -> bad()
         }
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine main() crashes Trap {

@@ -2,6 +2,7 @@
 
 use super::{ExpressionHandle, Machine, State, TypeReferenceHandle, TypeReferenceNode};
 use language_semantics::declaration_selection::BuildOperation;
+use typed_trees::statement::{StatementNode, TransitionTargetNode};
 /// A standalone call may perform Unit work before later statements. The final
 /// expression still has the state's return contract. Call this for a direct
 /// statement root; recursive validators must also retain the current use
@@ -24,15 +25,34 @@ pub fn unit_statement_call_is_admitted(
         return true;
     }
     let statements = program.statement_table.statements(state.statement_nodes);
-    let mut occurrences = statements.iter().enumerate().filter_map(|(position, statement)| {
-        matches!(statement, typed_trees::statement::StatementNode::Expression(root) if *root == expression)
-            .then_some(position)
-    });
-    let Some(position) = occurrences.next() else {
+    let mut occurrences = statements
+        .iter()
+        .enumerate()
+        .filter_map(|(position, statement)| match statement {
+            StatementNode::Expression(root) if *root == expression => Some((position, false)),
+            StatementNode::Transition(transition)
+                if transition.targets().any(|target| {
+                    matches!(
+                        program.statement_table.transition_target(target),
+                        TransitionTargetNode::Value(root) if *root == expression
+                    )
+                }) =>
+            {
+                Some((position, true))
+            }
+            _ => None,
+        });
+    let Some((position, terminal_arm)) = occurrences.next() else {
         return false;
     };
     if occurrences.next().is_some() {
         return false;
+    }
+    if terminal_arm {
+        // The whole invocation completes this caller. Unit is legal here,
+        // never as an argument or operand nested inside the arm expression.
+        return unit_type(program, state.return_type)
+            && call_returns_unit(program, machine, expression);
     }
     if position + 1 == statements.len() {
         return unit_return_call_is_admitted(program, machine, state, expression);
@@ -46,28 +66,43 @@ pub fn unit_return_call_is_admitted(
     state: &State,
     expression: ExpressionHandle,
 ) -> bool {
-    if !unit_type(program, state.return_type)
-        || !program.expression_table.expression_is_valid(expression)
-        || !matches!(
-            program.statement_table.statements(state.statement_nodes).last(),
-            Some(typed_trees::statement::StatementNode::Expression(tail)) if *tail == expression
-        )
-    {
-        return false;
-    }
-    call_returns_unit(program, machine, expression)
+    matches!(program.statement_table.statements(state.statement_nodes).last(),
+        Some(typed_trees::statement::StatementNode::Expression(tail)) if *tail == expression)
+        && call_completes_unit_state(program, machine, state, expression)
 }
 
-pub(in crate::machine_calls::calls) fn call_returns_unit(
+/// Signature compatibility for a direct Unit completion. The caller supplies
+/// the actual statement/terminal position; nested operands never inherit it.
+pub(crate) fn call_completes_unit_state(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
+    state: &State,
     expression: ExpressionHandle,
 ) -> bool {
-    let Some(call) = program.expression_table.call_node(expression) else {
-        return false;
-    };
+    unit_type(program, state.return_type)
+        && program.expression_table.expression_is_valid(expression)
+        && call_returns_unit(program, machine, expression)
+}
+
+enum DeclaredCallResult<'program> {
+    IntrinsicUnit,
+    Signature(TypeReferenceHandle),
+    Source {
+        machine: &'program Machine,
+        state: &'program State,
+    },
+}
+
+/// One logical result query for statement, terminal and wrapper inference.
+/// Public requirement custody takes precedence over any private executable.
+fn declared_call_result<'program>(
+    program: &'program dyn crate::CheckingInput,
+    machine: &Machine,
+    expression: ExpressionHandle,
+) -> Option<DeclaredCallResult<'program>> {
+    let call = program.expression_table.call_node(expression)?;
     if admitted_build_declaration_call(program, expression) {
-        return true;
+        return Some(DeclaredCallResult::IntrinsicUnit);
     }
     if !call.target_symbol.is_valid()
         || call.quotient_operation.is_some()
@@ -75,44 +110,40 @@ pub(in crate::machine_calls::calls) fn call_returns_unit(
         || call.layout_query.is_some()
         || call.native_code_layout.is_some()
     {
-        return false;
+        return None;
     }
-    // Classify the logical result, not the private executable's source shape.
-    // A selected map and a boundary invocation share the same prepared public
-    // signature. Static/evidence operands still undergo ordinary call checking;
-    // having them does not turn a Unit statement into a value use.
     if let Some(signature) = program.requirement_call_signature(machine.symbol, call) {
-        return unit_type(program, signature.return_type);
+        return Some(DeclaredCallResult::Signature(signature.return_type));
     }
     if call.static_requirement_dispatch.is_some() {
-        return false;
+        return None;
     }
-    // State spans are disjoint append-only ranges, so a state symbol's
-    // holder is unique — no second-machine witness can exist.
-    if let Some(target) = program.machine_holding_state(call.target_symbol) {
-        let Some(target_state) = program
-            .machine_states(target)
-            .iter()
-            .find(|candidate| candidate.symbol == call.target_symbol)
-        else {
-            return false;
-        };
-        return unit_type(program, target_state.return_type)
-            && (target_state.return_type.is_valid()
-                || !has_inferred_value_return(program, target));
-    }
-    if let Some(operator) = program
-        .operators()
-        .iter()
-        .find(|operator| operator.symbol == call.target_symbol)
+    if let Some((machine, state)) = super::find_machine_head(program, call.target_symbol)
+        .or_else(|| super::find_state(program, call.target_symbol))
     {
-        return unit_type(program, operator.return_type);
+        return Some(DeclaredCallResult::Source { machine, state });
     }
-    program
-        .machine_parameter_signature(call.target_symbol)
-        .is_some_and(|(owner, signature)| {
-            owner.symbol == machine.symbol && unit_type(program, signature.return_type)
-        })
+    if let Some((owner, signature)) = program.machine_parameter_signature(call.target_symbol) {
+        return (owner.symbol == machine.symbol)
+            .then_some(DeclaredCallResult::Signature(signature.return_type));
+    }
+    super::call_target_return_type(program, call.target_symbol).map(DeclaredCallResult::Signature)
+}
+
+pub(in crate::machine_calls::calls) fn call_returns_unit(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    expression: ExpressionHandle,
+) -> bool {
+    match declared_call_result(program, machine, expression) {
+        Some(DeclaredCallResult::IntrinsicUnit) => true,
+        Some(DeclaredCallResult::Signature(reference)) => unit_type(program, reference),
+        Some(DeclaredCallResult::Source { machine, state }) => {
+            unit_type(program, state.return_type)
+                && (state.return_type.is_valid() || !has_inferred_value_return(program, machine))
+        }
+        None => false,
+    }
 }
 
 /// The checker establishes the Build namespace and explicit argument before validation;
@@ -198,26 +229,50 @@ pub fn machine_has_unit_result(program: &dyn crate::CheckingInput, machine: &Mac
         && !has_inferred_value_return(program, machine)
 }
 
+// A finite dependency walk follows logical results, not Value-node syntax.
+// A cycle introduces no value by itself; termination and successful completion
+// remain independent checking obligations, never inferred from this query.
 fn has_inferred_value_return(program: &dyn crate::CheckingInput, machine: &Machine) -> bool {
     use typed_trees::statement::TransitionTargetNode;
-    program.machine_states(machine).iter().any(|state| {
-        (state.return_type.is_valid() && !unit_type(program, state.return_type))
-            || program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .any(|statement| {
-                    let Some(transition) = statement.as_transition() else {
-                        return false;
+    let mut pending = vec![machine];
+    let mut visited = Vec::new();
+    while let Some(machine) = pending.pop() {
+        if visited.contains(&machine.symbol) {
+            continue;
+        }
+        visited.push(machine.symbol);
+        for state in program.machine_states(machine) {
+            if !unit_type(program, state.return_type) {
+                return true;
+            }
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                let Some(transition) = statement.as_transition() else {
+                    continue;
+                };
+                for target in transition.targets() {
+                    let TransitionTargetNode::Value(expression) =
+                        program.statement_table.transition_target(target)
+                    else {
+                        continue;
                     };
-                    transition.targets().any(|target| {
-                        matches!(
-                            program.statement_table.transition_target(target),
-                            TransitionTargetNode::Value(_)
-                        )
-                    })
-                })
-    })
+                    match declared_call_result(program, machine, *expression) {
+                        Some(DeclaredCallResult::IntrinsicUnit) => {}
+                        Some(DeclaredCallResult::Signature(reference))
+                            if unit_type(program, reference) => {}
+                        Some(DeclaredCallResult::Source { machine, state })
+                            if unit_type(program, state.return_type) =>
+                        {
+                            if !state.return_type.is_valid() {
+                                pending.push(machine);
+                            }
+                        }
+                        _ => return true,
+                    }
+                }
+            }
+        }
+    }
+    false
 }
 
 fn unit_type(program: &dyn crate::CheckingInput, mut reference: TypeReferenceHandle) -> bool {

@@ -10,33 +10,33 @@ machine nibble(character: u8) -> Optional<Nibble> {
         true -> Optional::Some { value: Nibble { value: 0, mask: 0 } }
         false -> decimal(character)
     }
-    state decimal(character: u8) -> Optional<Nibble> {
+    machine decimal(character: u8) -> Optional<Nibble> {
         transition character >= 48 && character <= 57 {
             true -> digit(character)
             false -> upper(character)
         }
     }
-    state digit(character: u8) -> Optional<Nibble>
+    machine digit(character: u8) -> Optional<Nibble>
     requires character >= 48 && character <= 57 {
         Optional::Some { value: Nibble { value: character - 48, mask: 15 } }
     }
-    state upper(character: u8) -> Optional<Nibble> {
+    machine upper(character: u8) -> Optional<Nibble> {
         transition character >= 65 && character <= 70 {
             true -> upper_digit(character)
             false -> lower(character)
         }
     }
-    state upper_digit(character: u8) -> Optional<Nibble>
+    machine upper_digit(character: u8) -> Optional<Nibble>
     requires character >= 65 && character <= 70 {
         Optional::Some { value: Nibble { value: character - 55, mask: 15 } }
     }
-    state lower(character: u8) -> Optional<Nibble> {
+    machine lower(character: u8) -> Optional<Nibble> {
         transition character >= 97 && character <= 102 {
             true -> lower_digit(character)
             false -> Optional::None
         }
     }
-    state lower_digit(character: u8) -> Optional<Nibble>
+    machine lower_digit(character: u8) -> Optional<Nibble>
     requires character >= 97 && character <= 102 {
         Optional::Some { value: Nibble { value: character - 87, mask: 15 } }
     }
@@ -48,7 +48,7 @@ machine pair(upper: u8, lower: u8) -> Optional<PatternByte> {
         Optional::Some { value } -> second(value, lower)
         Optional::None -> Optional::None
     }
-    state second(high: Nibble, lower: u8) -> Optional<PatternByte> {
+    machine second(high: Nibble, lower: u8) -> Optional<PatternByte> {
         let low: Optional<Nibble> = nibble(lower);
         transition low {
             Optional::Some { value } -> Optional::Some { value: PatternByte {
@@ -62,20 +62,20 @@ machine pair(upper: u8, lower: u8) -> Optional<PatternByte> {
 
 machine parse(input: &[u8], output: &mut [PatternByte]) -> Optional<u64> {
     transition { _ -> next(input, output, 0) }
-    state next(input: &[u8], output: &mut [PatternByte], count: u64) -> Optional<u64>
+    machine next(input: &[u8], output: &mut [PatternByte], count: u64) -> Optional<u64>
     requires count <= output.len {
         transition input.len == 0 {
             true -> Optional::Some { value: count }
             false -> available(input, output, count)
         }
     }
-    state available(input: &[u8], output: &mut [PatternByte], count: u64) -> Optional<u64> {
+    machine available(input: &[u8], output: &mut [PatternByte], count: u64) -> Optional<u64> {
         transition input.len >= 2 && count < output.len {
             true -> decode(input, output, count)
             false -> Optional::None
         }
     }
-    state decode(input: &[u8], output: &mut [PatternByte], count: u64) -> Optional<u64>
+    machine decode(input: &[u8], output: &mut [PatternByte], count: u64) -> Optional<u64>
     requires input.len >= 2 && count < output.len {
         let decoded: Optional<PatternByte> = pair(input[0], input[1]);
         transition decoded {
@@ -83,7 +83,7 @@ machine parse(input: &[u8], output: &mut [PatternByte]) -> Optional<u64> {
             Optional::None -> Optional::None
         }
     }
-    state save(input: &[u8], output: &mut [PatternByte], count: u64, value: PatternByte)
+    machine save(input: &[u8], output: &mut [PatternByte], count: u64, value: PatternByte)
         -> Optional<u64>
     requires input.len >= 2 && count < output.len {
         output[count] = value;
@@ -96,14 +96,14 @@ machine prefix(bytes: &[u8], pattern: &[PatternByte]) -> bool {
         true -> true
         false -> available(bytes, pattern)
     }
-    state available(bytes: &[u8], pattern: &[PatternByte]) -> bool
+    machine available(bytes: &[u8], pattern: &[PatternByte]) -> bool
     requires pattern.len > 0 {
         transition bytes.len > 0 {
             true -> compare(bytes, pattern)
             false -> false
         }
     }
-    state compare(bytes: &[u8], pattern: &[PatternByte]) -> bool
+    machine compare(bytes: &[u8], pattern: &[PatternByte]) -> bool
     requires bytes.len > 0 && pattern.len > 0 {
         transition (bytes[0] & pattern[0].mask) == pattern[0].value {
             true -> prefix(bytes[1..], pattern[1..])
@@ -115,21 +115,21 @@ machine prefix(bytes: &[u8], pattern: &[PatternByte]) -> bool {
 machine scan(bytes: &[u8], pattern: &[PatternByte], positions: &mut [u64]) -> u64
 requires pattern.len > 0 {
     transition { _ -> next(bytes, pattern, positions, 0, 0) }
-    state next(bytes: &[u8], pattern: &[PatternByte], positions: &mut [u64], start: u64, count: u64) -> u64
+    machine next(bytes: &[u8], pattern: &[PatternByte], positions: &mut [u64], start: u64, count: u64) -> u64
     requires start <= bytes.len && count <= positions.len {
         transition start < bytes.len && count < positions.len {
             true -> inspect(bytes, pattern, positions, start, count)
             false -> count
         }
     }
-    state inspect(bytes: &[u8], pattern: &[PatternByte], positions: &mut [u64], start: u64, count: u64) -> u64
+    machine inspect(bytes: &[u8], pattern: &[PatternByte], positions: &mut [u64], start: u64, count: u64) -> u64
     requires start < bytes.len && count < positions.len {
         transition prefix(bytes[start..], pattern) {
             true -> record(bytes, pattern, positions, start, count)
             false -> next(bytes, pattern, positions, start + 1, count)
         }
     }
-    state record(bytes: &[u8], pattern: &[PatternByte], positions: &mut [u64], start: u64, count: u64) -> u64
+    machine record(bytes: &[u8], pattern: &[PatternByte], positions: &mut [u64], start: u64, count: u64) -> u64
     requires start < bytes.len && count < positions.len {
         positions[count] = start;
         transition { _ -> next(bytes, pattern, positions, start + 1, count + 1) }
@@ -178,6 +178,6 @@ machine main() crashes Trap {
         true -> done()
         false -> wrong()
     }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

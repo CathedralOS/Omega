@@ -23,7 +23,7 @@ ensures result <= 50u64
 {
     let res: Resource = Resource { dropped: dropped, valid: 1u64, value: 30u64 };
     transition { _ -> step(res) }
-    state step(r: Resource) -> u64
+    machine step(r: Resource) -> u64
     requires r.valid == 1u64 && r.value <= 50u64
     {
         r.value
@@ -38,6 +38,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

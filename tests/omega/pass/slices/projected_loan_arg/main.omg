@@ -9,12 +9,12 @@ data Main { pair: Pair; }
 machine Main::main(main: &mut Main) {
     main.pair = Pair { a: 11 };
     transition { _ -> inspect(main, &main.pair) }
-    state inspect(main: &mut Main, view: &Pair) {
+    machine inspect(main: &mut Main, view: &Pair) {
         transition view.a == 11 {
             true -> done()
             _ -> bad()
         }
     }
-    state done() {}
-    state bad() {}
+    machine done() {}
+    machine bad() {}
 }

@@ -7,7 +7,7 @@ public machine analyze(records: &mut Beamforming) -> u64 {
     records.active = 0;
     records.best = 0;
     transition { _ -> decode(records, 0) }
-    state decode(records: &mut Beamforming, channel: u64) -> u64
+    machine decode(records: &mut Beamforming, channel: u64) -> u64
     requires channel < 3 {
         let base: u64 = channel * 12;
         transition base <= 24 {
@@ -15,7 +15,7 @@ public machine analyze(records: &mut Beamforming) -> u64 {
             false -> invalid(4)
         }
     }
-    state header(records: &mut Beamforming, channel: u64, base: u64) -> u64
+    machine header(records: &mut Beamforming, channel: u64, base: u64) -> u64
     requires channel < 3 requires base <= 24 {
         let enabled: u64 = records.raw[base];
         let timestamp: u64 = records.raw[base + 1];
@@ -26,7 +26,7 @@ public machine analyze(records: &mut Beamforming) -> u64 {
             false -> invalid(1)
         }
     }
-    state timing(records: &mut Beamforming, channel: u64, base: u64, enabled: u64,
+    machine timing(records: &mut Beamforming, channel: u64, base: u64, enabled: u64,
                  timestamp: u64, horizontal: u64, vertical: u64) -> u64
     requires channel < 3 requires base <= 24 {
         transition enabled == 0 || timestamp == 0 {
@@ -34,7 +34,7 @@ public machine analyze(records: &mut Beamforming) -> u64 {
             false -> invalid(2)
         }
     }
-    state save(records: &mut Beamforming, channel: u64, base: u64,
+    machine save(records: &mut Beamforming, channel: u64, base: u64,
                enabled: u64, horizontal: u64, vertical: u64) -> u64
     requires channel < 3 requires base <= 24 {
         records.enabled[channel] = enabled;
@@ -43,7 +43,7 @@ public machine analyze(records: &mut Beamforming) -> u64 {
         records.active = records.active + enabled as i64 in Wrapping;
         transition { _ -> sample(records, channel, base, 0) }
     }
-    state sample(records: &mut Beamforming, channel: u64, base: u64, position: u64) -> u64
+    machine sample(records: &mut Beamforming, channel: u64, base: u64, position: u64) -> u64
     requires channel < 3 requires base <= 24 requires position < 8 {
         let index: u64 = base + 4 + position;
         transition index < 36 {
@@ -51,7 +51,7 @@ public machine analyze(records: &mut Beamforming) -> u64 {
             false -> invalid(4)
         }
     }
-    state copy(records: &mut Beamforming, channel: u64, base: u64, position: u64, index: u64) -> u64
+    machine copy(records: &mut Beamforming, channel: u64, base: u64, position: u64, index: u64) -> u64
     requires channel < 3 requires base <= 24 requires position < 8 requires index < 36 {
         let amplitude: u64 = records.raw[index];
         transition amplitude <= 8 {
@@ -59,7 +59,7 @@ public machine analyze(records: &mut Beamforming) -> u64 {
             false -> invalid(1)
         }
     }
-    state amplitude(records: &mut Beamforming, channel: u64, base: u64,
+    machine amplitude(records: &mut Beamforming, channel: u64, base: u64,
                     position: u64, amplitude: u64) -> u64
     requires channel < 3 requires base <= 24 requires position < 8
     requires amplitude <= 8 {
@@ -70,24 +70,24 @@ public machine analyze(records: &mut Beamforming) -> u64 {
             false -> next_channel(records, channel + 1)
         }
     }
-    state next_channel(records: &mut Beamforming, next: u64) -> u64 {
+    machine next_channel(records: &mut Beamforming, next: u64) -> u64 {
         transition next < 3 {
             true -> decode(records, next)
             false -> ready(records)
         }
     }
-    state ready(records: &mut Beamforming) -> u64 {
+    machine ready(records: &mut Beamforming) -> u64 {
         transition records.active > 0 {
             true -> direction(records, 0)
             false -> invalid(3)
         }
     }
-    state direction(records: &mut Beamforming, direction: u64) -> u64
+    machine direction(records: &mut Beamforming, direction: u64) -> u64
     requires direction < 4 {
         records.energy[direction] = 0;
         transition { _ -> accumulate(records, direction, 0, 0, 0) }
     }
-    state accumulate(records: &mut Beamforming, direction: u64, position: u64,
+    machine accumulate(records: &mut Beamforming, direction: u64, position: u64,
                      channel: u64, total: i64 in Wrapping) -> u64
     requires direction < 4 requires position < 4 requires channel < 3 {
         let horizontal: u64 = records.horizontal[channel];
@@ -97,7 +97,7 @@ public machine analyze(records: &mut Beamforming) -> u64 {
             false -> delay(records, direction, position, channel, total, horizontal, vertical)
         }
     }
-    state delay(records: &mut Beamforming, direction: u64, position: u64, channel: u64,
+    machine delay(records: &mut Beamforming, direction: u64, position: u64, channel: u64,
                 total: i64 in Wrapping, horizontal: u64, vertical: u64) -> u64
     requires direction < 4 requires position < 4 requires channel < 3 {
         transition horizontal <= 2 && vertical <= 2 {
@@ -105,7 +105,7 @@ public machine analyze(records: &mut Beamforming) -> u64 {
             false -> invalid(4)
         }
     }
-    state select(records: &mut Beamforming, direction: u64, position: u64, channel: u64,
+    machine select(records: &mut Beamforming, direction: u64, position: u64, channel: u64,
                  total: i64 in Wrapping, horizontal: u64, vertical: u64) -> u64
     requires direction < 4 requires position < 4 requires channel < 3
     requires horizontal <= 2 requires vertical <= 2 {
@@ -121,13 +121,13 @@ public machine analyze(records: &mut Beamforming) -> u64 {
             false -> invalid(4)
         }
     }
-    state add(records: &mut Beamforming, direction: u64, position: u64, channel: u64,
+    machine add(records: &mut Beamforming, direction: u64, position: u64, channel: u64,
               total: i64 in Wrapping, index: u64) -> u64
     requires direction < 4 requires position < 4 requires channel < 3 requires index < 8 {
         let next: i64 in Wrapping = total + records.samples[channel][index];
         transition { _ -> next_sample(records, direction, position, channel + 1, next) }
     }
-    state next_sample(records: &mut Beamforming, direction: u64, position: u64,
+    machine next_sample(records: &mut Beamforming, direction: u64, position: u64,
                       channel: u64, total: i64 in Wrapping) -> u64
     requires direction < 4 requires position < 4 {
         transition channel < 3 {
@@ -135,7 +135,7 @@ public machine analyze(records: &mut Beamforming) -> u64 {
             false -> store(records, direction, position, total)
         }
     }
-    state store(records: &mut Beamforming, direction: u64, position: u64,
+    machine store(records: &mut Beamforming, direction: u64, position: u64,
                 total: i64 in Wrapping) -> u64
     requires direction < 4 requires position < 4 {
         records.waveform[direction][position] = total;
@@ -146,21 +146,21 @@ public machine analyze(records: &mut Beamforming) -> u64 {
             false -> score(records, direction)
         }
     }
-    state score(records: &mut Beamforming, direction: u64) -> u64 requires direction < 4 {
+    machine score(records: &mut Beamforming, direction: u64) -> u64 requires direction < 4 {
         transition records.energy[direction] > records.best {
             true -> maximum(records, direction)
             false -> advance(records, direction + 1)
         }
     }
-    state maximum(records: &mut Beamforming, direction: u64) -> u64 requires direction < 4 {
+    machine maximum(records: &mut Beamforming, direction: u64) -> u64 requires direction < 4 {
         records.best = records.energy[direction];
         transition { _ -> advance(records, direction + 1) }
     }
-    state advance(records: &mut Beamforming, next: u64) -> u64 {
+    machine advance(records: &mut Beamforming, next: u64) -> u64 {
         transition next < 4 {
             true -> direction(records, next)
             false -> invalid(0)
         }
     }
-    state invalid(status: u64) -> u64 { status }
+    machine invalid(status: u64) -> u64 { status }
 }

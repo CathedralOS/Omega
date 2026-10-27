@@ -45,35 +45,35 @@ machine Main::main(main: &mut Main) {
         _ -> take_call(make(&mut main.made, 5), 6, main)
     }
 
-    state take_field(pair: Pair, main: &mut Main) {
+    machine take_field(pair: Pair, main: &mut Main) {
         transition pair.a + pair.b == 30 {
             true -> owned(main)
             _ -> fail(main)
         }
     }
-    state owned(main: &mut Main) {
+    machine owned(main: &mut Main) {
         transition { _ -> take_owned(settle(3), main) }
     }
-    state take_owned(o: Owned, main: &mut Main) {
+    machine take_owned(o: Owned, main: &mut Main) {
         transition o.value == 3 {
             true -> view(main)
             _ -> fail(main)
         }
     }
-    state view(main: &mut Main) {
+    machine view(main: &mut Main) {
         transition { _ -> take_view(&main.pair, main) }
     }
-    state take_view(view: &Pair, main: &mut Main) {
+    machine take_view(view: &Pair, main: &mut Main) {
         transition view.b == 20 && main.made == 0 {
             true -> pass(main)
             _ -> fail(main)
         }
     }
-    state take_call(pair: Pair, extra: i32 in Wrapping, main: &mut Main) {
+    machine take_call(pair: Pair, extra: i32 in Wrapping, main: &mut Main) {
         main.hits = -7;
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

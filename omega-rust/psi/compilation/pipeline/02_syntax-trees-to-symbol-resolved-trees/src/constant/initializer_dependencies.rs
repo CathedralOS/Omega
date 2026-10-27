@@ -7,6 +7,7 @@
 
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
+    ResolvedAuthoredCallBinding,
 };
 use source::SourceSpan;
 use symbol_resolved_trees::{
@@ -176,7 +177,7 @@ pub(crate) fn expression_at_source(
 /// not implement the named trait supplies no body; checking still rejects it.
 enum NamedImplementationDependency {
     NotSelected,
-    Realization(SymbolHandle),
+    Realization(ResolvedAuthoredCallBinding),
     RequirementOnly(SymbolHandle),
 }
 
@@ -257,7 +258,17 @@ fn named_implementation_dependency(
     }
     let machine =
         crate::symbols::owned_conformance_realization(program, row).map_err(str::to_owned)?;
-    realization_entry(program, machine).map(NamedImplementationDependency::Realization)
+    let entry = realization_entry(program, machine)?;
+    Ok(NamedImplementationDependency::Realization(
+        ResolvedAuthoredCallBinding {
+            selected: entry,
+            original: if requirement_trait.is_some() {
+                target_symbol
+            } else {
+                entry
+            },
+        },
+    ))
 }
 
 fn trait_supplies_requirement(
@@ -337,17 +348,17 @@ pub(crate) fn bind_named_implementation_const_calls(
             .expressions
             .name_path_node(call.receiver)
             .map_or_else(SymbolHandle::invalid, |path| path.symbol);
-        let NamedImplementationDependency::Realization(mut entry) =
-            named_implementation_dependency(
-                program,
-                receiver_symbol,
-                call.target_symbol,
-                call.target.as_str(),
-                &call.machine_arguments,
-            )?
+        let NamedImplementationDependency::Realization(binding) = named_implementation_dependency(
+            program,
+            receiver_symbol,
+            call.target_symbol,
+            call.target.as_str(),
+            &call.machine_arguments,
+        )?
         else {
             continue;
         };
+        let mut entry = binding.selected;
         let span = call.target.source_span();
         if let Some((_, existing)) = bound_entries.iter().find(|(bound, _)| *bound == span) {
             entry = *existing;
@@ -910,7 +921,20 @@ impl<'program> Collector<'program> {
                 self.dependencies.pending_target_observation = true;
                 self.record_logical_call(requirement, target_span)
             }
-            NamedImplementationDependency::Realization(entry) => self.call(entry, target_span),
+            NamedImplementationDependency::Realization(binding) => {
+                if binding.original == binding.selected {
+                    return self.call(binding.original, target_span);
+                }
+                // The requirement is the authored selection. Its supplying
+                // row contributes a separate executable body, never a new
+                // source declaration at the same call occurrence.
+                self.record_logical_call(binding.original, target_span)?;
+                if self.follow_dependencies {
+                    self.machines
+                        .push(self.program.symbols.get(binding.selected).parent);
+                }
+                Ok(())
+            }
             NamedImplementationDependency::NotSelected => self.call(target_symbol, target_span),
         }
     }

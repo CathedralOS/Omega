@@ -3,6 +3,7 @@
 //! available to requires, while normal guarantees cannot reread them as old
 //! values. Integer leaves keep their contextual landing and operator owner.
 mod logical_matches;
+mod predicate_conditions;
 
 use crate::values::operator_is_builtin;
 use crate::values::scalar::boolean_lowering::construct_integer_comparison;
@@ -872,6 +873,9 @@ impl ContractPredicates<'_, '_> {
                 self.numeric_subject(left, depth + 1)?.0,
                 self.numeric_subject(right, depth + 1)?.0,
             );
+        }
+        if let Some(predicate) = self.exact_predicate_condition(expression, depth + 1) {
+            return Some(predicate);
         }
         let rows = validation::exact_predicate_intervals(self.program, self.owner, expression)?;
         let remaining = self.remaining.get().checked_sub(rows.len())?;

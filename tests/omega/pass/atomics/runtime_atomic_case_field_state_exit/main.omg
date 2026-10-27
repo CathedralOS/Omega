@@ -15,7 +15,7 @@ requires choice in Choice::Cell {
     let first: u32 in Wrapping = increment(choice);
     let second: u32 in Wrapping = increment(choice);
     transition { _ -> finish(choice) }
-    state finish(choice: &Choice) -> u32 in Wrapping
+    machine finish(choice: &Choice) -> u32 in Wrapping
     requires choice in Choice::Cell {
         let third: u32 in Wrapping = increment(choice);
         let resident_atomic_observed: u32 = choice.counter.load(NoOrdering);
@@ -30,6 +30,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

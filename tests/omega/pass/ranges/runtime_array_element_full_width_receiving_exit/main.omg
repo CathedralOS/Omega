@@ -37,7 +37,7 @@ machine borrowed(values: &[u64; 2]) -> u64 {
 }
 machine relay(value: u64) -> u64 {
     transition { _ -> finish([value, 9223372036854775808u64]) }
-    state finish(values: [u64; 2]) -> u64 {
+    machine finish(values: [u64; 2]) -> u64 {
         values[1]
     }
 }
@@ -74,6 +74,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

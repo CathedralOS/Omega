@@ -39,7 +39,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     // Loop head: walk down until every element has been added.
-    state scan(main: &mut Main) {
+    machine scan(main: &mut Main) {
         transition main.i >= 0 {
             true -> add(main)
             _ -> done(main)
@@ -47,7 +47,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     // Add the current element, then step the index down by one.
-    state add(main: &mut Main) {
+    machine add(main: &mut Main) {
         main.acc = main.acc + main.nums[main.i];
         main.i = main.i - 1;
         transition {
@@ -55,7 +55,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state done(main: &mut Main) {
+    machine done(main: &mut Main) {
         Console::write_line("PASS: reverse sum computed, 75 for this data (the exit code)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

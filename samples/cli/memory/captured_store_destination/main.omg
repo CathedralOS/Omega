@@ -22,11 +22,11 @@ machine write_captured_bytes<'storage>(home: ByteBundle<'storage>, replacement: 
         true -> ready(home, replacement)
         false -> done()
     }
-    state ready(mut home: ByteBundle<'storage>, replacement: &'storage mut [u8])
+    machine ready(mut home: ByteBundle<'storage>, replacement: &'storage mut [u8])
     requires home.raw.len > 0 {
         home.raw[0] = replace_byte_carrier(&write home, replacement);
     }
-    state done() {}
+    machine done() {}
 }
 
 machine captured_byte_window() crashes Trap {
@@ -42,8 +42,8 @@ machine captured_byte_window() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine require_written(value: u64) requires value == 65 {}
@@ -67,8 +67,8 @@ ensures result == 65 {
         true -> left()
         false -> right()
     }
-    state left() -> u64 { 65 }
-    state right() -> u64 { 65 }
+    machine left() -> u64 { 65 }
+    machine right() -> u64 { 65 }
 }
 
 machine replace_view_carrier<'storage>(home: &write ViewBundle<'storage>, replacement: &'storage mut [u64]) -> u64
@@ -82,11 +82,11 @@ machine write_captured_view<'storage>(home: ViewBundle<'storage>, replacement: &
         true -> ready(home, replacement)
         false -> done()
     }
-    state ready(mut home: ViewBundle<'storage>, replacement: &'storage mut [u64])
+    machine ready(mut home: ViewBundle<'storage>, replacement: &'storage mut [u64])
     requires home.raw.len > 0 {
         home.raw[0] = replace_view_carrier(&write home, replacement);
     }
-    state done() {}
+    machine done() {}
 }
 
 machine captured_view() crashes Trap {
@@ -98,8 +98,8 @@ machine captured_view() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine captured_empty_view() crashes Trap {
@@ -111,8 +111,8 @@ machine captured_empty_view() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine captured_field() crashes Trap {
@@ -124,8 +124,8 @@ machine captured_field() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine captured_dynamic_index() crashes Trap {
@@ -138,8 +138,8 @@ machine captured_dynamic_index() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine captured_branch(choose: bool) crashes Trap {
@@ -151,8 +151,8 @@ machine captured_branch(choose: bool) crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 
 machine main() crashes Trap {
@@ -172,6 +172,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

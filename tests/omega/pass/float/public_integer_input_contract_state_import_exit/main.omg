@@ -11,10 +11,10 @@ ensures
         Choice::First -> first(value)
         Choice::Second -> second(value)
     }
-    state first(value: i32) -> f32 {
+    machine first(value: i32) -> f32 {
         transition { _ -> (F32::from_i32(value)) }
     }
-    state second(value: i32) -> f32 {
+    machine second(value: i32) -> f32 {
         transition { _ -> (F32::from_i32(value)) }
     }
 }
@@ -26,6 +26,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

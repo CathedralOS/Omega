@@ -30,8 +30,8 @@ pub struct ServiceAuditRegistration {
 pub struct BuildConfig {
     pub settings: EvaluatedBuildSettings,
     /// Exact subjects accepted by `Build::accept_boundary<Subject>(builder)`.
-    /// Grant declarations are harvested from classified calls in the root
-    /// build; evaluation checks custody of their explicit Build argument.
+    /// Completed operations retain custody of the original Build argument;
+    /// Product admission resolves their exact authored subjects after the join.
     pub grants: Vec<trust_model::AuthoredRootGrant>,
     /// Executed provider-type choices for boundary slots, rejoined to the
     /// authoritative build machine. Provider settlement validates them against

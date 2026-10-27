@@ -6,10 +6,10 @@ public data Raw { values: [f64; 113]; count: u64; }
 // digit caps bound execution even on an unterminated hostile stream.
 public machine read(raw: &mut Raw) -> bool reaches Console invokes Console; blocks; crashes Trap {
     transition { _ -> next(raw, 0, 0.0, 1.0, false, false, false, 0, 0) }
-    state next(raw: &mut Raw, bytes: u64, accumulator: f64, scale: f64, negative: bool, active: bool, fraction: bool, digits: u64, decimals: u64) -> bool {
+    machine next(raw: &mut Raw, bytes: u64, accumulator: f64, scale: f64, negative: bool, active: bool, fraction: bool, digits: u64, decimals: u64) -> bool {
         transition bytes < 2048 { true -> receive(raw, bytes, accumulator, scale, negative, active, fraction, digits, decimals) false -> bad() }
     }
-    state receive(raw: &mut Raw, bytes: u64, accumulator: f64, scale: f64, negative: bool, active: bool, fraction: bool, digits: u64, decimals: u64) -> bool {
+    machine receive(raw: &mut Raw, bytes: u64, accumulator: f64, scale: f64, negative: bool, active: bool, fraction: bool, digits: u64, decimals: u64) -> bool {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> finish(raw, accumulator, scale, negative, active, digits)
@@ -17,7 +17,7 @@ public machine read(raw: &mut Raw) -> bool reaches Console invokes Console; bloc
             _ -> bad()
         }
     }
-    state classify(raw: &mut Raw, bytes: u64, accumulator: f64, scale: f64, negative: bool, active: bool, fraction: bool, digits: u64, decimals: u64, character: i32) -> bool {
+    machine classify(raw: &mut Raw, bytes: u64, accumulator: f64, scale: f64, negative: bool, active: bool, fraction: bool, digits: u64, decimals: u64, character: i32) -> bool {
         transition {
             character >= 48 && character <= 57 && digits < 12 && decimals < 8 -> digit(raw, bytes, accumulator, scale, negative, fraction, digits, decimals, character)
             character == 45 && !active -> next(raw, bytes + 1, accumulator, scale, true, true, fraction, digits, decimals)
@@ -26,43 +26,43 @@ public machine read(raw: &mut Raw) -> bool reaches Console invokes Console; bloc
             _ -> bad()
         }
     }
-    state digit(raw: &mut Raw, bytes: u64, accumulator: f64, scale: f64, negative: bool, fraction: bool, digits: u64, decimals: u64, character: i32) -> bool {
+    machine digit(raw: &mut Raw, bytes: u64, accumulator: f64, scale: f64, negative: bool, fraction: bool, digits: u64, decimals: u64, character: i32) -> bool {
         let next_accumulator: f64 = accumulator * 10.0 + F64::from_i32(character) - 48.0;
         transition fraction {
             true -> next(raw, bytes + 1, next_accumulator, scale * 10.0, negative, true, true, digits + 1, decimals + 1)
             false -> next(raw, bytes + 1, next_accumulator, scale, negative, true, false, digits + 1, decimals)
         }
     }
-    state separate(raw: &mut Raw, bytes: u64, accumulator: f64, scale: f64, negative: bool, active: bool, digits: u64) -> bool {
+    machine separate(raw: &mut Raw, bytes: u64, accumulator: f64, scale: f64, negative: bool, active: bool, digits: u64) -> bool {
         transition active { true -> capacity(raw, bytes, accumulator, scale, negative, digits, false) false -> next(raw, bytes + 1, 0.0, 1.0, false, false, false, 0, 0) }
     }
-    state finish(raw: &mut Raw, accumulator: f64, scale: f64, negative: bool, active: bool, digits: u64) -> bool {
+    machine finish(raw: &mut Raw, accumulator: f64, scale: f64, negative: bool, active: bool, digits: u64) -> bool {
         transition active { true -> capacity(raw, 0, accumulator, scale, negative, digits, true) false -> good() }
     }
-    state capacity(raw: &mut Raw, bytes: u64, accumulator: f64, scale: f64, negative: bool, digits: u64, finished: bool) -> bool {
+    machine capacity(raw: &mut Raw, bytes: u64, accumulator: f64, scale: f64, negative: bool, digits: u64, finished: bool) -> bool {
         transition raw.count < 113 && digits > 0 { true -> store(raw, bytes, accumulator, scale, negative, finished) false -> bad() }
     }
-    state store(raw: &mut Raw, bytes: u64, accumulator: f64, scale: f64, negative: bool, finished: bool) -> bool requires raw.count < 113 {
+    machine store(raw: &mut Raw, bytes: u64, accumulator: f64, scale: f64, negative: bool, finished: bool) -> bool requires raw.count < 113 {
         let signed: f64 = sign(accumulator / scale, negative);
         raw.values[raw.count] = signed;
         raw.count = raw.count + 1;
         transition finished { true -> good() false -> next(raw, bytes + 1, 0.0, 1.0, false, false, false, 0, 0) }
     }
-    state good() -> bool { true }
-    state bad() -> bool { false }
+    machine good() -> bool { true }
+    machine bad() -> bool { false }
 }
-machine sign(accumulator: f64, negative: bool) -> f64 { transition negative { true -> minus(accumulator) false -> plus(accumulator) } state minus(accumulator: f64) -> f64 { 0.0 - accumulator } state plus(accumulator: f64) -> f64 { accumulator } }
+machine sign(accumulator: f64, negative: bool) -> f64 { transition negative { true -> minus(accumulator) false -> plus(accumulator) } machine minus(accumulator: f64) -> f64 { 0.0 - accumulator } machine plus(accumulator: f64) -> f64 { accumulator } }
 public machine decode(raw: &Raw, problem: &mut Problem) -> bool {
     let count: u64 in Saturating = U64::from_f64(raw.values[0]);
     transition count >= 3 && count <= 16 && F64::from_u64(count as u64) == raw.values[0] && raw.count == 1 + (count as u64) * 7 {
         true -> start(raw, problem, count as u64)
         false -> bad()
     }
-    state start(raw: &Raw, problem: &mut Problem, count: u64) -> bool { problem.count = count; transition { _ -> scan(raw, problem, 0) } }
-    state scan(raw: &Raw, problem: &mut Problem, index: u64) -> bool {
+    machine start(raw: &Raw, problem: &mut Problem, count: u64) -> bool { problem.count = count; transition { _ -> scan(raw, problem, 0) } }
+    machine scan(raw: &Raw, problem: &mut Problem, index: u64) -> bool {
         transition index < problem.count && index < 16 { true -> row(raw, problem, index) false -> good() }
     }
-    state row(raw: &Raw, problem: &mut Problem, index: u64) -> bool requires index < 16 {
+    machine row(raw: &Raw, problem: &mut Problem, index: u64) -> bool requires index < 16 {
         let offset: u64 = 1 + index * 7;
         transition raw.values[offset + 6] > 0.0 && raw.values[offset + 6] <= 1000.0
             && bounded(raw.values[offset]) && bounded(raw.values[offset + 1]) && bounded(raw.values[offset + 2])
@@ -71,12 +71,12 @@ public machine decode(raw: &Raw, problem: &mut Problem) -> bool {
             false -> bad()
         }
     }
-    state save(raw: &Raw, problem: &mut Problem, index: u64, offset: u64) -> bool requires index < 16, offset <= 106 {
+    machine save(raw: &Raw, problem: &mut Problem, index: u64, offset: u64) -> bool requires index < 16, offset <= 106 {
         problem.source[index * 3] = raw.values[offset]; problem.source[index * 3 + 1] = raw.values[offset + 1]; problem.source[index * 3 + 2] = raw.values[offset + 2];
         problem.target[index * 3] = raw.values[offset + 3]; problem.target[index * 3 + 1] = raw.values[offset + 4]; problem.target[index * 3 + 2] = raw.values[offset + 5];
         problem.weights[index] = raw.values[offset + 6];
         transition { _ -> scan(raw, problem, index + 1) }
     }
-    state good() -> bool { true } state bad() -> bool { false }
+    machine good() -> bool { true } machine bad() -> bool { false }
 }
 machine bounded(accumulator: f64) -> bool { F64::is_finite(accumulator) && accumulator >= -1000.0 && accumulator <= 1000.0 }

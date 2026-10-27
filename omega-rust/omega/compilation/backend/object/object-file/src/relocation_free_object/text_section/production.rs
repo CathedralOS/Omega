@@ -242,7 +242,7 @@ mod tests {
                 caller: machine,
                 block: selected_instructions::SelectedBlockId(0),
                 instruction: selected_instructions::SelectedInstructionId(0),
-                invocation_site: semantic_vocabulary::BoundaryInvocationSite::Operation(
+                invocation_site: semantic_vocabulary::InvocationSite::Operation(
                     semantic_vocabulary::OperationId::new(11).unwrap(),
                 ),
                 boundary,
@@ -266,7 +266,7 @@ mod tests {
                 caller: machine,
                 block: selected_instructions::SelectedBlockId(0),
                 instruction: selected_instructions::SelectedInstructionId(1),
-                invocation_site: semantic_vocabulary::BoundaryInvocationSite::Operation(
+                invocation_site: semantic_vocabulary::InvocationSite::Operation(
                     semantic_vocabulary::OperationId::new(12).unwrap(),
                 ),
                 boundary,

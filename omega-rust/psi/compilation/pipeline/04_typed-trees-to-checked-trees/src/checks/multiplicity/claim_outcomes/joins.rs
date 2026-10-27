@@ -305,9 +305,7 @@ impl CallJoinPreparation {
             event.provenance = binding.provenance;
         }
         // Failed lookups matter too: a new receipt must trigger preparation.
-        if !self.dependencies.contains(&receiver) {
-            self.dependencies.push(receiver);
-        }
+        crate::collections::push_unique(&mut self.dependencies, receiver);
     }
 }
 
@@ -630,6 +628,10 @@ fn bound_sources_at_call(
         .control
         .state(machine, state.symbol)
         .ok_or("caller argument binding has no owning state flow")?;
+    let entered_target = validation::call_target_entry_symbol(
+        program,
+        validation::call_target_symbol(program, call),
+    );
     let mut matching = facts
         .flow
         .control
@@ -639,7 +641,7 @@ fn bound_sources_at_call(
         .filter(|row| {
             row.statement_index == statement
                 && row.call_ordinal == ordinal
-                && row.target_symbol == call.target_symbol
+                && row.target_symbol == entered_target
                 && row.authored_expression == expression
         });
     let captured = matching
@@ -686,7 +688,7 @@ fn bound_sources_at_call(
         source: PermissionEventSource::Call {
             statement_index: statement,
             call_ordinal: ordinal,
-            target_symbol: call.target_symbol,
+            target_symbol: captured.target_symbol,
         },
     };
     let mut conditions = crate::flow::SelectionConditions::new();
@@ -730,9 +732,7 @@ fn bound_sources_at_call(
                 identity,
             }],
         };
-        if !sources.contains(&bound) {
-            sources.push(bound);
-        }
+        crate::collections::push_unique(&mut sources, bound);
     }
     if sources.is_empty() {
         Err("completed caller argument omits the exact returned input-source path")
@@ -853,7 +853,9 @@ fn expand_joined_frontier(
     else {
         return None;
     };
-    if call.target_symbol != target_symbol {
+    if validation::call_target_entry_symbol(program, validation::call_target_symbol(program, call))
+        != target_symbol
+    {
         return None;
     }
     let target = validation::call_target_state(program, target_symbol)?;
@@ -867,27 +869,23 @@ fn expand_joined_frontier(
             } => Some(claim_identity),
             _ => None,
         })?;
-    let origins = events
-        .iter()
-        .filter(|event| {
-            event.kind == PermissionEventKind::Establish
-                && event.state_symbol == owner
-                && event.claim_identity == joined_identity
-        })
-        .filter_map(|event| {
-            let (at, expression, path) =
-                super::receiving_value(program, &ownership.segments, event)?;
-            (at == statement && expression == call_expression).then_some(path)
-        })
-        .fold(Vec::new(), |mut origins, path| {
-            // A completed child can establish the same claim at successive
-            // receiving homes. Those rows still name one call occurrence and
-            // result path; distinct result paths remain ambiguous.
-            if !origins.contains(&path) {
-                origins.push(path);
-            }
-            origins
-        });
+    // A completed child can establish the same claim at successive
+    // receiving homes. Those rows still name one call occurrence and
+    // result path; distinct result paths remain ambiguous.
+    let origins = crate::collections::unique_in_order(
+        events
+            .iter()
+            .filter(|event| {
+                event.kind == PermissionEventKind::Establish
+                    && event.state_symbol == owner
+                    && event.claim_identity == joined_identity
+            })
+            .filter_map(|event| {
+                let (at, expression, path) =
+                    super::receiving_value(program, &ownership.segments, event)?;
+                (at == statement && expression == call_expression).then_some(path)
+            }),
+    );
     let [requested] = origins.as_slice() else {
         return None;
     };
@@ -1474,7 +1472,7 @@ fn derive_receipts(
             state: state.symbol,
             statement: statement_index,
             ordinal,
-            target: call.target_symbol,
+            target: target.symbol,
             expression,
             root: event.root,
             path: path.to_vec(),
@@ -1551,9 +1549,7 @@ pub(crate) fn publish_call_claim_joins(
                         provenance,
                         receipt.identity,
                     );
-                    if !rewrites.contains(&rewrite) {
-                        rewrites.push(rewrite);
-                    }
+                    crate::collections::push_unique(&mut rewrites, rewrite);
                 }
             }
         }

@@ -12,7 +12,11 @@ use crate::static_applications::{
     StaticMachineLifetimeBinding,
 };
 use arena::{Arena, Handle, HandleSpan};
-use language_semantics::declaration_selection::BuildSelectionRequest;
+/// Build selections retain the complete source requirement application until
+/// Terminal production replaces it with exact emitted slots.
+pub type BuildSelectionRequest = language_semantics::declaration_selection::BuildSelectionRequest<
+    crate::types::TypeReferenceHandle,
+>;
 use numerics::literals::IntegerLiteral;
 use source::SourceSpan;
 use std::ops::Deref;
@@ -1578,6 +1582,8 @@ pub struct TableMemberExpression {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallExpression {
+    pub authored_call_binding:
+        Option<language_semantics::declaration_selection::ResolvedAuthoredCallBinding>,
     pub exact_coercion_target: crate::types::TypeReferenceHandle,
     pub requirement_application: crate::types::TypeReferenceHandle,
     pub receiver: Option<Box<Expression>>,
@@ -1590,6 +1596,9 @@ pub struct CallExpression {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableCallExpression {
+    /// Original declaration correspondence certified by source resolution.
+    pub authored_call_binding:
+        Option<language_semantics::declaration_selection::ResolvedAuthoredCallBinding>,
     /// Source-issued selection carried by an ordinary Build boundary call.
     /// Zero denotes a call without designated product operands. The payload
     /// belongs to this expression table, not to an interpreter side channel.

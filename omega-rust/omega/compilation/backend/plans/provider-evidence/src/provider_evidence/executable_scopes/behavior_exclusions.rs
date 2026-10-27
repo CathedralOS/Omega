@@ -47,7 +47,9 @@ mod attribution;
 
 use crate::TerminalAuthorityClass;
 use diagnostics::Diagnostic;
-use semantic_vocabulary::{BlockId, BoundaryMachineId, MachineId, OperationId, ServiceId};
+use semantic_vocabulary::{
+    BlockId, BoundaryMachineId, InvocationSite, MachineId, OperationId, ServiceId,
+};
 use std::collections::VecDeque;
 use terminal_psi::{
     CrashCause, OperationKind, ProviderCandidateConformance, TargetMachineCallable,
@@ -209,7 +211,7 @@ pub enum ProhibitedSite {
     },
     BoundaryCall {
         block: BlockId,
-        operation: OperationId,
+        site: InvocationSite,
         boundary: BoundaryMachineId,
     },
     CheckedInstruction {
@@ -478,166 +480,32 @@ fn inspect_machine<'module>(
     for block in &machine.blocks {
         for operation in &block.operations {
             if let Some(callee) = operation.kind.direct_callee() {
-                match module.machine(callee) {
-                    Some(target) => pending.push_back(target),
-                    None => report.gaps.push(EvidenceGap {
-                        entry,
-                        machine: machine.id,
-                        block: Some(block.id),
-                        operation: Some(operation.id),
-                        kind: EvidenceGapKind::UnknownCallee(callee),
-                    }),
-                }
+                inspect_callee(
+                    module,
+                    entry,
+                    machine.id,
+                    block.id,
+                    InvocationSite::Operation(operation.id),
+                    callee,
+                    report,
+                    pending,
+                );
             }
             match &operation.kind {
                 OperationKind::BoundaryCall { boundary, .. } => {
-                    // A generated head is the portable checking contract, not
-                    // this deployment's executable behavior. Resolve before
-                    // accounting ordinary opaque service/provider contracts.
-                    let called_boundary = *boundary;
-                    let selected_member = terminal_installation::resolve_target_machine_member(
+                    inspect_boundary(
                         module,
-                        TargetMachineCallable::Boundary(called_boundary),
-                        deployment_target,
-                    );
-                    let family_gap = |reason| EvidenceGap {
                         entry,
-                        machine: machine.id,
-                        block: Some(block.id),
-                        operation: Some(operation.id),
-                        kind: EvidenceGapKind::TargetFamilySelection {
-                            head: called_boundary,
-                            target: deployment_target.to_owned(),
-                            reason,
-                        },
-                    };
-                    let boundary = match selected_member {
-                        Ok(Some(member)) => match (member.callable, member.supply) {
-                            (
-                                TargetMachineCallable::Machine(callee),
-                                TargetMachineSupply::CheckedBody | TargetMachineSupply::Boundary,
-                            ) => {
-                                match module.machine(callee) {
-                                    Some(target) => pending.push_back(target),
-                                    None => report.gaps.push(EvidenceGap {
-                                        entry,
-                                        machine: machine.id,
-                                        block: Some(block.id),
-                                        operation: Some(operation.id),
-                                        kind: EvidenceGapKind::UnknownCallee(callee),
-                                    }),
-                                }
-                                continue;
-                            }
-                            (TargetMachineCallable::Boundary(member), supply)
-                                if supply != TargetMachineSupply::CheckedBody =>
-                            {
-                                member
-                            }
-                            _ => {
-                                report.gaps.push(family_gap(format!(
-                                    "selected callable {:?} has unsupported supply {:?}",
-                                    member.callable, member.supply,
-                                )));
-                                continue;
-                            }
-                        },
-                        Ok(None) => called_boundary,
-                        Err(error) => {
-                            report.gaps.push(family_gap(error.to_string()));
-                            continue;
-                        }
-                    };
-                    let Some(declaration) =
-                        terminal_psi::find_boundary_machine(&module.boundary_machines, boundary)
-                    else {
-                        report.gaps.push(EvidenceGap {
-                            entry,
-                            machine: machine.id,
-                            block: Some(block.id),
-                            operation: Some(operation.id),
-                            kind: EvidenceGapKind::UnknownBoundary(boundary),
-                        });
-                        continue;
-                    };
-                    let site = ProhibitedSite::BoundaryCall {
-                        block: block.id,
-                        operation: operation.id,
-                        boundary,
-                    };
-                    if declaration.kind == terminal_psi::BoundaryRequirementKind::Trait
-                        && declaration.owning_service.is_none()
-                    {
-                        report.gaps.push(EvidenceGap {
-                            entry,
-                            machine: machine.id,
-                            block: Some(block.id),
-                            operation: Some(operation.id),
-                            kind: EvidenceGapKind::UnknownBoundaryService(boundary),
-                        });
-                    }
-                    // The declaration's fixed reach and the service that owns
-                    // the requirement (with its parents) are both invoked
-                    // here, whatever the selected provider does.
-                    let mut invoked = declaration.fixed_service_reach.clone();
-                    for service in invoked_services(module, declaration.owning_service) {
-                        if !invoked.contains(&service) {
-                            invoked.push(service);
-                        }
-                    }
-                    for service in invoked {
-                        if exclusions.excludes_service(service) {
-                            report.prohibited.push(ProhibitedBehavior {
-                                exclusion: BehaviorExclusion::Service(service),
-                                entry,
-                                machine: machine.id,
-                                site: site.clone(),
-                            });
-                        }
-                    }
-                    let candidates: Vec<&ProviderCandidateConformance> = module
-                        .provider_candidates
-                        .iter()
-                        .filter(|candidate| candidate.boundary == boundary)
-                        .collect();
-                    let coverage = boundary_realization_coverage(
-                        module,
-                        boundary,
-                        &candidates,
+                        machine.id,
+                        block.id,
+                        InvocationSite::Operation(operation.id),
+                        *boundary,
+                        exclusions,
                         selected_provider_plans,
                         deployment_target,
+                        report,
+                        pending,
                     );
-                    let (realizations, needs_contract) = match coverage {
-                        Ok(coverage) => coverage,
-                        Err(reason) => {
-                            report.gaps.push(family_gap(reason));
-                            continue;
-                        }
-                    };
-                    if needs_contract {
-                        for bucket in &declaration.crash_routes {
-                            if exclusions.excludes_crash_cause(bucket.cause) {
-                                report.prohibited.push(ProhibitedBehavior {
-                                    exclusion: BehaviorExclusion::CrashCause(bucket.cause),
-                                    entry,
-                                    machine: machine.id,
-                                    site: site.clone(),
-                                });
-                            }
-                        }
-                    }
-                    for realization in realizations {
-                        match module.machine(realization) {
-                            Some(target) => pending.push_back(target),
-                            None => report.gaps.push(EvidenceGap {
-                                entry,
-                                machine: machine.id,
-                                block: Some(block.id),
-                                operation: Some(operation.id),
-                                kind: EvidenceGapKind::UnknownCallee(realization),
-                            }),
-                        }
-                    }
                 }
                 OperationKind::PortWrite { service, .. }
                 | OperationKind::RegisterAccess {
@@ -658,6 +526,35 @@ fn inspect_machine<'module>(
                 }
                 _ => {}
             }
+        }
+        // A suspended caller still executes the callee's complete prefix.
+        // Lack of a normal result does not make that behavior disappear.
+        if let Terminator::InvokeNoNormal { edge, callee, .. } = &block.terminator {
+            inspect_callee(
+                module,
+                entry,
+                machine.id,
+                block.id,
+                InvocationSite::InvokeNoNormal(*edge),
+                *callee,
+                report,
+                pending,
+            );
+        }
+        if let Terminator::ExternalCompletion { edge, boundary, .. } = &block.terminator {
+            inspect_boundary(
+                module,
+                entry,
+                machine.id,
+                block.id,
+                InvocationSite::ExternalCompletion(*edge),
+                *boundary,
+                exclusions,
+                selected_provider_plans,
+                deployment_target,
+                report,
+                pending,
+            );
         }
         if let Terminator::Crash { cause, .. } = &block.terminator
             && exclusions.excludes_crash_cause(*cause)
@@ -685,6 +582,193 @@ fn inspect_machine<'module>(
                     kind: EvidenceGapKind::UnknownCallee(cleanup_machine),
                 }),
             }
+        }
+    }
+}
+
+/// Calls contribute their selected body regardless of normal completion.
+fn inspect_callee<'module>(
+    module: &'module TerminalModule,
+    entry: MachineId,
+    machine: MachineId,
+    block: BlockId,
+    invocation: InvocationSite,
+    callee: MachineId,
+    report: &mut BehaviorExclusionReport,
+    pending: &mut VecDeque<&'module TerminalMachine>,
+) {
+    match module.machine(callee) {
+        Some(target) => pending.push_back(target),
+        None => report.gaps.push(EvidenceGap {
+            entry,
+            machine,
+            block: Some(block),
+            operation: invocation.operation(),
+            kind: EvidenceGapKind::UnknownCallee(callee),
+        }),
+    }
+}
+
+/// The same declared service and selected-provider evidence applies at an
+/// operation or an external-completion edge. Neither completion form grants
+/// permission to erase the boundary's fixed behavior.
+fn inspect_boundary<'module>(
+    module: &'module TerminalModule,
+    entry: MachineId,
+    machine: MachineId,
+    block: BlockId,
+    invocation: InvocationSite,
+    called_boundary: BoundaryMachineId,
+    exclusions: &BehaviorExclusions,
+    selected_provider_plans: &crate::SelectedProviderPlanFacts,
+    deployment_target: &str,
+    report: &mut BehaviorExclusionReport,
+    pending: &mut VecDeque<&'module TerminalMachine>,
+) {
+    // A generated head is the portable checking contract, not
+    // this deployment's executable behavior. Resolve before
+    // accounting ordinary opaque service/provider contracts.
+    let selected_member = terminal_installation::resolve_target_machine_member(
+        module,
+        TargetMachineCallable::Boundary(called_boundary),
+        deployment_target,
+    );
+    let family_gap = |reason| EvidenceGap {
+        entry,
+        machine,
+        block: Some(block),
+        operation: invocation.operation(),
+        kind: EvidenceGapKind::TargetFamilySelection {
+            head: called_boundary,
+            target: deployment_target.to_owned(),
+            reason,
+        },
+    };
+    let boundary = match selected_member {
+        Ok(Some(member)) => match (member.callable, member.supply) {
+            (
+                TargetMachineCallable::Machine(callee),
+                TargetMachineSupply::CheckedBody | TargetMachineSupply::Boundary,
+            ) => {
+                match module.machine(callee) {
+                    Some(target) => pending.push_back(target),
+                    None => report.gaps.push(EvidenceGap {
+                        entry,
+                        machine,
+                        block: Some(block),
+                        operation: invocation.operation(),
+                        kind: EvidenceGapKind::UnknownCallee(callee),
+                    }),
+                }
+                return;
+            }
+            (TargetMachineCallable::Boundary(member), supply)
+                if supply != TargetMachineSupply::CheckedBody =>
+            {
+                member
+            }
+            _ => {
+                report.gaps.push(family_gap(format!(
+                    "selected callable {:?} has unsupported supply {:?}",
+                    member.callable, member.supply,
+                )));
+                return;
+            }
+        },
+        Ok(None) => called_boundary,
+        Err(error) => {
+            report.gaps.push(family_gap(error.to_string()));
+            return;
+        }
+    };
+    let Some(declaration) =
+        terminal_psi::find_boundary_machine(&module.boundary_machines, boundary)
+    else {
+        report.gaps.push(EvidenceGap {
+            entry,
+            machine,
+            block: Some(block),
+            operation: invocation.operation(),
+            kind: EvidenceGapKind::UnknownBoundary(boundary),
+        });
+        return;
+    };
+    let site = ProhibitedSite::BoundaryCall {
+        block,
+        site: invocation,
+        boundary,
+    };
+    if declaration.kind == terminal_psi::BoundaryRequirementKind::Trait
+        && declaration.owning_service.is_none()
+    {
+        report.gaps.push(EvidenceGap {
+            entry,
+            machine,
+            block: Some(block),
+            operation: invocation.operation(),
+            kind: EvidenceGapKind::UnknownBoundaryService(boundary),
+        });
+    }
+    // The declaration's fixed reach and the service that owns
+    // the requirement (with its parents) are both invoked
+    // here, whatever the selected provider does.
+    let mut invoked = declaration.fixed_service_reach.clone();
+    for service in invoked_services(module, declaration.owning_service) {
+        if !invoked.contains(&service) {
+            invoked.push(service);
+        }
+    }
+    for service in invoked {
+        if exclusions.excludes_service(service) {
+            report.prohibited.push(ProhibitedBehavior {
+                exclusion: BehaviorExclusion::Service(service),
+                entry,
+                machine,
+                site: site.clone(),
+            });
+        }
+    }
+    let candidates: Vec<&ProviderCandidateConformance> = module
+        .provider_candidates
+        .iter()
+        .filter(|candidate| candidate.boundary == boundary)
+        .collect();
+    let coverage = boundary_realization_coverage(
+        module,
+        boundary,
+        &candidates,
+        selected_provider_plans,
+        deployment_target,
+    );
+    let (realizations, needs_contract) = match coverage {
+        Ok(coverage) => coverage,
+        Err(reason) => {
+            report.gaps.push(family_gap(reason));
+            return;
+        }
+    };
+    if needs_contract {
+        for bucket in &declaration.crash_routes {
+            if exclusions.excludes_crash_cause(bucket.cause) {
+                report.prohibited.push(ProhibitedBehavior {
+                    exclusion: BehaviorExclusion::CrashCause(bucket.cause),
+                    entry,
+                    machine,
+                    site: site.clone(),
+                });
+            }
+        }
+    }
+    for realization in realizations {
+        match module.machine(realization) {
+            Some(target) => pending.push_back(target),
+            None => report.gaps.push(EvidenceGap {
+                entry,
+                machine,
+                block: Some(block),
+                operation: invocation.operation(),
+                kind: EvidenceGapKind::UnknownCallee(realization),
+            }),
         }
     }
 }

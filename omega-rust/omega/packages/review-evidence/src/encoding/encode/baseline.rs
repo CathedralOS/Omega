@@ -33,14 +33,8 @@ pub(in crate::encoding) fn framed_policy(
     encoder: &mut Encoder,
     value: &PackagePolicyBaseline,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("binary_format", |encoder| {
-        encoder.fixed_bytes(PACKAGE_POLICY_BASELINE_MAGIC);
-        Ok(())
-    })?;
-    encoder.field("baseline_schema", |encoder| {
-        encoder.u16(PACKAGE_POLICY_BASELINE_VERSION);
-        Ok(())
-    })?;
+    encoder.fixed_bytes_field("binary_format", PACKAGE_POLICY_BASELINE_MAGIC)?;
+    encoder.u16_field("baseline_schema", PACKAGE_POLICY_BASELINE_VERSION)?;
     encoder.record("package_policy", |encoder| policy(encoder, value))
 }
 
@@ -48,28 +42,27 @@ pub(in crate::encoding) fn policy(
     encoder: &mut Encoder,
     value: &PackagePolicyBaseline,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("package", |encoder| {
-        encoder.package_identity(value.package);
-        Ok(())
-    })?;
+    encoder.package_identity_field("package", value.package)?;
     encoder.field("target", |encoder| {
         encoder.string(value.target.identity().as_str())
     })?;
-    encoder.field("public_api", |encoder| {
-        public_api::public_api(encoder, &value.public_api)
-    })?;
-    encoder.field("callables", |encoder| {
-        callable_policy::policy(encoder, &value.callables)
-    })?;
-    encoder.field("selected_providers", |encoder| {
-        selected_providers::policy(encoder, &value.selected_providers)
-    })?;
-    encoder.field("terminal_permissions", |encoder| {
-        terminal_permissions::policy(encoder, &value.terminal_permissions)
-    })?;
-    encoder.field("representation", |encoder| {
-        representation::policy(encoder, &value.representation)
-    })?;
+    encoder.field_by("public_api", &value.public_api, public_api::public_api)?;
+    encoder.field_by("callables", &value.callables, callable_policy::policy)?;
+    encoder.field_by(
+        "selected_providers",
+        &value.selected_providers,
+        selected_providers::policy,
+    )?;
+    encoder.field_by(
+        "terminal_permissions",
+        &value.terminal_permissions,
+        terminal_permissions::policy,
+    )?;
+    encoder.field_by(
+        "representation",
+        &value.representation,
+        representation::policy,
+    )?;
     encoder.field("external_supplies", |encoder| {
         encoder.sequence(&value.external_supplies, values::external_policy::policy)
     })?;
@@ -88,9 +81,11 @@ pub(in crate::encoding) fn policy(
     encoder.field("semantic_dependencies", |encoder| {
         encoder.sequence(&value.semantic_dependencies, semantic_dependency)
     })?;
-    encoder.field("boundary_applications", |encoder| {
-        boundary::applications(encoder, &value.boundary_applications)
-    })?;
+    encoder.field_by(
+        "boundary_applications",
+        &value.boundary_applications,
+        boundary::applications,
+    )?;
     encoder.field("restricted_build_requests", |encoder| {
         encoder.sequence(&value.restricted_build_requests, restricted_build::request)
     })?;
@@ -110,9 +105,7 @@ pub(super) fn semantic_dependency(
         match &dependency.consumer {
             PackagePolicySemanticDependencyConsumer::Callable(identity) => {
                 encoder.tag("callable", 0);
-                encoder.field("identity", |encoder| {
-                    values::identity::encode_nominal(encoder, identity)
-                })?;
+                encoder.field_by("identity", identity, values::identity::encode_nominal)?;
             }
             PackagePolicySemanticDependencyConsumer::PackageImplementation => {
                 encoder.tag("package_implementation", 1)
@@ -120,9 +113,11 @@ pub(super) fn semantic_dependency(
         }
         Ok(())
     })?;
-    encoder.field("dependency", |encoder| {
-        values::identity::encode_nominal(encoder, &dependency.dependency)
-    })?;
+    encoder.field_by(
+        "dependency",
+        &dependency.dependency,
+        values::identity::encode_nominal,
+    )?;
     encoder.field("kind", |encoder| {
         let name = match dependency.kind {
             PackageReviewSemanticDependencyKind::NominalIdentity => "nominal_identity",

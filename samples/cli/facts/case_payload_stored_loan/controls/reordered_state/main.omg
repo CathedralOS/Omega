@@ -8,7 +8,7 @@ machine lend<'storage>(source: &'storage mut Cell) -> Loan<'storage> {
 }
 machine forward<'storage>(first: Loan<'storage>, second: Loan<'storage>) -> Loan<'storage> {
     transition { _ -> finish(second, first) }
-    state finish(selected: Loan<'storage>, unused: Loan<'storage>) -> Loan<'storage> { selected }
+    machine finish(selected: Loan<'storage>, unused: Loan<'storage>) -> Loan<'storage> { selected }
 }
 machine store(target: &mut Cell, value: i64) -> bool requires value == 41 {
     target.value = value;
@@ -31,6 +31,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

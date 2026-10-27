@@ -37,11 +37,11 @@ reaches
         _ -> at_once(milliseconds)
     }
 
-    state at_once(milliseconds: u32) {
+    machine at_once(milliseconds: u32) {
         LinuxClockWait::poll(0, 0, narrow_u32_to_i32_wrapping(milliseconds));
     }
 
-    state in_parts(milliseconds: u32) {
+    machine in_parts(milliseconds: u32) {
         let third: i32 = narrow_u32_to_i32_wrapping(milliseconds / 3);
         LinuxClockWait::poll(0, 0, third);
         LinuxClockWait::poll(0, 0, third);

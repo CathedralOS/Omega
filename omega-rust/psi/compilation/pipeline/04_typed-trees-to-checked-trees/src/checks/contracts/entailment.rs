@@ -117,9 +117,7 @@ impl<'program, 'frames> ProvenExitExpressions<'program, 'frames> {
                 .map(|matching| matching.expression)
                 .collect::<Vec<_>>();
             for expression in inherited {
-                if !outcome.expressions.contains(&expression) {
-                    outcome.expressions.push(expression);
-                }
+                crate::collections::push_unique(&mut outcome.expressions, expression);
             }
         }
     }
@@ -209,19 +207,10 @@ pub(super) fn integral_parameter_reflexivity(
     let Some(right) = program.expression_table.name_path_node(comparison.right) else {
         return false;
     };
-    if !left.symbol.is_valid()
+    if !program.expression_table.name_path_is_single_member(left)
+        || !program.expression_table.name_path_is_single_member(right)
         || left.symbol != right.symbol
         || left.head_symbol != right.head_symbol
-        || program
-            .expression_table
-            .name_path_members(left.members)
-            .len()
-            != 1
-        || program
-            .expression_table
-            .name_path_members(right.members)
-            .len()
-            != 1
     {
         return false;
     }

@@ -12,6 +12,6 @@ machine main() crashes Trap {
     windows[0] = &mut incoming[0..0];
     let observed: bool = observe(windows, saved);
     transition observed { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

@@ -8,7 +8,7 @@ terminates by countdown -> Countdown::Remaining in 0..=5;
         true -> iterate(Bundle { held: Countdown { remaining: 3 }, spare: Countdown { remaining: 4 } })
         false -> countdown.remaining
     }
-    state iterate(pending: Bundle) {
+    machine iterate(pending: Bundle) -> u64 {
         transition pending.held.remaining > 0 {
             true -> iterate(Bundle { held: Countdown { remaining: pending.held.remaining - 1 }, spare: pending.spare })
             false -> pending.held.remaining
@@ -25,6 +25,6 @@ machine run() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

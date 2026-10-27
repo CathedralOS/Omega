@@ -15,7 +15,7 @@ machine compute_other_state(raw: u8) -> i32
 {
     let xored: u8 = raw ^ 15;
     transition { _ -> step(xored) }
-    state step(s: u8) -> i32 {
+    machine step(s: u8) -> i32 {
         verify_xored(s)
     }
 }
@@ -30,6 +30,6 @@ machine main() crashes Trap {
         true -> done()
         _ -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

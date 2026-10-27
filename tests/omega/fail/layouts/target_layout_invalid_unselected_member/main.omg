@@ -42,6 +42,6 @@ machine program() crashes Trap {
     let mut view: View;
     view.payload.value = 37;
     transition view.payload.value == 37 { true -> done() false -> bad() }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

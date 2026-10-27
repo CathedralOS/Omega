@@ -3,8 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleContract,
-    OptimizationSafetyClass,
+    AnalysisKind, AnalysisSet, OptimizationRuleContract, OptimizationSafetyClass,
 };
 use optimization_unit::{
     NodeLocation, ProvenanceRewrite, PrunedMachineCustody, PsiOptimizationUnit, PsiRealizationSite,
@@ -12,7 +11,6 @@ use optimization_unit::{
 };
 use semantic_vocabulary::MachineId;
 
-use crate::rules::CONTROL_FLOW_CLEANUP_PASS_NAME;
 use crate::rules::control_flow_cleanup::provenance_proven_unreachable_at;
 use crate::{
     AnalysisProduct, CallGraphAnalysis, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
@@ -20,57 +18,45 @@ use crate::{
 
 psi_rule_contract!(
     UnreachablePrivateMachinePruneRule,
-    crate::rules::standard_rule_contract(
+    crate::rules::control_flow_cleanup::call_graph_control_flow_cleanup_rule_contract(
         b"omega.psi-rule.unreachable-private-machine-pruning.v1",
-        CONTROL_FLOW_CLEANUP_PASS_NAME,
         1,
         AnalysisSet::new([AnalysisKind::CallGraph]),
-        AnalysisInvalidationSet::new([
-            AnalysisKind::ControlFlowGraph,
-            AnalysisKind::CallGraph,
-            AnalysisKind::UseDefinition,
-            AnalysisKind::EffectSummaries,
-        ]),
-        OptimizationSafetyClass::StructuralIdentity
+        OptimizationSafetyClass::StructuralIdentity,
     ),
 );
 
-impl PsiOptimizationRule for UnreachablePrivateMachinePruneRule {
-    psi_rule_contract!(@adapter);
-
-    fn propose(
-        &self,
-        unit: &PsiOptimizationUnit,
-        analyses: RuleAnalysisView<'_>,
-    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-        required_analysis!(analyses, AnalysisKind::CallGraph => Some(AnalysisProduct::CallGraph(call_graph)));
-        let machines = rule_unreachable_private_machine_complement(unit, call_graph);
-        if machines.is_empty() {
-            return Ok(Vec::new());
-        }
-        let ordinals = rule_active_source_ordinals(unit);
-        let custody = machines
-            .iter()
-            .map(|machine| PrunedMachineCustody {
-                machine: *machine,
-                source_ordinal: ordinals[machine],
-            })
-            .collect::<Vec<_>>();
-        let Some(provenance) = rule_pruned_machine_provenance(unit, &machines) else {
-            return Ok(Vec::new());
-        };
-        Ok(vec![
-            PsiRewriteCandidate::new_unreachable_private_machines(
-                unit.identity,
-                Self::contract(),
-                provenance,
-                -i64::try_from(machines.len()).unwrap_or(i64::MAX),
-                UnreachablePrivateMachinesRewrite { machines: custody },
-            )
-            .map_err(RuleProposalError::InvalidCandidate)?,
-        ])
+psi_rule_impl!(UnreachablePrivateMachinePruneRule, |unit, analyses| {
+    required_analysis!(analyses, AnalysisKind::CallGraph => Some(AnalysisProduct::CallGraph(call_graph)));
+    let machines = rule_unreachable_private_machine_complement(unit, call_graph);
+    if machines.is_empty() {
+        return Ok(Vec::new());
     }
-}
+    let ordinals = rule_active_source_ordinals(unit);
+    let custody = machines
+        .iter()
+        .map(|machine| PrunedMachineCustody {
+            machine: *machine,
+            source_ordinal: ordinals[machine],
+        })
+        .collect::<Vec<_>>();
+    let Some(provenance) = rule_pruned_machine_provenance(unit, &machines) else {
+        return Ok(Vec::new());
+    };
+    Ok(vec![
+        PsiRewriteCandidate::new_unreachable_private_machines(
+            unit.identity,
+            Self::contract(),
+            // The pre-roster constructor injected an empty affected-blocks list for this
+            // rule; the pruned machines travel in the rewrite payload. Keep that value.
+            Vec::new(),
+            provenance,
+            -i64::try_from(machines.len()).unwrap_or(i64::MAX),
+            UnreachablePrivateMachinesRewrite { machines: custody },
+        )
+        .map_err(RuleProposalError::InvalidCandidate)?,
+    ])
+});
 
 fn rule_active_source_ordinals(unit: &PsiOptimizationUnit) -> BTreeMap<MachineId, u32> {
     let pruned = unit

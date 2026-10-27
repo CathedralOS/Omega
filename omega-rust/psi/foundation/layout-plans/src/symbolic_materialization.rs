@@ -7,8 +7,8 @@ use crate::layout_reports::{
     LayoutPlacementReport, LayoutPlanReport,
 };
 use crate::materialization::field_identities::{
-    MaterializationFieldKey, materialization_field_key, stable_identity_suffix,
-    symbolic_index_display, symbolic_path_display, symbolic_path_hops,
+    MaterializationFieldKey, materialization_field_key, planned_entries_by_key,
+    stable_identity_suffix, symbolic_index_display, symbolic_path_display, symbolic_path_hops,
     validate_conventional_sum_materialization_identities,
     validate_materialization_field_identities,
 };
@@ -136,17 +136,7 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
             )));
         }
     }
-    let mut planned =
-        std::collections::BTreeMap::<MaterializationFieldKey, Vec<&LayoutFieldEntryReport>>::new();
-    for entry in &layout.entries {
-        planned
-            .entry(materialization_field_key(
-                &entry.field,
-                entry.member_identity,
-            ))
-            .or_default()
-            .push(entry);
-    }
+    let planned = planned_entries_by_key(layout);
     for symbolic in symbolic_fields {
         let key = materialization_field_key(&symbolic.field, symbolic.member_identity);
         let Some(entries) = planned.get(&key) else {
@@ -904,17 +894,7 @@ fn prepare_record_interior<'a>(
         )));
     }
     validate_materialization_field_identities(interior_layout)?;
-    let mut planned_inner =
-        std::collections::BTreeMap::<MaterializationFieldKey, Vec<&LayoutFieldEntryReport>>::new();
-    for entry in &interior_layout.entries {
-        planned_inner
-            .entry(materialization_field_key(
-                &entry.field,
-                entry.member_identity,
-            ))
-            .or_default()
-            .push(entry);
-    }
+    let planned_inner = planned_entries_by_key(interior_layout);
     let (nested, nested_order) = if carrier.inner_layouts.is_empty() {
         (std::collections::BTreeMap::new(), Vec::new())
     } else {

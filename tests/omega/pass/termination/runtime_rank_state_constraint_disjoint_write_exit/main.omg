@@ -4,7 +4,7 @@ terminates by remaining in 0..=9;
 -> u32 {
     transition { _ -> step(remaining, 4, 2, 0) }
 
-    state step(current: u32, mut ceiling: u32, scratch: u32, mut unrelated: u32)
+    machine step(current: u32, mut ceiling: u32, scratch: u32, mut unrelated: u32) -> u32
     requires current <= 9 && ceiling <= 4 && scratch <= ceiling
     {
         unrelated = 1;
@@ -21,6 +21,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

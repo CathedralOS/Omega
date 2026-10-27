@@ -13,7 +13,9 @@ mod generated;
 mod import_queue;
 mod package_selection;
 mod paths;
+mod product_queries;
 mod project;
+pub use product_queries::{ProductQueryDependency, ProductQueryInputs};
 
 pub(crate) use bindings::{
     PendingPackageImport, ResolvedSourceImport, retain_module_import_bindings,

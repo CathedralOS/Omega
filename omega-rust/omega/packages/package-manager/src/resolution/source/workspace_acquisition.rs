@@ -2,31 +2,75 @@
 //! Acquisition supplies immutable code; the application returns declarations
 //! from its compiler. Unselected members supply catalog observations only.
 
-use super::build_resolution::{
-    AcquiredBuildDependency, BuildSourceAcquisition, ExecutedSourceResolution, PendingBuildSource,
-};
+use super::acquisition::{AcquiredSourceSelection, SourceAcquisitionOrigin};
 use super::{
     AcquiredBuildSource, BuildSourceAcquisitions, GitPackageSourceRequest, PackageSourceNavigation,
     PackageSourceSelectionEvidence,
 };
 use crate::declarations::dependencies::read::PackageSelection;
 use crate::resolution::graph::PackageRootSourceRequest;
-use crate::resolution::graph::reconcile::PendingSourceResolution;
 use build_declarations::{BuildDeclaration, WorkspaceMemberPath};
 use compiler::SourceBuildDeclaration;
 use package_compilation::CapturedLocalSource;
 use package_source::{GitCommitId, GitTreeId, ImmutableSourceResolution, ResolvedGitSource};
 use std::path::Path;
+use std::sync::Arc;
+
+/// A compiler-authenticated declaration and the closed source graphs actually
+/// used to compute or describe declarations for it. Undemanded Product requests
+/// remain inert observations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspaceMemberObservation {
+    declaration: SourceBuildDeclaration,
+    pub(crate) source: super::PackageSourceCustody,
+    pub(crate) selections: Vec<build_evaluation::BuildDependencySelection>,
+    dependencies: Vec<Arc<super::ResolvedBuildSources>>,
+}
+
+impl WorkspaceMemberObservation {
+    pub fn new(
+        acquired: &AcquiredBuildSource,
+        declaration: SourceBuildDeclaration,
+        returned: &build_evaluation::ReturnedBuild,
+        dependencies: Vec<Arc<super::ResolvedBuildSources>>,
+    ) -> Result<Self, String> {
+        if declaration.declaration() != returned.declaration()
+            || returned.demanded_sources().len() != dependencies.len()
+            || returned
+                .demanded_sources()
+                .iter()
+                .zip(&dependencies)
+                .any(|(selected, graph)| selected.package != graph.root())
+        {
+            return Err("workspace observation lost a demanded dependency source graph".into());
+        }
+        if acquired.source_capture() != declaration.source_capture() {
+            return Err("workspace observation belongs to another source capture".into());
+        }
+        Ok(Self {
+            declaration,
+            source: acquired.declare_build(returned)?.custody,
+            selections: returned.demanded_sources().to_vec(),
+            dependencies,
+        })
+    }
+
+    pub fn declaration(&self) -> &SourceBuildDeclaration {
+        &self.declaration
+    }
+
+    pub fn dependency_graphs(&self) -> &[Arc<super::ResolvedBuildSources>] {
+        &self.dependencies
+    }
+}
 
 pub struct AcquiredWorkspaceBuild {
-    pending: PendingSourceResolution,
     source: ResolvedGitSource,
     request: GitPackageSourceRequest,
     root: AcquiredBuildSource,
 }
 
 pub struct AcquiredWorkspaceMembers {
-    pending: PendingSourceResolution,
     source: ResolvedGitSource,
     request: GitPackageSourceRequest,
     root: SourceBuildDeclaration,
@@ -41,11 +85,15 @@ pub(super) struct ExecutedWorkspace {
     members: Vec<(
         WorkspaceMemberPath,
         AcquiredBuildSource,
-        SourceBuildDeclaration,
+        WorkspaceMemberObservation,
     )>,
 }
 
 impl AcquiredWorkspaceBuild {
+    pub fn acquired_source(&self) -> &AcquiredBuildSource {
+        &self.root
+    }
+
     pub fn source_capture(&self) -> &CapturedLocalSource {
         self.root.source_capture()
     }
@@ -57,7 +105,7 @@ impl AcquiredWorkspaceBuild {
 
     /// The catalog must have completed its own obligations. Member code comes
     /// from exact declared subtrees of the same authenticated root capture.
-    pub fn members(self, root: SourceBuildDeclaration) -> Result<AcquiredWorkspaceMembers, String> {
+    fn members(self, root: SourceBuildDeclaration) -> Result<AcquiredWorkspaceMembers, String> {
         if !root.is_settled() || root.source_capture() != self.root.source_capture() {
             return Err("workspace catalog return does not match its acquired source".into());
         }
@@ -138,7 +186,6 @@ impl AcquiredWorkspaceBuild {
             ));
         }
         Ok(AcquiredWorkspaceMembers {
-            pending: self.pending,
             source: self.source,
             request: self.request,
             root,
@@ -148,55 +195,63 @@ impl AcquiredWorkspaceBuild {
 }
 
 impl AcquiredWorkspaceMembers {
-    pub fn source_entries(
-        &self,
-    ) -> impl Iterator<Item = (&CapturedLocalSource, std::path::PathBuf)> {
-        self.members.iter().map(|(_, source)| {
-            let capture = source.source_capture();
-            (
-                capture,
-                super::package_entry(capture.canonical_live_root(), Some(capture.tree())),
-            )
-        })
+    pub fn sources(&self) -> impl Iterator<Item = &AcquiredBuildSource> {
+        self.members.iter().map(|(_, source)| source)
     }
 }
 
 impl BuildSourceAcquisitions<'_> {
     pub(super) fn acquire_workspace_member(
         &mut self,
-        pending: PendingBuildSource,
         source: ResolvedGitSource,
         request: GitPackageSourceRequest,
         selected: &crate::declarations::PackageName,
-    ) -> Result<BuildSourceAcquisition, String> {
+    ) -> Result<AcquiredSourceSelection, String> {
         if let Some(workspace) = self.workspaces.iter().find(|workspace| {
             workspace.source.lineage() == source.lineage()
                 && workspace.source.commit() == source.commit()
                 && workspace.source.tree() == source.tree()
         }) {
-            return workspace.select(pending, request, selected);
+            return workspace
+                .select(request, selected)
+                .map(AcquiredSourceSelection::Source);
         }
         let root = AcquiredBuildSource::capture_git(&source, request.clone())?;
-        Ok(BuildSourceAcquisition::Workspace(AcquiredWorkspaceBuild {
-            pending: pending.request,
+        self.retain_source(root.clone())?;
+        Ok(AcquiredSourceSelection::Workspace(AcquiredWorkspaceBuild {
             source,
             request,
             root,
         }))
     }
 
+    /// Retain authenticated member captures before their Builds execute. A
+    /// member may request an external helper while the catalog is being
+    /// observed; repository-relative selection still needs the complete catalog.
+    pub fn workspace_members(
+        &mut self,
+        workspace: AcquiredWorkspaceBuild,
+        root: SourceBuildDeclaration,
+    ) -> Result<AcquiredWorkspaceMembers, String> {
+        let members = workspace.members(root)?;
+        for source in members.sources() {
+            self.retain_source(source.clone())?;
+        }
+        Ok(members)
+    }
+
     pub fn complete_workspace(
         &mut self,
         acquired: AcquiredWorkspaceMembers,
-        declarations: Vec<SourceBuildDeclaration>,
-    ) -> Result<BuildSourceAcquisition, String> {
+        declarations: Vec<WorkspaceMemberObservation>,
+    ) -> Result<AcquiredBuildSource, String> {
         if acquired.members.len() != declarations.len()
             || acquired
                 .members
                 .iter()
                 .zip(&declarations)
                 .any(|((_, source), declaration)| {
-                    source.source_capture() != declaration.source_capture()
+                    source.source_capture() != declaration.declaration().source_capture()
                 })
         {
             return Err("workspace observations differ from their acquired member roster".into());
@@ -222,34 +277,27 @@ impl BuildSourceAcquisitions<'_> {
                 .map(|((path, source), declaration)| (path, source, declaration))
                 .collect(),
         };
-        let result = workspace.select(
-            PendingBuildSource {
-                request: acquired.pending,
-            },
-            acquired.request,
-            &selected,
-        )?;
+        let result = workspace.select(acquired.request, &selected)?;
         self.workspaces.push(workspace);
-        Ok(result)
+        self.retain_source(result)
     }
 
     pub(super) fn acquire_workspace_path(
         &self,
-        pending: PendingBuildSource,
+        requester: SourceAcquisitionOrigin<'_>,
         location: &str,
-    ) -> Result<BuildSourceAcquisition, String> {
-        let requester = pending.request.requester();
+    ) -> Result<AcquiredBuildSource, String> {
         let workspace = self
             .workspaces
             .iter()
             .find(|workspace| {
-                workspace.source.lineage() == requester.key().source_lineage()
-                    && &workspace.resolution == requester.resolution()
+                workspace.source.lineage() == requester.lineage
+                    && &workspace.resolution == requester.resolution
             })
             .ok_or(
                 "Git-relative Path has no executed workspace catalog at its repository resolution",
             )?;
-        let base = match requester.navigation() {
+        let base = match requester.navigation {
             PackageSourceNavigation::Root => None,
             PackageSourceNavigation::Member(path) => Some(path.as_str()),
         };
@@ -264,7 +312,7 @@ impl BuildSourceAcquisitions<'_> {
                     path.as_str()
                 )
             })?;
-        let name = match declaration.declaration() {
+        let name = match declaration.declaration().declaration() {
             BuildDeclaration::Package(package) => &package.name,
             BuildDeclaration::Application(application) => &application.name,
             BuildDeclaration::Workspace(_) => {
@@ -277,17 +325,16 @@ impl BuildSourceAcquisitions<'_> {
             workspace.acquisition.clone(),
             PackageSelection::Named(selected.clone()),
         );
-        workspace.select(pending, request, &selected)
+        workspace.select(request, &selected)
     }
 }
 
 impl ExecutedWorkspace {
     fn select(
         &self,
-        pending: PendingBuildSource,
         request: GitPackageSourceRequest,
         selected: &crate::declarations::PackageName,
-    ) -> Result<BuildSourceAcquisition, String> {
+    ) -> Result<AcquiredBuildSource, String> {
         let selected = build_declarations::ProjectName::parse(selected.as_str())
             .map_err(|error| error.to_string())?;
         let evidence = super::GitWorkspaceSelectionEvidence::from_executed(
@@ -304,33 +351,9 @@ impl ExecutedWorkspace {
             .iter()
             .find(|(member, _, _)| member == path)
             .ok_or("executed workspace lost its selected member")?;
-        if let Some(custody) = pending
-            .request
-            .acquired_source(&source.lineage, &source.navigation)
-            .cloned()
-        {
-            if custody.resolution() != &source.resolution
-                || custody.materialization()
-                    != &super::PackageSourceMaterialization::from_local(source.capture.normalized())
-            {
-                return Err(
-                    "workspace member requests select conflicting immutable content".into(),
-                );
-            }
-            let next = pending
-                .request
-                .complete::<String>(custody)
-                .map_err(|error| error.to_string())?;
-            return Ok(BuildSourceAcquisition::Reused(
-                ExecutedSourceResolution::from_step(next),
-            ));
-        }
         let mut source = source.clone();
         source.root_request = PackageRootSourceRequest::Git(request);
         source.selection = PackageSourceSelectionEvidence::GitWorkspace(evidence);
-        Ok(BuildSourceAcquisition::Execute(AcquiredBuildDependency {
-            pending: pending.request,
-            acquired: source,
-        }))
+        Ok(source)
     }
 }

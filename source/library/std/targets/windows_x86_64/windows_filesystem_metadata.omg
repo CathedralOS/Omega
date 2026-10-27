@@ -29,7 +29,7 @@ reaches FilesystemMetadataQuery {
         true -> query(duplicate)
         false -> (windows_metadata_error())
     }
-    state query(duplicate: u64) -> WindowsMetadataResult {
+    machine query(duplicate: u64) -> WindowsMetadataResult {
         block windows_metadata_owned_handle(duplicate)
     }
 }
@@ -44,13 +44,13 @@ reaches FilesystemMetadataQuery {
         true -> select(wide, no_follow)
         false -> (WindowsMetadataResult::Error { code: 87 })
     }
-    state select(wide: [u16; 4096] in WindowsNativePath, no_follow: bool) -> WindowsMetadataResult {
+    machine select(wide: [u16; 4096] in WindowsNativePath, no_follow: bool) -> WindowsMetadataResult {
         transition no_follow {
             true -> open(wide, 36700160)
             false -> open(wide, 34603008)
         }
     }
-    state open(wide: [u16; 4096] in WindowsNativePath, flags: u32) -> WindowsMetadataResult
+    machine open(wide: [u16; 4096] in WindowsNativePath, flags: u32) -> WindowsMetadataResult
     requires flags == 34603008 || flags == 36700160 {
         let raw: i64 = block WindowsFilesystemMetadataIo::open_attributes(&wide, 128, 7, 0, 3, flags, 0);
         let handle: u64 = WindowsFilesystemNativeProvider::normalize_handle(raw);
@@ -59,7 +59,7 @@ reaches FilesystemMetadataQuery {
             false -> (windows_metadata_error())
         }
     }
-    state query(handle: u64) -> WindowsMetadataResult { block windows_metadata_owned_handle(handle) }
+    machine query(handle: u64) -> WindowsMetadataResult { block windows_metadata_owned_handle(handle) }
 }
 
 // The only callers supply either a successful same-access duplicate or a
@@ -76,7 +76,7 @@ machine windows_metadata_completion(outcome: WindowsMetadataResult, released: i3
         WindowsMetadataResult::Error { code } -> (WindowsMetadataResult::Error { code: code })
         WindowsMetadataResult::Value { metadata } -> checked(metadata, released)
     }
-    state checked(metadata: WindowsFileMetadata, released: i32) -> WindowsMetadataResult {
+    machine checked(metadata: WindowsFileMetadata, released: i32) -> WindowsMetadataResult {
         transition released == 0 {
             true -> (WindowsMetadataResult::Value { metadata: metadata })
             false -> (windows_metadata_error())
@@ -104,7 +104,7 @@ reaches FilesystemMetadataQuery {
         true -> classify(raw)
         false -> refused(6)
     }
-    state classify(handle: i64) -> i64 requires handle != 0 && handle != -1 {
+    machine classify(handle: i64) -> i64 requires handle != 0 && handle != -1 {
         WindowsFilesystemIo::c_set_last_error(0);
         let kind: u32 = block WindowsFilesystemMetadataIo::file_type(handle);
         transition kind == 1 {
@@ -112,20 +112,20 @@ reaches FilesystemMetadataQuery {
             false -> other(kind)
         }
     }
-    state other(kind: u32) -> i64 {
+    machine other(kind: u32) -> i64 {
         transition kind == 0 {
             true -> unknown()
             false -> refused(50)
         }
     }
-    state unknown() -> i64 {
+    machine unknown() -> i64 {
         let code: u32 = WindowsFilesystemIo::c_get_last_error();
         transition code != 0 {
             true -> refused(code)
             false -> refused(50)
         }
     }
-    state refused(code: u32) -> i64 {
+    machine refused(code: u32) -> i64 {
         WindowsFilesystemIo::c_set_last_error(code);
         0
     }
@@ -138,7 +138,7 @@ reaches FilesystemMetadataQuery {
         true -> basic(classified)
         false -> (windows_metadata_error())
     }
-    state basic(handle: i64 in WindowsDiskFileOrAbsent) -> WindowsMetadataResult requires handle != 0 {
+    machine basic(handle: i64 in WindowsDiskFileOrAbsent) -> WindowsMetadataResult requires handle != 0 {
         let mut basic: WindowsNativeFileBasicInfo;
         let succeeded: i32 = block WindowsFilesystemMetadataIo::basic(handle, 0, &mut basic, 40);
         transition succeeded != 0 {
@@ -146,7 +146,7 @@ reaches FilesystemMetadataQuery {
             false -> (windows_metadata_error())
         }
     }
-    state standard(handle: i64 in WindowsDiskFileOrAbsent, basic: WindowsNativeFileBasicInfo) -> WindowsMetadataResult requires handle != 0 {
+    machine standard(handle: i64 in WindowsDiskFileOrAbsent, basic: WindowsNativeFileBasicInfo) -> WindowsMetadataResult requires handle != 0 {
         let mut standard: WindowsNativeFileStandardInfo;
         let succeeded: i32 = block WindowsFilesystemMetadataIo::standard(handle, 1, &mut standard, 24);
         transition succeeded != 0 {
@@ -154,7 +154,7 @@ reaches FilesystemMetadataQuery {
             false -> (windows_metadata_error())
         }
     }
-    state attributes(handle: i64 in WindowsDiskFileOrAbsent, basic: WindowsNativeFileBasicInfo, standard: WindowsNativeFileStandardInfo) -> WindowsMetadataResult requires handle != 0 {
+    machine attributes(handle: i64 in WindowsDiskFileOrAbsent, basic: WindowsNativeFileBasicInfo, standard: WindowsNativeFileStandardInfo) -> WindowsMetadataResult requires handle != 0 {
         let mut tag: WindowsNativeFileAttributeTagInfo;
         let succeeded: i32 = block WindowsFilesystemMetadataIo::attribute_tag(handle, 9, &mut tag, 8);
         transition succeeded != 0 {
@@ -162,7 +162,7 @@ reaches FilesystemMetadataQuery {
             false -> (windows_metadata_error())
         }
     }
-    state value(basic: WindowsNativeFileBasicInfo, standard: WindowsNativeFileStandardInfo, tag: WindowsNativeFileAttributeTagInfo) -> WindowsMetadataResult {
+    machine value(basic: WindowsNativeFileBasicInfo, standard: WindowsNativeFileStandardInfo, tag: WindowsNativeFileAttributeTagInfo) -> WindowsMetadataResult {
         WindowsMetadataResult::Value { metadata: WindowsFileMetadata {
             length: standard.length, links: standard.links,
             attributes: tag.attributes, reparse_tag: tag.reparse_tag,

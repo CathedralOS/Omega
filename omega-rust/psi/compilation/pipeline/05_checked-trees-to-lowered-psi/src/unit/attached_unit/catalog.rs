@@ -45,6 +45,15 @@ pub(crate) fn collect_value_roots(
     roots: &mut Vec<typed_trees::type_identity::TypeIdentityId>,
 ) -> Result<(), LoweringError> {
     let node = checked.facts.values.structural_values.nodes.get(value);
+    // Evaluation validates the retained carrier before producing children.
+    // Its declaration is needed independently of a receiving result binding:
+    // a stopped constructor or selected branch never publishes such a value.
+    roots.push(validation::stored_structural_type_identity(
+        &checked.typed,
+        node.type_reference,
+        &[],
+        &[],
+    ));
     match &node.kind {
         checked_trees::CheckedStructuralValueKind::Reference {
             source,
@@ -389,9 +398,7 @@ pub(super) fn lower_unit_structural_types_including(
         literal_view |= operands.literal_view;
         let body = UnitBody::find(plans, *symbol)?;
         place_types::collect(checked, plans, body, &mut roots)?;
-        if !matches!(body, UnitBody::Ordinary(plan) if plan.scalar_result.is_some() || plan.scalar_control.is_some())
-            && let checked_trees::CheckedControlResultPlan::Structural(result) = body.result()?
-        {
+        if let checked_trees::CheckedControlResultPlan::Structural(result) = body.result()? {
             roots.push(result.type_identity);
         }
         roots.extend(body.attachment());
@@ -1057,6 +1064,18 @@ pub(super) fn lower_unit_structural_domains(
     LoweringError,
 > {
     let mut selected = Vec::new();
+    for (_, region) in checked.facts.flow.ownership.loan_completions.iter() {
+        if !closure.contains(&region.machine) {
+            continue;
+        }
+        for fact in crate::emission::loan_completions::qualification_facts(checked, region) {
+            if let Some((_, _, _, domain)) = fact.payload.domain_membership()
+                && !selected.contains(&domain)
+            {
+                selected.push(domain);
+            }
+        }
+    }
     for symbol in closure {
         let body = UnitBody::find(plans, *symbol)?;
         // A callable publishes its result contract even when its only caller
@@ -1223,6 +1242,27 @@ pub(super) fn lower_unit_structural_domains(
         for domain in domains {
             if !selected.contains(&domain) {
                 selected.push(domain);
+            }
+        }
+    }
+    // Prerequisites remain needed even when no executable operand names their
+    // family directly. Close the selected family set before dense IDs or any
+    // carrier presentation is assigned.
+    let mut cursor = 0;
+    while let Some(domain) = selected.get(cursor).copied() {
+        cursor += 1;
+        for plan in plans.structural_domains().iter().filter(|plan| {
+            plan.domain == domain
+                && type_ids
+                    .iter()
+                    .any(|(identity, _)| *identity == plan.carrier_type_identity)
+        }) {
+            if let Some(required) = &plan.required_memberships {
+                for parent in required {
+                    if !selected.contains(parent) {
+                        selected.push(*parent);
+                    }
+                }
             }
         }
     }
@@ -1419,6 +1459,19 @@ pub(super) fn lower_unit_structural_domains(
                     cause: Box::new(cause),
                 })?;
             Ok(StructuralDomainDeclaration {
+                required_memberships: plan
+                    .required_memberships
+                    .as_ref()
+                    .map(|required| {
+                        required
+                            .iter()
+                            .map(|domain| {
+                                DomainSemanticId::new(u64::from(domain.0))
+                                    .ok_or(LoweringError::InvalidContentDomainIdentity)
+                            })
+                            .collect::<Result<Vec<_>, _>>()
+                    })
+                    .transpose()?,
                 complete_predicate_theory: plan.complete_predicate_theory,
                 predicate,
                 byte_predicate: plan.byte_predicate,
@@ -1761,6 +1814,7 @@ pub(super) fn lower_unit_services_including(
                 | checked_trees::structural_field_write_pattern!()
                 | CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }
                 | CheckedUnitEffectOperationPlan::AtomicFence { .. }
+                | CheckedUnitEffectOperationPlan::EvaluateStructuralValue { .. }
                 | CheckedUnitEffectOperationPlan::Complete { .. } => {}
             }
         }

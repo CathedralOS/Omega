@@ -30,6 +30,6 @@ machine main() crashes Trap {
     let correct: bool = renewed.quantity == 19;
     drop(renewed);
     transition correct { true -> done() false -> wrong() }
-    state done() {}
-    state wrong() { crash Trap; }
+    machine done() {}
+    machine wrong() { crash Trap; }
 }

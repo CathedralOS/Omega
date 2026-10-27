@@ -8,8 +8,9 @@ use legalized_operations::LegalizedScalarInstructionKind;
 pub(super) fn validate_owned_arguments(
     source: &LegalizedScalarFunction,
     call: &LegalizedScalarCall,
-    operation: semantic_vocabulary::OperationId,
+    site: semantic_vocabulary::InvocationSite,
 ) -> Option<()> {
+    super::input_site::use_cut(source, site)?;
     for argument in &call.arguments {
         let LegalizedScalarArgument::Structural {
             semantic,
@@ -62,16 +63,8 @@ pub(super) fn validate_owned_arguments(
         }
         match target.source {
             target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
-                if psi_operation == operation {
-                    return None;
-                }
-                let mut producers = source
-                    .instructions()
-                    .filter(|row| row.operation == psi_operation);
-                let producer = producers.next()?;
-                if producers.next().is_some() {
-                    return None;
-                }
+                let (_, _, producer) =
+                    super::input_site::producer_before_use(source, psi_operation, site)?;
                 // An empty-record local transports no bytes: its
                 // establishment must mint exactly this place of exactly this
                 // empty type.

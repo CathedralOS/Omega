@@ -10,7 +10,7 @@ crashes Trap measurement.value < 0.0 {
         true -> invalid()
         false -> measurement.value
     }
-    state invalid() -> f64 { crash Trap; }
+    machine invalid() -> f64 { crash Trap; }
 }
 
 machine main() crashes Trap {
@@ -20,6 +20,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

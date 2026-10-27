@@ -187,9 +187,7 @@ fn call_parents(
             if inputs.next().is_some() {
                 return Err("callee result lineage has ambiguous conserved actual inputs");
             }
-            if !candidate.contains(&input.claim_identity) {
-                candidate.push(input.claim_identity);
-            }
+            crate::collections::push_unique(&mut candidate, input.claim_identity);
         }
         if candidate.is_empty()
             || parents
@@ -213,20 +211,7 @@ fn callable_entry_parameter(
         .control
         .state(entry.machine_symbol, entry.state_symbol)
         .ok_or("callee lineage entry has no state flow")?;
-    let origins = facts
-        .flow
-        .control
-        .exits
-        .span_or_empty(flow.exits)
-        .iter()
-        .flat_map(|exit| {
-            facts
-                .flow
-                .control
-                .exit_parameter_origins
-                .span_or_empty(exit.parameter_origins)
-        })
-        .collect::<Vec<_>>();
+    let origins = crate::flow::state_exit_parameter_origins(facts, flow);
     let mut matching = origins
         .iter()
         .filter(|origin| origin.state_parameter == parameter);
@@ -321,9 +306,7 @@ fn qualified_roots(
                     qualified_roots(facts, parent, projection, traversal)?
                 };
                 for ancestor in ancestors {
-                    if !candidate.contains(&ancestor) {
-                        candidate.push(ancestor);
-                    }
+                    crate::collections::push_unique(&mut candidate, ancestor);
                 }
             }
             if roots

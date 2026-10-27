@@ -24,13 +24,13 @@ machine Main::main(context: &mut Main) reaches Console {
         true -> check_division(context, divided, remainder)
         _ -> wrong_shift(context)
     }
-    state check_division(context: &mut Main, divided: u32, remainder: u32) {
+    machine check_division(context: &mut Main, divided: u32, remainder: u32) {
         transition divided == 1431655764 {
             true -> check_remainder(context, remainder)
             _ -> wrong_division(context)
         }
     }
-    state check_remainder(context: &mut Main, remainder: u32) {
+    machine check_remainder(context: &mut Main, remainder: u32) {
         transition remainder == 2 {
             true -> right_operand(context)
             _ -> wrong_remainder(context)
@@ -39,7 +39,7 @@ machine Main::main(context: &mut Main) reaches Console {
     // The wrapped node as the RIGHT operand: register staging differs (the
     // right operand evaluates into its own home with the right scratch pool),
     // so the truncation must apply per-node regardless of side.
-    state right_operand(context: &mut Main) {
+    machine right_operand(context: &mut Main) {
         let wrapped: u32 in Wrapping = (0 as u32 in Wrapping) - 2;
         let result: u32 in Wrapping = 5 + (wrapped / 1000000000);
         transition result == 9 {
@@ -47,11 +47,11 @@ machine Main::main(context: &mut Main) reaches Console {
             _ -> wrong_right(context)
         }
     }
-    state good(context: &mut Main) { Console::exit_process(70); }
-    state wrong_shift(context: &mut Main) { Console::exit_process(71); }
-    state wrong_division(context: &mut Main) { Console::exit_process(72); }
-    state wrong_remainder(context: &mut Main) { Console::exit_process(73); }
-    state wrong_right(context: &mut Main) { Console::exit_process(74); }
+    machine good(context: &mut Main) { Console::exit_process(70); }
+    machine wrong_shift(context: &mut Main) { Console::exit_process(71); }
+    machine wrong_division(context: &mut Main) { Console::exit_process(72); }
+    machine wrong_remainder(context: &mut Main) { Console::exit_process(73); }
+    machine wrong_right(context: &mut Main) { Console::exit_process(74); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

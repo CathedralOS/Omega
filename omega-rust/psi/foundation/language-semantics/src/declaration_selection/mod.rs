@@ -1,13 +1,23 @@
 use source::SourceSpan;
 use symbols::SymbolHandle;
 
+/// Resolver-certified correspondence before executable call transformations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ResolvedAuthoredCallBinding {
+    /// The resolved callable; executable copies may rebase this declaration.
+    pub selected: SymbolHandle,
+    /// The declaration named by the retained authored-selection occurrence.
+    /// Local specialization preserves it together with that occurrence.
+    pub original: SymbolHandle,
+}
+
 mod product;
 pub use product::{
     BuildSelectionRequest, CompositionMode, DescribedProductEntry, DescribedProductProvider,
     DescribedProductSchema, EnumExclusionRequest, ExclusionVocabulary, ExecutedBuildSelection,
     ExecutedEnumExclusion, ExecutedProductSelection, ExecutedRootBinding,
-    ProductDeclarationOperand, ProductDeclarationRequest, RootBindingOperand, RootBindingRequest,
-    RootBindingSelection,
+    ProductDeclarationOperand, ProductDeclarationRequest, ProductOperandRole,
+    ProviderReadinessRequest, RootBindingOperand, RootBindingRequest, RootBindingSelection,
 };
 
 /// Whether an authored declaration selection contributes only to an
@@ -178,6 +188,8 @@ impl CollectionMeasure {
 /// is a different vocabulary and stays with Omega's build declarations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuildOperation {
+    /// Prepare the explicitly named Build dependency backing for a known requirement.
+    ProviderReadiness,
     /// `Build::select_provider<Subject, Product>(b)` on the mutable root `Build`.
     ProviderSelection,
     /// `Build::assume_binding_contract<Required::operation, Supplied::operation>(b)`
@@ -218,6 +230,12 @@ pub fn is_unresolved_provider_selection_call(
 }
 
 impl BuildOperation {
+    /// Designated operands retain source custody instead of becoming executable
+    /// static-machine arguments. Readiness still checks its requirement now;
+    /// only its backing may resolve during dependency preparation.
+    pub const fn has_designated_operands(self) -> bool {
+        self.selects_product_declarations() || matches!(self, Self::ProviderReadiness)
+    }
     /// These operations describe Product declarations or closed demand facts;
     /// their static operands are not executable host generic arguments. This
     /// classification alone grants no authority to an untyped call spelling.
@@ -237,7 +255,8 @@ impl BuildOperation {
     /// Every toolchain-owned build operation. Adding a variant without its
     /// spelling stops compiling here rather than silently dropping out of
     /// the map.
-    pub const ALL: [Self; 11] = [
+    pub const ALL: [Self; 12] = [
+        Self::ProviderReadiness,
         Self::ProviderSelection,
         Self::AssumedBindingContract,
         Self::RepresentationSelection,
@@ -254,6 +273,7 @@ impl BuildOperation {
     /// The exact authored operation name; static operands stay in their own table.
     pub const fn authored_spelling(self) -> &'static str {
         match self {
+            Self::ProviderReadiness => "await_provider",
             Self::ProviderSelection => "select_provider",
             Self::AssumedBindingContract => "assume_binding_contract",
             Self::RepresentationSelection => "select_representation",
@@ -279,6 +299,9 @@ impl BuildOperation {
     /// The intrinsic selection target checking records for this operation.
     pub const fn intrinsic(self) -> AuthoredDeclarationSelectionIntrinsic {
         match self {
+            Self::ProviderReadiness => {
+                AuthoredDeclarationSelectionIntrinsic::BuildProviderReadiness
+            }
             Self::ProviderSelection => {
                 AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection
             }
@@ -316,6 +339,7 @@ impl BuildOperation {
 /// unresolved.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AuthoredDeclarationSelectionIntrinsic {
+    BuildProviderReadiness,
     BuiltinOperator,
     /// One exact compiler-owned carry permission selected by authored domain
     /// syntax. Carry permissions are language meanings, not declarations in
@@ -335,6 +359,13 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
     ByteSequencePredicate(crate::byte_predicates::ByteSequencePredicate),
     /// Runtime storage referent exposure; carries no retained loan or access authority.
     StorageAddress,
+    /// An inert Product locator of one source-issued Build recording request.
+    /// It grants no host nameability; the Product join must resolve this exact role.
+    BuildProductOperand {
+        operation: BuildOperation,
+        position: usize,
+        role: ProductOperandRole,
+    },
     BuildProviderSelection,
     /// `Build::assume_binding_contract<Required::operation, Supplied::operation>(b)`:
     /// the consuming root's runtime-only authorization of one boundary

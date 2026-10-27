@@ -20,12 +20,12 @@ machine Main::main(main: &mut Main) reaches Console {
     main.ranged = 0.5;
     transition { _ -> accepts_range(main, main.ranged) }
 
-    state accepts_range(main: &Main, value: f32 in Finite) {
+    machine accepts_range(main: &Main, value: f32 in Finite) {
         transition value == 0.5 { true -> good(main) _ -> bad(main) }
     }
 
-    state good(main: &Main) { Console::exit_process(77); }
-    state bad(main: &Main) { Console::exit_process(78); }
+    machine good(main: &Main) { Console::exit_process(77); }
+    machine bad(main: &Main) { Console::exit_process(78); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

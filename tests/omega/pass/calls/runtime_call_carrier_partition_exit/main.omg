@@ -7,8 +7,8 @@ machine write(first: Marker, tag: Tag, value: &mut i32, values: [u64; 2], last: 
         true -> selected(value)
         false -> done()
     }
-    state selected(value: &mut i32) { value = 7; }
-    state done() {}
+    machine selected(value: &mut i32) { value = 7; }
+    machine done() {}
 }
 
 machine inspect(first: Marker, tag: Tag, values: [u64; 2], last: Marker) -> bool {
@@ -36,6 +36,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

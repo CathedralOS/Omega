@@ -10,7 +10,7 @@ requires outer.inner.items.len <= capacity;
 terminates by outer.inner.items -> Slice::Length in 0..=capacity;
 -> u64 {
     transition { _ -> step(outer, capacity) }
-    state step(current: Outer, bound: u64) {
+    machine step(current: Outer, bound: u64) -> u64 {
         transition current.inner.items.len > 0 {
             true -> step(Outer { inner: Inner { items: current.inner.items[1..] } }, bound)
             false -> 0

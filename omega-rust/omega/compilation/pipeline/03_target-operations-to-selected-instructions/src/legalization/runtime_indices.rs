@@ -11,6 +11,7 @@
 //! call this one join.
 
 use crate::LegalizationError;
+use crate::legalization::accepted_fact;
 use crate::structural_inputs::structural_reference_input::RuntimeElement;
 use legalized_operations::LegalizedRuntimeIndexOperand;
 use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
@@ -35,16 +36,7 @@ pub(crate) fn operands(
                     |scalar| matches!(scalar, ScalarType::Integer(integer) if integer.bits() <= 64),
                 )
                 .ok_or(LegalizationError::custody())?;
-            let accepted_fact = unit
-                .accepted_obligation_facts
-                .iter()
-                .find(|fact| {
-                    fact.machine == optimized.machine
-                        && fact.owner == owner
-                        && fact.obligation == element.obligation
-                })
-                .map(|fact| fact.identity)
-                .ok_or(LegalizationError::custody())?;
+            let accepted_fact = accepted_fact(unit, optimized, owner, element.obligation)?;
             Ok(LegalizedRuntimeIndexOperand {
                 operand: abstract_operations::AbstractResult {
                     value: element.index,

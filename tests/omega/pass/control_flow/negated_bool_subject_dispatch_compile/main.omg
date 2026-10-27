@@ -13,6 +13,6 @@ machine Main::main(main: &mut Main) {
         _ -> kept(main)
     }
 
-    state inverted(main: &mut Main) { main.answer = 70; }
-    state kept(main: &mut Main) { main.answer = 71; }
+    machine inverted(main: &mut Main) { main.answer = 70; }
+    machine kept(main: &mut Main) { main.answer = 71; }
 }

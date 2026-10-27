@@ -89,9 +89,7 @@ fn call_result_candidates(
             include_shared,
         )? {
             storage.segments.extend_from_slice(&source.segments);
-            if !candidates.contains(&storage) {
-                candidates.push(storage);
-            }
+            crate::collections::push_unique(&mut candidates, storage);
         }
     }
     (!candidates.is_empty()).then_some(candidates)
@@ -217,7 +215,11 @@ pub(in crate::flow) fn call_result_captured_sources(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     indices: &[Option<usize>],
 ) -> Option<Vec<ReferenceResultSource>> {
-    let (callee, state) = validation::find_state(program, call.target_symbol)?;
+    let entered_target = validation::call_target_entry_symbol(
+        program,
+        validation::call_target_symbol(program, call),
+    );
+    let (callee, state) = validation::find_state(program, entered_target)?;
     let parameters = program.state_parameters(state);
     if call.receiver.is_valid() != callee.attached_data.is_some()
         || !call.carries_only_positional_arguments()

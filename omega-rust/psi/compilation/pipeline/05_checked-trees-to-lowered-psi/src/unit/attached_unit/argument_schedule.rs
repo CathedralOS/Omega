@@ -55,7 +55,13 @@ pub(super) fn build(
     checked: &CheckedTrees,
     plan: &CheckedUnitEffectMachinePlan,
 ) -> Result<Vec<Step>, LoweringError> {
-    let operations = &plan.operations[..plan.operations.len() - 1];
+    // A normal completion is emitted by the enclosing return owner. A stopped
+    // prefix has no Complete: its final operation is the invocation itself and
+    // must remain in the same authored evaluation schedule.
+    let operations = match plan.operations.split_last() {
+        Some((CheckedUnitEffectOperationPlan::Complete { .. }, prefix)) => prefix,
+        _ => plan.operations.as_slice(),
+    };
     let mut steps = build_operations(checked, plan.machine, plan.state, operations)?;
     steps.push(Step::CaptureBefore(plan.statement_count));
     Ok(steps)

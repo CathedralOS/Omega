@@ -219,9 +219,7 @@ pub(in crate::checks::multiplicity) fn append_stored_transfer(
                 ));
             }
             let source = (value.expression, row.stored_destination);
-            if !sources.contains(&source) {
-                sources.push(source);
-            }
+            crate::collections::push_unique(&mut sources, source);
         }
     }
     if sources.len() > 1 {

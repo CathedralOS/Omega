@@ -13,7 +13,7 @@ machine copy(buffer: &mut [u8; 32] in Ascii, bytes: &[u8] in Ascii, start: u64)
 requires start <= 32; bytes.len <= 32 - start
 {
     transition { _ -> copying(buffer, bytes, start, 0) }
-    state copying(buffer: &mut [u8; 32] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    machine copying(buffer: &mut [u8; 32] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
     requires start <= 32; index <= 32
     {
         transition index < bytes.len && start + index < 32 {
@@ -27,7 +27,7 @@ requires start <= 32; bytes.len <= 32 - start
         buffer[start + index] = bytes[index];
         transition { _ -> copying(buffer, bytes, start, index + 1) }
     }
-    state done() {}
+    machine done() {}
 }
 
 domain [u8; 3]::Ascii(bytes) requires ascii_only(bytes);
@@ -52,13 +52,13 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> mismatch(main)
     }
 
-    state ok(main: &mut Main) {
+    machine ok(main: &mut Main) {
         Console::write_line("PASS: the greeting matched Hello, Ada! exactly (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
         Console::exit_process(70);
     }
-    state mismatch(main: &mut Main) {
+    machine mismatch(main: &mut Main) {
         Console::write_line("FAIL: the concatenated greeting did not match (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);

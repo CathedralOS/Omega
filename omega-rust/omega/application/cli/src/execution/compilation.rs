@@ -95,6 +95,7 @@ pub(super) fn interpret_product(
             "native report lost its produced Terminal artifact before comparison",
         ))?;
     terminal_runtime::execute(TerminalRuntimeRequest {
+        entry: None,
         native_provider: Some(std::process::Command::new(
             std::env::current_exe().map_err(|error| TerminalRuntimeError::MissingProvision {
                 capability: "native-provider-sponsor",

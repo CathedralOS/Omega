@@ -34,7 +34,7 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> check_match(main)
     }
 
-    state check_match(main: &mut Main) {
+    machine check_match(main: &mut Main) {
         let index: u64 = 1;
         let room_slice: &mut [Room] = &mut main.rooms[0..3];
         transition room_slice[index].name == "expected" {
@@ -43,7 +43,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state check_differ(main: &mut Main) {
+    machine check_differ(main: &mut Main) {
         let index: u64 = 2;
         let room_slice: &mut [Room] = &mut main.rooms[0..3];
         transition room_slice[index].name == "expected" {
@@ -52,11 +52,11 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state pass(main: &mut Main) {
+    machine pass(main: &mut Main) {
         Console::exit_process(70);
     }
 
-    state fail(main: &mut Main) {
+    machine fail(main: &mut Main) {
         Console::exit_process(71);
     }
 }

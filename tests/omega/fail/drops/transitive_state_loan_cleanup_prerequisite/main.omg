@@ -3,7 +3,7 @@ machine Room::drop(room: &mut Room) requires room.count == 10 { room.count = 99;
 machine main() {
  let room: Room = Room { count: 10 };
  transition { _ -> first(&mut room) }
- state first(room: &mut Room) { transition { _ -> second(room) } }
- state second(room: &mut Room) { transition { _ -> last(room) } }
- state last(room: &mut Room) { room.count = 11; }
+ machine first(room: &mut Room) { transition { _ -> second(room) } }
+ machine second(room: &mut Room) { transition { _ -> last(room) } }
+ machine last(room: &mut Room) { room.count = 11; }
 }

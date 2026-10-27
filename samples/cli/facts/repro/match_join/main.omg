@@ -7,8 +7,8 @@ machine bounded_choice(value: f64, flag: bool) -> i32 {
         true -> finish(I32::from_f64(chosen))
         false -> zero()
     }
-    state finish(observed: i32) -> i32 { observed }
-    state zero() -> i32 { 0 }
+    machine finish(observed: i32) -> i32 { observed }
+    machine zero() -> i32 { 0 }
 }
 machine bounded(value: f64) -> i32 {
     let left: i32 = bounded_choice(value, true);
@@ -17,8 +17,8 @@ machine bounded(value: f64) -> i32 {
         true -> keep(left)
         false -> mismatch()
     }
-    state keep(observed: i32) -> i32 { observed }
-    state mismatch() -> i32 { -1 }
+    machine keep(observed: i32) -> i32 { observed }
+    machine mismatch() -> i32 { -1 }
 }
 
 machine main() crashes Trap {
@@ -31,6 +31,6 @@ machine main() crashes Trap {
         true -> done()
         false -> bad()
     }
-    state done() {}
-    state bad() { crash Trap; }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

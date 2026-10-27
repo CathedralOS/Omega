@@ -67,8 +67,8 @@ machine Main::main(main: &mut Main) {
         (true) -> done(main)
         _ -> bad(main)
     }
-    state done(main: &mut Main) { let value: i32 = 70; }
-    state bad(main: &mut Main) { let value: i32 = 71; }
+    machine done(main: &mut Main) { let value: i32 = 70; }
+    machine bad(main: &mut Main) { let value: i32 = 71; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

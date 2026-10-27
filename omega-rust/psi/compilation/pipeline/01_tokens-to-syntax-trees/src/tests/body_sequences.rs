@@ -60,20 +60,37 @@ fn nested_machine_layout_rejects_resumed_statements_and_package_exports() {
 }
 
 #[test]
-fn entry_and_state_bodies_preserve_expanded_statement_order_and_boundaries() {
+fn entry_and_nested_bodies_preserve_expanded_statement_order_and_boundaries() {
     let body =
         "let first: u64 = 1; asm where clobbers none { lfence; sfence } transition { _ -> done() }";
     for source in [
-        format!("machine process() {{ {body} state done() {{}} }}"),
-        format!("machine process() {{ state begin() {{ {body} }} state done() {{}} }}"),
+        format!("machine process() {{ {body} machine done() {{}} }}"),
+        format!("machine process() {{ machine begin() {{ {body} }} machine done() {{}} }}"),
     ] {
         let tokens = Lexer::new(&source).tokenize().unwrap();
         let trees = parse_syntax_trees(&tokens).unwrap();
         let Item::Machine(machine) = trees.root_items().next().unwrap() else {
             panic!("machine root")
         };
+        let machine = if trees
+            .items
+            .state(trees.items.state_handles(machine.states)[0])
+            .statements
+            .is_empty()
+        {
+            machine
+                .nested_machines
+                .handles()
+                .find_map(|handle| match trees.items.item(handle) {
+                    Item::Machine(child) if child.name.as_str(&trees) == "begin" => Some(child),
+                    _ => None,
+                })
+                .expect("nested begin")
+        } else {
+            machine
+        };
         let states = trees.items.state_handles(machine.states);
-        assert_eq!(states.len(), 2);
+        assert_eq!(states.len(), 1);
         let statements = super::inline_assembly::instruction_statements(
             &trees,
             trees
@@ -94,17 +111,16 @@ fn entry_and_state_bodies_preserve_expanded_statement_order_and_boundaries() {
             trees.statements.statement(statements[3]),
             StatementNode::Transition(_)
         ));
-        assert!(trees.items.state(states[1]).statements.is_empty());
     }
 }
 
 #[test]
-fn both_body_forms_reject_bare_arrows_with_their_own_diagnostic() {
+fn every_machine_body_rejects_bare_arrows() {
     for (source, expected) in [
         ("machine process() { -> done() }", "machine entry bodies"),
         (
-            "machine process() { state begin() { -> done() } }",
-            "explicit state bodies",
+            "machine process() { machine begin() { -> done() } }",
+            "machine entry bodies",
         ),
     ] {
         let tokens = Lexer::new(source).tokenize().unwrap();
