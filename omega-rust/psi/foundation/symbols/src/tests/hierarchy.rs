@@ -353,3 +353,33 @@ fn current_activation_extension_is_invisible_to_base_but_sees_the_complete_exten
         );
     }
 }
+#[test]
+fn declaration_ownership_preserves_physical_names_and_fork_isolation() {
+    use crate::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+    let mut builder = SymbolTableBuilder::new();
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let children = builder.insert_children(
+        root,
+        [
+            (SymbolKind::Machine, SymbolNameRef::Static("member")),
+            (SymbolKind::Conformance, SymbolNameRef::Static("first")),
+            (SymbolKind::Conformance, SymbolNameRef::Static("second")),
+        ],
+    );
+    let mut children = SymbolTableBuilder::child_handles(children);
+    let member = children.next().unwrap();
+    let first = children.next().unwrap();
+    let second = children.next().unwrap();
+    let mut symbols = builder.finish();
+    symbols.record_declaration_owner(member, first).unwrap();
+    symbols.record_declaration_owner(member, first).unwrap();
+    assert!(symbols.record_declaration_owner(member, second).is_err());
+    assert_eq!(symbols.get(member).parent, root);
+    assert_eq!(symbols.display_path(member, "::"), "member");
+    let retained = symbols.clone();
+    symbols.clear_declaration_owner(member);
+    assert!(!symbols.get(member).declaration_owner.is_valid());
+    assert_eq!(retained.get(member).declaration_owner, first);
+    assert_eq!(retained.get(member).parent, root);
+}

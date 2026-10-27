@@ -20,9 +20,12 @@ fn selection_keeps_first_duplicate_and_exact_symbol_generation() {
     declarations.push(machine(next_generation, false));
     declarations.push(machine(symbol, true));
     assert!(!declarations.by_symbol(symbol).unwrap().is_public);
+    assert!(declarations.unique_by_symbol(symbol).is_none());
     assert!(!declarations.by_symbol(next_generation).unwrap().is_public);
+    assert!(declarations.unique_by_symbol(next_generation).is_some());
     declarations.retain(|machine| machine.symbol != symbol || machine.is_public);
     assert!(declarations.by_symbol(symbol).unwrap().is_public);
+    assert!(declarations.unique_by_symbol(symbol).is_some());
     assert!(!declarations.contains(hidden));
     // Selection does not move a previously published declaration identity.
     assert!(!declarations.get(hidden).is_public);

@@ -17,18 +17,17 @@ impl TypedTrees {
         if !owner.is_valid() {
             return owner;
         }
-        let mut selecting = self.conformances().iter().filter(|conformance| {
-            conformance
-                .rows
-                .iter()
-                .any(|row| row.source.owns_realization() && row.realization_machine == owner)
-        });
-        if let Some(conformance) = selecting.next() {
-            return if selecting.next().is_none() {
-                conformance.symbol
-            } else {
-                symbols::SymbolHandle::invalid()
-            };
+        let enclosing = self.symbols.get(owner).declaration_owner;
+        if enclosing.is_valid()
+            && self
+                .conformance_by_symbol(enclosing)
+                .is_some_and(|conformance| {
+                    conformance.rows.iter().any(|row| {
+                        row.source.owns_realization() && row.realization_machine == owner
+                    })
+                })
+        {
+            return enclosing;
         }
         self.symbols.get(owner).parent
     }

@@ -59,7 +59,20 @@ impl<'arena> IntoIterator for &'arena MachineDeclarations {
 
 impl MachineDeclarations {
     pub fn by_symbol(&self, symbol: SymbolHandle) -> Option<&Machine> {
-        let position = self.positions.with(
+        self.symbol_position(symbol)
+            .map(|(position, _)| &self.arena[position])
+    }
+
+    /// Ownership requires one declaration, rather than the first declaration
+    /// retained for ordinary lookup. A duplicate symbol supplies no owner.
+    pub fn unique_by_symbol(&self, symbol: SymbolHandle) -> Option<&Machine> {
+        self.symbol_position(symbol)
+            .filter(|(_, duplicate)| !duplicate)
+            .map(|(position, _)| &self.arena[position])
+    }
+
+    fn symbol_position(&self, symbol: SymbolHandle) -> Option<(usize, bool)> {
+        self.positions.with(
             (),
             || {
                 let mut positions = self
@@ -79,10 +92,16 @@ impl MachineDeclarations {
                 positions
                     .get(first)
                     .filter(|(candidate, _)| *candidate == symbol)
-                    .map(|(_, position)| *position)
+                    .map(|(_, position)| {
+                        (
+                            *position,
+                            positions
+                                .get(first + 1)
+                                .is_some_and(|(candidate, _)| *candidate == symbol),
+                        )
+                    })
             },
-        )?;
-        Some(&self.arena[position])
+        )
     }
 }
 

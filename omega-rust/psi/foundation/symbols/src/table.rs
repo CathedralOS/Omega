@@ -234,6 +234,7 @@ fn child_symbol(
 ) -> Symbol {
     Symbol {
         parent,
+        declaration_owner: SymbolHandle::invalid(),
         children: HandleSpan::empty(),
         kind,
         name: names.insert(SymbolName::from_ref_with_sources(name, sources)),
@@ -335,6 +336,7 @@ impl SymbolTable {
             // foreign generations without following an untrusted parent chain.
             let origin = symbol.generated_from;
             if !origin.is_valid()
+                || symbol.declaration_owner.is_valid()
                 || origin.generation() != handle.generation()
                 || origin.arena_index() >= handle.arena_index()
                 || symbols.get(origin).kind == SymbolKind::Unknown
@@ -438,6 +440,7 @@ impl SymbolTable {
                 parent,
                 Symbol {
                     parent,
+                    declaration_owner: SymbolHandle::invalid(),
                     children: HandleSpan::empty(),
                     kind,
                     name,
@@ -459,6 +462,34 @@ impl SymbolTable {
     #[inline]
     pub fn get(&self, symbol: SymbolHandle) -> &Symbol {
         self.symbols.get(symbol)
+    }
+
+    /// Record the inverse of an owning declaration row. Resolution establishes
+    /// uniqueness before publication; a retained frontier may rejoin the same
+    /// relationship, but another owner cannot replace it.
+    pub fn record_declaration_owner(
+        &mut self,
+        declaration: SymbolHandle,
+        owner: SymbolHandle,
+    ) -> Result<(), &'static str> {
+        if !self.symbols.nodes().is_valid(declaration)
+            || !self.symbols.nodes().is_valid(owner)
+            || self.get(declaration).kind != SymbolKind::Machine
+            || self.get(owner).kind != SymbolKind::Conformance
+        {
+            return Err("owned realization lost its declaration or enclosing capture scope");
+        }
+        let previous = self.get(declaration).declaration_owner;
+        if previous.is_valid() && previous != owner {
+            return Err("owned conformance realization has ambiguous enclosing capture scope");
+        }
+        self.symbols.get_mut(declaration).declaration_owner = owner;
+        Ok(())
+    }
+
+    /// A discarded synthesized declaration cannot lend its old capture scope.
+    pub fn clear_declaration_owner(&mut self, declaration: SymbolHandle) {
+        self.symbols.get_mut(declaration).declaration_owner = SymbolHandle::invalid();
     }
 
     /// Give one symbol a new spelling. Target-family selection promotes the
@@ -589,6 +620,7 @@ impl SymbolTable {
             .insert(SymbolName::from_ref(SymbolNameRef::Borrowed(name)));
         self.symbols.insert_root(Symbol {
             parent: SymbolHandle::invalid(),
+            declaration_owner: SymbolHandle::invalid(),
             children: HandleSpan::empty(),
             kind,
             name,
@@ -636,6 +668,7 @@ impl SymbolTable {
                 .into_iter()
                 .map(|(generated_from, kind, name)| Symbol {
                     parent,
+                    declaration_owner: SymbolHandle::invalid(),
                     children: HandleSpan::empty(),
                     kind,
                     name: names.insert(SymbolName::from_ref(SymbolNameRef::Borrowed(name))),
