@@ -10,7 +10,7 @@
 
 use register_model::{
     RegisterConstraintId, RegisterConstraintKey, RegisterInstructionConstraint,
-    RegisterOperandAccess, RegisterOperandConstraint, ValidatedPhysicalRegisterModel,
+    RegisterOperandAccess, ValidatedPhysicalRegisterModel,
 };
 
 /// Argument-count-major kernel entry rows, Unit then integer result.
@@ -42,13 +42,8 @@ pub(super) fn append_constraints(
             .map(|name| (view(name), RegisterOperandAccess::Use))
             .chain(returns_value.then_some((result, RegisterOperandAccess::Def)))
             .enumerate()
-            .map(|(operand, (register, access))| RegisterOperandConstraint {
-                operand: operand as u16,
-                access,
-                class: register.class,
-                fixed_view: Some(register.id),
-                tied_to: None,
-                early_clobber: false,
+            .map(|(operand, (register, access))| {
+                super::fixed_operand(operand as u16, access, register)
             })
             .collect();
         let mut clobbers = clobbers

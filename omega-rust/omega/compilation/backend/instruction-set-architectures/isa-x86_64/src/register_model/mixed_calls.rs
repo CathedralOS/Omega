@@ -4,7 +4,7 @@ use super::{x86_64_microsoft_register_unit_call_keys, x86_64_system_v_register_u
 use register_model::call_constraint_keys;
 use register_model::{
     RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess,
-    RegisterOperandConstraint, ValidatedPhysicalRegisterModel, find_register_constraint,
+    ValidatedPhysicalRegisterModel, find_register_constraint,
 };
 /// System V rows ordered by GPR count (0–6), then IEEE register count (1–8).
 pub fn x86_64_system_v_mixed_unit_call_keys() -> Vec<RegisterConstraintKey> {
@@ -29,14 +29,11 @@ fn append_row(
         .enumerate()
         .map(|(operand, name)| {
             let view = model.model().view_named(&name)?;
-            Some(RegisterOperandConstraint {
-                operand: operand as u16,
-                access: RegisterOperandAccess::Use,
-                class: view.class,
-                fixed_view: Some(view.id),
-                tied_to: None,
-                early_clobber: false,
-            })
+            Some(super::fixed_operand(
+                operand as u16,
+                RegisterOperandAccess::Use,
+                view,
+            ))
         })
         .collect::<Option<Vec<_>>>()
     else {
