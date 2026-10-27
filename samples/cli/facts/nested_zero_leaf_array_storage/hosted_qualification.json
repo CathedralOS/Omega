@@ -2,7 +2,7 @@
   "schema": "omega-zero-leaf-host-qualification-v1",
   "parent": "NORMALIZED-ABI-LOWERING",
   "fixed_base": "430f49152ad34f2119d08035bbc4b1f8733ee547",
-  "requirement": "The unchanged owned zero-leaf fact survives root,nineplaces and ordinaryzeroedproducer on all four matching hosts with realC, actualnative/Terminaloracles and canonicalretention.",
+  "requirement": "The unchanged owned zero-leaf fact survives the root, all nine places and ordinary zero initialization on all four matching hosts, with real C providers, native/Terminal agreement and canonical product retention.",
   "evidence_root": "build/zero-leaf-host-evidence",
   "validator_sha256": "5cb6f26412e728110ed91d110cb3ab47b3c7afa3d2536014e66b711337b71987",
   "full_verified_summary_sha256": "bf76dd797a959cb3262806c132ab0b2f9b799b257cba5e093466d9e2ab29957b",
@@ -1082,13 +1082,13 @@
     }
   ],
   "applicability": [
-    "All four current runtime observations use actual optimized841source84e39b1c4f5abd95b1b397f6d61a4d31074fadb4; later documentation/golden changes retain that original identity.",
-    "The original843memorybenchmark and auxiliarycontrolobservations in qualification_macos_arm64.json remain separate historical observations; no fresh cross-host memory bound is asserted.",
-    "Source/pin/lock/C/provider/profile/native/canonical/rawenginebindings were checked directly, including originalgzipproducer digests and actualtargetimageheaders; foreignbinaries were notexecutedonmacOS."
+    "All four current runtime observations use actual optimized producer source 84e39b1c4f5abd95b1b397f6d61a4d31074fadb4; later documentation and golden commits retain that original identity.",
+    "The original 843 memory benchmark and auxiliary controls in qualification_macos_arm64.json remain separate historical observations. No fresh cross-host memory bound is asserted.",
+    "Source, pin, lock, C provider, profile, native image, canonical product and raw engine bindings were checked directly, including original gzip producer digests and target image headers. Foreign binaries were not executed on macOS."
   ],
   "limitations": [
-    "GitHub artifacts omitted12 .omega-owner temporary-directory housekeepingmarkers perforeignhost; every semantic/native/canonical/identity/source/lock/C artifact is retained. Missingmarkers are enumerated in the fullverifiedsummary.",
-    "Linuxx86_64 sourcechecking reported2 slower timings against sharedpins; all functionaloracles passed. No new memory orspeed improvement is claimed.",
-    "This closes matching-host qualification for this row, not broader borrowed/tagged/qualified/opaque/retained-provider acceptance. The inherited live-subvalue nestedarrayconstructor frontier remains open."
+    "GitHub artifacts omitted 12 .omega-owner temporary-directory deletion markers per foreign host. Every semantic, native, canonical, identity, source, lock and C artifact is retained. Missing markers are enumerated in the full verified summary.",
+    "Linux x86-64 source checking reported two slower timings against shared pins; all functional oracles passed. No new memory or speed improvement is claimed.",
+    "This closes matching-host qualification for this row. Broader borrowed, tagged, qualified, opaque and retained-provider acceptance remains open, as does the inherited live-subvalue nested array constructor frontier."
   ]
 }
