@@ -277,7 +277,7 @@ impl TypedTrees {
         // visible during formation, not fresh binders of each invocation.
         let mut enclosing = self.declaration_scope_parent(machine.symbol);
         while enclosing.is_valid() {
-            if let Some(declaration) = self.machine_by_symbol(enclosing) {
+            if let Some(declaration) = self.machine_declaration_for_lexical_scope(enclosing) {
                 for parameter in self.machine_type_parameters(declaration) {
                     if !type_parameters
                         .iter()
@@ -369,7 +369,7 @@ impl TypedTrees {
                 break;
             }
             let captured = self
-                .machine_by_symbol(lexical_owner)
+                .machine_declaration_for_lexical_scope(lexical_owner)
                 .map(|machine| &machine.lifetime_parameters)
                 .or_else(|| {
                     self.data_definition_by_symbol(lexical_owner)

@@ -140,6 +140,12 @@ pub(super) fn retain_authored_call(
         }
     };
     if application.is_valid() {
+        let retained = program
+            .expression_table
+            .static_machine_application_mut(application);
+        if !retained.lexical_owner.is_valid() {
+            retained.lexical_owner = lexical_owner;
+        }
         application
     } else {
         let application = program.expression_table.retain_static_machine_application(
