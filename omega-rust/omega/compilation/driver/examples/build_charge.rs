@@ -39,6 +39,8 @@ fn main() {
     }
     if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--source-inputs")) {
         source_discovery_root_inputs();
+        source_discovery_root_resources();
+        application_source_resolution("executed_dependency_source_join_exit", false);
         return;
     }
     if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--one-shot")) {
@@ -76,6 +78,7 @@ fn main() {
     terminal_build_filesystem();
     anonymous_generator_source_scope();
     source_discovery_root_inputs();
+    source_discovery_root_resources();
     foreign_build_return_refuses();
     ignored_build_request_still_requires_join();
     let root = fixture_package_inputs::repo_root()
@@ -278,21 +281,20 @@ fn source_discovery_root_inputs() {
         omega_build::ProjectSourceRequest {
             preparation: preparation(),
             collect_timings: false,
-            execution_profile: profile,
-            snapshot: None,
+            execution: package_compilation::BuildExecutionInputs {
+                profile: Some(profile),
+                snapshot: None,
+                ..Default::default()
+            },
         },
     )
     .err()
     .expect("an unassigned named slot must reject");
-    let omega_build::ProjectSourceResolutionError::Compilation(error) = error else {
-        panic!("named-slot refusal must come from execution: {error:?}");
-    };
-    let diagnostics = error.into_diagnostics();
     assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("named build input `template` is not assigned")),
-        "{diagnostics:?}"
+        error
+            .to_string()
+            .contains("named build input `template` is not assigned"),
+        "{error}"
     );
     session.close().unwrap();
 
@@ -304,8 +306,11 @@ fn source_discovery_root_inputs() {
         omega_build::ProjectSourceRequest {
             preparation: preparation(),
             collect_timings: false,
-            execution_profile: profile,
-            snapshot: Some(snapshot(vec![b"named.txt".to_vec()])),
+            execution: package_compilation::BuildExecutionInputs {
+                profile: Some(profile),
+                snapshot: Some(snapshot(vec![b"named.txt".to_vec()])),
+                ..Default::default()
+            },
         },
     )
     .unwrap_or_else(|error| panic!("assigned input discovery: {error:?}"));
@@ -343,11 +348,14 @@ fn source_discovery_root_inputs() {
         omega_build::ProjectSourceRequest {
             preparation: preparation(),
             collect_timings: false,
-            execution_profile: profile,
-            snapshot: Some(snapshot(vec![
-                b"named.txt".to_vec(),
-                b"missing.txt".to_vec(),
-            ])),
+            execution: package_compilation::BuildExecutionInputs {
+                profile: Some(profile),
+                snapshot: Some(snapshot(vec![
+                    b"named.txt".to_vec(),
+                    b"missing.txt".to_vec(),
+                ])),
+                ..Default::default()
+            },
         },
     )
     .unwrap();
@@ -369,6 +377,120 @@ fn source_discovery_root_inputs() {
     println!(
         "source_discovery_binds_the_complete_root_snapshot_and_preserves_named_slot_and_output_controls"
     );
+}
+
+/// Exercise caller-owned root limits before any discovery effects. The same
+/// authored output succeeds with adequate resources and refuses each smaller
+/// sponsor; no Product admission can supply a replacement budget afterward.
+fn source_discovery_root_resources() {
+    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "discovery-root-resources",
+        false,
+    )
+    .unwrap();
+    let root = fixture_package_inputs::repo_root()
+        .join("tests/omega/fail/build/staging_byte_limit_exhausted/main.omg");
+    let profile = target::TargetProfile::host_if_supported().unwrap();
+    let preparation = || {
+        package_manager::operations::begin_local_project_preparation(&root, &[profile], true)
+            .unwrap()
+            .unwrap()
+    };
+    for (name, fuel, bytes, expected) in [
+        ("adequate", 1_000_000, 1024, None),
+        ("fuel", 1, 1024, Some("Fuel allowance exhausted")),
+        (
+            "bytes",
+            1_000_000,
+            3,
+            Some("filesystem logical-byte limit 3"),
+        ),
+    ] {
+        let workspace = temporary.path().join(name);
+        std::fs::create_dir(&workspace).unwrap();
+        let filesystem = build_time_evaluation::BuildMachineFilesystemSponsor::create_private(
+            &workspace.join("caller"),
+            build_time_evaluation::BuildMachineFilesystemSponsorLimits {
+                maximum_entries: 32,
+                maximum_total_logical_bytes: bytes,
+                maximum_object_extent: 1024,
+            },
+        )
+        .unwrap();
+        let output = filesystem.session_root().unwrap().join("output");
+        let evaluation = sponsor(limits(fuel));
+        let mut session = omega_build::BuildSession::create(&workspace.join("session")).unwrap();
+        let session_evaluation = session.resources().evaluation_sponsor().clone();
+        let result = omega_build::resolve_project_sources(
+            &mut session,
+            omega_build::ProjectSourceRequest {
+                preparation: preparation(),
+                execution: package_compilation::BuildExecutionInputs {
+                    profile: Some(profile),
+                    directory: Some(output.clone()),
+                    evaluation_sponsor: Some(evaluation.clone()),
+                    filesystem_sponsor: Some(filesystem.clone()),
+                    ..Default::default()
+                },
+                collect_timings: false,
+            },
+        );
+        if let Some(expected) = expected {
+            let error = result.err().expect("caller resource limit must refuse");
+            assert!(error.to_string().contains(expected), "{error}");
+            println!("root_resource_control={name} refusal={error}");
+        } else {
+            let mut resolved = result.unwrap_or_else(|error| panic!("{error}"));
+            assert_eq!(resolved.builds.len(), 1);
+            let root = resolved.builds.pop().unwrap();
+            let inputs = root.package_inputs().clone();
+            let build = root.complete(session.compiler(), profile, inputs).unwrap();
+            let checked = session.compiler().check_package_build(build).unwrap();
+            let observations = checked.build().observation_summary.as_ref().unwrap();
+            let entry = observations
+                .staged_output_tree()
+                .unwrap()
+                .sealed_entry(b"output.txt")
+                .unwrap();
+            let build_output::BuildStagedOutputEntryKind::File { bytes, .. } = entry.kind() else {
+                panic!("output must remain a file");
+            };
+            assert_eq!(bytes, b"four");
+            assert_eq!(std::fs::read(output.join("output.txt")).unwrap(), b"four");
+            println!("root_resource_output=four");
+        }
+        assert_eq!(
+            session_evaluation.consumed_fuel_units(),
+            0,
+            "root must use the supplied sponsor, not a session replacement"
+        );
+        assert!(evaluation.consumed_fuel_units() > 0);
+        session.close().unwrap();
+        let capture = preparation()
+            .acquire_root()
+            .unwrap()
+            .source_capture()
+            .clone();
+        let before = counters::build_execution_count();
+        let failure = session
+            .resources()
+            .source_build_request(
+                &capture,
+                &root,
+                profile,
+                package_compilation::BuildExecutionInputs {
+                    directory: Some(output),
+                    evaluation_sponsor: Some(evaluation),
+                    filesystem_sponsor: Some(filesystem),
+                    ..Default::default()
+                },
+            )
+            .err()
+            .expect("explicit caller resources cannot reopen a closed session");
+        assert!(failure.to_string().contains("already closed"), "{failure}");
+        assert_eq!(counters::build_execution_count(), before);
+    }
+    println!("source_discovery_preserves_root_sponsors_output_bytes_and_closed_session_refusal");
 }
 
 /// Acquired source supplies both the compiler namespace and Build's input
@@ -407,6 +529,7 @@ fn anonymous_generator_source_scope() {
             acquired.source_capture(),
             &preparation.entry_path(),
             profile,
+            Default::default(),
         )
         .unwrap();
     let before = counters::build_execution_count();
@@ -474,7 +597,7 @@ fn anonymous_generator_source_scope() {
     .unwrap();
     let mut scoped = session
         .resources()
-        .source_build_request(&capture, &entry, profile)
+        .source_build_request(&capture, &entry, profile, Default::default())
         .unwrap();
     scoped.build.snapshot = Some(package_compilation::BuildSnapshotRequest::scoped(
         [b"generated.omg".to_vec()],
@@ -531,7 +654,7 @@ fn anonymous_generator_source_scope() {
     .unwrap();
     let mut omitted = session
         .resources()
-        .source_build_request(&capture, &entry, profile)
+        .source_build_request(&capture, &entry, profile, Default::default())
         .unwrap();
     omitted.build.snapshot = Some(package_compilation::BuildSnapshotRequest::scoped(
         [],
@@ -566,7 +689,7 @@ fn anonymous_generator_source_scope() {
     .unwrap();
     let mut omitted = session
         .resources()
-        .source_build_request(&capture, &entry, profile)
+        .source_build_request(&capture, &entry, profile, Default::default())
         .unwrap();
     omitted.build.snapshot = Some(package_compilation::BuildSnapshotRequest::scoped(
         [],
@@ -588,7 +711,7 @@ fn anonymous_generator_source_scope() {
 
     let mut missing_output = session
         .resources()
-        .source_build_request(&capture, &entry, profile)
+        .source_build_request(&capture, &entry, profile, Default::default())
         .unwrap();
     missing_output.build.snapshot = Some(package_compilation::BuildSnapshotRequest::new([
         b"missing.txt".to_vec(),
@@ -636,8 +759,11 @@ fn anonymous_generator_source_scope() {
         omega_build::ProjectSourceRequest {
             preparation,
             collect_timings: false,
-            execution_profile: profile,
-            snapshot: None,
+            execution: package_compilation::BuildExecutionInputs {
+                profile: Some(profile),
+                snapshot: None,
+                ..Default::default()
+            },
         },
     )
     .unwrap_or_else(|error| panic!("application generator discovery: {error:?}"));
@@ -1177,21 +1303,27 @@ fn application_source_resolution(project: &str, private_call: bool) {
     .unwrap();
     let mut session = omega_build::BuildSession::create(&temporary.path().join("session"))
         .expect("one project resource owner");
-    let sponsor = session.resources().evaluation_sponsor().clone();
+    let dependency_sponsor = session.resources().evaluation_sponsor().clone();
+    let root_sponsor = sponsor(limits(1_000_000));
     let before = counters::build_execution_count();
     let resolved = omega_build::resolve_project_sources(
         &mut session,
         omega_build::ProjectSourceRequest {
             preparation,
             collect_timings: false,
-            execution_profile: profile,
-            snapshot: None,
+            execution: package_compilation::BuildExecutionInputs {
+                profile: Some(profile),
+                snapshot: None,
+                evaluation_sponsor: Some(root_sponsor.clone()),
+                ..Default::default()
+            },
         },
     )
     .unwrap_or_else(|error| panic!("application source resolution: {error:?}"));
     assert_eq!(resolved.builds.len(), 2);
     assert_eq!(counters::build_execution_count(), before + 2);
-    let discovery_fuel = sponsor.consumed_fuel_units();
+    assert!(root_sponsor.consumed_fuel_units() > 0);
+    let discovery_fuel = dependency_sponsor.consumed_fuel_units();
     assert!(
         discovery_fuel > 0,
         "discovery must charge the project sponsor"
@@ -1257,7 +1389,7 @@ fn application_source_resolution(project: &str, private_call: bool) {
     }
     assert_eq!(counters::build_execution_count(), before + 2);
     assert_eq!(
-        sponsor.consumed_fuel_units(),
+        dependency_sponsor.consumed_fuel_units(),
         discovery_fuel,
         "Product cannot replay Build"
     );
@@ -1296,10 +1428,10 @@ fn application_source_resolution(project: &str, private_call: bool) {
                 .evaluation_sponsor
                 .as_ref()
                 .unwrap()
-                .begin_invocation(sponsor.measurement(), 1)
+                .begin_invocation(dependency_sponsor.measurement(), 1)
                 .unwrap();
             assert!(
-                sponsor.owns_usage(&account.snapshot().unwrap()),
+                dependency_sponsor.owns_usage(&account.snapshot().unwrap()),
                 "later admission must retain the discovery sponsor"
             );
         }
@@ -1603,8 +1735,11 @@ fn project_session_lifecycle() {
         omega_build::ProjectSourceRequest {
             preparation: preparation(),
             collect_timings: false,
-            execution_profile: profile,
-            snapshot: None,
+            execution: package_compilation::BuildExecutionInputs {
+                profile: Some(profile),
+                snapshot: None,
+                ..Default::default()
+            },
         },
     )
     .err()
@@ -1630,8 +1765,11 @@ fn project_session_lifecycle() {
         omega_build::ProjectSourceRequest {
             preparation: preparation(),
             collect_timings: false,
-            execution_profile: profile,
-            snapshot: None,
+            execution: package_compilation::BuildExecutionInputs {
+                profile: Some(profile),
+                snapshot: None,
+                ..Default::default()
+            },
         },
     )
     .err()
@@ -1677,8 +1815,11 @@ fn completed_build_target_fanout() {
         omega_build::ProjectSourceRequest {
             preparation,
             collect_timings: false,
-            execution_profile: host,
-            snapshot: None,
+            execution: package_compilation::BuildExecutionInputs {
+                profile: Some(host),
+                snapshot: None,
+                ..Default::default()
+            },
         },
     )
     .unwrap();
@@ -1808,8 +1949,11 @@ fn settled_build_product_contexts() {
         omega_build::ProjectSourceRequest {
             preparation,
             collect_timings: false,
-            execution_profile: host,
-            snapshot: None,
+            execution: package_compilation::BuildExecutionInputs {
+                profile: Some(host),
+                snapshot: None,
+                ..Default::default()
+            },
         },
     )
     .unwrap();

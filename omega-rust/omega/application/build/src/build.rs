@@ -91,8 +91,11 @@ pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildErro
                     &mut session,
                     crate::ProjectSourceRequest {
                         preparation,
-                        execution_profile: host,
-                        snapshot: request.build_snapshot.clone(),
+                        execution: package_compilation::BuildExecutionInputs {
+                            profile: Some(host),
+                            snapshot: request.build_snapshot.clone(),
+                            ..Default::default()
+                        },
                         collect_timings: request.timings,
                     },
                 );

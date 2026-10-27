@@ -65,7 +65,10 @@ fn resolve_command_sources<'workspace, 'storage>(
         &entry,
         &mut acquisitions,
         profile,
-        preparation.build_snapshot().cloned(),
+        package_compilation::BuildExecutionInputs {
+            snapshot: preparation.build_snapshot().cloned(),
+            ..Default::default()
+        },
         false,
     )
     .map_err(|error| PackageCommandError::from(error.to_string()))?;
