@@ -363,6 +363,7 @@ dependencies = [
  "proof-admission",
  "semantic-vocabulary",
  "source",
+ "source-audit",
  "symbols",
  "typed-trees",
 ]
@@ -2394,6 +2395,7 @@ dependencies = [
  "optimization",
  "semantic-vocabulary",
  "source",
+ "source-audit",
 ]
 
 [[package]]
