@@ -266,7 +266,7 @@ impl ScalarBindings {
             .captured_storage_home(root)?
             .map(Ok)
             .unwrap_or_else(|| {
-                self.structural_fields.observation_home(
+                self.structural_fields.storage_home(
                     root,
                     &self.structural_locals,
                     &self.view_locals,
