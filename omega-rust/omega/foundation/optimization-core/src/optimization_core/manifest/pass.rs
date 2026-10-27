@@ -27,6 +27,21 @@ pub struct OptimizationPassManifestRecord {
     work_usage: OptimizationWorkUsage,
 }
 
+crate::record_views! {
+    record OptimizationPassManifestRecord;
+    shared {
+        pass: OptimizationPassIdentity,
+        input: OptimizationUnitIdentity,
+        output: OptimizationUnitIdentity,
+        ordered_rule_set: OptimizationRuleSetIdentity,
+        work_usage: OptimizationWorkUsage,
+    }
+    slice {
+        ordered_rules: OptimizationRuleIdentity,
+        decisions: OptimizationDecisionRecord,
+    }
+}
+
 impl OptimizationPassManifestRecord {
     pub fn new(
         pass: OptimizationPassIdentity,
@@ -97,34 +112,6 @@ impl OptimizationPassManifestRecord {
         }
         encoded.extend_from_slice(&self.work_usage.encode());
         encoded
-    }
-
-    pub const fn pass(&self) -> OptimizationPassIdentity {
-        self.pass
-    }
-
-    pub const fn input(&self) -> OptimizationUnitIdentity {
-        self.input
-    }
-
-    pub const fn output(&self) -> OptimizationUnitIdentity {
-        self.output
-    }
-
-    pub const fn ordered_rule_set(&self) -> OptimizationRuleSetIdentity {
-        self.ordered_rule_set
-    }
-
-    pub fn ordered_rules(&self) -> &[OptimizationRuleIdentity] {
-        &self.ordered_rules
-    }
-
-    pub fn decisions(&self) -> &[OptimizationDecisionRecord] {
-        &self.decisions
-    }
-
-    pub const fn work_usage(&self) -> OptimizationWorkUsage {
-        self.work_usage
     }
 
     pub fn decode(encoded: &[u8]) -> Result<Self, OptimizationManifestDecodeError> {

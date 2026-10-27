@@ -1,7 +1,5 @@
 //! Construction and decoding failures shared by manifest record families.
 
-use std::fmt;
-
 use crate::CoreContractDecodeError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -15,13 +13,10 @@ pub enum InvalidOptimizationManifestRecord {
     DuplicateCandidateIdentity,
 }
 
-impl fmt::Display for InvalidOptimizationManifestRecord {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "invalid optimization manifest record: {self:?}")
-    }
-}
-
-impl std::error::Error for InvalidOptimizationManifestRecord {}
+crate::invalid_error_display!(
+    InvalidOptimizationManifestRecord,
+    "optimization manifest record"
+);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OptimizationManifestDecodeError {
@@ -37,13 +32,7 @@ pub enum OptimizationManifestDecodeError {
     InvalidRecord(InvalidOptimizationManifestRecord),
 }
 
-impl fmt::Display for OptimizationManifestDecodeError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            formatter,
-            "invalid optimization manifest encoding: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for OptimizationManifestDecodeError {}
+crate::invalid_error_display!(
+    OptimizationManifestDecodeError,
+    "optimization manifest encoding"
+);
