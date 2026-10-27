@@ -116,11 +116,7 @@ fn complete_occurrence(
                     source,
                     request.target,
                     request.inputs,
-                    compiler::PackageProductOptions {
-                        permit_unsettled_fused_service_fields: request
-                            .permit_unsettled_fused_service_fields,
-                        ..Default::default()
-                    },
+                    compiler::PackageProductOptions::default(),
                 )
                 .map_err(|failure| completion.compilation_failure(failure))?
         }

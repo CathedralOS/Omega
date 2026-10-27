@@ -24,7 +24,7 @@
 //! The live compiler source owner is deliberately not persisted: its sealed
 //! program storage is not serializable. The cache stores the facts a
 //! carried occurrence's `checked` field is actually consumed for — the
-//! tolerated flag, the source-consumption commitment inputs, the
+//! source-consumption commitment inputs, the
 //! target-entry candidate and, when a consumer demanded one, the published
 //! independent-component description. Publication lowers the dependency to
 //! Terminal Psi, so a record does not publish one speculatively: a consumer
@@ -74,7 +74,6 @@ const DEFAULT_MAX_RECORD_BYTES: u64 = 512 * 1024 * 1024;
 /// live compiler source: the facts needed by carried dependency occurrences.
 #[derive(Debug, Clone)]
 pub(crate) struct CachedOccurrenceFacts {
-    pub tolerated_unsettled_service_fields: bool,
     pub consumed_units: Vec<ConsumedSourceUnit>,
     pub source_consumption_commitment: PackageSourceConsumptionCommitment,
     pub component_description: Option<IndependentComponentDescription>,

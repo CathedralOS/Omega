@@ -96,13 +96,6 @@ impl OccurrenceCompile {
         }
     }
 
-    fn tolerated_unsettled_service_fields(&self) -> bool {
-        match self {
-            Self::Live(source) => source.facts().tolerated_unsettled_service_fields,
-            Self::Cached(facts) => facts.tolerated_unsettled_service_fields,
-        }
-    }
-
     /// The source-consumption check a carried compile owes before its review
     /// counts. A persisted occurrence's retained commitment was written by an
     /// earlier invocation, so re-deriving it over the stored consumed units and
@@ -385,8 +378,6 @@ impl<'pass> PackageReviewRound<'pass> {
                 profile: self.execution_profile,
                 snapshot: Some(assembled.build_snapshot.clone()),
             },
-            permit_unsettled_fused_service_fields: self.discovery
-                == TargetEntryDiscovery::Dependencies,
             entry: assembled.entry.clone(),
             target: occurrence.checked_target,
         };
@@ -636,14 +627,10 @@ impl<'pass> PackageReviewRound<'pass> {
         // package identity, purpose, checked context, entry, toolchain,
         // and the complete live inputs, and the decoded record
         // re-verifies its own canonical payloads before it counts.
-        // A compile that used the discovery-only tolerance carries only into
-        // a discovery pass, which permits the same tolerance and so would
-        // compute the same provisional result; a bound pass withholds it and
-        // compiles fresh. Discovery mode is part of the inputs, so a record
+        // Discovery mode remains part of the admitted inputs, so a record
         // a discovery pass stored only answers another discovery pass. The
         // graph root is never persisted: its checked compilation is the
         // invocation's product.
-        let tolerance_permitted = self.discovery == TargetEntryDiscovery::Dependencies;
         let reused = self
             .recovered
             .iter()
@@ -662,8 +649,6 @@ impl<'pass> PackageReviewRound<'pass> {
                             && occurrence.entry == *entry
                             && occurrence.inputs == *unanswered_inputs
                             && occurrence.build_snapshot == *build_snapshot
-                            && (tolerance_permitted
-                                || !occurrence.compilation.tolerated_unsettled_service_fields())
                     })
                     .and_then(|occurrence| {
                         prior
@@ -702,9 +687,6 @@ impl<'pass> PackageReviewRound<'pass> {
                 let policy_canonical_bytes = record.policy_canonical_bytes()?;
                 let (review, facts) = record.into_review_and_facts(key, custody.resolution())?;
                 let occurrence = OccurrenceCompile::Cached(Box::new(facts));
-                if occurrence.tolerated_unsettled_service_fields() && !tolerance_permitted {
-                    return None;
-                }
                 Some((occurrence, review, policy_canonical_bytes, false))
             });
         let Some((compile, review, policy_canonical_bytes, compiled_in_pass)) = carried else {
@@ -914,8 +896,6 @@ impl<'pass> PackageReviewRound<'pass> {
         // the same shape the in-session carry takes.
         let mut cache_write = None;
         if key != closure.graph().root()
-            && (self.discovery == TargetEntryDiscovery::Dependencies
-                || !source.facts().tolerated_unsettled_service_fields)
             && let Some(directory) = custody.compiled_review_cache_dir()
             && let Some(cache) = super::super::review_cache::CompiledReviewCache::open(directory)
             && let Some(consumed_units) = source.facts().consumed_units.as_ref()
@@ -925,9 +905,6 @@ impl<'pass> PackageReviewRound<'pass> {
             if let Some(record) = super::super::review_cache::record_compiled_review(
                 &review,
                 super::super::review_cache::CachedOccurrenceFacts {
-                    tolerated_unsettled_service_fields: source
-                        .facts()
-                        .tolerated_unsettled_service_fields,
                     consumed_units: consumed_units.to_vec(),
                     source_consumption_commitment,
                     component_description: None,
@@ -1054,7 +1031,6 @@ pub struct PackageReviewRequest {
     pub execution: package_compilation::build_execution::BuildExecutionContract,
     pub target: target::TargetProfile,
     pub entry: std::path::PathBuf,
-    pub permit_unsettled_fused_service_fields: bool,
 }
 
 pub struct PackageReviewCompletion<'occurrence> {

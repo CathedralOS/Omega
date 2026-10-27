@@ -233,9 +233,6 @@ fn reject_unsettled_inputs(
                     execution: source.execution.clone(),
                     options: compiler::PackageProductOptions {
                         optimization_rollback: source.options.optimization_rollback.clone(),
-                        permit_unsettled_fused_service_fields: source
-                            .options
-                            .permit_unsettled_fused_service_fields,
                     },
                 })
             })

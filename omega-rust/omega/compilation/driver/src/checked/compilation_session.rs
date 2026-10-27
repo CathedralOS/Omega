@@ -91,8 +91,6 @@ impl CompilationSession {
                 package_inputs: inputs,
                 build: request.build.resolve_compilation_defaults(inputs),
                 optimization_rollback: request.optimization_rollback,
-                permit_unsettled_fused_service_fields: request
-                    .permit_unsettled_fused_service_fields,
                 settled_check_reuse: self.reuse(),
             };
             prepare_source_compilation(&request.root_path, source, child, &self.pure_builds)

@@ -396,8 +396,12 @@ member navigation at the frozen repository resolution. Install/update/resume
 execute their staged candidates through the same discovery loop and retain the
 settled Builds across review passes and targets. Proposal identity, original
 local dependency bases, execution inventories, review decisions and accepted-pair
-publication remain package-owned. Discovery tolerance is part of Product
-judgment reuse, never copied into a bound admission. Observational audit uses
+publication remain package-owned. Semantic-role discovery and accepted bindings
+remain part of Product judgment reuse, never copied into a bound admission.
+The retired entry-field tolerance mode is absent from compiler requests,
+continuations and review facts; ordinary entry contracts establish actual
+arguments, never provisional fields. Older review-cache formats miss rather
+than importing a provisional verdict. Observational audit uses
 the same executed source roster and retained Product review. Its accepted graph
 admits dependency requests before acquisition, preserves exact Git pins, and
 permits only root-content changes; per-target findings never recover proposals

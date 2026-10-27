@@ -133,7 +133,7 @@ fn prepare_target(
     source: &CheckedProductSource,
 ) -> Result<ProductRequest, Vec<Diagnostic>> {
     let realization =
-        SelectedProductTarget::select(source, target.profile(), target.package_inputs(), false)?;
+        SelectedProductTarget::select(source, target.profile(), target.package_inputs())?;
     let product = match shared.requested_product {
         RequestedCompileProduct::Check => CompilationProduct::Check,
         RequestedCompileProduct::TerminalArtifact => {
