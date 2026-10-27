@@ -5,6 +5,7 @@ use crate::record::PackageReviewBoundaryApplication;
 use crate::record::PackageReviewNominalIdentity;
 use crate::record::PackageReviewOperatorCoordinate;
 use crate::record::PackageReviewSymbolicBoundaryApplicationArgument;
+use crate::record::package::callable_policy::validation::signature::owned_pair;
 use crate::record::validation::{ordered, ordered_by};
 use crate::record::{
     PackagePolicyProviderBinding, PackagePolicySelectedProviders,
@@ -152,10 +153,8 @@ fn checked_body(
     declaration: &PackageReviewNominalIdentity,
     callable: &PackageReviewNominalIdentity,
 ) -> Result<(), &'static str> {
-    declaration.validate_resolved()?;
-    callable.validate_resolved()?;
+    owned_pair(declaration, callable)?;
     if row.realization() != Some(declaration)
-        || declaration.owner != callable.owner
         || !matches!(
             row.binding(),
             PackagePolicyProviderBinding::CheckedAdapter { .. }

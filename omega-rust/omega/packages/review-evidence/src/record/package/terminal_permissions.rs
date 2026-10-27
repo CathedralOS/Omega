@@ -30,7 +30,9 @@ impl PackagePolicyTerminalPermissions {
             if service.permissions.is_empty() {
                 return Err("terminal permission service has no permissions");
             }
-            ordered_by(&service.permissions, |a, b| a.requirement.cmp(&b.requirement))?;
+            ordered_by(&service.permissions, |a, b| {
+                a.requirement.cmp(&b.requirement)
+            })?;
             for permission in &service.permissions {
                 if permission.requirement.validate_resolved().is_err()
                     || !service

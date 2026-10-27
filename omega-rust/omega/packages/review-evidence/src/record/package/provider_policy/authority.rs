@@ -1,6 +1,7 @@
 //! Source-qualified operational authority, independently of readable schemas.
 
 use crate::record::package::callable_policy::validation::nominal_set;
+use crate::record::package::callable_policy::validation::signature::owned_pair;
 use crate::record::validation::ordered;
 use crate::record::{PackageReviewNominalIdentity, PackageReviewSynchronousInvocation};
 use effects::provider_plan::{ServiceProgressEstablishmentRouteKind, ServiceProgressSubject};
@@ -91,11 +92,7 @@ impl super::PackagePolicyServiceMethod {
                 projection.validate_resolved()?;
             }
             for route in &premise.establishment_routes {
-                route.requirement_owner.validate_resolved()?;
-                route.requirement.validate_resolved()?;
-                if route.requirement_owner.owner != route.requirement.owner {
-                    return Err("provider progress route changes its declaring owner");
-                }
+                owned_pair(&route.requirement_owner, &route.requirement)?;
             }
         }
         Ok(())

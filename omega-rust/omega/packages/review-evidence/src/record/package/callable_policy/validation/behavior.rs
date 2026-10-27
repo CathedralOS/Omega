@@ -187,11 +187,7 @@ fn progress(
         }
         ordered(&premise.establishment_routes)?;
         for route in &premise.establishment_routes {
-            route.requirement_owner.validate_resolved()?;
-            route.requirement.validate_resolved()?;
-            if route.requirement.owner != route.requirement_owner.owner {
-                return Err("callable progress route changes its declaration owner");
-            }
+            signature::owned_pair(&route.requirement_owner, &route.requirement)?;
         }
     }
     Ok(())

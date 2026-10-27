@@ -114,7 +114,9 @@ impl PackagePolicyCallables {
     }
 }
 
-pub(in crate::record) fn nominal_set(values: &[PackageReviewNominalIdentity]) -> Result<(), &'static str> {
+pub(in crate::record) fn nominal_set(
+    values: &[PackageReviewNominalIdentity],
+) -> Result<(), &'static str> {
     ordered(values)?;
     for value in values {
         value.validate_resolved()?;
