@@ -9,8 +9,9 @@
 //! contributes the predicates already carried by the value it yields, and
 //! the match result keeps only the consequences every arm carries. A fact
 //! about some other place in the surrounding context does not move onto the
-//! result. Routed domains keep their authorized provenance and are not joined
-//! here; this publication is transport, not a new establishment.
+//! result. Owned qualifications first rebase the exact yielded occurrence;
+//! only identical membership and authority present in every covered arm survive.
+//! This publication transports authorized provenance, never establishes it.
 use crate::flow::expression::Execution;
 use crate::flow::state_values::qualifications::CarriedPredicate;
 use arena::HandleSpan;
@@ -62,6 +63,7 @@ impl Execution<'_, '_, '_> {
         let mut shared_predicates: Option<Vec<CarriedPredicate>> = None;
         let mut shared_scalar: Option<Option<facts::ScalarValue>> = None;
         let mut shared_members: Option<Vec<_>> = None;
+        let mut shared_qualifications = None;
         let mut value_coverage = false;
         let mut alternatives = HandleSpan::empty();
         for (ordinal, arm) in self
@@ -188,6 +190,26 @@ impl Execution<'_, '_, '_> {
                 &mut selected_contexts,
                 &mut selected_constraints,
             );
+            // A receiving declaration supplies no qualification. Rebase each
+            // actual completed value through the ordinary owned transfer,
+            // then meet its exact subject/domain/evidence. Private contexts
+            // prevent an incomplete result roster publishing arm-only facts.
+            let mut value_contexts = selected_contexts;
+            let mut value_constraints = selected_constraints;
+            self.append_completed_qualifications(
+                expression,
+                &[],
+                destination,
+                &completed,
+                &mut value_contexts,
+                &mut value_constraints,
+            );
+            let qualifications = self.value_memberships(expression, value_contexts);
+            if let Some(shared) = &mut shared_qualifications {
+                super::live_memberships::retain_common(shared, &qualifications);
+            } else {
+                shared_qualifications = Some(qualifications);
+            }
             let members = self.constructed_values(&[], destination, &completed);
             if let Some(shared) = &mut shared_members {
                 shared.retain(|member| members.contains(member));
@@ -270,6 +292,9 @@ impl Execution<'_, '_, '_> {
             *constraints,
         );
         if value_coverage {
+            if let Some(qualifications) = shared_qualifications {
+                self.publish_live_memberships(qualifications, contexts, constraints);
+            }
             if let Some(members) = shared_members {
                 self.publish_constructed_values(expression, members, contexts, constraints);
             }
