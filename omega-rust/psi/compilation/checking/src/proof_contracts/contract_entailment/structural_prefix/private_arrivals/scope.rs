@@ -84,6 +84,149 @@ fn belongs_to(
     false
 }
 
+fn enclosing_machine_roots(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+) -> Vec<SymbolHandle> {
+    let mut symbol = machine.symbol;
+    let mut seen = Vec::new();
+    let mut roots = Vec::new();
+    while symbol.is_valid() {
+        if program.symbols.get(symbol).kind == symbols::SymbolKind::Machine {
+            let Some(declaration) = authored_machine(program, symbol) else {
+                break;
+            };
+            symbol = declaration;
+        }
+        if seen.contains(&symbol) {
+            break;
+        }
+        seen.push(symbol);
+        if let Some(root) = program.machine_by_symbol(symbol)
+            && !is_root(program, machine, root)
+        {
+            roots.push(symbol);
+        }
+        symbol = program.symbols.get(symbol).parent;
+    }
+    roots
+}
+
+#[derive(Clone, Copy)]
+struct SubordinateCallSite {
+    caller_machine_index: usize,
+    caller_state: SymbolHandle,
+    statement: usize,
+    expression: Option<ExpressionHandle>,
+    target_machine: SymbolHandle,
+}
+
+type SymbolSet = std::collections::HashSet<SymbolHandle, symbols::BuildSymbolHasher>;
+
+pub(crate) struct ProgramPrivateArrivalIndex {
+    members_by_root: symbols::SymbolKeyMap<SymbolHandle, Vec<usize>>,
+    call_sites_by_root: symbols::SymbolKeyMap<SymbolHandle, Vec<SubordinateCallSite>>,
+    unclosed_symbols: SymbolSet,
+    callable_use_owners: symbols::SymbolKeyMap<SymbolHandle, Vec<SymbolHandle>>,
+}
+
+impl ProgramPrivateArrivalIndex {
+    fn build(program: &dyn crate::CheckingInput) -> Self {
+        let machines = program.machines();
+        let mut members_by_root: symbols::SymbolKeyMap<SymbolHandle, Vec<usize>> =
+            Default::default();
+        let mut target_roots: symbols::SymbolKeyMap<SymbolHandle, Vec<SymbolHandle>> =
+            Default::default();
+        let mut all_private_targets = SymbolSet::default();
+        for (machine_index, machine) in machines.iter().enumerate() {
+            let roots = enclosing_machine_roots(program, machine);
+            if roots.is_empty() {
+                continue;
+            }
+            all_private_targets.insert(machine.symbol);
+            for state in program.machine_states(machine) {
+                all_private_targets.insert(state.symbol);
+            }
+            for &root_symbol in &roots {
+                members_by_root
+                    .entry(root_symbol)
+                    .or_default()
+                    .push(machine_index);
+            }
+            target_roots.insert(machine.symbol, roots);
+        }
+
+        let mut call_sites_by_root: symbols::SymbolKeyMap<SymbolHandle, Vec<SubordinateCallSite>> =
+            Default::default();
+        if !target_roots.is_empty() {
+            for (caller_machine_index, caller) in machines.iter().enumerate() {
+                for state in program.machine_states(caller) {
+                    for (index, _) in program
+                        .statement_table
+                        .indexed_statements(state.statement_nodes)
+                    {
+                        for site in crate::machine_calls::calls::collect_call_sites_in_statement(
+                            program, caller, state, index,
+                        ) {
+                            let Some(target) =
+                                program.machine_by_own_or_state_symbol(site.target_symbol(program))
+                            else {
+                                continue;
+                            };
+                            let Some(roots) = target_roots.get(&target.symbol) else {
+                                continue;
+                            };
+                            let expression = match site {
+                                crate::CallSite::Expression { expression, .. } => Some(expression),
+                                _ => None,
+                            };
+                            let call_site = SubordinateCallSite {
+                                caller_machine_index,
+                                caller_state: state.symbol,
+                                statement: index,
+                                expression,
+                                target_machine: target.symbol,
+                            };
+                            for &root_symbol in roots {
+                                call_sites_by_root
+                                    .entry(root_symbol)
+                                    .or_default()
+                                    .push(call_site);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let mut uses = ProgramPrivateUses {
+            program,
+            target_symbols: all_private_targets,
+            owner_scopes: Vec::new(),
+            pending_counts: Default::default(),
+            seen_expressions: Vec::new(),
+            seen_types: Vec::new(),
+            unclosed_symbols: Default::default(),
+            callable_use_owners: Default::default(),
+        };
+        if !uses.target_symbols.is_empty() {
+            typed_trees::references::visit_program(program.typed_program(), &mut uses);
+            for (symbol, count) in uses.pending_counts {
+                if count > 0 {
+                    uses.unclosed_symbols.insert(symbol);
+                }
+            }
+        }
+
+        Self {
+            members_by_root,
+            call_sites_by_root,
+            unclosed_symbols: uses.unclosed_symbols,
+            callable_use_owners: uses.callable_use_owners,
+        }
+    }
+}
+
 pub(crate) struct ClosedArrivals {
     pub(super) expected: Vec<Arrival>,
     pub(super) cycle_entries: Vec<SymbolHandle>,
@@ -118,12 +261,18 @@ fn compute_closed_arrivals(
     root: &Machine,
     callee: &Machine,
 ) -> Result<ClosedArrivals, &'static str> {
-    let members: Vec<_> = program
-        .machines()
+    let index = crate::frozen_program::frozen_memo(
+        program,
+        |memos| &memos.private_arrival_index,
+        || ProgramPrivateArrivalIndex::build(program),
+    );
+    let machines = program.machines();
+    let Some(member_indices) = index.members_by_root.get(&root.symbol) else {
+        return Err("the callable is not a private member of the enclosing declaration");
+    };
+    let members: Vec<_> = member_indices
         .iter()
-        .filter(|machine| {
-            !is_root(program, machine, root) && belongs_to(program, machine.symbol, root.symbol)
-        })
+        .map(|&idx| &machines[idx])
         .collect();
     let destination = members
         .iter()
@@ -139,53 +288,36 @@ fn compute_closed_arrivals(
     let mut edges = vec![Vec::new(); members.len()];
     let mut outside = Vec::new();
     let mut declared_entries = Vec::new();
-    for caller in program.machines() {
-        for state in program.machine_states(caller) {
-            for (index, _) in program
-                .statement_table
-                .indexed_statements(state.statement_nodes)
+    if let Some(sites) = index.call_sites_by_root.get(&root.symbol) {
+        for site in sites {
+            let Some(destination) = members
+                .iter()
+                .position(|member| member.symbol == site.target_machine)
+            else {
+                continue;
+            };
+            let caller = &machines[site.caller_machine_index];
+            if !belongs_to(program, caller.symbol, root.symbol) {
+                outside.push(destination);
+            }
+            if is_root(program, caller, root) && !declared_entries.contains(&destination) {
+                declared_entries.push(destination);
+            }
+            if let Some(source) = members
+                .iter()
+                .position(|member| member.symbol == caller.symbol)
+                && !edges[source].contains(&destination)
             {
-                for site in crate::machine_calls::calls::collect_call_sites_in_statement(
-                    program, caller, state, index,
-                ) {
-                    let Some(target) =
-                        program.machine_by_own_or_state_symbol(site.target_symbol(program))
-                    else {
-                        continue;
-                    };
-                    let Some(destination) = members
-                        .iter()
-                        .position(|member| member.symbol == target.symbol)
-                    else {
-                        continue;
-                    };
-                    if !belongs_to(program, caller.symbol, root.symbol) {
-                        outside.push(destination);
-                    }
-                    if is_root(program, caller, root) && !declared_entries.contains(&destination) {
-                        declared_entries.push(destination);
-                    }
-                    if let Some(source) = members
-                        .iter()
-                        .position(|member| member.symbol == caller.symbol)
-                        && !edges[source].contains(&destination)
-                    {
-                        edges[source].push(destination);
-                    }
-                    if target.symbol == callee.symbol {
-                        let expression = match site {
-                            crate::CallSite::Expression { expression, .. } => Some(expression),
-                            _ => None,
-                        };
-                        let arrival = Arrival {
-                            caller: state.symbol,
-                            statement: index,
-                            expression,
-                        };
-                        if !expected.contains(&arrival) {
-                            expected.push(arrival);
-                        }
-                    }
+                edges[source].push(destination);
+            }
+            if site.target_machine == callee.symbol {
+                let arrival = Arrival {
+                    caller: site.caller_state,
+                    statement: site.statement,
+                    expression: site.expression,
+                };
+                if !expected.contains(&arrival) {
+                    expected.push(arrival);
                 }
             }
         }
@@ -217,29 +349,29 @@ fn compute_closed_arrivals(
     }) {
         return Err("the private declaration group has an exposed callable");
     }
-    let mut target_symbols = std::collections::HashSet::new();
+    let mut target_symbols = Vec::new();
     let mut bodies = Vec::new();
     for (index, member) in members.iter().enumerate() {
         if needed[index] {
             bodies.push(member.symbol);
-            target_symbols.insert(member.symbol);
+            target_symbols.push(member.symbol);
             for state in program.machine_states(member) {
-                target_symbols.insert(state.symbol);
+                target_symbols.push(state.symbol);
             }
         }
     }
-    let mut uses = PrivateUses {
-        program,
-        root: root.symbol,
-        target_symbols,
-        owner_scopes: Vec::new(),
-        pending: Vec::new(),
-        expressions: std::collections::HashSet::new(),
-        types: std::collections::HashSet::new(),
-        closed: true,
-    };
-    typed_trees::references::visit_program(program.typed_program(), &mut uses);
-    if !uses.closed || !uses.pending.is_empty() {
+    let closed = target_symbols.iter().all(|symbol| {
+        !index.unclosed_symbols.contains(symbol)
+            && index
+                .callable_use_owners
+                .get(symbol)
+                .is_none_or(|owners| {
+                    owners
+                        .iter()
+                        .all(|&owner| belongs_to(program, owner, root.symbol))
+                })
+    });
+    if !closed {
         return Err("a private callable has a non-direct or out-of-scope use");
     }
     // A recurring entry has no inherited runtime values. Its separately
@@ -256,21 +388,35 @@ fn compute_closed_arrivals(
     })
 }
 
-struct PrivateUses<'program> {
-    program: &'program dyn crate::CheckingInput,
-    root: SymbolHandle,
-    target_symbols: std::collections::HashSet<SymbolHandle>,
-    owner_scopes: Vec<Option<SymbolHandle>>,
-    pending: Vec<SymbolHandle>,
-    expressions: std::collections::HashSet<(Option<SymbolHandle>, ExpressionHandle)>,
-    types: std::collections::HashSet<(
-        Option<SymbolHandle>,
-        typed_trees::types::TypeReferenceHandle,
-    )>,
-    closed: bool,
+fn retain_scoped_handle<Element>(
+    seen: &mut Vec<Vec<(Option<SymbolHandle>, arena::Handle<Element>)>>,
+    owner: Option<SymbolHandle>,
+    handle: arena::Handle<Element>,
+) -> bool {
+    let slot = handle.arena_index() as usize;
+    if seen.len() <= slot {
+        seen.resize_with(slot + 1, Vec::new);
+    }
+    let occurrence = (owner, handle);
+    if seen[slot].contains(&occurrence) {
+        return false;
+    }
+    seen[slot].push(occurrence);
+    true
 }
 
-impl PrivateUses<'_> {
+struct ProgramPrivateUses<'program> {
+    program: &'program dyn crate::CheckingInput,
+    target_symbols: SymbolSet,
+    owner_scopes: Vec<Option<SymbolHandle>>,
+    pending_counts: symbols::SymbolKeyMap<SymbolHandle, usize>,
+    seen_expressions: Vec<Vec<(Option<SymbolHandle>, ExpressionHandle)>>,
+    seen_types: Vec<Vec<(Option<SymbolHandle>, typed_trees::types::TypeReferenceHandle)>>,
+    unclosed_symbols: SymbolSet,
+    callable_use_owners: symbols::SymbolKeyMap<SymbolHandle, Vec<SymbolHandle>>,
+}
+
+impl ProgramPrivateUses<'_> {
     fn owner(&self) -> Option<SymbolHandle> {
         self.owner_scopes.last().copied().flatten()
     }
@@ -279,16 +425,16 @@ impl PrivateUses<'_> {
     }
     fn direct(&mut self, symbol: SymbolHandle) {
         if self.private_target(symbol) {
-            self.pending.push(symbol);
+            *self.pending_counts.entry(symbol).or_insert(0) += 1;
         }
     }
 }
 
-impl Extend<SymbolHandle> for PrivateUses<'_> {
+impl Extend<SymbolHandle> for ProgramPrivateUses<'_> {
     fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, _symbols: T) {}
 }
 
-impl TypedReferences for PrivateUses<'_> {
+impl TypedReferences for ProgramPrivateUses<'_> {
     fn enter_lexical_scope(&mut self, symbol: SymbolHandle) {
         let next_owner = self
             .program
@@ -304,16 +450,20 @@ impl TypedReferences for PrivateUses<'_> {
         if !self.private_target(symbol) {
             return;
         }
-        if !self
-            .owner()
-            .is_some_and(|owner| belongs_to(self.program, owner, self.root))
-        {
-            self.closed = false;
-        }
-        if let Some(position) = self.pending.iter().rposition(|pending| *pending == symbol) {
-            self.pending.remove(position);
+        if let Some(owner) = self.owner() {
+            let owners = self.callable_use_owners.entry(symbol).or_default();
+            if !owners.contains(&owner) {
+                owners.push(owner);
+            }
         } else {
-            self.closed = false;
+            self.unclosed_symbols.insert(symbol);
+        }
+        if let Some(count) = self.pending_counts.get_mut(&symbol)
+            && *count > 0
+        {
+            *count -= 1;
+        } else {
+            self.unclosed_symbols.insert(symbol);
         }
     }
     fn statement(&mut self, statement: &typed_trees::statement::StatementNode) -> bool {
@@ -323,8 +473,8 @@ impl TypedReferences for PrivateUses<'_> {
         true
     }
     fn expression(&mut self, expression: ExpressionHandle) -> bool {
-        let key = (self.owner(), expression);
-        if !self.expressions.insert(key) {
+        let owner = self.owner();
+        if !retain_scoped_handle(&mut self.seen_expressions, owner, expression) {
             return false;
         }
         match self.program.expression_table.expression(expression) {
@@ -332,14 +482,14 @@ impl TypedReferences for PrivateUses<'_> {
             typed_trees::expression::ExpressionNode::Name(path)
                 if self.private_target(path.symbol) =>
             {
-                self.closed = false
+                self.unclosed_symbols.insert(path.symbol);
             }
             _ => {}
         }
         true
     }
     fn type_reference(&mut self, reference: typed_trees::types::TypeReferenceHandle) -> bool {
-        let key = (self.owner(), reference);
-        self.types.insert(key)
+        let owner = self.owner();
+        retain_scoped_handle(&mut self.seen_types, owner, reference)
     }
 }
