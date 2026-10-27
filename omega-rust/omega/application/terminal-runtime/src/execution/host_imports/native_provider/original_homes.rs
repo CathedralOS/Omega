@@ -3,7 +3,9 @@
 //! replacement. Residents keep this sponsor alive through moves and suspension.
 
 use super::super::scalar_codec::{decode, encode, scalar_extent};
-use native_provider_runtime::{NativeHomeId, NativeProviderProcess};
+use native_provider_runtime::{
+    NativeHomeId, NativePointerSlot, NativePointerTarget, NativeProviderProcess,
+};
 use runtime_abi::NativeBorrowedStorageLayout;
 use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, ScalarType, StructuralTypeId};
 use std::{
@@ -100,6 +102,7 @@ struct OriginalHome {
     extent: usize,
     alignment: usize,
     cells: BTreeMap<Vec<Path>, Rc<Resident>>,
+    references: BTreeMap<Vec<Path>, (usize, Option<NativePointerTarget>)>,
 }
 struct Resident {
     sponsor: Rc<RefCell<Sponsor>>,
@@ -160,6 +163,7 @@ impl NativeContext {
         &self,
         requests: &[TerminalOriginalStorageRequest],
         layouts: &[NativeBorrowedStorageLayout],
+        codecs: &BTreeMap<StructuralTypeId, super::values::StorageCodec>,
     ) -> Result<TerminalOriginalScalarBackings, TerminalEffectRejection> {
         let mut result = Vec::with_capacity(requests.len());
         let mut homes = self.homes.borrow_mut();
@@ -182,6 +186,7 @@ impl NativeContext {
                     extent: layout.byte_size as usize,
                     alignment: usize::from(layout.alignment),
                     cells: BTreeMap::new(),
+                    references: BTreeMap::new(),
                 });
             }
             let original = homes.get_mut(&key).unwrap();
@@ -237,9 +242,116 @@ impl NativeContext {
                     row.push(resident as Rc<dyn TerminalScalarBacking>);
                 }
             }
+            for reference in request.references() {
+                let offset = reference_location(layout, reference.path())?;
+                let entry = original
+                    .references
+                    .entry(reference.path().to_vec())
+                    .or_insert((offset, None));
+                if entry.0 != offset {
+                    return Err(rejection(
+                        "native reference slot changed original coordinates",
+                    ));
+                }
+            }
             result.push(row);
         }
+        drop(homes);
+        // Allocate every captured home before installing edges. The worker
+        // computes its own pointers; parent mapping addresses never cross IPC.
+        for request in requests {
+            for reference in request.references() {
+                let codec = codecs.get(&reference.referent_type()).ok_or_else(|| {
+                    rejection("native reference target has no exact produced codec")
+                })?;
+                let (home, offset) = self.loan(reference.target(), codec)?;
+                let target = NativePointerTarget {
+                    home,
+                    offset,
+                    byte_size: codec.extent,
+                    alignment: codec.alignment,
+                };
+                let slot = self.reference_slot(
+                    &request.loan(),
+                    &reference.path()[request.referent().len()..],
+                )?;
+                self.sponsor
+                    .borrow_mut()
+                    .with(|process| process.link_pointer(slot, target))?;
+                self.record_reference(slot, target)?;
+            }
+        }
         Ok(result)
+    }
+
+    pub(super) fn reference_slot(
+        &self,
+        loan: &TerminalOriginalStorageLoan,
+        relative: &[Path],
+    ) -> Result<NativePointerSlot, TerminalEffectRejection> {
+        let root = loan.root();
+        let homes = self.homes.borrow();
+        let original = homes
+            .get(&(root.namespace(), root.allocation()))
+            .filter(|home| home.root == root)
+            .ok_or_else(|| rejection("native reference slot lost its original root"))?;
+        let mut path = loan.referent().to_vec();
+        path.extend_from_slice(relative);
+        let (offset, _) = original
+            .references
+            .get(&path)
+            .ok_or_else(|| rejection("native reference slot was not captured"))?;
+        Ok(NativePointerSlot {
+            home: original.home,
+            offset: *offset,
+        })
+    }
+    pub(super) fn record_reference(
+        &self,
+        slot: NativePointerSlot,
+        target: NativePointerTarget,
+    ) -> Result<(), TerminalEffectRejection> {
+        let mut homes = self.homes.borrow_mut();
+        let home = homes
+            .values_mut()
+            .find(|home| home.home == slot.home)
+            .ok_or_else(|| rejection("native reference lost its original home"))?;
+        let mut found = false;
+        for (offset, current) in home.references.values_mut() {
+            if *offset == slot.offset {
+                *current = Some(target);
+                found = true;
+            }
+        }
+        if !found {
+            return Err(rejection("native reference has no captured slot"));
+        }
+        Ok(())
+    }
+    pub(super) fn validate_references(&self) -> Result<(), TerminalEffectRejection> {
+        // A retained provider can write through a descriptor even when that
+        // descriptor is not an explicit completion argument. Never let an
+        // unmodeled pointer write leave Core using a stale referent.
+        for home in self.homes.borrow().values() {
+            for (offset, target) in home.references.values() {
+                let target =
+                    target.ok_or_else(|| rejection("native reference link was not initialized"))?;
+                if !self.sponsor.borrow_mut().with(|process| {
+                    process.pointer_matches(
+                        NativePointerSlot {
+                            home: home.home,
+                            offset: *offset,
+                        },
+                        target,
+                    )
+                })? {
+                    return Err(rejection(
+                        "native provider changed a reference outside its captured completion selection",
+                    ));
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Join every exposed scalar's view offset to its original-root offset.
@@ -274,6 +386,23 @@ impl NativeContext {
             if base.is_some_and(|base| base != offset) {
                 return Err(rejection(
                     "native view fields disagree on their original range",
+                ));
+            }
+            base = Some(offset);
+        }
+        for field in &view.references {
+            let mut path = loan.referent().to_vec();
+            path.extend_from_slice(&field.path);
+            let (actual, _) = original
+                .references
+                .get(&path)
+                .ok_or_else(|| rejection("native view includes an unestablished reference slot"))?;
+            let offset = actual.checked_sub(field.offset).ok_or_else(|| {
+                rejection("native reference view precedes its original allocation")
+            })?;
+            if base.is_some_and(|base| base != offset) {
+                return Err(rejection(
+                    "native reference and scalar fields disagree on their original range",
                 ));
             }
             base = Some(offset);
@@ -366,4 +495,37 @@ fn scalar_location(
         selected = Some((offset, field.logical_scalar, field.stored_scalar));
     }
     selected.ok_or_else(|| rejection("original scalar has no exact native path/codec"))
+}
+
+fn reference_location(
+    layout: &NativeBorrowedStorageLayout,
+    actual: &[Path],
+) -> Result<usize, TerminalEffectRejection> {
+    let mut selected = None;
+    for recipe in layout.opaque_regions() {
+        super::super::borrowed_storage::geometry::expand_coordinates(
+            layout.opaque_region_path(recipe).collect(),
+            recipe.byte_offset as usize,
+            layout.opaque_region_repetitions(recipe),
+            &mut |path, offset| {
+                if path == actual {
+                    if selected.is_some()
+                        || recipe.byte_size != 8
+                        || offset % 8 != 0
+                        || offset
+                            .checked_add(8)
+                            .is_none_or(|end| end > layout.byte_size as usize)
+                    {
+                        return Err(rejection(
+                            "native reference slot is ambiguous or outside its original allocation",
+                        ));
+                    }
+                    selected = Some(offset);
+                }
+                Ok(())
+            },
+        )?;
+    }
+    selected
+        .ok_or_else(|| rejection("original reference has no exact produced pointer-slot recipe"))
 }

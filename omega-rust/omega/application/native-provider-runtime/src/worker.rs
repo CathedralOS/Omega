@@ -29,12 +29,12 @@ struct Adapter {
     parameters: Vec<Geometry>,
     result: Option<Geometry>,
 }
-struct Worker {
+pub(crate) struct Worker {
     // A Pending never silently moves into a reloaded library's state. The
     // whole worker is retained through native process teardown, not dropped
     // before atexit/TLS callbacks can use retained pointers or code.
     adapters: Vec<Adapter>,
-    homes: BTreeMap<u64, SharedBacking>,
+    pub(crate) homes: BTreeMap<u64, SharedBacking>,
     directory: PathBuf,
 }
 
@@ -101,6 +101,8 @@ pub fn run_worker_if_requested() {
                 1 => worker.install(cursor),
                 2 => worker.attach(cursor),
                 3 => worker.call(cursor),
+                5 => worker.pointer_link(cursor, true),
+                6 => worker.pointer_link(cursor, false),
                 _ => Err(invalid("unknown native worker request")),
             };
             match result {

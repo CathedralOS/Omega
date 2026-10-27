@@ -85,8 +85,8 @@ pub use capabilities::{
 };
 pub use effects::byte_buffers::TerminalBoundaryByteBuffer;
 pub use effects::original_storage::{
-    TerminalOriginalScalarBackings, TerminalOriginalScalarValue, TerminalOriginalStorageLoan,
-    TerminalOriginalStorageRequest, TerminalOriginalStorageRoot,
+    TerminalOriginalReferenceValue, TerminalOriginalScalarBackings, TerminalOriginalScalarValue,
+    TerminalOriginalStorageLoan, TerminalOriginalStorageRequest, TerminalOriginalStorageRoot,
 };
 pub use effects::results::{TerminalByteSequenceValue, TerminalEffectResult};
 pub use effects::scalar_loans::TerminalBoundaryScalarBuffer;

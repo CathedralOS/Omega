@@ -57,6 +57,9 @@ pub struct TerminalOriginalStorageRequest {
     pub(crate) referent: Vec<CanonicalStructuralPathSegment>,
     pub(crate) access: StructuralAccess,
     pub(crate) values: Vec<TerminalOriginalScalarValue>,
+    pub(crate) argument_path: Vec<CanonicalStructuralPathSegment>,
+    pub(crate) view_type: StructuralTypeId,
+    pub(crate) references: Vec<TerminalOriginalReferenceValue>,
 }
 impl TerminalOriginalStorageRequest {
     pub fn root(&self) -> TerminalOriginalStorageRoot {
@@ -73,6 +76,21 @@ impl TerminalOriginalStorageRequest {
     }
     pub fn access(&self) -> StructuralAccess {
         self.access
+    }
+    pub fn argument_path(&self) -> &[CanonicalStructuralPathSegment] {
+        &self.argument_path
+    }
+    pub fn view_type(&self) -> StructuralTypeId {
+        self.view_type
+    }
+    pub fn references(&self) -> &[TerminalOriginalReferenceValue] {
+        &self.references
+    }
+    pub fn loan(&self) -> TerminalOriginalStorageLoan {
+        TerminalOriginalStorageLoan {
+            root: self.root,
+            referent: self.referent.clone(),
+        }
     }
     pub fn values(&self) -> &[TerminalOriginalScalarValue] {
         &self.values
@@ -96,3 +114,28 @@ impl TerminalOriginalStorageLoan {
 }
 
 pub type TerminalOriginalScalarBackings = Vec<Vec<Rc<dyn TerminalScalarBacking>>>;
+
+/// A descriptor edge authenticated by the engine's live typed projection.
+/// The slot is relative to its original allocation; the target is another
+/// sealed original range. Neither path supplies target layout or authority.
+#[derive(Debug)]
+pub struct TerminalOriginalReferenceValue {
+    pub(crate) path: Vec<CanonicalStructuralPathSegment>,
+    pub(crate) target: TerminalOriginalStorageLoan,
+    pub(crate) referent_type: StructuralTypeId,
+    pub(crate) access: StructuralAccess,
+}
+impl TerminalOriginalReferenceValue {
+    pub fn path(&self) -> &[CanonicalStructuralPathSegment] {
+        &self.path
+    }
+    pub fn target(&self) -> &TerminalOriginalStorageLoan {
+        &self.target
+    }
+    pub fn referent_type(&self) -> StructuralTypeId {
+        self.referent_type
+    }
+    pub fn access(&self) -> StructuralAccess {
+        self.access
+    }
+}

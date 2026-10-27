@@ -2,6 +2,7 @@
 //! retain every containing field identity; layout recipes supply placement,
 //! never the missing type or authority. References, atomic storage and other
 //! carrier families need their own codecs rather than scalar-width guesses.
+//! A reference is a typed leaf: its pointee is a separate original allocation.
 
 use super::original_homes::rejection;
 use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, ScalarType, StructuralTypeId};
@@ -23,14 +24,24 @@ enum Visit<'declaration> {
     LeaveField,
 }
 
-pub(super) fn scalar_fields(
+pub(super) struct SemanticReferenceField {
+    pub path: Vec<Path>,
+    pub referent: StructuralTypeId,
+    pub access: terminal_psi::StructuralAccess,
+}
+pub(super) struct SemanticFields {
+    pub scalars: Vec<SemanticScalarField>,
+    pub references: Vec<SemanticReferenceField>,
+}
+pub(super) fn fields(
     program: &TerminalProgram,
     structural_type: StructuralTypeId,
-) -> Result<Vec<SemanticScalarField>, TerminalEffectRejection> {
+) -> Result<SemanticFields, TerminalEffectRejection> {
     let mut pending = vec![Visit::Type(structural_type)];
     let mut active = Vec::new();
     let mut path = Vec::new();
     let mut output = Vec::new();
+    let mut references = Vec::new();
     while let Some(visit) = pending.pop() {
         match visit {
             Visit::Type(identity) => {
@@ -50,6 +61,13 @@ pub(super) fn scalar_fields(
                         output.push(SemanticScalarField {
                             path: path.clone(),
                             logical: *logical,
+                        });
+                    }
+                    StructuralTypeShape::Reference { referent, access } => {
+                        references.push(SemanticReferenceField {
+                            path: path.clone(),
+                            referent: *referent,
+                            access: *access,
                         });
                     }
                     StructuralTypeShape::Record { fields, storage } => {
@@ -130,5 +148,8 @@ pub(super) fn scalar_fields(
             }
         }
     }
-    Ok(output)
+    Ok(SemanticFields {
+        scalars: output,
+        references,
+    })
 }

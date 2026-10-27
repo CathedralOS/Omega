@@ -54,34 +54,17 @@ impl BoundaryStorageInputs {
             });
         }
         for binding in &self.structural {
-            let original = execution.original_storage_owner(&binding.referent)?;
-            let (selected, referent) = execution.actual_storage_projection(
-                &original,
-                &StructuralRuntimePlace::from(&binding.referent),
+            capture_graph(
+                execution,
+                binding.source,
+                &binding.source_path,
+                &binding.referent,
+                binding.argument_index,
+                binding.access,
+                Vec::new(),
+                &mut Vec::new(),
+                &mut captures,
             )?;
-            if selected != binding.referent.structural_type {
-                return Err(malformed());
-            }
-            let values = binding
-                .scalars
-                .iter()
-                .map(|scalar| execution.original_scalar(&original, &scalar.storage))
-                .collect::<Result<Vec<_>, _>>()?;
-            captures.push(CapturedOriginal {
-                owner: StructuralRuntimePlace::from(&original),
-                request: execution.original_storage_request(
-                    &original,
-                    binding.argument_index,
-                    binding.access,
-                    referent,
-                    values,
-                )?,
-                endpoints: binding
-                    .scalars
-                    .iter()
-                    .map(|scalar| scalar.storage.endpoint.clone())
-                    .collect(),
-            });
         }
         let owners = captures
             .iter()
@@ -138,6 +121,9 @@ impl BoundaryStorageInputs {
             *cell = resident;
         }
         for request in requests {
+            if !request.argument_path.is_empty() {
+                continue;
+            }
             let loan = TerminalOriginalStorageLoan {
                 root: request.root,
                 referent: request.referent,
@@ -249,6 +235,9 @@ impl TerminalExecution<'_> {
             referent,
             access,
             values,
+            argument_path: Vec::new(),
+            view_type: original.structural_type,
+            references: Vec::new(),
         })
     }
 
@@ -292,4 +281,118 @@ impl TerminalExecution<'_> {
             },
         })
     }
+}
+
+// Follow only the closed semantic descriptor graph already admitted by live
+// projection. Stop at recursive types; native memory never discovers a graph.
+fn capture_graph(
+    execution: &TerminalExecution<'_>,
+    source: semantic_vocabulary::PlaceId,
+    source_path: &[terminal_psi::StructuralPathSegment],
+    referent: &TerminalStructuralValue,
+    argument_index: usize,
+    access: StructuralAccess,
+    argument_path: Vec<Path>,
+    active: &mut Vec<semantic_vocabulary::StructuralTypeId>,
+    captures: &mut Vec<CapturedOriginal>,
+) -> Result<TerminalOriginalStorageLoan, TerminalInterpretError> {
+    use super::contents::{self, StorageLeafKind};
+    use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
+    if active.contains(&referent.structural_type) {
+        return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+            "native original reference graph must have a finite acyclic declaration",
+        ));
+    }
+    active.push(referent.structural_type);
+    let original = execution.original_storage_owner(referent)?;
+    let (selected, path) =
+        execution.actual_storage_projection(&original, &StructuralRuntimePlace::from(referent))?;
+    if selected != referent.structural_type {
+        return Err(malformed());
+    }
+    let leaves = contents::describe(execution, referent, access, None)?;
+    let (_, scalars) = contents::capture(execution, source, referent, None, access, &leaves, &[])?;
+    let values = scalars
+        .iter()
+        .map(|scalar| execution.original_scalar(&original, &scalar.storage))
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut request =
+        execution.original_storage_request(&original, argument_index, access, path, values)?;
+    request.argument_path = argument_path.clone();
+    request.view_type = referent.structural_type;
+    for leaf in &leaves {
+        let StorageLeafKind::Opaque { declaration, .. } = leaf.kind else {
+            continue;
+        };
+        let shape = &execution
+            .program
+            .structural_types()
+            .get(&declaration)
+            .ok_or_else(malformed)?
+            .shape;
+        let StructuralTypeShape::Reference {
+            referent: child_type,
+            access: child_access,
+        } = *shape
+        else {
+            continue;
+        };
+        let child_access = if access == StructuralAccess::SharedBorrow {
+            StructuralAccess::SharedBorrow
+        } else {
+            child_access
+        };
+        if !matches!(
+            child_access,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        ) {
+            return Err(malformed());
+        }
+        let relative = terminal_semantics::canonical_structural_storage_path(
+            execution.program.structural_types().values(),
+            referent.structural_type,
+            &leaf.path,
+        )
+        .ok_or_else(malformed)?;
+        let mut full = source_path.to_vec();
+        full.extend_from_slice(&relative);
+        full.push(StructuralPathSegment::Referent);
+        let child = execution.resolve_live_projection(source, &full, child_access)?;
+        if child.structural_type != child_type {
+            return Err(malformed());
+        }
+        let mut child_path = argument_path.clone();
+        child_path.extend_from_slice(&leaf.path);
+        child_path.push(Path::Referent);
+        let target = capture_graph(
+            execution,
+            source,
+            &full,
+            &child,
+            argument_index,
+            child_access,
+            child_path,
+            active,
+            captures,
+        )?;
+        let mut slot = request.referent.clone();
+        slot.extend_from_slice(&leaf.path);
+        request.references.push(TerminalOriginalReferenceValue {
+            path: slot,
+            target,
+            referent_type: child_type,
+            access: child_access,
+        });
+    }
+    active.pop();
+    let loan = request.loan();
+    captures.push(CapturedOriginal {
+        owner: StructuralRuntimePlace::from(&original),
+        request,
+        endpoints: scalars
+            .into_iter()
+            .map(|scalar| scalar.storage.endpoint)
+            .collect(),
+    });
+    Ok(loan)
 }

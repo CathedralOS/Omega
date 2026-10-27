@@ -19,11 +19,18 @@ pub(super) struct ScalarField {
     pub logical: ScalarType,
     pub stored: ScalarType,
 }
+pub(super) struct ReferenceField {
+    pub path: Vec<Path>,
+    pub offset: usize,
+    pub referent: StructuralTypeId,
+    pub access: terminal_psi::StructuralAccess,
+}
 pub(super) struct StorageCodec {
     pub structural_type: StructuralTypeId,
     pub extent: usize,
     pub alignment: usize,
     pub fields: Vec<ScalarField>,
+    pub references: Vec<ReferenceField>,
 }
 impl StorageCodec {
     pub fn admit(
@@ -32,7 +39,7 @@ impl StorageCodec {
         structural_type: StructuralTypeId,
     ) -> Result<Self, TerminalEffectRejection> {
         let layout = exact_layout(layouts, structural_type)?;
-        if layout.discriminators().next().is_some() || !layout.opaque_regions().is_empty() {
+        if layout.discriminators().next().is_some() {
             return Err(rejection(
                 "native import needs a resident tag or opaque-region codec",
             ));
@@ -63,6 +70,7 @@ impl StorageCodec {
             StructuralTypeShape::Record { .. }
                 | StructuralTypeShape::FixedArray { .. }
                 | StructuralTypeShape::PrimitiveScalar(_)
+                | StructuralTypeShape::Reference { .. }
         ) {
             return Err(rejection(
                 "native import needs a supported complete scalar record codec",
@@ -85,8 +93,9 @@ impl StorageCodec {
                 },
             )?;
         }
+        let semantic = super::record_fields::fields(program, structural_type)?;
         let mut fields = Vec::new();
-        for field in super::record_fields::scalar_fields(program, structural_type)? {
+        for field in semantic.scalars {
             let path = field.path;
             let logical = field.logical;
             let mut recipes = placements.iter().filter(|recipe| recipe.path == path);
@@ -119,6 +128,54 @@ impl StorageCodec {
                 stored: recipe.stored,
             });
         }
+        let mut opaque = Vec::new();
+        for recipe in layout.opaque_regions() {
+            expand_coordinates(
+                layout.opaque_region_path(recipe).collect(),
+                recipe.byte_offset as usize,
+                layout.opaque_region_repetitions(recipe),
+                &mut |path, offset| {
+                    opaque.push((path, offset, recipe.byte_size));
+                    Ok(())
+                },
+            )?;
+        }
+        let mut references = Vec::new();
+        for field in semantic.references {
+            let mut selected = opaque.iter().filter(|(path, _, _)| *path == field.path);
+            let (_, offset, size) = selected
+                .next()
+                .ok_or_else(|| rejection("native reference lost its produced slot recipe"))?;
+            if selected.next().is_some()
+                || *size != 8
+                || offset % 8 != 0
+                || offset
+                    .checked_add(8)
+                    .is_none_or(|end| end > layout.byte_size as usize)
+                || fields.iter().any(|scalar| {
+                    *offset < scalar.offset + scalar_extent(scalar.stored).unwrap_or(usize::MAX)
+                        && scalar.offset < offset + 8
+                })
+                || references.iter().any(|reference: &ReferenceField| {
+                    *offset < reference.offset + 8 && reference.offset < offset + 8
+                })
+            {
+                return Err(rejection(
+                    "native reference slot is not one distinct produced pointer word",
+                ));
+            }
+            references.push(ReferenceField {
+                path: field.path,
+                offset: *offset,
+                referent: field.referent,
+                access: field.access,
+            });
+        }
+        if references.len() != opaque.len() {
+            return Err(rejection(
+                "native import needs its exact non-reference opaque codec",
+            ));
+        }
         if fields.len() != placements.len()
             || layout.byte_size == 0
             || !layout.alignment.is_power_of_two()
@@ -132,12 +189,18 @@ impl StorageCodec {
             extent: layout.byte_size as usize,
             alignment: usize::from(layout.alignment),
             fields,
+            references,
         })
     }
     pub fn encode(
         &self,
         values: &[TerminalBoundaryStorageValue],
     ) -> Result<Vec<u8>, TerminalEffectRejection> {
+        if !self.references.is_empty() {
+            return Err(rejection(
+                "native owned reference transport needs its exact value codec",
+            ));
+        }
         if values.len() != self.fields.len() {
             return Err(rejection(
                 "native record payload has an incomplete field roster",
@@ -201,6 +264,11 @@ impl StorageCodec {
         &self,
         bytes: &[u8],
     ) -> Result<TerminalScalarAggregateValue, TerminalEffectRejection> {
+        if !self.references.is_empty() {
+            return Err(rejection(
+                "native owned reference result needs its exact value codec",
+            ));
+        }
         let fields = self
             .decode_fields(bytes)?
             .into_iter()
@@ -215,6 +283,7 @@ impl StorageCodec {
             structural_type: self.structural_type,
             result_case: None,
             fields,
+            references,
         })
     }
 }
