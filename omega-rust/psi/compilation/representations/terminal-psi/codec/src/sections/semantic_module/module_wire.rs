@@ -47,7 +47,7 @@ use super::proof_declaration_wire::{
 use super::provider_candidate_wire::{decode_provider_candidate, encode_provider_candidate};
 use super::structural_signature_wire::{decode_boundary_machine, encode_boundary_machine};
 use super::structural_type_wire::{decode_structural_type, encode_structural_type};
-use super::wire::{Reader, Writer};
+use super::wire::{Reader, Writer, strictly_increasing};
 use super::{CodecError, FORMAT_MARKER, MAGIC};
 use crate::sections::semantic_module::module_wire::borrow_wire::{
     decode_reborrow_restored_call_use, encode_reborrow_restored_call_use,
@@ -290,8 +290,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         let certificate = decode_bytes(reader)?;
         super::mathematical_certificate_wire::decode_mathematical_certificate(&certificate)?;
         let assumption_closure = decode_counted(reader, |reader| reader.u32())?;
-        if assumption_closure.windows(2).any(|pair| pair[0] >= pair[1]) || type_identity.is_absent()
-        {
+        if !strictly_increasing(assumption_closure.iter().copied()) || type_identity.is_absent() {
             return Err(CodecError::MalformedMathematicalCertificate(
                 "invalid indexed theorem root",
             ));

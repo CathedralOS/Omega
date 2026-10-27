@@ -7,6 +7,7 @@ use super::{
 };
 use std::collections::BTreeMap;
 
+use super::super::wire::strictly_increasing;
 use crate::codec_error::{CodecError, malformed};
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, StructuralPlaceKind};
 use terminal_psi::TerminalModule;
@@ -31,11 +32,7 @@ pub(super) fn validate_domains(module: &TerminalModule) -> Result<(), CodecError
         {
             return malformed("complete structural domain lost part of its required theory");
         }
-        if domain
-            .establishment_routes
-            .windows(2)
-            .any(|pair| pair[0] >= pair[1])
-        {
+        if !strictly_increasing(domain.establishment_routes.iter()) {
             return malformed("structural domain issuer routes must be canonical and unique");
         }
         for route in &domain.establishment_routes {

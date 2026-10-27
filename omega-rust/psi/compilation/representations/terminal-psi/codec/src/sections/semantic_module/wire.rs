@@ -267,6 +267,27 @@ pub(crate) fn decode_ids<I: PsiSemanticId>(
     decode_counted(reader, |reader| reader.id(label))
 }
 
+/// Whether a roster is strictly increasing by its own order: the wire admits
+/// exactly one spelling of a set of rows, and this is the comparison that
+/// decides it. Sites that report their own error class ask this predicate;
+/// sites whose failure is noncanonical order ask [`require_increasing`].
+pub(crate) fn strictly_increasing<T: Ord>(values: impl IntoIterator<Item = T>) -> bool {
+    values.into_iter().is_sorted_by(|left, right| left < right)
+}
+
+/// The requirement form of [`strictly_increasing`]: refuse a roster that is
+/// not strictly increasing, naming the roster the caller checked.
+pub(crate) fn require_increasing<T: Ord>(
+    values: impl IntoIterator<Item = T>,
+    label: &'static str,
+) -> Result<(), CodecError> {
+    if strictly_increasing(values) {
+        Ok(())
+    } else {
+        Err(CodecError::NonCanonicalOrder(label))
+    }
+}
+
 /// Read a length-prefixed byte payload: a `u32` length the remaining input
 /// must hold, then exactly those bytes. A length and a count share the one
 /// bound above; this is its materializing form for an owned payload.

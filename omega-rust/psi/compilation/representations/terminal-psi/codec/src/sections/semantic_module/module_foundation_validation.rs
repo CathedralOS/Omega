@@ -27,6 +27,7 @@ mod structural_type_foundations;
 mod target_layouts;
 mod value_foundations;
 
+use super::wire::strictly_increasing;
 use crate::codec_error::{CodecError, malformed};
 use terminal_psi::TerminalIdentityIndex;
 
@@ -1115,9 +1116,7 @@ fn validate_structural_qualifications(
     whole: &[semantic_vocabulary::StructuralDomainId],
     projected: &[terminal_psi::StructuralPathQualification],
 ) -> Result<(), CodecError> {
-    if whole.windows(2).any(|pair| pair[0] >= pair[1])
-        || projected.windows(2).any(|pair| pair[0] >= pair[1])
-    {
+    if !strictly_increasing(whole.iter().copied()) || !strictly_increasing(projected.iter()) {
         return malformed("structural qualifications are noncanonical");
     }
     for (domain, carrier) in whole

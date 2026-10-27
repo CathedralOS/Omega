@@ -1,6 +1,7 @@
 //! Operations that establish a value: scalar arrays and cases, byte-sequence
 //! literals, trivial affine locals, records and primitive locals.
 
+use super::super::wire::strictly_increasing;
 use crate::codec_error::{CodecError, malformed};
 use semantic_vocabulary::StructuralPlaceKind;
 use terminal_psi::{
@@ -433,11 +434,7 @@ fn validate_constructor_claims(
     // An intermediate constructor can publish custody at its private arrival
     // rather than on this operation. Do not infer issuance from the root's
     // multiplicity or require another claim before that owning edge.
-    if result
-        .claims
-        .windows(2)
-        .any(|pair| pair[0].claim >= pair[1].claim)
-    {
+    if !strictly_increasing(result.claims.iter().map(|binding| binding.claim)) {
         return malformed("aggregate claim bindings disagree with canonical order");
     }
     for (position, claim) in result.claims.iter().enumerate() {

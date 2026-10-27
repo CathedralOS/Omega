@@ -1,4 +1,5 @@
 //! Canonical scalar membership catalogs. Graph custody is checked by the verifier.
+use super::wire::{require_increasing, strictly_increasing};
 use super::{
     CodecError, decode_counted,
     scalar_wire::{
@@ -203,44 +204,31 @@ pub(crate) fn decode(reader: &mut Reader<'_>) -> Result<ScalarQualificationCatal
 }
 
 pub(crate) fn validate(catalog: &ScalarQualificationCatalog) -> Result<(), CodecError> {
-    if catalog
-        .fields
-        .windows(2)
-        .any(|pair| pair[0].field >= pair[1].field)
-    {
-        return Err(CodecError::NonCanonicalOrder("scalar field qualifications"));
-    }
-    if catalog.returns.windows(2).any(|pair| {
-        let key = |row: &ScalarReturnQualification| (row.machine, row.edge, row.domain);
-        key(&pair[0]) >= key(&pair[1])
-    }) {
-        return Err(CodecError::NonCanonicalOrder(
-            "scalar return qualifications",
-        ));
-    }
+    require_increasing(
+        catalog.fields.iter().map(|row| row.field),
+        "scalar field qualifications",
+    )?;
+    require_increasing(
+        catalog
+            .returns
+            .iter()
+            .map(|row| (row.machine, row.edge, row.domain)),
+        "scalar return qualifications",
+    )?;
     for returned in &catalog.returns {
-        if returned.origins.is_empty() || returned.origins.windows(2).any(|pair| pair[0] >= pair[1])
-        {
+        if returned.origins.is_empty() || !strictly_increasing(returned.origins.iter()) {
             return Err(CodecError::NonCanonicalOrder("scalar return origins"));
         }
     }
-    if catalog
-        .domains
-        .windows(2)
-        .any(|pair| pair[0].id >= pair[1].id)
-    {
-        return Err(CodecError::NonCanonicalOrder("scalar domains"));
-    }
+    require_increasing(
+        catalog.domains.iter().map(|domain| domain.id),
+        "scalar domains",
+    )?;
     for domain in &catalog.domains {
-        if domain
-            .establishment_routes
-            .windows(2)
-            .any(|pair| pair[0] >= pair[1])
-        {
-            return Err(CodecError::NonCanonicalOrder(
-                "scalar domain establishment routes",
-            ));
-        }
+        require_increasing(
+            domain.establishment_routes.iter(),
+            "scalar domain establishment routes",
+        )?;
         if domain
             .establishment_routes
             .iter()
@@ -249,18 +237,15 @@ pub(crate) fn validate(catalog: &ScalarQualificationCatalog) -> Result<(), Codec
             return Err(CodecError::NonCanonicalEncoding);
         }
     }
-    if catalog.sets.windows(2).any(|pair| pair[0].id >= pair[1].id) {
-        return Err(CodecError::NonCanonicalOrder("scalar qualification sets"));
-    }
+    require_increasing(
+        catalog.sets.iter().map(|set| set.id),
+        "scalar qualification sets",
+    )?;
     for (index, set) in catalog.sets.iter().enumerate() {
         if set.id.is_empty() || set.domains.is_empty() {
             return Err(CodecError::NonCanonicalEncoding);
         }
-        if set.domains.windows(2).any(|pair| pair[0] >= pair[1]) {
-            return Err(CodecError::NonCanonicalOrder(
-                "scalar qualification members",
-            ));
-        }
+        require_increasing(set.domains.iter().copied(), "scalar qualification members")?;
         if catalog.sets[..index]
             .iter()
             .any(|previous| previous.domains == set.domains)
@@ -268,23 +253,20 @@ pub(crate) fn validate(catalog: &ScalarQualificationCatalog) -> Result<(), Codec
             return Err(CodecError::NonCanonicalEncoding);
         }
     }
-    if catalog.coercions.windows(2).any(|pair| {
-        let key = |coercion: &ScalarQualificationCoercion| {
-            (coercion.machine, coercion.edge, coercion.argument_ordinal)
-        };
-        key(&pair[0]) >= key(&pair[1])
-    }) {
-        return Err(CodecError::NonCanonicalOrder(
-            "scalar qualification coercions",
-        ));
-    }
-    if catalog
-        .float_entry_ranges
-        .windows(2)
-        .any(|pair| (pair[0].machine, pair[0].parameter) >= (pair[1].machine, pair[1].parameter))
-    {
-        return Err(CodecError::NonCanonicalOrder("scalar float entry ranges"));
-    }
+    require_increasing(
+        catalog
+            .coercions
+            .iter()
+            .map(|coercion| (coercion.machine, coercion.edge, coercion.argument_ordinal)),
+        "scalar qualification coercions",
+    )?;
+    require_increasing(
+        catalog
+            .float_entry_ranges
+            .iter()
+            .map(|range| (range.machine, range.parameter)),
+        "scalar float entry ranges",
+    )?;
     if catalog
         .float_entry_ranges
         .iter()
@@ -292,13 +274,13 @@ pub(crate) fn validate(catalog: &ScalarQualificationCatalog) -> Result<(), Codec
     {
         return Err(CodecError::NonCanonicalEncoding);
     }
-    if catalog
-        .integer_entry_ranges
-        .windows(2)
-        .any(|pair| (pair[0].machine, pair[0].parameter) >= (pair[1].machine, pair[1].parameter))
-    {
-        return Err(CodecError::NonCanonicalOrder("scalar integer entry ranges"));
-    }
+    require_increasing(
+        catalog
+            .integer_entry_ranges
+            .iter()
+            .map(|range| (range.machine, range.parameter)),
+        "scalar integer entry ranges",
+    )?;
     // An integer entry range is canonical only on a fixed-width carrier with
     // both endpoints admitted and ordered; an address carrier, a
     // sign-mismatched endpoint, or a reversed interval is malformed wire.

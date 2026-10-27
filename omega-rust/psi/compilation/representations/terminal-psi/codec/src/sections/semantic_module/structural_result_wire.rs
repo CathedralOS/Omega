@@ -9,7 +9,7 @@ use super::CodecError;
 use super::structural_signature_wire::{
     decode_projected_qualifications, encode_projected_qualifications,
 };
-use super::wire::{Reader, Writer};
+use super::wire::{Reader, Writer, strictly_increasing};
 use crate::sections::semantic_module::structural_place_wire::{
     decode_reference_origin_path, decode_structural_path, encode_reference_origin_path,
     encode_structural_path,
@@ -70,19 +70,13 @@ pub(crate) fn validate_reference_sources(
 }
 
 fn validate_reference_source_order(result: &StructuralResultDeclaration) -> Result<(), CodecError> {
-    if result
-        .reference_sources
-        .windows(2)
-        .any(|pair| pair[0].path >= pair[1].path)
-    {
+    if !strictly_increasing(result.reference_sources.iter().map(|source| &source.path)) {
         return crate::codec_error::malformed(
             "reference result sources must have unique ordered paths",
         );
     }
     for reference in &result.reference_sources {
-        if reference.sources.is_empty()
-            || reference.sources.windows(2).any(|pair| pair[0] >= pair[1])
-        {
+        if reference.sources.is_empty() || !strictly_increasing(reference.sources.iter()) {
             return crate::codec_error::malformed(
                 "reference result alternatives must be nonempty, unique and ordered",
             );
