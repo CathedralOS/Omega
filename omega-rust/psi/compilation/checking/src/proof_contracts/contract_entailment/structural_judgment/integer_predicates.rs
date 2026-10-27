@@ -258,6 +258,26 @@ impl IntegerObservations<'_> {
 }
 
 impl StructuralJudge<'_> {
+    /// Refute this prefix from independently formed live premises alone.
+    /// A requested operation or its result never contributes to this query.
+    /// Incomplete projection or admission means unknown, not an impossible path.
+    pub(in crate::proof_contracts::contract_entailment) fn integer_premises_contradictory(
+        &self,
+    ) -> bool {
+        if !self.runtime_body_values || self.case_facts_only {
+            return false;
+        }
+        let Some(prepared) = self.prepare_integer_premises() else {
+            return false;
+        };
+        prepared.observations.engine.requires_unsatisfiable
+            || prepared
+                .observations
+                .engine
+                .lower_bound_queries()
+                .prove_at_least(&Polynomial::constant(BigInt::from_i64(-1)), &BigInt::zero())
+    }
+
     /// Ask about one completed operand, before introducing its cast result.
     /// The address ceiling remains the builtin symbolic model bound; the
     /// hosted producer's current Addr64 representation is not a premise.
@@ -542,11 +562,15 @@ impl StructuralJudge<'_> {
         for (index, position) in unresolved.into_iter().enumerate() {
             // Shared false grants no negative fact. Preserve the original
             // goal-first sufficient proof when the goal registered operations.
-            proofs[position] =
-                match shared.as_ref().and_then(|values| values.get(index)).copied().flatten() {
-                    Some(proven) => proven,
-                    None => self.proves_observed_integer_predicate(&predicates[position]),
-                };
+            proofs[position] = match shared
+                .as_ref()
+                .and_then(|values| values.get(index))
+                .copied()
+                .flatten()
+            {
+                Some(proven) => proven,
+                None => self.proves_observed_integer_predicate(&predicates[position]),
+            };
         }
         proofs
     }
@@ -574,10 +598,8 @@ impl StructuralJudge<'_> {
         let queries_and_contradictory = || {
             prepared_queries.get_or_init(|| {
                 let queries = prepared.observations.engine.lower_bound_queries();
-                let contradictory = queries.prove_at_least(
-                    &Polynomial::constant(BigInt::from_i64(-1)),
-                    &BigInt::zero(),
-                );
+                let contradictory = queries
+                    .prove_at_least(&Polynomial::constant(BigInt::from_i64(-1)), &BigInt::zero());
                 (queries, contradictory)
             })
         };
@@ -808,7 +830,10 @@ impl StructuralJudge<'_> {
                 {
                     observations.atoms.truncate(before_atoms);
                     observations.carrier_bounds.truncate(before_bounds);
-                    observations.engine.parameter_atoms.truncate(before_param_atoms);
+                    observations
+                        .engine
+                        .parameter_atoms
+                        .truncate(before_param_atoms);
                 } else {
                     complete = false;
                 }
