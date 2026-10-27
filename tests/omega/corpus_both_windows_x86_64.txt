@@ -3035,6 +3035,24 @@ pass/facts/float_result_equality_through_other_machine_exit built 8238ms exit:0 
 pass/facts/float_result_equality_through_other_state_exit built 8180ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/float_result_equality_through_parameter_exit built 8310ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/float_result_equality_through_target_body_exit built 8811ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/facts/foreign_nested_scalar_record_result_through_call_result_exit built 4762ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
+pass/facts/foreign_nested_scalar_record_result_through_const_name_exit built 4768ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
+pass/facts/foreign_nested_scalar_record_result_through_field_exit built 4777ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
+pass/facts/foreign_nested_scalar_record_result_through_local_exit built 4574ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
+pass/facts/foreign_nested_scalar_record_result_through_match_join_exit built 4603ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
+pass/facts/foreign_nested_scalar_record_result_through_other_machine_exit built 4756ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
+pass/facts/foreign_nested_scalar_record_result_through_other_state_exit built 4493ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
+pass/facts/foreign_nested_scalar_record_result_through_parameter_exit built 4518ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
+pass/facts/foreign_nested_scalar_record_result_through_target_body_exit built 3888ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
+pass/facts/foreign_owned_array_record_through_call_result_exit built 8990ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
+pass/facts/foreign_owned_array_record_through_const_name_exit built 9242ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
+pass/facts/foreign_owned_array_record_through_field_exit built 9179ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
+pass/facts/foreign_owned_array_record_through_local_exit built 8966ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
+pass/facts/foreign_owned_array_record_through_match_join_exit built 8793ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
+pass/facts/foreign_owned_array_record_through_other_machine_exit built 8995ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
+pass/facts/foreign_owned_array_record_through_other_state_exit built 8864ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
+pass/facts/foreign_owned_array_record_through_parameter_exit built 8812ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
+pass/facts/foreign_owned_array_record_through_target_body_exit built 7950ms exit:0 interpreter-exit:0 interpreter:agrees @33901569f34a
 pass/facts/foreign_retained_shared_borrow_call_result rejected 5742ms interpreter:unchecked @5f668826adf3+wt
 	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(1)), operation: None, site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
 pass/facts/foreign_retained_shared_borrow_const_name rejected 4320ms interpreter:unchecked @5f668826adf3+wt
