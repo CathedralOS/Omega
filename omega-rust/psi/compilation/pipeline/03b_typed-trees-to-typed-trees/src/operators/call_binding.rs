@@ -639,6 +639,13 @@ fn selected_call_target(
         }
         _ => None,
     };
+    let indexed_collection_is_known = !matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Indexed(_)
+    ) || operand_types
+        .as_ref()
+        .and_then(|operands| operands.first())
+        .is_some_and(Option::is_some);
     if let Some(operand_types) = operand_types
         && let Some(machine) = origin.machine_symbol()
     {
@@ -746,6 +753,12 @@ fn selected_call_target(
                 "operator has multiple explicitly selected implementation meanings",
             ));
         }
+    }
+    // Wildcard candidates are not executable selection authority. A later
+    // inferred-result or specialization round will revisit this occurrence.
+    // Exact lexical/selected trait meanings above already retain precedence.
+    if !indexed_collection_is_known {
+        return Ok(None);
     }
     let Some(operator_use) = operator_use else {
         return Ok(None);

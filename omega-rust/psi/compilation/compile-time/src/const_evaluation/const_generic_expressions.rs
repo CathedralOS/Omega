@@ -879,8 +879,9 @@ pub(crate) fn validate_retained_initializer_call_custody(
     state: &typed_trees::state::State,
     root: typed_trees::expression::ExpressionHandle,
     materialized: typed_trees::expression::ExpressionHandle,
+    provider_bodies: &[crate::SelectedBuildTimeProviderBody],
 ) -> Result<Vec<DependencyValue>, String> {
-    call_custody::validate_retained(program, machine, state, root, materialized)
+    call_custody::validate_retained(program, machine, state, root, materialized, provider_bodies)
 }
 
 /// Recheck the source-owned recipe before a private probe specializes it.
@@ -1011,7 +1012,15 @@ fn evaluate_probe_internal(
         typed, machine, reference, authority,
     )?;
     let (origins, operators, call_selections) = if calls.is_some() {
-        let custody = call_custody::collect(typed, machine, state, *expression, public, syntax)?;
+        let custody = call_custody::collect(
+            typed,
+            machine,
+            state,
+            *expression,
+            public,
+            syntax,
+            calls.map_or(&[], |calls| calls.selected_provider_bodies()),
+        )?;
         (custody.origins, custody.operators, custody.calls)
     } else {
         let (origins, operators) = expression_custody(

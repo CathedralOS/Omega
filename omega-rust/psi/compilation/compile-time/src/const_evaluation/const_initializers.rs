@@ -63,11 +63,13 @@ use syntax_trees::item::{
 };
 use syntax_trees::types::ConstArgumentOrigin;
 
+mod completed_values;
 mod invocations;
 mod materialize;
 mod replay;
 mod target_observations;
 
+pub(crate) use completed_values::read_back as read_back_completed_values;
 pub(crate) use invocations::CheckedInitializers;
 pub(crate) use replay::validate as validate_retained_invocations;
 pub(crate) use target_observations::settle as settle_target_observations;
@@ -247,32 +249,7 @@ pub(crate) fn evaluate(
     // Readiness follows the complete selected dependency closure, including
     // aliases and helper bodies. Keep whole expressions symbolic, rather than
     // trying to evaluate a nested observation as an ordinary machine call.
-    loop {
-        let mut changed = false;
-        for (ordinal, declaration) in declarations.iter().enumerate() {
-            if !target_observations[ordinal]
-                && declaration
-                    .dependencies
-                    .iter()
-                    .any(|(_, dependency)| target_observations[*dependency])
-            {
-                target_observations[ordinal] = true;
-                changed = true;
-            }
-        }
-        if !changed {
-            break;
-        }
-    }
-    for (ordinal, declaration) in declarations.iter_mut().enumerate() {
-        declaration.definition.pending_target_observation = target_observations[ordinal];
-        if target_observations[ordinal] {
-            syntax.items.replace_item(
-                declaration.item,
-                Item::Const(declaration.definition.clone()),
-            );
-        }
-    }
+    retain_pending_observations(&mut syntax, &mut declarations, &mut target_observations);
     // Evaluation roots demand their complete declaration graph. A leafless
     // literal is not ready merely because it has nothing to execute: its
     // declared geometry may still depend on a pending computation. Keep that
@@ -450,6 +427,32 @@ pub(crate) fn evaluate(
                 )
             })
             .transpose()?;
+        if let Some(checked) = checked.as_ref() {
+            for ordinal in &ready {
+                for leaf in &declarations[*ordinal].leaves {
+                    let reference = syntax.expressions.source_span(leaf.expression);
+                    if checked
+                        .source_needs_execution_selection(reference)
+                        .map_err(|reason| failure(reference, reason))?
+                    {
+                        target_observations[*ordinal] = true;
+                    }
+                }
+            }
+            // A selected boundary body is target-scoped supply. Retain the
+            // complete declaration and every dependent alias until Omega has
+            // supplied that exact execution; none receives a provisional value.
+            retain_pending_observations(&mut syntax, &mut declarations, &mut target_observations);
+            for (ordinal, pending) in target_observations.iter().copied().enumerate() {
+                if pending {
+                    demanded[ordinal] = false;
+                }
+            }
+            ready.retain(|ordinal| !target_observations[*ordinal]);
+            if ready.is_empty() {
+                continue;
+            }
+        }
         let typed = checked
             .as_ref()
             .map_or(&typed, invocations::CheckedInitializers::typed);
@@ -754,6 +757,107 @@ pub(crate) fn evaluate(
         }
     }
     Ok(syntax)
+}
+
+/// Scalar declarations use the same selected-execution boundary as endpoints.
+/// The declaration remains symbolic; this query grants no value or invocation.
+pub(crate) fn pending_initializers_need_execution_selection(
+    typed: &typed_trees::TypedTrees,
+    authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
+    domain: &crate::build_time_evaluation::EvaluationDomain,
+    execution_is_pending: bool,
+) -> Result<Vec<typed_trees::constant::ConstDeclaration>, Vec<Diagnostic>> {
+    let declarations = typed
+        .const_declarations()
+        .iter()
+        .filter(|declaration| {
+            domain.contains(declaration.symbol)
+                && declaration.evaluated_value.is_none()
+                && super::const_generic_expressions::scalar_probe_destination(
+                    typed,
+                    declaration.declared_type,
+                )
+                .is_some()
+        })
+        .collect::<Vec<_>>();
+    if declarations.is_empty() {
+        return Ok(Vec::new());
+    }
+    for declaration in &declarations {
+        let table = &typed.expression_table;
+        if !table.expression_is_valid(declaration.materialized_initializer)
+            || table.source_span(declaration.materialized_initializer)
+                != declaration.initializer_source_span
+        {
+            return Err(failure(
+                declaration.initializer_source_span,
+                "pending scalar declaration lost its exact source initializer",
+            ));
+        }
+    }
+    if execution_is_pending {
+        return Ok(declarations.into_iter().cloned().collect());
+    }
+    let mut probes = typed.clone();
+    let mut work = domain.clone();
+    let mut owners = Vec::new();
+    for declaration in &declarations {
+        let owner = invocations::append_probe(
+            &mut probes,
+            declaration.symbol,
+            "@pending-constant".into(),
+            declaration.materialized_initializer,
+            declaration.declared_type,
+        );
+        work.include(owner);
+        owners.push(owner);
+    }
+    let work = work.demanded_roots(&probes, &owners);
+    let prepared = crate::PreparedBuildMachineProgram::prepare_in(&probes, &work)?;
+    let execution = prepared.typed();
+    let facts = validation::derive_pre_flow_operator_selections(execution);
+    let admission = work.admission(execution, authority);
+    let needs_selection = owners
+        .into_iter()
+        .any(|owner| admission.closure_needs_execution_preparation(execution, owner, &facts));
+    Ok(if needs_selection {
+        declarations.into_iter().cloned().collect()
+    } else {
+        Vec::new()
+    })
+}
+
+fn retain_pending_observations(
+    syntax: &mut SyntaxTrees,
+    declarations: &mut [Declaration],
+    target_observations: &mut [bool],
+) {
+    loop {
+        let mut changed = false;
+        for (ordinal, declaration) in declarations.iter().enumerate() {
+            if !target_observations[ordinal]
+                && declaration
+                    .dependencies
+                    .iter()
+                    .any(|(_, dependency)| target_observations[*dependency])
+            {
+                target_observations[ordinal] = true;
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    for (ordinal, declaration) in declarations.iter_mut().enumerate() {
+        declaration.definition.pending_target_observation = target_observations[ordinal];
+        if target_observations[ordinal] {
+            syntax.items.replace_item(
+                declaration.item,
+                Item::Const(declaration.definition.clone()),
+            );
+        }
+    }
 }
 
 fn dependency_origins(

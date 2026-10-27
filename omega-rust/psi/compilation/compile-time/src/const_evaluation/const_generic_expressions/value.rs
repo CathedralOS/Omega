@@ -72,6 +72,12 @@ use context::EvaluationContext;
 /// The invocation owner validates all arguments without executing landed
 /// expressions, then evaluates arguments and the admitted machine only on demand.
 pub(crate) trait ConstantCalls {
+    /// Exact provider rows already validated before private execution preparation.
+    /// They identify rewritten source occurrences; they grant no invocation.
+    fn selected_provider_bodies(&self) -> &[crate::SelectedBuildTimeProviderBody] {
+        &[]
+    }
+
     /// A retained result type belongs to the same program passed to the scalar
     /// evaluator. Invalid means this caller carries no additional type shell.
     fn result_type(

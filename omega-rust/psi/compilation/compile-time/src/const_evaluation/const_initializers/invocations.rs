@@ -46,6 +46,7 @@ pub(crate) struct CheckedInitializers {
     authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
     crash_causes: Vec<(symbols::SymbolHandle, Vec<checked_trees::CrashCause>)>,
     probe_symbols: Vec<symbols::SymbolHandle>,
+    provider_bodies: Vec<crate::SelectedBuildTimeProviderBody>,
 }
 
 impl CheckedInitializers {
@@ -85,7 +86,13 @@ impl CheckedInitializers {
             &checked.typed,
             &checked.facts,
         );
+        // Checking resolves the same authored occurrences independently of the
+        // pre-check typed ledger. Evaluation keeps those exact declarations on
+        // its private copy: a token-bound operator may now be a specialized
+        // call, so its original syntax can no longer rediscover the choice.
+        let selections = checked.authored_declaration_selections().clone();
         let mut typed = checked.typed.into_inner();
+        typed.retain_authored_declaration_selections(selections);
         for probe in probes {
             typed.push_machine(probe);
         }
@@ -97,11 +104,42 @@ impl CheckedInitializers {
             authority,
             crash_causes,
             probe_symbols: probe_symbols.to_vec(),
+            provider_bodies: Vec::new(),
         })
+    }
+
+    /// The supplied rows were independently validated against the source tree
+    /// before its private executable copy was prepared. Keep them through replay
+    /// so a provider call can rejoin its original Operator occurrence exactly.
+    pub(super) fn prepare_selected(
+        prepared: &crate::PreparedBuildMachineProgram,
+        authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
+        probe_symbols: &[symbols::SymbolHandle],
+        accounting: &crate::evaluation_accounting::EvaluationAccounting,
+        provider_bodies: &[crate::SelectedBuildTimeProviderBody],
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let mut checked = Self::prepare(prepared, authority, probe_symbols, accounting)?;
+        checked.provider_bodies = provider_bodies.to_vec();
+        Ok(checked)
     }
 
     pub(super) fn typed(&self) -> &TypedTrees {
         &self.typed
+    }
+
+    /// Pending execution is a lifecycle demand, never permission to execute a
+    /// requirement. Use the same exact transitive query as length/endpoint jobs.
+    pub(super) fn source_needs_execution_selection(
+        &self,
+        reference: source::SourceSpan,
+    ) -> Result<bool, String> {
+        let invocation = self.calls_for_source(reference)?;
+        let facts = validation::derive_pre_flow_operator_selections(&self.typed);
+        Ok(self.admission.closure_needs_execution_preparation(
+            &self.typed,
+            invocation.machine.symbol,
+            &facts,
+        ))
     }
 
     pub(super) fn calls<'program>(
@@ -211,6 +249,7 @@ impl Invocation<'_> {
             self.state,
             original,
             materialized,
+            &self.program.provider_bodies,
         )
     }
 
@@ -342,6 +381,10 @@ impl SelectedCall<'_> {
 }
 
 impl ConstantCalls for Invocation<'_> {
+    fn selected_provider_bodies(&self) -> &[crate::SelectedBuildTimeProviderBody] {
+        &self.program.provider_bodies
+    }
+
     fn validate_call(
         &self,
         expression: ExpressionHandle,

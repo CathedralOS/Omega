@@ -267,6 +267,7 @@ pub fn evaluate_pre_resolution(
             selection_authority,
             selected_operators: Vec::new(),
             provider_bodies: Vec::new(),
+            pending_initializers: Vec::new(),
         },
     })
 }
@@ -353,6 +354,18 @@ impl PreResolutionEvaluation {
     }
 }
 
+/// Read back exact pending scalar declarations after the existing selected
+/// execution continuation and independent replay completed on a private copy.
+pub fn read_back_pending_initializer_values(
+    receiving: &mut typed_trees::TypedTrees,
+    evaluated: &typed_trees::TypedTrees,
+    pending: &[typed_trees::constant::ConstDeclaration],
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    crate::const_evaluation::const_initializers::read_back_completed_values(
+        receiving, evaluated, pending,
+    )
+}
+
 /// One-shot continuation for target-neutral typed-tree evaluation.
 ///
 /// The records and optional package selection authority are private so a
@@ -376,6 +389,7 @@ pub struct PreCheckEvaluation {
     /// route so an unselected occurrence can never borrow selected custody.
     selected_operators: Vec<SelectedBuildTimeBinaryOperator>,
     provider_bodies: Vec<SelectedBuildTimeProviderBody>,
+    pending_initializers: Vec<typed_trees::constant::ConstDeclaration>,
 }
 
 /// Typed evaluation has installed its plans; target-dependent query folding
@@ -384,6 +398,8 @@ pub struct PreCheckEvaluation {
 pub struct EvaluatedPreCheck {
     domain: EvaluationDomain,
     selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    selected_operators: Vec<SelectedBuildTimeBinaryOperator>,
+    provider_bodies: Vec<SelectedBuildTimeProviderBody>,
 }
 
 impl EvaluatedPreCheck {
@@ -395,16 +411,30 @@ impl EvaluatedPreCheck {
             typed,
             self.selection_authority.clone(),
             &self.domain,
+            SelectedBuildTimeOperators {
+                operators: &self.selected_operators,
+                provider_bodies: &self.provider_bodies,
+            },
         )?;
         const_initializers::validate_retained_invocations(
             typed,
             self.selection_authority,
             &self.domain,
+            SelectedBuildTimeOperators {
+                operators: &self.selected_operators,
+                provider_bodies: &self.provider_bodies,
+            },
         )
     }
 }
 
 impl PreCheckEvaluation {
+    /// Exact scalar declarations this continuation retained for selected execution.
+    /// They remain tied to the original source roots and declaration scope.
+    pub fn pending_initializer_declarations(&self) -> &[typed_trees::constant::ConstDeclaration] {
+        &self.pending_initializers
+    }
+
     /// Compare pending work from the same source-preparation owner. An authority
     /// object is opaque: only a shared object can establish the same selection
     /// context here. This is input matching, never permission to execute work.
@@ -415,6 +445,7 @@ impl PreCheckEvaluation {
             && self.plan_laid_records == other.plan_laid_records
             && self.selected_operators == other.selected_operators
             && self.provider_bodies == other.provider_bodies
+            && self.pending_initializers == other.pending_initializers
             && match (&self.selection_authority, &other.selection_authority) {
                 (None, None) => true,
                 (Some(left), Some(right)) => Arc::ptr_eq(left, right),
@@ -496,6 +527,12 @@ impl PreCheckEvaluation {
                     "pre-check wire frontier exceeds its producing declarations",
                 )]
             })?;
+        let pending_initializers = self
+            .pending_initializers
+            .iter()
+            .filter(|declaration| domain.contains(declaration.symbol))
+            .cloned()
+            .collect();
         Ok(Self {
             domain,
             wire_schema_frontier: self.wire_schema_frontier,
@@ -504,6 +541,7 @@ impl PreCheckEvaluation {
             selection_authority: self.selection_authority.clone(),
             selected_operators: self.selected_operators.clone(),
             provider_bodies: self.provider_bodies.clone(),
+            pending_initializers,
         })
     }
 
@@ -534,26 +572,35 @@ impl PreCheckEvaluation {
         mut self,
         typed: &mut typed_trees::TypedTrees,
     ) -> Result<Option<Self>, Vec<diagnostics::Diagnostic>> {
-        if const_lengths::evaluate_independent_lengths(
-            typed,
-            self.selection_authority.clone(),
-            &self.domain,
-        )? || range_endpoints::pending_endpoint_calls_need_operator_selection(
-            typed,
-            self.selection_authority.clone(),
-            &self.domain,
-        )? || const_domain_facts::pending_memberships_need_operator_selection(
-            typed,
-            self.selection_authority.clone(),
-            &self.domain,
-        )? || const_applications::pending_const_applications_need_operator_selection(
-            typed,
-            self.selection_authority.clone(),
-            &self.domain,
-        )? || data_layout_queries::pending_layout_queries_need_operator_selection(
-            typed,
-            self.domain.work(),
-        ) {
+        let needs_selected_execution =
+            const_lengths::evaluate_independent_lengths(
+                typed,
+                self.selection_authority.clone(),
+                &self.domain,
+            )? || range_endpoints::pending_endpoint_calls_need_operator_selection(
+                typed,
+                self.selection_authority.clone(),
+                &self.domain,
+            )? || const_domain_facts::pending_memberships_need_operator_selection(
+                typed,
+                self.selection_authority.clone(),
+                &self.domain,
+            )? || const_applications::pending_const_applications_need_operator_selection(
+                typed,
+                self.selection_authority.clone(),
+                &self.domain,
+            )? || data_layout_queries::pending_layout_queries_need_operator_selection(
+                typed,
+                self.domain.work(),
+            );
+        self.pending_initializers =
+            const_initializers::pending_initializers_need_execution_selection(
+                typed,
+                self.selection_authority.clone(),
+                &self.domain,
+                needs_selected_execution,
+            )?;
+        if needs_selected_execution || !self.pending_initializers.is_empty() {
             range_endpoints::defer_pending_endpoint_calls_in(typed, &self.domain)?;
             const_applications::defer_pending_const_applications(typed, &self.domain)?;
             // A const-generic application of a recipe call becomes a symbolic
@@ -694,6 +741,8 @@ impl PreCheckEvaluation {
         Ok(EvaluatedPreCheck {
             domain: self.domain,
             selection_authority: self.selection_authority,
+            selected_operators: self.selected_operators,
+            provider_bodies: self.provider_bodies,
         })
     }
 }

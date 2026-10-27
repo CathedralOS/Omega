@@ -218,6 +218,7 @@ pub(super) fn collect(
     root: ExpressionHandle,
     public: bool,
     syntax: &SyntaxTrees,
+    provider_bodies: &[crate::SelectedBuildTimeProviderBody],
 ) -> Result<Custody, String> {
     collect_internal(
         program,
@@ -228,6 +229,7 @@ pub(super) fn collect(
         Some(syntax),
         true,
         true,
+        provider_bodies,
     )
 }
 
@@ -249,6 +251,7 @@ pub(super) fn collect_authored_roots(
         Some(syntax),
         false,
         true,
+        &[],
     )
 }
 
@@ -273,6 +276,7 @@ pub(super) fn collect_roots(
         Some(syntax),
         true,
         true,
+        &[],
     )
 }
 
@@ -297,6 +301,7 @@ pub(super) fn collect_pending_roots(
         Some(syntax),
         true,
         false,
+        &[],
     )
 }
 
@@ -316,8 +321,18 @@ pub(crate) fn retain_current_initializer_calls(
     let [state] = program.machine_states(machine) else {
         return Err("pending initializer lost its custody state".into());
     };
-    let calls =
-        collect_internal(program, machine, state, &[root], false, None, false, true)?.call_targets;
+    let calls = collect_internal(
+        program,
+        machine,
+        state,
+        &[root],
+        false,
+        None,
+        false,
+        true,
+        &[],
+    )?
+    .call_targets;
     for (reference, selected) in calls {
         let occurrence = program.record_resolved_authored_declaration_selection_once(
             reference,
@@ -338,8 +353,17 @@ pub(super) fn validate_retained(
     state: &State,
     root: ExpressionHandle,
     materialized: ExpressionHandle,
+    provider_bodies: &[crate::SelectedBuildTimeProviderBody],
 ) -> Result<Vec<DependencyValue>, String> {
-    validate(program, machine, state, root, materialized, true)
+    validate(
+        program,
+        machine,
+        state,
+        root,
+        materialized,
+        true,
+        provider_bodies,
+    )
 }
 
 /// Before private specialization, the retained recipe must still select its
@@ -352,7 +376,7 @@ pub(super) fn validate_authored(
     root: ExpressionHandle,
     materialized: ExpressionHandle,
 ) -> Result<Vec<DependencyValue>, String> {
-    validate(program, machine, state, root, materialized, false)
+    validate(program, machine, state, root, materialized, false, &[])
 }
 
 fn validate(
@@ -362,6 +386,7 @@ fn validate(
     root: ExpressionHandle,
     materialized: ExpressionHandle,
     specialized_calls: bool,
+    provider_bodies: &[crate::SelectedBuildTimeProviderBody],
 ) -> Result<Vec<DependencyValue>, String> {
     if !program.expression_table.expression_is_valid(materialized) {
         return Err("constant call receipt has a stale materialized root".into());
@@ -401,6 +426,7 @@ fn validate(
         None,
         specialized_calls,
         true,
+        provider_bodies,
     )?;
     if actual.call_targets.len() != expected.len()
         || actual
@@ -424,6 +450,7 @@ fn collect_internal(
     syntax: Option<&SyntaxTrees>,
     specialized_calls: bool,
     expand_callees: bool,
+    provider_bodies: &[crate::SelectedBuildTimeProviderBody],
 ) -> Result<Custody, String> {
     let context = Context {
         machine,
@@ -441,6 +468,7 @@ fn collect_internal(
         machines: Vec::new(),
         retained_call_targets: Vec::new(),
         expanded_constants: Vec::new(),
+        provider_bodies,
     };
     let mut visited_expressions = Vec::new();
     let mut visited_machines = Vec::new();
@@ -473,6 +501,7 @@ fn collect_internal(
 }
 
 struct Collector<'program> {
+    provider_bodies: &'program [crate::SelectedBuildTimeProviderBody],
     program: &'program TypedTrees,
     syntax: Option<&'program SyntaxTrees>,
     public: bool,
@@ -902,6 +931,120 @@ impl<'program> Collector<'program> {
         Ok(())
     }
 
+    /// A checked token use keeps its Operator occurrence after preparation
+    /// rewrites it to an ordinary executable call. Its source category does not
+    /// become an authored Call. The checked declaration and retained application
+    /// must both identify the exact original entry; invocation admission remains
+    /// the independent checking/evaluation owner's obligation.
+    fn checked_helper_operator_call(
+        &self,
+        expression: ExpressionHandle,
+        call: &typed_trees::expression::TableCallExpression,
+        context: Context<'program>,
+    ) -> Result<bool, String> {
+        if context.initializer {
+            return Ok(false);
+        }
+        let program = self.program;
+        let table = &program.expression_table;
+        let reference = table.source_span(expression);
+        let mut operators = Vec::new();
+        for occurrence in table.authored_selection_occurrences(expression) {
+            let selection = program
+                .authored_declaration_selections()
+                .get(occurrence)
+                .ok_or("constant operator call lost its authored occurrence")?;
+            if selection.source_span() != reference {
+                continue;
+            }
+            if selection.kind() == Kind::Call {
+                return Ok(false);
+            }
+            if selection.kind() != Kind::Operator {
+                continue;
+            }
+            if self
+                .syntax
+                .is_some_and(|syntax| syntax.constant_initializer_owns_selection(reference))
+            {
+                return Ok(false);
+            }
+            let target = selection
+                .target()
+                .as_resolved()
+                .ok_or("constant operator call has no checked declaration selection")?
+                .selected_symbol();
+            operators.push((occurrence, target));
+        }
+        if operators.is_empty() {
+            return Ok(false);
+        }
+        let [(occurrence, selected)] = operators.as_slice() else {
+            return Err("constant operator call has ambiguous authored occurrences".into());
+        };
+        let source_entry = self.authored_target(call.target_symbol, false)?;
+        if validation::token_bound_machine_call_target(program, call) == Some(*selected) {
+            let declaration = program
+                .machine_by_symbol(*selected)
+                .ok_or("constant operator call lost its checked machine")?;
+            let states = program.machine_states(declaration);
+            if states.len() != declaration.states.len()
+                || states
+                    .first()
+                    .is_none_or(|entry| entry.symbol != source_entry)
+            {
+                return Err(
+                    "constant operator call differs from its exact specialized entry".into(),
+                );
+            }
+        } else {
+            // A selected checked provider is not the token declaration. Rejoin
+            // the validated row by the SAME occurrence and source owner, then
+            // require its exact executable entry. A sibling use of the same
+            // requirement cannot lend this occurrence its selected supply.
+            let owner = self.authored_target(context.machine.symbol, false)?;
+            let supplies = self
+                .provider_bodies
+                .iter()
+                .filter(|row| {
+                    row.requirement == *selected
+                        && row.origin.machine_symbol() == Some(owner)
+                        && row.provider_state == source_entry
+                        && table.expression_is_valid(row.expression)
+                        && table.source_span(row.expression) == reference
+                        && table
+                            .authored_selection_occurrences(row.expression)
+                            .any(|attached| attached == *occurrence)
+                })
+                .collect::<Vec<_>>();
+            let [supply] = supplies.as_slice() else {
+                return Err(
+                    "constant operator call has no unique occurrence-bound selected provider"
+                        .into(),
+                );
+            };
+            let provider = program
+                .machine_by_symbol(supply.provider_machine)
+                .ok_or("constant operator call lost its selected provider body")?;
+            let states = program.machine_states(provider);
+            if states.len() != provider.states.len()
+                || states
+                    .first()
+                    .is_none_or(|entry| entry.symbol != supply.provider_state)
+                || call.operational_acknowledgement.origin
+                    != language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized
+            {
+                return Err(
+                    "constant operator call differs from its selected provider entry".into(),
+                );
+            }
+        }
+        // Source dependency discovery visits a token use's operands, not an
+        // authored call to its later supplying body. Preserve that roster. The
+        // ordinary checked invocation closure still admits and executes the body.
+        Ok(true)
+    }
+
     fn expression(
         &mut self,
         expression: ExpressionHandle,
@@ -1057,73 +1200,78 @@ impl<'program> Collector<'program> {
                         call.authored_machine_application,
                     ));
                 }
-                let site = validation::CallSite::Expression { expression, call };
-                let mut selections = Vec::new();
-                for occurrence in table.authored_selection_occurrences(expression) {
-                    let Some(selection) = program.authored_declaration_selections().get(occurrence)
-                    else {
-                        return Err("constant call lost an attached authored selection".into());
-                    };
-                    if selection.kind() != Kind::Call {
-                        continue;
+                if !self.checked_helper_operator_call(expression, call, context)? {
+                    let site = validation::CallSite::Expression { expression, call };
+                    let mut selections = Vec::new();
+                    for occurrence in table.authored_selection_occurrences(expression) {
+                        let Some(selection) =
+                            program.authored_declaration_selections().get(occurrence)
+                        else {
+                            return Err("constant call lost an attached authored selection".into());
+                        };
+                        if selection.kind() != Kind::Call {
+                            continue;
+                        }
+                        // A retained recipe root also carries its transitive
+                        // authored inventory. Only this expression's own source
+                        // point annotates its call; nested occurrences are checked
+                        // when their exact helper or dependency is traversed.
+                        let reference = selection.source_span();
+                        if reference != table.source_span(expression) {
+                            continue;
+                        }
+                        let Some(target) = selection
+                            .target()
+                            .as_resolved()
+                            .map(|target| target.selected_symbol())
+                        else {
+                            continue;
+                        };
+                        let matches = self.call_selection_matches(&site, context, target)?;
+                        // Preparation may rewrite the call to the row's entry
+                        // after the ledger recorded the trait requirement.
+                        let symbol =
+                            if call_selections::owned_realization_entry(program, call, target)
+                                == Some(call.target_symbol)
+                                || call_selections::requirement_realized_by(
+                                    program,
+                                    target,
+                                    call.target_symbol,
+                                )
+                            {
+                                call.target_symbol
+                            } else if matches {
+                                target
+                            } else {
+                                continue;
+                            };
+                        let selected = (symbol, selection.source_span());
+                        if !selections.contains(&selected) {
+                            selections.push(selected);
+                        }
                     }
-                    // A retained recipe root also carries its transitive
-                    // authored inventory. Only this expression's own source
-                    // point annotates its call; nested occurrences are checked
-                    // when their exact helper or dependency is traversed.
-                    let reference = selection.source_span();
-                    if reference != table.source_span(expression) {
-                        continue;
-                    }
-                    let Some(target) = selection
-                        .target()
-                        .as_resolved()
-                        .map(|target| target.selected_symbol())
-                    else {
-                        continue;
+                    let [(authored, reference)] = selections.as_slice() else {
+                        return Err(if selections.is_empty() {
+                            "constant call lost its exact authored target selection"
+                        } else {
+                            "constant call has ambiguous authored target selections"
+                        }
+                        .into());
                     };
-                    let matches = self.call_selection_matches(&site, context, target)?;
-                    // Preparation may rewrite the call to the row's entry
-                    // after the ledger recorded the trait requirement.
-                    let symbol = if call_selections::owned_realization_entry(program, call, target)
-                        == Some(call.target_symbol)
-                        || call_selections::requirement_realized_by(
-                            program,
-                            target,
-                            call.target_symbol,
-                        ) {
-                        call.target_symbol
-                    } else if matches {
-                        target
+                    // A trait requirement names no body. A supplying map's row
+                    // entry is the call custody executes. A map that does not
+                    // supply the trait rejects here, before that body is walked.
+                    if let Some(entry) =
+                        call_selections::owned_realization_entry(program, call, *authored)
+                    {
+                        self.call(entry, *reference, context.initializer)?;
+                    } else if let Some(message) =
+                        call_selections::unsupplied_requirement(program, call, *authored)
+                    {
+                        return Err(message);
                     } else {
-                        continue;
-                    };
-                    let selected = (symbol, selection.source_span());
-                    if !selections.contains(&selected) {
-                        selections.push(selected);
+                        self.selected_call(&site, context, *authored, *reference)?;
                     }
-                }
-                let [(authored, reference)] = selections.as_slice() else {
-                    return Err(if selections.is_empty() {
-                        "constant call lost its exact authored target selection"
-                    } else {
-                        "constant call has ambiguous authored target selections"
-                    }
-                    .into());
-                };
-                // A trait requirement names no body. A supplying map's row
-                // entry is the call custody executes. A map that does not
-                // supply the trait rejects here, before that body is walked.
-                if let Some(entry) =
-                    call_selections::owned_realization_entry(program, call, *authored)
-                {
-                    self.call(entry, *reference, context.initializer)?;
-                } else if let Some(message) =
-                    call_selections::unsupplied_requirement(program, call, *authored)
-                {
-                    return Err(message);
-                } else {
-                    self.selected_call(&site, context, *authored, *reference)?;
                 }
             }
             ExpressionNode::Name(name)
@@ -1140,6 +1288,72 @@ impl<'program> Collector<'program> {
         }
         self.expressions
             .extend(children.into_iter().rev().map(|child| (child, context)));
+        Ok(())
+    }
+
+    /// Signature operands participate in declaration custody even when their
+    /// facts are erased from execution. Reuse the same selected expression and
+    /// type collectors under the exact owning scope; this does not admit invocation.
+    fn signature_contract_dependencies(
+        &mut self,
+        contracts: &[typed_trees::signature::SignatureContract],
+        declared_contract_count: usize,
+        context: Context<'program>,
+    ) -> Result<(), String> {
+        let program = self.program;
+        if contracts.len() != declared_contract_count {
+            return Err("constant call closure has stale signature contracts".into());
+        }
+        for contract in contracts {
+            let facts = program.tables.proof_facts.span_or_empty(contract.facts);
+            if facts.len() != contract.facts.len() {
+                return Err("constant call closure has stale signature facts".into());
+            }
+            for fact in facts {
+                let roots = match fact {
+                    typed_trees::domain::ProofFact::Expression(expression) => vec![*expression],
+                    typed_trees::domain::ProofFact::Membership(membership) => {
+                        let arguments = program
+                            .type_reference_table
+                            .type_reference_handles(membership.domain_arguments);
+                        if arguments.len() != membership.domain_arguments.len() {
+                            return Err(
+                                "constant signature membership has stale type arguments".into()
+                            );
+                        }
+                        for argument in arguments {
+                            if !program
+                                .type_reference_table
+                                .contains_type_reference(*argument)
+                            {
+                                return Err("constant signature membership has a stale type".into());
+                            }
+                            self.type_dependencies(types::Root::Type(*argument), context)?;
+                        }
+                        vec![membership.value]
+                    }
+                    typed_trees::domain::ProofFact::Proposition(application) => {
+                        let arguments = program
+                            .expression_table
+                            .expression_handles(application.arguments);
+                        if arguments.len() != application.arguments.len() {
+                            return Err(
+                                "constant signature proposition has stale value arguments".into()
+                            );
+                        }
+                        // A proposition is not an ordinary runtime call. Only
+                        // its actual value operands contribute expression roots.
+                        arguments.to_vec()
+                    }
+                };
+                for expression in roots {
+                    if !program.expression_table.expression_is_valid(expression) {
+                        return Err("constant signature has a stale value operand".into());
+                    }
+                    self.expressions.push((expression, context));
+                }
+            }
+        }
         Ok(())
     }
 
@@ -1162,6 +1376,15 @@ impl<'program> Collector<'program> {
         let entry = states
             .first()
             .ok_or("constant call closure has no entry state")?;
+        self.signature_contract_dependencies(
+            program.machine_contracts(machine),
+            machine.contracts.len(),
+            Context {
+                machine,
+                state: entry,
+                initializer: false,
+            },
+        )?;
         self.type_dependencies(
             types::Root::Machine(machine),
             Context {
@@ -1193,6 +1416,11 @@ impl<'program> Collector<'program> {
                 state,
                 initializer: false,
             };
+            self.signature_contract_dependencies(
+                program.state_contracts(state),
+                state.contracts.len(),
+                context,
+            )?;
             let body = table.statements(state.statement_nodes);
             if body.len() != state.statement_nodes.len() {
                 return Err("constant call closure has stale statements".into());

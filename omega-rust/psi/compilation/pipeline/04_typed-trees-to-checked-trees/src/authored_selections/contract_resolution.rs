@@ -172,12 +172,25 @@ fn checked_spelled_operator_resolution(
     if operand_types.iter().all(Option::is_none) {
         return None;
     }
-    let candidates = typed_trees::operator::resolve_spelling_for_operands(
-        program,
+    let candidates = if matches!(
         spelling,
-        &operand_types,
-        program.expression_table.source_span(expression),
-    );
+        language_core::OperatorSpelling::Index | language_core::OperatorSpelling::Range
+    ) {
+        // Indexed syntax owns collection lending; ordinary calls do not.
+        typed_trees::operator::resolve_indexed_spelling_for_operands(
+            program,
+            spelling,
+            &operand_types,
+            program.expression_table.source_span(expression),
+        )
+    } else {
+        typed_trees::operator::resolve_spelling_for_operands(
+            program,
+            spelling,
+            &operand_types,
+            program.expression_table.source_span(expression),
+        )
+    };
     match candidates.as_slice() {
         [] => Some(CheckedContractOperatorResolution::Builtin),
         [candidate] => Some(CheckedContractOperatorResolution::Declaration(

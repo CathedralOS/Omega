@@ -33,6 +33,7 @@ pub(crate) fn validate(
     typed: &TypedTrees,
     authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
     domain: &crate::build_time_evaluation::EvaluationDomain,
+    selected: crate::SelectedBuildTimeOperators<'_>,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut leaves = Vec::new();
     let mut replay_declarations = Vec::new();
@@ -251,12 +252,19 @@ pub(crate) fn validate(
         validate_authored_custody(&probe, owner, declaration)
             .map_err(|reason| super::failure(declaration.initializer_source_span, reason))?;
     }
-    let prepared = crate::PreparedBuildMachineProgram::prepare(&probe)?;
-    let checked = super::invocations::CheckedInitializers::prepare(
+    let (prepared, _) = crate::const_evaluation::prepared_admission(
+        &probe,
+        selected.provider_bodies,
+        selected.operators,
+        authority.clone(),
+        domain,
+    )?;
+    let checked = super::invocations::CheckedInitializers::prepare_selected(
         &prepared,
         authority.clone(),
         &probe_symbols,
         &domain.accounting,
+        selected.provider_bodies,
     )?;
     let program = checked.typed();
     // A dependency capsule names a separate declaration job. Validate every
@@ -551,7 +559,7 @@ fn validate_anonymous_float(
         return Err("floating constant lost its receiving expression state".into());
     };
     let dependencies = crate::const_evaluation::const_generic_expressions::validate_retained_initializer_call_custody(
-        &probe, machine, state, original, materialized,
+        &probe, machine, state, original, materialized, &[],
     )?;
     validate_float_value(
         &probe,

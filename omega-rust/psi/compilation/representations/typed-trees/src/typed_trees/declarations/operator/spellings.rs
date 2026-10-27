@@ -404,39 +404,55 @@ fn bindings_satisfy_known_multiplicities(
         // type_multiplicity is a total query with unresolved-name fallbacks.
         // Establish exact closed carrier identity before using its answer to
         // exclude a candidate; fallback Affine must never become evidence.
-        !closed_multiplicity_carrier(program, *actual, 0)
+        !known_multiplicity_carrier(program, *actual, &mut Vec::new())
             || program.type_multiplicity(*actual) == parameter.bounds.multiplicity
     })
 }
 
-/// Knowledge of the carrier, not proof of its value refinements or access.
-/// Unsupported/open applications retain their candidate. Lifetimes and static
-/// arguments are not guessed from display text, and a nominal declaration is
-/// resolved solely by its exact symbol, including generated instance origins.
-fn closed_multiplicity_carrier(
+/// Knowledge that the total multiplicity query can read an exact carrier.
+/// Borrow regions do not change nominal or reference multiplicity. Their
+/// formation, lifetime and access obligations remain with the ordinary owners;
+/// no region is inferred here. Type/const arguments still need known carriers.
+/// The path-local spine bounds traversal by retained type identities and keeps
+/// repeated sibling types independent. A cycle never becomes closed evidence.
+fn known_multiplicity_carrier(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
-    depth: usize,
+    active_types: &mut Vec<TypeReferenceHandle>,
 ) -> bool {
-    if depth >= 64
-        || !program
-            .type_reference_table
-            .contains_type_reference(reference)
+    if !program
+        .type_reference_table
+        .contains_type_reference(reference)
+        || active_types.contains(&reference)
     {
         return false;
     }
-    let closed = |reference| closed_multiplicity_carrier(program, reference, depth + 1);
+    active_types.push(reference);
+    let known = known_multiplicity_node(program, reference, active_types);
+    active_types.pop();
+    known
+}
+
+fn known_multiplicity_node(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    active_types: &mut Vec<TypeReferenceHandle>,
+) -> bool {
     match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Unit => true,
-        TypeReferenceNode::Constrained { base_type, .. } => closed(*base_type),
-        TypeReferenceNode::Reference {
-            referee, lifetime, ..
-        } => lifetime.is_none() && closed(*referee),
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            known_multiplicity_carrier(program, *base_type, active_types)
+        }
+        TypeReferenceNode::Reference { referee, .. } => {
+            known_multiplicity_carrier(program, *referee, active_types)
+        }
         TypeReferenceNode::FixedArray {
             element_type,
             length: crate::types::FixedArrayLength::Literal(_),
         }
-        | TypeReferenceNode::Slice { element_type } => closed(*element_type),
+        | TypeReferenceNode::Slice { element_type } => {
+            known_multiplicity_carrier(program, *element_type, active_types)
+        }
         TypeReferenceNode::FixedArray { .. } | TypeReferenceNode::ConstExpression(_) => false,
         TypeReferenceNode::Named { symbol, name } => {
             if program.data_type_parameter_by_symbol(*symbol).is_some() {
@@ -460,10 +476,11 @@ fn closed_multiplicity_carrier(
                 return false;
             };
             if let Some(origin) = definition.generic_instance {
-                return closed(origin);
+                return known_multiplicity_carrier(program, origin, active_types);
             }
+            // A named region application may be elided. This says nothing
+            // about whether that elision supplies a legal lifetime relation.
             program.data_type_parameters(definition).is_empty()
-                && definition.lifetime_parameters.is_empty()
         }
         TypeReferenceNode::Generic {
             base_symbol,
@@ -474,15 +491,16 @@ fn closed_multiplicity_carrier(
             let Some(definition) = program.unique_data_definition_by_symbol(*base_symbol) else {
                 return false;
             };
-            lifetime_arguments.is_empty()
-                && definition.lifetime_parameters.is_empty()
-                && closed_multiplicity_arguments(
+            let actual = program
+                .type_reference_table
+                .type_reference_handles(*arguments);
+            lifetime_arguments.len() == definition.lifetime_parameters.len()
+                && actual.len() == arguments.len()
+                && known_multiplicity_arguments(
                     program,
                     program.data_type_parameters(definition),
-                    program
-                        .type_reference_table
-                        .type_reference_handles(*arguments),
-                    depth + 1,
+                    actual,
+                    active_types,
                 )
         }
         TypeReferenceNode::DynamicTrait {
@@ -498,25 +516,27 @@ fn closed_multiplicity_carrier(
             let Some(declaration) = declarations.next() else {
                 return false;
             };
+            let actual = program
+                .type_reference_table
+                .type_reference_handles(*arguments);
             declarations.next().is_none()
                 && declaration.lifetime_parameters.is_empty()
-                && closed_multiplicity_arguments(
+                && actual.len() == arguments.len()
+                && known_multiplicity_arguments(
                     program,
                     program.trait_type_parameters(declaration),
-                    program
-                        .type_reference_table
-                        .type_reference_handles(*arguments),
-                    depth + 1,
+                    actual,
+                    active_types,
                 )
         }
     }
 }
 
-fn closed_multiplicity_arguments(
+fn known_multiplicity_arguments(
     program: &TypedTrees,
     parameters: &[crate::data::TypeParameter],
     arguments: &[TypeReferenceHandle],
-    depth: usize,
+    active_types: &mut Vec<TypeReferenceHandle>,
 ) -> bool {
     parameters.len() == arguments.len()
         && parameters
@@ -532,7 +552,7 @@ fn closed_multiplicity_arguments(
                 }
                 match parameter.kind {
                     crate::data::TypeParameterKind::Type => {
-                        closed_multiplicity_carrier(program, *argument, depth)
+                        known_multiplicity_carrier(program, *argument, active_types)
                     }
                     crate::data::TypeParameterKind::Const { .. }
                     | crate::data::TypeParameterKind::Value { .. } => {

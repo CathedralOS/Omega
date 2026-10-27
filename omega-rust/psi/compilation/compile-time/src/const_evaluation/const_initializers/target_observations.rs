@@ -17,6 +17,7 @@ pub(crate) fn settle(
     typed: &mut TypedTrees,
     authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
     domain: &EvaluationDomain,
+    selected: crate::SelectedBuildTimeOperators<'_>,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut declarations = typed
         .const_declarations()
@@ -92,9 +93,20 @@ pub(crate) fn settle(
         }
         // Extending work with a private probe preserves the original execution
         // selection: a Product description in a Build forest grants no body demand.
-        let prepared = crate::PreparedBuildMachineProgram::prepare_in(&probes, &work)?;
-        let checked =
-            CheckedInitializers::prepare(&prepared, authority.clone(), &[owner], &work.accounting)?;
+        let (prepared, _) = crate::const_evaluation::prepared_admission(
+            &probes,
+            selected.provider_bodies,
+            selected.operators,
+            authority.clone(),
+            &work,
+        )?;
+        let checked = CheckedInitializers::prepare_selected(
+            &prepared,
+            authority.clone(),
+            &[owner],
+            &work.accounting,
+            selected.provider_bodies,
+        )?;
         let execution = checked.typed();
         let machine = execution
             .machine(owner)
@@ -118,7 +130,6 @@ pub(crate) fn settle(
         for warning in warnings {
             eprintln!("{warning}");
         }
-        let completed = value.declaration_value();
         // Preserve the source-owned roster, not private specialization symbols.
         // The receiving replay specializes and checks that exact inventory.
         for root in [
@@ -146,50 +157,7 @@ pub(crate) fn settle(
                 }
             }
         }
-        let materialized = match &value {
-            value::ScalarValue::UndeterminedNaN(format) => {
-                typed_trees::expression::ExpressionNode::UndeterminedNaN(*format)
-            }
-            _ => super::invocations::scalar_snapshot(&value, destination).map_err(&failure)?,
-        };
-        // A substituted const use has its own source point, not the callee's.
-        // Once its declaration is complete, consume that canonical value at
-        // the exact selected use; replay must never reinterpret a copied call
-        // at the alias token as a newly authored invocation. The declaration's
-        // original expression and its call inventory remain independently kept.
-        let uses = typed
-            .expression_table
-            .iter_expressions()
-            .filter_map(|(expression, _)| {
-                let reference = typed.expression_table.source_span(expression);
-                typed
-                    .expression_table
-                    .authored_selection_occurrences(expression)
-                    .any(|occurrence| {
-                        typed
-                            .authored_declaration_selections()
-                            .get(occurrence)
-                            .is_some_and(|selection| {
-                                selection.source_span() == reference
-                                    && selection.target().as_resolved().is_some_and(|selected| {
-                                        selected.selected_symbol() == declaration.symbol
-                                    })
-                            })
-                    })
-                    .then_some(expression)
-            })
-            .collect::<Vec<_>>();
-        for expression in uses {
-            *typed.expression_table.expression_mut(expression) = materialized.clone();
-        }
-        typed
-            .tables
-            .const_declarations
-            .for_each_mut(|_, candidate| {
-                if candidate.symbol == declaration.symbol {
-                    candidate.evaluated_value = Some(completed.clone());
-                }
-            });
+        super::completed_values::install(typed, &declaration, &value).map_err(&failure)?;
     }
     Ok(())
 }

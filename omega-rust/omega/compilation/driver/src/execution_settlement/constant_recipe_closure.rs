@@ -45,7 +45,12 @@ pub(super) fn close_constant_recipes(
         .collect();
     // Runtime layout queries also retain a continuation even when no array,
     // range endpoint, or const application contributes a recipe roster entry.
-    let needs_constant_values = !typed.constant_recipes.is_empty() || !layout_queries.is_empty();
+    let pending_initializers = source
+        .constant_recipe_continuations
+        .iter()
+        .any(|continuation| !continuation.pending_initializer_declarations().is_empty());
+    let needs_constant_values =
+        !typed.constant_recipes.is_empty() || !layout_queries.is_empty() || pending_initializers;
     if !needs_constant_values && shared.facts.integer_range_obligations.is_empty() {
         return Ok(Arc::clone(shared));
     }
@@ -413,6 +418,29 @@ fn close_constant_values(
                 }
             });
     }
+    let mut pending_initializers = Vec::new();
+    for continuation in &source.constant_recipe_continuations {
+        for declaration in continuation.pending_initializer_declarations() {
+            if let Some(previous) = pending_initializers.iter().find(
+                |previous: &&typed_trees::constant::ConstDeclaration| {
+                    previous.symbol == declaration.symbol
+                },
+            ) {
+                if previous != declaration {
+                    return Err(vec![Diagnostic::error(
+                        "pending scalar initializer has conflicting continuation custody",
+                    )]);
+                }
+            } else {
+                pending_initializers.push(declaration.clone());
+            }
+        }
+    }
+    build_time_evaluation::read_back_pending_initializer_values(
+        &mut closed_typed,
+        &evaluated,
+        &pending_initializers,
+    )?;
     Ok(closed_typed)
 }
 
