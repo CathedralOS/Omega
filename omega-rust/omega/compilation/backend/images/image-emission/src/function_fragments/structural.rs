@@ -374,6 +374,16 @@ fn settlement_offset(
         .and_then(|span| host(span.offset))
 }
 
+/// The image text address of `code_offset` inside one placed fragment: the
+/// fragment's section offset plus the offset of the instruction it names.
+/// Construction and replay both address settlements, port effects and
+/// boundary records through this one rule.
+pub(crate) fn placed_text_offset(section_offset: u64, code_offset: usize) -> Result<usize, Error> {
+    host(section_offset)?
+        .checked_add(code_offset)
+        .ok_or(Error::Overflow)
+}
+
 pub(super) fn populate(
     source: &StagedOptimizedRelocationFreeObjectContainer,
     function: &mut ObjectFunction,
@@ -665,9 +675,7 @@ pub(super) fn settlements(
             );
             result.push(ObjectBoundarySettlement {
                 machine: placed.machine,
-                text_offset: host(placed.section_offset)?
-                    .checked_add(offset)
-                    .ok_or(Error::Overflow)?,
+                text_offset: placed_text_offset(placed.section_offset, offset)?,
                 settlement: machine_code::BoundarySettlementRecord {
                     invocation_site: row.operation.into(),
                     boundary: row.boundary,

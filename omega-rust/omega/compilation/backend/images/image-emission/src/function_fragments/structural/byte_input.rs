@@ -1,5 +1,5 @@
 //! Publish owned byte-input results from their selected occurrence and real frame home.
-use super::{Error, attribution, fragment, host, selected, source};
+use super::{Error, attribution, fragment, host, placed_text_offset, selected, source};
 use crate::ObjectBoundarySettlement;
 use machine_code::{
     BoundaryExecutionRecord, BoundaryResultRecord, BoundarySettlementRecord,
@@ -178,9 +178,7 @@ pub(super) fn settlement(
         .ok_or_else(invalid)?;
     Ok(ObjectBoundarySettlement {
         machine,
-        text_offset: host(placed.section_offset)?
-            .checked_add(code_offset)
-            .ok_or(Error::Overflow)?,
+        text_offset: placed_text_offset(placed.section_offset, code_offset)?,
         settlement: record,
     })
 }
@@ -234,10 +232,7 @@ pub(super) fn validate(
     let code_offset = host(span.offset)?;
     if proposed.machine != machine
         || &produced.declaration != result_declaration(function, result.structural_type)?
-        || proposed.text_offset
-            != host(placed.section_offset)?
-                .checked_add(code_offset)
-                .ok_or(Error::Overflow)?
+        || proposed.text_offset != placed_text_offset(placed.section_offset, code_offset)?
         || record.invocation_site != (*operation).into()
         || record.boundary != *boundary
         || record.operation_ordinal
