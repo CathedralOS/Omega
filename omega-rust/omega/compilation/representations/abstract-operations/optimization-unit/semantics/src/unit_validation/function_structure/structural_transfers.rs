@@ -68,14 +68,8 @@ pub(super) fn validate(
                                 position: parameter.position,
                             })
                 })
-                || function
-                    .entry_claim_declarations
-                    .iter()
-                    .any(|claim| claim.input == parameter.place)
-                || function
-                    .content_entry_claims
-                    .iter()
-                    .any(|claim| claim.input.root == parameter.place)
+                || function.entry_claim_declared(parameter.place)
+                || function.content_entry_claim_declared(parameter.place)
             {
                 return Err(invalid());
             }
@@ -358,14 +352,8 @@ pub(super) fn validate(
                                 }
                         })
                 };
-                let claim_hit = function
-                    .entry_claim_declarations
-                    .iter()
-                    .any(|claim| claim.input == binding.argument.place)
-                    || function
-                        .content_entry_claims
-                        .iter()
-                        .any(|claim| claim.input.root == binding.argument.place);
+                let claim_hit = function.entry_claim_declared(binding.argument.place)
+                    || function.content_entry_claim_declared(binding.argument.place);
                 if binding.parameter != parameter.place
                     || binding.argument.access != parameter.access
                     || !exact_source

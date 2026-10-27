@@ -428,18 +428,13 @@ fn validate_structural_field_range_authority(
                 .iter()
                 .filter_map(terminal_psi::StructuralPathSegment::runtime_index)
             {
-                if unit
-                    .accepted_obligation_fact(
-                        function.machine,
-                        optimization_unit::PsiProvenance::Edge(edge),
-                        Some(obligation),
-                    )
-                    .is_none()
-                {
-                    return Err(
-                        OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch,
-                    );
-                }
+                require_accepted_goal_fact(
+                    unit,
+                    function.machine,
+                    optimization_unit::PsiProvenance::Edge(edge),
+                    Some(obligation),
+                    None,
+                )?;
             }
         }
         match &node.operation {
@@ -482,20 +477,15 @@ fn validate_structural_field_range_authority(
                     layout.size,
                 )
                 .ok_or_else(|| invalid.clone())?;
-                terminal_codec::canonical_proposition_order_key(&goal)
-                    .map_err(|_| invalid.clone())?;
                 // Rewrites retain the accepted bounds and tiling fact only
                 // when it still proves this operation's exact current region.
-                if unit
-                    .accepted_obligation_fact(
-                        function.machine,
-                        optimization_unit::PsiProvenance::Operation(*psi_operation),
-                        Some(*obligation),
-                    )
-                    .is_none()
-                {
-                    return Err(invalid);
-                }
+                require_accepted_goal_fact(
+                    unit,
+                    function.machine,
+                    optimization_unit::PsiProvenance::Operation(*psi_operation),
+                    Some(*obligation),
+                    Some(&goal),
+                )?;
             }
             O::ElementViewWrite {
                 psi_operation,
@@ -551,18 +541,13 @@ fn validate_structural_field_range_authority(
                     *value,
                 )
                 .ok_or_else(|| invalid.clone())?;
-                terminal_codec::canonical_proposition_order_key(&goal)
-                    .map_err(|_| invalid.clone())?;
-                if unit
-                    .accepted_obligation_fact(
-                        function.machine,
-                        optimization_unit::PsiProvenance::Operation(*psi_operation),
-                        Some(*obligation),
-                    )
-                    .is_none()
-                {
-                    return Err(invalid);
-                }
+                require_accepted_goal_fact(
+                    unit,
+                    function.machine,
+                    optimization_unit::PsiProvenance::Operation(*psi_operation),
+                    Some(*obligation),
+                    Some(&goal),
+                )?;
             }
             abstract_operations::byte_sequence_write_pair_pattern!(
                 psi_operation,
@@ -619,18 +604,13 @@ fn validate_structural_field_range_authority(
                     goal = terminal_semantics::indexed_byte_store_goal(goal, *value, predicates)
                         .map_err(|_| invalid.clone())?;
                 }
-                terminal_codec::canonical_proposition_order_key(&goal)
-                    .map_err(|_| invalid.clone())?;
-                if unit
-                    .accepted_obligation_fact(
-                        function.machine,
-                        optimization_unit::PsiProvenance::Operation(*psi_operation),
-                        Some(*obligation),
-                    )
-                    .is_none()
-                {
-                    return Err(invalid);
-                }
+                require_accepted_goal_fact(
+                    unit,
+                    function.machine,
+                    optimization_unit::PsiProvenance::Operation(*psi_operation),
+                    Some(*obligation),
+                    Some(&goal),
+                )?;
             }
             O::EstablishByteSequenceConcatenation {
                 psi_operation,
@@ -662,32 +642,26 @@ fn validate_structural_field_range_authority(
                 };
                 let source_type =
                     IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid.clone())?;
-                terminal_codec::canonical_proposition_order_key(
-                    &Proposition::IntegerMathLessOrEqual(
-                        IntegerMathTerm::Add(
-                            Box::new(IntegerMathTerm::MathValue {
-                                source_type,
-                                value: left.length(),
-                            }),
-                            Box::new(IntegerMathTerm::MathValue {
-                                source_type,
-                                value: right.length(),
-                            }),
-                        ),
-                        IntegerMathTerm::literal(IntegerValue::Unsigned(u128::from(*capacity))),
+                let goal = Proposition::IntegerMathLessOrEqual(
+                    IntegerMathTerm::Add(
+                        Box::new(IntegerMathTerm::MathValue {
+                            source_type,
+                            value: left.length(),
+                        }),
+                        Box::new(IntegerMathTerm::MathValue {
+                            source_type,
+                            value: right.length(),
+                        }),
                     ),
-                )
-                .map_err(|_| invalid.clone())?;
-                if unit
-                    .accepted_obligation_fact(
-                        function.machine,
-                        optimization_unit::PsiProvenance::Operation(*psi_operation),
-                        Some(*capacity_obligation),
-                    )
-                    .is_none()
-                {
-                    return Err(invalid);
-                }
+                    IntegerMathTerm::literal(IntegerValue::Unsigned(u128::from(*capacity))),
+                );
+                require_accepted_goal_fact(
+                    unit,
+                    function.machine,
+                    optimization_unit::PsiProvenance::Operation(*psi_operation),
+                    Some(*capacity_obligation),
+                    Some(&goal),
+                )?;
             }
             abstract_operations::byte_sequence_store_pair_pattern!(
                 psi_operation,
@@ -711,24 +685,20 @@ fn validate_structural_field_range_authority(
                 }
                 let integer =
                     IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid.clone())?;
-                terminal_codec::canonical_proposition_order_key(&Proposition::LessOrEqual(
+                let goal = Proposition::LessOrEqual(
                     ScalarTerm::value(*length, ScalarType::Integer(integer)),
                     ScalarTerm::Integer {
                         scalar_type: integer,
                         value: IntegerValue::Unsigned(u128::from(capacity)),
                     },
-                ))
-                .map_err(|_| invalid.clone())?;
-                if unit
-                    .accepted_obligation_fact(
-                        function.machine,
-                        optimization_unit::PsiProvenance::Operation(*psi_operation),
-                        Some(*obligation),
-                    )
-                    .is_none()
-                {
-                    return Err(invalid);
-                }
+                );
+                require_accepted_goal_fact(
+                    unit,
+                    function.machine,
+                    optimization_unit::PsiProvenance::Operation(*psi_operation),
+                    Some(*obligation),
+                    Some(&goal),
+                )?;
             }
             O::StructuralByteViewFieldStore {
                 psi_operation,
@@ -778,18 +748,13 @@ fn validate_structural_field_range_authority(
                         *source,
                         &[],
                     );
-                    terminal_codec::canonical_proposition_order_key(&goal)
-                        .map_err(|_| invalid.clone())?;
-                    if unit
-                        .accepted_obligation_fact(
-                            function.machine,
-                            optimization_unit::PsiProvenance::Operation(*psi_operation),
-                            Some(*obligation),
-                        )
-                        .is_none()
-                    {
-                        return Err(invalid);
-                    }
+                    require_accepted_goal_fact(
+                        unit,
+                        function.machine,
+                        optimization_unit::PsiProvenance::Operation(*psi_operation),
+                        Some(*obligation),
+                        Some(&goal),
+                    )?;
                 } else if !established.implies(required) {
                     return Err(invalid);
                 }
@@ -1142,6 +1107,31 @@ fn validate_initialization_range_authority(
     )
 }
 
+/// Require `unit`'s accepted-obligation index to carry `obligation` for
+/// `provenance` in `machine`, with `goal` (when the site retains one) still
+/// canonicalizable under the same owner. Retaining an accepted bound is one
+/// admission step, so the canonicalize-and-index pair is stated here rather
+/// than spelled again at each checklist site.
+fn require_accepted_goal_fact(
+    unit: &PsiOptimizationUnit,
+    machine: MachineId,
+    provenance: optimization_unit::PsiProvenance,
+    obligation: Option<semantic_vocabulary::ObligationId>,
+    goal: Option<&semantic_vocabulary::Proposition>,
+) -> Result<(), OptimizationUnitValidationError> {
+    let invalid = || OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch;
+    if let Some(goal) = goal {
+        terminal_codec::canonical_proposition_order_key(goal).map_err(|_| invalid())?;
+    }
+    if unit
+        .accepted_obligation_fact(machine, provenance, obligation)
+        .is_none()
+    {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
 fn validate_range_fact(
     unit: &PsiOptimizationUnit,
     machine: MachineId,
@@ -1152,19 +1142,13 @@ fn validate_range_fact(
     let Some(requirement) = requirement else {
         return Ok(());
     };
-    terminal_codec::canonical_proposition_order_key(&requirement)
-        .map_err(|_| OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)?;
-    if unit
-        .accepted_obligation_fact(
-            machine,
-            optimization_unit::PsiProvenance::Operation(operation),
-            obligation,
-        )
-        .is_none()
-    {
-        return Err(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch);
-    }
-    Ok(())
+    require_accepted_goal_fact(
+        unit,
+        machine,
+        optimization_unit::PsiProvenance::Operation(operation),
+        obligation,
+        Some(&requirement),
+    )
 }
 
 pub(super) fn validate_final_authorities(
