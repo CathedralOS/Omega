@@ -1167,7 +1167,9 @@ pub(super) fn captured_argument_write_regions(
             source,
             relative,
         )?;
-        if !storage_place_has_declared_identity(projected.anchor()) {
+        if matches!(projected, StorageRegion::Declared(_))
+            && !storage_place_has_declared_identity(projected.anchor())
+        {
             return None;
         }
         let rebased = rebase_projected_call_region(

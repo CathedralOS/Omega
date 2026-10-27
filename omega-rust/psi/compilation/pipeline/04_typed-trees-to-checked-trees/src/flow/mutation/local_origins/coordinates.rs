@@ -99,6 +99,9 @@ pub(in crate::flow::mutation) fn write_source_region(
     source: &validation::LocalWriteSource,
     relative: &[facts::PlaceSegment],
 ) -> Option<StorageRegion> {
+    if source.invocation_output.is_some() {
+        return output_write_region(program, source, relative);
+    }
     if !source.root.is_valid() {
         return None;
     }
@@ -202,6 +205,46 @@ pub(in crate::flow::mutation) fn write_source_region(
         return Some(StorageRegion::Declared(place));
     }
     crate::flow::project_captured_view_place(place, relative).map(StorageRegion::Declared)
+}
+
+/// The chronological origin producer already retained this performed output.
+/// Rejoin its typed reference slot, without treating lifetime inputs or the
+/// display path as an address. Its backing may alias other storage.
+fn output_write_region(
+    program: &dyn validation::CheckingInput,
+    source: &validation::LocalWriteSource,
+    relative: &[facts::PlaceSegment],
+) -> Option<StorageRegion> {
+    if source.is_image_storage || !source.recasts.is_empty() || source.representation.is_some() {
+        return None;
+    }
+    let identity = source.invocation_output?;
+    let parameter = validation::invocation_output_parameter(program, identity)?;
+    let shell = validation::reference_shell(program, parameter.type_reference)?;
+    if !shell.access.is_exclusive() {
+        return None;
+    }
+    // The parameter's outer reference addresses its receiving storage. The
+    // first reference below it is the actual output leaf, including a root
+    // reference-valued slot. Later selectors stay inside that opaque referent.
+    let length = (0..=source.segments.len()).find(|length| {
+        validation::project_type_reference_from_segments(
+            program,
+            shell.referee,
+            &source.segments[..*length],
+        )
+        .and_then(|reference| validation::reference_shell(program, reference))
+        .is_some()
+    })?;
+    let mut projected = source.segments.clone();
+    projected.extend_from_slice(relative);
+    validation::project_type_reference_from_segments(program, shell.referee, &projected)?;
+    Some(StorageRegion::UnresolvedContent {
+        carrier: CanonicalPlace {
+            root: facts::PlaceRoot::InvocationOutput(identity),
+            segments: source.segments[..length].to_vec(),
+        },
+    })
 }
 
 fn structural_origin(
