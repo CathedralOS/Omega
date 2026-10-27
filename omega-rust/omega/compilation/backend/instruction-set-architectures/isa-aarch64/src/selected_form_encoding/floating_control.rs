@@ -3,6 +3,7 @@ use super::{
     Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
     ValidatedAarch64SelectedFormEncoding,
 };
+use crate::machine_effects::form_alternative;
 use register_model::{RegisterConstraintKey, RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
     LocalStorageSlotId, MachineAlternative, MachineAlternativeApplicability, MachineAlternativeKey,
@@ -93,19 +94,14 @@ pub(crate) fn declaration(
         barrier: MachineBarrier::ExternalEffect,
         call: MachineCallEffect::NoneV1,
         cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: semantic.into(),
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::EncoderResolved {
+        alternatives: form_alternative!(
+            semantic.into(),
+            MachineSizeKnowledge::EncoderResolved {
                 minimum_bytes: 8,
                 maximum_bytes: Some(crate::floating_control::MAX_FPCR_SEQUENCE_BYTES),
             },
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: effects(restore),
-        }],
+            effects(restore)
+        ),
     }
 }
 

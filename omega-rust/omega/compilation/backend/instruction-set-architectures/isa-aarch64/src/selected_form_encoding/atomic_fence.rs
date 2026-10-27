@@ -1,4 +1,5 @@
 //! A full coherent-memory barrier, independent of cell width or value storage.
+use crate::machine_effects::form_alternative;
 use register_model::RegisterConstraintKey;
 use selected_instructions::{
     MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
@@ -16,16 +17,11 @@ pub(crate) fn declaration(constraint: RegisterConstraintKey) -> MachineEffectDec
         barrier: MachineBarrier::ExternalEffect,
         call: MachineCallEffect::NoneV1,
         cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: MachineAlternativeFamily::AtomicFence,
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(4),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: MachineEncodedEffects::atomic_fence_v1(),
-        }],
+        alternatives: form_alternative!(
+            MachineAlternativeFamily::AtomicFence,
+            MachineSizeKnowledge::ExactBytes(4),
+            MachineEncodedEffects::atomic_fence_v1()
+        ),
     }
 }
 

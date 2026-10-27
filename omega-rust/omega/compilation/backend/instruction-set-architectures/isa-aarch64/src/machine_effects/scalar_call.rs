@@ -1,4 +1,5 @@
 //! Exact AAPCS64 scalar-call semantic and encoded machine effects.
+use crate::machine_effects::form_alternative;
 
 use register_model::{RegisterConstraintKey, ValidatedRegisterConstraintCatalog};
 use selected_instructions::{
@@ -34,15 +35,10 @@ pub(super) fn declaration(
             }
         },
         cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: semantic.into(),
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(4),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: MachineEncodedEffects {
+        alternatives: form_alternative!(
+            semantic.into(),
+            MachineSizeKnowledge::ExactBytes(4),
+            MachineEncodedEffects {
                 external_operand_reads: row.operand_reads(),
                 external_operand_writes: row.operand_writes(),
                 implicit_unit_uses: row.implicit_uses.clone(),
@@ -52,8 +48,8 @@ pub(super) fn declaration(
                 stack: MachineEncodedStackEffect::UnchangedV1,
                 trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
                 control: MachineEncodedControlEffect::DirectRelativeCallV1,
-            },
-        }],
+            }
+        ),
     }
 }
 

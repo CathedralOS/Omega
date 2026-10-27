@@ -14,6 +14,7 @@
 //! baseline; ELF remains unadmitted until it has explicit feature custody.
 //! Encodings follow Arm's A64 instruction definitions, independently pinned
 //! by LLVM's `llvm/test/MC/AArch64/armv8.1a-atomic.s` assembler vectors.
+use crate::machine_effects::form_alternative;
 
 use super::{Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint};
 use register_model::{RegisterConstraintKey, RegisterViewId};
@@ -51,16 +52,11 @@ pub(crate) fn declaration(
         barrier: MachineBarrier::ExternalEffect,
         call: MachineCallEffect::NoneV1,
         cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: MachineAlternativeFamily::AtomicAccess(form),
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(if has_prefix(form.operation) { 8 } else { 4 }),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: effects(form),
-        }],
+        alternatives: form_alternative!(
+            MachineAlternativeFamily::AtomicAccess(form),
+            MachineSizeKnowledge::ExactBytes(if has_prefix(form.operation) { 8 } else { 4 }),
+            effects(form)
+        ),
     }
 }
 

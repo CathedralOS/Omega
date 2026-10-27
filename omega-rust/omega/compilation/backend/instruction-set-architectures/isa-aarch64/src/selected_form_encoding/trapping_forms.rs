@@ -31,6 +31,7 @@
 //! whether any bit at or above the destination's value bits is set with one
 //! `tst` bitmask immediate. Every form declares NZCV clobbered.
 use super::decoding::DecodedWord;
+use crate::machine_effects::form_alternative;
 use register_model::RegisterConstraintKey;
 use selected_instructions::{
     MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
@@ -97,19 +98,14 @@ pub(crate) fn declaration(
         barrier: MachineBarrier::ExternalEffect,
         call: MachineCallEffect::NoneV1,
         cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: MachineAlternativeFamily::TrappingInteger(form),
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(byte_size(form)),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: effects(
+        alternatives: form_alternative!(
+            MachineAlternativeFamily::TrappingInteger(form),
+            MachineSizeKnowledge::ExactBytes(byte_size(form)),
+            effects(
                 (0..sources).collect(),
                 (sources..operand_count(form) as u16).collect(),
-            ),
-        }],
+            )
+        ),
     }
 }
 

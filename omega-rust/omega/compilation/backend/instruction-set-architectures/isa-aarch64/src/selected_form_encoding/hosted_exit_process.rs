@@ -3,6 +3,7 @@ use super::{
     Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
     ValidatedAarch64SelectedFormEncoding,
 };
+use crate::machine_effects::form_alternative;
 use crate::selected_form_encoding::selected_forms::resolve_registers;
 use register_model::RegisterConstraintKey;
 use register_model::RegisterViewId;
@@ -62,16 +63,11 @@ pub(crate) fn declaration(
         barrier: MachineBarrier::ExternalEffect,
         call: MachineCallEffect::NoneV1,
         cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: MachineAlternativeFamily::HostedExitProcessI32,
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(16),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: effects(target)?,
-        }],
+        alternatives: form_alternative!(
+            MachineAlternativeFamily::HostedExitProcessI32,
+            MachineSizeKnowledge::ExactBytes(16),
+            effects(target)?
+        ),
     })
 }
 

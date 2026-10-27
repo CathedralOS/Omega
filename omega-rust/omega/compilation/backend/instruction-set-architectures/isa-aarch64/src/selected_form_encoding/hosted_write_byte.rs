@@ -11,6 +11,7 @@ use super::{
     ValidatedAarch64SelectedFormEncoding,
 };
 use crate::immediate_offset::{MAX_ADDRESS_BYTES, address_words, decode_address_words};
+use crate::machine_effects::form_alternative;
 use crate::selected_form_encoding::selected_forms::resolve_registers;
 use register_model::RegisterConstraintKey;
 use register_model::RegisterViewId;
@@ -74,13 +75,9 @@ pub(crate) fn declaration(
         barrier: MachineBarrier::ExternalEffect,
         call: MachineCallEffect::NoneV1,
         cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: MachineAlternativeFamily::HostedWriteByteI32,
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: {
+        alternatives: form_alternative!(
+            MachineAlternativeFamily::HostedWriteByteI32,
+            {
                 let short = if target == NativeTarget::macos_arm64() {
                     40
                 } else {
@@ -91,9 +88,8 @@ pub(crate) fn declaration(
                     maximum_bytes: Some(short + MAX_ADDRESS_BYTES),
                 }
             },
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: effects(target),
-        }],
+            effects(target)
+        ),
     }
 }
 

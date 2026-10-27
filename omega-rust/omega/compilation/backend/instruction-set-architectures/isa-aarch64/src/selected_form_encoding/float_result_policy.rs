@@ -16,6 +16,7 @@
 //! Word fields follow Arm's A64 UBFM and B.cond encodings:
 //! https://documentation-service.arm.com/static/67e40f3398aa3c3b6eea6a85
 //! https://documentation-service.arm.com/static/685eb35c3cb5b729562ba389
+use crate::machine_effects::form_alternative;
 
 use super::{Aarch64SelectedFormEncodingError as Error, Aarch64SelectedFormFootprint};
 use register_model::{RegisterConstraintKey, RegisterUnitId, RegisterViewId};
@@ -74,16 +75,11 @@ pub(crate) fn declaration(
         },
         call: MachineCallEffect::NoneV1,
         cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: MachineAlternativeFamily::FloatResultPolicy(form),
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes((program(form, &[0; 4]).len() * 4) as u16),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: effects(form),
-        }],
+        alternatives: form_alternative!(
+            MachineAlternativeFamily::FloatResultPolicy(form),
+            MachineSizeKnowledge::ExactBytes((program(form, &[0; 4]).len() * 4) as u16),
+            effects(form)
+        ),
     }
 }
 
