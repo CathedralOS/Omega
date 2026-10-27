@@ -25,7 +25,6 @@ pub(in crate::flow) struct ArgumentSources<'program, 'writes> {
     arguments: &'program [ExpressionHandle],
     writes: Option<&'writes [CanonicalPlace]>,
     captures: Vec<CapturedSource>,
-    invocation: FlowOperandFact,
 }
 
 /// Scratch custody copied before publication mutates the flow arenas. Paths
@@ -228,7 +227,6 @@ impl<'program, 'writes> ArgumentSources<'program, 'writes> {
             arguments,
             writes,
             captures,
-            invocation: *captured_operands.last()?,
         })
     }
 
@@ -247,16 +245,17 @@ impl<'program, 'writes> ArgumentSources<'program, 'writes> {
             &captured.operand,
             &[],
             &|operand, source| {
-                let captured = CapturedSource {
-                    operand: *operand,
-                    position,
-                    destination: Vec::new(),
-                    expression: operand.expression,
-                    type_reference: operand.type_reference,
-                    later_writes: writes_after_capture(control, operand, &self.invocation),
-                    referents: Vec::new(),
-                };
-                self.source_survives(&captured, source)
+                // This names the holder at its captured binding epoch. Later
+                // content writes do not erase a moved value's retained loans.
+                // A preceding descriptor replacement withholds association
+                // with the statement-entry loan roster.
+                crate::flow::binding_origin_is_stable(
+                    self.program,
+                    control,
+                    operand.entry_binding_writes,
+                    operand.entry_binding_unknown_write,
+                    source,
+                )
             },
         )
     }

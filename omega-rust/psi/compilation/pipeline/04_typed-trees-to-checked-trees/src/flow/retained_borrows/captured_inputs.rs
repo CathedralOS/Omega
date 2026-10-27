@@ -57,17 +57,6 @@ pub(in crate::flow) fn captured_sources(
             )?
         };
         let mut result = RetainedSources::default();
-        if std::env::var_os("OMEGA_DEBUG_HANDBACK").is_some() {
-            eprintln!(
-                "SOURCE {:?} {:?} proj {:?} type {:?} referent {:?} retention {:?}",
-                operand.expression,
-                program.expression_table.display_name(operand.expression),
-                projection,
-                operand.type_reference,
-                crate::checks::contracts::exclusive_referent_type(program, reference),
-                operand.retention
-            );
-        }
         let referent = crate::checks::contracts::exclusive_referent_type(program, reference);
         if referent.is_valid() {
             let places =
@@ -97,7 +86,9 @@ pub(in crate::flow) fn captured_sources(
             operand.expression,
         ) {
             place.segments.extend_from_slice(projection);
-            if !matches!(place.root, facts::PlaceRoot::Expression(_))
+            if program.type_multiplicity(reference)
+                != language_semantics::Multiplicity::Unrestricted
+                && !matches!(place.root, facts::PlaceRoot::Expression(_))
                 && stable_name(operand, &place)
             {
                 result.holders.push(place);
@@ -135,9 +126,6 @@ pub(in crate::flow) fn captured_sources(
         active.push(handle);
         let result = (|| {
             let profile = control.operand_retentions.get(handle);
-            if std::env::var_os("OMEGA_DEBUG_HANDBACK").is_some() {
-                eprintln!("PROFILE {:?} {:?}", handle, profile);
-            }
             let mut result = RetainedSources::default();
             if !profile.alternatives.is_empty() {
                 let mut common: Option<RetainedSources> = None;

@@ -5,7 +5,6 @@
 
 use checked_trees::{
     BorrowCallFact, BorrowFacts, BorrowLoanFact, BorrowLoanLineage, FlowControlFacts,
-    FlowOperandFact, FlowOperandRetention,
 };
 use typed_trees::types::TypeReferenceHandle;
 use validation::CanonicalPlace;
@@ -69,6 +68,8 @@ fn ending_inputs(
     let mut result = RetainedSources::default();
     for (position, parameter) in parameters.iter().enumerate() {
         if returned.contains(&position)
+            || program.type_multiplicity(parameter.type_reference)
+                == language_semantics::Multiplicity::Unrestricted
             || validation::reference_shell(program, parameter.type_reference).is_some()
             || !validation::borrow_contracts::is_borrow_carrying_data(
                 program,
@@ -98,15 +99,7 @@ pub(super) fn handbacks(
     else {
         return Vec::new();
     };
-    if std::env::var_os("OMEGA_DEBUG_HANDBACK").is_some() {
-        eprintln!(
-            "ENDING {} {} {:?} {:?}",
-            call.statement_index,
-            call.call_ordinal,
-            program.symbols.display_path(call.target_symbol, "::"),
-            ending
-        );
-    }
+
     if ending.borrows.is_empty() {
         return Vec::new();
     }

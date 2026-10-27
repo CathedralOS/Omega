@@ -1692,6 +1692,15 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     .iter()
                     .map(|(_, operand)| *operand)
                     .collect::<Vec<_>>();
+                // The completed result retains the strict evaluation graph,
+                // independently of its returned lifetime or descriptor links.
+                // Nested normal completions cannot be recovered from syntax
+                // or the statement's joined loan roster afterwards.
+                *evaluated_inputs = self
+                    .context
+                    .control
+                    .operands
+                    .insert_many(operands.iter().copied());
                 let stores = self.invoke(
                     InvocationSite::Expression(expression),
                     InvocationInputs {
