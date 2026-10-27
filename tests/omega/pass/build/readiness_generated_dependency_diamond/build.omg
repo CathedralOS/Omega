@@ -1,0 +1,22 @@
+use omega::language::core::program_image;
+
+machine build(builder: &mut Build) suspends;
+requires addr::Bound == 18446744073709551616 {
+    Build::application(builder, "readiness_generated_dependency_diamond");
+    Build::build_depend_as(builder, "backing", Source::Path { location: "backing" });
+    suspend Build::await_provider<ProgramImage, backing::TestImage>(builder);
+    let observed: addr = ProgramImage::retained_suffix_start();
+    transition observed == 64 {
+        true -> finish(builder)
+        _ -> wrong(builder)
+    }
+    machine finish(builder: &mut Build) {
+        Build::bind(builder, windows_x86_64::ProgramEntry, main);
+        Build::bind(builder, linux_x86_64::ProgramEntry, main);
+        Build::bind(builder, macos_arm64::ProgramEntry, main);
+        Build::bind(builder, linux_arm64::ProgramEntry, main);
+    }
+    machine wrong(builder: &mut Build) {
+        Build::application(builder, "wrong_generated_helper");
+    }
+}

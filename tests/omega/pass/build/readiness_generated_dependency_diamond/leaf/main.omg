@@ -1,0 +1,1 @@
+public machine seed() -> addr { 64 }
