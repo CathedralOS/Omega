@@ -23,6 +23,10 @@ on:
         description: Comma-separated scalar-opaque,nested,arrays (or all); applies to foreign_records
         type: string
         default: scalar-opaque
+      foreign_record_fixtures:
+        description: Optional exact comma-separated corpus IDs; diagnostic subset, not full cohort qualification
+        type: string
+        default: ''
       foreign_record_target:
         description: Native host for foreign_records; default preserves the existing host selection
         type: choice
@@ -43,7 +47,7 @@ permissions:
 # Finish the active observation. GitHub keeps only the newest pending run, so
 # a busy main does not start one cold executable build for every queued PR.
 concurrency:
-  group: compiler-regression-${{ github.ref }}-${{ inputs.cleanup }}-${{ inputs.foreign_records }}-${{ inputs.linux_arm64 }}-${{ inputs.runtime_value_generics }}-${{ inputs.foreign_records_only }}-${{ inputs.foreign_record_cohorts }}-${{ inputs.foreign_record_target }}
+  group: compiler-regression-${{ github.ref }}-${{ inputs.cleanup }}-${{ inputs.foreign_records }}-${{ inputs.linux_arm64 }}-${{ inputs.runtime_value_generics }}-${{ inputs.foreign_records_only }}-${{ inputs.foreign_record_cohorts }}-${{ inputs.foreign_record_target }}-${{ inputs.foreign_record_fixtures && github.run_id || 'full' }}
   cancel-in-progress: false
 
 jobs:
@@ -124,6 +128,7 @@ jobs:
         if: ${{ inputs.foreign_records && !inputs.runtime_value_generics && !cancelled() }}
         env:
           OMEGA_FOREIGN_RECORD_COHORTS: ${{ inputs.foreign_record_cohorts || 'scalar-opaque' }}
+          OMEGA_FOREIGN_RECORD_FIXTURES: ${{ inputs.foreign_record_fixtures }}
         run: python tools/ci/compiler_foreign_records.py
       - name: Execute runtime Value data indices with rejection controls
         if: inputs.runtime_value_generics
