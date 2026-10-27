@@ -1,4 +1,4 @@
-use super::encoding::{encode_fuel, encode_ids, encode_len};
+use super::encoding::{encode_fuel, encode_ids, encode_len, encode_option};
 use crate::legalized_operations::identity::structural_types::{
     encode_access, encode_entry_claim, encode_multiplicity, encode_string,
     encode_structural_argument, encode_structural_path,
@@ -215,46 +215,36 @@ pub(super) fn encode_provider_candidate(
 
 pub(super) fn encode_completion_claim_source(bytes: &mut Vec<u8>, source: &CompletionClaimSource) {
     crate::codec_bytes::push_encoded(bytes, source.claim.get().to_le_bytes());
-    match &source.entry {
-        Some(entry) => {
-            bytes.push(1);
-            encode_entry_claim(bytes, entry);
-        }
-        None => bytes.push(0),
-    }
-    match &source.content {
-        Some(content) => {
-            bytes.push(1);
-            crate::codec_bytes::push_encoded(bytes, content.claim.get().to_le_bytes());
-            bytes.push(match content.input.version {
-                ContentPlaceVersion::Entry => 1,
-                ContentPlaceVersion::Current => 2,
-            });
-            crate::codec_bytes::push_encoded(bytes, content.input.root.get().to_le_bytes());
-            encode_len(bytes, content.input.segments.len());
-            for segment in &content.input.segments {
-                match segment {
-                    ContentPlaceSegment::Field(value) => {
-                        bytes.push(1);
-                        encode_string(bytes, value);
-                    }
-                    ContentPlaceSegment::FixedIndex(value) => {
-                        bytes.push(2);
-                        crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
-                    }
-                    ContentPlaceSegment::Case(value) => {
-                        bytes.push(3);
-                        encode_string(bytes, value);
-                    }
+    encode_option(bytes, source.entry.as_ref(), encode_entry_claim);
+    encode_option(bytes, source.content.as_ref(), |bytes, content| {
+        crate::codec_bytes::push_encoded(bytes, content.claim.get().to_le_bytes());
+        bytes.push(match content.input.version {
+            ContentPlaceVersion::Entry => 1,
+            ContentPlaceVersion::Current => 2,
+        });
+        crate::codec_bytes::push_encoded(bytes, content.input.root.get().to_le_bytes());
+        encode_len(bytes, content.input.segments.len());
+        for segment in &content.input.segments {
+            match segment {
+                ContentPlaceSegment::Field(value) => {
+                    bytes.push(1);
+                    encode_string(bytes, value);
+                }
+                ContentPlaceSegment::FixedIndex(value) => {
+                    bytes.push(2);
+                    crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
+                }
+                ContentPlaceSegment::Case(value) => {
+                    bytes.push(3);
+                    encode_string(bytes, value);
                 }
             }
-            encode_len(bytes, content.projections.len());
-            for projection in &content.projections {
-                encode_claim_projection(bytes, projection);
-            }
         }
-        None => bytes.push(0),
-    }
+        encode_len(bytes, content.projections.len());
+        for projection in &content.projections {
+            encode_claim_projection(bytes, projection);
+        }
+    });
 }
 
 pub(super) fn encode_claim_projection(bytes: &mut Vec<u8>, projection: &ClaimContentProjection) {

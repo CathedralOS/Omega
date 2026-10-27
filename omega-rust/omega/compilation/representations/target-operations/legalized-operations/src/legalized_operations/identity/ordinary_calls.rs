@@ -1,6 +1,6 @@
 //! Exact current semantic contracts shared by graph and selected identities.
 use super::calling::{encode_call_plan, encode_placement};
-use super::encoding::{encode_ids, encode_len};
+use super::encoding::{encode_ids, encode_len, encode_option};
 use super::structural::encode_call_source;
 use super::structural_types::{encode_structural_argument, encode_target_structural_argument};
 use crate::legalized_operations::{
@@ -10,13 +10,9 @@ use crate::legalized_operations::{
 
 pub(super) fn encode_call(bytes: &mut Vec<u8>, call: &LegalizedScalarCall) {
     super::placed_bindings::encode_placed_call_bindings(bytes, &call.placed_bindings);
-    match &call.structural_result {
-        None => bytes.push(0),
-        Some(result) => {
-            bytes.push(1);
-            super::structural_result::encode_operation_result(bytes, result);
-        }
-    }
+    encode_option(bytes, call.structural_result.as_ref(), |bytes, result| {
+        super::structural_result::encode_operation_result(bytes, result)
+    });
     encode_len(bytes, call.descriptor_origins.len());
     for origin in &call.descriptor_origins {
         match origin {
@@ -59,13 +55,7 @@ pub(super) fn encode_call(bytes: &mut Vec<u8>, call: &LegalizedScalarCall) {
             }
         }
     }
-    match &call.result_placement {
-        Some(placement) => {
-            bytes.push(1);
-            encode_placement(bytes, placement);
-        }
-        None => bytes.push(0),
-    }
+    encode_option(bytes, call.result_placement.as_ref(), encode_placement);
     encode_len(bytes, call.claim_transfers.len());
     for transfer in &call.claim_transfers {
         crate::codec_bytes::push_encoded(bytes, transfer.claim.get().to_le_bytes());
