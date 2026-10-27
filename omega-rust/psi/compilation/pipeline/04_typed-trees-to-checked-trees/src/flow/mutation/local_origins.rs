@@ -401,7 +401,10 @@ pub(super) fn rebase_captured_storage_region(
     destination: super::summary::WriteDestination,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<StorageRegion>> {
-    let descriptor_slot = matches!(destination, super::summary::WriteDestination::DescriptorSlot);
+    let descriptor_slot = matches!(
+        destination,
+        super::summary::WriteDestination::DescriptorSlot
+    );
     rebase_region_owner(region, |place| {
         if descriptor_slot
             && descriptor_slot_is_inline(program, state_symbol, statement_index, &place)?
