@@ -974,7 +974,7 @@ pub(super) fn validate_operation(
             )
             .ok_or(LegalizationError::custody())?;
             let geometry =
-                crate::structural_inputs::structural_reference_input::reference_source_geometry(
+                crate::structural_inputs::structural_reference_input::storage_address_geometry(
                     root,
                     path,
                     &unit.structural_types,

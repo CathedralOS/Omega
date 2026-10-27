@@ -19,8 +19,9 @@ machine main() crashes Trap {
     let mut holders: [Holder; 2] = [Holder { padding: 17, view: left }, Holder { padding: 19, view: right }];
     let view: &[Entry] = whole_view<Entry, 3>(holders[1].view);
     let measured: u64 = require_four(view.len);
+    let first_original: addr = address_of(&first[2].value);
     let original: addr = address_of(&second[2].value);
-    transition measured == 4 && observe(&holders, 1, 2, original) {
+    transition measured == 4 && first_original != original && observe(&holders, 0, 2, first_original) && observe(&holders, 1, 2, original) {
         true -> success()
         false -> failure()
     }
