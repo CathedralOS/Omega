@@ -80,12 +80,11 @@ impl ComponentPublication {
         self,
         produced: ProducedTerminalApplication,
     ) -> Result<IndependentComponentProduct, Vec<Diagnostic>> {
-        let retained = finish_terminal_application(
-            &self.checked,
-            produced,
+        let request = self.checked.terminal_native_proposal_request(
             self.selections.effective(),
             &self.exported_calling_applications,
         )?;
+        let retained = finish_terminal_application(produced, request)?;
         let description = describe_component(&self.checked, &retained)?;
         let accepted_permissions =
             crate::native::accepted_terminal_authority_permission_policy(&self.checked)?;

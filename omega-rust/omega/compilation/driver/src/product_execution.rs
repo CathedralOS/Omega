@@ -239,20 +239,21 @@ impl RequestedTerminalCompilation {
         self,
         produced: ProducedTerminalApplication,
     ) -> Result<CompilationOutput, CompilationProductError> {
-        let checked = phase_profile::scope("06.0.a_realization_install", || {
-            self.realization.install()
-        })?;
-        phase_profile::scope("06.0.b_admit_permissions_and_trust", || -> Result<_, CompilationProductError> {
-            admit_permissions(&checked, self.permissions.as_ref(), true)?;
-            checked
-                .admit_trust()
-                .map_err(CompilationProductError::TrustAdmission)
-        })?;
+        let checked =
+            phase_profile::scope("06.0.a_realization_install", || self.realization.install())?;
+        phase_profile::scope(
+            "06.0.b_admit_permissions_and_trust",
+            || -> Result<_, CompilationProductError> {
+                admit_permissions(&checked, self.permissions.as_ref(), true)?;
+                checked
+                    .admit_trust()
+                    .map_err(CompilationProductError::TrustAdmission)
+            },
+        )?;
         // Product eligibility precedes application completion, as it did before
         // batching. Both production halves consume the same settled choices.
-        let product = phase_profile::scope("06.0.c_report_prepare", || {
-            self.report.prepare(&checked)
-        })?;
+        let product =
+            phase_profile::scope("06.0.c_report_prepare", || self.report.prepare(&checked))?;
         let report = match product {
             CheckedProductReport::Complete(_) => {
                 return Err(vec![Diagnostic::error(
@@ -264,8 +265,9 @@ impl RequestedTerminalCompilation {
                 settlement,
                 rollback,
             } => {
-                let terminal =
-                    finish_terminal_application(&checked, produced, rollback.effective(), &[])?;
+                let request =
+                    checked.terminal_native_proposal_request(rollback.effective(), &[])?;
+                let terminal = finish_terminal_application(produced, request)?;
                 settlement
                     .with_timings(checked.timings().phases().to_vec())
                     .finish_terminal(terminal, rollback.into_receipt())?
@@ -276,18 +278,23 @@ impl RequestedTerminalCompilation {
                 rollback,
             } => {
                 let terminal = phase_profile::scope("06.0.d_finish_terminal_application", || {
-                    finish_terminal_application(&checked, produced, rollback.effective(), &[])
+                    let request =
+                        checked.terminal_native_proposal_request(rollback.effective(), &[])?;
+                    finish_terminal_application(produced, request)
                 })?;
                 let produced = phase_profile::scope("06.0.e_produce_native_product", || {
                     produce_native_product(request, &checked, terminal, rollback.effective())
                 })?;
-                phase_profile::scope("06.0.f_settlement_finish_native", || -> Result<_, CompilationProductError> {
-                    Ok(settlement
-                        .with_timings(checked.timings().phases().to_vec())
-                        .finish_native(produced.artifact, rollback.into_receipt())?
-                        .with_runtime_provisions(produced.runtime_provisions)
-                        .map_err(|message| vec![Diagnostic::error(message)])?)
-                })?
+                phase_profile::scope(
+                    "06.0.f_settlement_finish_native",
+                    || -> Result<_, CompilationProductError> {
+                        Ok(settlement
+                            .with_timings(checked.timings().phases().to_vec())
+                            .finish_native(produced.artifact, rollback.into_receipt())?
+                            .with_runtime_provisions(produced.runtime_provisions)
+                            .map_err(|message| vec![Diagnostic::error(message)])?)
+                    },
+                )?
             }
         };
         Ok(CompilationOutput::Report(report))

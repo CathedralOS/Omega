@@ -6,6 +6,9 @@
 //! request projections and prepared export applications to Omega stage 00. That stage
 //! owns boundary-application and comparison settlement from authored occurrences
 //! to selected provider evidence.
+//! Source production closes the Build provider companion against the emitted
+//! demand catalog and returns it with each application. Native completion only
+//! attaches those retained proposals; it never reopens typed provider selection.
 
 mod behavior_exclusions;
 mod terminal_artifact;

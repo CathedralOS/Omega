@@ -28,6 +28,8 @@ pub(crate) struct TerminalProductionView<'a> {
     sources: &'a package_compilation::CheckedSourceCustody,
     build: &'a compilation_products::ComputedBuildConfig,
     provider_defaults: &'a [build_time_evaluation::provider_declarations::TargetProviderDefaults],
+    provider_settlement: &'a provider_planning::ProviderSettlement,
+    selected_target_profile: Option<target::TargetProfile>,
     entry: Option<&'a provider_planning::program_entry::SelectedCompilerProgramEntry>,
     provenance: &'a [provider_planning::SelectedProviderReviewProvenance],
     plan_facts: &'a effects::SelectedProviderPlanFacts,
@@ -47,6 +49,8 @@ impl<'a> TerminalProductionView<'a> {
             sources: &selection.sources,
             build: &selection.build,
             provider_defaults: &selection.provider_defaults,
+            provider_settlement: &selection.settlement,
+            selected_target_profile: selection.selected_target_profile,
             entry: selection.selected_program_entry.as_ref(),
             provenance: &selection.selected_provider_provenance,
             plan_facts: &selection.checked.selected_provider_plan_facts,
@@ -66,6 +70,8 @@ impl<'a> TerminalProductionView<'a> {
             sources: checked.sources(),
             build: checked.build(),
             provider_defaults: checked.provider_defaults(),
+            provider_settlement: checked.providers(),
+            selected_target_profile: checked.execution().selected_target_profile,
             entry: checked.execution().selected_program_entry.as_ref(),
             provenance: &checked.execution().selected_provider_provenance,
             plan_facts: &checked.execution().selected_provider_plan_facts,
@@ -84,10 +90,15 @@ pub(crate) struct TerminalProductRequest<'a> {
 
 /// One target's produced canonical artifact beside the entry receipt its
 /// installation and native proposal consume. The artifact is shared storage;
-/// the receipt is this application's own.
+/// the receipt and Build provider companion belong to this application. No
+/// source owner is needed to recover provider proposals after production.
 pub(crate) struct ProducedTerminalApplication {
     pub artifact: Arc<terminal_codec::CanonicalTerminalArtifact>,
     pub receipt: terminal_psi::CheckedProgramEntryTerminalReceipt,
+    pub provider_proposals: Vec<backend_plan::TerminalTargetProviderProposal>,
+    /// Authored adapter selection, not authority to enter it. Completion still
+    /// binds the exact physical arrival contract against canonical candidates.
+    pub physical_entry_adapter: bool,
 }
 
 /// Admission retains the request's entry and composition policy together.
@@ -228,6 +239,17 @@ pub(crate) fn produce_retained_terminal_artifacts(
                                 )]
                             })?;
                             Ok(ProducedTerminalApplication {
+                                physical_entry_adapter: application
+                                    .request
+                                    .view
+                                    .entry
+                                    .and_then(|entry| entry.physical_adapter())
+                                    .is_some(),
+                                provider_proposals: produce_target_provider_proposals(
+                                    &application.request.view,
+                                    &artifact,
+                                    application.request.selections,
+                                ),
                                 artifact: Arc::clone(&artifact),
                                 receipt,
                             })
@@ -398,56 +420,21 @@ fn admit_terminal_production<'a>(
     })
 }
 
-/// Assemble one target's retained terminal product after installation: the
-/// shared artifact, its per-application entry receipt projected to the native
-/// proposal, and the same target's provider proposals. Proposal construction
-/// reads the installed execution — placements, establishments and grants are
-/// all installation products.
-pub(crate) fn finish_terminal_application(
-    checked: &CheckedCompilation,
-    produced: ProducedTerminalApplication,
-    selections: &OptimizationSelections,
-    exported_calling_applications: &[calling_conventions::BoundaryCallingApplication],
-) -> Result<compilation_products::RetainedTerminalArtifact, Vec<Diagnostic>> {
-    let request =
-        checked.terminal_native_proposal_request(selections, exported_calling_applications)?;
-    let mut proposal =
-        terminal_psi_to_abstract_operations::project_terminal_native_realization_proposal(
-            &produced.artifact,
-            produced.receipt,
-            request,
-        )?;
-    if checked
-        .execution()
-        .selected_program_entry
-        .as_ref()
-        .and_then(|entry| entry.physical_adapter())
-        .is_some()
-    {
-        proposal
-            .bind_physical_adapter(&produced.artifact)
-            .map_err(|message| vec![Diagnostic::error(message)])?;
-    }
-    let providers = publish_target_providers(checked, &produced.artifact, selections);
-    Ok(
-        compilation_products::RetainedTerminalArtifact::new_with_native_realization_proposal(
-            produced.artifact,
-            proposal.with_target_provider_proposals(providers),
-        ),
-    )
-}
-
-fn publish_target_providers(
-    checked: &CheckedCompilation,
+/// Complete the Build companion against the exact emitted demand catalog while
+/// the source-producing operation still owns checked custody. This must follow
+/// Psi production: selecting against every source candidate would demand unused
+/// providers. Retain unavailable targets as refusal rows, never cohort failures.
+fn produce_target_provider_proposals(
+    source: &TerminalProductionView<'_>,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     selections: &OptimizationSelections,
 ) -> Vec<terminal_psi_to_abstract_operations::TerminalTargetProviderProposal> {
-    let mut targets = checked
-        .provider_defaults()
+    let mut targets = source
+        .provider_defaults
         .iter()
         .filter_map(|row| row.target.clone())
         .collect::<Vec<_>>();
-    for binding in &checked.build().config.root_bindings {
+    for binding in &source.build.config.root_bindings {
         if let Some((owner, _)) = binding.slot.rsplit_once("::")
             && let Ok(profile) = target::TargetProfile::from_root_slot_owner(owner)
         {
@@ -455,8 +442,7 @@ fn publish_target_providers(
         }
     }
     targets.push(
-        checked
-            .execution()
+        source
             .selected_target_profile
             .unwrap_or_else(target::TargetProfile::host)
             .target_name()
@@ -466,20 +452,46 @@ fn publish_target_providers(
     targets.dedup();
     provider_planning::target_machines::TargetProviderPublicationRequest {
         context: provider_planning::ProviderPlanningContext::new(
-            &checked.execution().program.typed,
+            &source.program.typed,
             source::DependencyScope::Product,
         ),
         artifact: artifact.view(),
-        exact_toolchain_sources: checked.sources().exact_toolchain_sources(),
-        defaults: checked.provider_defaults(),
-        overrides: &checked.build().config.provider_selections,
-        assumed_bindings: checked
-            .execution()
-            .selected_provider_plan_facts
-            .assumed_bindings(),
-        settlement: checked.providers(),
+        exact_toolchain_sources: source.sources.exact_toolchain_sources(),
+        defaults: source.provider_defaults,
+        overrides: &source.build.config.provider_selections,
+        assumed_bindings: source.plan_facts.assumed_bindings(),
+        settlement: source.provider_settlement,
         targets: &targets,
         optimization_selection: selections.identity(),
     }
     .publish()
+}
+
+/// Assemble one target's retained terminal product after installation: the
+/// shared artifact, its per-application entry receipt projected to the native
+/// proposal, and the same target's provider proposals. Proposal construction
+/// consumes explicit installed inputs — placements, establishments and grants
+/// are installation products. Build provider proposals and adapter intent already
+/// belong to the produced application; completion has no checked-source input.
+pub(crate) fn finish_terminal_application(
+    produced: ProducedTerminalApplication,
+    request: terminal_psi_to_abstract_operations::TerminalNativeProposalRequest<'_>,
+) -> Result<compilation_products::RetainedTerminalArtifact, Vec<Diagnostic>> {
+    let mut proposal =
+        terminal_psi_to_abstract_operations::project_terminal_native_realization_proposal(
+            &produced.artifact,
+            produced.receipt,
+            request,
+        )?;
+    if produced.physical_entry_adapter {
+        proposal
+            .bind_physical_adapter(&produced.artifact)
+            .map_err(|message| vec![Diagnostic::error(message)])?;
+    }
+    Ok(
+        compilation_products::RetainedTerminalArtifact::new_with_native_realization_proposal(
+            produced.artifact,
+            proposal.with_target_provider_proposals(produced.provider_proposals),
+        ),
+    )
 }
