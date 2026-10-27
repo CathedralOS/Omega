@@ -307,14 +307,21 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     /// An integer literal as its ANONYMOUS payload (D14) -- the expression
     /// path, where the literal's type comes from a later use.
     pub(crate) fn take_integer_literal(self) -> Result<(IntegerLiteral, Self), ParseError> {
+        self.take_parsed_integer("integer literal")
+    }
+
+    /// Parse the current token's spelling as an integer literal of its lexed
+    /// base, reporting `expected` when the token is not one. Every caller owns
+    /// only the payload rule it needs (anonymous, i64 ceiling, u64 identity):
+    /// none of them re-reads the spelling or the literal's validity.
+    fn take_parsed_integer(self, expected: &str) -> Result<(IntegerLiteral, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
-        if let Some(kind) = token.integer_literal_kind() {
-            let literal = parse_integer_literal(self.text(token).as_str(), kind)
-                .map_err(|message| ParseError::at_source_span(message, self.source_span(token)))?;
-            Ok((literal, rest))
-        } else {
-            Err(diagnostics::expected(self, token, "integer literal"))
-        }
+        let Some(kind) = token.integer_literal_kind() else {
+            return Err(diagnostics::expected(self, token, expected));
+        };
+        let literal = parse_integer_literal(self.text(token).as_str(), kind)
+            .map_err(|message| ParseError::at_source_span(message, self.source_span(token)))?;
+        Ok((literal, rest))
     }
 
     /// An integer literal at a STRUCTURAL position that needs a number at
@@ -323,40 +330,28 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     /// error -- they are not value-binding uses, so D14's fit-at-use does not
     /// apply.
     pub(crate) fn take_integer(self) -> Result<(i64, Self), ParseError> {
-        let (token, rest) = self.expect_token()?;
-        if let Some(kind) = token.integer_literal_kind() {
-            let literal = parse_integer_literal(self.text(token).as_str(), kind)
-                .map_err(|message| ParseError::at_source_span(message, self.source_span(token)))?;
-            let value = literal.value_i64().ok_or_else(|| {
-                ParseError::at_source_span(
-                    "integer literal exceeds i64; this position needs a parse-time number",
-                    self.source_span(token),
-                )
-            })?;
-            Ok((value, rest))
-        } else {
-            Err(diagnostics::expected(self, token, "integer literal"))
-        }
+        let (literal, rest) = self.take_parsed_integer("integer literal")?;
+        let value = literal.value_i64().ok_or_else(|| {
+            ParseError::at_source_span(
+                "integer literal exceeds i64; this position needs a parse-time number",
+                self.current_source_span(),
+            )
+        })?;
+        Ok((value, rest))
     }
 
     /// A nonnegative structural identity carried through the complete `u64`
     /// range. Unlike signed structural integers, stable schema identities are
     /// opaque unsigned keys rather than arithmetic values.
     pub(crate) fn take_identity(self) -> Result<(u64, Self), ParseError> {
-        let (token, rest) = self.expect_token()?;
-        if let Some(kind) = token.integer_literal_kind() {
-            let literal = parse_integer_literal(self.text(token).as_str(), kind)
-                .map_err(|message| ParseError::at_source_span(message, self.source_span(token)))?;
-            let value = literal.value_u64().ok_or_else(|| {
-                ParseError::at_source_span(
-                    "stable identity must be a nonnegative u64 value",
-                    self.source_span(token),
-                )
-            })?;
-            Ok((value, rest))
-        } else {
-            Err(diagnostics::expected(self, token, "stable identity"))
-        }
+        let (literal, rest) = self.take_parsed_integer("stable identity")?;
+        let value = literal.value_u64().ok_or_else(|| {
+            ParseError::at_source_span(
+                "stable identity must be a nonnegative u64 value",
+                self.current_source_span(),
+            )
+        })?;
+        Ok((value, rest))
     }
 
     pub(crate) fn take_string(self) -> Result<(String, Self), ParseError> {
