@@ -1,38 +1,29 @@
 //! Exact operand-free architectural trap for a semantic Crash leaf.
 use register_model::RegisterInstructionConstraint;
 use selected_instructions::{
-    MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
-    MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectDeclaration, MachineEncodedEffects, MachineLatencyKnowledge, MachineMemoryEffect,
-    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+    MachineAlternativeFamily, MachineBarrier, MachineEffectDeclaration, MachineEncodedEffects,
+    MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
 };
 
 pub(crate) fn declaration(constraint: &RegisterInstructionConstraint) -> MachineEffectDeclaration {
-    MachineEffectDeclaration {
-        semantic: MachineSemanticKind::Crash,
-        constraint: constraint.key,
-        memory: MachineMemoryEffect::NoneV1,
-        trap: MachineTrapBehavior::ExplicitCrashV1,
-        barrier: MachineBarrier::ControlFlow,
-        call: MachineCallEffect::NoneV1,
-        cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: MachineAlternativeFamily::Crash,
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(2),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: MachineEncodedEffects::crash_v1(&constraint.implicit_uses),
-        }],
-    }
+    super::alternative_declaration(
+        constraint.key,
+        MachineSemanticKind::Crash,
+        MachineMemoryEffect::NoneV1,
+        MachineTrapBehavior::ExplicitCrashV1,
+        MachineBarrier::ControlFlow,
+        MachineAlternativeFamily::Crash,
+        MachineSizeKnowledge::ExactBytes(2),
+        MachineEncodedEffects::crash_v1(&constraint.implicit_uses),
+    )
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{MachineAlternativeFamily, MachineAlternativeKey};
-    use selected_instructions::{MachineEncodedEffects, SelectedInstructionKind};
+    use selected_instructions::{
+        MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects,
+        SelectedInstructionKind,
+    };
 
     #[test]
     fn crash_rejects_changed_bytes_operands_and_alternatives() {

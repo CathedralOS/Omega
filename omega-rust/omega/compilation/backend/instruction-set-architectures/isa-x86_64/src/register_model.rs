@@ -5,6 +5,71 @@
 //! `constraint_catalog.rs` builds and validates the constraint catalog; the
 //! sibling files carry the call families and packed memory forms.
 
+/// One operand row whose home is exactly `view`.
+pub(super) fn fixed_operand(
+    operand: u16,
+    access: RegisterOperandAccess,
+    view: &RegisterView,
+) -> RegisterOperandConstraint {
+    RegisterOperandConstraint {
+        operand,
+        access,
+        class: view.class,
+        fixed_view: Some(view.id),
+        tied_to: None,
+        early_clobber: false,
+    }
+}
+
+/// One operand row that takes any register of `class`.
+pub(super) fn allocatable_operand(
+    operand: u16,
+    access: RegisterOperandAccess,
+    class: RegisterClassId,
+) -> RegisterOperandConstraint {
+    RegisterOperandConstraint {
+        operand,
+        access,
+        class,
+        fixed_view: None,
+        tied_to: None,
+        early_clobber: false,
+    }
+}
+
+/// The contiguous operand lane the byte-loop forms share: the first `inputs`
+/// operands are read, the rest are written and early-clobbered, because the
+/// loop writes its cursors and verdict before the preserved inputs are dead.
+pub(super) fn operand_lane(count: u16, inputs: u16) -> Vec<RegisterOperandConstraint> {
+    (0..count)
+        .map(|operand| {
+            let written = operand >= inputs;
+            let row = allocatable_operand(
+                operand,
+                if written {
+                    RegisterOperandAccess::Def
+                } else {
+                    RegisterOperandAccess::Use
+                },
+                physical_model::GPR64,
+            );
+            if written { early_clobber(row) } else { row }
+        })
+        .collect()
+}
+
+/// Mark a written row's home as consumed before the remaining inputs are read.
+pub(super) fn early_clobber(operand: RegisterOperandConstraint) -> RegisterOperandConstraint {
+    RegisterOperandConstraint {
+        early_clobber: true,
+        ..operand
+    }
+}
+
+use register_model::{
+    RegisterClassId, RegisterOperandAccess, RegisterOperandConstraint, RegisterView,
+};
+
 mod call_keys;
 mod constraint_catalog;
 mod float_scalar_calls;

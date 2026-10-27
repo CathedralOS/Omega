@@ -4,11 +4,9 @@
 use super::{ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError};
 use register_model::{RegisterConstraintKey, RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
-    MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
-    MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectDeclaration, MachineEncodedEffects, MachineEncodedTrapBehavior,
-    MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
-    MachineTrapBehavior, SelectedInstructionKind,
+    MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier, MachineEffectDeclaration,
+    MachineEncodedEffects, MachineEncodedTrapBehavior, MachineMemoryEffect, MachineSemanticKind,
+    MachineSizeKnowledge, MachineTrapBehavior, SelectedInstructionKind,
 };
 
 pub(crate) fn effects() -> MachineEncodedEffects {
@@ -34,25 +32,16 @@ pub(crate) fn effects() -> MachineEncodedEffects {
 }
 
 pub(crate) fn declaration(constraint: RegisterConstraintKey) -> MachineEffectDeclaration {
-    MachineEffectDeclaration {
-        semantic: MachineSemanticKind::PortWrite,
+    super::alternative_declaration(
         constraint,
-        memory: MachineMemoryEffect::NoneV1,
-        trap: MachineTrapBehavior::MayArchitecturalFaultV1,
-        barrier: MachineBarrier::ExternalEffect,
-        call: MachineCallEffect::NoneV1,
-        cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: MachineAlternativeFamily::PortWrite,
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(x86_encoding::IMMEDIATE_PORT_WRITE_WIDTH as u16),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: effects(),
-        }],
-    }
+        MachineSemanticKind::PortWrite,
+        MachineMemoryEffect::NoneV1,
+        MachineTrapBehavior::MayArchitecturalFaultV1,
+        MachineBarrier::ExternalEffect,
+        MachineAlternativeFamily::PortWrite,
+        MachineSizeKnowledge::ExactBytes(x86_encoding::IMMEDIATE_PORT_WRITE_WIDTH as u16),
+        effects(),
+    )
 }
 
 pub(super) fn validate(
