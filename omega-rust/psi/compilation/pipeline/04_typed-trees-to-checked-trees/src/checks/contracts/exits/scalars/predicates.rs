@@ -138,7 +138,7 @@ impl ExitScalars<'_, '_> {
                     self.exit.returned_value,
                 )?;
                 let state = caller?;
-                let mut values = crate::flow::captured_operand_values(
+                let values = crate::flow::captured_operand_values(
                     self.program,
                     &self.facts.flow,
                     &self.facts.semantic,
@@ -147,20 +147,28 @@ impl ExitScalars<'_, '_> {
                     entry.return_type,
                     &binding.place.segments,
                 )?;
-                if values.len() == 1 {
-                    if let Some(observed) = crate::flow::captured_observation_places(
-                        self.program,
-                        &self.facts.flow,
-                        &values[0],
-                    ) {
-                        if let [observed] = observed.as_slice() {
-                            binding.place = observed.projected.clone();
-                        }
-                    }
+                let observed = crate::flow::captured_observation_places(
+                    self.program,
+                    &self.facts.flow,
+                    values.first()?,
+                )?;
+                let [observed] = observed.as_slice() else {
+                    return None;
+                };
+                if !values.iter().all(|value| {
+                    crate::flow::captured_observation_places(self.program, &self.facts.flow, value)
+                        .is_some_and(|places| {
+                            places.len() == 1 && places[0].projected == observed.projected
+                        })
+                }) {
+                    return None;
+                }
+                binding.place = observed.projected.clone();
+                for value in &values {
                     captured_predicates::retain_bindings(
                         self.program,
                         self.facts,
-                        &values.pop()?,
+                        value,
                         operand.row(),
                         std::slice::from_ref(binding),
                         position,
@@ -172,11 +180,11 @@ impl ExitScalars<'_, '_> {
                 if let Some(operand) = completed {
                     // Non-result contract observations read current storage at
                     // outgoing completion, after all return operands have run.
-                    captures.push(captured_predicates::CapturedBinding {
+                    captures.push(captured_predicates::CapturedBinding::observation(
                         position,
-                        place: binding.place.clone(),
-                        epoch: operand,
-                    });
+                        binding.place.clone(),
+                        operand,
+                    ));
                 }
             }
         }
@@ -206,14 +214,19 @@ impl ExitScalars<'_, '_> {
             ));
         }
         if let Some(state) = caller {
-            predicates.extend(captured_predicates::transport(
+            let transported = captured_predicates::transport(
                 self.program,
                 self.facts,
                 state,
                 &mut required,
                 &captures,
+                &predicates,
                 self.call_frames,
-            ));
+            );
+            if transported.proves_required {
+                return Some(true);
+            }
+            predicates.extend(transported.predicates);
         }
         crate::facts::boolean_predicates::truth(&predicates, &required, |place| {
             prover::boolean_value_at_place(
