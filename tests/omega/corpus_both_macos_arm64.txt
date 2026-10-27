@@ -1239,15 +1239,15 @@ pass/facts/float_comparison_route_through_other_machine_exit built 19121ms exit:
 pass/facts/float_comparison_route_through_other_state_exit built 20389ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
 pass/facts/float_comparison_route_through_parameter_exit built 18464ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
 pass/facts/float_comparison_route_through_target_body_exit built 16675ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
-pass/facts/foreign_borrowed_array_view_call_result built 2940ms @ee5082cfdacc
-pass/facts/foreign_borrowed_array_view_const_name built 2523ms @ee5082cfdacc
-pass/facts/foreign_borrowed_array_view_field built 2558ms @ee5082cfdacc
-pass/facts/foreign_borrowed_array_view_local built 2525ms @ee5082cfdacc
-pass/facts/foreign_borrowed_array_view_match_join built 2547ms @ee5082cfdacc
-pass/facts/foreign_borrowed_array_view_other_machine built 3009ms @ee5082cfdacc
-pass/facts/foreign_borrowed_array_view_other_state built 3036ms @ee5082cfdacc
-pass/facts/foreign_borrowed_array_view_parameter built 2988ms @ee5082cfdacc
-pass/facts/foreign_borrowed_array_view_target_body built 2384ms @ee5082cfdacc
+pass/facts/foreign_borrowed_array_view_call_result built 3619ms exit:0 interpreter-exit:0 interpreter:agrees @2cc819ccc61d
+pass/facts/foreign_borrowed_array_view_const_name built 3242ms exit:0 interpreter-exit:0 interpreter:agrees @2cc819ccc61d
+pass/facts/foreign_borrowed_array_view_field built 3012ms exit:0 interpreter-exit:0 interpreter:agrees @2cc819ccc61d
+pass/facts/foreign_borrowed_array_view_local built 2993ms exit:0 interpreter-exit:0 interpreter:agrees @2cc819ccc61d
+pass/facts/foreign_borrowed_array_view_match_join built 2982ms exit:0 interpreter-exit:0 interpreter:agrees @2cc819ccc61d
+pass/facts/foreign_borrowed_array_view_other_machine built 3454ms exit:0 interpreter-exit:0 interpreter:agrees @2cc819ccc61d
+pass/facts/foreign_borrowed_array_view_other_state built 3446ms exit:0 interpreter-exit:0 interpreter:agrees @2cc819ccc61d
+pass/facts/foreign_borrowed_array_view_parameter built 3398ms exit:0 interpreter-exit:0 interpreter:agrees @2cc819ccc61d
+pass/facts/foreign_borrowed_array_view_target_body built 2939ms exit:0 interpreter-exit:0 interpreter:agrees @2cc819ccc61d
 pass/facts/foreign_indirect_float_record_result_through_call_result_exit built 2322ms exit:0 interpreter-exit:0 interpreter:agrees @4c1bfc01217a+wt
 pass/facts/foreign_indirect_float_record_result_through_const_name_exit built 2231ms exit:0 interpreter-exit:0 interpreter:agrees @4c1bfc01217a+wt
 pass/facts/foreign_indirect_float_record_result_through_field_exit built 2108ms exit:0 interpreter-exit:0 interpreter:agrees @4c1bfc01217a+wt
