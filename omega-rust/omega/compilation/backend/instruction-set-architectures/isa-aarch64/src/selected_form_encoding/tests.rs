@@ -1,4 +1,5 @@
 //! Tests for aarch64 selected form encoding.
+use crate::test_support::rejects_every_bit_flip;
 
 use super::{
     Aarch64ConditionalBranchForm, Aarch64SelectedFormEncodingError,
@@ -136,17 +137,7 @@ fn scalar_operand_effects_cover_remainder_wrapping_and_bitwise_forms() {
                     vec![count as u16 - 1],
                 )
             );
-            for bit in 0..encoded.bytes().len() * 8 {
-                let mut changed = encoded.bytes().to_vec();
-                changed[bit / 8] ^= 1 << (bit % 8);
-                assert!(
-                    validate_aarch64_selected_form_encoding(
-                        &physical, kind, key, operands, &changed,
-                    )
-                    .is_err(),
-                    "{kind:?} accepted changed bit {bit}"
-                );
-            }
+            rejects_every_bit_flip(&physical, kind, key, operands, encoded.bytes());
         }
     }
 }

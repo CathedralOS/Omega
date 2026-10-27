@@ -199,10 +199,7 @@ pub(crate) fn validate_function_structural_catalog(
             return Err(mismatch());
         }
         if parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-            && !function
-                .entry_claim_declarations
-                .iter()
-                .any(|claim| claim.input == parameter.place)
+            && !function.entry_claim_declared(parameter.place)
         {
             return Err(mismatch());
         }

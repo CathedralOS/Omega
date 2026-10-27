@@ -228,12 +228,9 @@ pub(super) fn bodyless_boundary_target(
     program: &dyn ::validation::CheckingInput,
     target: symbols::SymbolHandle,
 ) -> Option<(symbols::SymbolHandle, symbols::SymbolHandle)> {
-    if let Some((requirement, _)) =
-        validation::exact_external_leaf_boundary_requirement(program, target)
+    if let Some((machine, state)) = validation::find_machine_head(program, target)
+        .or_else(|| validation::find_state(program, target))
     {
-        return Some((requirement, requirement));
-    }
-    if let Some((machine, state)) = validation::find_machine_head(program, target) {
         // Every bodyless callable owns an opaque signature, including a
         // Requirement. Supply/trust classification is not executable ownership:
         // lowering must not search an opaque requirement for a private body.

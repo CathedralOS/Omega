@@ -132,7 +132,7 @@ pub(super) fn input_coverage(
         .collect()
 }
 
-pub(super) fn expand_coordinates(
+pub(in crate::execution::host_imports) fn expand_coordinates(
     path: Vec<Path>,
     byte_offset: usize,
     dimensions: &[NativeStorageRepetition],

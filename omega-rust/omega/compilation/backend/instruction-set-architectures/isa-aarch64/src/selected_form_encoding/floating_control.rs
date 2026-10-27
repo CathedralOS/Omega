@@ -3,6 +3,7 @@ use super::{
     Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
     ValidatedAarch64SelectedFormEncoding,
 };
+use crate::machine_effects::form_alternative;
 use register_model::{RegisterConstraintKey, RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
     LocalStorageSlotId, MachineAlternative, MachineAlternativeApplicability, MachineAlternativeKey,
@@ -93,19 +94,14 @@ pub(crate) fn declaration(
         barrier: MachineBarrier::ExternalEffect,
         call: MachineCallEffect::NoneV1,
         cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: semantic.into(),
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::EncoderResolved {
+        alternatives: form_alternative!(
+            semantic.into(),
+            MachineSizeKnowledge::EncoderResolved {
                 minimum_bytes: 8,
                 maximum_bytes: Some(crate::floating_control::MAX_FPCR_SEQUENCE_BYTES),
             },
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: effects(restore),
-        }],
+            effects(restore)
+        ),
     }
 }
 
@@ -226,6 +222,7 @@ mod tests {
         effects, encode_aarch64_selected_floating_control_form,
         validate_aarch64_selected_floating_control_form,
     };
+    use crate::test_support::reject_every_bit_flip;
     use selected_instructions::{
         LocalStorageSlotId, MachineAlternativeKey, MachineSemanticKind, SelectedInstructionKind,
     };
@@ -265,22 +262,17 @@ mod tests {
                 )
                 .unwrap();
                 assert_eq!(encoded.footprint().encoded, effects(restore));
-                for bit in 0..encoded.bytes().len() * 8 {
-                    let mut changed = encoded.bytes().to_vec();
-                    changed[bit / 8] ^= 1 << (bit % 8);
-                    assert!(
-                        validate_aarch64_selected_floating_control_form(
-                            &physical,
-                            kind,
-                            alternative,
-                            &[],
-                            displacement,
-                            &changed
-                        )
-                        .is_err(),
-                        "bit {bit}"
-                    );
-                }
+                reject_every_bit_flip(encoded.bytes(), &format!("{kind:?}"), |changed| {
+                    validate_aarch64_selected_floating_control_form(
+                        &physical,
+                        kind,
+                        alternative,
+                        &[],
+                        displacement,
+                        &changed,
+                    )
+                    .is_err()
+                });
                 assert!(
                     validate_aarch64_selected_floating_control_form(
                         &physical,

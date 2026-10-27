@@ -306,6 +306,7 @@ fn lower_nonbinary_expression_node_into_table(
                 .into_boxed_slice();
             Ok(
                 expression_table(lowerer).insert(ExpressionNode::Call(TableCallExpression {
+                    authored_call_binding: None,
                     receiver,
                     target_symbol: SymbolHandle::invalid(),
                     target: lower_name(syntax_trees, &call.target),

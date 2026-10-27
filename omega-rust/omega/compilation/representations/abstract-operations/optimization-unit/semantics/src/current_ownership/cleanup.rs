@@ -295,11 +295,7 @@ pub(super) fn consume_owner_cleanup(
         return Ok(());
     };
     let root = place_structural_type(function, place).ok_or_else(mismatch)?;
-    if function
-        .content_entry_claims
-        .iter()
-        .any(|claim| claim.input.root == place)
-    {
+    if function.content_entry_claim_declared(place) {
         return Err(mismatch());
     }
     let (actions, explicit_retirement) = match actions.split_last() {

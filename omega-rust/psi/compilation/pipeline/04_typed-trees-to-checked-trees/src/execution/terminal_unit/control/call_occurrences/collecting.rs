@@ -990,9 +990,7 @@ pub(super) fn collect(
             if *call_ordinal < minimum_call_ordinal
                 || call.call_ordinal != *call_ordinal as usize
                 || call.statement_index != statement
-                || validation::exact_external_leaf_boundary_requirement(program, call.target_symbol)
-                    .map_or(call.target_symbol, |(requirement, _)| requirement)
-                    != callee.called_signature()
+                || call.target_symbol != callee.called_signature()
                 || !call.authored_expression.is_valid()
                 || !calls.iter().any(|candidate| std::ptr::eq(candidate, call))
                 || facts.flow.control.is_retired(state, call)

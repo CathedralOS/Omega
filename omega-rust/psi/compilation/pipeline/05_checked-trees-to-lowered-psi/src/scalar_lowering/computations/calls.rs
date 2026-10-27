@@ -208,12 +208,7 @@ impl Expansion<'_> {
             .any(|call| std::ptr::eq(call, source))
             || source.statement_index != site.statement as usize
             || source.call_ordinal != call_ordinal as usize
-            || validation::exact_external_leaf_boundary_requirement(
-                &self.checked.typed,
-                source.target_symbol,
-            )
-            .map_or(source.target_symbol, |(requirement, _)| requirement)
-                != callee.called_signature()
+            || source.target_symbol != callee.called_signature()
         {
             return unsupported("scalar computation invocation coordinate disagrees");
         }

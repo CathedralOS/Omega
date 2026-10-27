@@ -900,8 +900,7 @@ narrows realization only.
     checks at dependency activation admission without inheriting the root's
     slots (keeping required-output path byte results refused).
   - Complete accepted-lock round-trip qualification and demanded
-    Product-description queries while replacing static Build projection in the
-    source-only corpus consumers with executed project discovery.
+    Product-description queries.
   - Complete [Build provider readiness](wiki/spec/build/provider_selection.md#build-provider-readiness)
     for applied/inherited multi-slot requirements.
   - **BUILD-EVALUATES-ONCE / ONE-DRIVER-PER-STAGE:** evaluate `build.omg` once

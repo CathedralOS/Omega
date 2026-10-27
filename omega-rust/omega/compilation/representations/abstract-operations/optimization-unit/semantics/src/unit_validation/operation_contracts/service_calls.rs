@@ -19,7 +19,7 @@ use crate::unit_validation::operation_contracts::structural_access::{
 };
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
-use optimization_unit::PsiOptimizationFunction;
+use optimization_unit::{PsiOptimizationFunction, operation_result_placement};
 use semantic_vocabulary::{
     BoundaryMachineId, MachineId, ServiceId, StructuralDomainId, StructuralTypeId,
 };
@@ -415,14 +415,7 @@ fn reference_call_matches(
         ("claims_empty", result.claims.is_empty()),
         (
             "place_kind",
-            caller.structural_places.iter().any(|place| {
-                place.id == result.place
-                    && place.kind
-                        == semantic_vocabulary::StructuralPlaceKind::OperationResult {
-                            producer: *psi_operation,
-                            structural_type: result.structural_type,
-                        }
-            }),
+            operation_result_placement(caller, result, *psi_operation),
         ),
         ("ct_empty", claim_transfers.is_empty()),
         ("ec_empty", callee.entry_claims.is_empty()),

@@ -82,7 +82,13 @@ pub(crate) fn prepare(
             )?,
         );
         let mut claims = Vec::new();
-        for (_, event) in checked.facts.flow.ownership.permissions.iter() {
+        let state_permissions = checked
+            .facts
+            .flow
+            .ownership
+            .with_state_permissions(coordinate.state, |handles| handles.to_vec());
+        for handle in state_permissions {
+            let event = checked.facts.flow.ownership.permissions.get(handle);
             let event_path = checked
                 .facts
                 .flow

@@ -14,6 +14,7 @@
 //! baseline; ELF remains unadmitted until it has explicit feature custody.
 //! Encodings follow Arm's A64 instruction definitions, independently pinned
 //! by LLVM's `llvm/test/MC/AArch64/armv8.1a-atomic.s` assembler vectors.
+use crate::machine_effects::form_alternative;
 
 use super::{Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint};
 use register_model::{RegisterConstraintKey, RegisterViewId};
@@ -51,16 +52,11 @@ pub(crate) fn declaration(
         barrier: MachineBarrier::ExternalEffect,
         call: MachineCallEffect::NoneV1,
         cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: MachineAlternativeFamily::AtomicAccess(form),
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(if has_prefix(form.operation) { 8 } else { 4 }),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: effects(form),
-        }],
+        alternatives: form_alternative!(
+            MachineAlternativeFamily::AtomicAccess(form),
+            MachineSizeKnowledge::ExactBytes(if has_prefix(form.operation) { 8 } else { 4 }),
+            effects(form)
+        ),
     }
 }
 
@@ -223,6 +219,7 @@ pub(crate) fn validate(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::reject_every_bit_flip;
     use selected_instructions::{AtomicWidth, SelectedInstructionKind};
 
     #[test]
@@ -267,14 +264,9 @@ mod tests {
             let registers = &registers[..usize::from(form.operand_count())];
             let bytes = encode(form, registers).unwrap();
             validate(form, registers, &bytes).unwrap();
-            for bit in 0..bytes.len() * 8 {
-                let mut changed = bytes.clone();
-                changed[bit / 8] ^= 1 << (bit % 8);
-                assert!(
-                    validate(form, registers, &changed).is_err(),
-                    "{form:?}, bit {bit}"
-                );
-            }
+            reject_every_bit_flip(&bytes, &format!("{form:?}"), |changed| {
+                validate(form, registers, &changed).is_err()
+            });
             assert!(validate(form, registers, &bytes[..bytes.len() - 1]).is_err());
         }
         // LLVM assembler vectors: ldeoral x0,x1,[x2]; swpal x0,x1,[x2].

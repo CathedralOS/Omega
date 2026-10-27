@@ -59,15 +59,7 @@ pub(crate) fn partial_affine_root_type(
     function: &PsiOptimizationFunction,
     place: PlaceId,
 ) -> Option<StructuralTypeId> {
-    if function
-        .entry_claim_declarations
-        .iter()
-        .any(|claim| claim.input == place)
-        || function
-            .content_entry_claims
-            .iter()
-            .any(|claim| claim.input.root == place)
-    {
+    if function.entry_claim_declared(place) || function.content_entry_claim_declared(place) {
         return None;
     }
     if let Some(parameter) = function.arrival_parameter(place) {
@@ -137,10 +129,7 @@ pub(super) fn projected_root_is_fully_consumed(
         .claims
         .values()
         .any(|claim| claim.input == Some(place))
-        || function
-            .content_entry_claims
-            .iter()
-            .any(|claim| claim.input.root == place)
+        || function.content_entry_claim_declared(place)
     {
         return false;
     }
@@ -158,11 +147,7 @@ pub(crate) fn projected_paths_are_fully_consumed(
     place: PlaceId,
     moved: &BTreeSet<Vec<StructuralPathSegment>>,
 ) -> bool {
-    if function
-        .content_entry_claims
-        .iter()
-        .any(|claim| claim.input.root == place)
-    {
+    if function.content_entry_claim_declared(place) {
         return false;
     }
     if partial_affine_root_type(function, place).is_some() {

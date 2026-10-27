@@ -174,7 +174,9 @@ pub use value_custody::scalar_case_constructor::{
     scalar_case_constructor, scalar_case_value_source, structural_case_constructor,
 };
 pub use value_custody::scalar_representation_range::scalar_representation_range;
-pub use value_custody::source_liveness::{statement_uses_symbol, transition_target_uses_symbol};
+pub use value_custody::source_liveness::{
+    statement_uses_symbol, transition_target_uses_symbol, transition_target_uses_symbol_except,
+};
 pub use value_custody::storage_contents::{
     ContentsRequirement, data_has_contents, has_contents, has_owned_or_shared_view_fields,
 };

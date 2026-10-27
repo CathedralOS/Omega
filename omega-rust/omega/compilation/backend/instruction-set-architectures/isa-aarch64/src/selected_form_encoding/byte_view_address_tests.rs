@@ -1,5 +1,6 @@
 //! Private address formation retains exact operand roles and never accesses memory.
 use super::{encode_aarch64_selected_form, validate_aarch64_selected_form_encoding};
+use crate::test_support::rejects_every_bit_flip;
 use register_model::validate_physical_register_model;
 use selected_instructions::MachineAlternativeFamily;
 use selected_instructions::MachineAlternativeKey;
@@ -63,15 +64,7 @@ fn byte_view_address_has_distinct_family_and_exact_register_bytes() {
             .is_err()
         );
     }
-    for bit in 0..encoded.bytes().len() * 8 {
-        let mut changed = encoded.bytes().to_vec();
-        changed[bit / 8] ^= 1 << (bit % 8);
-        assert!(
-            validate_aarch64_selected_form_encoding(&physical, kind, key, operands, &changed)
-                .is_err(),
-            "changed encoding bit {bit}"
-        );
-    }
+    rejects_every_bit_flip(&physical, kind, key, operands, encoded.bytes());
 }
 
 #[test]

@@ -1,0 +1,65 @@
+// Expected exit: 0
+// A target-specific ordinary body retains the exact direct foreign scalar call.
+use omega::language::core::external_binding;
+
+public boundary trait Magnitude {
+    machine absolute(value: i32) -> i32 reaches;
+}
+
+public macos_arm64 machine macos_arm64_absolute_binding() -> ForeignBinding<26, 4, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_abs",
+        },
+    }
+}
+
+public linux_x86_64 machine linux_x86_64_absolute_binding() -> ForeignBinding<9, 3, 11> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "abs",
+            version: "GLIBC_2.2.5",
+        },
+    }
+}
+
+public linux_arm64 machine linux_arm64_absolute_binding() -> ForeignBinding<9, 3, 10> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "abs",
+            version: "GLIBC_2.17",
+        },
+    }
+}
+
+public windows_x86_64 machine windows_x86_64_absolute_binding() -> ForeignBinding<10, 3, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "msvcrt.dll",
+            export: "abs",
+        },
+    }
+}
+
+macos_arm64 boundary machine external_absolute(value: i32) -> i32
+    satisfies Magnitude::absolute via macos_arm64_absolute_binding();
+linux_x86_64 boundary machine external_absolute(value: i32) -> i32
+    satisfies Magnitude::absolute via linux_x86_64_absolute_binding();
+linux_arm64 boundary machine external_absolute(value: i32) -> i32
+    satisfies Magnitude::absolute via linux_arm64_absolute_binding();
+windows_x86_64 boundary machine external_absolute(value: i32) -> i32
+    satisfies Magnitude::absolute via windows_x86_64_absolute_binding();
+
+macos_arm64 machine observe() -> i32 reaches Magnitude { external_absolute(-70) }
+linux_x86_64 machine observe() -> i32 reaches Magnitude { external_absolute(-70) }
+linux_arm64 machine observe() -> i32 reaches Magnitude { external_absolute(-70) }
+windows_x86_64 machine observe() -> i32 reaches Magnitude { external_absolute(-70) }
+
+machine main() reaches Magnitude crashes Trap {
+    transition observe() == 70 { true -> done() _ -> failed() }
+    machine done() {}
+    machine failed() crashes Trap { crash Trap; }
+}

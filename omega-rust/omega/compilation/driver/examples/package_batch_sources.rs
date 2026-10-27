@@ -156,8 +156,11 @@ fn discover(
         session,
         omega_build::ProjectSourceRequest {
             preparation,
-            execution_profile: host,
-            snapshot: None,
+            execution: package_compilation::BuildExecutionInputs {
+                profile: Some(host),
+                snapshot: None,
+                ..Default::default()
+            },
             collect_timings: false,
         },
     )

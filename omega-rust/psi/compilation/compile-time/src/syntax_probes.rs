@@ -110,9 +110,31 @@ pub(crate) fn extend_normalization_owners(
     declarations: &mut Vec<syntax_trees::item::ItemHandle>,
     owners: &[source::SourceSpan],
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    let mut pending = syntax.root_item_handles().to_vec();
+    let mut lexical_items = Vec::new();
+    while let Some(item) = pending.pop() {
+        lexical_items.push(item);
+        match syntax.root_item(item) {
+            syntax_trees::item::Item::Machine(machine) => {
+                pending.extend(machine.nested_machines.handles());
+            }
+            syntax_trees::item::Item::Conformance(conformance) => {
+                for member in syntax.items.conformance_members(conformance.members) {
+                    use syntax_trees::item::ConformanceMember;
+                    let machine = match member {
+                        ConformanceMember::Machine(machine)
+                        | ConformanceMember::Synthesized(machine)
+                        | ConformanceMember::TraitDefault { machine, .. } => machine,
+                        ConformanceMember::Reference { .. } => continue,
+                    };
+                    pending.extend(machine.nested_machines.handles());
+                }
+            }
+            _ => {}
+        }
+    }
     for owner in owners {
-        let matches = syntax
-            .root_item_handles()
+        let matches = lexical_items
             .iter()
             .copied()
             .filter(|item| {

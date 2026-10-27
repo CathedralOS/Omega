@@ -1,6 +1,7 @@
 use super::super::{encode_aarch64_selected_memory_form, validate_aarch64_selected_memory_form};
 use super::{MachineAlternativeKey, PackedByteWidth, SelectedInstructionKind};
 use crate::aarch64_physical_register_model;
+use crate::test_support::reject_every_bit_flip;
 use selected_instructions::{MachineSemanticKind, MachineSizeKnowledge};
 
 fn case(
@@ -139,22 +140,17 @@ fn packed_forms_reject_width_offset_alias_and_instruction_mutations() {
         let encoded =
             encode_aarch64_selected_memory_form(&physical, kind, alternative, &operands, 16)
                 .unwrap();
-        for bit in 0..encoded.bytes().len() * 8 {
-            let mut changed = encoded.bytes().to_vec();
-            changed[bit / 8] ^= 1 << (bit % 8);
-            assert!(
-                validate_aarch64_selected_memory_form(
-                    &physical,
-                    kind,
-                    alternative,
-                    &operands,
-                    16,
-                    &changed
-                )
-                .is_err(),
-                "changed bit {bit}"
-            );
-        }
+        reject_every_bit_flip(encoded.bytes(), &format!("{kind:?}"), |changed| {
+            validate_aarch64_selected_memory_form(
+                &physical,
+                kind,
+                alternative,
+                &operands,
+                16,
+                &changed,
+            )
+            .is_err()
+        });
         for width in [
             PackedByteWidth::Five,
             PackedByteWidth::Six,

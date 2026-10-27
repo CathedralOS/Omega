@@ -62,7 +62,10 @@ fn resolve_inspection_sources(
         &entry,
         &mut acquisitions,
         profile,
-        inspection.build_snapshot().cloned(),
+        package_compilation::BuildExecutionInputs {
+            snapshot: inspection.build_snapshot().cloned(),
+            ..Default::default()
+        },
         false,
     )
     .map_err(|error| PackageInspectionError::from(error.to_string()))?;

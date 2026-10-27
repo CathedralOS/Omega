@@ -719,6 +719,8 @@ pub(crate) fn build_checked_value_computation_plans(
             }
         }
     }
+    plans.seal();
+    structural_values.seal();
     (plans, structural_values)
 }
 
@@ -742,4 +744,6 @@ pub(crate) fn record_rank_observations(
         &mut facts.values.scalar_computations,
         &mut facts.values.structural_values,
     );
+    facts.values.scalar_computations.seal();
+    facts.values.structural_values.seal();
 }

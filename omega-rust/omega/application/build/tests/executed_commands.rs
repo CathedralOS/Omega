@@ -22,7 +22,9 @@ fn copy_project(root: &Path, name: &str, files: &[&str]) {
     let destination = root.join(name);
     std::fs::create_dir(&destination).unwrap();
     for file in files {
-        std::fs::copy(source.join(file), destination.join(file)).unwrap();
+        let output = destination.join(file);
+        std::fs::create_dir_all(output.parent().unwrap()).unwrap();
+        std::fs::copy(source.join(file), output).unwrap();
     }
 }
 
@@ -412,4 +414,58 @@ fn dynamic_commands_publish_actual_sources_once_and_keep_failures_unpublished() 
         },
         2,
     );
+
+    // Readiness suspends before final source admission. Its dependency and
+    // exact public backing must survive acceptance, lock reload and Product
+    // compilation without executing either Build again for the second target.
+    copy_project(
+        root,
+        "explicit_provider_readiness_exit",
+        &[
+            "main.omg",
+            "build.omg",
+            "backing/main.omg",
+            "backing/build.omg",
+        ],
+    );
+    let project = root.join("explicit_provider_readiness_exit");
+    command_and_accept(
+        &project,
+        PackageCommand::Update {
+            packages: Vec::new(),
+            revision: None,
+        },
+        2,
+    );
+    let accepted_lock = std::fs::read(project.join("omega.lock")).unwrap();
+    compile_accepted_project(&project, 2);
+    let accepted = audit(&project, Some(2));
+    assert!(
+        accepted.complete && !accepted.requires_decision,
+        "{}",
+        accepted.report
+    );
+
+    // Previously accepting the dependency does not authorize its private
+    // implementation. A changed root still has to name a public backing.
+    let declaration = std::fs::read_to_string(project.join("build.omg")).unwrap();
+    std::fs::write(
+        project.join("build.omg"),
+        declaration.replace("backing::TestImage", "backing::PrivateImage"),
+    )
+    .unwrap();
+    let private = audit(&project, Some(2));
+    assert!(
+        !private.complete
+            && private.report.contains(
+                "Build backing names no public implementation in its exact dependency package"
+            ),
+        "{}",
+        private.report
+    );
+    assert_eq!(
+        std::fs::read(project.join("omega.lock")).unwrap(),
+        accepted_lock
+    );
+    assert!(!project.join("build/package-manager/proposal").exists());
 }

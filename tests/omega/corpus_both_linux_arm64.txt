@@ -1,0 +1,22 @@
+# Omega corpus outcomes, written by `python tools/corpus_gate.py --record`.
+# One fixture per line: <tier/group/name> <status> <milliseconds>ms, then
+# `expected` or `unexpected` when its expected.txt fragments were weighed,
+# then any execution facts such as exit:70 or stdout:match, then
+# `regressed-from:<status>[+fact]*` when the row has lost a success it used
+# to record, then `@<revision>` recording which commit measured the row
+# (`+wt` = dirty tree; rows measured before stamping have no token).
+# Tab-indented lines under a fixture are its diagnostics, in order.
+# A `# context: {...}` line records the conditions of the --record run.
+# context: {"cpus": 16, "jobs": "1", "load1_end": 2.02, "load1_start": 0.2, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+pass/build/installed_entry_ram_stack_occurrence_exit built 79964ms exit:0 entry-ram:match interpreter-exit:0 interpreter-entry-ram:match interpreter:agrees @658a90628a78
+pass/build/installed_entry_ram_two_occurrences_exit built 76574ms exit:0 entry-ram:match interpreter-exit:0 interpreter-entry-ram:match interpreter:agrees @658a90628a78
+pass/facts/installed_entry_storage_through_call_result_exit built 68206ms exit:0 entry-ram:match interpreter-exit:0 interpreter-entry-ram:match interpreter:agrees @658a90628a78
+pass/facts/installed_entry_storage_through_const_name_exit built 68108ms exit:0 entry-ram:match interpreter-exit:0 interpreter-entry-ram:match interpreter:agrees @658a90628a78
+pass/facts/installed_entry_storage_through_field_exit built 68647ms exit:0 entry-ram:match interpreter-exit:0 interpreter-entry-ram:match interpreter:agrees @658a90628a78
+pass/facts/installed_entry_storage_through_local_exit built 77173ms exit:0 entry-ram:match interpreter-exit:0 interpreter-entry-ram:match interpreter:agrees @658a90628a78
+pass/facts/installed_entry_storage_through_match_join_exit built 76321ms exit:0 entry-ram:match interpreter-exit:0 interpreter-entry-ram:match interpreter:agrees @658a90628a78
+pass/facts/installed_entry_storage_through_other_machine_exit built 76920ms exit:0 entry-ram:match interpreter-exit:0 interpreter-entry-ram:match interpreter:agrees @658a90628a78
+pass/facts/installed_entry_storage_through_other_state_exit built 85335ms exit:0 entry-ram:match interpreter-exit:0 interpreter-entry-ram:match interpreter:agrees @658a90628a78
+pass/facts/installed_entry_storage_through_parameter_exit built 74734ms exit:0 entry-ram:match interpreter-exit:0 interpreter-entry-ram:match interpreter:agrees @658a90628a78
+pass/facts/installed_entry_storage_through_target_body_exit built 67578ms exit:0 entry-ram:match interpreter-exit:0 interpreter-entry-ram:match interpreter:agrees @658a90628a78
+pass/layouts/placed_view_source_access_exit built 68793ms exit:0 entry-ram:match interpreter-exit:0 interpreter-entry-ram:match interpreter:agrees @658a90628a78

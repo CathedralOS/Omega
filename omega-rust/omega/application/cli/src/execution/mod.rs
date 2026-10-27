@@ -423,6 +423,11 @@ fn compare_interpretation(
                         "Terminal reference execution awaits host readiness at {site:?}"
                     ));
                 }
+                TerminalExecutionStatus::HostComputationPending(site) => {
+                    return InterpreterComparison::Declined(format!(
+                        "Terminal reference execution has an unfinished host computation at {site:?}"
+                    ));
+                }
                 TerminalExecutionStatus::Crashed(crash) => {
                     return match native_exit.matches_crash_presentation(crash.cause) {
                         Some(true) => InterpreterComparison::AgreesCrash { cause: crash.cause },

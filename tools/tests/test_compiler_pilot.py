@@ -19,7 +19,9 @@ class CompilerPilotTests(unittest.TestCase):
     def test_failed_retained_cohort_does_not_hide_later_measurements_or_turn_green(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            facts = (("shared", (), ()), ("mutable", (), ()), ("nested", (), ()))
+            facts = (("shared", "shared", "shared", (), ()),
+                     ("mutable", "mutable", "mutable", (), ()),
+                     ("nested/arrays", "array_cases", "nested", (), ()))
             with patch.object(retained, "ROOT", root), \
                     patch.object(retained, "FACTS", facts), \
                     patch.dict(os.environ), \
@@ -31,7 +33,7 @@ class CompilerPilotTests(unittest.TestCase):
                     patch.object(pilot.corpus_gate, "host_target", return_value="windows_x86_64"):
                 self.assertEqual(retained.main(), 1)
             self.assertEqual([call.args[2] for call in qualify.call_args_list],
-                             ["shared", "mutable", "nested"])
+                             ["shared", "mutable", "nested/arrays"])
             report = json.loads((root / "build/compiler-retained-foreign/summary.json").read_text())
             self.assertFalse(report["passed"])
             self.assertEqual([row["passed"] for row in report["observations"]], [False, False, True])

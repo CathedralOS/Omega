@@ -58,6 +58,7 @@
 //! Encodings follow Arm's A64 scalar floating-point data-processing (one, two
 //! and three source), conversion between floating-point and integer, Advanced
 //! SIMD scalar three-same `FCMGT`/`FCMEQ`, and three-same logical `BSL`.
+use crate::machine_effects::form_alternative;
 
 use super::{Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint};
 use register_model::{RegisterConstraintKey, RegisterUnitId, RegisterViewId, sorted_units};
@@ -134,16 +135,11 @@ pub(crate) fn declaration(
         },
         call: MachineCallEffect::NoneV1,
         cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: MachineAlternativeFamily::NearestIeeeFloatArithmetic(form),
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(4 * program(form, &[0, 0, 0, 0]).len() as u16),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: effects(form),
-        }],
+        alternatives: form_alternative!(
+            MachineAlternativeFamily::NearestIeeeFloatArithmetic(form),
+            MachineSizeKnowledge::ExactBytes(4 * program(form, &[0, 0, 0, 0]).len() as u16),
+            effects(form)
+        ),
     }
 }
 

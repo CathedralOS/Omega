@@ -1,6 +1,16 @@
 use source::SourceSpan;
 use symbols::SymbolHandle;
 
+/// Resolver-certified correspondence before executable call transformations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ResolvedAuthoredCallBinding {
+    /// The resolved callable; executable copies may rebase this declaration.
+    pub selected: SymbolHandle,
+    /// The declaration named by the retained authored-selection occurrence.
+    /// Local specialization preserves it together with that occurrence.
+    pub original: SymbolHandle,
+}
+
 mod product;
 pub use product::{
     BuildSelectionRequest, CompositionMode, DescribedProductEntry, DescribedProductProvider,

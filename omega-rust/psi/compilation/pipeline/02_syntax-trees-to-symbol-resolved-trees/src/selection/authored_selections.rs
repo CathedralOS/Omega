@@ -98,6 +98,53 @@ fn earlier_symbol(left: SymbolHandle, right: SymbolHandle) -> SymbolHandle {
     }
 }
 
+/// Freeze the original call declaration after this owner has reconciled copied
+/// expressions. A current executable copy need not have the original handle;
+/// consumers receive this correspondence instead of repeating that judgment.
+pub(crate) fn original_call_target(
+    program: &SymbolResolvedTrees,
+    expression: ExpressionHandle,
+) -> Result<Option<SymbolHandle>, Diagnostic> {
+    let table = &program.tables.bodies.expressions;
+    let ExpressionNode::Call(call) = table.expression(expression) else {
+        return Ok(None);
+    };
+    let mut original = None;
+    for occurrence in table.authored_selection_occurrences(expression) {
+        let Some(selection) = program.authored_declaration_selections().get(occurrence) else {
+            return Err(Diagnostic::error(
+                "original call correspondence lost its occurrence",
+            ));
+        };
+        if selection.kind() != Kind::Call || selection.source_span() != call.target.source_span() {
+            continue;
+        }
+        let Some(target) = selection
+            .target()
+            .as_resolved()
+            .map(|selected| selected.selected_symbol())
+        else {
+            continue;
+        };
+        reconcile_copy_targets(
+            program,
+            selection.source_span(),
+            Kind::Call,
+            CandidateTarget::Resolved(target),
+            CandidateTarget::Resolved(call.target_symbol),
+        )?;
+        let binding = (target, selection.exposure(), selection.compiler_partition());
+        if original.is_some_and(|previous| previous != binding) {
+            return Err(Diagnostic::error(
+                "original call correspondence has conflicting occurrence owners",
+            )
+            .with_source_span(selection.source_span()));
+        }
+        original = Some(binding);
+    }
+    Ok(original.map(|(target, _, _)| target))
+}
+
 fn resolved_symbols_share_authored_declaration(
     program: &SymbolResolvedTrees,
     left: SymbolHandle,
@@ -526,18 +573,18 @@ fn existing_call_occurrence(
         let existing_target = match selection.target() {
             Target::Resolved(existing) => CandidateTarget::Resolved(existing.selected_symbol()),
             Target::LateBound(binding) => CandidateTarget::LateBound(binding),
-            Target::Intrinsic(_) => {
-                return Err(Diagnostic::error(
-                    "authored call reclassification found an intrinsic selection for the same source token",
-                )
+            Target::Intrinsic(intrinsic) => {
+                return Err(Diagnostic::error(format!(
+                    "authored call reclassification found an intrinsic selection for the same source token: at {source_span:?}, retained {:?} {intrinsic:?}, candidate {target:?}, exposure {exposure:?}, partition {compiler_partition:?}", selection.occurrence_id(),
+                ))
                 .with_source_span(source_span));
             }
         };
         reconcile_copy_targets(program, source_span, Kind::Call, existing_target, target)?;
         if retained.is_some_and(|occurrence| occurrence != selection.occurrence_id()) {
-            return Err(Diagnostic::error(
-                "authored call reclassification found duplicate selections for the same source token",
-            )
+            return Err(Diagnostic::error(format!(
+                "authored call reclassification found duplicate selections for the same source token: at {source_span:?}, earlier {retained:?}, repeated {:?} {:?}, candidate {target:?}, exposure {exposure:?}, partition {compiler_partition:?}", selection.occurrence_id(), selection.target(),
+            ))
             .with_source_span(source_span));
         }
         retained = Some(selection.occurrence_id());
@@ -1466,6 +1513,20 @@ fn finalize_expression_groups(
                 .bodies
                 .expressions
                 .attach_authored_selection_occurrences(expression, [occurrence]);
+            if group.kind == Kind::Call {
+                let original = original_call_target(program, expression)?;
+                if let (Some(original), ExpressionNode::Call(call)) = (
+                    original,
+                    program.tables.bodies.expressions.expression_mut(expression),
+                ) {
+                    call.authored_call_binding = Some(
+                        language_semantics::declaration_selection::ResolvedAuthoredCallBinding {
+                            selected: call.target_symbol,
+                            original,
+                        },
+                    );
+                }
+            }
         }
     }
 

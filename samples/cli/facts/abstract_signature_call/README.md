@@ -184,8 +184,8 @@ The next production under **OPERATOR-MACHINE-SUPPLY** keeps the same premise,
 selected body and `hold` operation, and supplies the callback's explicit static
 tuple: `const DIRECT: bool = apply<witness<1>>(true)`, with
 `witness<const Marker: u64>`. The unused parameter still owes its declared kind,
-carrier and bounds. The frozen [root](constant_initializer/applied_callback/main.omg)
-has source SHA-256
+carrier and bounds. The original [root](constant_initializer/applied_callback/main.omg)
+used for the historical observations below had source SHA-256
 `e5383eb6e400c986fd0c5a1b5b93b5da04b0881b8a993c214266abca86415b7b`.
 The optimized producer from fixed source
 `37f85b4aa3810cfb579257afb37cc8b99508c84f` refuses it before execution with
@@ -287,6 +287,41 @@ status, diagnostic, facts and oracle fields, including three inherited diagnosti
 movements. The raw gate exit remains 3, with no oracle or infrastructure errors;
 it is an attributed inherited failure, not a clean corpus or an accepted language
 restriction. Open-Const families remain part of the parent formation acceptance.
+
+### Current call-binding regression and runtime oracles
+
+Fresh optimized main `532d0d8da7760884ec2b031db81f5c3a17bcb5dc` refuses all
+sixteen existing applied-callback positives with `authored probe changed the
+original call declaration selection`. Their twenty-two invalid controls stop at
+that earlier refusal instead of their intended obligations. The independent
+`size_of` shadowing control loses its original binding declaration too.
+
+Resolution now records the original ledger declaration beside the selected
+declaration. Local specialization preserves the original occurrence while
+rebasing the selected callable. Source custody records the requirement;
+executable closure discovery follows its separately selected body. Contract
+walks retain their own lexical owners, including nested callable signatures.
+
+The applied-callback witnesses retain `hold`'s `direct == true` prerequisite and
+return the consumed `direct` value instead of a constant. A corrupted runtime
+value therefore reaches the trapping branch. The opposite-instance witnesses
+also consume `hold_false`'s returned `!direct`; their two selected applications
+must preserve opposite results. No caller guard establishes either prerequisite
+before its consuming call. Historical source digests above describe the original
+versions, not these strengthened runtime oracles.
+
+The [nested body](constant_initializer/applied_callback/nested_body/main.omg)
+adds a nested generic callable to the selected callback, with a
+[premise-false twin](constant_initializer/applied_callback/nested_body/invalid/main.omg).
+It keeps the same premise and `hold` operation. Normalization rejoins its exact
+reachable declaration without promoting it into root scope; open enclosing
+machines and implementations remain lookup context rather than concrete work.
+Its corpus pins are `abstract_signature_call_applied_callback_nested_body_*`.
+
+Producer-bound runs and comparison records live under the existing
+`CHECKED-PACKAGE-REUSE` claim `46e8022fc1394040925f256c6a3ede16` and
+`build/checked-reuse-20261022/call-binding-*`. This repairs a current-main
+prerequisite; it does not close checked-package persistence or timing acceptance.
 
 ## Execution
 

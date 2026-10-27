@@ -116,6 +116,7 @@ pub(super) fn validate(
 mod tests {
     use super::{encode, validate};
     use crate::aarch64_physical_register_model;
+    use crate::test_support::reject_every_bit_flip;
     use selected_instructions::MachineAlternativeFamily;
     use selected_instructions::MachineAlternativeKey;
 
@@ -131,14 +132,9 @@ mod tests {
             variant: 0,
         };
         let encoded = encode(&physical, alternative, &operands).unwrap();
-        for position in 0..encoded.bytes.len() * 8 {
-            let mut changed = encoded.bytes.clone();
-            changed[position / 8] ^= 1 << (position % 8);
-            assert!(
-                validate(&physical, alternative, &operands, &changed).is_err(),
-                "bit {position}"
-            );
-        }
+        reject_every_bit_flip(&encoded.bytes, "copy word stream", |changed| {
+            validate(&physical, alternative, &operands, &changed).is_err()
+        });
         for scratch in 3..5 {
             for input in 0..5 {
                 if input == scratch {
