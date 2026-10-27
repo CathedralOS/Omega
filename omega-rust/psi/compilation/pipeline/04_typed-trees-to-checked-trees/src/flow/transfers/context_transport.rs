@@ -101,11 +101,7 @@ pub(super) fn transport(
                         let fact_place = fact.place.as_place()?;
                         matches_source(fact_place).then_some((fact.payload, fact.evidence, None))
                     }
-                    facts::domain_membership_fields_pattern!(
-                        domain,
-                        domain_symbol,
-                        semantic_domain
-                    ) => {
+                    facts::domain_membership_pattern!(domain, domain_symbol, semantic_domain) => {
                         let fact_place = fact.place.as_place()?;
                         matches_source(fact_place).then_some((
                             FactPayload::DomainMembership {

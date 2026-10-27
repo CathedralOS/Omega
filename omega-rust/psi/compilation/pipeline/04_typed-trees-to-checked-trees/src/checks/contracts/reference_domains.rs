@@ -205,7 +205,7 @@ fn contexts_prove_domain(
             .facts()
             .any(|candidate| {
                 let candidate_domain = match candidate.payload {
-                    facts::domain_membership_symbol_pattern!(domain_symbol) => domain_symbol,
+                    facts::domain_membership_pattern!(domain_symbol) => domain_symbol,
                     _ => return false,
                 };
                 let Some(candidate) = candidate.place.as_place() else {
