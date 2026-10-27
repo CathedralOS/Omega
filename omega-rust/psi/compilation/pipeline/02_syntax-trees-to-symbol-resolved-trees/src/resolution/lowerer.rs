@@ -216,6 +216,7 @@ pub(crate) struct Lowerer {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RootWatermarks {
+    pub(crate) const_declarations: usize,
     pub(crate) data_definitions: usize,
     pub(crate) domain_definitions: usize,
     pub(crate) machines: usize,
@@ -231,6 +232,7 @@ pub(crate) struct RootWatermarks {
 impl RootWatermarks {
     pub(crate) fn capture(program: &SymbolResolvedTrees) -> Self {
         Self {
+            const_declarations: program.const_declarations.len(),
             data_definitions: program.data_definitions.len(),
             domain_definitions: program.domain_definitions.len(),
             machines: program.machines.len(),
