@@ -82,6 +82,9 @@ pub(crate) fn lower(
     )));
     let arguments = table.insert_expression_handles(arguments);
     let expression = table.insert(ExpressionNode::Call(TableCallExpression {
+        // This is the normalized toolchain protocol call, not the wrapper's
+        // original public-application correspondence.
+        authored_call_binding: None,
         authored_machine_application: Default::default(),
         exact_coercion_target: Default::default(),
         requirement_application: Default::default(),
