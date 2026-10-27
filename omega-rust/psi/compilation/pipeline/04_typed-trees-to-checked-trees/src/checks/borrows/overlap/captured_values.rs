@@ -31,9 +31,7 @@ pub(super) fn equalities(
     // of treating the initializer's spelling as surviving value provenance.
     let mut symbols = left_symbols.clone();
     for &symbol in &right_symbols {
-        if !symbols.contains(&symbol) {
-            symbols.push(symbol);
-        }
+        crate::collections::push_unique(&mut symbols, symbol);
     }
     for symbol in symbols {
         let Some(source) = stored_call_source(program, captures, symbol, lookup) else {

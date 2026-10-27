@@ -976,9 +976,7 @@ fn collect_normalized_integer_order_relation(
             right,
             strict,
         };
-        if !output.contains(&relation) {
-            output.push(relation);
-        }
+        crate::collections::push_unique(&mut *output, relation);
     };
     match normalized {
         BinaryOperator::Less => push(left, right, true),
@@ -1001,9 +999,7 @@ fn collect_normalized_integer_order_relation(
                 left_identity,
                 right_identity,
             };
-            if !disequalities.contains(&disequality) {
-                disequalities.push(disequality);
-            }
+            crate::collections::push_unique(&mut *disequalities, disequality);
         }
         _ => unreachable!("normalized comparisons use only comparison operators"),
     }
@@ -1034,9 +1030,7 @@ fn push_transitive_integer_order_consequences(
         })
         .collect::<Vec<_>>();
     for refinement in strict_refinements {
-        if !relations.contains(&refinement) {
-            relations.push(refinement);
-        }
+        crate::collections::push_unique(&mut *relations, refinement);
     }
 
     loop {

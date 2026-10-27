@@ -56,9 +56,7 @@ impl GenericOperatorValueOrigins {
         for (_, value) in facts.values.values.iter() {
             for reached in reachable_expressions(program, value.expression) {
                 let origins = by_expression.entry(reached).or_default();
-                if !origins.contains(&value.origin) {
-                    origins.push(value.origin);
-                }
+                crate::collections::push_unique(&mut *origins, value.origin);
             }
         }
         Self { by_expression }
@@ -99,9 +97,7 @@ pub(crate) fn checked_generic_operator_target(
     {
         for origin in value_origins.origins(expression) {
             let selected_use = (spelling, *origin);
-            if !uses.contains(&selected_use) {
-                uses.push(selected_use);
-            }
+            crate::collections::push_unique(&mut uses, selected_use);
         }
     }
     for (spelling, origin) in uses {

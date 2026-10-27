@@ -2258,9 +2258,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         } else {
                             place.clone()
                         };
-                        if !changed.contains(&affected) {
-                            changed.push(affected);
-                        }
+                        crate::collections::push_unique(&mut changed, affected);
                     }
                 }
             }

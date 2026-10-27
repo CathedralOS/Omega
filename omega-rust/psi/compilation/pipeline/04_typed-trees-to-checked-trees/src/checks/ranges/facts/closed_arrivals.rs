@@ -41,9 +41,7 @@ impl RangeFacts<'_> {
             return;
         }
         let arrival = (binary.left, binary.right, operator);
-        if !self.closed_integer_arrivals.contains(&arrival) {
-            self.closed_integer_arrivals.push(arrival);
-        }
+        crate::collections::push_unique(&mut self.closed_integer_arrivals, arrival);
     }
 
     /// Bounds remain ordinary obligations. An exact closed arrival can close

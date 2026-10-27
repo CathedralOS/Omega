@@ -121,9 +121,7 @@ pub(crate) fn attach(
                     ),
                     access: CheckedStructuralAccess::Owned,
                 };
-                if !parents.contains(&argument) {
-                    parents.push(argument);
-                }
+                crate::collections::push_unique(&mut parents, argument);
             }
         }
         if parents.is_empty() {

@@ -118,9 +118,7 @@ pub(crate) fn transition_guard_observations<'program>(
             continue;
         }
         let signed = (expression, observation.value);
-        if !observations.contains(&signed) {
-            observations.push(signed);
-        }
+        crate::collections::push_unique(&mut observations, signed);
     }
     Some(observations)
 }

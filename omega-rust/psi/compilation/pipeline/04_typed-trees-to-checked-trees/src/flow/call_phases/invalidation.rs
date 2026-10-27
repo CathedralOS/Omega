@@ -64,9 +64,7 @@ impl CallStorageWrites {
         if let Some(arguments) = arguments {
             for contribution in &mut observed.contributions {
                 for alias in arguments.mutation_observation_aliases(&contribution.write) {
-                    if !contribution.observations.contains(&alias) {
-                        contribution.observations.push(alias);
-                    }
+                    crate::collections::push_unique(&mut contribution.observations, alias);
                 }
             }
             observed.observation_places = observed

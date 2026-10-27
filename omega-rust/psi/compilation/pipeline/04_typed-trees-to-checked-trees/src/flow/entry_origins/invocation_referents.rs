@@ -193,9 +193,7 @@ pub(in crate::flow) fn project_invocation_place(
             root,
             segments: if coarse { Vec::new() } else { source.segments },
         };
-        if !projected.contains(&place) {
-            projected.push(place);
-        }
+        crate::collections::push_unique(&mut projected, place);
     }
     Some(projected)
 }
@@ -238,9 +236,7 @@ pub(in crate::flow) fn extend_invocation_observations(
                 // the original footprint: appending every duplicate here made
                 // an aggregate store perform one full footprint scan per leaf.
                 for place in incoming {
-                    if !projected.contains(&place) {
-                        projected.push(place);
-                    }
+                    crate::collections::push_unique(&mut projected, place);
                 }
             }
             None => {
@@ -266,9 +262,7 @@ pub(in crate::flow) fn extend_invocation_observations(
                                     Vec::new()
                                 },
                             };
-                            if !projected.contains(&projected_place) {
-                                projected.push(projected_place);
-                            }
+                            crate::collections::push_unique(&mut projected, projected_place);
                         }
                     }
                 }
@@ -277,8 +271,6 @@ pub(in crate::flow) fn extend_invocation_observations(
         }
     }
     for place in projected {
-        if !places.contains(&place) {
-            places.push(place);
-        }
+        crate::collections::push_unique(&mut *places, place);
     }
 }

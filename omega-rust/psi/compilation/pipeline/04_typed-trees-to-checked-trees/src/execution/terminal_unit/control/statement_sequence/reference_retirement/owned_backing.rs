@@ -112,9 +112,7 @@ impl OwnerCandidates {
                     let existing = facts.contextual_cleanup.dispositions.get(owner.disposition);
                     existing.root == row.root && existing.source == row.source
                 }) {
-                    if !owner.values.contains(&value_root.root) {
-                        owner.values.push(value_root.root);
-                    }
+                    crate::collections::push_unique(&mut owner.values, value_root.root);
                 } else {
                     owners.push(OwnerCandidate {
                         disposition: handle,

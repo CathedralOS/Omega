@@ -226,9 +226,7 @@ pub(super) fn establish(
                     root: candidate.root,
                     segments: segments.to_vec(),
                 };
-                if !candidate_targets.contains(&candidate) {
-                    candidate_targets.push(candidate);
-                }
+                crate::collections::push_unique(&mut candidate_targets, candidate);
             }
         }
     }

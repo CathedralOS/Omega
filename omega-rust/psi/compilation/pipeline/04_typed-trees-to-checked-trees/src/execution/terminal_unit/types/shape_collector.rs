@@ -1492,9 +1492,7 @@ impl<'program> ShapeCollector<'program> {
             // field names none, so its plan carries the carriers instead.
             if field_type.byte_sequence_carrier().is_some() {
                 for (_, carrier) in carriers {
-                    if !qualification_carriers.contains(&carrier) {
-                        qualification_carriers.push(carrier);
-                    }
+                    crate::collections::push_unique(&mut qualification_carriers, carrier);
                 }
             }
         }

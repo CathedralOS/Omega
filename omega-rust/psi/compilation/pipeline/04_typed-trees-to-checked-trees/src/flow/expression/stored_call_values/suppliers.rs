@@ -232,13 +232,9 @@ impl Execution<'_, '_, '_> {
                         break;
                     };
                     for root in retained {
-                        if !roots.contains(&root) {
-                            roots.push(root);
-                        }
+                        crate::collections::push_unique(&mut roots, root);
                     }
-                    if !origins.contains(&origin) {
-                        origins.push(origin);
-                    }
+                    crate::collections::push_unique(&mut origins, origin);
                     continue;
                 }
                 let Some(backing) = input(source.backing.root) else {
@@ -347,9 +343,7 @@ impl Execution<'_, '_, '_> {
                 }
                 if source.lifetime_access.is_none() {
                     for origin in observed.places {
-                        if !origins.contains(&origin) {
-                            origins.push(origin);
-                        }
+                        crate::collections::push_unique(&mut origins, origin);
                     }
                 }
             }

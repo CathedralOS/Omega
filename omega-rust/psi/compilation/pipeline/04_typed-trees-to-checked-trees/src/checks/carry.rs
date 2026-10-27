@@ -190,14 +190,9 @@ impl ClaimCarryContext<'_> {
             }
         }
 
-        latest_by_path
-            .into_iter()
-            .fold(Vec::new(), |mut identities, (_, _, identity)| {
-                if !identities.contains(&identity) {
-                    identities.push(identity);
-                }
-                identities
-            })
+        crate::collections::unique_in_order(
+            latest_by_path.into_iter().map(|(_, _, identity)| identity),
+        )
     }
 }
 

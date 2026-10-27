@@ -93,9 +93,7 @@ pub(crate) fn finalize_checked_authored_selections(
                             selection.exposure(),
                             selected_symbol,
                         );
-                        if !inferred_conformances.contains(&inferred) {
-                            inferred_conformances.push(inferred);
-                        }
+                        crate::collections::push_unique(&mut inferred_conformances, inferred);
                     }
                 }
                 let request_target =

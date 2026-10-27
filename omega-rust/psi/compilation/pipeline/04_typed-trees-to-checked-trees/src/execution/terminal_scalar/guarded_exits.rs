@@ -187,9 +187,7 @@ fn tuple_rows_cover(
     let mut subjects = Vec::new();
     for row in &rows {
         for (subject, _) in &row.columns {
-            if !subjects.contains(&subject) {
-                subjects.push(subject);
-            }
+            crate::collections::push_unique(&mut subjects, subject);
         }
     }
     if subjects.is_empty() {

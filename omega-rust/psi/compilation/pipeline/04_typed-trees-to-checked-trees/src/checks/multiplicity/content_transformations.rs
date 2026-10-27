@@ -641,9 +641,7 @@ pub(super) fn consumed_places(
                         .span_or_empty(input.segments)
                         .to_vec(),
                 };
-                if !places.contains(&place) {
-                    places.push(place);
-                }
+                crate::collections::push_unique(&mut places, place);
             }
         }
     }

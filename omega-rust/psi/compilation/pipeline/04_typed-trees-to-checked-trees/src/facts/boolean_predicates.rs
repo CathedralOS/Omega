@@ -507,9 +507,7 @@ pub(crate) fn seed_with_dependencies(
     for dependency in dependencies {
         let place =
             crate::semantic::places::append_place(semantic, dependency.root, &dependency.segments);
-        if !places.contains(&place) {
-            places.push(place);
-        }
+        crate::collections::push_unique(&mut places, place);
     }
     let predicate = semantic.boolean_predicates.append(facts::BooleanPredicate {
         role: facts::BooleanPredicateRole::CurrentObservation,

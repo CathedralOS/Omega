@@ -1049,9 +1049,7 @@ fn computation_contains_trapping_operation(
                         && let Some(children) = values.value_dependencies(*value)
                     {
                         for child in children {
-                            if !dependencies.contains(&child) {
-                                dependencies.push(child);
-                            }
+                            crate::collections::push_unique(&mut dependencies, child);
                         }
                     }
                     if let Some(call) = operation.call() {
