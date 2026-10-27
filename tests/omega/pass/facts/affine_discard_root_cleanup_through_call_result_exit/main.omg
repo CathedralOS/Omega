@@ -1,7 +1,12 @@
 // Fact: an unconsumed nominal resource whose drop contract requires valid == 1u64 executes deterministic affine scope-exit cleanup while preserving result <= 50u64 so 50u64 - result succeeds.
 // Expected exit: 0
 
+data Counter {
+    value: u64;
+}
+
 data Resource {
+    dropped: &mut Counter;
     valid: u64;
     value: u64;
 }
@@ -9,27 +14,29 @@ data Resource {
 machine Resource::drop(resource: &mut Resource)
 requires resource.valid == 1u64
 {
+    resource.dropped.value = resource.valid;
     resource.valid = 0u64;
 }
 
-machine produce() -> Resource
+machine produce(dropped: &mut Counter) -> Resource
 ensures result.valid == 1u64
 ensures result.value <= 50u64
 {
-    Resource { valid: 1u64, value: 30u64 }
+    Resource { dropped: dropped, valid: 1u64, value: 30u64 }
 }
 
-machine exercise() -> u64
+machine exercise(dropped: &mut Counter) -> u64
 ensures result <= 50u64
 {
-    let res: Resource = produce();
+    let res: Resource = produce(dropped);
     res.value
 }
 
 machine main() crashes Trap {
-    let result: u64 = exercise();
+    let mut dropped: Counter = Counter { value: 0u64 };
+    let result: u64 = exercise(&mut dropped);
     let diff: u64 = 50u64 - result;
-    transition diff == 20u64 {
+    transition diff == 20u64 && dropped.value == 1u64 {
         true -> done()
         _ -> bad()
     }

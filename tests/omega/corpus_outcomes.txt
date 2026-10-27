@@ -4736,27 +4736,27 @@ fail/facts/address_count_partition_through_target_body_rejected rejected 778ms e
 	exact arithmetic in machine `split` state `entry` local `right` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `split` state `entry` local `right` may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `split` state `entry` local `right` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/affine_discard_root_cleanup_through_call_result_rejected rejected 1969ms expected @a92f16431042
+fail/facts/affine_discard_root_cleanup_through_call_result_rejected rejected 2555ms expected @02e7d90a49ae+wt
 	cannot prove automatic cleanup requires at selected edge from exercise state entry after statement 1: res does not establish Resource::drop clause `resource.valid == 1`
-fail/facts/affine_discard_root_cleanup_through_const_name_rejected rejected 1987ms expected @a92f16431042
+fail/facts/affine_discard_root_cleanup_through_const_name_rejected rejected 2557ms expected @02e7d90a49ae+wt
 	cannot prove automatic cleanup requires at selected edge from exercise state entry after statement 1: res does not establish Resource::drop clause `resource.valid == 1`
-fail/facts/affine_discard_root_cleanup_through_field_rejected rejected 2065ms expected @a92f16431042
+fail/facts/affine_discard_root_cleanup_through_field_rejected rejected 2488ms expected @02e7d90a49ae+wt
 	cannot prove automatic cleanup requires at selected edge from exercise state entry after statement 1: holder.resource does not establish Resource::drop clause `resource.valid == 1`
-fail/facts/affine_discard_root_cleanup_through_local_rejected rejected 1900ms expected @a92f16431042
+fail/facts/affine_discard_root_cleanup_through_local_rejected rejected 2391ms expected @02e7d90a49ae+wt
 	cannot prove automatic cleanup requires at selected edge from exercise state entry after statement 1: res does not establish Resource::drop clause `resource.valid == 1`
-fail/facts/affine_discard_root_cleanup_through_match_join_rejected rejected 1909ms expected @a92f16431042
-	cannot prove automatic cleanup requires at selected edge from exercise state entry after statement 2: res does not establish Resource::drop clause `resource.valid == 1`
-fail/facts/affine_discard_root_cleanup_through_other_machine_rejected rejected 1905ms expected @a92f16431042
+fail/facts/affine_discard_root_cleanup_through_match_join_rejected rejected 2499ms expected @02e7d90a49ae+wt
+	cannot prove automatic cleanup requires at selected edge from exercise state entry after statement 1: res does not establish Resource::drop clause `resource.valid == 1`
+fail/facts/affine_discard_root_cleanup_through_other_machine_rejected rejected 2328ms expected @02e7d90a49ae+wt
 	cannot prove automatic cleanup requires at selected edge from Relay::forward state forward after statement 0: res does not establish Resource::drop clause `resource.valid == 1`
-fail/facts/affine_discard_root_cleanup_through_other_state_rejected rejected 1923ms expected @a92f16431042
+fail/facts/affine_discard_root_cleanup_through_other_state_rejected rejected 2153ms expected @02e7d90a49ae+wt
 	cannot prove automatic cleanup requires at selected edge from exercise state step after statement 0: r does not establish Resource::drop clause `resource.valid == 1`
-fail/facts/affine_discard_root_cleanup_through_parameter_rejected rejected 1959ms expected @a92f16431042
+fail/facts/affine_discard_root_cleanup_through_parameter_rejected rejected 2240ms expected @02e7d90a49ae+wt
 	cannot prove automatic cleanup requires at selected edge from consume_param state entry after statement 0: res does not establish Resource::drop clause `resource.valid == 1`
-fail/facts/affine_discard_root_cleanup_through_target_body_rejected rejected 2322ms expected @a92f16431042
-	cannot prove automatic cleanup requires at selected edge from exercise state entry after statement 2: res does not establish Resource::drop clause `resource.valid == 1`
-	cannot prove automatic cleanup requires at selected edge from exercise state entry after statement 2: res does not establish Resource::drop clause `resource.valid == 1`
-	cannot prove automatic cleanup requires at selected edge from exercise state entry after statement 2: res does not establish Resource::drop clause `resource.valid == 1`
-	cannot prove automatic cleanup requires at selected edge from exercise state entry after statement 2: res does not establish Resource::drop clause `resource.valid == 1`
+fail/facts/affine_discard_root_cleanup_through_target_body_rejected rejected 2256ms expected @02e7d90a49ae+wt
+	cannot prove automatic cleanup requires at selected edge from exercise state entry after statement 1: res does not establish Resource::drop clause `resource.valid == 1`
+	cannot prove automatic cleanup requires at selected edge from exercise state entry after statement 1: res does not establish Resource::drop clause `resource.valid == 1`
+	cannot prove automatic cleanup requires at selected edge from exercise state entry after statement 1: res does not establish Resource::drop clause `resource.valid == 1`
+	cannot prove automatic cleanup requires at selected edge from exercise state entry after statement 1: res does not establish Resource::drop clause `resource.valid == 1`
 fail/facts/aggregate_storage_address_identity_exclusive_rejected rejected 2641ms expected @a92f16431042
 	state `unknown` receives `value` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/facts/aggregate_storage_address_identity_through_call_result_rejected rejected 2069ms expected @a92f16431042
@@ -7298,23 +7298,23 @@ fail/facts/disjoint_windows_through_target_body_overlap rejected 1576ms expected
 	statement 4 reads `a[0]` while local borrow `b` is still active (borrowed at statement 1)
 fail/facts/domain_geometry_conserved_result_wrong_partition rejected 2490ms expected @a92f16431042
 	cannot prove ensures contract for exit from split at statement 3: Bounded.content(old(&whole)) == separate(Bounded.content(&result.left), Bounded.content(&result.right))
-fail/facts/domain_pattern_match_bound_through_call_result_rejected rejected 2514ms expected @ee1410030dca
+fail/facts/domain_pattern_match_bound_through_call_result_rejected rejected 3379ms expected @02e7d90a49ae+wt
 	cannot prove ensures contract for exit from select at statement 0: result >= 73
-fail/facts/domain_pattern_match_bound_through_const_name_rejected rejected 1538ms expected @ee1410030dca
+fail/facts/domain_pattern_match_bound_through_const_name_rejected rejected 2168ms expected @02e7d90a49ae+wt
 	exact arithmetic in machine `consume` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/domain_pattern_match_bound_through_field_rejected rejected 1532ms expected @ee1410030dca
+fail/facts/domain_pattern_match_bound_through_field_rejected rejected 1976ms expected @02e7d90a49ae+wt
 	construction of `Selected` field `value` cannot be proven within its declared range `73..=`; constrain the value, construct with a literal in range, or widen the field
-fail/facts/domain_pattern_match_bound_through_local_rejected rejected 1086ms expected @ee1410030dca
+fail/facts/domain_pattern_match_bound_through_local_rejected rejected 1887ms expected @02e7d90a49ae+wt
 	exact arithmetic in machine `consume` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/domain_pattern_match_bound_through_match_join_rejected rejected 1104ms expected @ee1410030dca
+fail/facts/domain_pattern_match_bound_through_match_join_rejected rejected 1752ms expected @02e7d90a49ae+wt
 	exact arithmetic in machine `consume` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/domain_pattern_match_bound_through_other_machine_rejected rejected 1863ms expected @ee1410030dca
+fail/facts/domain_pattern_match_bound_through_other_machine_rejected rejected 2792ms expected @02e7d90a49ae+wt
 	cannot prove ensures contract for exit from select at statement 0: result >= 73
-fail/facts/domain_pattern_match_bound_through_other_state_rejected rejected 1840ms expected @ee1410030dca
+fail/facts/domain_pattern_match_bound_through_other_state_rejected rejected 2578ms expected @02e7d90a49ae+wt
 	cannot prove requires contract for call subtract from consume: selected >= 73 (needs fact `value >= 73` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/domain_pattern_match_bound_through_parameter_rejected rejected 1684ms expected @ee1410030dca
+fail/facts/domain_pattern_match_bound_through_parameter_rejected rejected 2733ms expected @02e7d90a49ae+wt
 	cannot prove requires contract for call subtract from consume: selected >= 73 (needs fact `value >= 73` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/domain_pattern_match_bound_through_target_body_rejected rejected 1264ms expected @ee1410030dca
+fail/facts/domain_pattern_match_bound_through_target_body_rejected rejected 1310ms expected @02e7d90a49ae+wt
 	exact arithmetic in machine `consume` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `consume` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `consume` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
@@ -24266,16 +24266,16 @@ pass/facts/address_count_partition_through_other_machine_exit checked 3991ms che
 pass/facts/address_count_partition_through_other_state_exit checked 2974ms check-target:macos_arm64 @a92f16431042
 pass/facts/address_count_partition_through_parameter_exit checked 2966ms check-target:macos_arm64 @a92f16431042
 pass/facts/address_count_partition_through_target_body_exit checked 2943ms check-target:macos_arm64 @a92f16431042
-pass/facts/affine_discard_root_cleanup_exit checked 2325ms check-target:macos_arm64 @a92f16431042
-pass/facts/affine_discard_root_cleanup_through_call_result_exit checked 2266ms check-target:macos_arm64 @a92f16431042
-pass/facts/affine_discard_root_cleanup_through_const_name_exit checked 2225ms check-target:macos_arm64 @a92f16431042
-pass/facts/affine_discard_root_cleanup_through_field_exit checked 2608ms check-target:macos_arm64 @a92f16431042
-pass/facts/affine_discard_root_cleanup_through_local_exit checked 2165ms check-target:macos_arm64 @a92f16431042
-pass/facts/affine_discard_root_cleanup_through_match_join_exit checked 2275ms check-target:macos_arm64 @a92f16431042
-pass/facts/affine_discard_root_cleanup_through_other_machine_exit checked 2260ms check-target:macos_arm64 @a92f16431042
-pass/facts/affine_discard_root_cleanup_through_other_state_exit checked 2235ms check-target:macos_arm64 @a92f16431042
-pass/facts/affine_discard_root_cleanup_through_parameter_exit checked 2244ms check-target:macos_arm64 @a92f16431042
-pass/facts/affine_discard_root_cleanup_through_target_body_exit checked 2156ms check-target:macos_arm64 @a92f16431042
+pass/facts/affine_discard_root_cleanup_exit checked 3198ms check-target:macos_arm64 @02e7d90a49ae+wt
+pass/facts/affine_discard_root_cleanup_through_call_result_exit checked 3208ms check-target:macos_arm64 @02e7d90a49ae+wt
+pass/facts/affine_discard_root_cleanup_through_const_name_exit checked 3200ms check-target:macos_arm64 @02e7d90a49ae+wt
+pass/facts/affine_discard_root_cleanup_through_field_exit checked 3257ms check-target:macos_arm64 @02e7d90a49ae+wt
+pass/facts/affine_discard_root_cleanup_through_local_exit checked 3207ms check-target:macos_arm64 @02e7d90a49ae+wt
+pass/facts/affine_discard_root_cleanup_through_match_join_exit checked 3236ms check-target:macos_arm64 @02e7d90a49ae+wt
+pass/facts/affine_discard_root_cleanup_through_other_machine_exit checked 2856ms check-target:macos_arm64 @02e7d90a49ae+wt
+pass/facts/affine_discard_root_cleanup_through_other_state_exit checked 2884ms check-target:macos_arm64 @02e7d90a49ae+wt
+pass/facts/affine_discard_root_cleanup_through_parameter_exit checked 2855ms check-target:macos_arm64 @02e7d90a49ae+wt
+pass/facts/affine_discard_root_cleanup_through_target_body_exit checked 3226ms check-target:macos_arm64 @02e7d90a49ae+wt
 pass/facts/aggregate_storage_address_identity_through_call_result_exit checked 2151ms check-target:macos_arm64 @a92f16431042
 pass/facts/aggregate_storage_address_identity_through_const_name_exit checked 2123ms check-target:macos_arm64 @a92f16431042
 pass/facts/aggregate_storage_address_identity_through_field_exit checked 2089ms check-target:macos_arm64 @a92f16431042
@@ -25103,15 +25103,15 @@ pass/facts/disjoint_windows_through_parameter_exit checked 2496ms check-target:m
 pass/facts/disjoint_windows_through_target_body_exit checked 2492ms check-target:macos_arm64 @a92f16431042
 pass/facts/domain_geometry_conserved_result_exit checked 3155ms check-target:macos_arm64 @a92f16431042
 pass/facts/domain_geometry_projected_conserved_result_exit checked 2950ms check-target:macos_arm64 @a92f16431042
-pass/facts/domain_pattern_match_bound_through_call_result_exit checked 3068ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
-pass/facts/domain_pattern_match_bound_through_const_name_exit checked 2785ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
-pass/facts/domain_pattern_match_bound_through_field_exit checked 3237ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
-pass/facts/domain_pattern_match_bound_through_local_exit checked 3509ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
-pass/facts/domain_pattern_match_bound_through_match_join_exit checked 3257ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
-pass/facts/domain_pattern_match_bound_through_other_machine_exit checked 3262ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
-pass/facts/domain_pattern_match_bound_through_other_state_exit checked 3094ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
-pass/facts/domain_pattern_match_bound_through_parameter_exit checked 3334ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
-pass/facts/domain_pattern_match_bound_through_target_body_exit checked 3631ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
+pass/facts/domain_pattern_match_bound_through_call_result_exit checked 2816ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @02e7d90a49ae+wt
+pass/facts/domain_pattern_match_bound_through_const_name_exit checked 2833ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @02e7d90a49ae+wt
+pass/facts/domain_pattern_match_bound_through_field_exit checked 2794ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @02e7d90a49ae+wt
+pass/facts/domain_pattern_match_bound_through_local_exit checked 3630ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @02e7d90a49ae+wt
+pass/facts/domain_pattern_match_bound_through_match_join_exit checked 3604ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @02e7d90a49ae+wt
+pass/facts/domain_pattern_match_bound_through_other_machine_exit checked 3411ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @02e7d90a49ae+wt
+pass/facts/domain_pattern_match_bound_through_other_state_exit checked 3519ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @02e7d90a49ae+wt
+pass/facts/domain_pattern_match_bound_through_parameter_exit checked 3239ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @02e7d90a49ae+wt
+pass/facts/domain_pattern_match_bound_through_target_body_exit checked 2978ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @02e7d90a49ae+wt
 pass/facts/domain_selected_cleanup_erased_predicates_exit checked 7765ms check-target:macos_arm64 @b659723798b4
 pass/facts/domain_selected_cleanup_indexed_inherited_computed_exit checked 7498ms check-target:macos_arm64 @b659723798b4
 pass/facts/domain_selected_cleanup_indexed_inherited_exit checked 7867ms check-target:macos_arm64 @b659723798b4
