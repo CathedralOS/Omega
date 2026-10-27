@@ -9,7 +9,7 @@ machine premise(kept: bool) -> bool {
 machine hold(direct: bool) -> bool
 requires direct == true
 {
-    true
+    direct
 }
 
 machine witness<T>(kept: bool) -> bool

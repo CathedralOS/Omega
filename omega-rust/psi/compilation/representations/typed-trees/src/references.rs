@@ -2010,6 +2010,7 @@ fn visit_machine_with_sidecars(
         }
     }
     let mut visit_specialization = |specialization: &crate::typed_trees::MachineSpecialization| {
+        visit_symbol(retained, specialization.template);
         visit_type_parameters(program, retained, specialization.template_parameters);
         visit_static_machine_bindings(program, retained, specialization.binding_application);
         for realization in &specialization.operator_realizations {
@@ -2202,6 +2203,7 @@ mod conformance_occurrence_tests {
             program
                 .expression_table
                 .insert(ExpressionNode::Call(TableCallExpression {
+                    authored_call_binding: None,
                     authored_machine_application: application,
                     requirement_application: Default::default(),
                     exact_coercion_target: Default::default(),

@@ -191,9 +191,21 @@ pub fn settle_closed_constant_execution(
             !plan.pending_scalar_requires.is_empty() || !plan.pending_scalar_recipes.is_empty()
         })
     {
-        return Err(vec![Diagnostic::error(
-            "selected execution retains unresolved boundary scalar contract clauses",
-        )]);
+        return Err(vec![Diagnostic::error(format!(
+            "selected execution retains unresolved boundary scalar contract clauses: {:?}",
+            facts
+                .flow
+                .terminal_unit_effects
+                .boundary_machines
+                .iter()
+                .filter(|plan| !plan.pending_scalar_requires.is_empty()
+                    || !plan.pending_scalar_recipes.is_empty())
+                .map(|plan| (
+                    typed.symbols.display_path(plan.machine, "::").to_string(),
+                    typed.symbols.display_path(plan.state, "::").to_string()
+                ))
+                .collect::<Vec<_>>()
+        ))]);
     }
     Ok(checked_trees::CheckedTrees::with_roots(typed, facts))
 }

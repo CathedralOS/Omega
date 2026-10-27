@@ -7,6 +7,7 @@ use typed_trees::{
 
 fn call() -> TableCallExpression {
     TableCallExpression {
+        authored_call_binding: None,
         build_selection: Default::default(),
         authored_machine_application: Default::default(),
         exact_coercion_target: Default::default(),

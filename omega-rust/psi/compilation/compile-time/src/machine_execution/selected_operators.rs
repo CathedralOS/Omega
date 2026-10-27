@@ -205,6 +205,7 @@ pub(crate) fn prepare_selected_execution(
             .insert_expression_handles(row.operands.iter().copied());
         *program.expression_table.expression_mut(row.expression) =
             ExpressionNode::Call(typed_trees::expression::TableCallExpression {
+ authored_call_binding: None,
                 authored_machine_application: Default::default(),
                 requirement_application: Default::default(),
                 exact_coercion_target: typed_trees::types::TypeReferenceHandle::invalid(),

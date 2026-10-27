@@ -846,7 +846,10 @@ pub(super) fn validate_authored_probe_custody(
             .iter()
             .any(|call| !expected_calls.contains(call))
     {
-        return Err("authored probe changed the original call declaration selection".into());
+        return Err(format!(
+            "authored probe changed the original call declaration selection: expected {expected_calls:?}, observed {:?}",
+            custody.calls,
+        ));
     }
     if custody.origins.len() != expected_origins.len()
         || custody
