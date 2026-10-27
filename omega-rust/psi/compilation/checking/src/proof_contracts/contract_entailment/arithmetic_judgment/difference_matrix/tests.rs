@@ -124,3 +124,60 @@ fn independent_intervals_keep_linear_storage_and_virtual_cross_bounds() {
         }
     }
 }
+
+#[test]
+fn zero_tightening_beats_a_stored_path_and_exposes_a_reverse_cycle() {
+    let program = typed_trees::TypedTrees::default();
+    let mut engine = Engine::for_explicit_bindings(&program);
+    add_seed(&mut engine, "a", "b", -10);
+    engine.refresh_difference_bounds();
+    add_seed(&mut engine, "a", ZERO_ATOM, 5);
+    add_seed(&mut engine, ZERO_ATOM, "b", -1);
+    engine.refresh_difference_bounds();
+    assert!(!engine.requires_unsatisfiable);
+    assert_eq!(
+        engine.matrix.stored_bound("a", "b"),
+        Some(&BigInt::from_i64(-10))
+    );
+    assert_eq!(engine.matrix_bound("a", "b"), Some(BigInt::from_i64(4)));
+    add_seed(&mut engine, "b", "a", -3);
+    engine.refresh_difference_bounds();
+    assert!(engine.requires_unsatisfiable);
+}
+
+#[test]
+fn additive_batches_keep_zero_endpoints_and_restore_before_a_late_cycle() {
+    let program = typed_trees::TypedTrees::default();
+    let mut engine = Engine::for_explicit_bindings(&program);
+    let names = [ZERO_ATOM, "a", "b", "c", "d"];
+    let batches: &[&[(&str, &str, i64)]] = &[
+        &[("c", "a", 2), ("a", "b", 3), ("b", "d", 4)],
+        &[(ZERO_ATOM, "a", -20)],
+        &[("a", ZERO_ATOM, 10)],
+        &[("a", "b", 3), ("a", "b", 2)],
+    ];
+    let mut seeds = Vec::new();
+    for batch in batches {
+        for &(from, to, bound) in *batch {
+            seeds.push((from, to, bound));
+            add_seed(&mut engine, from, to, bound);
+        }
+        engine.refresh_difference_bounds();
+        assert!(!engine.requires_unsatisfiable);
+        for (from, row) in dense_closure(&names, &seeds).iter().enumerate() {
+            for (to, bound) in row.iter().enumerate() {
+                assert_eq!(
+                    engine.matrix_bound(names[from], names[to]),
+                    bound.map(BigInt::from_i64)
+                );
+            }
+        }
+    }
+    // This refresh first adds a new vertex, then contradicts a prior path.
+    // The normal rollback/seed/closure route must retain every actual seed.
+    add_seed(&mut engine, "new", ZERO_ATOM, 7);
+    add_seed(&mut engine, "d", "c", 1);
+    engine.refresh_difference_bounds();
+    assert!(engine.requires_unsatisfiable);
+    assert!(engine.matrix.position("new").is_some());
+}

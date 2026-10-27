@@ -141,25 +141,55 @@ impl<'program> Engine<'program> {
         if from == to {
             return Some(BigInt::zero());
         }
-        if let Some(bound) = self.matrix.stored_bound_indices(from, to) {
-            return Some(bound.clone());
+        let direct = self.matrix.stored_bound_indices(from, to).cloned();
+        let through_zero = self.matrix.position(ZERO_ATOM).and_then(|zero| {
+            if from == zero || to == zero {
+                return None;
+            }
+            Some(
+                self.matrix
+                    .stored_bound_indices(from, zero)?
+                    .add(self.matrix.stored_bound_indices(zero, to)?),
+            )
+        });
+        // A later zero bound can beat a stored zero-avoiding path. Query both
+        // representations without feeding that virtual path back into storage.
+        match (direct, through_zero) {
+            (Some(direct), Some(through_zero)) => Some(direct.max(through_zero)),
+            (direct, through_zero) => direct.or(through_zero),
         }
-        let zero = self.matrix.position(ZERO_ATOM)?;
-        if from == zero || to == zero {
-            return None;
-        }
-        let through_zero = self.matrix.stored_bound_indices(from, zero)?;
-        Some(through_zero.add(self.matrix.stored_bound_indices(zero, to)?))
     }
 
-    /// Reclose the actual nonzero components, sharing their zero endpoint.
-    /// Through-zero query bounds are virtual: feeding them back as stored
-    /// edges turns independent carrier intervals into a complete graph. The
-    /// ordinary seed/close route preserves that factorization, exact BigInt
-    /// comparisons and the existing contradiction/iteration rules together.
+    /// Matrix writes are additive. A consistent retained matrix is already
+    /// transitively closed, so one stronger seed needs only paths containing
+    /// that edge once. An inconsistent graph retains the original closure and
+    /// its order-dependent values; speculative updates never enter that route.
     pub(super) fn refresh_difference_bounds(&mut self) {
-        self.seed_matrix();
-        self.close_matrix();
+        if self.requires_unsatisfiable {
+            self.seed_matrix();
+            self.close_matrix();
+            return;
+        }
+        let mut original = None;
+        for (from, to, bound) in self.difference_seeds() {
+            if self
+                .matrix
+                .stored_bound(&from, &to)
+                .is_some_and(|previous| previous >= &bound)
+            {
+                continue;
+            }
+            // Clone only once, before this refresh's first changed seed. A
+            // later edge can close a positive cycle through earlier new edges.
+            // Restoring only that edge's input would change old-route history.
+            let original_matrix = original.get_or_insert_with(|| self.matrix.clone());
+            if !self.strengthen_closed_difference(&from, &to, bound) {
+                self.matrix = std::mem::take(original_matrix);
+                self.seed_matrix();
+                self.close_matrix();
+                return;
+            }
+        }
     }
 
     fn difference_seeds(&self) -> Vec<(String, String, BigInt)> {
@@ -191,10 +221,70 @@ impl<'program> Engine<'program> {
         seeds
     }
 
-    fn seed_matrix(&mut self) {
+    fn seed_matrix(&mut self) -> bool {
+        let mut changed = false;
         for (from, to, bound) in self.difference_seeds() {
-            self.record_difference(&from, &to, bound);
+            changed |= self.record_difference(&from, &to, bound);
         }
+        changed
+    }
+
+    /// Extend a closed consistent max-plus graph by u - v >= bound. A new
+    /// edge can occur at most once on an improving path when the old reverse
+    /// path plus this edge is nonpositive. Stored nonzero paths avoid zero;
+    /// paths through zero remain two query factors. Reading virtual query
+    /// bounds into these frontiers would materialize every unrelated pair.
+    /// A zero-endpoint seed updates only its zero row/column. Capture both
+    /// old frontiers before writing, including the endpoints' empty paths.
+    fn strengthen_closed_difference(&mut self, from: &str, to: &str, bound: BigInt) -> bool {
+        if self
+            .matrix_bound(to, from)
+            .is_some_and(|reverse| reverse.add(&bound) > BigInt::zero())
+        {
+            // Do not set unsatisfiable here: the original seed/close route owns
+            // historical diagonal handling and inconsistent graph behavior.
+            return false;
+        }
+        if from == to {
+            // Nonpositive diagonal seeds cannot improve paths, but still retain
+            // the original vertex and stored diagonal inventory.
+            self.record_difference(from, to, bound);
+            return true;
+        }
+        // Capture the old lexical vertex inventory before introducing either
+        // endpoint. Stable indices never determine semantic iteration order.
+        let atoms = self.matrix.lexical_indices().to_vec();
+        let from_is_zero = from == ZERO_ATOM;
+        let to_is_zero = to == ZERO_ATOM;
+        let from = self.matrix.intern(from);
+        let to = self.matrix.intern(to);
+        let mut incoming = vec![(from, BigInt::zero())];
+        let mut outgoing = vec![(to, BigInt::zero())];
+        for atom in atoms {
+            if atom != from
+                && !from_is_zero
+                && let Some(value) = self.matrix.stored_bound_indices(atom, from).cloned()
+            {
+                incoming.push((atom, value));
+            }
+            if atom != to
+                && !to_is_zero
+                && let Some(value) = self.matrix.stored_bound_indices(to, atom).cloned()
+            {
+                outgoing.push((atom, value));
+            }
+        }
+        self.matrix.record_indices(from, to, bound.clone());
+        for (source, prefix) in incoming {
+            let through_edge = prefix.add(&bound);
+            for (destination, suffix) in &outgoing {
+                if source != *destination {
+                    self.matrix
+                        .record_indices(source, *destination, through_edge.add(suffix));
+                }
+            }
+        }
+        true
     }
 
     fn record_difference(&mut self, from: &str, to: &str, bound: BigInt) -> bool {
