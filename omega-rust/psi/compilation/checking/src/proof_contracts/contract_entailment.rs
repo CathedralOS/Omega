@@ -1221,5 +1221,5 @@ pub(crate) use structural_terms::source_operations_have_same_meaning;
 
 pub use structural_terms::{
     ImmutableEntryReadIdentity, immutable_entry_indexed_read_identity,
-    instantiate_immutable_entry_indexed_read_identity,
+    immutable_entry_integer_projection, instantiate_immutable_entry_indexed_read_identity,
 };

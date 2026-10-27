@@ -99,8 +99,9 @@ pub use proof_contracts::arithmetic_domains::{
 };
 pub use proof_contracts::collection_predicates::{
     PredicateIntegerOperand, PredicateIntegerReadSubject, PredicateIntegerSubject,
-    exact_predicate_intervals, exact_predicate_ordering, length_member,
-    predicate_ordering_consequences, premises_prove_expression,
+    exact_predicate_conjunction, exact_predicate_intervals, exact_predicate_ordering,
+    length_member, predicate_integer_operand, predicate_ordering_consequences,
+    premises_prove_expression,
 };
 pub use proof_contracts::contract_entailment::call_projection_identity::{
     captured_call_argument_index_matches, captured_call_index_value,
@@ -128,7 +129,7 @@ pub use proof_contracts::contract_entailment::ranking_range::{
 };
 pub use proof_contracts::contract_entailment::{
     ImmutableEntryReadIdentity, immutable_entry_indexed_read_identity,
-    instantiate_immutable_entry_indexed_read_identity,
+    immutable_entry_integer_projection, instantiate_immutable_entry_indexed_read_identity,
 };
 pub use proof_contracts::contract_results::{
     ReservedResultPlace, callable_contract_scopes, reserved_result_owner, reserved_result_place,

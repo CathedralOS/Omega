@@ -23,7 +23,7 @@ mod entry_reads;
 mod equality;
 pub use entry_reads::{
     ImmutableEntryReadIdentity, immutable_entry_indexed_read_identity,
-    instantiate_immutable_entry_indexed_read_identity,
+    immutable_entry_integer_projection, instantiate_immutable_entry_indexed_read_identity,
 };
 mod indexed;
 pub(super) use indexed::indexed_term_in_scope;

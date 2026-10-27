@@ -43,7 +43,9 @@ use typed_trees::statement::{
 };
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+mod exact_conditions;
 mod read_subjects;
+pub(super) use exact_conditions::exact_conjunction;
 mod record_observations;
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -92,7 +92,7 @@ impl Implication<'_> {
         Some(candidates)
     }
 
-    fn inert_read(
+    pub(super) fn inert_read(
         &mut self,
         frame: &Frame,
         path: Path,

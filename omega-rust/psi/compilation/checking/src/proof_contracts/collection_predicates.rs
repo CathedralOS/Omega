@@ -172,6 +172,56 @@ pub fn exact_predicate_ordering(
     implication::exact_ordering(program, &application)
 }
 
+/// A complete conjunction, not a list of independent ambient facts. The shared
+/// interpreter proves both directions and each partial read from earlier guards.
+pub fn exact_predicate_conjunction(
+    program: &dyn crate::CheckingInput,
+    owner: symbols::SymbolHandle,
+    expression: ExpressionHandle,
+) -> Option<Vec<PredicateOrderingConsequence>> {
+    let application = predicate_application(program, owner, expression)?;
+    implication::exact_conjunction(program, &application)
+}
+
+/// Rejoin a callee integer expression to its exact declared actual telescope.
+/// No source expression is manufactured and a read remains an inert recipe.
+pub fn predicate_integer_operand(
+    program: &dyn crate::CheckingInput,
+    predicate: symbols::SymbolHandle,
+    arguments: &[ExpressionHandle],
+    expression: ExpressionHandle,
+) -> Option<PredicateIntegerOperand> {
+    let position = exploration::admitted_predicate_machine(program, predicate, false)?;
+    let machine = &program.machines()[position];
+    let entry = program.machine_states(machine).first()?;
+    if program.state_parameters(entry).len() != arguments.len() {
+        return None;
+    }
+    if let ExpressionNode::Integer(literal) = program.expression_table.expression(expression) {
+        return Some(PredicateIntegerOperand::Integer(
+            literal.decimal_value_i128()?,
+        ));
+    }
+    if program.expression_table.indexed_node(expression).is_some() {
+        if !crate::immutable_entry_indexed_read_identity(program, expression)?
+            .has_scope(machine.symbol, entry.symbol)
+        {
+            return None;
+        }
+        return Some(PredicateIntegerOperand::Read(PredicateIntegerReadSubject {
+            predicate,
+            expression,
+            arguments: arguments.to_vec(),
+        }));
+    }
+    let (position, projection) =
+        crate::immutable_entry_integer_projection(program, predicate, expression)?;
+    Some(PredicateIntegerOperand::Argument(PredicateIntegerSubject {
+        expression: *arguments.get(position)?,
+        projection,
+    }))
+}
+
 /// Recover integer relations from a positive, already-available predicate
 /// occurrence. The shared symbolic implication engine interprets its checked
 /// body, including calls and branches; naming a predicate supplies no relation.

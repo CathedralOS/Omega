@@ -26,6 +26,46 @@ pub struct ImmutableEntryReadIdentity {
     value: String,
 }
 
+impl ImmutableEntryReadIdentity {
+    pub(crate) fn has_scope(&self, machine: SymbolHandle, state: SymbolHandle) -> bool {
+        self.machine == machine && self.state == state
+    }
+}
+
+/// A scalar coordinate below one immutable formal. This is declaration/type
+/// authority only; a fixed index still owes its independently checked bound.
+pub fn immutable_entry_integer_projection(
+    program: &dyn crate::CheckingInput,
+    predicate: SymbolHandle,
+    expression: ExpressionHandle,
+) -> Option<(usize, Vec<facts::PlaceSegment>)> {
+    let machine = program.machine(predicate)?;
+    let entry = program.machine_states(machine).first()?;
+    let reference = immutable_formal_expression(program, machine, entry, expression, 0)?;
+    if !program
+        .primitive_type_reference(reference)?
+        .is_fixed_integer()
+        || program.arithmetic_domain_for_type_reference(reference)
+            != numerics::arithmetic::ArithmeticDomain::Exact
+    {
+        return None;
+    }
+    let place = crate::value_custody::places::canonical_place_from_expression(program, expression)?;
+    if !place.segments.iter().all(|segment| {
+        matches!(
+            segment,
+            facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
+        )
+    }) {
+        return None;
+    }
+    let position = program
+        .state_parameters(entry)
+        .iter()
+        .position(|parameter| Some(parameter.symbol) == place.root.as_symbol())?;
+    Some((position, place.segments))
+}
+
 pub fn immutable_entry_indexed_read_identity(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
