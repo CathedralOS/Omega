@@ -1,0 +1,2 @@
+module limits;
+public const value: i32 = 60;

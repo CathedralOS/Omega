@@ -1099,6 +1099,30 @@ pub fn structural_owned_path(
     Ok((path, reference))
 }
 
+/// Authenticate a transferred value's storage coordinate without acquiring its
+/// referent. Ordinary values retain the owned endpoint contract check; an exact
+/// reference shell uses its descriptor's separate qualification carrier. Callers
+/// still authenticate the consuming occurrence, loan source and claim frontier.
+pub fn structural_transfer_storage_path(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+    segments: &[facts::PlaceSegment],
+) -> Result<(Vec<CheckedUnitStructuralPathSegment>, TypeReferenceHandle), &'static str> {
+    let (path, reference) = structural_storage_path(program, reference, segments)?;
+    let carrier = program
+        .type_reference_table
+        .unconstrained_type_reference(reference);
+    if matches!(
+        program.type_reference_table.type_reference(carrier),
+        TypeReferenceNode::Reference { .. }
+    ) {
+        view_result_carrier_qualifications(program, reference)?;
+    } else {
+        structural_result_qualifications(program, reference)?;
+    }
+    Ok((path, reference))
+}
+
 /// Name the storage containing a value, including a reference descriptor.
 /// Resolving that slot creates no owned value or referent authority. Reference
 /// crossings are still absent from this grammar; owned consumers separately
