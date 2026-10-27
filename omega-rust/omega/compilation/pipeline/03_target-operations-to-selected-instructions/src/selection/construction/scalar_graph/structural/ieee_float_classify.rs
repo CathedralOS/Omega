@@ -25,11 +25,9 @@ pub(super) fn establish(
         return Err(invalid());
     };
     let signature = source.structural.as_ref().ok_or_else(invalid)?;
-    let declaration = signature
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == result.structural_type)
-        .ok_or_else(invalid)?;
+    let declaration =
+        terminal_psi::find_structural_type(&signature.structural_types, result.structural_type)
+            .ok_or_else(invalid)?;
     if !result.is_unrestricted_plain()
         || !result.qualification_establishments.is_empty()
         || target_operations::conventional_float_class_layout(declaration).as_ref() != Some(layout)

@@ -26,11 +26,8 @@ pub(super) fn element_stride(
     }
     let view_type = crate::selection::established_view_input::element_view_type(function, source)?;
     let signature = function.structural.as_ref()?;
-    let declaration = signature
-        .structural_types
-        .as_slice()
-        .iter()
-        .find(|declaration| declaration.id == view_type)?;
+    let declaration =
+        terminal_psi::find_structural_type(signature.structural_types.as_slice(), view_type)?;
     let StructuralTypeShape::ElementView { element, .. } = &declaration.shape else {
         return None;
     };
@@ -112,16 +109,13 @@ fn element_view_read(
     else {
         return Err(invalid());
     };
-    let element = signature
-        .structural_types
-        .as_slice()
-        .iter()
-        .find(|declaration| declaration.id == view_type)
-        .and_then(|declaration| match declaration.shape {
-            StructuralTypeShape::ElementView { element, .. } => Some(element),
-            _ => None,
-        })
-        .ok_or_else(|| invalid())?;
+    let element =
+        terminal_psi::find_structural_type(signature.structural_types.as_slice(), view_type)
+            .and_then(|declaration| match declaration.shape {
+                StructuralTypeShape::ElementView { element, .. } => Some(element),
+                _ => None,
+            })
+            .ok_or_else(|| invalid())?;
     let (byte_offset, byte_count, elements) =
         crate::structural_inputs::structural_reference_input::element_leaf_projection(
             element,

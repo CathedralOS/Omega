@@ -222,11 +222,9 @@ pub(super) fn read_geometry(
                     &argument.path,
                     &signature.structural_types,
                 )?;
-            let terminal_psi::StructuralTypeShape::ByteSequence(carrier) = signature
-                .structural_types
-                .iter()
-                .find(|declaration| declaration.id == geometry.selected)?
-                .shape
+            let terminal_psi::StructuralTypeShape::ByteSequence(carrier) =
+                terminal_psi::find_structural_type(&signature.structural_types, geometry.selected)?
+                    .shape
             else {
                 return None;
             };
