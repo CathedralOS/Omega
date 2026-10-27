@@ -31,88 +31,78 @@ psi_rule_contract!(
     ),
 );
 
-impl PsiOptimizationRule for ConstantConditionalFoldRule {
-    psi_rule_contract!(@adapter);
-
-    fn propose(
-        &self,
-        unit: &PsiOptimizationUnit,
-        analyses: RuleAnalysisView<'_>,
-    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-        required_analysis!(analyses, AnalysisKind::ScalarConstants => Some(AnalysisProduct::ScalarConstants(constants)));
-        required_analysis!(analyses, AnalysisKind::ControlFlowGraph => Some(_));
-        let mut candidates = Vec::new();
-        for function in &unit.functions {
-            for block in &function.blocks {
-                for (node_index, node) in block.nodes.iter().enumerate() {
-                    let O::Conditional {
-                        condition,
-                        when_true,
-                        when_false,
-                    } = &node.operation
-                    else {
-                        continue;
-                    };
-                    let Some((constant, condition_fact)) =
-                        constants.boolean_constant(function.machine, *condition)
-                    else {
-                        continue;
-                    };
-                    let (selected, rejected) = if constant {
-                        (when_true, when_false)
-                    } else {
-                        (when_false, when_true)
-                    };
-                    let location = NodeLocation {
-                        machine: function.machine,
-                        block: block.id,
-                        node: u32::try_from(node_index).expect("optimization node indices are u32"),
-                    };
-                    let Some(reachable) = reachable_blocks_after_conditional_fold(
-                        function,
-                        block.id,
-                        selected.psi_edge,
-                    ) else {
-                        continue;
-                    };
-                    if function.blocks.iter().any(|block| {
-                        !reachable.contains(&block.id) && !block.structural_parameters.is_empty()
-                    }) {
-                        continue;
-                    }
-                    let Some((affected_blocks, provenance)) = conditional_fold_accounting(
-                        function,
-                        location,
-                        selected.psi_edge,
-                        rejected.psi_edge,
-                        &reachable,
-                    ) else {
-                        continue;
-                    };
-                    candidates.push(
-                        PsiRewriteCandidate::new_constant_conditional(
-                            unit.identity,
-                            Self::contract(),
-                            affected_blocks,
-                            provenance,
-                            condition_fact,
-                            -1,
-                            ConstantConditionalRewrite {
-                                location,
-                                condition: *condition,
-                                constant,
-                                selected_edge: selected.psi_edge,
-                                rejected_edge: rejected.psi_edge,
-                            },
-                        )
-                        .map_err(RuleProposalError::InvalidCandidate)?,
-                    );
+psi_rule_impl!(ConstantConditionalFoldRule, |unit, analyses| {
+    required_analysis!(analyses, AnalysisKind::ScalarConstants => Some(AnalysisProduct::ScalarConstants(constants)));
+    required_analysis!(analyses, AnalysisKind::ControlFlowGraph => Some(_));
+    let mut candidates = Vec::new();
+    for function in &unit.functions {
+        for block in &function.blocks {
+            for (node_index, node) in block.nodes.iter().enumerate() {
+                let O::Conditional {
+                    condition,
+                    when_true,
+                    when_false,
+                } = &node.operation
+                else {
+                    continue;
+                };
+                let Some((constant, condition_fact)) =
+                    constants.boolean_constant(function.machine, *condition)
+                else {
+                    continue;
+                };
+                let (selected, rejected) = if constant {
+                    (when_true, when_false)
+                } else {
+                    (when_false, when_true)
+                };
+                let location = NodeLocation {
+                    machine: function.machine,
+                    block: block.id,
+                    node: u32::try_from(node_index).expect("optimization node indices are u32"),
+                };
+                let Some(reachable) =
+                    reachable_blocks_after_conditional_fold(function, block.id, selected.psi_edge)
+                else {
+                    continue;
+                };
+                if function.blocks.iter().any(|block| {
+                    !reachable.contains(&block.id) && !block.structural_parameters.is_empty()
+                }) {
+                    continue;
                 }
+                let Some((affected_blocks, provenance)) = conditional_fold_accounting(
+                    function,
+                    location,
+                    selected.psi_edge,
+                    rejected.psi_edge,
+                    &reachable,
+                ) else {
+                    continue;
+                };
+                candidates.push(
+                    PsiRewriteCandidate::new_constant_conditional(
+                        unit.identity,
+                        Self::contract(),
+                        affected_blocks,
+                        provenance,
+                        condition_fact,
+                        -1,
+                        ConstantConditionalRewrite {
+                            location,
+                            condition: *condition,
+                            constant,
+                            selected_edge: selected.psi_edge,
+                            rejected_edge: rejected.psi_edge,
+                        },
+                    )
+                    .map_err(RuleProposalError::InvalidCandidate)?,
+                );
             }
         }
-        Ok(candidates)
     }
-}
+    Ok(candidates)
+});
 
 fn conditional_fold_accounting(
     function: &PsiOptimizationFunction,
