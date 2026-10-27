@@ -33,8 +33,40 @@ pub struct TerminalBuildBindingHost<'context> {
 
 #[derive(Default)]
 struct BindingState {
-    pending: Vec<Option<BuildSelectionRequest>>,
+    pending: Vec<Option<psi_compiler::TerminalBuildSelectionRequest>>,
     executed: Vec<ExecutedBuildSelection>,
+    awaiting_provider: Option<usize>,
+    installed_providers: Vec<InstalledBuildProvider>,
+}
+
+struct InstalledBuildProvider {
+    request: BuildProviderRequest,
+    declaration: String,
+    package: semantic_vocabulary::PackageKeyIdentity,
+}
+
+pub type BuildProviderRequest = language_semantics::declaration_selection::ProviderReadinessRequest<
+    psi_compiler::TerminalBuildProviderRequirement,
+>;
+
+impl BindingState {
+    fn provider_is_installed(&self, request: &BuildProviderRequest) -> bool {
+        self.installed_providers.iter().any(|installed| {
+            installed.request.requirement.declaration == request.requirement.declaration
+                && installed.request.requirement.application == request.requirement.application
+                && installed.request.backing.path == request.backing.path
+        })
+    }
+
+    fn awaiting_provider(&self) -> Result<Option<&BuildProviderRequest>, String> {
+        let Some(ticket) = self.awaiting_provider else {
+            return Ok(None);
+        };
+        match self.pending.get(ticket).and_then(Option::as_ref) {
+            Some(BuildSelectionRequest::ProviderReadiness(request)) => Ok(Some(request)),
+            _ => Err("Build provider pause lost its exact activation ticket".into()),
+        }
+    }
 }
 
 impl BindingState {
@@ -68,6 +100,61 @@ impl<'context> TerminalBuildBindingHost<'context> {
 
     pub(crate) fn declared(&self) -> &[std::sync::Arc<ProductDeclarationRequest>] {
         self.declarations
+    }
+
+    pub(crate) fn awaiting_provider(&self) -> Result<Option<BuildProviderRequest>, String> {
+        let state = self
+            .state
+            .lock()
+            .map_err(|_| "Build binding activation lock was poisoned")?;
+        Ok(state.awaiting_provider()?.cloned())
+    }
+
+    /// Called only by the activation after every exact component slot was bound.
+    pub(crate) fn has_installed_backing(
+        &self,
+        provider: &psi_compiler::ProducedBuildProvider,
+    ) -> Result<bool, String> {
+        let state = self
+            .state
+            .lock()
+            .map_err(|_| "Build binding activation lock was poisoned")?;
+        let request = state
+            .awaiting_provider()?
+            .ok_or("Build has no provider readiness pause")?;
+        let Some(installed) = state.installed_providers.iter().find(|installed| {
+            installed.request.requirement.declaration == request.requirement.declaration
+                && installed.request.requirement.application == request.requirement.application
+        }) else {
+            return Ok(false);
+        };
+        if installed.declaration != provider.declaration()
+            || installed.package != provider.package()
+        {
+            return Err("Build requirement already has a different exact provider backing".into());
+        }
+        Ok(true)
+    }
+
+    pub(crate) fn provider_installed(
+        &self,
+        provider: &psi_compiler::ProducedBuildProvider,
+    ) -> Result<(), String> {
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| "Build binding activation lock was poisoned")?;
+        let request = state
+            .awaiting_provider()?
+            .ok_or("Build has no provider readiness pause")?
+            .clone();
+        state.installed_providers.push(InstalledBuildProvider {
+            request,
+            declaration: provider.declaration().to_owned(),
+            package: provider.package(),
+        });
+        state.awaiting_provider = None;
+        Ok(())
     }
 
     pub fn adapter(
@@ -109,6 +196,62 @@ impl TerminalImportAdapter for TerminalBuildBindingAdapter<'_, '_> {
 }
 
 impl TerminalEffectHandler for TerminalBuildBindingAdapter<'_, '_> {
+    fn poll_effect_readiness(
+        &mut self,
+        effect: &TerminalEffect,
+    ) -> Result<bool, TerminalEffectRejection> {
+        let refuse = TerminalEffectRejection::new;
+        let TerminalEffect::BoundaryCall {
+            operation,
+            boundary,
+            arguments,
+            structural_arguments,
+            ..
+        } = effect
+        else {
+            return Err(refuse("not a Build binding effect"));
+        };
+        let call = self
+            .host
+            .calls
+            .iter()
+            .find(|call| call.operation == *operation && call.boundary == *boundary)
+            .ok_or_else(|| refuse("Build binding call has no source-issued designated operands"))?;
+        if call.action != TerminalBuildBindingOperation::AwaitProvider {
+            return Ok(true);
+        }
+        let BuildSelectionRequest::ProviderReadiness(request) = &call.request else {
+            return Err(refuse(
+                "Build provider readiness disagrees with its source-issued request",
+            ));
+        };
+        let mut state = self
+            .host
+            .state
+            .lock()
+            .map_err(|_| refuse("Build binding activation lock was poisoned"))?;
+        let (ticket, values) =
+            activation_ticket(arguments, structural_arguments, &state, &call.request)?;
+        if !values.is_empty() {
+            return Err(refuse(
+                "Build provider readiness has unexpected value operands",
+            ));
+        }
+        if state.provider_is_installed(request) {
+            return Ok(true);
+        }
+        if state
+            .awaiting_provider
+            .is_some_and(|pending| pending != ticket)
+        {
+            return Err(refuse(
+                "Build activation already awaits another provider request",
+            ));
+        }
+        state.awaiting_provider = Some(ticket);
+        Ok(false)
+    }
+
     fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
         Err(TerminalEffectRejection::new(
             "Build bindings require result-aware dispatch",
@@ -169,25 +312,21 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter<'_, '_> {
 
         // Every commit consumes one exact preparation. Decoding the selected
         // value differs; authentication, retirement and publication do not.
-        let Some((
-            TerminalScalarValue::Integer {
-                value: IntegerValue::Unsigned(ticket),
-                ..
-            },
-            values,
-        )) = arguments.split_first()
-        else {
-            return Err(refuse("Build selection has no activation ticket"));
-        };
-        if !structural_arguments.is_empty() {
-            return Err(refuse("Build selection has unexpected structural operands"));
-        }
-        let ticket = usize::try_from(*ticket)
-            .map_err(|_| refuse("Build selection ticket is outside its activation"))?;
-        if state.pending.get(ticket).and_then(Option::as_ref) != Some(&call.request) {
-            return Err(refuse(
-                "Build selection ticket was consumed or belongs to another request",
-            ));
+        let (ticket, values) =
+            activation_ticket(arguments, structural_arguments, &state, &call.request)?;
+        if let (
+            BuildSelectionRequest::ProviderReadiness(request),
+            TerminalBuildBindingOperation::AwaitProvider,
+            [],
+        ) = (&call.request, call.action, values)
+        {
+            if !state.provider_is_installed(request) {
+                return Err(refuse(
+                    "Build provider readiness requires completed component installation",
+                ));
+            }
+            state.pending[ticket] = None;
+            return Ok(TerminalEffectResult::Unit);
         }
         let selection = match (&call.request, call.action, values) {
             (BuildSelectionRequest::Entry(binding), TerminalBuildBindingOperation::Bind, []) => {
@@ -284,4 +423,34 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter<'_, '_> {
         state.executed.push(selection);
         Ok(TerminalEffectResult::Unit)
     }
+}
+
+fn activation_ticket<'values>(
+    arguments: &'values [TerminalScalarValue],
+    structural_arguments: &[TerminalStructuralValue],
+    state: &BindingState,
+    request: &psi_compiler::TerminalBuildSelectionRequest,
+) -> Result<(usize, &'values [TerminalScalarValue]), TerminalEffectRejection> {
+    let refuse = TerminalEffectRejection::new;
+    let Some((
+        TerminalScalarValue::Integer {
+            value: semantic_vocabulary::IntegerValue::Unsigned(ticket),
+            ..
+        },
+        values,
+    )) = arguments.split_first()
+    else {
+        return Err(refuse("Build selection has no activation ticket"));
+    };
+    if !structural_arguments.is_empty() {
+        return Err(refuse("Build selection has unexpected structural operands"));
+    }
+    let ticket = usize::try_from(*ticket)
+        .map_err(|_| refuse("Build selection ticket is outside its activation"))?;
+    if state.pending.get(ticket).and_then(Option::as_ref) != Some(request) {
+        return Err(refuse(
+            "Build selection ticket was consumed or belongs to another request",
+        ));
+    }
+    Ok((ticket, values))
 }

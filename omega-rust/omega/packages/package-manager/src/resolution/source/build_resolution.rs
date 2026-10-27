@@ -10,12 +10,24 @@ use crate::resolution::graph::{PackageRootSourceRequest, ResolvedPackageSourceCl
 use package_compilation::{CapturedLocalSource, PackageCompilationInputs, PackageSourceBinding};
 use semantic_vocabulary::PackageKeyIdentity;
 
+#[derive(Clone)]
 pub struct DeclaredBuildSource {
     pub(super) custody: PackageSourceCustody,
     pub(super) root_request: PackageRootSourceRequest,
 }
 
 impl DeclaredBuildSource {
+    pub fn package_name(&self) -> &str {
+        self.custody.key().name().as_str()
+    }
+
+    pub fn require_dependency(&self) -> Result<(), String> {
+        if self.custody.role() != crate::declarations::BuildDeclarationKind::Package {
+            return Err("Build provider dependency must declare a package".into());
+        }
+        Ok(())
+    }
+
     pub fn identity(&self) -> PackageKeyIdentity {
         self.custody.key().identity()
     }
@@ -69,7 +81,45 @@ pub struct PendingBuildSource {
 pub enum BuildSourceAcquisition {
     Execute(AcquiredBuildDependency),
     Reused(ExecutedSourceResolution),
-    Workspace(super::AcquiredWorkspaceBuild),
+    Workspace {
+        pending: PendingBuildSource,
+        workspace: super::AcquiredWorkspaceBuild,
+    },
+}
+
+impl PendingBuildSource {
+    /// Join an acquired immutable source to this graph occurrence. Source
+    /// transport and workspace observation do not own the graph continuation.
+    pub fn select(self, acquired: AcquiredBuildSource) -> Result<BuildSourceAcquisition, String> {
+        if let Some(custody) = self
+            .request
+            .acquired_source(&acquired.lineage, &acquired.navigation)
+            .cloned()
+        {
+            if custody.resolution() != &acquired.resolution
+                || custody.materialization()
+                    != &super::PackageSourceMaterialization::from_local(
+                        acquired.capture.normalized(),
+                    )
+            {
+                return Err(self
+                    .request
+                    .fail("source requests select conflicting immutable content")
+                    .to_string());
+            }
+            let next = self
+                .request
+                .complete::<String>(custody)
+                .map_err(|error| error.to_string())?;
+            return Ok(BuildSourceAcquisition::Reused(
+                ExecutedSourceResolution::from_step(next),
+            ));
+        }
+        Ok(BuildSourceAcquisition::Execute(AcquiredBuildDependency {
+            pending: self.request,
+            acquired,
+        }))
+    }
 }
 
 pub struct AcquiredBuildDependency {
@@ -78,6 +128,10 @@ pub struct AcquiredBuildDependency {
 }
 
 impl AcquiredBuildDependency {
+    pub fn acquired_source(&self) -> &AcquiredBuildSource {
+        &self.acquired
+    }
+
     pub fn entry_path(&self) -> std::path::PathBuf {
         let capture = self.source_capture();
         super::package_entry(capture.canonical_live_root(), Some(capture.tree()))
@@ -97,10 +151,33 @@ impl AcquiredBuildDependency {
             Ok(declared) => declared,
             Err(error) => return Err(self.pending.fail(error).to_string()),
         };
+        self.complete_declared(&declared)
+    }
+
+    /// Reuse an already executed declaration, including after its activation
+    /// has settled for helper production. It must describe this exact capture;
+    /// reusing the result does not skip graph role, alias or cycle validation.
+    pub fn complete_declared(
+        self,
+        declared: &DeclaredBuildSource,
+    ) -> Result<(PackageKeyIdentity, ExecutedSourceResolution), String> {
+        let custody = &declared.custody;
+        if custody.key().source_lineage() != &self.acquired.lineage
+            || custody.navigation() != &self.acquired.navigation
+            || custody.resolution() != &self.acquired.resolution
+            || custody.captured_source().map(std::sync::Arc::as_ref)
+                != Some(self.acquired.capture.tree().as_ref())
+            || custody.snapshot_root() != self.acquired.capture.canonical_live_root()
+        {
+            return Err(self
+                .pending
+                .fail("returned declaration belongs to another acquired source")
+                .to_string());
+        }
         let identity = declared.identity();
         let step = self
             .pending
-            .complete::<String>(declared.custody)
+            .complete::<String>(custody.clone())
             .map_err(|error| error.to_string())?;
         Ok((identity, ExecutedSourceResolution::from_step(step)))
     }
@@ -111,6 +188,13 @@ pub struct ResolvedBuildSources {
 }
 
 impl ResolvedBuildSources {
+    pub fn contains(&self, identity: PackageKeyIdentity) -> bool {
+        self.closure
+            .custodies()
+            .iter()
+            .any(|custody| custody.key().identity() == identity)
+    }
+
     pub(crate) fn into_source_closure(self) -> ResolvedPackageSourceClosure {
         self.closure
     }

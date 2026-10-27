@@ -564,15 +564,13 @@ mod lifecycle_projection_tests {
 pub fn product_request_operand_occurrences(
     program: &dyn crate::CheckingInput,
 ) -> HashSet<typed_trees::AuthoredDeclarationSelectionOccurrenceId> {
-    use language_semantics::declaration_selection::{
-        AuthoredDeclarationSelectionKind as Kind, BuildSelectionRequest,
-    };
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionKind as Kind;
     let mut occurrences = HashSet::new();
     for (expression, node) in program.expression_table.iter_expressions() {
         let typed_trees::expression::ExpressionNode::Call(call) = node else {
             continue;
         };
-        let Some(BuildSelectionRequest::Declaration(request)) = program
+        let Some(request) = program
             .expression_table
             .build_selection_request(call.build_selection)
         else {
@@ -592,7 +590,7 @@ pub fn product_request_operand_occurrences(
                 continue;
             }
             let span = selection.source_span();
-            if request.operands.iter().any(|operand| {
+            if request.designated_operands().iter().any(|operand| {
                 span.source_id == operand.source_span.source_id
                     && span.span.start >= operand.source_span.span.start
                     && span.span.end <= operand.source_span.span.end

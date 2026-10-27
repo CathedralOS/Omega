@@ -10,6 +10,10 @@ use symbols::JoinedPath;
 
 pub(crate) fn request(
     source: &symbol_resolved_trees::SymbolResolvedTrees,
+    typed: &mut typed_trees::TypedTrees,
+    exposure: Option<
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    >,
     namespace: symbols::SymbolHandle,
     target: symbols::SymbolHandle,
     name: &str,
@@ -17,7 +21,7 @@ pub(crate) fn request(
     ordinary_count: usize,
     evidence_count: usize,
     span: source::SourceSpan,
-) -> Result<Option<BuildSelectionRequest>, Diagnostic> {
+) -> Result<Option<typed_trees::expression::BuildSelectionRequest>, Diagnostic> {
     // Resolved enum operations are exact prelude declarations, unlike the
     // unresolved syntax carrying designated Product declaration operands.
     if target.is_valid() && source.symbols.is_build_prelude_symbol(target) {
@@ -45,7 +49,7 @@ pub(crate) fn request(
         }
     }
     let Some(operation) = BuildOperation::from_call_target(name)
-        .filter(|operation| operation.selects_product_declarations())
+        .filter(|operation| operation.has_designated_operands())
     else {
         return Ok(None);
     };
@@ -59,7 +63,12 @@ pub(crate) fn request(
     {
         return Ok(None);
     }
-    if !operation.product_operand_count_valid(operands.len())
+    let operand_count_valid = if operation == BuildOperation::ProviderReadiness {
+        operands.len() == 2
+    } else {
+        operation.product_operand_count_valid(operands.len())
+    };
+    if !operand_count_valid
         || evidence_count != 0
         || !(ordinary_count == 1
             || (operation == BuildOperation::ProviderSelection && ordinary_count == 2))
@@ -78,7 +87,30 @@ pub(crate) fn request(
         ))
         .with_source_span(span));
     }
-    let operands = operands.iter().map(|operand| {
+    let requirement = if operation == BuildOperation::ProviderReadiness {
+        let operand = super::expression::lower_static_machine_argument(
+            Some(source),
+            typed,
+            exposure,
+            &operands[0],
+        )?;
+        let reference = typed
+            .static_operand_type_reference(&operand)
+            .map_err(|reason| Diagnostic::error(reason).with_source_span(span))?;
+        let requirement = typed.type_reference_table.type_symbol(reference);
+        if !source
+            .traits
+            .iter()
+            .any(|definition| definition.symbol == requirement && definition.is_boundary)
+        {
+            return Err(Diagnostic::error("provider readiness requires a pre-known exact boundary requirement; only the backing may be deferred")
+                .with_source_span(span));
+        }
+        Some(reference)
+    } else {
+        None
+    };
+    let operands = operands.iter().skip(usize::from(requirement.is_some())).map(|operand| {
         if operand.type_reference.is_valid() || operand.application.is_some()
             || operand.const_literal.is_some() || operand.evidence_projection.is_some()
             || operand.path.is_empty() {
@@ -97,6 +129,15 @@ pub(crate) fn request(
                 source::Span::new(first.span.start, last.span.end)),
         })
     }).collect::<Result<Vec<_>, Diagnostic>>()?.into_boxed_slice();
+    if let Some(requirement) = requirement {
+        return Ok(Some(BuildSelectionRequest::ProviderReadiness(
+            language_semantics::declaration_selection::ProviderReadinessRequest {
+                source_span: span,
+                requirement,
+                backing: operands[0].clone(),
+            },
+        )));
+    }
     Ok(Some(BuildSelectionRequest::Declaration(
         std::sync::Arc::new(ProductDeclarationRequest {
             source_span: span,

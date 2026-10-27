@@ -12,7 +12,11 @@ use crate::static_applications::{
     StaticMachineLifetimeBinding,
 };
 use arena::{Arena, Handle, HandleSpan};
-use language_semantics::declaration_selection::BuildSelectionRequest;
+/// Build selections retain the complete source requirement application until
+/// Terminal production replaces it with exact emitted slots.
+pub type BuildSelectionRequest = language_semantics::declaration_selection::BuildSelectionRequest<
+    crate::types::TypeReferenceHandle,
+>;
 use numerics::literals::IntegerLiteral;
 use source::SourceSpan;
 use std::ops::Deref;

@@ -165,6 +165,7 @@ pub(crate) fn finalize_checked_authored_selections(
                     program.expression_table.build_selection_request(call.build_selection)
                     .and_then(|request| match request {
                         language_semantics::declaration_selection::BuildSelectionRequest::Declaration(request) => Some(request.operation.intrinsic()),
+                        language_semantics::declaration_selection::BuildSelectionRequest::ProviderReadiness(_) => Some(BuildOperation::ProviderReadiness.intrinsic()),
                         _ => None,
                     })
                     .or_else(|| validation::compiler_operations::classify_expression_call_intrinsic(program, call))

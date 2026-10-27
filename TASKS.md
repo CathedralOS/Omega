@@ -892,15 +892,14 @@ narrows realization only.
   - Implement pre-execution dependency input assignment and shared-node conflict
     checks at dependency activation admission without inheriting the root's
     slots (keeping required-output path byte results refused).
-  - Complete accepted-lock round-trip qualification, provider readiness/resumption,
-    and demanded
-    Product-description queries while replacing static Build projection.
-    Implement [explicit Build provider backing](wiki/spec/build/provider_selection.md#build-provider-readiness):
-    resolve the qualified backing from the requested Build dependency, check exact
-    satisfaction/admission, and install that static slot without ordinary import
-    leakage, default selection, satisfier search, or effect replay. Cover multiple
-    exported backings and rejection of missing/private/wrong-requirement/unadmitted
-    selections; retain namespace and exact-owner identity through park/resume.
+  - Complete accepted-lock round-trip qualification and demanded
+    Product-description queries while replacing static Build projection in the
+    source-only corpus consumers with executed project discovery.
+  - Complete [Build provider readiness](wiki/spec/build/provider_selection.md#build-provider-readiness)
+    for applied/inherited multi-slot requirements and helpers used while observing
+    unselected workspace members. Retain the catalog's executed dependency closure
+    without treating unselected members as Product dependencies or weakening the
+    mandatory final source join.
   - **BUILD-EVALUATES-ONCE / ONE-DRIVER-PER-STAGE:** evaluate `build.omg` once
     per compilation with no realized target observed, run Psi `00–07` once in
     `compiler.rs` to produce one canonical Terminal Psi artifact, and run Omega

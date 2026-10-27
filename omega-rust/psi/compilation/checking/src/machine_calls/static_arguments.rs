@@ -377,6 +377,34 @@ fn validate_call(
         return;
     }
     let arguments = call.arguments(program);
+    if let StaticArgumentCall::Expression(_, expression) = call
+        && let Some(typed_trees::expression::BuildSelectionRequest::ProviderReadiness(request)) =
+            program
+                .expression_table
+                .build_selection_request(expression.build_selection)
+    {
+        match context {
+            Some((machine, _)) => {
+                crate::validate_static_type_argument(
+                    program,
+                    crate::StaticTypeArgumentOwner::Machine(machine),
+                    request.requirement,
+                    symbols,
+                    diagnostics,
+                    formation_obligations,
+                );
+                if let Err(reason) =
+                    program.build_provider_requirement_scope(request.requirement, machine.symbol)
+                {
+                    diagnostics
+                        .push(Diagnostic::error(reason).with_source_span(request.source_span));
+                }
+            }
+            None => diagnostics.push(Diagnostic::error(
+                "provider readiness has no retained caller machine",
+            )),
+        }
+    }
     requirement_predicates::validate(program, call, context, arguments, diagnostics);
     // `Requirement<Arguments>::operation(...)` forms a trait application at
     // the call site. It owes the same argument kinds, const ranges and

@@ -30,6 +30,7 @@ macro_rules! typed_tree_table {
 pub(crate) use typed_tree_table;
 
 mod authored_targets;
+mod build_selections;
 mod callable_applications;
 mod canonical_values;
 pub use callable_applications::{

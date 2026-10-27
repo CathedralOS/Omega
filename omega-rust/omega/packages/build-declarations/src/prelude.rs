@@ -93,6 +93,7 @@ public data ProductEntryRef [copy] {
 // Their activation-local ticket is interpreted only at admitted call sites.
 public boundary trait BuildBindingOperations {
     machine prepare(builder: &Build) -> u64 reaches;
+    machine await_provider(activation: u64) reaches suspends;
     machine bind(activation: u64) reaches;
     machine bind_description(activation: u64, description: ProductEntryRef) reaches;
     machine select(activation: u64) reaches;

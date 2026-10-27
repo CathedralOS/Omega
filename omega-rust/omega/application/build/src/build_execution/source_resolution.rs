@@ -5,8 +5,10 @@
 //! final source join. That work remains available to Product admission/review
 //! rather than requiring Build replay. No source IR crosses this boundary.
 
+mod readiness;
+
 use crate::BuildSession;
-use crate::build_execution::{ReturnedPackageBuild, execute_returned_build};
+use crate::build_execution::ReturnedPackageBuild;
 use compiler::{CompilationSession, CompileFailure, CompletedBuild, PackageBuild};
 use package_compilation::PackageCompilationInputs;
 use package_manager::operations::{
@@ -15,7 +17,6 @@ use package_manager::operations::{
 use package_manager::resolution::source::{
     AcquiredBuildSource, BuildSourceAcquisitions, ResolvedBuildSources,
 };
-use package_manager::resolution::source::{BuildSourceAcquisition, ExecutedSourceResolution};
 use target::TargetProfile;
 
 #[derive(Debug)]
@@ -69,8 +70,13 @@ pub struct ResolvedProjectBuilds {
 /// Accepted grants and generated sources remain explicit later inputs. This is
 /// not a portable compiled product and cannot be cloned or replayed.
 pub struct ResolvedPackageBuild {
-    build: ReturnedPackageBuild,
+    build: ResolvedBuild,
     inputs: PackageCompilationInputs,
+}
+
+enum ResolvedBuild {
+    Returned(ReturnedPackageBuild),
+    Settled(CompletedBuild),
 }
 
 struct CatalogMemberBuild {
@@ -86,17 +92,26 @@ impl ResolvedPackageBuild {
     /// Settle the original execution before independently admitted Product
     /// contexts are prepared. No Product is typed and no live grant is retained.
     pub fn settle(
-        mut self,
+        self,
         compiler: &mut CompilationSession,
         target: TargetProfile,
         inputs: PackageCompilationInputs,
     ) -> Result<CompletedBuild, CompileFailure> {
-        self.build.invocation.join_product_context(target, inputs)?;
-        let ReturnedPackageBuild {
-            invocation,
-            returned,
-        } = self.build;
-        compiler.settle_package_build(invocation, returned)
+        match self.build {
+            ResolvedBuild::Returned(mut build) => {
+                build.invocation.join_product_context(target, inputs)?;
+                compiler.settle_package_build(build.invocation, build.returned)
+            }
+            ResolvedBuild::Settled(build) => {
+                if build.package_inputs().source_inputs() != inputs.source_inputs() {
+                    return Err(vec![diagnostics::Diagnostic::error(
+                        "settled helper Build differs from the final source graph",
+                    )]
+                    .into());
+                }
+                Ok(build)
+            }
+        }
     }
 
     /// Complete the original invocation after package admission has joined
@@ -104,13 +119,13 @@ impl ResolvedPackageBuild {
     /// here, independently of the discovery/Build host. Compiler completion
     /// compares the graph with its executed receipt before Product typing.
     pub fn complete(
-        mut self,
+        self,
         compiler: &mut CompilationSession,
         target: TargetProfile,
         inputs: PackageCompilationInputs,
     ) -> Result<PackageBuild, CompileFailure> {
-        self.build.invocation.join_product_context(target, inputs)?;
-        self.build.complete(compiler)
+        let mut completed = self.settle(compiler, target, inputs.clone())?;
+        compiler.prepare_package_product(&mut completed, target, inputs, Default::default())
     }
 }
 
@@ -186,141 +201,19 @@ pub(crate) fn resolve_acquired_sources(
     snapshot: Option<build_evaluation::BuildSnapshotRequest>,
     collect_timings: bool,
 ) -> Result<(ResolvedBuildSources, Vec<ResolvedPackageBuild>), ProjectSourceResolutionError> {
-    use ProjectSourceResolutionError::{Compilation, Resources, Source};
-    let mut request = session
-        .packages
-        .source_build_request(acquired.source_capture(), entry, execution_profile)
-        .map_err(Resources)?;
-    if snapshot.is_some() {
-        request.build.snapshot = snapshot;
-    }
-    request.collect_timings = collect_timings;
-    let root = execute_returned_build(&mut session.compiler, request).map_err(Compilation)?;
-    let declared = acquired
-        .declare_build(normal_return(&root)?)
-        .map_err(Source)?;
-    let root_identity = declared.identity();
-    let mut pending = vec![(root_identity, root)];
-    let mut catalog_builds: Vec<CatalogMemberBuild> = Vec::new();
-    let mut resolution = declared.resolve().map_err(Source)?;
-    let resolved = 'sources: loop {
-        match resolution {
-            ExecutedSourceResolution::Complete(resolved) => break resolved,
-            ExecutedSourceResolution::Request(request) => {
-                let mut acquisition = acquisitions.acquire(request).map_err(Source)?;
-                let acquired = loop {
-                    match acquisition {
-                        BuildSourceAcquisition::Execute(acquired) => break acquired,
-                        BuildSourceAcquisition::Reused(next) => {
-                            resolution = next;
-                            continue 'sources;
-                        }
-                        BuildSourceAcquisition::Workspace(workspace) => {
-                            let (members, declarations, builds) = execute_workspace_catalog(
-                                session,
-                                workspace,
-                                execution_profile,
-                                collect_timings,
-                            )?;
-                            catalog_builds.extend(builds);
-                            acquisition = acquisitions
-                                .complete_workspace(members, declarations)
-                                .map_err(Source)?;
-                        }
-                    }
-                };
-                let capture = acquired.source_capture();
-                let build = match catalog_builds
-                    .iter()
-                    .position(|build| &build.capture == capture)
-                {
-                    Some(position) => catalog_builds.swap_remove(position).build,
-                    None => {
-                        let mut request = session
-                            .packages
-                            .source_build_request(
-                                capture,
-                                &acquired.entry_path(),
-                                execution_profile,
-                            )
-                            .map_err(Resources)?;
-                        request.collect_timings = collect_timings;
-                        execute_returned_build(&mut session.compiler, request)
-                            .map_err(Compilation)?
-                    }
-                };
-                let (identity, next) = acquired.complete(normal_return(&build)?).map_err(Source)?;
-                pending.push((identity, build));
-                resolution = next;
-            }
-        }
-    };
-
-    let mut builds = Vec::with_capacity(pending.len());
-    for (identity, mut build) in pending {
-        let returned = build
-            .returned
-            .as_mut()
-            .ok_or_else(|| Source("acquired source has no executed Build declaration".into()))?;
-        let inputs = resolved.join_build(identity, returned).map_err(Source)?;
-        builds.push(ResolvedPackageBuild { build, inputs });
-    }
+    acquisitions
+        .retain_root(&acquired)
+        .map_err(ProjectSourceResolutionError::Source)?;
+    let mut scheduler = readiness::ReadinessScheduler::new(
+        session,
+        acquisitions,
+        execution_profile,
+        collect_timings,
+    );
+    let root = scheduler.execute_source(acquired, entry, snapshot)?;
+    let resolved = scheduler.resolve_graph(root)?;
+    let builds = scheduler.join_sources(&resolved)?;
     Ok((resolved, builds))
-}
-
-/// Root catalog obligations settle before membership is used. Members run only
-/// far enough to observe their actual normal-return names; selected members keep
-/// those same activations for dependency settlement and Product preparation.
-fn execute_workspace_catalog(
-    session: &mut BuildSession,
-    workspace: package_manager::resolution::source::AcquiredWorkspaceBuild,
-    profile: TargetProfile,
-    collect_timings: bool,
-) -> Result<
-    (
-        package_manager::resolution::source::AcquiredWorkspaceMembers,
-        Vec<compiler::SourceBuildDeclaration>,
-        Vec<CatalogMemberBuild>,
-    ),
-    ProjectSourceResolutionError,
-> {
-    use ProjectSourceResolutionError::{Compilation, Resources, Source};
-    let mut request = session
-        .packages
-        .source_build_request(workspace.source_capture(), &workspace.entry_path(), profile)
-        .map_err(Resources)?;
-    request.collect_timings = collect_timings;
-    let ReturnedPackageBuild {
-        invocation,
-        returned,
-    } = execute_returned_build(&mut session.compiler, request).map_err(Compilation)?;
-    let returned =
-        returned.ok_or_else(|| Source("workspace catalog has no executed declaration".into()))?;
-    let root = session
-        .compiler
-        .settle_source_catalog(invocation, returned)
-        .map_err(Compilation)?;
-    let members = workspace.members(root).map_err(Source)?;
-    let mut declarations = Vec::new();
-    let mut builds = Vec::new();
-    for (capture, entry) in members.source_entries() {
-        let mut request = session
-            .packages
-            .source_build_request(capture, &entry, profile)
-            .map_err(Resources)?;
-        request.collect_timings = collect_timings;
-        let build = execute_returned_build(&mut session.compiler, request).map_err(Compilation)?;
-        let declaration = build
-            .invocation
-            .observe_declaration(normal_return(&build)?)
-            .map_err(Compilation)?;
-        declarations.push(declaration);
-        builds.push(CatalogMemberBuild {
-            capture: capture.clone(),
-            build,
-        });
-    }
-    Ok((members, declarations, builds))
 }
 
 fn normal_return(

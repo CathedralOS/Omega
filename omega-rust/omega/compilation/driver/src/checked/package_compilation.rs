@@ -304,6 +304,59 @@ impl CompilationSession {
         })
     }
 
+    /// Produce the exact public helper selected by a waiting Build. Checking
+    /// retains every implementation; native/default-provider settlement is not
+    /// part of this operation. The dependency's own Build must already be joined.
+    pub fn produce_package_build_provider(
+        &mut self,
+        build: PackageBuild,
+        declaration_path: &str,
+    ) -> Result<psi_compiler::ProducedBuildProvider, CompileFailure> {
+        super::run_on_compile_thread(|| {
+            let (_, _, inputs, rollback, prepared) = build.source.into_continuation();
+            let profile = prepared
+                .build_sources
+                .build_execution_profile
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "Build provider production requires its admitted execution profile",
+                    )]
+                })?;
+            let source = super::checking::complete_prepared_build(prepared, Some(&inputs))?;
+            let checked = super::checking::check_product_source(
+                source,
+                Some(&inputs),
+                &rollback,
+                self.reuse(),
+                &mut self.selections,
+            )?;
+            self.retain(&checked.retained_checks);
+            // A helper has no installed runtime providers yet. Close its source
+            // obligations under the explicit host model without selecting a
+            // dependency's Product defaults. Provider-dependent constants still
+            // require real selected facts; an empty context cannot prove them.
+            let program =
+                crate::execution_settlement::constant_recipe_closure::close_constant_recipes(
+                    &checked,
+                    profile,
+                    &checked
+                        .computed_build_config
+                        .config
+                        .opaque_representation_selections,
+                    &Default::default(),
+                    &[],
+                    |_| Ok(Default::default()),
+                )?;
+            Ok(psi_compiler::BuildProviderProductionRequest {
+                checked: &program,
+                exact_toolchain_sources: checked.sources.exact_toolchain_sources(),
+                package: inputs.root(),
+                declaration_path,
+            }
+            .produce()?)
+        })
+    }
+
     /// Complete demanded independent components as one source cohort batch.
     /// Retain executable custody in this session and return only descriptions
     /// for the caller to join to waiting consumers. A description alone never

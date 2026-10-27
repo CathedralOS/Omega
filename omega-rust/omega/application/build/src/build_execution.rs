@@ -162,6 +162,12 @@ pub(crate) fn execute_build(
         let mut activation = host.start().map_err(refuse)?;
         loop {
             let step = activation.advance(1024).map_err(refuse)?;
+            if step.awaiting_provider.is_some() {
+                return Err(refuse(
+                    "Build provider readiness requires dependency scheduling".into(),
+                )
+                .into());
+            }
             if step.returned {
                 break;
             }

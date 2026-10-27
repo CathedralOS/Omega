@@ -37,6 +37,8 @@ impl<'program> CallScopes<'program> {
                     expression,
                     typed_trees::expression::ExpressionNode::Call(call)
                         if call.requirement_application.is_valid()
+                            || matches!(program.expression_table.build_selection_request(call.build_selection),
+                                Some(typed_trees::expression::BuildSelectionRequest::ProviderReadiness(_)))
                 )
             })
         {

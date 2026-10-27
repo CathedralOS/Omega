@@ -301,6 +301,7 @@ fn application_schedules_dependencies_without_opening_source_continuations() {
         execution,
         include_str!("package_compilation.rs"),
         include_str!("build_execution/source_resolution.rs"),
+        include_str!("build_execution/source_resolution/readiness.rs"),
     ] {
         for forbidden in [
             "CheckedCompilation",
