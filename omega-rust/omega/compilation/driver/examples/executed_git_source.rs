@@ -416,11 +416,22 @@ fn execute_fixture() {
         let fetches_at_return = std::fs::read(&log).unwrap();
         if !private_call {
             let remote = PathBuf::from(std::env::var_os("OMEGA_FIXTURE_GIT_REPOSITORY").unwrap());
-            std::fs::copy(
-                fixture.join("controls/changed_library.omg"),
-                remote.join("main.omg"),
-            )
-            .unwrap();
+            let changed = std::fs::read(fixture.join("controls/changed_library.omg")).unwrap();
+            let original = std::fs::read(remote.join("main.omg")).unwrap();
+            assert_ne!(
+                original, changed,
+                "selector counterfactual must change source"
+            );
+            std::fs::write(remote.join("main.omg"), &changed).unwrap();
+            // Re-read content into the index, independent of copied timestamps
+            // and equal-length source replacements in a fast fixture run.
+            let staged =
+                std::process::Command::new(std::env::var_os("OMEGA_FIXTURE_REAL_GIT").unwrap())
+                    .current_dir(&remote)
+                    .args(["add", "--renormalize", "--", "main.omg"])
+                    .output()
+                    .unwrap();
+            assert!(staged.status.success(), "{staged:?}");
             let observed =
                 std::process::Command::new(std::env::var_os("OMEGA_FIXTURE_REAL_GIT").unwrap())
                     .current_dir(&remote)
@@ -431,7 +442,7 @@ fn execute_fixture() {
                         "user.email=sdk@example.invalid",
                         "commit",
                         "--quiet",
-                        "-am",
+                        "-m",
                         "move selector after discovery",
                     ])
                     .output()
