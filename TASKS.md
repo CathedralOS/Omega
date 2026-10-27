@@ -899,9 +899,7 @@ narrows realization only.
   - Implement pre-execution dependency input assignment and shared-node conflict
     checks at dependency activation admission without inheriting the root's
     slots (keeping required-output path byte results refused).
-  - Complete demanded Product schema/provider descriptions and their inspection
-    operations through Terminal Build; preserve named-implementation identity.
-    Carry foreign-helper query fixtures through ordinary dependency discovery,
+  - Carry foreign-helper Product query fixtures through ordinary dependency discovery,
     not only pre-admitted package contexts.
   - Complete [Build provider readiness](wiki/spec/build/provider_selection.md#build-provider-readiness)
     for applied/inherited multi-slot requirements.

@@ -20,12 +20,16 @@ pub(crate) fn operation(
     name: &str,
 ) -> Option<ProductQueryOperation> {
     if !source.symbols.is_build_prelude_symbol(namespace)
-        || source.symbols.name(namespace) != "BuildProduct"
-        || name != "entry"
         || (target.is_valid() && !source.symbols.is_build_prelude_symbol(target))
     {
         return None;
     }
+    let name = match (source.symbols.name(namespace), name) {
+        ("BuildProduct", "entry" | "schema" | "provider") => name,
+        ("ProductTypeSchema", "path") => "schema_path",
+        ("ProductProviderRef", "path") => "provider_path",
+        _ => return None,
+    };
     let protocol = source.traits.iter().find(|definition| {
         definition.is_boundary
             && language_semantics::build_requests::is_build_protocol(

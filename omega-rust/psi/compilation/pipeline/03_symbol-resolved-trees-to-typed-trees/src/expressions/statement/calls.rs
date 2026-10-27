@@ -38,6 +38,13 @@ pub(super) fn lower_call_statement(
         lowered.receiver_root_symbol = operation.namespace;
         lowered.receiver_symbol = operation.namespace;
         lowered.target_symbol = operation.target;
+        let signature = lowerer
+            .source_trees
+            .trait_machine_signatures(protocol.machines)
+            .iter()
+            .find(|signature| signature.symbol == operation.target)
+            .ok_or_else(|| Diagnostic::error("Product query lost its exact operation"))?;
+        lowered.target = crate::lowerer::name::lower_name(&signature.name);
         return Ok(typed::statement::StatementNode::Call(lowered));
     }
     if let Some(request) = crate::expressions::product_selections::request(

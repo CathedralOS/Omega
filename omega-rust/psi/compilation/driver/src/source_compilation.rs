@@ -140,6 +140,24 @@ impl SourceCompilationRequest {
 }
 
 impl SourceContinuation {
+    /// Describe a data declaration without checking or executing Product bodies.
+    pub fn describe_schema(
+        &self,
+        occurrence: source::SourceSpan,
+        path: &[u8],
+    ) -> Result<language_semantics::declaration_selection::DescribedProductSchema, String> {
+        validation::product_queries::describe_schema(self.typed(), occurrence, path)
+    }
+
+    /// Describe an exact named implementation, not a nominal data owner.
+    pub fn describe_provider(
+        &self,
+        occurrence: source::SourceSpan,
+        path: &[u8],
+    ) -> Result<language_semantics::declaration_selection::DescribedProductProvider, String> {
+        validation::product_queries::describe_provider(self.typed(), occurrence, path)
+    }
+
     /// Describe a Product entry without completing or executing its body. The
     /// caller supplies the slot's source-signature contract, not a truth bit.
     pub fn describe_entry(

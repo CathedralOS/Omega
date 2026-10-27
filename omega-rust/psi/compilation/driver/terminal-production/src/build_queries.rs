@@ -3,6 +3,10 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalBuildQueryOperation {
     Entry,
+    Schema,
+    Provider,
+    SchemaPath,
+    ProviderPath,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -21,6 +25,10 @@ pub(super) fn capture(
         crate::build_protocol::capture(checked, lowered, "BuildProductOperations", |name| {
             Some(match name {
                 "entry" => TerminalBuildQueryOperation::Entry,
+                "schema" => TerminalBuildQueryOperation::Schema,
+                "provider" => TerminalBuildQueryOperation::Provider,
+                "schema_path" => TerminalBuildQueryOperation::SchemaPath,
+                "provider_path" => TerminalBuildQueryOperation::ProviderPath,
                 _ => return None,
             })
         })?;
