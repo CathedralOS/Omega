@@ -1,10 +1,9 @@
 use arena::Arena;
-use symbols::{JoinedPath, SymbolHandle, SymbolKind, SymbolTable};
+use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use crate::symbols::expressions::{
     assign_expression_span_symbols, assign_statement_expression_symbols,
 };
-use crate::symbols::lookup::{call_target_for_attached_data, diagnostic_path_source_span};
 use crate::symbols::scope::MachineScope;
 use crate::symbols::scoped_paths::resolve_state_scoped_members;
 
@@ -36,6 +35,8 @@ pub(in crate::symbols) fn assign_transition_target_symbols(
     };
 
     named.receiver_symbol = SymbolHandle::invalid();
+    named.head_symbol = SymbolHandle::invalid();
+    named.symbol = SymbolHandle::invalid();
     assign_expression_span_symbols(
         symbols,
         machine,
@@ -121,40 +122,6 @@ pub(in crate::symbols) fn assign_transition_target_symbols(
     }
     if body_coordinate && named.head_symbol == symbol {
         named.head_symbol = SymbolHandle::invalid();
-    }
-
-    let Some(target_name) = target_name else {
-        return;
-    };
-
-    // A qualified tail call (`-> Main::pack(left, right)`) is stored as a
-    // named transition target, while the same call in value position is
-    // resolved by the expression-call path. Mirror that static attached-data
-    // lookup here. The ordinary scoped-path walk cannot descend from a data
-    // symbol into a separately declared attached machine, so without this
-    // fallback the target stayed invalid and downstream ownership/call facts
-    // silently treated the arguments as non-transferring.
-    if path.len() >= 2 {
-        let owner = path[..path.len() - 1].joined_path();
-        let target_symbol = call_target_for_attached_data(
-            symbols,
-            owner.as_str(),
-            target_name.as_str(),
-            target_name.source_span(),
-        );
-        if target_symbol.is_valid() {
-            if !named.head_symbol.is_valid() {
-                named.head_symbol = symbols
-                    .find_top_level_by_name_and_kinds_from_source(
-                        &owner,
-                        &[SymbolKind::Data],
-                        diagnostic_path_source_span(&path[..path.len() - 1]),
-                    )
-                    .unwrap_or_else(SymbolHandle::invalid);
-            }
-            named.symbol = terminal_call_target(symbols, target_symbol);
-            return;
-        }
     }
 }
 
