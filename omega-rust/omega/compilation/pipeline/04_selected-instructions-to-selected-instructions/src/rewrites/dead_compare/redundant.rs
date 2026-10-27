@@ -105,12 +105,6 @@ impl RedundantCompareReceipt {
     /// The removed redundant compare instruction.
         compare: SelectedInstructionId,
     });
-    /// The durable transformation identity the post-allocation manifest
-    /// ledger records: the receipt's exact fields under the
-    /// redundant-compare domain separator.
-    pub fn identity(&self) -> RedundantCompareIdentity {
-        redundant_compare_identity(self)
-    }
 }
 
 receipt_selected_identities!(RedundantCompareReceipt);

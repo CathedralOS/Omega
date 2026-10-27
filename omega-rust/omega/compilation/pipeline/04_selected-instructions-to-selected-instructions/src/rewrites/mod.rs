@@ -82,9 +82,10 @@ macro_rules! receipt_selected_identities {
 /// Every rewrite receipt's canonical identity: the family's own domain
 /// separator, both selected-plan identities, the optimization unit, the fuel
 /// schedule, the transformed function coordinate, and the rule's instruction
-/// coordinate(s). One declarative row per rule expands the encoder, so a rule
-/// declares only what distinguishes its identity. A row's prose stays a plain
-/// `//` comment: a doc comment on a macro invocation is an unused attribute.
+/// coordinate(s). One declarative row per rule expands the encoder and the
+/// receipt's own `identity()` accessor, so a rule declares only what
+/// distinguishes its identity. A row's prose stays a plain `//` comment: a doc
+/// comment on a macro invocation is an unused attribute.
 macro_rules! rewrite_receipt_identity {
     (
         $function:ident, $identity:ident, $receipt:ident,
@@ -106,6 +107,15 @@ macro_rules! rewrite_receipt_identity {
                     $(crate::codec_bytes::push_encoded(bytes, receipt.$coordinate.0.to_le_bytes());)+
                 },
             ))
+        }
+
+        impl $receipt {
+            /// The durable transformation identity the post-allocation
+            /// manifest ledger records: the receipt's exact fields under its
+            /// family's domain separator.
+            pub fn identity(&self) -> $identity {
+                $function(self)
+            }
         }
     };
 }

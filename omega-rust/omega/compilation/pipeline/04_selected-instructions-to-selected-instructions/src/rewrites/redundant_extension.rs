@@ -91,12 +91,6 @@ impl RedundantExtensionReceipt {
     /// The rewritten extension instruction's source-side identity.
         extension: SelectedInstructionId,
     });
-    /// The durable transformation identity the post-allocation manifest
-    /// ledger records: the receipt's exact fields under the
-    /// redundant-extension domain separator.
-    pub fn identity(&self) -> RedundantExtensionIdentity {
-        redundant_extension_identity(self)
-    }
 }
 
 receipt_selected_identities!(RedundantExtensionReceipt);

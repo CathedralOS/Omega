@@ -91,12 +91,6 @@ impl CopyRemovalReceipt {
     /// The removed `CopyI64` instruction's source-side identity.
         copy: SelectedInstructionId,
     });
-    /// The durable transformation identity the post-allocation manifest
-    /// ledger records: the receipt's exact fields under the copy-removal
-    /// domain separator.
-    pub fn identity(&self) -> CopyRemovalIdentity {
-        copy_removal_identity(self)
-    }
 }
 
 receipt_selected_identities!(CopyRemovalReceipt);

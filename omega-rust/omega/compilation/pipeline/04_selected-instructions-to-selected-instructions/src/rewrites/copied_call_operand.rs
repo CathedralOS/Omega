@@ -152,12 +152,6 @@ impl CopiedCallOperandReceipt {
     /// for the custody trail's instruction identity.
         call: SelectedInstructionId,
     });
-    /// The durable transformation identity the post-allocation manifest
-    /// ledger records: the receipt's exact fields under the
-    /// copied-call-operand domain separator.
-    pub fn identity(&self) -> CopiedCallOperandIdentity {
-        copied_call_operand_identity(self)
-    }
 }
 
 receipt_selected_identities!(CopiedCallOperandReceipt);
