@@ -219,6 +219,15 @@ pub(super) fn stage(
                     };
                     staged.retain_byte_field(execution, parent, *field, namespace)?;
                 }
+                StorageLeafKind::EmptyScalarArray {
+                    destination,
+                    structural_type,
+                } => {
+                    // A completed case replacement constructs this unique
+                    // empty payload under the existing writable owner. No
+                    // bytes, references, claims or opaque contents are inferred.
+                    staged.stage_array(execution, *structural_type, &[], destination)?;
+                }
                 StorageLeafKind::ByteArray {
                     destination,
                     length,

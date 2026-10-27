@@ -80,6 +80,90 @@ impl EmptyArrayStorage {
             .max_by_key(|(parent, _)| parent.path.len())
     }
 
+    /// Prove complete initialization from explicit compact rows or actual
+    /// legacy byte homes. Missing children are never generated from a count:
+    /// subdivision visits only coordinates present in the supplied storage.
+    pub(crate) fn initialized(
+        &self,
+        types: &ProgramDeclarations<'_, StructuralTypeDeclaration>,
+        bytes: &RuntimeRows<StructuralRuntimePlace, ByteSequenceView>,
+        home: &StructuralRuntimePlace,
+        structural_type: StructuralTypeId,
+    ) -> Result<bool, TerminalInterpretError> {
+        if terminal_semantics::scalar_array_leaf_shape(types.values(), structural_type)
+            .is_none_or(|(_, count)| count != 0)
+        {
+            return Err(malformed());
+        }
+        let mut pending = vec![(home.clone(), structural_type)];
+        while let Some((home, structural_type)) = pending.pop() {
+            if let Some((parent, state)) = self.containing(&home, false) {
+                if select(
+                    types,
+                    state.structural_type,
+                    &home.path[parent.path.len()..],
+                )? != structural_type
+                {
+                    return Err(malformed());
+                }
+                if state.initialized {
+                    // The nearest initialized prefix supplies all unmodified
+                    // children. Only explicit vacancies need further evidence.
+                    let mut previous: Option<&StructuralRuntimePlace> = None;
+                    for (child, state) in crate::structural_storage::cells(&self.rows, &home) {
+                        if state.initialized
+                            || previous.is_some_and(|parent| child.path.starts_with(&parent.path))
+                        {
+                            continue;
+                        }
+                        pending.push((child.clone(), state.structural_type));
+                        previous = Some(child);
+                    }
+                    continue;
+                }
+            }
+            if crate::structural_inputs::byte_arrays::byte_array_length(types, structural_type)
+                == Some(0)
+                && bytes.get(&home).is_some_and(|view| view.len() == 0)
+            {
+                continue;
+            }
+            let StructuralTypeShape::FixedArray { element, length } =
+                types.get(&structural_type).ok_or_else(malformed)?.shape
+            else {
+                return Err(malformed());
+            };
+            if length == 0 {
+                return Ok(false);
+            }
+            let mut indices = Vec::new();
+            for child in crate::structural_storage::cells(&self.rows, &home)
+                .map(|(key, _)| key)
+                .chain(crate::structural_storage::cells(bytes, &home).map(|(key, _)| key))
+            {
+                if let Some(StructuralPathSegment::FixedIndex(index)) =
+                    child.path.get(home.path.len())
+                {
+                    if *index >= length {
+                        return Err(malformed());
+                    }
+                    indices.push(*index);
+                }
+            }
+            indices.sort_unstable();
+            indices.dedup();
+            if u64::try_from(indices.len()).ok() != Some(length) {
+                return Ok(false);
+            }
+            for index in indices {
+                let mut child = home.clone();
+                child.path.push(StructuralPathSegment::FixedIndex(index));
+                pending.push((child, element));
+            }
+        }
+        Ok(true)
+    }
+
     pub(crate) fn initialized_type(
         &self,
         types: &ProgramDeclarations<'_, StructuralTypeDeclaration>,
@@ -89,27 +173,14 @@ impl EmptyArrayStorage {
         let Some((parent, state)) = self.containing(home, false) else {
             return Ok(None);
         };
-        let restored = |key: &StructuralRuntimePlace, state: &EmptyArrayState| {
-            bytes.get(key).is_some_and(|view| view.len() == 0)
-                && crate::structural_inputs::byte_arrays::byte_array_length(
-                    types,
-                    state.structural_type,
-                ) == Some(0)
-        };
-        if !state.initialized && !restored(parent, state) {
-            return Ok(None);
-        }
         let selected = select(
             types,
             state.structural_type,
             &home.path[parent.path.len()..],
         )?;
-        for (child, state) in crate::structural_storage::cells(&self.rows, home) {
-            if !state.initialized && !restored(child, state) {
-                return Ok(None);
-            }
-        }
-        Ok(Some(selected))
+        Ok(self
+            .initialized(types, bytes, home, selected)?
+            .then_some(selected))
     }
 
     pub(crate) fn initialized_byte_array(

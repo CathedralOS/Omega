@@ -220,6 +220,33 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
+        if count == 0 {
+            let initialized = if let Some(array) = self.scalar_array_values.get(&argument.place) {
+                array.structural_type == root_type
+                    && terminal_semantics::scalar_array_leaf_shape(types.values(), root_type)
+                        .is_some_and(|(_, count)| count == 0 && array.elements().is_empty())
+            } else {
+                let selected = self.resolve_live_storage_projection(
+                    argument.place,
+                    &argument.path,
+                    StructuralAccess::SharedBorrow,
+                )?;
+                if let Some(loan) = selected.array_loan {
+                    loan.initialized_empty_scalar_array(self, &[], structural_type)?
+                } else {
+                    if selected.value.structural_type != structural_type {
+                        return Err(malformed());
+                    }
+                    self.initialized_empty_scalar_array(
+                        &crate::values::StructuralRuntimePlace::from(&selected.value),
+                        structural_type,
+                    )?
+                }
+            };
+            if !initialized {
+                return Err(malformed());
+            }
+        }
         let mut dimensions = Vec::new();
         let mut current = structural_type;
         while let Some(StructuralTypeShape::FixedArray { element, length }) =
@@ -250,6 +277,19 @@ impl TerminalExecution<'_> {
             count,
             elements,
             self.account.as_ref(),
+        )
+    }
+
+    pub(crate) fn initialized_empty_scalar_array(
+        &self,
+        home: &crate::values::StructuralRuntimePlace,
+        structural_type: StructuralTypeId,
+    ) -> Result<bool, TerminalInterpretError> {
+        self.empty_array_storage.initialized(
+            &self.program.structural_types(),
+            &self.structural_byte_storage,
+            home,
+            structural_type,
         )
     }
 

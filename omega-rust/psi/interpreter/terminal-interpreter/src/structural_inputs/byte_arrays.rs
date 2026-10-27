@@ -278,12 +278,19 @@ impl TerminalExecution<'_> {
         place: semantic_vocabulary::PlaceId,
     ) -> Option<ArrayStorageHome> {
         let loan = self.element_view_values.get(&place)?;
-        let (depth, frame_place, structural_type) = loan.whole_scalar_array_frame()?;
+        let (depth, frame_place, structural_type) =
+            loan.complete_scalar_array_frame(&self.program.structural_types())?;
         let array = self.frame_array(depth, frame_place)?;
-        if array.structural_type != structural_type || loan.len() != array.elements().len() {
+        if array.structural_type != structural_type
+            || !loan.matches_descriptor_home(self.structural_values.get(&place)?)
+            || terminal_semantics::scalar_array_leaf_shape(
+                self.program.structural_types().values(),
+                structural_type,
+            )?
+            .1 != u64::try_from(array.elements().len()).ok()?
+        {
             return None;
         }
-        byte_array_length(&self.program.structural_types(), structural_type)?;
         Some(ArrayStorageHome::Frame {
             depth,
             place: frame_place,

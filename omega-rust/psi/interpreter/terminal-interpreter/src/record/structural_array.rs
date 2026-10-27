@@ -78,7 +78,7 @@ impl TerminalExecution<'_> {
         let retirement = self.prepare_constructor_operands(frontier, &consumed, claims)?;
         staged.publish(self)?;
         self.structural_values.insert(result.place, value)?;
-        retirement.commit(self);
+        retirement.commit(self)?;
         self.local_structural_identities.commit_cursor(cursor);
         Ok(crate::execution::OperationFlow::Advance)
     }

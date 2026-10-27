@@ -1,0 +1,2 @@
+machine snapshot(rows: &write [[u8; 0]; 2]) -> [u8; 0] { rows[0] }
+machine main() {}

@@ -243,7 +243,7 @@ impl TerminalExecution<'_> {
                 _lease: lease,
             });
         descriptor.resident = resident;
-        retirement.commit(self);
+        retirement.commit(self)?;
         self.local_structural_identities
             .commit_cursor(identity_cursor);
         Ok(())
@@ -445,7 +445,7 @@ impl TerminalExecution<'_> {
         let retirement = self.prepare_constructor_operands(frontier, &consumed, claims)?;
         storage.publish(self)?;
         self.structural_values.insert(result.place, value)?;
-        retirement.commit(self);
+        retirement.commit(self)?;
         self.local_structural_identities
             .commit_cursor(identity_cursor);
         Ok(())

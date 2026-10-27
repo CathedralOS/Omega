@@ -184,6 +184,12 @@ pub(crate) enum StorageLeafKind {
         destination: StructuralRuntimePlace,
         length: u64,
     },
+    /// One fully validated scalar-array subtree with no scalar instances.
+    /// Its type/path and initialized home remain real even without byte cells.
+    EmptyScalarArray {
+        destination: StructuralRuntimePlace,
+        structural_type: StructuralTypeId,
+    },
 }
 
 pub(crate) struct PinnedScalar {
@@ -273,6 +279,27 @@ fn collect(
             false,
         )?,
         StructuralTypeShape::FixedArray { element, length } => {
+            // Validate every dimension and the terminal primitive declaration
+            // before pruning instance work. An empty payload is not a shortcut
+            // for opaque/reference/cyclic element schemas. Compact a selected
+            // subtree only after its complete path has been consumed; selecting
+            // inside it still checks every declared index on the route.
+            if selected_path.is_none_or(|selected| selected == path.as_slice())
+                && terminal_semantics::scalar_array_leaf_shape(
+                    execution.program.structural_types().values(),
+                    root,
+                )
+                .is_some_and(|(_, count)| count == 0)
+            {
+                leaves.push(StorageLeaf {
+                    path: path.clone(),
+                    kind: StorageLeafKind::EmptyScalarArray {
+                        destination: destination.clone(),
+                        structural_type: root,
+                    },
+                });
+                return Ok(());
+            }
             if execution.program.structural_types().get(element).is_some_and(|row| matches!(row.shape, StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(carrier)) if carrier.bits() == 8 && !carrier.is_address() && carrier.sign() == semantic_vocabulary::IntegerSign::Unsigned)) {
                 leaves.push(StorageLeaf { path: path.clone(), kind: StorageLeafKind::ByteArray { destination: destination.clone(), length: *length } });
             }
@@ -560,6 +587,29 @@ pub(crate) fn capture(
                     value,
                     stored_scalar: storage.storage_scalar().unwrap_or(*stored_scalar),
                 }
+            }
+            StorageLeafKind::EmptyScalarArray {
+                destination,
+                structural_type,
+            } => {
+                let initialized = if let Some(loan) = array_loan {
+                    let selected = terminal_semantics::canonical_structural_storage_path(
+                        execution.program.structural_types().values(),
+                        referent.structural_type,
+                        &leaf.path,
+                    )
+                    .ok_or_else(malformed)?;
+                    loan.initialized_empty_scalar_array(execution, &selected, *structural_type)?
+                } else {
+                    execution.initialized_empty_scalar_array(destination, *structural_type)?
+                };
+                if !initialized {
+                    return Err(malformed());
+                }
+                // This buffer contains scalar/case values only. The typed
+                // initialization receipt was checked above; it is not a scalar
+                // value, native byte, reference or fabricated replacement.
+                continue;
             }
             StorageLeafKind::Opaque { .. }
             | StorageLeafKind::ByteField { .. }

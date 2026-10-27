@@ -90,6 +90,23 @@ impl TerminalInstance<'_, '_> {
                 })?;
                 Ok(TerminalEntryStorageValue::Bytes(bytes))
             }
+            StorageLeafKind::EmptyScalarArray {
+                destination,
+                structural_type,
+            } => {
+                if crate::structural_inputs::byte_arrays::byte_array_length(
+                    &execution.program.structural_types(),
+                    *structural_type,
+                ) == Some(0)
+                    && execution.initialized_empty_scalar_array(destination, *structural_type)?
+                {
+                    Ok(TerminalEntryStorageValue::Bytes(
+                        crate::TerminalByteRead::contiguous(&[]),
+                    ))
+                } else {
+                    Err(TerminalEntryStorageError::OpaqueContents)
+                }
+            }
             StorageLeafKind::ByteArray { destination, .. } => {
                 if execution.initialized_empty_byte_array(destination)? {
                     return Ok(TerminalEntryStorageValue::Bytes(

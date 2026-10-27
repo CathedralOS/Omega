@@ -543,6 +543,19 @@ impl TerminalExecution<'_> {
                         zero(*scalar_type).ok_or_else(malformed)?,
                     )?;
                 }
+                terminal_semantics::ZeroedStructuralLeaf::EmptyScalarArray {
+                    structural_type,
+                    ..
+                } => {
+                    self.empty_array_storage.establish(
+                        &self.program.structural_types(),
+                        StructuralRuntimePlace {
+                            opaque_identity: value.opaque_identity,
+                            path: storage_path(),
+                        },
+                        *structural_type,
+                    )?;
+                }
                 terminal_semantics::ZeroedStructuralLeaf::ByteArray { length, .. } => {
                     // Byte views and scalar indexing must share one backing.
                     // Storing these bytes as separate scalar cells would make
