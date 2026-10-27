@@ -141,44 +141,47 @@ pub(crate) fn cleanup_predicates(
         ) else {
             continue;
         };
-        if values.len() != 1 {
-            continue;
-        }
-        let captured = values.pop().expect("one completed scalar");
-        let Some(observed) =
-            crate::flow::captured_observation_places(program, &facts.flow, &captured)
-        else {
-            continue;
-        };
-        let [observed] = observed.as_slice() else {
-            continue;
-        };
-        {
-            let Some((machine, body)) =
-                validation::find_state(program, captured.observation.state_symbol)
-            else {
+        for captured in values.drain(..) {
+            let observed =
+                crate::flow::captured_observation_places(program, &facts.flow, &captured);
+            let observed = observed.as_deref().and_then(|places| {
+                if let [place] = places {
+                    Some(&place.projected)
+                } else {
+                    None
+                }
+            });
+            let coordinates = validation::find_state(program, captured.observation.state_symbol)
+                .is_some_and(|(machine, body)| {
+                    validation::value_has_builtin_coordinates(
+                        program,
+                        machine,
+                        body,
+                        captured.observation_projection.expression,
+                    )
+                });
+            let Some(observed) = observed.filter(|_| coordinates) else {
+                // An unresolved possible value still counts against coverage.
+                // Omitting it could let a known candidate with the same choice
+                // grant a destructor precondition for the wrong stored value.
+                captures.push(CapturedBinding::unresolved(
+                    position,
+                    captured.choices.clone(),
+                ));
                 continue;
             };
-            if !validation::value_has_builtin_coordinates(
+            let mut copied = binding.clone();
+            copied.place = observed.clone();
+            retain_bindings(
                 program,
-                machine,
-                body,
-                captured.observation_projection.expression,
-            ) {
-                continue;
-            }
+                facts,
+                &captured,
+                operand.row(),
+                &[copied],
+                position,
+                &mut captures,
+            );
         }
-        let mut copied = binding.clone();
-        copied.place = observed.projected.clone();
-        retain_bindings(
-            program,
-            facts,
-            &captured,
-            operand.row(),
-            &[copied],
-            position,
-            &mut captures,
-        );
     }
     if captures.is_empty() {
         return PredicateTransport::default();

@@ -17,6 +17,14 @@ pub(in crate::checks::contracts) struct CapturedBinding<'facts> {
 }
 
 impl<'facts> CapturedBinding<'facts> {
+    pub fn unresolved(position: usize, choices: Vec<CapturedValueChoice>) -> Self {
+        Self {
+            position,
+            choices,
+            aliases: Vec::new(),
+        }
+    }
+
     pub fn observation(
         position: usize,
         place: CanonicalPlace,

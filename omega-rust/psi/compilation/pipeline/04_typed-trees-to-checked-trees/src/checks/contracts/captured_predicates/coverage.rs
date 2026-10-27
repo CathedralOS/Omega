@@ -141,8 +141,23 @@ pub(super) fn qualify(
             result.predicates.push(proposition.predicate.clone());
         }
     }
+    // Ordinary unconditional transport stays on its existing outer proof
+    // route. Only genuine selections need a conditional implication check.
+    if evidence
+        .iter()
+        .all(|proposition| conditions.covers(&facts.flow.control, proposition.condition))
+    {
+        return result;
+    }
     let mut proven = conditions.never();
+    let mut supports = Vec::new();
     for support in &evidence {
+        if supports.contains(&support.condition)
+            || !conditions.possible(&facts.flow.control, support.condition)
+        {
+            continue;
+        }
+        supports.push(support.condition);
         let mut hypotheses = premises.to_vec();
         for proposition in &evidence {
             if implies(facts, conditions, support.condition, proposition.condition) {
@@ -160,6 +175,9 @@ pub(super) fn qualify(
             |_| None,
         ) {
             proven = conditions.any(proven, support.condition);
+            if conditions.covers(&facts.flow.control, proven) {
+                break;
+            }
         }
     }
     result.proves_required = conditions.covers(&facts.flow.control, proven);
