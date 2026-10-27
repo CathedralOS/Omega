@@ -323,6 +323,24 @@ impl SyntaxCopy<'_> {
                             call_selections: normalization.call_selections.clone(),
                         }
                     }),
+                    pending_qualification: constant.pending_qualification.as_ref().map(
+                        |obligation| {
+                            if obligation.declaration == constant.name.source_span()
+                                && obligation.destination == constant.type_reference
+                                && obligation.initializer == constant.value
+                            {
+                                crate::item::ConstDestinationObligation {
+                                    declaration: constant.name.source_span(),
+                                    destination: type_reference,
+                                    initializer: value,
+                                }
+                            } else {
+                                // Preserve stale debt as stale; a copy cannot mint
+                                // a new destination proof for changed inputs.
+                                obligation.clone()
+                            }
+                        },
+                    ),
                     qualification: constant.qualification.as_ref().and_then(|qualification| {
                         (qualification.destination == constant.type_reference
                             && qualification.initializer == constant.value)

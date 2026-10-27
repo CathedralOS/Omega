@@ -91,10 +91,21 @@ pub struct ConstDefinition {
     /// completed initializer and declared qualification. Private probe forests
     /// clear this judgment when changing either input.
     pub qualification: Option<ConstQualification>,
+    /// An encoded private payload still owes this exact full destination.
+    /// No public/index consumer may retire it without ordinary checking.
+    pub pending_qualification: Option<ConstDestinationObligation>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
 pub struct ConstQualification {
+    pub destination: crate::types::TypeReferenceHandle,
+    pub initializer: crate::expression::ExpressionHandle,
+}
+
+/// A required checked destination judgment, never an accepted receipt.
+#[derive(Debug, Clone, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
+pub struct ConstDestinationObligation {
+    pub declaration: source::SourceSpan,
     pub destination: crate::types::TypeReferenceHandle,
     pub initializer: crate::expression::ExpressionHandle,
 }

@@ -1066,6 +1066,17 @@ pass/facts/crash_entry_signed_zero_through_parameter_exit built 11172ms exit:0 i
 pass/facts/crash_entry_signed_zero_through_target_body_exit built 11541ms exit:0 interpreter-exit:0 interpreter:agrees @47676d7c9bb2
 pass/facts/data_where_standing_const_coupled_const built 1797ms exit:0 interpreter-exit:0 interpreter:agrees @fdf827e3c460
 pass/facts/data_where_standing_const_nested_const built 1801ms exit:0 interpreter-exit:0 interpreter:agrees @fdf827e3c460
+pass/facts/data_where_standing_predicate_helper_alias_exit built 15465ms exit:0 interpreter-exit:0 interpreter:agrees @9f6a475e7bc2
+pass/facts/data_where_standing_predicate_helper_literal_exit built 3671ms exit:0 interpreter-exit:0 interpreter:agrees @9f6a475e7bc2
+pass/facts/data_where_standing_predicate_helper_through_call_result_exit built 3128ms exit:0 interpreter-exit:0 interpreter:agrees @9f6a475e7bc2
+pass/facts/data_where_standing_predicate_helper_through_const_name_exit built 14631ms exit:0 interpreter-exit:0 interpreter:agrees @9f6a475e7bc2
+pass/facts/data_where_standing_predicate_helper_through_field_exit built 3092ms exit:0 interpreter-exit:0 interpreter:agrees @9f6a475e7bc2
+pass/facts/data_where_standing_predicate_helper_through_local_exit built 2696ms exit:0 interpreter-exit:0 interpreter:agrees @9f6a475e7bc2
+pass/facts/data_where_standing_predicate_helper_through_match_join_exit built 2245ms exit:0 interpreter-exit:0 interpreter:agrees @9f6a475e7bc2
+pass/facts/data_where_standing_predicate_helper_through_other_machine_exit built 2036ms exit:0 interpreter-exit:0 interpreter:agrees @9f6a475e7bc2
+pass/facts/data_where_standing_predicate_helper_through_other_state_exit built 3617ms exit:0 interpreter-exit:0 interpreter:agrees @9f6a475e7bc2
+pass/facts/data_where_standing_predicate_helper_through_parameter_exit built 3532ms exit:0 interpreter-exit:0 interpreter:agrees @9f6a475e7bc2
+pass/facts/data_where_standing_predicate_helper_through_target_body_exit built 2666ms exit:0 interpreter-exit:0 interpreter:agrees @9f6a475e7bc2
 pass/facts/data_where_standing_root_exit built 1677ms exit:0 interpreter-exit:0 interpreter:agrees @fdf827e3c460
 pass/facts/data_where_standing_through_call_result_exit built 1674ms exit:0 interpreter-exit:0 interpreter:agrees @fdf827e3c460
 pass/facts/data_where_standing_through_const_name_exit built 8332ms exit:0 interpreter-exit:0 interpreter:agrees @fdf827e3c460

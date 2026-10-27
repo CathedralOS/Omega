@@ -205,6 +205,7 @@ fn assembled_first_statement(
 
 fn single_state_machine(state: arena::Handle<StateHandle>) -> Machine {
     Machine {
+        nested_machines: HandleSpan::empty(),
         name: Identifier::generated("main"),
         generic_data_template: Default::default(),
         default_body_trait: Default::default(),
@@ -764,6 +765,7 @@ fn constant_argument_origin_survives_deep_copy_and_root_extension() {
     );
 
     source.push_root_item(Item::Data(DataDefinition {
+        cleanup_selection: None,
         name: Identifier::generated("Buffer<2>"),
         is_public: false,
         supply_mode: language_core::DataSupplyMode::CheckedShape,
@@ -944,6 +946,7 @@ fn syntax_copy_and_snapshot_preserve_generic_instance_origin() {
         arguments,
     });
     source.push_root_item(Item::Data(DataDefinition {
+        cleanup_selection: None,
         name: Identifier::generated("irrelevant synthetic name"),
         is_public: false,
         supply_mode: language_core::DataSupplyMode::CheckedShape,
@@ -994,6 +997,7 @@ fn syntax_trees_extend_from_preserves_trait_and_data_visibility() {
         refinement_clauses: Vec::new(),
     }));
     file.push_root_item(Item::Data(DataDefinition {
+        cleanup_selection: None,
         name: Identifier::generated("PublicData"),
         is_public: true,
         members: HandleSpan::empty(),
@@ -1388,4 +1392,65 @@ fn contextual_syntax_equality_includes_detached_nodes_and_logical_name_text() {
     let mut changed = right.clone();
     changed.expressions.insert(ExpressionNode::Boolean(true));
     assert_ne!(left, changed);
+}
+
+#[test]
+fn constant_destination_debt_is_remapped_without_settling_or_refreshing_stale_inputs() {
+    let mut source = SyntaxTrees::new(Default::default());
+    let destination_type = source
+        .type_references
+        .insert(TypeReferenceNode::Named(Identifier::generated("i32")));
+    let value = source.expressions.insert(ExpressionNode::Integer(
+        numerics::literals::IntegerLiteral::from_value(7),
+    ));
+    let other = source.expressions.insert(ExpressionNode::Boolean(false));
+    let name = Identifier::generated("PENDING");
+    let obligation = crate::item::ConstDestinationObligation {
+        declaration: name.source_span(),
+        destination: destination_type,
+        initializer: value,
+    };
+    let mut constant = crate::item::ConstDefinition {
+        name,
+        type_reference: destination_type,
+        value,
+        pending_qualification: Some(obligation.clone()),
+        ..Default::default()
+    };
+    let mut destination = SyntaxTrees::new(Default::default());
+    for _ in 0..8 {
+        destination
+            .expressions
+            .insert(ExpressionNode::Boolean(true));
+    }
+    destination
+        .type_references
+        .insert(TypeReferenceNode::Named(Identifier::generated("u64")));
+    let Item::Const(copied) = destination.copy_item_from(&source, &Item::Const(constant.clone()))
+    else {
+        panic!("copied constant");
+    };
+    assert_ne!(copied.value, value);
+    assert!(copied.qualification.is_none());
+    let pending = copied
+        .pending_qualification
+        .expect("pending destination retained");
+    assert_eq!(pending.declaration, copied.name.source_span());
+    assert_eq!(pending.destination, copied.type_reference);
+    assert_eq!(pending.initializer, copied.value);
+
+    let stale = crate::item::ConstDestinationObligation {
+        initializer: other,
+        ..obligation
+    };
+    constant.pending_qualification = Some(stale.clone());
+    let Item::Const(copied) = destination.copy_item_from(&source, &Item::Const(constant)) else {
+        panic!("copied stale constant");
+    };
+    assert!(copied.qualification.is_none());
+    let pending = copied
+        .pending_qualification
+        .expect("stale debt cannot vanish");
+    assert_eq!(pending, stale);
+    assert_ne!(pending.initializer, copied.value);
 }

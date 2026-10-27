@@ -27,7 +27,11 @@ mod closure_validation;
 mod concrete_invocation;
 mod supplied_values;
 
-pub(crate) use concrete_invocation::{SnapshotArgument, snapshot_arguments_discharge};
+pub(crate) use concrete_invocation::{
+    SnapshotArgument,
+    require_complete_invocation_conditions as require_complete_checked_conditions,
+    snapshot_arguments_discharge,
+};
 pub(crate) use supplied_values::require_established_arguments;
 pub(crate) mod const_evaluable;
 mod selection_authority;

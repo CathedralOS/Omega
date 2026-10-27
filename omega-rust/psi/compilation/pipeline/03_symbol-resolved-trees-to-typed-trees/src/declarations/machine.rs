@@ -459,6 +459,18 @@ fn lower_machine_contents(
             .push_machine_state(&mut typed_machine, state);
     }
 
+    // Ranking expressions are declaration-owned source custody even while
+    // the implementation remains deferred. Retain their exact typed roots
+    // with the entry formals so projection can account for their selections.
+    // The private implementation witness below is still absent until the body
+    // completes; retaining an expression proves no termination or admission.
+    let ranking_exposure = lowerer.type_reference_exposure.map(|_| {
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
+    });
+    lowerer.with_type_reference_exposure(ranking_exposure, |lowerer| {
+        retain_machine_ranking_expressions(lowerer, machine)
+    })?;
+
     // #66 Phase 1 (returns) NOT YET: synthesizing an `ensures result in Domain`
     // for a `-> T in Domain` return type is VACUOUS today -- the contract
     // entailment proves arithmetic ensures (polynomials over `result`) but does
@@ -473,6 +485,52 @@ fn lower_machine_contents(
         complete_machine_body(lowerer, machine, &mut typed_machine)?;
     }
     Ok(typed_machine)
+}
+
+/// Lower declaration-scoped ranking terms once, alongside their formal
+/// interface. Their eventual private witness and proof remain implementation
+/// work. Deferred-body completion reuses these identities rather than minting
+/// another unowned copy of the authored selections.
+fn retain_machine_ranking_expressions(
+    lowerer: &mut Lowerer,
+    machine: &resolved::machine::Machine,
+) -> Result<(), Diagnostic> {
+    let ranking_subjects = lowerer
+        .source_trees
+        .tables
+        .bodies
+        .expressions
+        .expression_handles(machine.ranking_subjects)
+        .iter()
+        .map(|decrease| lower_expression_handle(lowerer, *decrease))
+        .collect::<Result<Vec<_>, _>>()?;
+    let ranking_view_arguments = lowerer
+        .source_trees
+        .tables
+        .bodies
+        .expressions
+        .expression_handles(machine.ranking_view_arguments)
+        .iter()
+        .map(|argument| lower_expression_handle(lowerer, *argument))
+        .collect::<Result<Vec<_>, _>>()?;
+    let ranking_range = machine
+        .ranking_range
+        .is_valid()
+        .then(|| lower_expression_handle(lowerer, machine.ranking_range))
+        .transpose()?;
+    if !ranking_subjects.is_empty() || !ranking_view_arguments.is_empty() || ranking_range.is_some()
+    {
+        lowerer.typed_trees.ranking_expression_custody.push(
+            typed::ranking::RankingExpressionCustody {
+                machine: machine.symbol,
+                subjects: ranking_subjects,
+                view_arguments: ranking_view_arguments,
+                rank_range: ranking_range,
+            },
+        );
+    }
+
+    Ok(())
 }
 
 /// Lower a selected implementation into its retained typed declaration. Eager
@@ -554,41 +612,6 @@ fn lower_machine_implementation(
             .machine_trait_conformances
             .span_mut_or_empty(typed_machine.satisfies)[ordinal]
             .via_expression = via_expression;
-    }
-
-    let ranking_subjects = lowerer
-        .source_trees
-        .tables
-        .bodies
-        .expressions
-        .expression_handles(machine.ranking_subjects)
-        .iter()
-        .map(|decrease| lower_expression_handle(lowerer, *decrease))
-        .collect::<Result<Vec<_>, _>>()?;
-    let ranking_view_arguments = lowerer
-        .source_trees
-        .tables
-        .bodies
-        .expressions
-        .expression_handles(machine.ranking_view_arguments)
-        .iter()
-        .map(|argument| lower_expression_handle(lowerer, *argument))
-        .collect::<Result<Vec<_>, _>>()?;
-    let ranking_range = machine
-        .ranking_range
-        .is_valid()
-        .then(|| lower_expression_handle(lowerer, machine.ranking_range))
-        .transpose()?;
-    if !ranking_subjects.is_empty() || !ranking_view_arguments.is_empty() || ranking_range.is_some()
-    {
-        lowerer.typed_trees.ranking_expression_custody.push(
-            typed::ranking::RankingExpressionCustody {
-                machine: machine.symbol,
-                subjects: ranking_subjects,
-                view_arguments: ranking_view_arguments,
-                rank_range: ranking_range,
-            },
-        );
     }
 
     let source_states = lowerer.source_trees.machine_state_handles(machine.states);

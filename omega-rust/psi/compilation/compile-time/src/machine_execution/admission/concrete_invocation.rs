@@ -373,7 +373,7 @@ pub(super) fn append_invocation_probe(
 /// declarations for visibility, and their outer pending work grants no premise
 /// and need not finish to evaluate this independent call. Unknown ownership
 /// cannot establish independence. The same fence serves every admission route.
-pub(super) fn require_complete_invocation_conditions(
+pub(crate) fn require_complete_invocation_conditions(
     checked: &checked_trees::CheckedTrees,
     root: SymbolHandle,
 ) -> Result<(), String> {
