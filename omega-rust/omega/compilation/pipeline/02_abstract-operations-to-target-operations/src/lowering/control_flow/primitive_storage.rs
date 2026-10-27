@@ -174,12 +174,7 @@ pub(super) fn field_indices(
         &mut BTreeMap::new(),
         &mut BTreeSet::new(),
     )?;
-    let runs = regions
-        .pointer_slots
-        .into_iter()
-        .flat_map(|slot| slot.indices)
-        .chain(leaf_indices)
-        .collect();
+    let runs = regions.selector_runs(leaf_indices);
     super::scalar_sources::runtime_indices(
         runs,
         function,
@@ -601,12 +596,7 @@ pub(super) fn lower(
             if projection.scalar != result.scalar_type {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
-            let runs = projection
-                .pointer_slots
-                .into_iter()
-                .flat_map(|slot| slot.indices)
-                .chain(projection.leaf.indices)
-                .collect();
+            let runs = projection.selector_runs();
             let indices = super::scalar_sources::runtime_indices(
                 runs,
                 function,

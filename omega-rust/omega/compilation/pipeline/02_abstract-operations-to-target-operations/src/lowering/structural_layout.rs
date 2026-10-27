@@ -30,6 +30,19 @@ pub(super) struct PrimitiveProjection {
     pub(super) leaf: StorageProjection,
 }
 
+impl PrimitiveProjection {
+    /// Every selector this address owns, in region order: each pointer slot
+    /// before the final region. Selection applies one run per authored
+    /// segment, so they never flatten into a single offset.
+    pub(super) fn selector_runs(self) -> Vec<(semantic_vocabulary::ValueId, u32)> {
+        self.pointer_slots
+            .into_iter()
+            .chain([self.leaf])
+            .flat_map(|region| region.indices)
+            .collect()
+    }
+}
+
 /// Select borrowed backing after each stored reference crossing. Offsets are
 /// relative to the last referent, never to a descriptor containing its pointer.
 /// Ordinary and foreign calls use the same geometry; call custody establishes
@@ -142,6 +155,22 @@ pub(super) struct ReferenceProjectionRegions<'path> {
     pub(super) path: &'path [StructuralPathSegment],
     pub(super) pointer_slots: Vec<StorageProjection>,
     pub(super) readable: bool,
+}
+
+impl ReferenceProjectionRegions<'_> {
+    /// Every selector this projection owns, in region order: each ordered
+    /// pointer crossing contributes its own runs before the final region's
+    /// leaf. Selection scales one run per authored segment around its load.
+    pub(super) fn selector_runs(
+        self,
+        leaf: Vec<(semantic_vocabulary::ValueId, u32)>,
+    ) -> Vec<(semantic_vocabulary::ValueId, u32)> {
+        self.pointer_slots
+            .into_iter()
+            .flat_map(|slot| slot.indices)
+            .chain(leaf)
+            .collect()
+    }
 }
 
 pub(super) fn reference_projection_regions<'path>(
@@ -1279,12 +1308,7 @@ pub(super) fn runtime_leaf_copy_projection(
         active,
         |field| field.leaf_copy_type(Some(expected)),
     )?;
-    let indices = regions
-        .pointer_slots
-        .into_iter()
-        .flat_map(|slot| slot.indices)
-        .chain(leaf_indices)
-        .collect();
+    let indices = regions.selector_runs(leaf_indices);
     Ok((selected, shape, byte_offset, indices))
 }
 
@@ -1313,12 +1337,7 @@ pub(super) fn runtime_borrowed_projection(
         active,
         |field| field.borrowed_presentation_type(access, expected),
     )?;
-    let indices = regions
-        .pointer_slots
-        .into_iter()
-        .flat_map(|slot| slot.indices)
-        .chain(leaf_indices)
-        .collect();
+    let indices = regions.selector_runs(leaf_indices);
     Ok((selected, shape, offset, indices))
 }
 
@@ -1351,12 +1370,7 @@ pub(super) fn storage_address_indices(
         )?
         .3
     };
-    Ok(regions
-        .pointer_slots
-        .into_iter()
-        .flat_map(|slot| slot.indices)
-        .chain(leaf_indices)
-        .collect())
+    Ok(regions.selector_runs(leaf_indices))
 }
 
 fn runtime_projection_with_leaf_type(

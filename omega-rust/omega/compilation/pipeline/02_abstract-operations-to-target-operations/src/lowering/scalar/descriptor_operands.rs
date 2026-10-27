@@ -119,12 +119,7 @@ pub(in crate::lowering) fn descriptor_projection(
     .ok_or_else(invalid)?;
     let (selected, _, _, leaf_indices) =
         runtime_descriptor_projection(regions.root, regions.path, structural_types)?;
-    let indices = regions
-        .pointer_slots
-        .into_iter()
-        .flat_map(|slot| slot.indices)
-        .chain(leaf_indices)
-        .collect();
+    let indices = regions.selector_runs(leaf_indices);
     let indices = crate::lowering::control_flow::scalar_sources::runtime_indices(
         indices,
         function,
