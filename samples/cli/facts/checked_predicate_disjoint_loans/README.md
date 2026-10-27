@@ -403,3 +403,85 @@ and same-statement/theorem acceptance remains open. It does not establish
 arbitrary helper-internal operands, generic/static/evidence applications,
 stored-reference crossings or arbitrary runtime-length collection predicates.
 All four hosted entry bindings are present; actual execution here is macOS ARM64.
+
+## Boolean fields in framed predicates
+
+The `*/boolean_guard_predicate/` production retains an owned Boolean field in
+`BORROW-PROOF-CONVERGENCE`'s complete checked predicate. `distinct(indices)`
+requires `indices.enabled` before the selector bounds and the checked helper's
+disequality. All places preserve the same fact, two-element bound, original
+caller loans, and writes of 17 and 53. The twin changes only the helper's first
+strict comparison to an inclusive one.
+
+| Place | Positive | Reject twin |
+| --- | --- | --- |
+| local | [program](local/boolean_guard_predicate/main.omg) | [weakened helper](local/boolean_guard_predicate/invalid/main.omg) |
+| field | [program](field/boolean_guard_predicate/main.omg) | [weakened helper](field/boolean_guard_predicate/invalid/main.omg) |
+| parameter | [program](parameter/boolean_guard_predicate/main.omg) | [weakened helper](parameter/boolean_guard_predicate/invalid/main.omg) |
+| call_result | [program](call_result/boolean_guard_predicate/main.omg) | [weakened helper](call_result/boolean_guard_predicate/invalid/main.omg) |
+| match_join | [program](match_join/boolean_guard_predicate/main.omg) | [weakened helper](match_join/boolean_guard_predicate/invalid/main.omg) |
+| const_name | [program](const_name/boolean_guard_predicate/main.omg) | [weakened helper](const_name/boolean_guard_predicate/invalid/main.omg) |
+| other_state | [program](other_state/boolean_guard_predicate/main.omg) | [weakened helper](other_state/boolean_guard_predicate/invalid/main.omg) |
+| other_machine | [program](other_machine/boolean_guard_predicate/main.omg) | [weakened helper](other_machine/boolean_guard_predicate/invalid/main.omg) |
+| target_body | [program](target_body/boolean_guard_predicate/main.omg) | [weakened helper](target_body/boolean_guard_predicate/invalid/main.omg) |
+
+Establishment uses exact immutable formal/record observations. Boolean values
+stay Boolean: their private proof representation supplies no executable integer
+subject. Each retained Boolean polarity and integer relation independently owes
+necessity; ordinary reads form under preceding guards; the complete conjunction
+proves its converse without assuming the original predicate. Call-result and
+match factories establish `result.enabled == true` in their own result contracts.
+
+Composition interprets an independently admitted checked predicate frame under
+its completed arguments. Existing immutable/Shared formal admission, pure and
+observation-free closure, crash exclusion, and active-declaration independence
+remain. Inner ordinary helper calls still pass the separate mathematical-call
+carrier fence and exact selected operational checks. This supplies neither
+source preconditions nor termination. It does not turn a borrowed referent into
+a mathematical value, stage a hidden referent copy, or change reference authority.
+The target-body condition keeps the typed Boolean leaf and full caller path.
+
+The [missing-Boolean control](controls/boolean_guard_required/main.omg) supplies
+all bounds and disequality at an abstract invocation but cannot establish the
+whole predicate. The [owned snapshot](controls/boolean_guard_operand_snapshot/main.omg)
+explicitly copies the Boolean and selected values before a later argument flips
+the original flag; its [false-before/true-after twin](controls/boolean_guard_operand_snapshot/invalid/main.omg)
+still rejects. The [stale-field control](controls/boolean_guard_stale/invalid/main.omg)
+changes the current Boolean while leaving the selected indices distinct and
+cannot reuse the old whole predicate. Existing partial-operand, helper-formation,
+stored-reference and selected-operation controls retain their separate duties.
+
+Both runtime orders write distinct caller cells surrounded by nonzero canaries.
+Match arms return opposite orders. Late predicate calls observe true, equal-false,
+out-of-range-false and disabled-false outcomes after the loans. These observations
+do not establish earlier static facts. Target-neutral Terminal Psi and existing
+provider, layout, calling-plan and native-image owners preserve the operation.
+
+Fresh optimized producer `ea5033a8c98d1e21b92c837dca51bc431756e54b`
+on macOS ARM64 records 200 public observations: 89 native/Terminal Psi
+agreements and 111 fact-sensitive rejects. The retained corpus records 199
+checking outcomes (88 accepted, 111 rejected) and 88 native/Terminal agreements,
+with zero wrong-reason or infrastructure failures. Only 22 checking and ten
+native golden records were added; existing records are unchanged.
+
+Four historical comparison statuses remain unchanged. The original comparison
+also retains one `runtime_symbolic_slice_cell_theorem_exit` rejection: both the
+immutable current-main baseline `33da3619641243057042e79e2b3e4a088688893a`
+and repaired producer report the same two missing nested-cycle ranking witnesses
+on that unchanged source. It receives no accepted or runtime credit here. The
+separately frozen valid ranked theorem core checks on both current producers;
+the named disjoint/overlapping-window pair and retained reference/partial-operation
+controls preserve their intended results. The raw historical discrepancy and
+its exact baseline attribution remain in qualification evidence.
+
+The original frozen local/target positives refused five/twenty diagnostics on
+current-main baseline33da before implementation. Intermediate checkpoints keep
+their own producer identities; complete observations above belong to the final
+producer. Actual checked/native source bundles are retained for replay.
+
+This closes the measured owned Boolean-field production. The broad task's
+structured-callee/domain, runtime-projection and same-statement/theorem acceptance
+remains open. It does not establish arbitrary dynamic Boolean indexing, generic
+or evidence-selected bodies, stored-reference crossings, or unrestricted runtime
+collection predicates. All four hosted entry bindings are present; native
+execution here is macOS ARM64.
