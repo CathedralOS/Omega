@@ -77,6 +77,26 @@ pub(super) fn lower(
             return unsupported("computed enum receiver has no checked normal disposition");
         }
     }
+    // The completed tag is independent of its fresh reference carrier. Reuse
+    // the scalar-observation completion owner; an established outer operand
+    // retains its enclosing consumer's lifetime instead.
+    let target = if established {
+        target
+    } else {
+        expansion.complete_observation_receiver(
+            expansion
+                .checked
+                .facts
+                .values
+                .scalar_computations
+                .nodes
+                .get(observation)
+                .normal_cleanup_actions,
+            input_types,
+            super::ScalarType::Boolean.into(),
+            target,
+        )
+    };
     let mut arguments = super::parameters(input_types);
     arguments.push(super::parameter(
         input_types.len(),

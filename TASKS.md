@@ -364,9 +364,6 @@ defines the complete product bar.
     ARM64, macOS ARM64, and Windows x86-64.
   - Complete remaining runtime aggregate construction and opaque-provider
     result replacement through opaque incoming referents.
-  - Complete saved case observations whose reference-returning receiver call
-    has effects before the tag read, retaining the actual read epoch through
-    saved Boolean copies (`samples/cli/facts/saved_case_predicate/`).
   - Complete remaining generic/reference saved-observation and
     single-evaluation pattern destructuring compositions.
   Acceptance: a composed caller tolerates renamed/reordered states and inserted
