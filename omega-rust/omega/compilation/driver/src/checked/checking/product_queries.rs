@@ -96,6 +96,18 @@ impl ProductQueries {
         }
         let occurrence = source::SourceSpan::new(selected.source_id, query.occurrence.span);
         match query.operation {
+            psi_compiler::TerminalBuildQueryOperation::SchemaPath
+            | psi_compiler::TerminalBuildQueryOperation::ProviderPath => Err(refuse(
+                "description inspection belongs to its issuing Build activation, not source resolution",
+            )),
+            psi_compiler::TerminalBuildQueryOperation::Schema => source
+                .describe_schema(occurrence, &query.path)
+                .map(BuildProductDescription::Schema)
+                .map_err(refuse),
+            psi_compiler::TerminalBuildQueryOperation::Provider => source
+                .describe_provider(occurrence, &query.path)
+                .map(BuildProductDescription::Provider)
+                .map_err(refuse),
             psi_compiler::TerminalBuildQueryOperation::Entry => source
                 .describe_entry(
                     occurrence,

@@ -1584,14 +1584,10 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     self.evaluated_operand(binary.left, contexts, constraints)
                 };
                 if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
-                    let (value, completion) = self.logical_expression(
-                        binary,
-                        evaluated_left.boolean,
-                        evaluated_left.boolean_completion,
-                        contexts,
-                        constraints,
-                    );
+                    let (value, completion, inputs) =
+                        self.logical_expression(binary, evaluated_left, contexts, constraints);
                     *boolean_completion = completion;
+                    *evaluated_inputs = inputs;
                     return value;
                 }
                 let left_operand = evaluated_left.capture;

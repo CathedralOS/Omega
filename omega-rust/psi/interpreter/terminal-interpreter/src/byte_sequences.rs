@@ -128,6 +128,27 @@ impl ByteSequenceView {
         &self.backing.storage.bytes()[self.window.clone()]
     }
 
+    /// A foreign host result cannot charge another invocation or omit the
+    /// receiving invocation's storage budget. Preserve its allocation only
+    /// when it already belongs to that exact account.
+    pub(crate) fn into_account(
+        self,
+        account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+    ) -> Result<Self, crate::errors::TerminalInterpretError> {
+        let same = match (self.backing.storage.account(), account) {
+            (None, None) => true,
+            (Some(previous), Some(current)) => previous.same_invocation(current),
+            _ => false,
+        };
+        if same {
+            return Ok(self);
+        }
+        Ok(Self::new(storage::ByteSequenceStorage::copy(
+            self.bytes(),
+            account,
+        )?))
+    }
+
     pub(crate) fn get(&self, index: usize) -> Option<&u8> {
         self.bytes().get(index)
     }

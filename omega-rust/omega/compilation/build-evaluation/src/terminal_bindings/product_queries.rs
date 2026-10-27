@@ -2,7 +2,9 @@
 
 use super::{BindingState, TerminalBuildBindingHost};
 use evaluation_accounting::EvaluationStorageLease;
-use language_semantics::declaration_selection::DescribedProductEntry;
+use language_semantics::declaration_selection::{
+    DescribedProductEntry, DescribedProductProvider, DescribedProductSchema,
+};
 use psi_compiler::{TerminalBuildQueryCall, TerminalBuildQueryOperation};
 use std::sync::Arc;
 use terminal_interpreter::{
@@ -20,6 +22,8 @@ pub struct BuildProductQuery {
 #[derive(Debug, Clone)]
 pub enum BuildProductDescription {
     Entry(DescribedProductEntry),
+    Schema(DescribedProductSchema),
+    Provider(DescribedProductProvider),
 }
 
 pub(super) struct PendingQuery {
@@ -101,6 +105,12 @@ impl TerminalBuildBindingHost<'_> {
             (
                 TerminalBuildQueryOperation::Entry,
                 BuildProductDescription::Entry(_)
+            ) | (
+                TerminalBuildQueryOperation::Schema,
+                BuildProductDescription::Schema(_)
+            ) | (
+                TerminalBuildQueryOperation::Provider,
+                BuildProductDescription::Provider(_)
             )
         );
         if !role_matches {
@@ -110,6 +120,8 @@ impl TerminalBuildBindingHost<'_> {
             BuildProductDescription::Entry(entry) => {
                 entry.machine_name.len().checked_add(entry.slot.len())
             }
+            BuildProductDescription::Schema(schema) => Some(schema.canonical_path.len()),
+            BuildProductDescription::Provider(provider) => Some(provider.canonical_path.len()),
         }
         .and_then(|bytes| u64::try_from(bytes).ok())
         .ok_or("Product description payload size overflowed")?;
@@ -127,7 +139,13 @@ impl TerminalBuildBindingHost<'_> {
         call: &TerminalBuildQueryCall,
         effect: &TerminalEffect,
     ) -> Result<bool, TerminalEffectRejection> {
-        let request = self.query_arguments(effect)?;
+        if matches!(
+            call.action,
+            TerminalBuildQueryOperation::SchemaPath | TerminalBuildQueryOperation::ProviderPath
+        ) {
+            return Ok(true);
+        }
+        let request = self.query_arguments(call.action, effect)?;
         let mut state = self.state.lock().map_err(|_| {
             TerminalEffectRejection::new("Build binding activation lock was poisoned")
         })?;
@@ -179,8 +197,14 @@ impl TerminalBuildBindingHost<'_> {
         call: &TerminalBuildQueryCall,
         effect: &TerminalEffect,
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
+        if matches!(
+            call.action,
+            TerminalBuildQueryOperation::SchemaPath | TerminalBuildQueryOperation::ProviderPath
+        ) {
+            return self.inspect_description(call.action, effect);
+        }
         let refuse = TerminalEffectRejection::new;
-        let request = self.query_arguments(effect)?;
+        let request = self.query_arguments(call.action, effect)?;
         let TerminalEffect::BoundaryCall {
             result: terminal_psi::BoundaryMachineResult::Structural(result),
             ..
@@ -228,6 +252,7 @@ impl TerminalBuildBindingHost<'_> {
 
     fn query_arguments<'effect>(
         &self,
+        action: TerminalBuildQueryOperation,
         effect: &'effect TerminalEffect,
     ) -> Result<QueryArguments<'effect>, TerminalEffectRejection> {
         let refuse = TerminalEffectRejection::new;
@@ -249,7 +274,13 @@ impl TerminalBuildBindingHost<'_> {
                 "product selection requires the compiler-issued Build.product facet",
             ));
         }
-        let arity = 3;
+        let arity = match action {
+            TerminalBuildQueryOperation::Entry => 3,
+            TerminalBuildQueryOperation::Schema | TerminalBuildQueryOperation::Provider => 2,
+            TerminalBuildQueryOperation::SchemaPath | TerminalBuildQueryOperation::ProviderPath => {
+                return Err(refuse("description inspection is not a source query"));
+            }
+        };
         if structural_arguments.len() != arity || byte_sequence_arguments.len() != arity {
             return Err(refuse("Product query has an invalid argument roster"));
         }
@@ -261,7 +292,67 @@ impl TerminalBuildBindingHost<'_> {
         };
         Ok(QueryArguments {
             path: bytes(1)?,
-            slot: Some(bytes(2)?),
+            slot: if arity == 3 { Some(bytes(2)?) } else { None },
         })
+    }
+
+    fn inspect_description(
+        &self,
+        action: TerminalBuildQueryOperation,
+        effect: &TerminalEffect,
+    ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
+        let refuse = TerminalEffectRejection::new;
+        let TerminalEffect::BoundaryCall {
+            arguments,
+            structural_arguments,
+            byte_sequence_arguments,
+            ..
+        } = effect
+        else {
+            return Err(refuse("not a description inspection effect"));
+        };
+        let [value] = structural_arguments.as_slice() else {
+            return Err(refuse(
+                "description inspection requires one explicit description",
+            ));
+        };
+        if !arguments.is_empty() || byte_sequence_arguments.as_slice() != [None] {
+            return Err(refuse(
+                "description inspection has an invalid argument roster",
+            ));
+        }
+        let state = self
+            .state
+            .lock()
+            .map_err(|_| refuse("Build binding activation lock was poisoned"))?;
+        let issued = state
+            .descriptions
+            .iter()
+            .find(|issued| &issued.value == value);
+        let path = match (action, issued.map(|issued| &issued.description)) {
+            (
+                TerminalBuildQueryOperation::SchemaPath,
+                Some(BuildProductDescription::Schema(schema)),
+            ) => &schema.canonical_path,
+            (
+                TerminalBuildQueryOperation::ProviderPath,
+                Some(BuildProductDescription::Provider(provider)),
+            ) => &provider.canonical_path,
+            (TerminalBuildQueryOperation::SchemaPath, _) => {
+                return Err(refuse(
+                    "product-schema path access requires a compiler-issued ProductTypeSchema",
+                ));
+            }
+            _ => {
+                return Err(refuse(
+                    "product-provider path access requires a compiler-issued ProductProviderRef",
+                ));
+            }
+        };
+        terminal_interpreter::TerminalByteSequenceValue::copy(path.as_bytes(), self.account)
+            .map(TerminalEffectResult::ByteSequence)
+            .map_err(|error| {
+                TerminalEffectRejection::new(format!("description path storage: {error}"))
+            })
     }
 }

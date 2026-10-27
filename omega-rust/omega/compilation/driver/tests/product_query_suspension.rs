@@ -3,6 +3,90 @@
 use compiler::{CheckedCompileRequest, CompilationSession};
 
 #[test]
+fn schema_and_named_provider_queries_resume_the_original_build() {
+    use build_evaluation::terminal_bindings::BuildProductDescription;
+    use psi_compiler::TerminalBuildQueryOperation;
+    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(4)
+        .unwrap();
+    let root = repository.join("tests/omega/pass/build/product_description_paths_exit/main.omg");
+    let mut session = CompilationSession::default();
+    let mut invocation = session
+        .begin_package_build(CheckedCompileRequest::new(&root, None))
+        .unwrap_or_else(|failure| panic!("{:?}", failure.into_diagnostics()));
+    let mut queries = invocation.product_queries();
+    let mut host = invocation.execution().unwrap().host().unwrap();
+    let mut activation = host.start().unwrap();
+    let mut queried = Vec::new();
+    loop {
+        let step = activation.advance(1024).unwrap();
+        if step.returned {
+            break;
+        }
+        assert!(step.awaiting_provider.is_none());
+        let Some(request) = step.awaiting_query else {
+            continue;
+        };
+        assert!(request.slot.is_none());
+        // Selecting a locator never coerces a different declaration kind.
+        let mut wrong_role = request.as_ref().clone();
+        wrong_role.path = match request.operation {
+            TerminalBuildQueryOperation::Schema => b"payload::Provider".to_vec(),
+            TerminalBuildQueryOperation::Provider => b"payload::Packet".to_vec(),
+            _ => panic!("unexpected query"),
+        };
+        let rejected = queries.describe(&wrong_role, Vec::new()).unwrap_err();
+        assert!(
+            rejected
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("names no")),
+            "{rejected:?}"
+        );
+        let answer = queries.describe(&request, Vec::new()).unwrap();
+        let repeated = queries.describe(&request, Vec::new()).unwrap();
+        match (&answer, repeated) {
+            (
+                BuildProductDescription::Schema(schema),
+                BuildProductDescription::Schema(repeated),
+            ) => {
+                assert_eq!(request.operation, TerminalBuildQueryOperation::Schema);
+                assert_eq!(schema.canonical_path, "payload::Packet");
+                assert_eq!(
+                    *schema, repeated,
+                    "query context retains the exact declaration"
+                );
+            }
+            (
+                BuildProductDescription::Provider(provider),
+                BuildProductDescription::Provider(repeated),
+            ) => {
+                assert_eq!(request.operation, TerminalBuildQueryOperation::Provider);
+                assert_eq!(provider.canonical_path, "payload::Provider");
+                assert_eq!(
+                    *provider, repeated,
+                    "query context retains the named implementation"
+                );
+            }
+            _ => panic!("unexpected query role: {answer:?}"),
+        }
+        queried.push(request.operation);
+        activation.answer_query(&request, answer, &[]).unwrap();
+    }
+    assert_eq!(
+        queried,
+        [
+            TerminalBuildQueryOperation::Schema,
+            TerminalBuildQueryOperation::Provider
+        ]
+    );
+    // The fixture performs each path inspection twice, plus two ordinary path
+    // calls that increment a counter. Return proves its exact values and count;
+    // only the two declaration queries suspend for source work.
+    activation.complete().unwrap();
+}
+
+#[test]
 fn admitted_build_helpers_keep_their_lexical_product_scope() {
     use package_compilation::{
         BuildDeclarationKind, PackageCompilationInputs, PackageDependencyBinding,

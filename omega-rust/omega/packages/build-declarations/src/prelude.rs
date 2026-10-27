@@ -75,9 +75,9 @@ public data BuildLog {
 }
 // Compiler-owned product-selection facet. `builder.product.entry`,
 // `builder.product.provider`, and `builder.product.schema` are the only routes
-// to compiler-issued product descriptions: the evaluator answers each query
-// by lexical lookup under the call occurrence's package and returns an opaque
-// marker; the declared bodies are never executed.
+// to compiler-issued product descriptions. Normalization retains the authored
+// occurrence on the host call, which resolves the locator in that package's
+// Product scope before the original Build activation resumes.
 public data BuildProduct {
 }
 // A restricted, non-callable product-entry description. Authored code can
@@ -91,6 +91,10 @@ public data ProductEntryRef [copy] {
 // the activation mints descriptions only after that exact query is answered.
 public boundary trait BuildProductOperations {
     machine entry(product: &BuildProduct, path: &[u8], slot: &[u8]) -> ProductEntryRef reaches;
+    machine schema(product: &BuildProduct, path: &[u8]) -> ProductTypeSchema reaches;
+    machine provider(product: &BuildProduct, path: &[u8]) -> ProductProviderRef reaches;
+    machine schema_path(schema: &ProductTypeSchema) -> &[u8] reaches;
+    machine provider_path(provider: &ProductProviderRef) -> &[u8] reaches;
 }
 // Execution protocol for the designated Build::bind syntax. Typing supplies
 // the exact product-selection occurrence beside the ordinary boundary call.
@@ -374,15 +378,14 @@ machine BuildOutput::seal(output: &mut BuildOutput, obligation: RequiredOutput, 
 machine BuildOutput::retry(obligation: RequiredOutput, file: BuildPath) -> OutputCompletion {
     OutputCompletion::Retry { obligation: obligation, file: file }
 }
-// The described product declaration's canonical path. The evaluator answers
-// from its private description table; the declared body never executes.
-public machine ProductTypeSchema::path(schema: &ProductTypeSchema) -> &[u8] {
-    ""
+// Inspection authenticates the issued schema and returns a stable read-only
+// snapshot of its canonical path, without reopening Product source.
+public machine ProductTypeSchema::path(schema: &ProductTypeSchema) -> &[u8] reaches BuildProductOperations invokes BuildProductOperations; {
+    BuildProductOperations::schema_path(schema)
 }
-// The described provider declaration's canonical path. The evaluator answers
-// from its private description table; the declared body never executes.
-public machine ProductProviderRef::path(provider: &ProductProviderRef) -> &[u8] {
-    ""
+// Provider inspection has its own role check over the same activation table.
+public machine ProductProviderRef::path(provider: &ProductProviderRef) -> &[u8] reaches BuildProductOperations invokes BuildProductOperations; {
+    BuildProductOperations::provider_path(provider)
 }
 public machine BuildLog::write_line(log: &mut BuildLog, text: &[u8]) reaches BuildRequestOperations invokes BuildRequestOperations; {
     BuildRequestOperations::write_log(log, text);
@@ -395,20 +398,16 @@ public machine BuildProduct::entry(product: &BuildProduct, path: &[u8], slot: &[
     BuildProductOperations::entry(product, path, slot)
 }
 // Fallible logical query: select the exact product data declaration `path`
-// names in this call occurrence's own package. The evaluator intercepts the
-// call and returns the restricted schema-description marker; this declared
-// body is only a statically well-typed stand-in.
-public machine BuildProduct::schema(product: &BuildProduct, path: &[u8]) -> ProductTypeSchema {
-    ProductTypeSchema {}
+// names in this call occurrence's own package. The same query protocol retains
+// the authored occurrence and issues a description after source resolution.
+public machine BuildProduct::schema(product: &BuildProduct, path: &[u8]) -> ProductTypeSchema reaches BuildProductOperations invokes BuildProductOperations; {
+    BuildProductOperations::schema(product, path)
 }
 // Fallible logical query: select the exact product provider declaration `path`
 // names in this call occurrence's own package. A provider declaration is a
-// nominal data type owning at least one `satisfies` machine; other data does
-// not qualify. The evaluator intercepts the call and returns the restricted
-// provider-description marker; this declared body is only a statically
-// well-typed stand-in.
-public machine BuildProduct::provider(product: &BuildProduct, path: &[u8]) -> ProductProviderRef {
-    ProductProviderRef {}
+// named implementation, never a data type with attached code.
+public machine BuildProduct::provider(product: &BuildProduct, path: &[u8]) -> ProductProviderRef reaches BuildProductOperations invokes BuildProductOperations; {
+    BuildProductOperations::provider(product, path)
 }
 // compiler-owned optimization enable machine
 // compiler-owned optimization report machine
