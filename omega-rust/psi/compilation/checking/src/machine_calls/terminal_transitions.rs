@@ -139,6 +139,7 @@ pub fn normalize_terminal_transition_calls(
             .expression_handles(arguments)
             .to_vec();
         let arguments = program.expression_table.insert_expression_handles(operands);
+        let target_symbol = crate::call_target_entry_symbol(program, path.symbol);
         let call = program
             .expression_table
             .insert(ExpressionNode::Call(TableCallExpression {
@@ -147,7 +148,9 @@ pub fn normalize_terminal_transition_calls(
                 requirement_application: Default::default(),
                 exact_coercion_target: Default::default(),
                 receiver,
-                target_symbol: path.symbol,
+                // Calls carry signature coordinates; their expression kind
+                // retains invocation semantics even for a self/ancestor edge.
+                target_symbol,
                 static_machine_parameter,
                 target: leaf,
                 static_requirement_dispatch: None,

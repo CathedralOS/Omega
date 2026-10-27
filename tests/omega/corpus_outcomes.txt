@@ -2437,8 +2437,8 @@ fail/calls/terminal_call_duplicate_block rejected 23ms expected @a92f16431042
 	tests/omega/fail/calls/terminal_call_duplicate_block/main.omg:3:29: duplicate `block` call acknowledgement; write it exactly once
 fail/calls/terminal_call_duplicate_suspend rejected 11ms expected @a92f16431042
 	tests/omega/fail/calls/terminal_call_duplicate_suspend/main.omg:3:31: duplicate `suspend` call acknowledgement; write it exactly once
-fail/calls/terminal_call_marked_state rejected 794ms expected @a92f16431042
-	`next` is an internal state of this machine and cannot be called; ordinary calls invoke machines, not states: enter it with `transition { _ -> next(..) }`, or make it a machine if its result is used as a value
+fail/calls/terminal_call_marked_state rejected 555ms expected @5360a4e726fd0ca54382e3c6febb0901955bfe75
+	call to `next` has operational envelope neither suspension nor blocking but acknowledges `block`; call acknowledgements must match exactly
 fail/calls/terminal_call_redundant_block rejected 3558ms expected @a92f16431042
 	call to `ready` has operational envelope neither suspension nor blocking but acknowledges `block`; call acknowledgements must match exactly
 fail/calls/terminal_call_result_type_mismatch_rejected rejected 975ms expected @a92f16431042
@@ -11354,6 +11354,41 @@ fail/facts/nested_machine_invocation/unit_completion rejected 370ms expected @b0
 	machine `dispatch` state `entry`: `finish(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local
 	call to `entry` discards its non-unit `u64` result; consume the value or discard it explicitly with `_ = entry(...);`
 	machine `dispatch$specialized$2022ecce155df880$0` state `entry`: `entry(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local
+fail/facts/nested_machine_lexical_entry_call_result_rejected rejected 653ms expected @371d35eadbbce54e5f311618ce3f80dac231a76e
+	state `entry` expects 3 argument(s), got 2
+fail/facts/nested_machine_lexical_entry_const_name_rejected rejected 743ms expected @371d35eadbbce54e5f311618ce3f80dac231a76e
+	state `entry` expects 3 argument(s), got 2
+fail/facts/nested_machine_lexical_entry_field_rejected rejected 651ms expected @371d35eadbbce54e5f311618ce3f80dac231a76e
+	state `entry` expects 3 argument(s), got 2
+fail/facts/nested_machine_lexical_entry_local_rejected rejected 692ms expected @371d35eadbbce54e5f311618ce3f80dac231a76e
+	state `entry` expects 3 argument(s), got 2
+fail/facts/nested_machine_lexical_entry_match_join_rejected rejected 560ms expected @371d35eadbbce54e5f311618ce3f80dac231a76e
+	state `entry` expects 3 argument(s), got 2
+fail/facts/nested_machine_lexical_entry_missing_module_rejected rejected 513ms expected @371d35eadbbce54e5f311618ce3f80dac231a76e
+	terminal call `routines::entry` does not select a declared machine entry or callable requirement
+fail/facts/nested_machine_lexical_entry_ordinary_rejected rejected 578ms expected @371d35eadbbce54e5f311618ce3f80dac231a76e
+	state `entry` expects 3 argument(s), got 2
+fail/facts/nested_machine_lexical_entry_other_machine_rejected rejected 842ms expected @371d35eadbbce54e5f311618ce3f80dac231a76e
+	state `entry` expects 3 argument(s), got 2
+fail/facts/nested_machine_lexical_entry_other_state_rejected rejected 745ms expected @371d35eadbbce54e5f311618ce3f80dac231a76e
+	state `entry` expects 3 argument(s), got 2
+fail/facts/nested_machine_lexical_entry_parameter_rejected rejected 745ms expected @371d35eadbbce54e5f311618ce3f80dac231a76e
+	state `entry` expects 3 argument(s), got 2
+fail/facts/nested_machine_lexical_entry_parenthesized_rejected rejected 609ms expected @371d35eadbbce54e5f311618ce3f80dac231a76e
+	state `entry` expects 3 argument(s), got 2
+fail/facts/nested_machine_lexical_entry_qualified_rejected rejected 551ms expected @371d35eadbbce54e5f311618ce3f80dac231a76e
+	machine `probe` state `entry` value call to `entry` violates required fact `value > 0`: the instantiated fact is structurally false (`0 > 0`)
+fail/facts/nested_machine_lexical_entry_shadowed_namespace_ordinary_rejected rejected 692ms expected @371d35eadbbce54e5f311618ce3f80dac231a76e
+	machine `probe` state `entry`: value call `routines.entry(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+fail/facts/nested_machine_lexical_entry_shadowed_namespace_rejected rejected 645ms expected @371d35eadbbce54e5f311618ce3f80dac231a76e
+	terminal call `routines::entry` does not select a declared machine entry or callable requirement
+fail/facts/nested_machine_lexical_entry_target_body_rejected rejected 577ms expected @371d35eadbbce54e5f311618ce3f80dac231a76e
+	state `entry` expects 3 argument(s), got 2
+	state `entry` expects 3 argument(s), got 2
+	state `entry` expects 3 argument(s), got 2
+	state `entry` expects 3 argument(s), got 2
+fail/facts/nested_machine_lexical_entry_unpublished_body_rejected rejected 501ms expected @371d35eadbbce54e5f311618ce3f80dac231a76e
+	terminal call `entry` does not select a declared machine entry or callable requirement
 fail/facts/nested_machine_private_arithmetic_call_result_rejected rejected 587ms expected @b8ce72f09729ee24597e3255a8f48fb93e9e5add
 	exact arithmetic in machine `apply` state `entry` local `result` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/nested_machine_private_arithmetic_const_name_rejected rejected 586ms expected @b8ce72f09729ee24597e3255a8f48fb93e9e5add
@@ -27233,6 +27268,18 @@ pass/facts/nested_machine_invocation/selected_helper checked 2557ms check-target
 pass/facts/nested_machine_invocation/shadowing checked 2298ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 pass/facts/nested_machine_invocation/target_body checked 2896ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 pass/facts/nested_machine_invocation/unit_completion checked 2785ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
+pass/facts/nested_machine_lexical_entry_call_result_exit checked 2629ms check-target:macos_arm64 @371d35eadbbce54e5f311618ce3f80dac231a76e
+pass/facts/nested_machine_lexical_entry_const_name_exit checked 2525ms check-target:macos_arm64 @371d35eadbbce54e5f311618ce3f80dac231a76e
+pass/facts/nested_machine_lexical_entry_field_exit checked 3049ms check-target:macos_arm64 @371d35eadbbce54e5f311618ce3f80dac231a76e
+pass/facts/nested_machine_lexical_entry_local_exit checked 2843ms check-target:macos_arm64 @371d35eadbbce54e5f311618ce3f80dac231a76e
+pass/facts/nested_machine_lexical_entry_match_join_exit checked 2789ms check-target:macos_arm64 @371d35eadbbce54e5f311618ce3f80dac231a76e
+pass/facts/nested_machine_lexical_entry_ordinary_exit checked 2789ms check-target:macos_arm64 @371d35eadbbce54e5f311618ce3f80dac231a76e
+pass/facts/nested_machine_lexical_entry_other_machine_exit checked 2730ms check-target:macos_arm64 @371d35eadbbce54e5f311618ce3f80dac231a76e
+pass/facts/nested_machine_lexical_entry_other_state_exit checked 2755ms check-target:macos_arm64 @371d35eadbbce54e5f311618ce3f80dac231a76e
+pass/facts/nested_machine_lexical_entry_parameter_exit checked 2616ms check-target:macos_arm64 @371d35eadbbce54e5f311618ce3f80dac231a76e
+pass/facts/nested_machine_lexical_entry_parenthesized_exit checked 2759ms check-target:macos_arm64 @371d35eadbbce54e5f311618ce3f80dac231a76e
+pass/facts/nested_machine_lexical_entry_qualified_exit checked 2360ms check-target:macos_arm64 @371d35eadbbce54e5f311618ce3f80dac231a76e
+pass/facts/nested_machine_lexical_entry_target_body_exit checked 3071ms check-target:macos_arm64 @371d35eadbbce54e5f311618ce3f80dac231a76e
 pass/facts/nested_machine_private_arithmetic_call_result_exit checked 2744ms check-target:macos_arm64 @b8ce72f09729ee24597e3255a8f48fb93e9e5add
 pass/facts/nested_machine_private_arithmetic_const_name_exit checked 2602ms check-target:macos_arm64 @b8ce72f09729ee24597e3255a8f48fb93e9e5add
 pass/facts/nested_machine_private_arithmetic_field_exit checked 2979ms check-target:macos_arm64 @b8ce72f09729ee24597e3255a8f48fb93e9e5add

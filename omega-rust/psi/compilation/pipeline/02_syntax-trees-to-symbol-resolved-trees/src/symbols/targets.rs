@@ -1,4 +1,5 @@
 mod calls;
+mod static_namespaces;
 mod transitions;
 
 pub(super) use calls::{
@@ -7,3 +8,5 @@ pub(super) use calls::{
     resolve_free_machine_entry_state_symbol,
 };
 pub(super) use transitions::assign_transition_target_symbols;
+
+pub(crate) use static_namespaces::normalize_static_module_calls;

@@ -1,0 +1,7 @@
+// A generated body coordinate is not a source-visible machine.
+machine probe(value: u64) -> u64 { transition { _ -> entry(value) } }
+machine main() crashes Trap {
+    let value: u64 = probe(7);
+    transition value == 7 { true -> done() false -> bad() }
+    machine done() {} machine bad() crashes Trap { crash Trap; }
+}
