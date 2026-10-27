@@ -4,12 +4,11 @@
 //! `ByteContents` leaf; the destination and the `u8` value are resolved by
 //! the same owners as every other store.
 use super::super::{
-    CheckFacts, CheckedStructuralAccess, CheckedUnitEffectOperationPlan, ExpressionNode,
-    Multiplicity, TypeReferenceNode,
+    CheckedStructuralAccess, CheckedUnitEffectOperationPlan, ExpressionNode, Multiplicity,
+    TypeReferenceNode,
 };
-use super::destination::{Destination, Root};
+use super::destination::Root;
 use super::value::{self, AssignmentSource};
-use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::{
     byte_sequence_carrier, structural_access_for_type_reference, terminal_field_identity,
 };
@@ -21,17 +20,15 @@ use crate::execution::terminal_unit::types::{
 /// borrowing its backing does not turn it into an unqualified byte view.
 /// Entry, state and local owners retain their declared binding mutability;
 /// where the home was established does not change the byte operation.
-pub(super) fn byte_write(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    destination: &Destination<'_>,
-    statement_index: u32,
-    assignment: &typed_trees::statement::TableAssignment,
-    source: AssignmentSource,
-    trace: &LocalConstructionTrace,
-) -> Option<CheckedUnitEffectOperationPlan> {
+pub(super) fn byte_write(site: &super::Site<'_, '_, '_>) -> Option<CheckedUnitEffectOperationPlan> {
+    let super::Occurrence {
+        program,
+        state,
+        statement_index,
+        trace,
+        ..
+    } = site.occurrence;
+    let destination = site.destination;
     trace.phase("indexed store: byte backing");
     let index = destination.dynamic_index?;
     if !destination.place.segments.is_empty() {
@@ -89,30 +86,24 @@ pub(super) fn byte_write(
     }) {
         return None;
     }
-    let indexed = indexed_byte_value(
-        program,
-        facts,
-        machine,
-        state,
-        statement_index,
-        index,
-        assignment,
-        source,
-        trace,
-    )?;
+    let indexed = indexed_byte_value(&site.occurrence, index)?;
     Some(indexed.store(statement_index, destination.root.destination(), Vec::new()))
 }
 
 /// A whole borrowed owner retains its caller's capacity and qualifications.
 pub(super) fn whole_store(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    state: &typed_trees::state::State,
-    destination: &Destination<'_>,
-    statement_index: u32,
-    assignment: &typed_trees::statement::TableAssignment,
-    source: AssignmentSource,
+    site: &super::Site<'_, '_, '_>,
 ) -> Option<CheckedUnitEffectOperationPlan> {
+    let super::Occurrence {
+        program,
+        facts,
+        state,
+        statement_index,
+        assignment,
+        source,
+        ..
+    } = site.occurrence;
+    let destination = site.destination;
     if !destination.place.segments.is_empty()
         || destination.dynamic_index.is_some()
         || !matches!(source, AssignmentSource::Authored)
@@ -181,19 +172,21 @@ pub(super) fn whole_store(
 /// domain on the field must be a plain predicate domain; a whole-literal
 /// store must also satisfy it from the literal's own bytes.
 pub(super) fn field_store(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    destination: &Destination<'_>,
+    site: &super::Site<'_, '_, '_>,
     carrier_path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
     field: &typed_trees::data::DataField,
     capacity: Option<u64>,
-    statement_index: u32,
-    assignment: &typed_trees::statement::TableAssignment,
-    source: AssignmentSource,
-    trace: &LocalConstructionTrace,
 ) -> Option<CheckedUnitEffectOperationPlan> {
+    let super::Occurrence {
+        program,
+        facts,
+        state,
+        statement_index,
+        assignment,
+        source,
+        ..
+    } = site.occurrence;
+    let destination = site.destination;
     // Destination resolution already authenticated the local's mutable loan.
     // Retain that identity: a returned reference is not a new owned record or
     // a synthetic formal parameter.
@@ -225,17 +218,7 @@ pub(super) fn field_store(
         {
             return None;
         }
-        let indexed = indexed_byte_value(
-            program,
-            facts,
-            machine,
-            state,
-            statement_index,
-            index,
-            assignment,
-            source,
-            trace,
-        )?;
+        let indexed = indexed_byte_value(&site.occurrence, index)?;
         return Some(indexed.store(statement_index, store_root, field_path));
     }
     let capacity = capacity?;
@@ -597,28 +580,19 @@ impl IndexedByte {
 
 #[allow(clippy::too_many_arguments)]
 fn indexed_byte_value(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    statement_index: u32,
+    occurrence: &super::Occurrence<'_, '_>,
     index: typed_trees::expression::ExpressionHandle,
-    assignment: &typed_trees::statement::TableAssignment,
-    source: AssignmentSource,
-    trace: &LocalConstructionTrace,
 ) -> Option<IndexedByte> {
+    let super::Occurrence {
+        facts,
+        state,
+        statement_index,
+        assignment,
+        ..
+    } = *occurrence;
     Some(IndexedByte {
         index: value::runtime_index(facts, state, statement_index, index)?,
-        value: value::byte_value(
-            program,
-            facts,
-            machine,
-            state,
-            statement_index,
-            assignment,
-            source,
-            trace,
-        )?,
+        value: value::byte_value(occurrence)?,
         // Both byte leaves index the authored target itself.
         decisions: checked_trees::CheckedIndexedWriteDecisions {
             index_in_bounds: facts.scalar_index_is_proven(assignment.target),

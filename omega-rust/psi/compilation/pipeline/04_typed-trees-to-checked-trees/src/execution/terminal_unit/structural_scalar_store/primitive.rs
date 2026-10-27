@@ -59,17 +59,18 @@ pub(in crate::execution::terminal_unit) fn primitive_local_before<'program>(
 /// is not a primitive leaf this lane writes. The shared statement roster
 /// validates the complete state write frame.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn store_at(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    destination: &super::destination::Destination<'_>,
-    statement_index: u32,
-    assignment: &typed_trees::statement::TableAssignment,
-    source: super::value::AssignmentSource,
-    trace: &crate::execution::terminal_unit::control::LocalConstructionTrace,
-) -> Option<CheckedUnitEffectOperationPlan> {
+pub(super) fn store_at(site: &super::Site<'_, '_, '_>) -> Option<CheckedUnitEffectOperationPlan> {
+    let super::Occurrence {
+        program,
+        facts,
+        machine,
+        state,
+        statement_index,
+        assignment,
+        source,
+        ..
+    } = site.occurrence;
+    let destination = site.destination;
     let projection = destination.storage_projection(program)?;
     let primitive_type = program.primitive_type_reference(projection.type_reference)?;
     // Declared scalar fields retain their own field-store proof obligations.
@@ -160,17 +161,9 @@ pub(super) fn store_at(
         // result instead of an AssignmentValue expression-table row. Retain
         // the same exact result-type and authored-call checks as field stores;
         // destination authority, selectors and receiving domains stay above.
-        super::value::AssignmentSource::CallResult { .. } => super::value::assignment_value(
-            program,
-            facts,
-            machine,
-            state,
-            statement_index,
-            assignment,
-            source,
-            primitive_type,
-            trace,
-        )?,
+        super::value::AssignmentSource::CallResult { .. } => {
+            super::value::assignment_value(&site.occurrence, primitive_type)?
+        }
         super::value::AssignmentSource::StructuralValue { .. } => return None,
     };
     Some(CheckedUnitEffectOperationPlan::new_store(
