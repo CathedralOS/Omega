@@ -1,0 +1,1922 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "d43dd99b5a751ee5603f8713f0882a4d540467d8",
+  "dirty": false,
+  "leg": "both",
+  "target": "macos_arm64",
+  "golden": "tests/omega/corpus_both_macos_arm64.txt",
+  "golden_reason_gaps": {
+    "rows": 0,
+    "of": 4910
+  },
+  "subset": true,
+  "filter": "facts/nested_machine_,composed_runtime_predicate,calls/nested_machine_,calls/guarded_terminal_call_chain_exit",
+  "shard": null,
+  "verdict": "regressed",
+  "exit_code": 3,
+  "counts": {
+    "fixtures": 85,
+    "by_status": {
+      "built": 76,
+      "rejected": 9
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 9,
+    "lost_success_fixtures": [
+      "pass/facts/checked_predicate_disjoint_loans_through_call_result_composed_runtime_predicate_exit",
+      "pass/facts/checked_predicate_disjoint_loans_through_const_name_composed_runtime_predicate_exit",
+      "pass/facts/checked_predicate_disjoint_loans_through_field_composed_runtime_predicate_exit",
+      "pass/facts/checked_predicate_disjoint_loans_through_local_composed_runtime_predicate_exit",
+      "pass/facts/checked_predicate_disjoint_loans_through_match_join_composed_runtime_predicate_exit",
+      "pass/facts/checked_predicate_disjoint_loans_through_other_machine_composed_runtime_predicate_exit",
+      "pass/facts/checked_predicate_disjoint_loans_through_other_state_composed_runtime_predicate_exit",
+      "pass/facts/checked_predicate_disjoint_loans_through_parameter_composed_runtime_predicate_exit",
+      "pass/facts/checked_predicate_disjoint_loans_through_target_body_composed_runtime_predicate_exit"
+    ],
+    "pinned_off_target": 9,
+    "pinned_off_target_fixtures": [
+      "pass/facts/checked_predicate_disjoint_loans_through_call_result_composed_runtime_predicate_exit",
+      "pass/facts/checked_predicate_disjoint_loans_through_const_name_composed_runtime_predicate_exit",
+      "pass/facts/checked_predicate_disjoint_loans_through_field_composed_runtime_predicate_exit",
+      "pass/facts/checked_predicate_disjoint_loans_through_local_composed_runtime_predicate_exit",
+      "pass/facts/checked_predicate_disjoint_loans_through_match_join_composed_runtime_predicate_exit",
+      "pass/facts/checked_predicate_disjoint_loans_through_other_machine_composed_runtime_predicate_exit",
+      "pass/facts/checked_predicate_disjoint_loans_through_other_state_composed_runtime_predicate_exit",
+      "pass/facts/checked_predicate_disjoint_loans_through_parameter_composed_runtime_predicate_exit",
+      "pass/facts/checked_predicate_disjoint_loans_through_target_body_composed_runtime_predicate_exit"
+    ],
+    "by_verdict": {
+      "new": 1,
+      "regressed": 9
+    }
+  },
+  "oracle_failures": [
+    "pass/facts/checked_predicate_disjoint_loans_through_call_result_composed_runtime_predicate_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/checked_predicate_disjoint_loans_through_const_name_composed_runtime_predicate_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/checked_predicate_disjoint_loans_through_field_composed_runtime_predicate_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/checked_predicate_disjoint_loans_through_local_composed_runtime_predicate_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/checked_predicate_disjoint_loans_through_match_join_composed_runtime_predicate_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/checked_predicate_disjoint_loans_through_other_machine_composed_runtime_predicate_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/checked_predicate_disjoint_loans_through_other_state_composed_runtime_predicate_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/checked_predicate_disjoint_loans_through_parameter_composed_runtime_predicate_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/checked_predicate_disjoint_loans_through_target_body_composed_runtime_predicate_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/checked_predicate_disjoint_loans_through_call_result_composed_runtime_predicate_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/checked_predicate_disjoint_loans_through_const_name_composed_runtime_predicate_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/checked_predicate_disjoint_loans_through_field_composed_runtime_predicate_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/checked_predicate_disjoint_loans_through_local_composed_runtime_predicate_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/checked_predicate_disjoint_loans_through_match_join_composed_runtime_predicate_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/checked_predicate_disjoint_loans_through_other_machine_composed_runtime_predicate_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/checked_predicate_disjoint_loans_through_other_state_composed_runtime_predicate_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/checked_predicate_disjoint_loans_through_parameter_composed_runtime_predicate_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/facts/checked_predicate_disjoint_loans_through_target_body_composed_runtime_predicate_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}"
+  ],
+  "infrastructure_error": null,
+  "golden_provenance": {
+    "stamped": 84,
+    "legacy": 0,
+    "unknown_revisions": 1,
+    "oldest": {
+      "revision": "b011da5f273a04a924bc79cfa9df3bef5bcd6674",
+      "commits_behind": 45
+    }
+  },
+  "perf_context": {
+    "golden": {
+      "cpus": 10,
+      "jobs": "2",
+      "load1_end": 8.75,
+      "load1_start": 7.27,
+      "machine": "arm64",
+      "platform": "darwin",
+      "schema": "omega-corpus-context-v1"
+    },
+    "current": {
+      "schema": "omega-corpus-context-v1",
+      "jobs": null,
+      "cpus": 10,
+      "platform": "darwin",
+      "machine": "arm64",
+      "load1_start": 8.4,
+      "load1_end": 11.24
+    },
+    "warnings": []
+  },
+  "observations": [
+    {
+      "fixture": "pass/calls/guarded_terminal_call_chain_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3906,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/calls/nested_machine_continuation",
+      "tier": "pass",
+      "status": "built",
+      "millis": 16250,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/checked_predicate_disjoint_loans_through_call_result_composed_runtime_predicate_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 8837,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "cannot prove requires contract for call replace from main: distinct(forward_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call replace from main: distinct(reverse_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": {
+        "status": "built",
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        }
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/checked_predicate_disjoint_loans_through_const_name_composed_runtime_predicate_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 5313,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "cannot prove requires contract for call replace from main: distinct(forward_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call replace from main: distinct(reverse_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": {
+        "status": "built",
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        }
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/checked_predicate_disjoint_loans_through_field_composed_runtime_predicate_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 16709,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "cannot prove requires contract for call replace from main: distinct(forward_selection.indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call replace from main: distinct(reverse_selection.indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": {
+        "status": "built",
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        }
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/checked_predicate_disjoint_loans_through_local_composed_runtime_predicate_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 6716,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "cannot prove requires contract for call replace from main: distinct(forward_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call replace from main: distinct(reverse_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": {
+        "status": "built",
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        }
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/checked_predicate_disjoint_loans_through_match_join_composed_runtime_predicate_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 5318,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "cannot prove requires contract for call replace from main: distinct(forward_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call replace from main: distinct(reverse_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": {
+        "status": "built",
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        }
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/checked_predicate_disjoint_loans_through_other_machine_composed_runtime_predicate_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 3706,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "cannot prove requires contract for call replace from forward: distinct(indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call replace from reverse: distinct(indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": {
+        "status": "built",
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        }
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/checked_predicate_disjoint_loans_through_other_state_composed_runtime_predicate_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 5332,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "cannot prove requires contract for call forward from main: distinct(forward_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call forward from main: distinct(reverse_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": {
+        "status": "built",
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        }
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/checked_predicate_disjoint_loans_through_parameter_composed_runtime_predicate_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 8844,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "cannot prove requires contract for call forward from main: distinct(forward_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call forward from main: distinct(reverse_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": {
+        "status": "built",
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        }
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/checked_predicate_disjoint_loans_through_target_body_composed_runtime_predicate_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 11861,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "cannot prove requires contract for call replace from main: distinct(forward_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call replace from main: distinct(forward_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call replace from main: distinct(forward_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call replace from main: distinct(forward_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call replace from main: distinct(reverse_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call replace from main: distinct(reverse_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call replace from main: distinct(reverse_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call replace from main: distinct(reverse_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": {
+        "status": "built",
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        }
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6873,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3323,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3182,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4911,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5171,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3949,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3957,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3965,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4123,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/ancestor_cycle",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5009,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/attached_context",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3965,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/borrow_context",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4745,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/call_result",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4776,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/callable_context",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4301,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/const_context",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4189,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/const_name",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4122,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/copied_payload",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4722,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/field",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4748,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/generic_context",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4528,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/inferred_crash",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4819,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "signal",
+        "signal": "5",
+        "interpreter": "trapped",
+        "terminal-target.windows_x86_64": "trap",
+        "terminal-target.linux_x86_64": "trap",
+        "terminal-target.macos_arm64": "trap",
+        "terminal-target.linux_arm64": "trap",
+        "terminal-target-artifact": "unchanged",
+        "terminal-targets": "match"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/local",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4667,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/match_join",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5305,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/nominal_index",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4844,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/other_machine",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4931,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/other_state",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4555,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/parameter",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4596,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/ranked_callee",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4619,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/selected_helper",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4637,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/shadowing",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4427,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/target_body",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4554,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/unit_completion",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4844,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4598,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4596,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4672,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4965,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4677,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_ordinary_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4875,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4731,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4537,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4802,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_parenthesized_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4917,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_qualified_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4448,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4819,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_borrowed_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4473,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_borrowed_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4534,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_borrowed_disjoint_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4684,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_borrowed_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4869,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_borrowed_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4582,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_borrowed_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4195,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_borrowed_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4228,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_borrowed_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4887,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_borrowed_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4695,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_borrowed_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4725,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4839,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4654,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4554,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4666,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4483,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_multiple_arrivals_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4493,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_mutable_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3877,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_mutable_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4807,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_mutable_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4804,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_mutable_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4966,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_mutable_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4771,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_mutable_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4581,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_mutable_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4713,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_mutable_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4463,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_mutable_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4454,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4115,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4317,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3680,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_public_contract_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3410,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_snapshot_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3411,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3144,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  ],
+  "fixtures": [
+    {
+      "fixture": "pass/calls/guarded_terminal_call_chain_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/calls/guarded_terminal_call_chain_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 3906,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/checked_predicate_disjoint_loans_through_call_result_composed_runtime_predicate_exit",
+      "verdict": "regressed",
+      "reasons": [
+        "status built -> rejected",
+        "exit 0 -> None",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/checked_predicate_disjoint_loans_through_call_result_composed_runtime_predicate_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2173,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "94b2679c7083"
+      },
+      "after": {
+        "fixture": "pass/facts/checked_predicate_disjoint_loans_through_call_result_composed_runtime_predicate_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 8837,
+        "expected_satisfied": null,
+        "facts": {
+          "interpreter": "unchecked"
+        },
+        "diagnostics": [
+          "cannot prove requires contract for call replace from main: distinct(forward_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+          "cannot prove requires contract for call replace from main: distinct(reverse_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": {
+          "status": "built",
+          "facts": {
+            "exit": "0",
+            "interpreter-exit": "0",
+            "interpreter": "agrees"
+          }
+        },
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/checked_predicate_disjoint_loans_through_const_name_composed_runtime_predicate_exit",
+      "verdict": "regressed",
+      "reasons": [
+        "status built -> rejected",
+        "exit 0 -> None",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/checked_predicate_disjoint_loans_through_const_name_composed_runtime_predicate_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2182,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "94b2679c7083"
+      },
+      "after": {
+        "fixture": "pass/facts/checked_predicate_disjoint_loans_through_const_name_composed_runtime_predicate_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 5313,
+        "expected_satisfied": null,
+        "facts": {
+          "interpreter": "unchecked"
+        },
+        "diagnostics": [
+          "cannot prove requires contract for call replace from main: distinct(forward_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+          "cannot prove requires contract for call replace from main: distinct(reverse_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": {
+          "status": "built",
+          "facts": {
+            "exit": "0",
+            "interpreter-exit": "0",
+            "interpreter": "agrees"
+          }
+        },
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/checked_predicate_disjoint_loans_through_field_composed_runtime_predicate_exit",
+      "verdict": "regressed",
+      "reasons": [
+        "status built -> rejected",
+        "exit 0 -> None",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/checked_predicate_disjoint_loans_through_field_composed_runtime_predicate_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 1971,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "94b2679c7083"
+      },
+      "after": {
+        "fixture": "pass/facts/checked_predicate_disjoint_loans_through_field_composed_runtime_predicate_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 16709,
+        "expected_satisfied": null,
+        "facts": {
+          "interpreter": "unchecked"
+        },
+        "diagnostics": [
+          "cannot prove requires contract for call replace from main: distinct(forward_selection.indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+          "cannot prove requires contract for call replace from main: distinct(reverse_selection.indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": {
+          "status": "built",
+          "facts": {
+            "exit": "0",
+            "interpreter-exit": "0",
+            "interpreter": "agrees"
+          }
+        },
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/checked_predicate_disjoint_loans_through_local_composed_runtime_predicate_exit",
+      "verdict": "regressed",
+      "reasons": [
+        "status built -> rejected",
+        "exit 0 -> None",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/checked_predicate_disjoint_loans_through_local_composed_runtime_predicate_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 1959,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "94b2679c7083"
+      },
+      "after": {
+        "fixture": "pass/facts/checked_predicate_disjoint_loans_through_local_composed_runtime_predicate_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 6716,
+        "expected_satisfied": null,
+        "facts": {
+          "interpreter": "unchecked"
+        },
+        "diagnostics": [
+          "cannot prove requires contract for call replace from main: distinct(forward_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+          "cannot prove requires contract for call replace from main: distinct(reverse_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": {
+          "status": "built",
+          "facts": {
+            "exit": "0",
+            "interpreter-exit": "0",
+            "interpreter": "agrees"
+          }
+        },
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/checked_predicate_disjoint_loans_through_match_join_composed_runtime_predicate_exit",
+      "verdict": "regressed",
+      "reasons": [
+        "status built -> rejected",
+        "exit 0 -> None",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/checked_predicate_disjoint_loans_through_match_join_composed_runtime_predicate_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 1964,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "94b2679c7083"
+      },
+      "after": {
+        "fixture": "pass/facts/checked_predicate_disjoint_loans_through_match_join_composed_runtime_predicate_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 5318,
+        "expected_satisfied": null,
+        "facts": {
+          "interpreter": "unchecked"
+        },
+        "diagnostics": [
+          "cannot prove requires contract for call replace from main: distinct(forward_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+          "cannot prove requires contract for call replace from main: distinct(reverse_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": {
+          "status": "built",
+          "facts": {
+            "exit": "0",
+            "interpreter-exit": "0",
+            "interpreter": "agrees"
+          }
+        },
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/checked_predicate_disjoint_loans_through_other_machine_composed_runtime_predicate_exit",
+      "verdict": "regressed",
+      "reasons": [
+        "status built -> rejected",
+        "exit 0 -> None",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/checked_predicate_disjoint_loans_through_other_machine_composed_runtime_predicate_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 1968,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "94b2679c7083"
+      },
+      "after": {
+        "fixture": "pass/facts/checked_predicate_disjoint_loans_through_other_machine_composed_runtime_predicate_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 3706,
+        "expected_satisfied": null,
+        "facts": {
+          "interpreter": "unchecked"
+        },
+        "diagnostics": [
+          "cannot prove requires contract for call replace from forward: distinct(indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+          "cannot prove requires contract for call replace from reverse: distinct(indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": {
+          "status": "built",
+          "facts": {
+            "exit": "0",
+            "interpreter-exit": "0",
+            "interpreter": "agrees"
+          }
+        },
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/checked_predicate_disjoint_loans_through_other_state_composed_runtime_predicate_exit",
+      "verdict": "regressed",
+      "reasons": [
+        "status built -> rejected",
+        "exit 0 -> None",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/checked_predicate_disjoint_loans_through_other_state_composed_runtime_predicate_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 4194,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "94b2679c7083"
+      },
+      "after": {
+        "fixture": "pass/facts/checked_predicate_disjoint_loans_through_other_state_composed_runtime_predicate_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 5332,
+        "expected_satisfied": null,
+        "facts": {
+          "interpreter": "unchecked"
+        },
+        "diagnostics": [
+          "cannot prove requires contract for call forward from main: distinct(forward_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+          "cannot prove requires contract for call forward from main: distinct(reverse_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": {
+          "status": "built",
+          "facts": {
+            "exit": "0",
+            "interpreter-exit": "0",
+            "interpreter": "agrees"
+          }
+        },
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/checked_predicate_disjoint_loans_through_parameter_composed_runtime_predicate_exit",
+      "verdict": "regressed",
+      "reasons": [
+        "status built -> rejected",
+        "exit 0 -> None",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/checked_predicate_disjoint_loans_through_parameter_composed_runtime_predicate_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2950,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "94b2679c7083"
+      },
+      "after": {
+        "fixture": "pass/facts/checked_predicate_disjoint_loans_through_parameter_composed_runtime_predicate_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 8844,
+        "expected_satisfied": null,
+        "facts": {
+          "interpreter": "unchecked"
+        },
+        "diagnostics": [
+          "cannot prove requires contract for call forward from main: distinct(forward_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+          "cannot prove requires contract for call forward from main: distinct(reverse_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": {
+          "status": "built",
+          "facts": {
+            "exit": "0",
+            "interpreter-exit": "0",
+            "interpreter": "agrees"
+          }
+        },
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/checked_predicate_disjoint_loans_through_target_body_composed_runtime_predicate_exit",
+      "verdict": "regressed",
+      "reasons": [
+        "status built -> rejected",
+        "exit 0 -> None",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/facts/checked_predicate_disjoint_loans_through_target_body_composed_runtime_predicate_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 5257,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "94b2679c7083"
+      },
+      "after": {
+        "fixture": "pass/facts/checked_predicate_disjoint_loans_through_target_body_composed_runtime_predicate_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 11861,
+        "expected_satisfied": null,
+        "facts": {
+          "interpreter": "unchecked"
+        },
+        "diagnostics": [
+          "cannot prove requires contract for call replace from main: distinct(forward_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+          "cannot prove requires contract for call replace from main: distinct(forward_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+          "cannot prove requires contract for call replace from main: distinct(forward_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+          "cannot prove requires contract for call replace from main: distinct(forward_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+          "cannot prove requires contract for call replace from main: distinct(reverse_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+          "cannot prove requires contract for call replace from main: distinct(reverse_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+          "cannot prove requires contract for call replace from main: distinct(reverse_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+          "cannot prove requires contract for call replace from main: distinct(reverse_indices) == true (needs fact `distinct(indices) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": {
+          "status": "built",
+          "facts": {
+            "exit": "0",
+            "interpreter-exit": "0",
+            "interpreter": "agrees"
+          }
+        },
+        "recorded_at": null
+      }
+    }
+  ]
+}

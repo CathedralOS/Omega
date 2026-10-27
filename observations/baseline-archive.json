@@ -1,0 +1,6 @@
+{
+  "path": "build/product-nested/runtime-candidate-producer/omega",
+  "archive": "build/product-nested/runtime-candidate-producer/omega.gz",
+  "sha256": "d0cc94ca2312d5414788354f4af28d6ed57f0e14aae3612a3e5ae328d3f49eba",
+  "reason": "Completed frozen baseline observations. Exact compiler bytes retained losslessly; no validation capture active. Restore raw path before an engine replay."
+}

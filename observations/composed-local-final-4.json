@@ -1,0 +1,11 @@
+{
+  "command": [
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/borrowed-entry/producer-4/omega",
+    "run",
+    "--both",
+    "tests/omega/pass/facts/checked_predicate_disjoint_loans_through_local_composed_runtime_predicate_exit/main.omg"
+  ],
+  "exit": 0,
+  "stdout": "",
+  "stderr": "native exit 0\ninterp exit: 0\n"
+}

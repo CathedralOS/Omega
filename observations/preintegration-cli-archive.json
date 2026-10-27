@@ -1,0 +1,6 @@
+{
+  "path": "build/borrowed-entry/producer-1/omega",
+  "archive": "build/borrowed-entry/producer-1/omega.gz",
+  "sha256": "61de4a3a2f2d92cd13a7792d76589fbfe64c216226c166f1ea3eedf316789238",
+  "reason": "Original captured interval complete; historical producer archived losslessly. Integrated producer remains separate."
+}

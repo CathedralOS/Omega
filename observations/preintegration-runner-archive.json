@@ -1,0 +1,6 @@
+{
+  "path": "build/borrowed-entry/producer-1/corpus_runner",
+  "archive": "build/borrowed-entry/producer-1/corpus_runner.gz",
+  "sha256": "0a888f03c9f18dc862cffd791664ab0ff5af5353f3de06693b17e753ec6323e5",
+  "reason": "Original accepted capture completed before actual conflict integration. Historical runner archived losslessly; new producer gets separate paths and records."
+}

@@ -1,0 +1,16 @@
+{
+  "starting_source": "286c3a66623fcdda18830cd7d81ea8bc8d78d506",
+  "baseline_producer": "d871d8aaf7a98bfb2f0bb27de86aac844c5c8a3a",
+  "repaired_producer": "56aa116c4151959f54ec747456d3665ac13e3a45",
+  "host": "macOS ARM64",
+  "nine_places_both_zero": 9,
+  "zero_twins_reject": 9,
+  "disjoint_both_zero": 1,
+  "mutation_arrival_controls_reject": 4,
+  "source_fixtures": 170,
+  "native_terminal_outcomes": 76,
+  "native_terminal_zero_agreements": 75,
+  "authored_traps": 1,
+  "qualification": "Authenticates retained original engine observations; does not execute or relabel engines.",
+  "remaining": "NESTED-MACHINE-UNIFICATION retains product compiler migration and broader invocation/restoration/custody/cycle obligations. No other-host native execution claimed."
+}

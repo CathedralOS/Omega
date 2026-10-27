@@ -1,0 +1,6 @@
+{
+  "path": "build/borrowed-entry/producer-3/omega",
+  "archive": "build/borrowed-entry/producer-3/omega.gz",
+  "sha256": "a3c8693e091f1ed78cbd33e2b05ed612e1aa48f039c1223b6833a04ad61c5ce1",
+  "reason": "Superseded integrated producer: own row passes, composed predicate still rejects; exact source/results retained."
+}

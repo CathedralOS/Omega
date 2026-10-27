@@ -1,0 +1,14 @@
+[
+  {
+    "path": "tests/omega/corpus_outcomes.txt",
+    "new_rows": 21,
+    "replaced_rows": [],
+    "revision": "b8279ae3b030e2359cb344899869249dcbfb76a4"
+  },
+  {
+    "path": "tests/omega/corpus_both_macos_arm64.txt",
+    "new_rows": 10,
+    "replaced_rows": [],
+    "revision": "b8279ae3b030e2359cb344899869249dcbfb76a4"
+  }
+]

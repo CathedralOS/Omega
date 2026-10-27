@@ -1,0 +1,9 @@
+{
+  "reason": "GitHub PR407 reports CONFLICTING. Merge fetched994cc1b33d979b453cca42e88643f8f4cf1b2451, preserving both semantic implementations. Only conflicts are milestone removal in TASKS and mutable README remaining-scope update; resolved to current accepted repair text. Shared checking and other upstream compilation changes require focused revalidation.",
+  "prior_source": "3c63d397b06a1a452d8604e6e5a5d77f0c849e85",
+  "incoming": "994cc1b33d979b453cca42e88643f8f4cf1b2451",
+  "conflicted_paths": [
+    "TASKS.md",
+    "samples/cli/facts/nested_machine_invocation/private_arithmetic/mutable/README.md"
+  ]
+}

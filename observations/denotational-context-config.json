@@ -1,0 +1,73 @@
+{
+  "semantic_contracts": [
+    {
+      "contract": "wiki/spec/language/machines.md",
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment.rs"
+      ],
+      "classification": "missing_implementation",
+      "reason": "A selected denotational body interprets nested ordinary and terminal calls under the same existing specification-term admission, independent of Named versus normalized Value node shape. Every nested call retains exact entry identity, dependency, content, effect/observation and crash/termination eligibility checks. Runtime occurrence capture is unchanged and no callee condition proves itself.",
+      "passages": [
+        "Named machines may nest to arbitrary depth. There is one machine declaration\nkind: the source `state` declaration is retired, not an alias or a second kind\nof machine. Nesting restricts name visibility; it does not allocate data,\ncapture runtime bindings, retain an enclosing activation, or impose a stack\nlayout. Every nested declaration has its own signature, contract and identity.",
+        "A body consists of its executable portion followed by zero or more nested\nmachine declarations. The executable portion may finish with a transition,\nresult, or permitted Unit completion. A transition is not mandatory merely\nbecause declarations follow. Once declarations begin, executable statements\ncannot resume. This layout rule applies recursively. Nested declarations are\nvisible throughout their enclosing machine body, including before their textual\ndeclaration, and within its nested declaration scopes. Duplicate declarations\nfollow ordinary name/overload rules; nesting is not a new overload mechanism.",
+        "Name resolution uses lexical scope. A helper is unavailable outside the machine\nwhose scope declares it; qualification cannot bypass this restriction. A sibling\ncan name another visible sibling, but cannot reach into that sibling's private\ndescendants. An ancestor's visible declaration may be called recursively; this\ninvokes its entry, not a saved activation or a private point inside its body.\nNested declarations are not separately package-exportable; package export of an\nenclosing machine does not export its helpers.",
+        "Runtime parameters and locals of enclosing invocations are **not captured**.\nPass them explicitly, including references, capabilities and lifetime-bearing\nvalues. Enclosing generic/static declaration bindings remain lexical context;\nresolution and specialization retain their exact identities without creating an\nimplicit runtime environment. Nested contracts can use that static context and\ntheir own parameters, not another invocation's local values or live facts.",
+        "An ordinary call resumes its continuation on normal return. A machine call in a\nterminal `transition` arm forwards its normal result as the current invocation's\nresult, with no continuation in that invocation. A nested machine's return is\nlocal to that invocation: it does not return from arbitrary lexical ancestors.\nBoth forms use the same contract, exact call acknowledgements and explicit\narguments. The distinction is call position, never nesting depth.\n[Invocation contracts](state_contracts.md#terminal-calls-in-transition-arms)\nowns argument, result, cleanup and fact obligations.",
+        "Resolution checks visibility and elaborates declaration context before erasing\nlexical nesting into flat machine identities and explicit calls/transfers.\nSource ancestry remains available for identity, diagnostics and debug mapping,\nnot as an executable parent stack. Downstream representations may have ordinary\nbasic blocks and jumps; these are not a revived source `state` construct."
+      ]
+    },
+    {
+      "contract": "wiki/spec/language/state_contracts.md",
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment.rs"
+      ],
+      "classification": "missing_implementation",
+      "reason": "A selected denotational body interprets nested ordinary and terminal calls under the same existing specification-term admission, independent of Named versus normalized Value node shape. Every nested call retains exact entry identity, dependency, content, effect/observation and crash/termination eligibility checks. Runtime occurrence capture is unchanged and no callee condition proves itself.",
+      "passages": [
+        "A machine enters its own executable body; there is no separately authored entry\nmember. Trailing nested declarations scope helper names, not runtime data.\n[Nested machines](machines.md#nested-machines-and-identity) defines visibility,\ndeclaration order and flattening. Both ordinary and terminal calls invoke the\nselected machine with ordinary explicit parameters. Context records and their\nborrows are supplied like other arguments; no receiver or enclosing activation\nis retained or rebound implicitly.\nAn ordinary terminal value, explicit return, or permitted implicit Unit\ncompletion ends the invocation and owes its declared result/return contract.",
+        "A transition explicitly supplies the target machine's arguments. Executable uses\nname the exact invocation's parameters or preceding local bindings; arrival\ncontracts use the target's parameters. Enclosing and sibling runtime bindings cannot be\nrecovered by matching spelling. Nominal member and case selection retains the\ndeclared owner, including payload projections rooted at an explicit context argument.",
+        "Machine `requires` applies at every invocation, including terminal and recursive\ncalls. Every arrival establishes the target's requirements and declared domains\nunder actual argument substitution. Nesting does not assume the parent's entry\nrequirements again, import its return guarantees, or supply facts invalidated\nby mutation. Live caller facts can discharge a nested helper's requirements;\nbody inference must justify any inferred private requirements on every arrival,\nnot grant them from lexical ancestry. Every invocation retains both sides of\nits own contract. A recursive contract is not its own proof; induction follows\nthe well-founded obligations in [termination](termination.md).",
+        "Arrival substitution is simultaneous and identity-based. Scalar arguments retain\ntheir evaluation snapshots; facts about referenced storage must survive writes\nfrom later arguments. A same-named formal cannot alias an unrelated caller value.\nEvery reachable predecessor participates in a join. Unknown input cannot be\nomitted to preserve a convenient invariant. A minimum collection length is not\nan exact extent, and declaration initializers are not recurring loop invariants.",
+        "## Terminal calls in transition arms",
+        "Resolve every called target as a machine, nested or otherwise. A terminal call\nis an invocation whose normal result completes the current machine, including Unit completion.\nArgument admission, result compatibility, machine postconditions, cleanup,\ncrash and no-normal-return behavior are the ordinary call-and-completion rules.\nOnly the selected arm executes, with ordinary once-only operand evaluation.",
+        "Terminal machine calls accept the same exact operational acknowledgements as\nother calls:",
+        "```omega\n// Assuming Storage::read permits both suspension and blocking:\ntransition {\n    _ -> suspend block Storage::read(storage)\n}\n```",
+        "This invokes `Storage::read` in the current activation and forwards its normal\nresult; it does not start or detach a task. If the call parks, completion of the\nenclosing machine remains pending. No return, cleanup or storage reclamation\noccurs merely because the call is syntactically final or becomes suspended.\nOrdinary cleanup-bearing completion edges still discharge their obligations.\nTail-call lowering may remove unnecessary control state only while preserving\nall live backing, loans, custody and completion obligations. Recursive runtime\ncalls still obey the no-accumulated-frames rule.",
+        "Nested machine calls have no marker exemption. Their exact call envelope\ndetermines `suspend` and `block`, including in terminal position, even when\nlowering later implements the call with a jump. Markers do not redirect name\nresolution. Missing, partial or redundant call markers reject under\n[effects](effects.md#call-site-acknowledgements). The same\n[borrow/carry requirements](../resources/carry.md#borrows-across-suspension)\napply in a terminal arm as at any other suspending call.",
+        "## Mutation and subject identity\n\nFacts apply to their exact subjects and program points. Assignments first\n[capture their destination place](expressions.md#evaluation-schedule), including\nits selectors and bounds at that program point. They then evaluate the\nright-hand side and its effects, capture transferable evidence, and finally\ninvalidate overlapping destination facts and establish the new value at the\ncaptured place. Right-hand-side mutations invalidate their own overlapping facts\nwhen they occur; the captured selector is not a fact that the selector's live\nbinding still has its earlier value. Uninitialized storage\nhas no assumed zero. Copies transport facts about the captured value, not source\nexpressions to be reevaluated after mutation.\n\nA reference identifies live storage, not its former contents. Replacing a local\nreference binding changes that binding without redirecting aliases made from its\nprevious value. A write through the reference changes the referent, not the\nbinding. Stored reference leaves retain their captured origins until replacement\nor exposure invalidates that relation. Type or lifetime correspondence alone\ndoes not establish a returned reference's storage origin.\n\nCaller-visible mutation summaries include operand evaluation and callee writes.\nA complete empty summary preserves facts; an unknown summary proves no\nnon-interference. Fact invalidation uses storage footprints, while borrow\nauthorization uses the access route. Neither may-write summaries nor origin\nrecovery grant loans, permit moves, or discharge linear claims.",
+        "A call used as a total predicate term requires termination and absence of crash\nroutes. Equality conditional on normal runtime return does not establish total\ndenotation. Repeated calls need effect- and observation-free semantics plus exact\ntargets and inputs; an empty write summary alone does not prove repeatability."
+      ]
+    }
+  ],
+  "context": {
+    "parent": "NESTED-MACHINE-UNIFICATION",
+    "requirement": "Every private positive arrival preserves arithmetic formation through a borrowed referent after an unrelated field write, across all nine places, with zero/overlap/alias/stale-argument controls rejecting.",
+    "fixed_base": "baf1b6ea0633681bcc2cf34d563d748a47fadb36",
+    "fixed_source": "286c3a66623fcdda18830cd7d81ea8bc8d78d506"
+  },
+  "checks": [
+    {
+      "id": "context-only",
+      "kind": "build",
+      "command": [
+        "cargo",
+        "check",
+        "--locked",
+        "-p",
+        "syntax-trees-to-symbol-resolved-trees"
+      ],
+      "inputs": [
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment",
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment.rs",
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_case_arms",
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_case_arms.rs",
+        "omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/demand/normal_subjects.rs"
+      ],
+      "artifacts": [],
+      "closure_reason": "Context packet for a demonstrated lexical callable selection defect. Runtime qualification uses the frozen row and its precise arity controls.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 300
+    }
+  ]
+}

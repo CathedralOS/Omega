@@ -1,0 +1,17 @@
+{
+  "reason": "Integrated2 completed with composed-predicate failures. Preserve exact binaries and all failed observations; final3 uses separate paths. No active process consumes producer2.",
+  "files": [
+    {
+      "path": "build/borrowed-entry/producer-2/omega",
+      "archive": "build/borrowed-entry/producer-2/omega.gz",
+      "sha256": "494cad0a577316913a09770e908839ba14914e7b2e574d9c12a3ca2676b0a81b",
+      "bytes_reclaimed": 134987082
+    },
+    {
+      "path": "build/borrowed-entry/producer-2/corpus_runner",
+      "archive": "build/borrowed-entry/producer-2/corpus_runner.gz",
+      "sha256": "681f54b406704278e34bcd62b107439e82fa1ad47f053405d7ce5d1a184c87fc",
+      "bytes_reclaimed": 136865922
+    }
+  ]
+}
