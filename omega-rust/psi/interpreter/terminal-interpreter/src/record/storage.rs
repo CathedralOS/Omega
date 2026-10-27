@@ -18,6 +18,8 @@ use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
 
+mod aggregate;
+
 pub(crate) enum ConstructorValue<'execution> {
     Placed(TerminalStructuralValue),
     PackedScalars {

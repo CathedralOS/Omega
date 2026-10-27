@@ -19,9 +19,9 @@ pub enum TerminalScalarValue {
 
 pub use terminal_installation::TerminalStructuralValue;
 
-/// Exact target-neutral finite scalar record tree or selected scalar sum-case contents.
+/// Exact target-neutral finite scalar record/array tree or selected scalar sum-case contents.
 ///
-/// A missing discriminator denotes a record; a present one denotes a sum case.
+/// A missing discriminator denotes an ordinary tree; a present one denotes a sum case.
 /// This payload contains no storage identity or custody. Import validates it
 /// before publishing an ordinary placed home; export snapshots that home's
 /// actual optional discriminator and scalar cells rather than keeping a second carrier.
@@ -37,7 +37,7 @@ pub struct TerminalScalarAggregateValue {
 }
 
 mod aggregates;
-pub(crate) use aggregates::record_scalar_fields;
+pub(crate) use aggregates::{ScalarAggregatePart, ScalarAggregatePlan};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TerminalStructuralBooleanFieldValue {
