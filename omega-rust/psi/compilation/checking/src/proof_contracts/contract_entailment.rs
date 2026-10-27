@@ -580,16 +580,18 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
     )> {
         let content_plan =
             content_conservation::content_conservation_plan(machine, fact, &content_plans);
-        let paths: Vec<_> = if let Some(paths) = &sole_arm_result {
+        // The complete body frontier owns executed prefix facts, including
+        // citations inside terminal helpers. A terminal-expression probe may
+        // retain only an opaque application; its unknown judgment cannot erase
+        // the evidence already established on every complete return path.
+        let paths: Vec<_> = if let Some(arms) = &case_arms {
+            arms.iter()
+                .map(|arm| (&arm.normal_judge, &arm.value))
+                .collect()
+        } else if let Some(paths) = &sole_arm_result {
             paths
                 .iter()
                 .map(|path| (&path.judge, &path.value))
-                .collect()
-        } else if structural.has_runtime_body_values() || content_plan.is_some() {
-            case_arms
-                .as_ref()?
-                .iter()
-                .map(|arm| (&arm.normal_judge, &arm.value))
                 .collect()
         } else {
             return None;
