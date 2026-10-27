@@ -1,0 +1,48 @@
+{
+  "context": {
+    "host": "macOS ARM64",
+    "target": "macos_arm64",
+    "toolchain": "nightly-2026-09-04",
+    "parent": "NESTED-MACHINE-UNIFICATION"
+  },
+  "semantic_contracts": [
+    {
+      "contract": "wiki/spec/language/state_contracts.md",
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_case_arms.rs",
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_case_arms/call_entries.rs",
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/invocation_entry.rs",
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/storage_effects.rs",
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment.rs",
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/normal_returns.rs",
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/normal_returns/body_completion.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/current_values.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits/scalars/write_transport.rs"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Normal-return checking observes the selected executed body, including its writes, exact actuals, branch facts and normal completion, even without a prefix-site visitor. Runtime observation does not grant total/repeatable mathematical denotation or import the conclusion being proved. Preserve write invalidation, checked body eligibility and proof/case-only purity policy. Completion restores the caller declaration and storage coordinates through authenticated entry origins. Apply complete may-write invalidation before installing only the callee current observations; caller entry snapshots are never reconstructed from callee entry values. Scalar exit fallbacks must include effects of the returning operation itself. A prefix-only assignment replay cannot prove a current referent after the returned helper writes it.",
+      "passages": [
+        "## Returns and proof use\n\nNormal returns owe applicable postconditions for both value and Unit results.\nAn implicit return occurs after the executable portion's final statement, not\nafter executing trailing declarations. A selected returning arm uses that arm's\nfacts. A terminal call owes both the callee's result and the caller's completion\ncontract; lexical ancestry adds no further return targets. Crash edges are not\nnormal returns. Synthetic `result` denotes the exact returned value; output-reference\nparameters retain their actual reference origins.\n\nExit proof consumes live facts, not the conclusion being proved. Reference-subject\ntransport across calls or loop edges does not transport the truth of an expired\nentry assumption. Declaration contexts cannot receive a sibling invocation's facts.\nOutcome-specific guarantees follow the matching nominal result case and remain\nseparate from unconditional guarantees, as specified in\n[proof availability](../proofs/contracts.md#identity-availability-and-erasure).\n\nA call used as a total predicate term requires termination and absence of crash\nroutes. Equality conditional on normal runtime return does not establish total\ndenotation. Repeated calls need effect- and observation-free semantics plus exact\ntargets and inputs; an empty write summary alone does not prove repeatability."
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "context",
+      "kind": "tests",
+      "command": [
+        "python3",
+        "-c",
+        "pass"
+      ],
+      "inputs": [
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_case_arms.rs"
+      ],
+      "artifacts": [],
+      "closure_reason": "Canonical runtime completion versus denotational eligibility distinction.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 30
+    }
+  ]
+}

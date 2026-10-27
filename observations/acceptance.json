@@ -1,0 +1,16 @@
+{
+  "parent": "NESTED-MACHINE-UNIFICATION",
+  "producer": "8331df8a20adaf7c5a065aafb396ba102505fda0",
+  "runner": "165e14d1f48de815e940fe41bcc5ef6377d3be50",
+  "host": "macOS ARM64",
+  "positive_places": 9,
+  "reject_twins": 9,
+  "extra_positive_controls": 2,
+  "extra_reject_controls": 3,
+  "source_fixtures": 260,
+  "native_terminal_outcomes": 114,
+  "zero_agreements": 113,
+  "authored_traps": 1,
+  "remaining": "Std admission currently refuses two exact-arithmetic obligations in directory-stack helpers. Earlier diagnostics may be hidden by that frontier. Product frontend and downstream migration/full parent acceptance remain open. Other-host native unverified.",
+  "qualification": "Authenticates retained actual observations and unchanged consumer inputs; it neither executes nor relabels engine outcomes."
+}

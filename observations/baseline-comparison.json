@@ -1,0 +1,8 @@
+{
+  "existing_source_outcomes": 237,
+  "changed_outcomes": [],
+  "current_record_sha256": "894ffaa8bc0f7c637a98e784d45c501c5cdef67fec0e747f3e67722dce2c43c6",
+  "baseline_record_sha256": "51b2c45dc8b3bab0e47c9288faa9bfddafb662b2738f4f444f55f5488e3e9ac7",
+  "baseline_revision": "7c682db5a9feefc1322ac98fa6ddf18642d3766e",
+  "golden_differences": "Three unchanged baseline diagnostic differences; not repinned."
+}

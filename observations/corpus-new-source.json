@@ -1,0 +1,342 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "165e14d1f48de815e940fe41bcc5ef6377d3be50",
+  "dirty": true,
+  "leg": "checked",
+  "target": null,
+  "golden": "tests/omega/corpus_outcomes.txt",
+  "golden_reason_gaps": {
+    "rows": 1,
+    "of": 19142
+  },
+  "subset": true,
+  "filter": "facts/nested_machine_effectful_completion_",
+  "shard": null,
+  "verdict": "recorded",
+  "exit_code": 0,
+  "counts": {
+    "fixtures": 23,
+    "by_status": {
+      "checked": 11,
+      "rejected": 12
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {}
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": null,
+  "perf_context": null,
+  "observations": [
+    {
+      "fixture": "pass/facts/nested_machine_effectful_completion_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4696,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "165e14d1f48d"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_effectful_completion_caller_storage_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4607,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "165e14d1f48d"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_effectful_completion_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4552,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "165e14d1f48d"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_effectful_completion_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4545,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "165e14d1f48d"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_effectful_completion_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5021,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "165e14d1f48d"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_effectful_completion_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5123,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "165e14d1f48d"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_effectful_completion_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5039,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "165e14d1f48d"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_effectful_completion_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4926,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "165e14d1f48d"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_effectful_completion_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4562,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "165e14d1f48d"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_effectful_completion_renamed_formals_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4512,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "165e14d1f48d"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_effectful_completion_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4389,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "165e14d1f48d"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_effectful_completion_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2011,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from probe at statement 0: result != -1"
+      ],
+      "regressed_from": null,
+      "recorded_at": "165e14d1f48d"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_effectful_completion_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2116,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from probe at statement 0: result != -1"
+      ],
+      "regressed_from": null,
+      "recorded_at": "165e14d1f48d"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_effectful_completion_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2063,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from probe at statement 1: result != -1"
+      ],
+      "regressed_from": null,
+      "recorded_at": "165e14d1f48d"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_effectful_completion_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1955,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from probe at statement 1: result != -1"
+      ],
+      "regressed_from": null,
+      "recorded_at": "165e14d1f48d"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_effectful_completion_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2161,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from probe at statement 1: result != -1"
+      ],
+      "regressed_from": null,
+      "recorded_at": "165e14d1f48d"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_effectful_completion_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1994,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from probe at statement 0: result != -1"
+      ],
+      "regressed_from": null,
+      "recorded_at": "165e14d1f48d"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_effectful_completion_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2010,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from probe at statement 0: result != -1"
+      ],
+      "regressed_from": null,
+      "recorded_at": "165e14d1f48d"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_effectful_completion_overwritten_guard_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2005,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from probe at statement 2: result != -1"
+      ],
+      "regressed_from": null,
+      "recorded_at": "165e14d1f48d"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_effectful_completion_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2112,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from probe at statement 0: result != -1"
+      ],
+      "regressed_from": null,
+      "recorded_at": "165e14d1f48d"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_effectful_completion_stale_caller_storage_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1959,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from probe at statement 1: output.value == 42"
+      ],
+      "regressed_from": null,
+      "recorded_at": "165e14d1f48d"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_effectful_completion_stale_initializer_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1608,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from probe at statement 1: result != -1"
+      ],
+      "regressed_from": null,
+      "recorded_at": "165e14d1f48d"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_effectful_completion_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1645,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from probe at statement 0: result != -1",
+        "cannot prove ensures contract for exit from probe at statement 0: result != -1",
+        "cannot prove ensures contract for exit from probe at statement 0: result != -1",
+        "cannot prove ensures contract for exit from probe at statement 0: result != -1"
+      ],
+      "regressed_from": null,
+      "recorded_at": "165e14d1f48d"
+    }
+  ],
+  "fixtures": []
+}

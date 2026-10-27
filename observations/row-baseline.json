@@ -1,0 +1,236 @@
+[
+  {
+    "place": "local",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/effectful_completion/local/main.omg"
+    ],
+    "source_sha256": "177c37b372fac18640d27c6ac3da230354792a803237e1919bec10e002c071b7",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `effectful_completion_local` with 1 diagnostic(s)\n  error: cannot prove ensures contract for exit from probe at statement 1: result != -1\n"
+  },
+  {
+    "place": "local",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/effectful_completion/local/invalid/main.omg"
+    ],
+    "source_sha256": "8dda8d9fa290fd77d8f4307dff8ead8d05442f5589dee5718eb4e23781456a73",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `effectful_completion_local_invalid` with 1 diagnostic(s)\n  error: cannot prove ensures contract for exit from probe at statement 1: result != -1\n"
+  },
+  {
+    "place": "field",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/effectful_completion/field/main.omg"
+    ],
+    "source_sha256": "70d53c56ba41bc3695560a9e5813cd48cc23f4f5903ef7080e9b717072b1c52a",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `effectful_completion_field` with 1 diagnostic(s)\n  error: cannot prove ensures contract for exit from probe at statement 1: result != -1\n"
+  },
+  {
+    "place": "field",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/effectful_completion/field/invalid/main.omg"
+    ],
+    "source_sha256": "5ad42485ba6de73034e018b563fa0b9a5472daf403107031222de70cb33e91fb",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `effectful_completion_field_invalid` with 1 diagnostic(s)\n  error: cannot prove ensures contract for exit from probe at statement 1: result != -1\n"
+  },
+  {
+    "place": "parameter",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/effectful_completion/parameter/main.omg"
+    ],
+    "source_sha256": "01ca1ac5cd50c57a11b0e1b2fdb15e7aaa308baffb591dfa243459218dd8d83c",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `effectful_completion_parameter` with 1 diagnostic(s)\n  error: cannot prove ensures contract for exit from probe at statement 0: result != -1\n"
+  },
+  {
+    "place": "parameter",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/effectful_completion/parameter/invalid/main.omg"
+    ],
+    "source_sha256": "fe2e1ed3c08a73806813601eebb6c495295f0390c0f6a673cef3864966dd6bc7",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `effectful_completion_parameter_invalid` with 1 diagnostic(s)\n  error: cannot prove ensures contract for exit from probe at statement 0: result != -1\n"
+  },
+  {
+    "place": "call_result",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/effectful_completion/call_result/main.omg"
+    ],
+    "source_sha256": "8c21cdf09834ff3c4db435df180572026e0da1ad9b15b6c973f2e30727a82974",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `effectful_completion_call_result` with 1 diagnostic(s)\n  error: cannot prove ensures contract for exit from probe at statement 0: result != -1\n"
+  },
+  {
+    "place": "call_result",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/effectful_completion/call_result/invalid/main.omg"
+    ],
+    "source_sha256": "a90bb3e90b6e867f44214dcab5e47e3025d6e8e398f9167f80255a0a008fc110",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `effectful_completion_call_result_invalid` with 1 diagnostic(s)\n  error: cannot prove ensures contract for exit from probe at statement 0: result != -1\n"
+  },
+  {
+    "place": "match_join",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/effectful_completion/match_join/main.omg"
+    ],
+    "source_sha256": "034fe9e130464bd3be09bcf318520f62454c659ea1158ef3e5423458edb1b231",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `effectful_completion_match_join` with 1 diagnostic(s)\n  error: cannot prove ensures contract for exit from probe at statement 1: result != -1\n"
+  },
+  {
+    "place": "match_join",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/effectful_completion/match_join/invalid/main.omg"
+    ],
+    "source_sha256": "19ab5a91d9e7ebc8b04c4b27bcf671b294d88488fca62c6442ff4baa0d534579",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `effectful_completion_match_join_invalid` with 1 diagnostic(s)\n  error: cannot prove ensures contract for exit from probe at statement 1: result != -1\n"
+  },
+  {
+    "place": "const_name",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/effectful_completion/const_name/main.omg"
+    ],
+    "source_sha256": "72748ac86f8f6f00c4be600383b00d8b120fb8e3ebb2b38fb76589dc4ed66dcd",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `effectful_completion_const_name` with 1 diagnostic(s)\n  error: cannot prove ensures contract for exit from probe at statement 0: result != -1\n"
+  },
+  {
+    "place": "const_name",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/effectful_completion/const_name/invalid/main.omg"
+    ],
+    "source_sha256": "d3910e8ec53682dbc821e0ffdf3db8e1e5a6384b1c9c8b088abbf64a6b9eabd1",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `effectful_completion_const_name_invalid` with 1 diagnostic(s)\n  error: cannot prove ensures contract for exit from probe at statement 0: result != -1\n"
+  },
+  {
+    "place": "other_state",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/effectful_completion/other_state/main.omg"
+    ],
+    "source_sha256": "836e546c4295dbc3fbfe285c94a6707e6ea3bd1a83b04a727a9d311bdf6663cb",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `effectful_completion_other_state` with 1 diagnostic(s)\n  error: cannot prove ensures contract for exit from probe at statement 0: result != -1\n"
+  },
+  {
+    "place": "other_state",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/effectful_completion/other_state/invalid/main.omg"
+    ],
+    "source_sha256": "2995155f3dd01b0e09c3d46fc32050383bb2844baf93e615a293207950f1d9ea",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `effectful_completion_other_state_invalid` with 1 diagnostic(s)\n  error: cannot prove ensures contract for exit from probe at statement 0: result != -1\n"
+  },
+  {
+    "place": "other_machine",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/effectful_completion/other_machine/main.omg"
+    ],
+    "source_sha256": "d13145b8b57ad0f071c6925dd5762bc291f3be9b4f9dada3006cc35df2330099",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `effectful_completion_other_machine` with 1 diagnostic(s)\n  error: cannot prove ensures contract for exit from probe at statement 0: result != -1\n"
+  },
+  {
+    "place": "other_machine",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/effectful_completion/other_machine/invalid/main.omg"
+    ],
+    "source_sha256": "e63add870fb0a63a2cb39c493f0717170bcdc1bfe2b2fdda88c1c55b6da42fcf",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `effectful_completion_other_machine_invalid` with 1 diagnostic(s)\n  error: cannot prove ensures contract for exit from probe at statement 0: result != -1\n"
+  },
+  {
+    "place": "target_body",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/effectful_completion/target_body/main.omg"
+    ],
+    "source_sha256": "339e81e274218099bcc0950e8e0f26fbd95a22bb78568f59867e491fa53a4b8b",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `effectful_completion_target_body` with 4 diagnostic(s)\n  error: cannot prove ensures contract for exit from probe at statement 0: result != -1\n  error: cannot prove ensures contract for exit from probe at statement 0: result != -1\n  error: cannot prove ensures contract for exit from probe at statement 0: result != -1\n  error: cannot prove ensures contract for exit from probe at statement 0: result != -1\n"
+  },
+  {
+    "place": "target_body",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/effectful_completion/target_body/invalid/main.omg"
+    ],
+    "source_sha256": "2ce266488935c393dda826ae3af4691213d8e8994ac85e3bcb21993f3c749914",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `effectful_completion_target_body_invalid` with 4 diagnostic(s)\n  error: cannot prove ensures contract for exit from probe at statement 0: result != -1\n  error: cannot prove ensures contract for exit from probe at statement 0: result != -1\n  error: cannot prove ensures contract for exit from probe at statement 0: result != -1\n  error: cannot prove ensures contract for exit from probe at statement 0: result != -1\n"
+  }
+]

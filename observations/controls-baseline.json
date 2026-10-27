@@ -1,0 +1,69 @@
+[
+  {
+    "name": "caller_storage",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/effectful_completion/controls/caller_storage/main.omg"
+    ],
+    "sha256": "7a22e8c030bc8de48cb2133d580336152ce080b494dfac0b57d086efab7719ff",
+    "exit": 200,
+    "stdout": "",
+    "stderr": "native compile FAILED:\n  error: cannot compile admitted project: checked compilation failed for package `effectful_completion_caller_storage` with 1 diagnostic(s)\n  error: cannot prove ensures contract for exit from probe at statement 0: output.value == 42\n"
+  },
+  {
+    "name": "overwritten_guard",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/effectful_completion/controls/overwritten_guard/main.omg"
+    ],
+    "sha256": "655da2eff7a296bee4ec93d97d18173b8fed6ccfeee0c3ccee83613922e661dc",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `effectful_completion_overwritten_guard` with 1 diagnostic(s)\n  error: cannot prove ensures contract for exit from probe at statement 2: result != -1\n"
+  },
+  {
+    "name": "renamed_formals",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/effectful_completion/controls/renamed_formals/main.omg"
+    ],
+    "sha256": "e6fa609590c4f7a68c5ece1e8e532be2098ae858fa5c2d987675cb8a8abf58b2",
+    "exit": 200,
+    "stdout": "",
+    "stderr": "native compile FAILED:\n  error: cannot compile admitted project: checked compilation failed for package `effectful_completion_renamed_formals` with 1 diagnostic(s)\n  error: cannot prove ensures contract for exit from probe at statement 1: result != -1\n"
+  },
+  {
+    "name": "stale_caller_storage",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/effectful_completion/controls/stale_caller_storage/main.omg"
+    ],
+    "sha256": "e225176896ff52d1b6b9c8647d2b19d0b3788a50a34440b656d0cf40a55cd165",
+    "exit": 0,
+    "stdout": "compiled 20 source file(s) from /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/effectful_completion/controls/stale_caller_storage/main.omg; wrote_output=false\n",
+    "stderr": ""
+  },
+  {
+    "name": "stale_initializer",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-bounds/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/effectful_completion/controls/stale_initializer/main.omg"
+    ],
+    "sha256": "d227a70e9fe6b8ffcfdce84447eb68758f4ab5893db548b76e1bfbbe9ac98563",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `effectful_completion_stale_initializer` with 1 diagnostic(s)\n  error: cannot prove ensures contract for exit from probe at statement 1: result != -1\n"
+  }
+]
