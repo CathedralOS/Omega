@@ -31,7 +31,9 @@ must reject because the complete cycle then has no strict edge.
 preserving helper calls, with renamed and reordered parameters; its
 [twin](arrival_decrease/invalid/main.omg) removes that edge. The
 [top-level peer](top_level/main.omg) checks the same rank correspondence without
-lexical containment. [Long cycle](long_cycle/main.omg) performs 100,000 increments
+lexical containment. A [private promise](private_promise/main.omg) declares
+`terminates` on its helper without a redundant helper rank; its
+[twin](private_promise/invalid/main.omg) still rejects a preserving cycle. [Long cycle](long_cycle/main.omg) performs 100,000 increments
 while retaining the caller's original borrowed counter.
 
 Additional source controls reject a [preserving subcycle](controls/preserving_subcycle/main.omg)

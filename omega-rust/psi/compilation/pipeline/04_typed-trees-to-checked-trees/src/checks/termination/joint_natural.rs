@@ -95,15 +95,10 @@ pub(super) fn select(
         if !candidates.is_empty() {
             continue;
         }
-        // Public promises require authored evidence. Private coordinate
-        // inference changes neither a public schema nor a source signature.
-        if machine.is_public
-            || machine
-                .termination_plan
-                .interface
-                .published()
-                .is_some_and(language_semantics::TerminationGuarantee::promises_termination)
-        {
+        // Private coordinate inference changes neither a public schema nor a
+        // source signature. An explicit private termination promise still owes
+        // this same complete proof; it does not require a redundant rank clause.
+        if machine.is_public {
             return None;
         }
         let entry = &program.machine_states(machine)[0];
