@@ -9,7 +9,9 @@
 //! checked demand belongs to the separately validated stack partition.
 
 mod macos_arm64;
+mod windows_x86_64;
 pub(super) use macos_arm64::validate as validate_macos_arm64;
+pub(super) use windows_x86_64::validate as validate_windows_x86_64;
 
 use diagnostics::Diagnostic;
 

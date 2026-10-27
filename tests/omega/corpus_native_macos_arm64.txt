@@ -4439,7 +4439,6 @@ pass/layouts/authored_layout_query_names_exit built 5946ms exit:0 @b016b7e0a226
 pass/layouts/byte_view_borrow_with_encoded_sibling checked 702ms @693920652f41
 pass/layouts/integer_at_owned_local_borrow_call_exit built 1459ms exit:0 @313322813ba5+wt
 pass/layouts/layout_queries checked 9935ms @5041ef1af684+wt
-pass/layouts/placed_view_source_access_compile checked 547ms
 pass/layouts/private_callback_slot_demand_compile checked 2650ms @693920652f41+wt
 pass/layouts/private_callback_slot_untaken_compile checked 214ms
 pass/layouts/runtime_callee_integer_at_fitting_write_exit built 1689ms exit:0 @acdf102c21ea+wt

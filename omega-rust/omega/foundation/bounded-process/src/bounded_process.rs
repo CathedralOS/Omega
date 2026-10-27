@@ -45,9 +45,6 @@ pub fn run_bounded_process(
 ) -> Result<BoundedProcessOutput, BoundedProcessRunError> {
     validate_limits(limits)?;
     let started = Instant::now();
-    let deadline = started.checked_add(limits.timeout).unwrap_or(started);
-    let cleanup_reserve = limits.cleanup_timeout.min(limits.timeout / 4);
-    let execution_deadline = deadline.checked_sub(cleanup_reserve).unwrap_or(started);
     let input_is_piped = !matches!(&input, BoundedProcessInput::Null);
     if input_is_piped {
         prepared.stdin_piped();
@@ -56,15 +53,35 @@ pub fn run_bounded_process(
     }
     prepared.stdout_piped().stderr_piped();
 
-    let mut child = BoundedProcessChild::spawn(prepared)
+    let child = BoundedProcessChild::spawn(prepared)
         .map_err(|error| BoundedProcessRunError::Spawn(error.to_string()))?;
+    capture_child(child, input, limits, captured_output_budget, started)
+}
+
+pub(crate) fn capture_child(
+    mut child: BoundedProcessChild,
+    input: BoundedProcessInput,
+    limits: BoundedCaptureLimits,
+    captured_output_budget: BoundedCaptureBudget,
+    started: Instant,
+) -> Result<BoundedProcessOutput, BoundedProcessRunError> {
+    validate_limits(limits)?;
+    let deadline = started.checked_add(limits.timeout).unwrap_or(started);
+    let cleanup_reserve = limits.cleanup_timeout.min(limits.timeout / 4);
+    let execution_deadline = deadline.checked_sub(cleanup_reserve).unwrap_or(started);
+    let input_is_piped = !matches!(&input, BoundedProcessInput::Null);
     let stdout = child.take_stdout().expect("bounded stdout was piped");
     let stderr = child.take_stderr().expect("bounded stderr was piped");
-    let child_stdin = input_is_piped.then(|| {
-        child
-            .take_stdin()
-            .expect("bounded stdin was piped for non-null input")
-    });
+    let child_stdin = if input_is_piped {
+        Some(
+            child
+                .take_stdin()
+                .expect("bounded stdin was piped for non-null input"),
+        )
+    } else {
+        drop(child.take_stdin());
+        None
+    };
     let (sender, receiver) = mpsc::channel();
 
     gate_worker_spawn(

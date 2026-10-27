@@ -1949,15 +1949,15 @@ fail/build/helper_contract_context rejected 222ms expected @a92f16431042
 	cannot prove ensures contract for exit from incorrect at statement 0: result == 4
 fail/build/hosted_program_entry_visible_parameter rejected 2029ms expected @a92f16431042
 	hosted `ProgramEntry` exposes no arrival parameters, but `launch` declares `argument`
-fail/build/installed_entry_ram_invalid_extent rejected 1083ms expected @0360a23ad5f5+wt
+fail/build/installed_entry_ram_invalid_extent rejected 3871ms expected @3c5cd09b7f5d
 	private entry RAM requires the complete nonempty bounded schema extent
-fail/build/installed_entry_ram_invalid_padding rejected 1296ms expected @0360a23ad5f5+wt
+fail/build/installed_entry_ram_invalid_padding rejected 3841ms expected @3c5cd09b7f5d
 	private entry RAM padding must be initialized to canonical zero
-fail/build/installed_entry_ram_missing_backing rejected 1078ms expected @0360a23ad5f5+wt
+fail/build/installed_entry_ram_missing_backing rejected 4340ms expected @3c5cd09b7f5d
 	native execution input: PlacedViewInputsRequireCustodyLowering
-fail/build/installed_entry_ram_overlapping_exclusive_roots rejected 859ms expected @0360a23ad5f5+wt
+fail/build/installed_entry_ram_overlapping_exclusive_roots rejected 3169ms expected @3c5cd09b7f5d
 	state `touch` receives `view` as mutable more than once
-fail/build/installed_entry_ram_wrong_occurrence rejected 1075ms expected @0360a23ad5f5+wt
+fail/build/installed_entry_ram_wrong_occurrence rejected 3818ms expected @3c5cd09b7f5d
 	private entry RAM initializer answers no declared entry position
 fail/build/native_table_non_address_field rejected 1994ms expected @a92f16431042
 	cannot realize table field `query` for `run`: table dispatch field must have type addr
@@ -2264,8 +2264,8 @@ fail/calls/foreign_scalar_indirect_result_parameter_overlap_rejected rejected 14
 	native artifact identity physical pipeline failed: common physical staging failed: RegisterAllocation(RuntimeSpill(FixedOccurrences(UnsupportedCarrier)))
 fail/calls/foreign_scalar_indirect_result_wrong_width_rejected rejected 13367ms expected @a92f16431042
 	calling policy accepted an invalid plan: value 2 has an invalid indirect shape
-fail/calls/free_machine_named_transition_rejected rejected 941ms expected @a92f16431042
-	unsupported transition target `scan`
+fail/calls/free_machine_named_transition_rejected rejected 2104ms expected @3c5cd09b7f5d
+	cannot prove requires contract for call scan from Main::main: 40 == 41 (needs fact `value == 41` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
 fail/calls/generic_operator_guard_argument_mismatch rejected 2427ms expected @a92f16431042
 	named operator `identity` static argument for parameter `T` does not equal the type inferred from its operands
 fail/calls/immutable_arg_for_mut_param_rejected rejected 1057ms expected @a92f16431042
@@ -9103,23 +9103,23 @@ fail/facts/inline_byte_view_argument_snapshot_through_target_body_rejected rejec
 	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/installed_entry_storage_through_call_result_unproved rejected 938ms expected @0360a23ad5f5+wt
+fail/facts/installed_entry_storage_through_call_result_unproved rejected 2886ms expected @3c5cd09b7f5d
 	cannot prove requires contract for call finish from start: code == 9 (needs fact `code == 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/installed_entry_storage_through_const_name_unproved rejected 866ms expected @0360a23ad5f5+wt
+fail/facts/installed_entry_storage_through_const_name_unproved rejected 3204ms expected @3c5cd09b7f5d
 	cannot prove requires contract for call finish from start: 8 == 9 (needs fact `code == 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/installed_entry_storage_through_field_unproved rejected 884ms expected @0360a23ad5f5+wt
+fail/facts/installed_entry_storage_through_field_unproved rejected 2960ms expected @3c5cd09b7f5d
 	cannot prove requires contract for call finish from start: payload.code == 9 (needs fact `code == 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/installed_entry_storage_through_local_unproved rejected 883ms expected @0360a23ad5f5+wt
+fail/facts/installed_entry_storage_through_local_unproved rejected 3661ms expected @3c5cd09b7f5d
 	cannot prove requires contract for call finish from start: code == 9 (needs fact `code == 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/installed_entry_storage_through_match_join_unproved rejected 888ms expected @0360a23ad5f5+wt
+fail/facts/installed_entry_storage_through_match_join_unproved rejected 3209ms expected @3c5cd09b7f5d
 	cannot prove requires contract for call finish from start: code == 9 (needs fact `code == 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/installed_entry_storage_through_other_machine_unproved rejected 887ms expected @0360a23ad5f5+wt
+fail/facts/installed_entry_storage_through_other_machine_unproved rejected 2861ms expected @3c5cd09b7f5d
 	cannot prove requires contract for call finish from start: code == 9 (needs fact `code == 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/installed_entry_storage_through_other_state_unproved rejected 995ms expected @0360a23ad5f5+wt
+fail/facts/installed_entry_storage_through_other_state_unproved rejected 3551ms expected @3c5cd09b7f5d
 	cannot prove requires contract for call transmit from start: 8 == 9 (needs fact `code == 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/installed_entry_storage_through_parameter_unproved rejected 1005ms expected @0360a23ad5f5+wt
+fail/facts/installed_entry_storage_through_parameter_unproved rejected 3816ms expected @3c5cd09b7f5d
 	cannot prove requires contract for call relay from start: 8 == 9 (needs fact `code == 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/installed_entry_storage_through_target_body_unproved rejected 877ms expected @0360a23ad5f5+wt
+fail/facts/installed_entry_storage_through_target_body_unproved rejected 3128ms expected @3c5cd09b7f5d
 	cannot prove requires contract for call finish from start: code == 9 (needs fact `code == 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/integer_multiple_remainder_through_call_result_rejected rejected 563ms expected @a92f16431042
 	data `EvenLength` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
@@ -18940,6 +18940,8 @@ fail/layouts/placed_stable_array_shared_write rejected 1255ms expected @a92f1643
 	mutable argument `view` for state `write` is not writable in this state; the source cannot lend the requested exclusive access
 fail/layouts/placed_transition_result_type_mismatch rejected 698ms expected @a92f16431042
 	placed read application: value type does not match the placed field's exact value type
+fail/layouts/placed_view_source_access_denied_write rejected 1787ms expected @3c5cd09b7f5d
+	placed write application: the placement plan does not permit this operation
 fail/layouts/placement_policy_unproved_callee_premise rejected 101ms expected @a92f16431042
 	placed view `Placed<CheckedPolicy,Register>`: demanded premise closure checking failed: machine `CheckedPolicy::plan` state `plan` value call to `CheckedPolicy::limit` violates required fact `value <= 7`: the instantiated fact is structurally false (`8 <= 7`)
 fail/layouts/plan_laid_dynamic_plan rejected 400ms expected @a92f16431042
@@ -22631,7 +22633,8 @@ pass/build/entry_schema_same_leaf_exit checked 1937ms check-target:macos_arm64 @
 pass/build/explicit_lifetime_entry_context_exit checked 1898ms check-target:macos_arm64 @a92f16431042
 pass/build/freestanding_unselected_completion checked 5583ms @a92f16431042
 pass/build/generated_source_selects_authored checked 4405ms published:files/generated.omg @a92f16431042
-pass/build/installed_entry_ram_two_occurrences_exit checked 1271ms check-target:macos_arm64 @0360a23ad5f5+wt
+pass/build/installed_entry_ram_stack_occurrence_exit checked 6380ms check-target:macos_arm64 @3c5cd09b7f5d
+pass/build/installed_entry_ram_two_occurrences_exit checked 4148ms check-target:macos_arm64 @3c5cd09b7f5d
 pass/build/named_map_target_family_rows_exit checked 6379ms check-target:macos_arm64 @a92f16431042
 pass/build/nested_generated_dependency_dual_purpose rejected 363ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	quoted byte literal has 41 source byte(s), but owned fixed byte array `[u8; 38]` requires exactly 38; fixed-array literal copying neither truncates nor pads
@@ -22674,6 +22677,7 @@ pass/build/uefi_selected_storage_entry checked 15961ms check-target:uefi_x86_64 
 pass/build/uefi_selected_storage_target_entry checked 16459ms check-target:uefi_x86_64 @a92f16431042
 pass/calling/calling_count_boundaries_exit checked 13662ms check-target:macos_arm64 @a92f16431042
 pass/calls/ambient_receiver_scalar_return_exit checked 7630ms check-target:macos_arm64 @a92f16431042
+pass/calls/attached_terminal_machine_call_exit checked 2454ms check-target:macos_arm64 @3c5cd09b7f5d
 pass/calls/borrowed_case_dispatch_member_leaf_reads checked 8079ms check-target:macos_arm64 @a92f16431042
 pass/calls/borrowed_float_argument_scalar_result_exit checked 11729ms check-target:macos_arm64 @a92f16431042
 pass/calls/borrowed_float_result_exit checked 11906ms check-target:macos_arm64 @a92f16431042
@@ -25710,15 +25714,15 @@ pass/facts/inline_byte_view_argument_snapshot_through_other_machine_exit checked
 pass/facts/inline_byte_view_argument_snapshot_through_other_state_exit checked 2246ms check-target:macos_arm64 @d9ef15c45883+wt
 pass/facts/inline_byte_view_argument_snapshot_through_parameter_exit checked 1523ms check-target:macos_arm64 @d9ef15c45883+wt
 pass/facts/inline_byte_view_argument_snapshot_through_target_body_exit checked 1514ms check-target:macos_arm64 @d9ef15c45883+wt
-pass/facts/installed_entry_storage_through_call_result_exit checked 1214ms check-target:macos_arm64 @0360a23ad5f5+wt
-pass/facts/installed_entry_storage_through_const_name_exit checked 1217ms check-target:macos_arm64 @0360a23ad5f5+wt
-pass/facts/installed_entry_storage_through_field_exit checked 1211ms check-target:macos_arm64 @0360a23ad5f5+wt
-pass/facts/installed_entry_storage_through_local_exit checked 1215ms check-target:macos_arm64 @0360a23ad5f5+wt
-pass/facts/installed_entry_storage_through_match_join_exit checked 1215ms check-target:macos_arm64 @0360a23ad5f5+wt
-pass/facts/installed_entry_storage_through_other_machine_exit checked 1219ms check-target:macos_arm64 @0360a23ad5f5+wt
-pass/facts/installed_entry_storage_through_other_state_exit checked 1331ms check-target:macos_arm64 @0360a23ad5f5+wt
-pass/facts/installed_entry_storage_through_parameter_exit checked 1346ms check-target:macos_arm64 @0360a23ad5f5+wt
-pass/facts/installed_entry_storage_through_target_body_exit checked 1228ms check-target:macos_arm64 @0360a23ad5f5+wt
+pass/facts/installed_entry_storage_through_call_result_exit checked 4149ms check-target:macos_arm64 @3c5cd09b7f5d
+pass/facts/installed_entry_storage_through_const_name_exit checked 4299ms check-target:macos_arm64 @3c5cd09b7f5d
+pass/facts/installed_entry_storage_through_field_exit checked 4255ms check-target:macos_arm64 @3c5cd09b7f5d
+pass/facts/installed_entry_storage_through_local_exit checked 4247ms check-target:macos_arm64 @3c5cd09b7f5d
+pass/facts/installed_entry_storage_through_match_join_exit checked 4456ms check-target:macos_arm64 @3c5cd09b7f5d
+pass/facts/installed_entry_storage_through_other_machine_exit checked 4274ms check-target:macos_arm64 @3c5cd09b7f5d
+pass/facts/installed_entry_storage_through_other_state_exit checked 4551ms check-target:macos_arm64 @3c5cd09b7f5d
+pass/facts/installed_entry_storage_through_parameter_exit checked 4577ms check-target:macos_arm64 @3c5cd09b7f5d
+pass/facts/installed_entry_storage_through_target_body_exit checked 4893ms check-target:macos_arm64 @3c5cd09b7f5d
 pass/facts/integer_multiple_remainder_through_call_result_exit checked 2623ms check-target:macos_arm64 @a92f16431042
 pass/facts/integer_multiple_remainder_through_const_name_exit checked 2600ms check-target:macos_arm64 @a92f16431042
 pass/facts/integer_multiple_remainder_through_field_exit checked 2368ms check-target:macos_arm64 @a92f16431042
@@ -29859,7 +29863,7 @@ pass/layouts/placed_reference_results/nested checked 4452ms check-target:macos_a
 pass/layouts/placed_reference_results/returned checked 3749ms check-target:macos_arm64 @a92f16431042
 pass/layouts/placed_reference_results/two_live checked 4462ms check-target:macos_arm64 @a92f16431042
 pass/layouts/placed_view_call_custody checked 37391ms terminal-inspections:match @a92f16431042
-pass/layouts/placed_view_source_access_compile checked 4091ms @a92f16431042
+pass/layouts/placed_view_source_access_exit checked 4706ms check-target:macos_arm64 @3c5cd09b7f5d
 pass/layouts/portable_data_layout_queries checked 2528ms check-target:macos_arm64 @a92f16431042
 pass/layouts/private_callback_slot_demand_compile checked 1796ms @a92f16431042
 pass/layouts/private_callback_slot_untaken_compile checked 1395ms @a92f16431042

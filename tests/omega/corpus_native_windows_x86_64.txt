@@ -7162,7 +7162,6 @@ pass/layouts/placed_reference_results/nested built 10228ms exit:0 @5f668826adf3+
 pass/layouts/placed_reference_results/returned built 9862ms exit:0 @5f668826adf3+wt
 pass/layouts/placed_reference_results/two_live built 14819ms exit:0 @5f668826adf3+wt
 pass/layouts/placed_view_call_custody checked 69232ms terminal-inspections:match @5f668826adf3+wt
-pass/layouts/placed_view_source_access_compile checked 9701ms @5f668826adf3+wt
 pass/layouts/portable_data_layout_queries built 3406ms exit:0 @5f668826adf3+wt
 pass/layouts/private_callback_slot_demand_compile checked 2672ms @5f668826adf3+wt
 pass/layouts/private_callback_slot_untaken_compile checked 5568ms @5f668826adf3+wt
