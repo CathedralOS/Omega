@@ -1,192 +1,34 @@
 //! Independent field-value specialization replay mechanics.
 //!
 //! Validation never trusts the candidate's field rows: it re-derives the
-//! claimed place's proof evidence — an `EstablishRecord` producer on an
-//! operation-result place at an empty path, an `EstablishCase`
-//! producer whose `result_case` matches at a lone `Case` path, the same two
-//! reached through `Field` descents across owned, complete structural
-//! children (record fields, or `Case` then `Field` into the payload child an
-//! `EstablishCase` stores whole for exactly its own case), the same chain
-//! entered from a `StructuralLeafCopy` whose projection — case-qualified
-//! steps directly, ordinary field identities resolved to roster handles —
-//! prefixes the path beneath its source, an
-//! `EstablishZeroedStructural` producer whose all-zero storage
-//! fixes the scalar leaf of a zero-constructible shape at zero, or a
-//! declared `BoundedInteger` singleton bound at the position
-//! each observation resolves to — replays the admissible observation set
-//! for that place,
-//! requires the claimed rows to equal the replayed rows exactly, rebuilds
-//! the output itself, and reconstructs the exact node custody the resolved
-//! observations carry. A `Constant` row folds its read in place; a `Forward`
-//! row rebinds every covered scalar-operand use of the read's result to the
-//! proven nonconstant initializer and retires the observation node, so the
-//! replay also recomputes the substitution set, the exact use-site roster,
-//! initializer dominance, and the shifted-custody provenance ledger.
+//! claimed place's proof evidence with `optimization_unit::field_value_reads`
+//! — the same roster the producer publishes, derived from the function rather
+//! than read from the candidate — requires the claimed rows to equal the
+//! replayed rows exactly, rebuilds the output itself, and reconstructs the
+//! exact node custody the resolved observations carry. A `Constant` row folds
+//! its read in place; a `Forward` row rebinds every covered scalar-operand use
+//! of the read's result to the proven nonconstant initializer and retires the
+//! observation node, so the replay also recomputes the substitution set, the
+//! exact use-site roster, initializer dominance, and the shifted-custody
+//! provenance ledger.
 
 use crate::candidates::provenance_realized_at;
 use crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_uses;
 use crate::candidates::state_specialization::cyclic_machines;
-use crate::candidates::structural_bindings::bound_place;
 use crate::candidates::{
     accept_region_rewrite, candidate_block, candidate_function, candidate_node,
-    canonicalize_provenance, land_folded_nodes, receiver_custody_distinct, retirable_scalar_node,
-    retire_node_custody, sweep_output_nodes,
+    canonicalize_provenance, land_folded_nodes, retire_node_custody, sweep_output_nodes,
 };
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::{
-    FieldEvidence, FieldValueResolution, FieldValueRow, FoldedFieldValue, ForwardedFieldValue,
-    FunctionAnalysis, OptimizationNode, ProvenanceRewrite, PsiOptimizationFunction,
-    PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch,
-    ScalarSubstitution, ValueDefinitionSite, field_evidence, function_analysis,
+    FieldValueResolution, FieldValueRow, FoldedFieldValue, OptimizationNode, ProvenanceRewrite,
+    PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
+    PsiRewritePatch, ScalarSubstitution, field_evidence, field_value_reads,
+    receiver_custody_distinct, retirable_scalar_node,
 };
-use semantic_vocabulary::{BlockId, ScalarType, ValueId};
+use semantic_vocabulary::{BlockId, ScalarType};
 use std::collections::{BTreeMap, BTreeSet};
-
-/// The admissibility of one node under `evidence`: a Boolean or integer
-/// `StructuralScalarFieldRead` observing the evidence's place whose stored
-/// value the unit proves. `None` for every other node.
-fn admit_field_node(
-    unit: &PsiOptimizationUnit,
-    evidence: &FieldEvidence<'_>,
-    function: &PsiOptimizationFunction,
-    analysis: &FunctionAnalysis,
-    block: &optimization_unit::OptimizationBlock,
-    node_index: usize,
-    node: &OptimizationNode,
-) -> Option<FieldValueRow> {
-    optimization_unit::admit_field_node(
-        unit,
-        evidence,
-        function,
-        analysis,
-        block,
-        node_index,
-        node,
-        &bound_place,
-        &forwarded_resolution,
-    )
-}
-
-/// The `Forward` resolution for one nonconstant-initialized read, or `None`
-/// when the substitution cannot retire the observation exactly: the
-/// initializer must resolve to a same-function definition of the read's own
-/// scalar type and dominate every use site, every scalar-operand use of the
-/// read's result must sit in an operation the substitution lane rewrites,
-/// and the observation node itself must be cleanly removable — exactly its
-/// result definition, no successors, no ownership events, a following node
-/// to absorb its custody, and no shared provenance with that receiver. Field
-/// observations emit no optimization facts, so no fact custody is owed.
-fn forwarded_resolution(
-    function: &PsiOptimizationFunction,
-    analysis: &FunctionAnalysis,
-    block: &optimization_unit::OptimizationBlock,
-    node_index: usize,
-    node: &OptimizationNode,
-    result: ValueId,
-    scalar_type: ScalarType,
-    initializer: ValueId,
-) -> Option<ForwardedFieldValue> {
-    if initializer == result {
-        return None;
-    }
-    let definition = analysis.definitions.get(&initializer)?;
-    if definition.scalar_type != scalar_type {
-        return None;
-    }
-    if !retirable_scalar_node(block, node_index, node, result, scalar_type) {
-        return None;
-    }
-    if !receiver_custody_distinct(block, node_index, node) {
-        return None;
-    }
-    // Every site that references the read's result: the tracked scalar-operand
-    // uses, which include each runtime-selected path element's selector. A
-    // use inside a byte-sequence operation, or as a runtime selector whose
-    // accepted certificate names that exact value, is outside the lane, so
-    // the row is inadmissible rather than partially substituted.
-    let mut uses = BTreeSet::new();
-    for use_block in &function.blocks {
-        for (use_index, use_node) in use_block.nodes.iter().enumerate() {
-            let referenced = use_node
-                .uses
-                .iter()
-                .any(|use_site| use_site.value == result);
-            if !referenced {
-                continue;
-            }
-            if use_node.operation.operates_on_byte_sequence_storage()
-                || use_node
-                    .operation
-                    .runtime_indices()
-                    .iter()
-                    .any(|(index, _)| *index == result)
-            {
-                return None;
-            }
-            let site = optimization_unit::NodeLocation {
-                machine: function.machine,
-                block: use_block.id,
-                node: u32::try_from(use_index).ok()?,
-            };
-            let dominates = match definition.site {
-                ValueDefinitionSite::FunctionParameter(_) => true,
-                ValueDefinitionSite::BlockParameter {
-                    block: defining, ..
-                } => analysis
-                    .dominators
-                    .get(&use_block.id)
-                    .is_some_and(|set| set.contains(&defining)),
-                ValueDefinitionSite::Node {
-                    block: defining,
-                    node: defined_at,
-                } => {
-                    if defining == use_block.id {
-                        defined_at < site.node
-                    } else {
-                        analysis
-                            .dominators
-                            .get(&use_block.id)
-                            .is_some_and(|set| set.contains(&defining))
-                    }
-                }
-            };
-            if !dominates {
-                return None;
-            }
-            uses.insert(site);
-        }
-    }
-    Some(ForwardedFieldValue {
-        initializer,
-        scalar_type,
-        uses: uses.into_iter().collect(),
-    })
-}
-
-/// The independently derived resolution roster for `place`: every
-/// Boolean or integer `StructuralScalarFieldRead` observing it whose
-/// stored value the per-site basis proves, sorted by site.
-fn plan_reads(
-    unit: &PsiOptimizationUnit,
-    evidence: &FieldEvidence<'_>,
-    function: &PsiOptimizationFunction,
-) -> Vec<FieldValueRow> {
-    let analysis = function_analysis(function);
-    let mut reads = Vec::new();
-    for block in &function.blocks {
-        for (node_index, node) in block.nodes.iter().enumerate() {
-            let Some(row) =
-                admit_field_node(unit, evidence, function, &analysis, block, node_index, node)
-            else {
-                continue;
-            };
-            reads.push(row);
-        }
-    }
-    reads.sort_by_key(|row| row.site);
-    reads
-}
 
 /// The folded node a `Constant` row admits at its site: a
 /// `BooleanConstant`/`IntegerConstant` with the read's own custody identity
@@ -399,7 +241,7 @@ pub(super) fn validate(
     if patch.producer != evidence.root_producer.operation() {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let replayed = plan_reads(input, &evidence, function);
+    let replayed = field_value_reads(input, &evidence, function);
     if replayed.is_empty() || patch.reads != replayed {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }

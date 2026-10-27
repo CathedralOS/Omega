@@ -23,7 +23,6 @@ use crate::candidates::candidate_function;
 use crate::candidates::candidate_node;
 use crate::candidates::realized_at_own_site;
 use crate::candidates::state_specialization::cyclic_machines;
-use crate::candidates::structural_bindings::bound_place;
 use crate::candidates::{accept_region_rewrite, canonicalize_provenance, land_folded_nodes};
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use abstract_operations::AbstractOperation as O;
@@ -61,7 +60,7 @@ fn membership_evidence<'a>(
     Some(MembershipEvidence {
         declaration,
         root_type: declared_structural_type(function, declaration),
-        root_basis: optimization_unit::proof_basis(unit, function, declaration, &bound_place),
+        root_basis: optimization_unit::proof_basis(unit, function, declaration),
         function,
     })
 }
@@ -103,15 +102,12 @@ fn admit_membership_node(
     // projection the walk prefixes. Failing an
     // establishment, the sole-case roster at the resolved end type proves
     // the verdict without custody evidence.
-    let (proven_case, producer) = optimization_unit::established_case_at(
-        unit,
-        evidence.function,
-        evidence.declaration,
-        path,
-        &bound_place,
-    )
-    .map(|(operation, case)| (case, Some(operation)))
-    .or_else(|| resolved_sole_case(unit, evidence.root_type?, path).map(|case| (case, None)))?;
+    let (proven_case, producer) =
+        optimization_unit::established_case_at(unit, evidence.function, evidence.declaration, path)
+            .map(|(operation, case)| (case, Some(operation)))
+            .or_else(|| {
+                resolved_sole_case(unit, evidence.root_type?, path).map(|case| (case, None))
+            })?;
     Some(FoldedCaseMembershipRow {
         site: optimization_unit::NodeLocation {
             machine,
@@ -196,13 +192,7 @@ fn folded_node(
             let resolved = function
                 .structural_place(row.source)
                 .and_then(|declaration| {
-                    optimization_unit::established_case_at(
-                        unit,
-                        function,
-                        declaration,
-                        path,
-                        &bound_place,
-                    )
+                    optimization_unit::established_case_at(unit, function, declaration, path)
                 });
             if resolved != Some((producer, row.proven_case)) {
                 return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
