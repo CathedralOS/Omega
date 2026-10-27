@@ -2,15 +2,15 @@
 // Existing routed membership on an owned opaque result from a checked independent provider survives transport into the next qualified consuming call, preserving libc hosts 66051 and 513 and replacement 1027.
 use renamed::main;
 public data AddressBox { value: InternetAddress in Classified::Ready; }
-public data AddressPair { first: InternetAddress in Classified::Ready; second: InternetAddress; }
+public data AddressPair { left_guard: u32; first: InternetAddress in Classified::Ready; right_guard: u32; second: InternetAddress; }
 
 machine consume(first: InternetAddress in Classified::Ready, second: InternetAddress) -> bool reaches AddressParts, AddressBridge {
-    let mut pair: AddressPair = AddressPair { first: first, second: second };
+    let mut pair: AddressPair = AddressPair { left_guard: 305419896, first: first, right_guard: 1515863100, second: second };
     let old_host: u32 = AddressBridge::classified_host(pair.first);
     pair.first = classify(AddressBridge::make(10, 1027)) as InternetAddress in Classified::Ready;
     let sibling_host: u32 = AddressBridge::host(pair.second);
     let replacement_host: u32 = AddressBridge::host(pair.first as InternetAddress);
-    old_host == 66051 && sibling_host == 513 && replacement_host == 1027
+    old_host == 66051 && sibling_host == 513 && replacement_host == 1027 && pair.left_guard == 305419896 && pair.right_guard == 1515863100
 }
 linux_x86_64 machine observe() -> bool reaches AddressParts, AddressBridge { consume(AddressBridge::classified_make(10, 66051), AddressBridge::make(44048, 513)) }
 linux_arm64 machine observe() -> bool reaches AddressParts, AddressBridge { consume(AddressBridge::classified_make(10, 66051), AddressBridge::make(44048, 513)) }
