@@ -63,6 +63,16 @@ and checks the corresponding integer constant/literal identity. Its
 carrier with the same field shape. These are prerequisites exposed by the
 bundled standard library when migrating ordinary state-loop samples.
 
+[Ranked callee](ranked_callee/main.omg) leaves an acyclic terminating wrapper
+around a nested shrinking-slice loop, with a separate caller-owned counter.
+The empty path leaves the counter unchanged; three elements increment it three
+times. The [reject twin](ranked_callee/invalid/main.omg) passes the whole slice
+back instead of its tail. A wrapper's termination promise does not manufacture
+a local loop rank: lowering must retain exactly the observations required by
+each admitted body, including fused callees. A value cast reading the counter
+must not be confused with embedding a reference as a mathematical integer.
+This is the control for the shared console adapters' nested-machine migration.
+
 The row establishes static binder identity, explicit argument composition,
 result checking, continuation, and end-to-end erasure/realization for these
 calls. All four hosted target bindings are authored; executable observations
