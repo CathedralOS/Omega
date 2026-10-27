@@ -531,13 +531,7 @@ pub(crate) fn citation_call_in_statement<'program>(
     let owner = super::specification_calls::selected_call_site_contract(program, caller, site)?;
     let has_static_selection = !machine_arguments.is_empty()
         || site.static_machine_parameter().is_valid()
-        || match site {
-            crate::CallSite::Statement(call) => !call.evidence_arguments.is_empty(),
-            crate::CallSite::Expression { call, .. } => !call.evidence_arguments.is_empty(),
-            crate::CallSite::TransitionNamed {
-                evidence_arguments, ..
-            } => !evidence_arguments.is_empty(),
-        }
+        || !crate::call_site_evidence_arguments(&site).is_empty()
         || site.static_requirement_dispatch().is_some();
     Some((
         CitationTarget {
