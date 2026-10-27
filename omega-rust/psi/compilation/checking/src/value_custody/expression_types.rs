@@ -236,6 +236,14 @@ fn argument_matches_type_reference_using(
         type_reference,
         required_substitutions,
     );
+    if scalar_observations::primitive_delivery_matches(
+        program,
+        argument,
+        type_reference,
+        required_substitutions,
+    ) {
+        return true;
+    }
     if let Some(dispatch) = program.expression_table.match_node(argument) {
         // Selection changes which value arrives, not its required carrier.
         // Reference arms obey the same exact referent/access correspondence;

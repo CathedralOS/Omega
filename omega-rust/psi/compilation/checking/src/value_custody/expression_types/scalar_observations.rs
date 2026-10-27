@@ -9,6 +9,63 @@
 use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
+/// Primitive delivery reads a completed reference; reference forwarding keeps
+/// its descriptor. This relation establishes only the receiving carrier and
+/// qualification. Access, formation, value/domain facts and loans still belong
+/// to their independent checks. Every readable crossing remains required.
+pub(super) fn primitive_delivery_matches(
+    program: &dyn crate::CheckingInput,
+    expression: typed_trees::expression::ExpressionHandle,
+    required: TypeReferenceHandle,
+    required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    if program.primitive_type_reference(required).is_none() {
+        return false;
+    }
+    let mut substitutions = Vec::new();
+    let Some(mut reference) =
+        super::reference_values::declared_value_type(program, expression, &mut substitutions)
+    else {
+        return false;
+    };
+    let mut read = false;
+    for _ in 0..=program.type_reference_table.type_reference_count() {
+        let Some(declared) =
+            super::reference_values::substituted_reference(program, reference, &substitutions)
+        else {
+            return false;
+        };
+        let Some(observed) = readable_observation_type_reference(program, declared) else {
+            return false;
+        };
+        read |= observed != declared;
+        let Some(resolved) =
+            super::reference_values::substituted_reference(program, observed, &substitutions)
+        else {
+            return false;
+        };
+        if resolved != observed {
+            reference = resolved;
+            continue;
+        }
+        if !read
+            || scalar_observation_meaning(program, observed)
+                != scalar_observation_meaning(program, required)
+        {
+            return false;
+        }
+        use typed_trees::type_identity::TypeIdentityRequest;
+        return program.type_identity(TypeIdentityRequest {
+            substitutions: &substitutions,
+            ..TypeIdentityRequest::ordinary(observed)
+        }) == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+            substitutions: required_substitutions,
+            ..TypeIdentityRequest::ordinary(required)
+        });
+    }
+    false
+}
+
 /// Complete the operand references of an already selected builtin operation.
 /// Result-type queries intentionally leave anonymous numbers unlanded. Their
 /// first typed peer supplies its comparison carrier or a fixed integer
