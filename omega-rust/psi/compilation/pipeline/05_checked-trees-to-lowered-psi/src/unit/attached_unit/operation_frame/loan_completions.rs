@@ -124,7 +124,7 @@ impl OperationFrame<'_, '_> {
                 continue;
             };
             let place = self.checked.facts.semantic.places.get(place_handle);
-            let Some((_, _, _domain_symbol, semantic_domain)) = fact.payload.domain_membership()
+            let Some((_, _, domain_symbol, semantic_domain)) = fact.payload.domain_membership()
             else {
                 continue;
             };
@@ -158,78 +158,73 @@ impl OperationFrame<'_, '_> {
             let Some((owner, structural_type)) = home else {
                 continue;
             };
-            let Some(declaration) = terminal_psi::find_structural_type(&types, structural_type)
-            else {
-                continue;
-            };
-            let (target_carrier, prefix_path) = match declaration.shape {
-                terminal_psi::StructuralTypeShape::Reference { referent, .. } => (
-                    referent,
-                    vec![terminal_psi::StructuralPathSegment::Referent],
-                ),
-                _ => (structural_type, Vec::new()),
-            };
             let segments = self
                 .checked
                 .facts
                 .semantic
                 .place_segments
                 .span_or_empty(place.segments);
-            let mut full_path = prefix_path;
-            if !segments.is_empty() {
-                let Some(reference) = validation::canonical_place_type_reference(
-                    &self.checked.typed,
-                    self.state,
-                    coordinate.statement_index,
-                    &validation::CanonicalPlace {
-                        root: place.root,
-                        segments: segments.to_vec(),
-                    },
-                ) else {
-                    continue;
-                };
-                let Ok((fact_path, _)) =
-                    validation::structural_owned_path(&self.checked.typed, reference, segments)
-                else {
-                    continue;
-                };
-                let Ok(lowered_segments) = crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
-                    identities,
-                    &fact_path,
-                    target_carrier,
-                    &types,
-                ) else {
-                    continue;
-                };
-                full_path.extend(lowered_segments);
-            }
+            // Coordinates are relative to the home, not to the selected leaf.
+            // Borrowed ingress may publish its referent directly; an actual
+            // stored reference retains its explicit pointer crossing.
+            let reference = validation::canonical_place_type_reference(
+                &self.checked.typed,
+                self.state,
+                coordinate.statement_index,
+                &validation::CanonicalPlace {
+                    root: place.root,
+                    segments: Vec::new(),
+                },
+            )
+            .ok_or(LoweringError::Unsupported(
+                "call guarantee lost its exact root type",
+            ))?;
+            let reference = if owner.access == terminal_psi::StructuralAccess::Owned {
+                reference
+            } else {
+                // Ingress lends exactly one shell, including when its
+                // referent is itself a stored reference descriptor.
+                validation::reference_shell(&self.checked.typed, reference)
+                    .map_or(reference, |shell| shell.referee)
+            };
+            let mut fact_path =
+                validation::qualification_storage_path(&self.checked.typed, reference, segments)
+                    .map_err(LoweringError::Unsupported)?;
+            let selected = validation::project_type_reference_from_segments(
+                &self.checked.typed,
+                reference,
+                segments,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "call guarantee lost its selected source type",
+            ))?;
+            let (membership_path, _) =
+                validation::result_membership_carrier(&self.checked.typed, selected, domain_symbol)
+                    .ok_or(LoweringError::Unsupported(
+                        "call guarantee has no matching domain carrier",
+                    ))?;
+            fact_path.extend(membership_path);
+            let mut full_path = owner.path.clone();
+            full_path.extend(crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
+                identities, &fact_path, structural_type, &types,
+            )?);
             let carrier = if full_path.is_empty() {
-                Some(target_carrier)
+                structural_type
             } else {
                 terminal_semantics::qualification_path_carrier(
                     types.iter(),
                     structural_type,
                     &full_path,
                 )
+                .ok_or(LoweringError::Unsupported(
+                    "call guarantee has no exact projected carrier",
+                ))?
             };
-            let domain = if let Some(carrier) = carrier {
-                crate::terminal_identities::lookup_domain_id_for_carrier(
-                    self.callees.domain_ids,
-                    semantic_domain,
-                    carrier,
-                )
-                .or_else(|_| {
-                    crate::terminal_identities::lookup_domain_id(
-                        self.callees.domain_ids,
-                        semantic_domain,
-                    )
-                })?
-            } else {
-                crate::terminal_identities::lookup_domain_id(
-                    self.callees.domain_ids,
-                    semantic_domain,
-                )?
-            };
+            let domain = crate::terminal_identities::lookup_domain_id_for_carrier(
+                self.callees.domain_ids,
+                semantic_domain,
+                carrier,
+            )?;
             let (qualifications, projected_qualifications) = if full_path.is_empty() {
                 (vec![domain], Vec::new())
             } else {

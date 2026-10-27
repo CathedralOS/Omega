@@ -3,7 +3,23 @@
 Parent: [NORMALIZED-ABI-LOWERING](../../../../../TASKS.md). This extends
 [retained nested backing](../README.md) to an explicitly borrowed array.
 
-A mutable foreign registration retains the original fixed-array view in Buffer until Pending completes; completion writes the middle caller cell to 73 while both neighbors, marker 91 and the earlier copy 37 remain unchanged.
+A mutable foreign registration retains the original fixed-array view in Buffer until Pending completes; the restored middle Cell satisfies ResidentValue for observed_gap, while completion writes 73 and preserves both neighbors, marker 91 and the earlier copy 37.
+
+`Cell.value` carries `ResidentValue`: `0..=2147483647`, excluding 42.
+After completion, `observed_gap` requires that complete declared predicate and
+subtracts the field from 2147483647; the caller checks the resulting 2147483574
+alongside the original canaries. No caller guard re-establishes membership.
+The compact [missing field predicate control](controls/missing_leaf_predicate/main.omg)
+keeps an unqualified public Cell input and must reject the same consuming call.
+The nine exclusive-loan twins remain separate guards on the retained window.
+
+The qualified extension is currently unfinished: optimized producer
+`f5e853ea1f2` source-checks the local witness but fails Terminal lowering with
+`structural result custody cannot manufacture an owned reference`. Its
+unqualified predecessor still runs native/Terminal zero. The matching-host
+records below describe that earlier unqualified source and do not qualify this
+extension. Frozen inputs, producer and observations are retained under
+`/Users/zcanann/Omega-build/qualified-borrowed-array-view-probe-2026-10-27/`.
 
 `Buffer<'cells>` contains `&'cells mut [Cell; 3]`. The C counterpart stores
 `struct cell (*cells)[3]`: one explicit pointer to a fixed array, with no C
