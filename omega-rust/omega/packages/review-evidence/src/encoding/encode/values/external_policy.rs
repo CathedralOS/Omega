@@ -34,18 +34,14 @@ pub(in crate::encoding::encode) fn validated_value(
     encoder: &mut Encoder,
     supply: &PackagePolicyExternalExecutableSupply,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("callable", |encoder| {
-        encode_nominal(encoder, &supply.callable)
-    })?;
-    encoder.field("target_context", |encoder| {
-        super::identity::encode_target_context(encoder, &supply.target_context)
-    })?;
-    encoder.field("signature", |encoder| {
-        signatures::signature(encoder, &supply.signature)
-    })?;
-    encoder.field("requirement", |encoder| {
-        signatures::requirement(encoder, &supply.requirement)
-    })?;
+    encoder.field_by("callable", &supply.callable, encode_nominal)?;
+    encoder.field_by(
+        "target_context",
+        &supply.target_context,
+        super::identity::encode_target_context,
+    )?;
+    encoder.field_by("signature", &supply.signature, signatures::signature)?;
+    encoder.field_by("requirement", &supply.requirement, signatures::requirement)?;
     encoder.field("binding", |encoder| {
         // Tag 0 carried the retired string-backed import row; recovery
         // rejects it by name and no policy produces it again.
@@ -117,9 +113,7 @@ pub(crate) fn encode_producer(
     encoder: &mut Encoder,
     producer: &PackagePolicyEvaluatedBindingProducer,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("declaration", |encoder| {
-        encode_nominal(encoder, &producer.declaration)
-    })?;
+    encoder.field_by("declaration", &producer.declaration, encode_nominal)?;
     encoder.field("package", |encoder| {
         encoder.optional_package_identity(producer.package);
         Ok(())

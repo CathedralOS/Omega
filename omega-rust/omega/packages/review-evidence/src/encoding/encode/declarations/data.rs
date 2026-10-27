@@ -109,9 +109,7 @@ pub(crate) fn encode_data_field(
         encode_relevance(encoder, field.relevance);
         Ok(())
     })?;
-    encoder.field("type_identity", |encoder| {
-        encode_type_identity(encoder, &field.type_identity)
-    })
+    encoder.field_by("type_identity", &field.type_identity, encode_type_identity)
 }
 
 pub(crate) fn encode_type_identity(

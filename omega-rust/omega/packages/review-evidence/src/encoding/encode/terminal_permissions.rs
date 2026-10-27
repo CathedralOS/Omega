@@ -34,9 +34,7 @@ pub(super) fn policy(
     })?;
     encoder.field("services", |encoder| {
         encoder.sequence(&policy.services, |encoder, service| {
-            encoder.field("service", |encoder| {
-                encode_nominal(encoder, &service.service)
-            })?;
+            encoder.field_by("service", &service.service, encode_nominal)?;
             encoder.field("static_parameters", |encoder| {
                 encoder.sequence(&service.static_parameters, encode_type_parameter)
             })?;
@@ -60,9 +58,7 @@ pub(super) fn permission(
     encoder: &mut Encoder,
     permission: &PackagePolicyTerminalPermission,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("requirement", |encoder| {
-        encode_nominal(encoder, &permission.requirement)
-    })?;
+    encoder.field_by("requirement", &permission.requirement, encode_nominal)?;
     encoder.field("permitted", |encoder| {
         encoder.sequence(permission.permitted.classes(), |encoder, class| {
             let name = match class {

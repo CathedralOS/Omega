@@ -27,9 +27,7 @@ pub(crate) fn encode_contract_operator_meaning(
         PackageReviewContractOperatorMeaning::Builtin => encoder.tag("builtin", 0),
         PackageReviewContractOperatorMeaning::Declared(coordinate) => {
             encoder.tag("declared", 1);
-            encoder.field("coordinate", |encoder| {
-                encode_operator_coordinate(encoder, coordinate)
-            })?;
+            encoder.field_by("coordinate", coordinate, encode_operator_coordinate)?;
         }
     }
     Ok(())

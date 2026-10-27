@@ -12,9 +12,7 @@ pub(crate) fn encode_conformance_bound(
         encoder.u32(bound.binder_ordinal);
         Ok(())
     })?;
-    encoder.field("trait_identity", |encoder| {
-        encode_nominal(encoder, &bound.trait_identity)
-    })?;
+    encoder.field_by("trait_identity", &bound.trait_identity, encode_nominal)?;
     encoder.field("trait_lifetime_arguments", |encoder| {
         encoder.sequence(&bound.trait_lifetime_arguments, |encoder, argument| {
             encoder.field("argument", |encoder| {

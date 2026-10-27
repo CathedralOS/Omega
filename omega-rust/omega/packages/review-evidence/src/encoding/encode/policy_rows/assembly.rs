@@ -184,9 +184,11 @@ pub(super) fn project(
         false,
         |_| Ok(()),
         |encoder| {
-            encoder.field("selected_providers", |encoder| {
-                selected_providers::policy(encoder, selected_providers)
-            })?;
+            encoder.field_by(
+                "selected_providers",
+                selected_providers,
+                selected_providers::policy,
+            )?;
             encoder.field("closed_applications", |encoder| {
                 encoder.sequence(realizations, baseline::boundary::realization)
             })

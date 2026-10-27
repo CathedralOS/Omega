@@ -21,9 +21,7 @@ pub(super) fn binding(
             encoder.field("evaluated", |encoder| {
                 encoder.option(evaluated.as_ref(), |encoder, evaluated| {
                     encoder.field("target", |encoder| encoder.string(&evaluated.target))?;
-                    encoder.field("producer", |encoder| {
-                        encode_producer(encoder, &evaluated.producer)
-                    })
+                    encoder.field_by("producer", &evaluated.producer, encode_producer)
                 })
             })?;
         }
@@ -46,9 +44,7 @@ pub(super) fn binding(
             encoder.tag("vtable_field", 4);
             encoder.field("table", |encoder| encoder.string(table))?;
             encoder.field("field", |encoder| encoder.string(field))?;
-            encoder.field("table_declaration", |encoder| {
-                encode_nominal(encoder, table_declaration)
-            })?;
+            encoder.field_by("table_declaration", table_declaration, encode_nominal)?;
         }
         PackagePolicyProviderBinding::TableFunction {
             table,
@@ -58,9 +54,7 @@ pub(super) fn binding(
             encoder.tag("table_function", 5);
             encoder.field("table", |encoder| encoder.string(table))?;
             encoder.field("field", |encoder| encoder.string(field))?;
-            encoder.field("table_declaration", |encoder| {
-                encode_nominal(encoder, table_declaration)
-            })?;
+            encoder.field_by("table_declaration", table_declaration, encode_nominal)?;
         }
         PackagePolicyProviderBinding::CheckedAdapter {
             machine_identity,

@@ -12,18 +12,14 @@ pub(in crate::encoding::encode) fn method(
     method: &PackagePolicyServiceMethod,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field("name", |encoder| encoder.string(&method.name))?;
-    encoder.field("requirement_owner", |encoder| {
-        encode_nominal(encoder, &method.requirement_owner)
-    })?;
-    encoder.field("requirement", |encoder| {
-        encode_nominal(encoder, &method.requirement)
-    })?;
-    encoder.field("signature", |encoder| {
-        super::signature::signature(encoder, &method.signature)
-    })?;
-    encoder.field("authority", |encoder| {
-        super::authority::authority(encoder, &method.authority)
-    })?;
+    encoder.field_by(
+        "requirement_owner",
+        &method.requirement_owner,
+        encode_nominal,
+    )?;
+    encoder.field_by("requirement", &method.requirement, encode_nominal)?;
+    encoder.field_by("signature", &method.signature, super::signature::signature)?;
+    encoder.field_by("authority", &method.authority, super::authority::authority)?;
     encoder.field("parameter_count", |encoder| {
         encoder.usize(method.parameter_count)
     })?;

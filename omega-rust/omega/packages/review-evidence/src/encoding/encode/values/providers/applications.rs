@@ -23,9 +23,11 @@ pub(in crate::encoding::encode) fn encode_boundary_application(
                                     encoder.u32(*binder_ordinal);
                                     Ok(())
                                 })?;
-                                encoder.field("type_identity", |encoder| {
-                                    encode_type_identity(encoder, type_identity)
-                                })?;
+                                encoder.field_by(
+                                    "type_identity",
+                                    type_identity,
+                                    encode_type_identity,
+                                )?;
                             }
                             crate::record::PackageReviewBoundaryApplicationArgument::Const {
                                 binder_ordinal,
@@ -38,9 +40,11 @@ pub(in crate::encoding::encode) fn encode_boundary_application(
                                     encoder.u32(*binder_ordinal);
                                     Ok(())
                                 })?;
-                                encoder.field("declared_carrier", |encoder| {
-                                    encode_type_identity(encoder, declared_carrier)
-                                })?;
+                                encoder.field_by(
+                                    "declared_carrier",
+                                    declared_carrier,
+                                    encode_type_identity,
+                                )?;
                                 encoder
                                     .field("value_type", |encoder| encoder.string(value_type))?;
                                 encoder.field("value_encoding", |encoder| {

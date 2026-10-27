@@ -31,9 +31,7 @@ pub(in crate::encoding) fn encode_callable(
         }
         Ok(())
     })?;
-    encoder.field("identity", |encoder| {
-        encode_nominal(encoder, &callable.identity)
-    })?;
+    encoder.field_by("identity", &callable.identity, encode_nominal)?;
     encoder.field("target_context", |encoder| {
         crate::encoding::encode::values::identity::encode_target_context(
             encoder,
@@ -62,9 +60,7 @@ pub(in crate::encoding) fn encode_callable(
     encoder.field("parameters", |encoder| {
         encoder.sequence(&callable.parameters, |encoder, parameter| {
             encoder.field("name", |encoder| encoder.string(&parameter.name))?;
-            encoder.field("type", |encoder| {
-                encode_type_identity(encoder, &parameter.type_identity)
-            })?;
+            encoder.field_by("type", &parameter.type_identity, encode_type_identity)?;
             encoder.field("const", |encoder| {
                 encoder.boolean(parameter.is_const);
                 Ok(())
@@ -84,9 +80,11 @@ pub(in crate::encoding) fn encode_callable(
     })?;
     encoder.field("operator_realizations", |encoder| {
         encoder.sequence(&callable.operator_realizations, |encoder, realization| {
-            encoder.field("coordinate", |encoder| {
-                encode_operator_coordinate(encoder, &realization.coordinate)
-            })?;
+            encoder.field_by(
+                "coordinate",
+                &realization.coordinate,
+                encode_operator_coordinate,
+            )?;
             encoder.field("alias", |encoder| {
                 encoder.option(realization.alias.as_deref(), |encoder, alias| {
                     encoder.string(alias)
@@ -98,9 +96,11 @@ pub(in crate::encoding) fn encode_callable(
         encoder.sequence(
             &callable.requirement_realizations,
             |encoder, realization| {
-                encoder.field("requirement_identity", |encoder| {
-                    encode_nominal(encoder, &realization.requirement_identity)
-                })?;
+                encoder.field_by(
+                    "requirement_identity",
+                    &realization.requirement_identity,
+                    encode_nominal,
+                )?;
                 encoder.field("alias", |encoder| {
                     encoder.option(realization.alias.as_deref(), |encoder, alias| {
                         encoder.string(alias)
@@ -197,13 +197,11 @@ pub(in crate::encoding) fn encode_callable(
         encoder.boolean(callable.checked_may_block);
         Ok(())
     })?;
-    encoder.field("checked_termination", |encoder| {
-        behavior::termination(encoder, &callable.checked_termination)
-    })?;
-    encoder.field("checked_crash", |encoder| {
-        behavior::crash(encoder, &callable.checked_crash)
-    })?;
-    encoder.field("mutation", |encoder| {
-        behavior::mutation(encoder, &callable.mutation)
-    })
+    encoder.field_by(
+        "checked_termination",
+        &callable.checked_termination,
+        behavior::termination,
+    )?;
+    encoder.field_by("checked_crash", &callable.checked_crash, behavior::crash)?;
+    encoder.field_by("mutation", &callable.mutation, behavior::mutation)
 }

@@ -49,9 +49,7 @@ fn encode_boolean_node(
         }
         PackageReviewBooleanExpression::Not(operand) => {
             encoder.tag("not", 4);
-            encoder.field("operand", |encoder| {
-                encode_boolean_expression(encoder, operand)
-            })?;
+            encoder.field_by("operand", &**operand, encode_boolean_expression)?;
         }
         PackageReviewBooleanExpression::Equal { left, right } => {
             encoder.tag("equal", 5);
@@ -111,9 +109,7 @@ fn encode_boolean_node(
         }
         PackageReviewBooleanExpression::StructuralCaseMembership { subject, case } => {
             encoder.tag("structural_case_membership", 10);
-            encoder.field("subject", |encoder| {
-                encode_structural_field(encoder, subject)
-            })?;
+            encoder.field_by("subject", subject, encode_structural_field)?;
             encoder.field("case", |encoder| encoder.string(case))?;
         }
         PackageReviewBooleanExpression::And { left, right } => {

@@ -99,18 +99,18 @@ fn encode_state(
         };
         Ok(())
     })?;
-    encoder.field("interrupted_state", |encoder| {
-        encode_state_set(encoder, state.interrupted_state())
-    })?;
-    encoder.field("saved_state", |encoder| {
-        encode_state_set(encoder, state.saved_state())
-    })?;
-    encoder.field("restored_state", |encoder| {
-        encode_state_set(encoder, state.restored_state())
-    })?;
-    encoder.field("permitted_transitive_use", |encoder| {
-        encode_state_set(encoder, state.permitted_transitive_use())
-    })?;
+    encoder.field_by(
+        "interrupted_state",
+        state.interrupted_state(),
+        encode_state_set,
+    )?;
+    encoder.field_by("saved_state", state.saved_state(), encode_state_set)?;
+    encoder.field_by("restored_state", state.restored_state(), encode_state_set)?;
+    encoder.field_by(
+        "permitted_transitive_use",
+        state.permitted_transitive_use(),
+        encode_state_set,
+    )?;
     encoder.field("stack", |encoder| {
         match state.stack() {
             PackagePolicyEntryStack::Interrupted => encoder.tag("interrupted", 0),

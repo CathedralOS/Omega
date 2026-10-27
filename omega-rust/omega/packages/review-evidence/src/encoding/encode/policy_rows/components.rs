@@ -58,9 +58,7 @@ pub(super) fn terminal(
                 },
                 |encoder| {
                     encoder.field("service", |encoder| encode_nominal(encoder, service))?;
-                    encoder.field("permission", |encoder| {
-                        terminal_permissions::permission(encoder, permission)
-                    })
+                    encoder.field_by("permission", permission, terminal_permissions::permission)
                 },
             )?;
         }
@@ -112,9 +110,7 @@ pub(super) fn representation(
             |encoder| encode_nominal(encoder, &conformance.identity),
             |encoder| {
                 encoder.field("opaque", |encoder| encode_nominal(encoder, opaque))?;
-                encoder.field("conformance", |encoder| {
-                    public_api::conformance_shape(encoder, conformance)
-                })?;
+                encoder.field_by("conformance", conformance, public_api::conformance_shape)?;
                 encoder.field("carrier", |encoder| encode_nominal(encoder, carrier))
             },
         )?;
@@ -151,9 +147,7 @@ pub(super) fn representation(
             },
             |encoder| {
                 encoder.field("opaque", |encoder| encode_nominal(encoder, opaque))?;
-                encoder.field("calling", |encoder| {
-                    calling::encode_application(encoder, calling)
-                })
+                encoder.field_by("calling", calling, calling::encode_application)
             },
         )?;
     }

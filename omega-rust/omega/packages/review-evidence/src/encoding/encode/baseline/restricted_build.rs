@@ -47,12 +47,16 @@ pub(in crate::encoding::encode) fn request(
         encoder.sequence(&request.write_grants, grant)
     })?;
     encoder.field("bounds", |encoder| bounds(encoder, &request.bounds))?;
-    encoder.field("build_execution_profile", |encoder| {
-        profile(encoder, request.build_execution_profile)
-    })?;
-    encoder.field("selected_target_profile", |encoder| {
-        profile(encoder, request.selected_target_profile)
-    })
+    encoder.field_by(
+        "build_execution_profile",
+        request.build_execution_profile,
+        profile,
+    )?;
+    encoder.field_by(
+        "selected_target_profile",
+        request.selected_target_profile,
+        profile,
+    )
 }
 
 fn grant(

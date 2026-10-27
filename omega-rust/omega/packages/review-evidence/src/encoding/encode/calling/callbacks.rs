@@ -12,9 +12,7 @@ pub(super) fn encode(
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field("binders", |encoder| {
         encoder.sequence(&callbacks.binders, |encoder, binder| {
-            encoder.field("parameter", |encoder| {
-                encode_nominal(encoder, &binder.parameter)
-            })?;
+            encoder.field_by("parameter", &binder.parameter, encode_nominal)?;
             encoder.field("static_parameter_ordinal", |encoder| {
                 encoder.u32(binder.static_parameter_ordinal);
                 Ok(())
@@ -23,9 +21,7 @@ pub(super) fn encode(
                 encoder.u32(binder.static_machine_ordinal);
                 Ok(())
             })?;
-            encoder.field("requirement", |encoder| {
-                encode_nominal(encoder, &binder.requirement)
-            })
+            encoder.field_by("requirement", &binder.requirement, encode_nominal)
         })
     })?;
     encoder.field("demands", |encoder| {
@@ -34,9 +30,7 @@ pub(super) fn encode(
                 destination(encoder, &demand.destination);
                 Ok(())
             })?;
-            encoder.field("requirement", |encoder| {
-                encode_nominal(encoder, &demand.requirement)
-            })
+            encoder.field_by("requirement", &demand.requirement, encode_nominal)
         })
     })?;
     encoder.field("materializations", |encoder| {
@@ -62,9 +56,7 @@ pub(super) fn encode(
                 encoder.u32(layout.native_ordinal);
                 Ok(())
             })?;
-            encoder.field("root_layout", |encoder| {
-                layout_application(encoder, &layout.root_layout)
-            })?;
+            encoder.field_by("root_layout", &layout.root_layout, layout_application)?;
             encoder.field("inline_fields", |encoder| {
                 encoder.sequence(&layout.inline_fields, |encoder, field| {
                     encoder.field("field", |encoder| encode_nominal(encoder, &field.field))?;
@@ -80,14 +72,10 @@ pub(super) fn encode(
                         encoder.u64(field.alignment);
                         Ok(())
                     })?;
-                    encoder.field("child_layout", |encoder| {
-                        layout_application(encoder, &field.child_layout)
-                    })
+                    encoder.field_by("child_layout", &field.child_layout, layout_application)
                 })
             })?;
-            encoder.field("terminal_slot", |encoder| {
-                encode_application(encoder, &layout.terminal_slot)
-            })?;
+            encoder.field_by("terminal_slot", &layout.terminal_slot, encode_application)?;
             encoder.field("terminal_offset", |encoder| {
                 encoder.u64(layout.terminal_offset);
                 Ok(())

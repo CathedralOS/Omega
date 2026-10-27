@@ -14,9 +14,7 @@ pub(crate) fn encode_proposition_shape(
     encoder: &mut Encoder,
     shape: &PackageReviewPropositionShape,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("identity", |encoder| {
-        encode_nominal(encoder, &shape.identity)
-    })?;
+    encoder.field_by("identity", &shape.identity, encode_nominal)?;
     encoder.field("binders", |encoder| {
         encoder.sequence(&shape.binders, encode_proposition_binder)
     })?;
@@ -28,15 +26,11 @@ pub(crate) fn encode_proposition_shape(
             PackageReviewPublicPropositionBody::Primitive => encoder.tag("primitive", 0),
             PackageReviewPublicPropositionBody::Witness(interface) => {
                 encoder.tag("witness", 1);
-                encoder.field("interface", |encoder| {
-                    encode_evidence_interface(encoder, interface)
-                })?;
+                encoder.field_by("interface", interface, encode_evidence_interface)?;
             }
             PackageReviewPublicPropositionBody::Transparent(expansion) => {
                 encoder.tag("transparent", 2);
-                encoder.field("expansion", |encoder| {
-                    encode_contract_fact(encoder, expansion)
-                })?;
+                encoder.field_by("expansion", expansion, encode_contract_fact)?;
             }
         };
         Ok(())
@@ -48,12 +42,8 @@ pub(crate) fn encode_const_shape(
     encoder: &mut Encoder,
     shape: &PackageReviewConstShape,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("identity", |encoder| {
-        encode_nominal(encoder, &shape.identity)
-    })?;
-    encoder.field("declared_type", |encoder| {
-        encode_type_identity(encoder, &shape.declared_type)
-    })?;
+    encoder.field_by("identity", &shape.identity, encode_nominal)?;
+    encoder.field_by("declared_type", &shape.declared_type, encode_type_identity)?;
     encoder.field("canonical_value_encoding", |encoder| {
         encoder.string(&shape.canonical_value_encoding)
     })
@@ -63,9 +53,7 @@ pub(crate) fn encode_operator_coordinate(
     encoder: &mut Encoder,
     coordinate: &PackageReviewOperatorCoordinate,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("identity", |encoder| {
-        encode_nominal(encoder, &coordinate.identity)
-    })?;
+    encoder.field_by("identity", &coordinate.identity, encode_nominal)?;
     encoder.field("parameter_dispatch", |encoder| {
         encoder.string(&coordinate.parameter_dispatch)
     })?;
@@ -121,9 +109,7 @@ pub(crate) fn encode_proposition_binder(
             PackageReviewPropositionBinderKind::Type => encoder.tag("type", 0),
             PackageReviewPropositionBinderKind::Const(type_identity) => {
                 encoder.tag("const", 1);
-                encoder.field("type_identity", |encoder| {
-                    encode_type_identity(encoder, type_identity)
-                })?;
+                encoder.field_by("type_identity", type_identity, encode_type_identity)?;
             }
             PackageReviewPropositionBinderKind::Machine => encoder.tag("machine", 2),
         };
@@ -140,9 +126,7 @@ pub(crate) fn encode_evidence_interface(
     encoder: &mut Encoder,
     interface: &PackageReviewEvidenceInterface,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("trait_identity", |encoder| {
-        encode_nominal(encoder, &interface.trait_identity)
-    })?;
+    encoder.field_by("trait_identity", &interface.trait_identity, encode_nominal)?;
     encoder.field("lifetime_arguments", |encoder| {
         encoder.sequence(&interface.lifetime_arguments, |encoder, argument| {
             encoder.field("argument", |encoder| {
@@ -157,9 +141,11 @@ pub(crate) fn encode_evidence_interface(
     })?;
     encoder.field("requirements", |encoder| {
         encoder.sequence(&interface.requirements, |encoder, requirement| {
-            encoder.field("declaring_trait", |encoder| {
-                encode_nominal(encoder, &requirement.declaring_trait)
-            })?;
+            encoder.field_by(
+                "declaring_trait",
+                &requirement.declaring_trait,
+                encode_nominal,
+            )?;
             encoder.field("declaring_trait_lifetime_arguments", |encoder| {
                 encoder.sequence(
                     &requirement.declaring_trait_lifetime_arguments,
@@ -175,9 +161,7 @@ pub(crate) fn encode_evidence_interface(
             encoder.field("declaring_trait_arguments", |encoder| {
                 encoder.sequence(&requirement.declaring_trait_arguments, encode_type_identity)
             })?;
-            encoder.field("requirement", |encoder| {
-                encode_nominal(encoder, &requirement.requirement)
-            })
+            encoder.field_by("requirement", &requirement.requirement, encode_nominal)
         })
     })
 }

@@ -23,9 +23,7 @@ pub(crate) fn encode_structural_field(
         encoder.u32(field.parameter_position);
         Ok(())
     })?;
-    encoder.field("path", |encoder| {
-        encode_structural_path(encoder, &field.path)
-    })
+    encoder.field_by("path", field.path.as_slice(), encode_structural_path)
 }
 
 pub(crate) fn encode_structural_path(

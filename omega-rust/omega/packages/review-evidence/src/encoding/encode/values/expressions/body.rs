@@ -70,9 +70,7 @@ pub(super) fn encode_contract_expression_body(
             encoder.field("fields", |encoder| {
                 encoder.sequence(fields, |encoder, field| {
                     encoder.field("field", |encoder| encode_nominal(encoder, &field.field))?;
-                    encoder.field("value", |encoder| {
-                        encode_contract_expression(encoder, &field.value)
-                    })
+                    encoder.field_by("value", &field.value, encode_contract_expression)
                 })
             })?;
         }
@@ -82,15 +80,9 @@ pub(super) fn encode_contract_expression_body(
             index,
         } => {
             encoder.tag("indexed", 16);
-            encoder.field("meaning", |encoder| {
-                encode_contract_operator_meaning(encoder, meaning)
-            })?;
-            encoder.field("collection", |encoder| {
-                encode_contract_expression(encoder, collection)
-            })?;
-            encoder.field("index", |encoder| {
-                encode_contract_expression(encoder, index)
-            })?;
+            encoder.field_by("meaning", meaning, encode_contract_operator_meaning)?;
+            encoder.field_by("collection", &**collection, encode_contract_expression)?;
+            encoder.field_by("index", &**index, encode_contract_expression)?;
         }
         PackageReviewContractExpression::Range {
             start,
@@ -144,9 +136,7 @@ pub(super) fn encode_contract_expression_body(
         }
         PackageReviewContractExpression::CaseMembership { subject, case } => {
             encoder.tag("case_membership", 22);
-            encoder.field("subject", |encoder| {
-                encode_contract_expression(encoder, subject)
-            })?;
+            encoder.field_by("subject", &**subject, encode_contract_expression)?;
             encoder.field("case", |encoder| encode_nominal(encoder, case))?;
         }
         PackageReviewContractExpression::Reference { access, target } => {
@@ -159,9 +149,7 @@ pub(super) fn encode_contract_expression_body(
                 };
                 Ok(())
             })?;
-            encoder.field("target", |encoder| {
-                encode_contract_expression(encoder, target)
-            })?;
+            encoder.field_by("target", &**target, encode_contract_expression)?;
         }
         PackageReviewContractExpression::AtomicLoad { value, ordering } => {
             encoder.tag("atomic_load", 21);
@@ -173,27 +161,19 @@ pub(super) fn encode_contract_expression_body(
                 };
                 Ok(())
             })?;
-            encoder.field("value", |encoder| {
-                encode_contract_expression(encoder, value)
-            })?;
+            encoder.field_by("value", &**value, encode_contract_expression)?;
         }
         PackageReviewContractExpression::ZeroValue(type_identity) => {
             encoder.tag("zero_value", 13);
-            encoder.field("type_identity", |encoder| {
-                encode_type_identity(encoder, type_identity)
-            })?;
+            encoder.field_by("type_identity", type_identity, encode_type_identity)?;
         }
         PackageReviewContractExpression::CollectionLength { collection } => {
             encoder.tag("collection_length", 18);
-            encoder.field("collection", |encoder| {
-                encode_contract_expression(encoder, collection)
-            })?;
+            encoder.field_by("collection", &**collection, encode_contract_expression)?;
         }
         PackageReviewContractExpression::CollectionCapacity { collection } => {
             encoder.tag("collection_capacity", 23);
-            encoder.field("collection", |encoder| {
-                encode_contract_expression(encoder, collection)
-            })?;
+            encoder.field_by("collection", &**collection, encode_contract_expression)?;
         }
         PackageReviewContractExpression::Member {
             receiver,
@@ -201,9 +181,7 @@ pub(super) fn encode_contract_expression_body(
             case_variant,
         } => {
             encoder.tag("member", 8);
-            encoder.field("receiver", |encoder| {
-                encode_contract_expression(encoder, receiver)
-            })?;
+            encoder.field_by("receiver", &**receiver, encode_contract_expression)?;
             encoder.field("member", |encoder| encode_nominal(encoder, member))?;
             encoder.field("case_variant", |encoder| {
                 encoder.option(case_variant.as_ref(), encode_nominal)
@@ -218,9 +196,7 @@ pub(super) fn encode_contract_expression_body(
             form,
         } => {
             encoder.tag("cast", 9);
-            encoder.field("value", |encoder| {
-                encode_contract_expression(encoder, value)
-            })?;
+            encoder.field_by("value", &**value, encode_contract_expression)?;
             encoder.field("target", |encoder| encode_type_identity(encoder, target))?;
             encoder.field("arithmetic_domain", |encoder| {
                 match arithmetic_domain {
@@ -328,9 +304,7 @@ pub(super) fn encode_contract_expression_body(
             right,
         } => {
             encoder.tag("binary", 6);
-            encoder.field("meaning", |encoder| {
-                encode_contract_operator_meaning(encoder, meaning)
-            })?;
+            encoder.field_by("meaning", meaning, encode_contract_operator_meaning)?;
             encoder.field("operator", |encoder| {
                 match operator {
                     PackageReviewContractBinaryOperator::Add => encoder.tag("add", 0),
@@ -365,9 +339,7 @@ pub(super) fn encode_contract_expression_body(
                 Ok(())
             })?;
             encoder.field("left", |encoder| encode_contract_expression(encoder, left))?;
-            encoder.field("right", |encoder| {
-                encode_contract_expression(encoder, right)
-            })?;
+            encoder.field_by("right", &**right, encode_contract_expression)?;
         }
         PackageReviewContractExpression::Unary { operator, operand } => {
             encoder.tag("unary", 7);
@@ -378,23 +350,17 @@ pub(super) fn encode_contract_expression_body(
                 };
                 Ok(())
             })?;
-            encoder.field("operand", |encoder| {
-                encode_contract_expression(encoder, operand)
-            })?;
+            encoder.field_by("operand", &**operand, encode_contract_expression)?;
         }
         PackageReviewContractExpression::Match { subject, arms } => {
             encoder.tag("match", 24);
-            encoder.field("subject", |encoder| {
-                encode_contract_expression(encoder, subject)
-            })?;
+            encoder.field_by("subject", &**subject, encode_contract_expression)?;
             encoder.field("arms", |encoder| {
                 encoder.sequence(arms, |encoder, arm| {
                     encoder.field("pattern", |encoder| {
                         encoder.option(arm.pattern.as_ref(), encode_contract_expression)
                     })?;
-                    encoder.field("value", |encoder| {
-                        encode_contract_expression(encoder, &arm.value)
-                    })
+                    encoder.field_by("value", &arm.value, encode_contract_expression)
                 })
             })?;
         }

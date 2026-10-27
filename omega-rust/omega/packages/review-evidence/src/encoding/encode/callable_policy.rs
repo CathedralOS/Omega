@@ -42,12 +42,12 @@ pub(super) fn encode_callable_conformance(
     encoder: &mut Encoder,
     conformance: &PackagePolicyCallableConformance,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("trait", |encoder| {
-        encode_nominal(encoder, &conformance.trait_identity)
-    })?;
-    encoder.field("requirement", |encoder| {
-        encode_nominal(encoder, &conformance.requirement_identity)
-    })?;
+    encoder.field_by("trait", &conformance.trait_identity, encode_nominal)?;
+    encoder.field_by(
+        "requirement",
+        &conformance.requirement_identity,
+        encode_nominal,
+    )?;
     encoder.field("requirement_lifetime_partition", |encoder| {
         encoder.sequence(
             &conformance.requirement_lifetime_partition,

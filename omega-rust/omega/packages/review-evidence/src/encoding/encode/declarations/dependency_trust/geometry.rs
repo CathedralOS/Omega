@@ -187,7 +187,5 @@ pub(crate) fn encode_opaque_occurrence(
             Ok(())
         })
     })?;
-    encoder.field("placement", |encoder| {
-        encode_value_placement(encoder, occurrence.placement())
-    })
+    encoder.field_by("placement", occurrence.placement(), encode_value_placement)
 }

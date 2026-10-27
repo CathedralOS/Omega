@@ -92,15 +92,13 @@ pub(super) fn policy(
     })?;
     encoder.field("producer_availability", |encoder| {
         encoder.sequence(&policy.producer_availability, |encoder, availability| {
-            encoder.field("opaque", |encoder| {
-                encode_nominal(encoder, &availability.opaque)
-            })?;
-            encoder.field("conformance", |encoder| {
-                encode_conformance_shape(encoder, &availability.conformance)
-            })?;
-            encoder.field("carrier", |encoder| {
-                encode_nominal(encoder, &availability.carrier)
-            })
+            encoder.field_by("opaque", &availability.opaque, encode_nominal)?;
+            encoder.field_by(
+                "conformance",
+                &availability.conformance,
+                encode_conformance_shape,
+            )?;
+            encoder.field_by("carrier", &availability.carrier, encode_nominal)
         })
     })?;
     encoder.field("selected_availability", |encoder| {
@@ -109,9 +107,7 @@ pub(super) fn policy(
     encoder.field("demands", |encoder| {
         encoder.sequence(&policy.demands, |encoder, demand| {
             encoder.field("opaque", |encoder| encode_nominal(encoder, &demand.opaque))?;
-            encoder.field("calling", |encoder| {
-                calling::encode_application(encoder, &demand.calling)
-            })
+            encoder.field_by("calling", &demand.calling, calling::encode_application)
         })
     })
 }
