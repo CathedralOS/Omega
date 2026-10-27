@@ -358,144 +358,27 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
         structural.intake_equation(left, right, 0);
     }
     let structural = structural;
-    // A bodied lemma whose single state carries EXACTLY ONE unguarded value
-    // arm (`transition { _ -> (b) }`) binds `result` to that arm's term --
-    // the arm always fires, so the binding is total and a ground refutation
-    // under it is a real disproof. Anything wider (guarded arms, multiple
-    // arms with first-match reachability, tail self-calls) judges without
-    // the binding, which can only weaken toward Unknown -- never unsound.
-    // The identity lemma `-> (b)` with `ensures result == b` proves here.
-    // Recognized shape: leading `let` locals (the terminal auto-hoist
-    // rewrites `-> (call(..))` into `let __hoist = call(..); -> (__hoist)`)
-    // folding into an environment over the lemma's own params, then exactly
-    // one Always value arm. Params map to themselves (they are the fact's
-    // vocabulary); locals map to their initializer terms.
-    let sole_arm_value = |judge: StructuralJudge<'program>| {
-        let [root] = program.machine_states(machine) else {
-            return None;
-        };
-        let environment: Vec<(String, StructuralTerm)> = program
-            .state_parameters(root)
-            .iter()
-            .map(|parameter| {
-                let name = parameter.name.as_str().to_owned();
-                (name.clone(), StructuralTerm::Variable(name))
-            })
-            .collect();
-        let mut frames = vec![(environment, judge)];
-        let mut results = None;
-        for statement in program.statement_table.statements(root.statement_nodes) {
-            if results.is_some() {
-                return None;
-            }
-            if is_arm_pattern_marker(statement) {
-                continue;
-            }
-            match statement {
-                StatementNode::Call(call)
-                    if is_citation_statement(program, &proof_only, machine, call)
-                        || content_conservation::is_empty_body_statement_call(program, call) =>
-                {
-                    // Even a non-writing callee may receive effectful operands.
-                    // Retire their observations before proving this path's exit.
-                    for (_, judge) in &mut frames {
-                        if judge.requires_value_preservation() {
-                            let resolver = judge.frame_resolver()?;
-                            let mut writes = resolver
-                                .may_write_frame(machine, call)
-                                .into_complete_paths()?;
-                            writes.extend(
-                                resolver
-                                    .statement_value_write_frame(machine, statement)
-                                    .into_complete_paths()?,
-                            );
-                            judge.observe_storage_writes(root, &writes)?;
-                        }
-                    }
-                }
-                StatementNode::LocalData(local) => {
-                    let mut next = Vec::new();
-                    for (environment, judge) in frames {
-                        for mut outcome in judge.normal_return_paths(
-                            local.initial_value,
-                            &environment,
-                            (machine, root, local.type_reference),
-                        )? {
-                            // Publish the newly completed binding through the
-                            // same storage owner as the general statement walk.
-                            // Earlier call writes may have retired its entry
-                            // observation, never this post-call initialization.
-                            outcome.judge.observe_completed_binding(
-                                local.symbol,
-                                local.type_reference,
-                                outcome.value.clone(),
-                            );
-                            let mut environment = environment.clone();
-                            environment.push((local.name.as_str().to_owned(), outcome.value));
-                            next.push((environment, outcome.judge));
-                        }
-                    }
-                    frames = next;
-                }
-                StatementNode::Expression(value) => {
-                    let mut values = Vec::new();
-                    for (environment, judge) in frames.drain(..) {
-                        values.extend(judge.normal_return_paths(
-                            *value,
-                            &environment,
-                            (machine, root, root.return_type),
-                        )?);
-                    }
-                    results = Some(values);
-                }
-                StatementNode::Transition(transition) => {
-                    if !matches!(transition.guard, TransitionGuardNode::Always)
-                        || transition.continuation.is_valid()
-                    {
-                        return None;
-                    }
-                    let TransitionTargetNode::Value(value) =
-                        program.statement_table.transition_target(transition.target)
-                    else {
-                        return None;
-                    };
-                    let mut values = Vec::new();
-                    for (environment, judge) in frames.drain(..) {
-                        values.extend(judge.normal_return_paths(
-                            *value,
-                            &environment,
-                            (machine, root, root.return_type),
-                        )?);
-                    }
-                    results = Some(values);
-                }
-                _ => return None,
-            }
-        }
-        results
-    };
-    let sole_arm_result = sole_arm_value(structural.clone());
-    // Result-to-parameter tag forwarding needs the actual returned subject,
-    // before legacy unfolding can erase its origin. Reuse the same extraction
-    // with the restricted subject resolver; a tag remains no field equation.
-    let sole_arm_case_result = if ensures
+    // All body forms share the executed frontier. Restricted tag observation
+    // uses the same walker with its own authority, never a second hand-written
+    // statement schedule or a terminal-expression shortcut.
+    let case_result = if ensures
         .iter()
         .any(|fact| structural_terms::is_case_observation(program, *fact))
     {
-        let case_structural = StructuralJudge::from_case_requires(program, machine, &requires);
-        sole_arm_value(case_structural)
+        let case_judge = StructuralJudge::from_case_requires(program, machine, &requires);
+        let mut case_diagnostics = Vec::new();
+        let arms = recognize_structural_case_arms(
+            program,
+            machine,
+            &case_judge,
+            &proof_only,
+            &mut case_diagnostics,
+            None,
+        );
+        case_diagnostics.is_empty().then_some(arms).flatten()
     } else {
         None
     };
-    if struct_trace() {
-        eprintln!(
-            "STRUCT machine={} sole_arm={:?}",
-            machine.name,
-            sole_arm_result
-                .as_ref()
-                .map(|paths| paths.iter().map(|path| &path.value).collect::<Vec<_>>())
-        );
-    }
     // STRUCTURAL INDUCTION (the L7 protocol's structural twin): a bodied
     // machine whose single state is a chain of case arms over one matched
     // parameter judges the ensures PER ARM -- the arm's case hypothesis
@@ -535,19 +418,15 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
             )
         })
         .collect();
-    let case_arms: Option<Vec<StructuralCaseArm>> = if sole_arm_result.is_some() {
-        None
-    } else {
-        recognize_structural_case_arms(
-            program,
-            machine,
-            &structural,
-            &proof_only,
-            diagnostics,
-            None,
-        )
-        .or_else(|| recognize_guarded_structural_value_arms(program, machine, &structural))
-    };
+    let case_arms: Option<Vec<StructuralCaseArm>> = recognize_structural_case_arms(
+        program,
+        machine,
+        &structural,
+        &proof_only,
+        diagnostics,
+        None,
+    )
+    .or_else(|| recognize_guarded_structural_value_arms(program, machine, &structural));
     // This legacy term vocabulary is name-based. An authored entry parameter
     // takes precedence over the reserved result spelling in every conjunct,
     // so no returned-value alias may replace that parameter's hypotheses.
@@ -580,20 +459,17 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
     )> {
         let content_plan =
             content_conservation::content_conservation_plan(machine, fact, &content_plans);
-        let paths: Vec<_> = if let Some(paths) = &sole_arm_result {
-            paths
-                .iter()
-                .map(|path| (&path.judge, &path.value))
-                .collect()
-        } else if structural.has_runtime_body_values() || content_plan.is_some() {
-            case_arms
-                .as_ref()?
-                .iter()
-                .map(|arm| (&arm.normal_judge, &arm.value))
-                .collect()
-        } else {
+        // Runtime observation and erased mathematical induction consume this
+        // same frontier with different judgments. The proof judgment below
+        // retains its licensed IH and vacuity rules.
+        if !structural.has_runtime_body_values() && content_plan.is_none() {
             return None;
-        };
+        }
+        let paths: Vec<_> = case_arms
+            .as_ref()?
+            .iter()
+            .map(|arm| (&arm.normal_judge, &arm.value))
+            .collect();
         // A conditional normal-return contract may be vacuous. An empty
         // observation frontier is not an independently established theorem.
         if content_plan.is_some() && paths.is_empty() {
@@ -667,7 +543,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 .unwrap_or(StructuralJudgment::Unknown);
         }
         if structural_terms::is_case_observation(program, fact)
-            && let Some(paths) = &sole_arm_case_result
+            && let Some(paths) = &case_result
             && let ExpressionNode::Binary(comparison) = program.expression_table.expression(fact)
         {
             // A parameter named `result` is not the reserved returned value.
@@ -679,7 +555,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 return structural.judge(program, fact);
             }
             if paths.iter().all(|path| {
-                let mut bound = path.judge.clone();
+                let mut bound = path.normal_judge.clone();
                 bound.intake_case_equation(
                     StructuralTerm::Variable(RESULT_BINDER.to_owned()),
                     path.value.clone(),
@@ -704,21 +580,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
             };
         }
         if let Some(verdict) = normal_return {
-            match verdict {
-                StructuralJudgment::Proven => return StructuralJudgment::Proven,
-                StructuralJudgment::Refuted => return StructuralJudgment::Refuted,
-                StructuralJudgment::Unknown
-                    if structural.has_runtime_body_values() || case_arms.is_none() =>
-                {
-                    return StructuralJudgment::Unknown;
-                }
-                // An opaque mathematical terminal application supplies no
-                // counterexample. The complete proof frontier below still
-                // owns branch vacuity, citations and licensed induction. It
-                // may establish the theorem without unfolding that value in
-                // the ordinary runtime observation judgment.
-                StructuralJudgment::Unknown => {}
-            }
+            return *verdict;
         }
         let Some(arms) = &case_arms else {
             return structural.judge(program, fact);
