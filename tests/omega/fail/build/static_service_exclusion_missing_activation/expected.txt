@@ -1,1 +1,1 @@
-value call `Build.exclude_service(..)` does not resolve to a callable machine entry or requirement
+exclude_service requires one bare declaration operand and its explicit mutable Build argument

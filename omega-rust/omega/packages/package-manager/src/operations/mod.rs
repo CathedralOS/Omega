@@ -1,6 +1,6 @@
 //! Complete package-manager operations composed from lower-level owners.
 //!
-//! [`prepare_local_project`] acquires a project with `build.omg`;
+//! [`begin_local_project_preparation`] admits a project with `build.omg`;
 //! [`admit_project_compilation`] returns compiler inputs and custody without
 //! executing them. Application Build owns ordinary compilation. [`inspect_source`]
 //! acquires and inspects one source without
@@ -26,7 +26,7 @@ pub use accepted_compilation::{
 };
 pub use inspect_packages::{
     PackageInspectionError, PackageInspectionOptions, PackageInspectionOutcome,
-    PackageInspectionTransaction, PreparedPackageInspection,
+    PackageInspectionSources, PackageInspectionTransaction, PreparedPackageInspection,
 };
 pub(crate) use inspect_source::PackageSourceRequest;
 pub use inspect_source::{SourceAdapter, inspect_package_source_locator};
@@ -35,9 +35,8 @@ pub(crate) use package_change::{
 };
 pub(crate) use prepare_project::LOCAL_PROJECT_CONTEXT;
 pub use prepare_project::{
-    LocalProjectPreparation, LocalProjectPreparationOptions, PrepareLocalProjectError,
-    PreparedLocalProject, begin_local_project_preparation, prepare_local_project,
-    prepare_local_project_for_targets,
+    LocalProjectPreparation, PrepareLocalProjectError, PreparedLocalProject,
+    begin_local_project_preparation,
 };
 pub(crate) use publication::{
     PackageFileTransaction, PackagePublicationError, PackagePublicationLimits,

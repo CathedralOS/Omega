@@ -513,33 +513,8 @@ fn measured_span_reads(
     row: &LegalizedScalarInstruction,
     operand: &ByteSequenceOperand,
 ) -> Result<(), SelectedInstructionError> {
-    let offset = match operand {
-        ByteSequenceOperand::Field { .. } => {
-            crate::selection::byte_concatenation_input::field_offset(function, operand)
-                .ok_or(invalid())?
-        }
-        ByteSequenceOperand::Whole { source, .. } => {
-            let (geometry, shape) =
-                super::descriptor_operands::source_geometry(function, source).ok_or(invalid())?;
-            if shape.is_bounded_owned_byte_sequence() {
-                geometry.byte_offset.checked_add(8).ok_or(invalid())?
-            } else {
-                geometry.byte_offset
-            }
-        }
-    };
-    let roots = match operand {
-        ByteSequenceOperand::Whole { source, length } if source.path.is_empty() => {
-            crate::selection::byte_view_homes::view_backing_roots(
-                function,
-                &builder.transport.views,
-                source.place,
-                *length,
-            )?
-        }
-        ByteSequenceOperand::Whole { .. } | ByteSequenceOperand::Field { .. } => None,
-    };
-    for (root, length) in roots.unwrap_or_else(|| vec![(operand.source(), operand.length())]) {
+    let (offset, roots) = super::byte_concatenation::operand_span(function, builder, operand)?;
+    for (root, length) in roots {
         memory(
             builder,
             row,

@@ -26,6 +26,8 @@ mod dynamic_call;
 mod parameter_argument_paths;
 mod reference_forwarding;
 mod result_arguments;
+mod result_owners;
+pub(super) use result_owners::structural_result_owner;
 mod service_forward;
 mod signatures;
 mod structural_arguments;

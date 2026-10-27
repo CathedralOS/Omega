@@ -4451,8 +4451,7 @@ pass/facts/opaque_independent_closed_carrier_through_call_result_exit rejected 5
 	no provider is selected for boundary requirement `AddressParts::make`, which the program entry reaches on target `windows_x86_64`
 pass/facts/opaque_independent_closed_carrier_through_const_name_exit rejected 5501ms @5f668826adf3+wt
 	no provider is selected for boundary requirement `AddressParts::make`, which the program entry reaches on target `windows_x86_64`
-pass/facts/opaque_independent_closed_carrier_through_field_exit rejected 5643ms @5f668826adf3+wt
-	no provider is selected for boundary requirement `AddressParts::make`, which the program entry reaches on target `windows_x86_64`
+pass/facts/opaque_independent_closed_carrier_through_field_exit built 13199ms exit:0 @f0ec7942edca+wt
 pass/facts/opaque_independent_closed_carrier_through_local_exit rejected 6313ms @5f668826adf3+wt
 	no provider is selected for boundary requirement `AddressParts::make`, which the program entry reaches on target `windows_x86_64`
 pass/facts/opaque_independent_closed_carrier_through_match_join_exit rejected 4781ms @5f668826adf3+wt
@@ -7872,6 +7871,7 @@ pass/providers/generic_boundary_multiple_arguments_compile checked 3326ms @5f668
 pass/providers/generic_owned_outcome_exit built 6855ms exit:0 @5f668826adf3+wt
 pass/providers/generic_provider_structural_result_composition_exit built 3797ms exit:0 @5f668826adf3+wt
 pass/providers/generic_result_recursive_reference_issuer checked 2878ms @5f668826adf3+wt
+pass/providers/independent_imported_data_exit built 13232ms exit:0 @f0ec7942edca+wt
 pass/providers/inline_member_generic_requirement_exit built 3257ms exit:0 @5f668826adf3+wt
 pass/providers/inline_member_provider_selection_exit built 3144ms exit:0 @5f668826adf3+wt
 pass/providers/kernel_import_result_chain_exit built 3068ms @5f668826adf3+wt

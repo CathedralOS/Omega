@@ -10,11 +10,7 @@
 //! and 2 checks (Build + Product). Check-only defaults to zero Terminal work.
 
 use artifacts::compile_timings::counters;
-use omega_build::{
-    PreparedLocalProjectCheckRequest, PreparedLocalProjectNativeRequest,
-    check_prepared_local_project_for_targets, compile_prepared_local_project_for_native_targets,
-};
-use package_manager::operations::prepare_local_project_for_targets;
+use omega_build::{BuildRequest, BuildTargets, NativeDestination, ProjectProduct, build};
 
 #[derive(Debug, PartialEq, Eq)]
 struct WorkCounts {
@@ -87,13 +83,10 @@ fn request() -> Result<Request, Box<dyn std::error::Error>> {
             "tests/omega/pass/targets/shared_program_distinct_roots_exit/main.omg".to_owned()
         })
         .into();
-    let targets = target_names
-        .split(',')
-        .map(|name| {
-            target::TargetProfile::from_omega_target_name(Some(name))
-                .map_err(|diagnostic| format!("{diagnostic:?}"))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+    let targets = target::ExplicitTargetSet::from_caller_names(target_names.split(','))
+        .map_err(|diagnostics| format!("{diagnostics:?}"))?
+        .profiles()
+        .to_vec();
     let mut expected_count = |default| -> Result<u64, std::num::ParseIntError> {
         Ok(arguments
             .next()
@@ -141,50 +134,31 @@ fn measure() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn produce(request: &Request) -> Result<(), Box<dyn std::error::Error>> {
-    let prepared = prepare_local_project_for_targets(&request.root, &request.targets, true)?
-        .ok_or("the measurement requires a package build.omg")?;
     let directory =
         std::env::temp_dir().join(format!("omega-package-batch-{}", std::process::id()));
-    if request.check_only {
-        let outcomes = check_prepared_local_project_for_targets(
-            PreparedLocalProjectCheckRequest::for_targets(
-                prepared,
-                directory,
-                request.targets.clone(),
-            ),
-        );
-        assert_eq!(
-            outcomes
-                .iter()
-                .map(|outcome| outcome.target)
-                .collect::<Vec<_>>(),
-            request.targets
-        );
-        for outcome in &outcomes {
-            println!(
-                "target={} outcome={}",
-                outcome.target.target_name(),
-                if outcome.result.is_ok() {
-                    "checked"
-                } else {
-                    "rejected"
-                }
-            );
-        }
-        let reports = outcomes
-            .into_iter()
-            .map(|outcome| outcome.result)
-            .collect::<Result<Vec<_>, _>>()?;
-        println!("checked_products={}", reports.len());
-        return Ok(());
-    }
-    let outcomes = compile_prepared_local_project_for_native_targets(
-        PreparedLocalProjectNativeRequest::for_targets(
-            prepared,
-            directory,
-            request.targets.clone(),
-        ),
-    );
+    let targets = target::ExplicitTargetSet::from_caller_names(
+        request.targets.iter().map(|profile| profile.target_name()),
+    )
+    .map_err(|diagnostics| format!("{diagnostics:?}"))?;
+    let outcomes = build(BuildRequest {
+        root_path: request.root.clone(),
+        build_directory: Some(directory),
+        targets: BuildTargets::Batch(targets),
+        product: if request.check_only {
+            ProjectProduct::Check
+        } else {
+            ProjectProduct::Native {
+                destination: NativeDestination::Retained,
+                private_entry_ram: Vec::new(),
+            }
+        },
+        timings: false,
+        offline: true,
+        verify: false,
+        require_package_project: true,
+        optimization_rollback: Default::default(),
+        build_snapshot: None,
+    })?;
     assert_eq!(
         outcomes
             .iter()
@@ -196,7 +170,9 @@ fn produce(request: &Request) -> Result<(), Box<dyn std::error::Error>> {
         println!(
             "target={} outcome={}",
             outcome.target.target_name(),
-            if outcome.result.is_ok() {
+            if outcome.result.is_ok() && request.check_only {
+                "checked"
+            } else if outcome.result.is_ok() {
                 "native"
             } else {
                 "rejected"
@@ -205,8 +181,17 @@ fn produce(request: &Request) -> Result<(), Box<dyn std::error::Error>> {
     }
     let reports = outcomes
         .into_iter()
-        .map(|outcome| outcome.result)
+        .map(|outcome| {
+            outcome
+                .result
+                .and_then(|outcome| outcome.into_report())
+                .map(|outcome| outcome.report)
+        })
         .collect::<Result<Vec<_>, _>>()?;
+    if request.check_only {
+        println!("checked_products={}", reports.len());
+        return Ok(());
+    }
     println!("native_products={}", reports.len());
     let first = reports
         .first()

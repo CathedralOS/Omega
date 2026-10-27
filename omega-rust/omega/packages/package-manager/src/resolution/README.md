@@ -4,7 +4,7 @@
 [Source selection](../../../../../../wiki/spec/packages/sources.md) owns the
 public contract; acquisition owns immutable tree custody, not package approval.
 
-[graph/resolve/git_pins.rs](graph/resolve/git_pins.rs) separates two policies:
+[graph/git_pins.rs](graph/git_pins.rs) separates two policies:
 
 - `GitDependencyPins` borrows the accepted source subject and exact update keys.
   Unknown/duplicate selections reject before acquisition. Empty selection

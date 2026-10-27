@@ -6,6 +6,7 @@ use super::{
     VirtualRegisterId, VirtualRegisterOrigin,
 };
 use crate::SelectedInstructionError;
+use crate::selection::scalar_call_abi::load_transfer;
 use selected_instructions::SelectedSuccessor;
 use selected_instructions::{
     FrameStorageSlotId, SelectedCasePayloadTransport, SelectedLocalStorageSlot,
@@ -196,21 +197,8 @@ pub(super) fn prepare(
             )?);
             (address, 0)
         };
-        let load_kind = match byte_count {
-            1 => SelectedInstructionKind::Load8 {
-                byte_offset: displacement,
-            },
-            2 => SelectedInstructionKind::Load16 {
-                byte_offset: displacement,
-            },
-            4 => SelectedInstructionKind::Load32 {
-                byte_offset: displacement,
-            },
-            8 => SelectedInstructionKind::Load64 {
-                byte_offset: displacement,
-            },
-            _ => return Err(invalid()),
-        };
+        let (load_kind, _) =
+            load_transfer(&constraints.keys, byte_count, displacement).ok_or_else(invalid)?;
         let load_instruction =
             SelectedInstructionId((*next_instruction).try_into().map_err(|_| invalid())?);
         *next_instruction += 1;

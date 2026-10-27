@@ -220,7 +220,36 @@ impl<'program> ShapeCollector<'program> {
             .and_then(|definition| {
                 typed_trees::byte_predicates::domain_byte_predicate(self.program, definition.symbol)
             });
+        // A cross-artifact consumer cannot infer omitted source policies from
+        // an equal nominal name or an Inert carrier. Describe only a complete
+        // directly declared predicate/issuer theory; richer normalized theories
+        // keep their independent source owner until that vocabulary is retained.
+        let complete_predicate_theory = definition.is_some_and(|definition| {
+            definition.classification.is_none()
+                && definition.semantic_roles.is_empty()
+                && definition.cleanup_selection.is_none()
+                && definition.alias.is_none()
+                && definition.operators.is_empty()
+                && !matches!(
+                    self.program
+                        .type_reference_table
+                        .type_reference(definition.target_type),
+                    typed_trees::types::TypeReferenceNode::Constrained { .. }
+                )
+                && validation::field_domains::domain_constraint_symbols(
+                    self.program,
+                    definition.target_type,
+                )
+                .is_empty()
+                && !self
+                    .program
+                    .typed_program()
+                    .proof_facts(definition)
+                    .iter()
+                    .any(|fact| matches!(fact, typed_trees::domain::ProofFact::Membership(_)))
+        });
         let plan = CheckedUnitStructuralDomainPlan {
+            complete_predicate_theory,
             predicate,
             byte_predicate,
             domain,

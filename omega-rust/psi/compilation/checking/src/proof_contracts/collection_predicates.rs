@@ -20,6 +20,10 @@
 //!   the facts standing before a store; live guards project the same checked
 //!   consequences onto their exact scalar arguments and descriptor extents.
 //!   Extent knowledge never supplies element contents (`exploration.rs`).
+//! - Integer relations: the same symbolic implication judgment proves ordering
+//!   consequences on every successful return, then publishes exact caller
+//!   actuals for borrow compatibility. Independent interval hulls cannot retain
+//!   correlations such as two unrestricted indices being unequal.
 //! - Proof: helper-theorem implication and predicate handback use symbolic
 //!   descriptors, selected read coordinates and functional store versions.
 //!   Recursive cases owe a complete substituted induction-premise roster and
@@ -107,6 +111,13 @@ pub(crate) fn predicate_application(
         }
         _ => return None,
     };
+    predicate_call(program, call_expression)
+}
+
+fn predicate_call(
+    program: &dyn crate::CheckingInput,
+    call_expression: ExpressionHandle,
+) -> Option<PredicateApplication<'_>> {
     let call = program.expression_table.call_node(call_expression)?;
     if !call.is_ordinary_positional_call() {
         return None;
@@ -118,7 +129,73 @@ pub(crate) fn predicate_application(
     })
 }
 
-/// One formal observation in a checked exact interval description of a predicate.
+/// One exact caller actual or a checked mathematical integer bound.
+pub struct PredicateIntegerSubject {
+    pub expression: ExpressionHandle,
+    pub projection: Vec<facts::PlaceSegment>,
+}
+
+pub enum PredicateIntegerOperand {
+    Argument(PredicateIntegerSubject),
+    Integer(i128),
+}
+
+/// A relation proved on every true return, retaining exact caller actuals.
+pub struct PredicateOrderingConsequence {
+    pub left: PredicateIntegerOperand,
+    pub right: PredicateIntegerOperand,
+    pub operator: BinaryOperator,
+}
+
+/// A whole predicate may be replaced by one relation only after both
+/// directions are proved over its complete formal carriers. Entry formation
+/// and exact readable actuals remain obligations of the consuming contract.
+pub fn exact_predicate_ordering(
+    program: &dyn crate::CheckingInput,
+    owner: symbols::SymbolHandle,
+    expression: ExpressionHandle,
+) -> Option<PredicateOrderingConsequence> {
+    let application = predicate_application(program, owner, expression)?;
+    implication::exact_ordering(program, &application)
+}
+
+/// Recover integer relations from a positive, already-available predicate
+/// occurrence. The shared symbolic implication engine interprets its checked
+/// body, including calls and branches; naming a predicate supplies no relation.
+/// Unsupported bodies and exhausted proof work contribute no evidence.
+pub fn predicate_ordering_consequences(
+    program: &dyn crate::CheckingInput,
+    call_expression: ExpressionHandle,
+) -> Vec<PredicateOrderingConsequence> {
+    let Some(application) = predicate_call(program, call_expression) else {
+        return Vec::new();
+    };
+    let mut consequences = implication::ordering_consequences(program, &application);
+    // Scalar hulls are necessary consequences, never equivalent replacements
+    // of the predicate. The exact public-envelope judgment below additionally
+    // checks its converse over the complete Cartesian product.
+    if let Some(intervals) = interval_consequences(program, &application) {
+        for interval in intervals.into_iter().filter(|row| !row.extent) {
+            for (bound, operator) in [
+                (interval.low, BinaryOperator::GreaterOrEqual),
+                (interval.high, BinaryOperator::LessOrEqual),
+            ] {
+                consequences.push(PredicateOrderingConsequence {
+                    left: PredicateIntegerOperand::Argument(PredicateIntegerSubject {
+                        expression: interval.argument,
+                        projection: Vec::new(),
+                    }),
+                    right: PredicateIntegerOperand::Integer(bound),
+                    operator,
+                });
+            }
+        }
+    }
+    consequences
+}
+
+/// One interval observation of an exact actual argument. Consumers separately
+/// establish whether it is a consequence or a complete public envelope.
 /// Descriptor extents describe metadata only, never collection contents.
 #[derive(Debug, Clone)]
 pub struct PredicateInterval {
@@ -139,6 +216,32 @@ pub fn exact_predicate_intervals(
     expression: ExpressionHandle,
 ) -> Option<Vec<PredicateInterval>> {
     let application = predicate_application(program, owner, expression)?;
+    let rows = interval_consequences(program, &application)?;
+    if rows.len() != application.arguments.len() {
+        return None;
+    }
+    let narrowed = rows
+        .iter()
+        .map(|row| {
+            let hull = IntegerSet::range(row.low, row.high);
+            if row.extent {
+                ArgumentKnowledge::CollectionExtent(hull)
+            } else {
+                ArgumentKnowledge::Integer(hull)
+            }
+        })
+        .collect::<Vec<_>>();
+    (unfold(program, application.machine, &narrowed)?.decided() == Some(true)).then_some(rows)
+}
+
+/// One-way true-return bounds shared by guard narrowing and borrow relations.
+/// Complete declared carriers seed the existing explorer. Unsupported actual
+/// shapes contribute no row; an empty truth set grants no ambient contradiction.
+/// Consumers retain availability, source meaning and storage epochs separately.
+pub(crate) fn interval_consequences(
+    program: &dyn crate::CheckingInput,
+    application: &PredicateApplication<'_>,
+) -> Option<Vec<PredicateInterval>> {
     let entry = program
         .machine_states(&program.machines()[application.machine])
         .first()?;
@@ -151,27 +254,24 @@ pub fn exact_predicate_intervals(
         return None;
     }
     let unfolding = unfold(program, application.machine, &knowledge)?;
-    let mut narrowed = Vec::with_capacity(knowledge.len());
-    let mut rows = Vec::with_capacity(knowledge.len());
+    let mut rows = Vec::new();
     for (position, (argument, knowledge)) in
         application.arguments.iter().zip(&knowledge).enumerate()
     {
         let extent = match knowledge {
             ArgumentKnowledge::Integer(_) => false,
             ArgumentKnowledge::CollectionExtent(_) => true,
-            _ => return None,
+            _ => continue,
         };
-        let values = unfolding.when_true(position)?;
+        let Some(values) = unfolding.when_true(position) else {
+            continue;
+        };
         let [values] = values.as_slice() else {
-            return None;
+            continue;
         };
-        let (low, high) = values.bounds()?;
-        let hull = IntegerSet::range(low, high);
-        narrowed.push(if extent {
-            ArgumentKnowledge::CollectionExtent(hull)
-        } else {
-            ArgumentKnowledge::Integer(hull)
-        });
+        let Some((low, high)) = values.bounds() else {
+            continue;
+        };
         rows.push(PredicateInterval {
             argument: *argument,
             extent,
@@ -179,7 +279,7 @@ pub fn exact_predicate_intervals(
             high,
         });
     }
-    (unfold(program, application.machine, &narrowed)?.decided() == Some(true)).then_some(rows)
+    Some(rows)
 }
 
 /// One exploration of a predicate at fixed initial knowledge.
@@ -293,7 +393,7 @@ pub(crate) fn unknown_knowledge(
         ValueShape::Collection { length: None, .. } => {
             ArgumentKnowledge::CollectionExtent(IntegerSet::range(0, i128::from(u64::MAX)))
         }
-        ValueShape::Boolean => return None,
+        ValueShape::Boolean | ValueShape::Record(_) => return None,
     })
 }
 
@@ -309,7 +409,7 @@ fn zero_knowledge(
         } => ArgumentKnowledge::Array(vec![IntegerSet::singleton(0); length]),
         ValueShape::Integer(_) => ArgumentKnowledge::Integer(IntegerSet::singleton(0)),
         ValueShape::Boolean => ArgumentKnowledge::Boolean(false),
-        ValueShape::Collection { length: None, .. } => return None,
+        ValueShape::Collection { length: None, .. } | ValueShape::Record(_) => return None,
     })
 }
 

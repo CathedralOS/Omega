@@ -149,7 +149,7 @@ impl<'a> DescriptorAnalysis<'a> {
         };
         // Case predicates are terminators and observe the same pre-operation
         // state as their subject; they cannot hide writes or constructors.
-        let Some(predicate) = machine
+        let Some((predicate, truth)) = machine
             .case_successors
             .get(&position)
             .and_then(|cases| cases.get(ordinal))
@@ -157,7 +157,7 @@ impl<'a> DescriptorAnalysis<'a> {
             return FlowFeasibility::Possible;
         };
         let mut state = before.clone();
-        match super::case_flow::select(&self.replay, machine, &mut state, predicate) {
+        match super::case_flow::select(&self.replay, machine, &mut state, predicate, *truth) {
             Some(false) => FlowFeasibility::ProvedImpossible,
             Some(true) => FlowFeasibility::Possible,
             None => FlowFeasibility::Unknown,

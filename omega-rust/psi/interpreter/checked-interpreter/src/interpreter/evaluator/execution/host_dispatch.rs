@@ -105,7 +105,7 @@ impl<'program> Evaluator<'program> {
         arguments: &[ExpressionHandle],
         frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
-        if self.root_binding_protocol(target_symbol).is_some() {
+        if self.source_selection_protocol(target_symbol).is_some() {
             return trap(
                 "Build binding protocol requires source-issued designated product operands",
             );

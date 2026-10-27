@@ -177,19 +177,97 @@ impl<'a> SelectorEvaluation<'a> {
         }
     }
 
-    /// Ask only the current scope's established integer relations.
+    /// Ask only the current scope's established integer relations. Exact
+    /// equations may transport a query through completed results and joins;
+    /// they never rewrite ambient premises or manufacture a storage version.
     fn prove_ordering(
         &mut self,
         left: NormalizedBound,
         relation: BorrowCompatibilityPremiseRelation,
         right: NormalizedBound,
     ) -> bool {
-        if self
+        // Reserve the whole former single/two-premise search unchanged, then
+        // bound only the additional equality exploration. Exhaustion proves
+        // nothing; it cannot turn a failed compatibility query into authority.
+        const EQUALITY_CONSULTATIONS: usize = 4096;
+        let mut remaining = self
+            .premises
+            .len()
+            .saturating_mul(self.premises.len())
+            .saturating_add(EQUALITY_CONSULTATIONS);
+        if self.prove_from_premises(left.clone(), relation, right.clone(), &mut remaining) {
+            return true;
+        }
+        let mut candidates = Vec::new();
+        for candidate in self
             .premises
             .iter()
-            .any(|premise| premise_proves(premise, left.clone(), relation, right.clone()))
+            .filter_map(StatedOrderingPremise::equality_candidates)
+            .flatten()
         {
-            return true;
+            if !candidates.contains(&candidate) {
+                candidates.push(candidate);
+            }
+        }
+        let mut pending = vec![(left, right)];
+        let mut visited = Vec::new();
+        while let Some((left, right)) = pending.pop() {
+            if visited.contains(&(left.clone(), right.clone())) {
+                continue;
+            }
+            visited.push((left.clone(), right.clone()));
+            for candidate in &candidates {
+                for (subject, next) in [
+                    (&left, (candidate.clone(), right.clone())),
+                    (&right, (left.clone(), candidate.clone())),
+                ] {
+                    if subject == candidate || visited.contains(&next) || pending.contains(&next) {
+                        continue;
+                    }
+                    if !self.prove_from_premises(
+                        subject.clone(),
+                        BorrowCompatibilityPremiseRelation::Equal,
+                        candidate.clone(),
+                        &mut remaining,
+                    ) {
+                        if remaining == 0 {
+                            return false;
+                        }
+                        continue;
+                    }
+                    if self.prove_from_premises(
+                        next.0.clone(),
+                        relation,
+                        next.1.clone(),
+                        &mut remaining,
+                    ) {
+                        return true;
+                    }
+                    if remaining == 0 {
+                        return false;
+                    }
+                    pending.push(next);
+                }
+            }
+        }
+        false
+    }
+
+    fn prove_from_premises(
+        &self,
+        left: NormalizedBound,
+        relation: BorrowCompatibilityPremiseRelation,
+        right: NormalizedBound,
+        remaining: &mut usize,
+    ) -> bool {
+        for premise in self.premises {
+            if *remaining == 0 {
+                return false;
+            }
+            *remaining -= 1;
+            if premise_proves(premise, left.clone(), relation, right.clone()) {
+                return true;
+            }
         }
         // No single premise names both bounds; a two-premise chain through
         // one shared middle bound may still derive the relation.
@@ -198,16 +276,19 @@ impl<'a> SelectorEvaluation<'a> {
                 if first_index == second_index {
                     continue;
                 }
-                if !premise_chain_proves(
+                if *remaining == 0 {
+                    return false;
+                }
+                *remaining -= 1;
+                if premise_chain_proves(
                     &self.premises[first_index],
                     &self.premises[second_index],
                     left.clone(),
                     relation,
                     right.clone(),
                 ) {
-                    continue;
+                    return true;
                 }
-                return true;
             }
         }
         false
@@ -601,8 +682,28 @@ pub(super) fn projected_bound(
     lookup: &validation::ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<NormalizedBound> {
-    let (symbol, field, is_mutable) =
-        validation::projected_integer_bound_root(program, lookup, expression)?;
+    let Some((symbol, field, is_mutable)) =
+        validation::projected_integer_bound_root(program, lookup, expression)
+    else {
+        // A nested owned record path is one complete observation. A final
+        // field symbol alone would conflate siblings or different roots.
+        let place = validation::canonical_place_from_expression(program, expression)?;
+        let symbol = place.root.as_symbol()?;
+        if place.segments.is_empty()
+            || !place
+                .segments
+                .iter()
+                .all(|segment| matches!(segment, facts::PlaceSegment::Field { .. }))
+        {
+            return None;
+        }
+        return append_immutable_projection(
+            program,
+            lookup,
+            NormalizedBound::Symbol { symbol, offset: 0 },
+            &place.segments,
+        );
+    };
     // The bound names the canonical attached-field identity the write frame
     // carries; the authored member spelling can disagree for `self` members.
     let field = match program.expression_table.expression(expression) {
@@ -613,6 +714,44 @@ pub(super) fn projected_bound(
     };
     let segments = vec![facts::PlaceSegment::Field { symbol: field }];
     Some(if is_mutable {
+        NormalizedBound::StorageProjected { symbol, segments }
+    } else {
+        NormalizedBound::Projected { symbol, segments }
+    })
+}
+
+/// Read an exact immutable owned path in the same namespace for premise
+/// subjects and compatibility queries. A shared root lends readable storage;
+/// another reference inside the path begins a different epoch and refuses.
+pub(super) fn append_immutable_projection(
+    program: &dyn ::validation::CheckingInput,
+    lookup: &validation::ImmutableBoundLookup<'_>,
+    bound: NormalizedBound,
+    projection: &[facts::PlaceSegment],
+) -> Option<NormalizedBound> {
+    let (symbol, mut segments, storage) = match bound {
+        NormalizedBound::Symbol { symbol, offset: 0 } => (symbol, Vec::new(), false),
+        NormalizedBound::Projected { symbol, segments } => (symbol, segments, false),
+        NormalizedBound::Storage { symbol } => (symbol, Vec::new(), true),
+        NormalizedBound::StorageProjected { symbol, segments } => (symbol, segments, true),
+        _ => return None,
+    };
+    let mut reference = lookup.immutable_binding_type(symbol)?;
+    if let Some(shell) = validation::reference_shell(program, reference) {
+        if shell.access != language_core::ReferenceAccess::Shared {
+            return None;
+        }
+        reference = shell.referee;
+    }
+    segments.extend_from_slice(projection);
+    let leaf = validation::owned_projection_type_reference(program, reference, &segments)?;
+    if !program.primitive_type_reference(leaf)?.is_fixed_integer()
+        || program.arithmetic_domain_for_type_reference(leaf)
+            != numerics::arithmetic::ArithmeticDomain::Exact
+    {
+        return None;
+    }
+    Some(if storage {
         NormalizedBound::StorageProjected { symbol, segments }
     } else {
         NormalizedBound::Projected { symbol, segments }

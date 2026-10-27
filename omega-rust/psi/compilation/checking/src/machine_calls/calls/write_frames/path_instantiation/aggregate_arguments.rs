@@ -150,7 +150,7 @@ pub(in crate::machine_calls::calls::write_frames) fn partition_sources(
 
 /// Temporary structural evidence shared by immediate arguments and stored
 /// aggregate declarations. Only the string view coarsens array selectors.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub(in crate::machine_calls::calls::write_frames) struct ReferenceLeaf {
     pub lifetime_dependencies: Vec<super::super::stored_calls::SlotSource>,
     pub kind: super::super::stored_origins::StoredOriginKind,
@@ -171,7 +171,7 @@ pub(in crate::machine_calls::calls::write_frames) struct AggregateOrigins {
 
 /// A moved value subtree retains its input identity as a whole. Substitution
 /// transports its cases and reference leaves together, including empty cases.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::machine_calls::calls::write_frames) struct AggregateMove {
     pub local_segments: Vec<PlaceSegment>,
     pub source: super::super::FrameSourcePlace,

@@ -61,6 +61,7 @@ impl BoundaryMachineResult {
         &self,
         result: &crate::TerminalMachineResult,
         requirement: TerminalIdentityIndex,
+        declaration: Option<TerminalIdentityIndex>,
         domains: &[crate::StructuralDomainDeclaration],
     ) -> bool {
         match (self, result) {
@@ -73,11 +74,14 @@ impl BoundaryMachineResult {
                         .all(|domain| expected.qualifications.contains(domain))
                     && expected.qualifications.iter().all(|domain| {
                         result.qualifications.contains(domain)
-                            || domains.iter().any(|declaration| {
-                                declaration.id == *domain
-                                    && declaration.carrier == expected.structural_type
-                                    && (declaration.establishment_routes.is_empty()
-                                        || declaration.authorizes_boundary_requirement(requirement))
+                            || domains.iter().any(|domain_declaration| {
+                                domain_declaration.id == *domain
+                                    && domain_declaration.carrier == expected.structural_type
+                                    && (domain_declaration.establishment_routes.is_empty()
+                                        || domain_declaration.authorizes_boundary_requirement(
+                                            requirement,
+                                            declaration,
+                                        ))
                             })
                     })
                     && expected
@@ -345,7 +349,12 @@ impl BoundaryMachineDeclaration {
                     .is_none_or(|declaration| {
                         declaration.content_projection.is_none()
                             && !declaration.establishment_routes.is_empty()
-                            && !declaration.authorizes_boundary_requirement(self.identity)
+                            && !declaration.authorizes_boundary_requirement(
+                                self.identity,
+                                self.declaration
+                                    .as_ref()
+                                    .map(|callable| callable.source.semantic_declaration),
+                            )
                     })
             })
     }

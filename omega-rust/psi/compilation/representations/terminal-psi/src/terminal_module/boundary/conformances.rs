@@ -36,6 +36,9 @@ pub enum ClosedConformanceSchemaKind {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ClosedConformanceSchema {
+    /// Declaration ownership survives independently of the overload's path and
+    /// types; another package may declare an equally shaped requirement.
+    pub requirement_declaration: crate::NominalDeclarationIdentity,
     pub declaring_trait_identity: TerminalIdentityIndex,
     pub public_requirement_identity: TerminalIdentityIndex,
     pub requirement_identity: TerminalIdentityIndex,
@@ -96,6 +99,9 @@ pub struct ClosedConformanceParameterBinding {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ClosedConformanceRow {
+    /// Same source declaration coordinate as the original schema, retained
+    /// through each closed family row for authorized scalar issuance.
+    pub requirement_declaration: crate::NominalDeclarationIdentity,
     pub declaring_trait_identity: TerminalIdentityIndex,
     /// Canonical normalized overload identity of the public requirement.
     pub public_requirement_identity: TerminalIdentityIndex,
@@ -191,6 +197,12 @@ pub fn closed_conformance_application_report_fingerprint(
     bytes.extend(schema_application_bytes(identities, application));
     bytes.extend((application.rows.len() as u64).to_le_bytes());
     for row in &application.rows {
+        push(
+            &mut bytes,
+            identities
+                .text(row.requirement_declaration.identity())
+                .unwrap_or_default(),
+        );
         push(
             &mut bytes,
             identities
@@ -296,6 +308,7 @@ fn schema_application_bytes(
     bytes.extend((application.schemas.len() as u64).to_le_bytes());
     for schema in &application.schemas {
         for identity in [
+            schema.requirement_declaration.identity(),
             schema.declaring_trait_identity,
             schema.public_requirement_identity,
             schema.requirement_identity,
@@ -432,6 +445,12 @@ pub fn closed_conformance_application_commitment(
         push(
             &mut digest,
             identities
+                .text(row.requirement_declaration.identity())
+                .unwrap_or_default(),
+        );
+        push(
+            &mut digest,
+            identities
                 .text(row.declaring_trait_identity)
                 .unwrap_or_default(),
         );
@@ -488,6 +507,9 @@ mod tests {
             schemas: Vec::new(),
             static_applications: Vec::new(),
             rows: vec![ClosedConformanceRow {
+                requirement_declaration: crate::NominalDeclarationIdentity::new(
+                    identities.intern("package::Scanner::scan"),
+                ),
                 declaring_trait_identity: identities.intern("package::Scanner"),
                 public_requirement_identity: identities.intern("package::Scanner::scan()"),
                 family_tuple,

@@ -235,6 +235,100 @@ fn roots_overlap(left: &Root, right: &Root) -> bool {
     })
 }
 
+/// A retained audit may reject demonstrated duplicate storage, but cannot
+/// re-prove source compatibility from an imprecise origin family. In particular,
+/// different captured runtime indices are not evidence of overlap. Source
+/// checking already discharged their exact formation premises; target argument
+/// correspondence independently retains both original evaluated selectors.
+fn roots_definitely_overlap(left: &Root, right: &Root) -> bool {
+    let left = left.origins();
+    let right = right.origins();
+    !left.is_empty()
+        && !right.is_empty()
+        && left.iter().all(|left| {
+            right
+                .iter()
+                .all(|right| captured_origins_definitely_overlap(left, right))
+        })
+}
+
+fn captured_origins_definitely_overlap(
+    left: &target_operations::TargetReferenceOrigin,
+    right: &target_operations::TargetReferenceOrigin,
+) -> bool {
+    if left.base != right.base
+        || !matches!(
+            left.base,
+            target_operations::TargetReferenceOriginBase::Storage { .. }
+                | target_operations::TargetReferenceOriginBase::IncomingContents { .. }
+        )
+        || left.extent != semantic_vocabulary::ReferenceOriginExtent::Projected
+        || right.extent != semantic_vocabulary::ReferenceOriginExtent::Projected
+    {
+        return false;
+    }
+    let unknown_or_empty = |segment: &ReferenceOriginProjection| match segment {
+        ReferenceOriginProjection::Element
+        | ReferenceOriginProjection::Exact(StructuralPathSegment::AllElements) => true,
+        ReferenceOriginProjection::Exact(StructuralPathSegment::FixedByteRange { start, end }) => {
+            start >= end
+        }
+        _ => false,
+    };
+    // Inspect the complete paths before exact-prefix containment: a family
+    // suffix may denote an empty region, not one captured child occurrence.
+    if left.path.iter().chain(&right.path).any(unknown_or_empty) {
+        return false;
+    }
+    for (position, (left_segment, right_segment)) in left.path.iter().zip(&right.path).enumerate() {
+        let (
+            ReferenceOriginProjection::Exact(left_segment),
+            ReferenceOriginProjection::Exact(right_segment),
+        ) = (left_segment, right_segment)
+        else {
+            return false;
+        };
+        match (left_segment, right_segment) {
+            (
+                StructuralPathSegment::RuntimeIndex { index: left, .. },
+                StructuralPathSegment::RuntimeIndex { index: right, .. },
+            ) if left == right => {}
+            (
+                StructuralPathSegment::FixedByteRange {
+                    start: left_start,
+                    end: left_end,
+                },
+                StructuralPathSegment::FixedByteRange {
+                    start: right_start,
+                    end: right_end,
+                },
+            ) => {
+                // Executable windows end their path. Do not infer child
+                // overlap if future paths admit a projection suffix.
+                return position + 1 == left.path.len()
+                    && position + 1 == right.path.len()
+                    && left_start < right_end
+                    && right_start < left_end;
+            }
+            (StructuralPathSegment::AllElements, _) | (_, StructuralPathSegment::AllElements) => {
+                return false;
+            }
+            (left, right) if left == right => {}
+            _ => return false,
+        }
+    }
+    true
+}
+
+fn duplicate_argument_storage(left: &StructuralArgument, right: &StructuralArgument) -> bool {
+    left.place == right.place
+        && left.path == right.path
+        && !left.path.iter().any(|segment| {
+            matches!(segment,
+            StructuralPathSegment::FixedByteRange { start, end } if start >= end)
+        })
+}
+
 /// Live reference loans keyed by current carrier location, exactly mirroring
 /// the lowering-time custody map's membership.
 #[derive(Debug, Clone, Default)]
@@ -497,13 +591,11 @@ pub(in crate::legalization) fn window_regions(
     path: &[StructuralPathSegment],
     access: StructuralAccess,
 ) -> Result<Vec<(PlaceId, Vec<StructuralPathSegment>)>, LegalizationError> {
-    let Some(crossing) = path
-        .iter()
-        .rposition(|segment| *segment == StructuralPathSegment::Referent)
-    else {
-        return Ok(vec![(place, path.to_vec())]);
-    };
-    let observed = call_paths::call_reference_custody(
+    // A borrowed block parameter already transports an address. Substitute
+    // its captured storage before interpreting relative selectors: `.field`
+    // through that parameter must update the original slot, not temporary
+    // parameter storage that disappears at the next control-flow join.
+    let sources = borrowed_arrivals::captured_storage(
         function,
         custody,
         types,
@@ -512,7 +604,33 @@ pub(in crate::legalization) fn window_regions(
             path: path.to_vec(),
             access,
         },
-    )?;
+    )
+    .ok_or_else(|| invalid())?;
+    let mut regions = Vec::new();
+    for source in sources {
+        for region in window_regions_in_storage(function, custody, types, &source)? {
+            if !regions.contains(&region) {
+                regions.push(region);
+            }
+        }
+    }
+    Ok(regions)
+}
+
+fn window_regions_in_storage(
+    function: &PsiOptimizationFunction,
+    custody: &Custody,
+    types: &[StructuralTypeDeclaration],
+    source: &borrowed_arrivals::CapturedStorage,
+) -> Result<Vec<(PlaceId, Vec<StructuralPathSegment>)>, LegalizationError> {
+    let StructuralArgument { place, path, .. } = &source.argument;
+    let Some(crossing) = path
+        .iter()
+        .rposition(|segment| *segment == StructuralPathSegment::Referent)
+    else {
+        return Ok(vec![(*place, path.to_vec())]);
+    };
+    let observed = call_paths::captured_reference_custody(function, custody, types, source)?;
     let mut regions = Vec::new();
     for root in &observed.origins {
         for origin in storage_origins(function, custody, types, root, observed.referent)? {
@@ -1045,8 +1163,17 @@ fn storage_access_conflicts_beneath_argument(
     custody: &Custody,
     types: &[StructuralTypeDeclaration],
     argument: &StructuralArgument,
-) -> bool {
-    custody
+) -> Result<bool, LegalizationError> {
+    // A borrowed arrival names an already captured permission, rather than a
+    // fresh access to every external address its imprecise geometry may alias.
+    // Its exact grant and descendants still govern access. Unrelated pointer
+    // origins are not proof of a duplicate permission (as in call arguments).
+    let captured = custody
+        .borrowed_sources
+        .contains_key(&argument.place)
+        .then(|| normalized_source(function, custody, types, argument))
+        .transpose()?;
+    Ok(custody
         .leaves
         .iter()
         .any(|((leaf_place, leaf_path), reference)| {
@@ -1060,9 +1187,12 @@ fn storage_access_conflicts_beneath_argument(
                 && reference.backing.iter().all(|backing| {
                     matches!(backing, descriptor_backing::Backing::Source(Root::Place(_)))
                 });
-            !own_key
-                && !owned_alias
-                && leaf_storage_access_conflicts(
+            if own_key || owned_alias {
+                return false;
+            }
+            if let Some((root, parents)) = &captured {
+                // Lifetime anchors remain independent of delegated access.
+                if lifetime_storage_access_conflicts(
                     function,
                     custody,
                     types,
@@ -1070,8 +1200,46 @@ fn storage_access_conflicts_beneath_argument(
                     argument.place,
                     &argument.path,
                     argument.access,
-                )
-        })
+                ) {
+                    return true;
+                }
+                if borrowed_arrivals::lends_from(
+                    custody,
+                    argument.place,
+                    &reference.identity,
+                    argument.access,
+                ) || shared_source_compatible(
+                    function,
+                    custody,
+                    types,
+                    leaf_place,
+                    leaf_path,
+                    argument.access,
+                ) {
+                    return false;
+                }
+                if parents.iter().any(|parent| {
+                    custody.descends_from(reference, parent)
+                        || custody.lifetime_access_conflicts(reference, parent, argument.access)
+                }) {
+                    return true;
+                }
+                return reference.backing.iter().any(|backing| {
+                    descriptor_backing::matches_return(std::slice::from_ref(backing), &|backing| {
+                        roots_definitely_overlap(backing, root)
+                    })
+                });
+            }
+            leaf_storage_access_conflicts(
+                function,
+                custody,
+                types,
+                reference,
+                argument.place,
+                &argument.path,
+                argument.access,
+            )
+        }))
 }
 
 /// Interference is a property of retained backing, not the path spelling used
@@ -1296,7 +1464,8 @@ fn leaf_storage_access_conflicts(
 /// Validate every structural call argument under reference custody. Owned
 /// carriers move their complete live leaf roster; a suspended root may only be
 /// spelled through a `.., Referent` projection; two reference-touching
-/// arguments cannot share one root unless both are shared borrows. Returns the
+/// arguments cannot duplicate one demonstrated captured origin unless both are
+/// shared borrows. Unknown geometry is not a custody-duplication proof. Returns the
 /// moved leaves keyed by their current carrier path; the caller commits the
 /// removal after every other call check succeeds.
 fn call_arguments(
@@ -1440,7 +1609,7 @@ fn call_arguments(
         // arrival alias of the same storage (a state's own data parameter,
         // which names the place this access path resolves to). A genuinely
         // distinct overlapping leaf still refuses here.
-        if storage_access_conflicts_beneath_argument(function, custody, types, argument) {
+        if storage_access_conflicts_beneath_argument(function, custody, types, argument)? {
             return Err(invalid());
         }
         let (root, _) = normalized_source(function, custody, types, argument)?;
@@ -1490,9 +1659,16 @@ fn call_arguments(
                     && (argument_position != other_position
                         || (*reference_access == CallRegion::Referent
                             && *other_reference_access == CallRegion::Referent))
-                    && roots
-                        .iter()
-                        .any(|root| others.iter().any(|other| roots_overlap(root, other)))
+                    && ((argument_position != other_position
+                        && duplicate_argument_storage(
+                            &arguments[*argument_position],
+                            &arguments[*other_position],
+                        ))
+                        || roots.iter().any(|root| {
+                            others
+                                .iter()
+                                .any(|other| roots_definitely_overlap(root, other))
+                        }))
                     && (*access != StructuralAccess::SharedBorrow
                         || *other_access != StructuralAccess::SharedBorrow)
             },
@@ -2071,46 +2247,6 @@ fn relocate_subtree_leaves<'a>(
     Ok(())
 }
 
-/// Reconstruct the sole-leaf move from owned ingress independently of target
-/// rows. Other establishments retain their parent as ordinary reborrows.
-fn transferred_ingress_leaf(
-    function: &PsiOptimizationFunction,
-    custody: &Custody,
-    types: &[StructuralTypeDeclaration],
-    source: &StructuralArgument,
-) -> Option<(PlaceId, Vec<StructuralPathSegment>)> {
-    let parameter = function
-        .structural_parameter(source.place)
-        .filter(|parameter| parameter.access == StructuralAccess::Owned)?;
-    if matches!(
-        find_structural_type(types, parameter.structural_type)?.shape,
-        StructuralTypeShape::Reference { .. }
-    ) {
-        return None;
-    }
-    let (StructuralPathSegment::Referent, path) = source.path.split_last()? else {
-        return None;
-    };
-    let paths = leaf_paths(types, parameter.structural_type, custody.leaves.len())?;
-    if paths.len() != 1 || paths[0].as_slice() != path {
-        return None;
-    }
-    let key = (source.place, path.to_vec());
-    let leaf = custody.leaves.get(&key)?;
-    (leaf.parents.is_empty()
-        && custody
-            .leaves
-            .keys()
-            .filter(|(carrier, _)| *carrier == source.place)
-            .count()
-            == 1
-        && !custody
-            .leaves
-            .values()
-            .any(|child| custody.descends_from(child, &leaf.identity)))
-    .then_some(key)
-}
-
 /// Apply one operation's custody effect after its target row validated.
 /// Admission was proven upstream; this replay keeps only enough state to
 /// resolve later `.., Referent` spellings and result rosters independently.
@@ -2391,11 +2527,11 @@ pub(in crate::legalization) fn apply(
             {
                 return Err(invalid());
             }
-            let transferred = transferred_ingress_leaf(function, custody, types, source);
+            // Formation is a reborrow even when the owning aggregate has only
+            // one reference leaf. Only explicit move operations transfer its
+            // permission; layout cardinality cannot consume the parent.
             let leaf =
-                if let Some(key) = transferred {
-                    custody.leaves.remove(&key).ok_or_else(|| invalid())?
-                } else {
+                {
                     let (mut root, parents) = normalized_source(function, custody, types, source)?;
                     if let Some(storage) = storage {
                         // The source operation, not its signature, issues the
@@ -3303,13 +3439,18 @@ pub(in crate::legalization) fn block_entry_states(
     queued[entry_position] = true;
     let mut final_arrivals = vec![Vec::new(); blocks.len()];
     let mut deferred = BTreeSet::new();
-    while let Some(position) = pending.pop_front() {
+    // An early predecessor can reach a consumer before the path that installs
+    // its current descriptor. A refusal on that provisional entry is not a
+    // fixed-point result. Retain it, replay on changed arrivals, and reject
+    // every unresolved refusal before any entry is published below.
+    let mut failures = BTreeMap::new();
+    'worklist: while let Some(position) = pending.pop_front() {
         queued[position] = false;
         let block = &blocks[position];
         let mut custody = entries.get(&block.id).cloned().ok_or_else(|| invalid())?;
         for (node_index, node) in blocks[position].nodes.iter().enumerate() {
             custody.set_position(block.id, node_index)?;
-            if matches!(
+            let result = if matches!(
                 node.operation,
                 abstract_operations::return_or_return_unit_pattern!(..)
                     | AbstractOperation::ReturnStructural { .. }
@@ -3318,13 +3459,19 @@ pub(in crate::legalization) fn block_entry_states(
                     | AbstractOperation::StructuralCase { .. }
                     | AbstractOperation::ExternalCompletion { .. }
             ) {
-                apply_terminator(&mut custody, &node.operation, function, plan)?;
+                apply_terminator(&mut custody, &node.operation, function, plan)
             } else {
-                apply(&mut custody, node, function, native, plan, unit).map_err(|error| {
-                    error.attributed(function.machine, node.operation.psi_operation())
-                })?;
+                apply(&mut custody, node, function, native, plan, unit)
+            };
+            if let Err(error) = result {
+                failures.insert(
+                    block.id,
+                    error.attributed(function.machine, node.operation.psi_operation()),
+                );
+                continue 'worklist;
             }
         }
+        failures.remove(&block.id);
         let terminator = block.nodes.last().ok_or_else(|| invalid())?;
         let mut arrivals = Vec::with_capacity(terminator.successors.len());
         for edge in &terminator.successors {
@@ -3407,6 +3554,9 @@ pub(in crate::legalization) fn block_entry_states(
                 queued[target_position] = true;
             }
         }
+    }
+    if let Some((_, error)) = failures.into_iter().next() {
+        return Err(error);
     }
     for block in blocks {
         if impossible_context
@@ -3789,4 +3939,123 @@ pub(in crate::legalization) fn placed_scalar_custody(
     }
     normalized_source(function, custody, types, source)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod call_origin_tests {
+    use super::*;
+    use semantic_vocabulary::{ObligationId, ValueId};
+
+    fn selected(index: u64, obligation: u64) -> Root {
+        Root::Ingress(
+            PlaceId::new(1).unwrap(),
+            vec![StructuralPathSegment::RuntimeIndex {
+                index: ValueId::new(index).unwrap(),
+                obligation: ObligationId::new(obligation).unwrap(),
+            }],
+        )
+    }
+
+    #[test]
+    fn independent_bounds_obligations_do_not_make_one_selector_disjoint() {
+        assert!(roots_definitely_overlap(&selected(2, 3), &selected(2, 4)));
+    }
+
+    #[test]
+    fn distinct_captured_selectors_need_source_compatibility_not_duplicate_rejection() {
+        let first = selected(2, 3);
+        let second = selected(4, 5);
+        assert!(roots_overlap(&first, &second));
+        assert!(!roots_definitely_overlap(&first, &second));
+    }
+
+    #[test]
+    fn exact_ancestor_and_static_projection_remain_demonstrated_overlap() {
+        let child = Root::Ingress(
+            PlaceId::new(1).unwrap(),
+            vec![StructuralPathSegment::FixedIndex(2)],
+        );
+        assert!(roots_definitely_overlap(
+            &Root::Place(PlaceId::new(1).unwrap()),
+            &child
+        ));
+        assert!(roots_definitely_overlap(&child, &child));
+        assert!(!roots_definitely_overlap(
+            &child,
+            &Root::Ingress(
+                PlaceId::new(1).unwrap(),
+                vec![StructuralPathSegment::FixedIndex(3)]
+            )
+        ));
+    }
+
+    #[test]
+    fn empty_and_touching_windows_do_not_demonstrate_overlap() {
+        let window = |start, end| {
+            Root::Ingress(
+                PlaceId::new(1).unwrap(),
+                vec![StructuralPathSegment::FixedByteRange { start, end }],
+            )
+        };
+        assert!(!roots_definitely_overlap(
+            &window(0, 0),
+            &Root::Place(PlaceId::new(1).unwrap())
+        ));
+        assert!(!roots_definitely_overlap(&window(0, 2), &window(2, 4)));
+        assert!(roots_definitely_overlap(&window(0, 3), &window(2, 4)));
+        let mut child = vec![StructuralPathSegment::FixedByteRange { start: 0, end: 3 }];
+        child.push(StructuralPathSegment::FixedIndex(0));
+        assert!(!roots_definitely_overlap(
+            &Root::Ingress(PlaceId::new(1).unwrap(), child),
+            &window(0, 3)
+        ));
+    }
+
+    #[test]
+    fn exact_argument_duplication_excludes_empty_storage_windows() {
+        let whole =
+            StructuralArgument::whole(PlaceId::new(1).unwrap(), StructuralAccess::MutableBorrow);
+        assert!(duplicate_argument_storage(&whole, &whole));
+        let empty = StructuralArgument {
+            path: vec![StructuralPathSegment::FixedByteRange { start: 2, end: 2 }],
+            ..whole
+        };
+        assert!(!duplicate_argument_storage(&empty, &empty));
+    }
+
+    #[test]
+    fn forged_operand_reusing_another_exact_placement_is_duplicate() {
+        let first =
+            StructuralArgument::whole(PlaceId::new(1).unwrap(), StructuralAccess::MutableBorrow);
+        let mut second =
+            StructuralArgument::whole(PlaceId::new(2).unwrap(), StructuralAccess::MutableBorrow);
+        assert!(!duplicate_argument_storage(&first, &second));
+        second.place = first.place;
+        assert!(duplicate_argument_storage(&first, &second));
+    }
+
+    #[test]
+    fn element_family_is_not_one_captured_element() {
+        let family = Root::Alternatives(vec![target_operations::TargetReferenceOrigin {
+            base: target_operations::TargetReferenceOriginBase::Storage {
+                root: PlaceId::new(1).unwrap(),
+            },
+            path: vec![ReferenceOriginProjection::Element],
+            extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+        }]);
+        assert!(roots_overlap(&family, &family));
+        assert!(!roots_definitely_overlap(&family, &family));
+        assert!(!roots_definitely_overlap(
+            &Root::Place(PlaceId::new(1).unwrap()),
+            &family
+        ));
+        let wildcard = Root::Ingress(
+            PlaceId::new(1).unwrap(),
+            vec![StructuralPathSegment::AllElements],
+        );
+        assert!(!roots_definitely_overlap(
+            &Root::Place(PlaceId::new(1).unwrap()),
+            &wildcard
+        ));
+    }
 }

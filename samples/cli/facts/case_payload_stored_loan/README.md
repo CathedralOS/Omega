@@ -135,7 +135,40 @@ reject diagnostics are retained in the qualification/claim record for
 `bb45840a447b4899b4e5cc8f868fa31b`. Earlier failed drafts and package-setup
 attempts are not passing evidence. The parent outcome remains open for its
 other aggregate, opaque-reference and expression-composition requirements.
-In particular, replacing a descriptor whose RHS also writes that descriptor
-still refuses native publication at `assignment: structural destination window`.
-It is valid source with missing implementation, not an invalid control or a
-completed part of this row's direct replacement coverage.
+RHS self-replacement is now exercised by
+[`descriptor_replacement_order`](../descriptor_replacement_order/README.md).
+Its local witness runs with native and Terminal exit zero on producer `ac9b6d8d9762`;
+the earlier structural-destination-window refusal is historical evidence.
+
+
+## Selected guard completion precedes payload operands
+
+On optimized producer `ac9b6d8d97625b890927868616fbec23cce11560`, all nine
+unchanged positives refuse the payload reborrow: a shared temporary used to test
+the case remains lexically live through the missed path's later guard. The
+selected path has already completed that observation and does not use its
+carrier again. Calls and moves recognized the checked release boundary, while
+ordinary operand observations did not.
+
+The shared occurrence inventory now retains whether an access belongs to the
+guard or an exact selected target. Observations, calls and moves use the same
+retirement query. It requires the completed guard read, exact checked release,
+no target use and no surviving descendant dependency. The captured payload still
+refers to its original exclusive backing; it does not borrow through the shared
+guard temporary. Lowering retains its existing full-graph verification before
+moving the actual release onto that continuation. No source-name exception or
+new cleanup representation is introduced.
+
+All nine positives again return zero in native and Terminal execution on macOS
+ARM64; all nine conflicting-backing twins still reject. The new
+[`guard_mutation_keeps_observation`](controls/guard_mutation_keeps_observation/main.omg)
+control attempts mutation during the guard and must keep rejecting. The existing
+`guard_subject_alias_held_through_call` control keeps the independent live alias.
+The fact sentence, original sources and their corpus pins remain unchanged.
+Other-host execution and the parent capability's remaining runtime/case
+construction, replacement and saved-observation acceptance remain open.
+
+The broader `tests/omega/pass/borrows/runtime_guard_descriptor_replacement_exit`
+now runs unchanged in both engines. Its distinct guard-time replacement
+requirement is covered by the nine `guard_replacement/` productions in
+[descriptor replacement](../descriptor_replacement_order/README.md#guard-replacement-through-a-saved-case-subject).

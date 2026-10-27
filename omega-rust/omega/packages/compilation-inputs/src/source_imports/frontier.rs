@@ -170,6 +170,24 @@ impl SourceStorage {
                     ))
                 })?;
         }
+        for file in self
+            .sources
+            .files()
+            .filter(|file| file.origin == SourceOrigin::User && file.package_identity.is_none())
+        {
+            let path = filesystem.canonicalize(&file.path).map_err(|error| {
+                refuse(format!(
+                    "cannot resolve anonymous source {} at Product join: {error}",
+                    file.path.display()
+                ))
+            })?;
+            if inputs.package_for_source(&path) != Some(inputs.root()) {
+                return Err(refuse(format!(
+                    "anonymous source {} belongs to a different reconciled package at Product join",
+                    path.display(),
+                )));
+            }
+        }
         self.sources
             .bind_anonymous_owner(&self.default_package_root, inputs.root())
             .map_err(|reason| refuse(reason.to_owned()))?;

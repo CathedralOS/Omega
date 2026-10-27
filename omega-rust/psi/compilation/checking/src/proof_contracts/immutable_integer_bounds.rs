@@ -129,6 +129,23 @@ impl<'program> ImmutableBoundLookup<'program> {
         })
     }
 
+    /// A frozen binding may supply an owned record observation. Reference
+    /// access and every crossed projection remain separate consumer checks.
+    pub fn immutable_binding_type(&self, symbol: SymbolHandle) -> Option<TypeReferenceHandle> {
+        match self.local_entry(symbol) {
+            Some(Some(local)) if !local.is_mutable => Some(local.type_reference),
+            Some(_) => None,
+            None => match self.parameter_entry(symbol) {
+                Some(Some(parameter)) if !parameter.is_mutable => Some(parameter.type_reference),
+                Some(_) => None,
+                None if self.program.symbols.get(symbol).kind == symbols::SymbolKind::Const => {
+                    crate::declaration_type_reference(self.program, symbol)
+                }
+                None => None,
+            },
+        }
+    }
+
     fn local_at(&self, handle: StatementHandle) -> &'program TableLocalData {
         let program: &'program dyn crate::CheckingInput = self.program;
         match program.statement_table.statement(handle) {

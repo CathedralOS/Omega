@@ -21,17 +21,6 @@ pub(crate) fn produce_native_product(
     let accepted_package_terminal_authority_permission_policy =
         accepted_terminal_authority_permission_policy(checked)?;
     let post_terminal = selections.project_post_terminal();
-    let native_request = native_production::NativeCompileRequest {
-        private_entry_ram: &request.private_entry_ram,
-        optimization_selections: post_terminal.selections(),
-        terminal_authority_policy: request.terminal_authority_policy,
-        accepted_package_terminal_authority_permission_policy,
-        terminal_authority_permission_policy: request.terminal_authority_permission_policy,
-        image_request: image_emission::ExecutableImageEmissionRequest::direct(
-            checked.build().config.settings.subsystem,
-        ),
-        imports: &[],
-    };
     let inputs = independent_native_inputs(checked, &terminal)?;
     let mut images = Vec::new();
     let mut calls = Vec::new();
@@ -45,8 +34,8 @@ pub(crate) fn produce_native_product(
             input,
             native_production::ComponentExportRequest {
                 accepted_package_permissions: product.accepted_package_permissions(),
-                terminal_authority_policy: &native_request.terminal_authority_policy,
-                receiving_permissions: &native_request.terminal_authority_permission_policy,
+                terminal_authority_policy: &request.terminal_authority_policy,
+                receiving_permissions: &request.terminal_authority_permission_policy,
                 imports: &[],
             },
         )?;
@@ -93,9 +82,20 @@ pub(crate) fn produce_native_product(
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let mut produced =
-        native_production::compile_with_components(terminal, native_request, &native_calls)
-            .map_err(|(_, diagnostics)| diagnostics)?;
+    let native_request = native_production::NativeCompileRequest {
+        private_entry_ram: &request.private_entry_ram,
+        optimization_selections: post_terminal.selections(),
+        terminal_authority_policy: request.terminal_authority_policy,
+        accepted_package_terminal_authority_permission_policy,
+        terminal_authority_permission_policy: request.terminal_authority_permission_policy,
+        image_request: image_emission::ExecutableImageEmissionRequest::direct(
+            checked.build().config.settings.subsystem,
+        ),
+        imports: &[],
+        components: &native_calls,
+    };
+    let mut produced = native_production::compile(terminal, native_request)
+        .map_err(|(_, diagnostics)| diagnostics)?;
     drop(native_calls);
     let components = images
         .into_iter()

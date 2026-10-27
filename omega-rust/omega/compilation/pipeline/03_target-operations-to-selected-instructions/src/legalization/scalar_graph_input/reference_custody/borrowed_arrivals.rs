@@ -29,16 +29,25 @@ fn canonicalize(sources: &mut Vec<Source>) {
     sources.dedup();
 }
 
-/// Resolve current typed storage only when a consumer actually needs to read
-/// an inner descriptor. Captured byte geometry cannot manufacture such a slot.
-pub(super) fn flatten(
+/// Resolved storage keeps the exact grant that authorized its captured address.
+/// Re-rooting selectors cannot turn that delegated access into a fresh use of
+/// its suspended ancestor. Byte geometry alone supplies neither part.
+pub(super) struct CapturedStorage {
+    pub(super) argument: StructuralArgument,
+    pub(super) grants: Vec<OccurrenceIdentity>,
+}
+
+pub(super) fn captured_storage(
     function: &PsiOptimizationFunction,
     custody: &Custody,
     types: &[StructuralTypeDeclaration],
     source: &StructuralArgument,
-) -> Option<Vec<StructuralArgument>> {
+) -> Option<Vec<CapturedStorage>> {
     let Some(origins) = custody.borrowed_sources.get(&source.place) else {
-        return Some(vec![source.clone()]);
+        return Some(vec![CapturedStorage {
+            argument: source.clone(),
+            grants: Vec::new(),
+        }]);
     };
     let mut resolved = Vec::new();
     for origin in origins.as_ref()? {
@@ -51,10 +60,13 @@ pub(super) fn flatten(
         for storage in storage_origins(function, custody, types, &origin.root, referent).ok()? {
             let mut path = storage.exact_path()?;
             path.extend_from_slice(&source.path);
-            resolved.push(StructuralArgument {
-                place: storage.base.root_place()?,
-                path,
-                access: source.access,
+            resolved.push(CapturedStorage {
+                argument: StructuralArgument {
+                    place: storage.base.root_place()?,
+                    path,
+                    access: source.access,
+                },
+                grants: origin.parents.clone(),
             });
         }
     }
@@ -75,13 +87,7 @@ pub(super) fn normalize(
         .filter(|origins| !origins.is_empty())
         .ok_or_else(|| invalid())?;
     if source.path.contains(&StructuralPathSegment::Referent) {
-        return combine_candidate_origins(
-            flatten(function, custody, types, source)
-                .ok_or_else(|| invalid())?
-                .iter()
-                .map(|actual| normalized_direct_source(function, custody, types, actual))
-                .collect::<Result<Vec<_>, _>>()?,
-        );
+        return normalized_direct_source(function, custody, types, source);
     }
     // Presentation is checked at the receiving coordinate. It is not a demand
     // to reinterpret the original byte storage as a newly declared value.
@@ -197,8 +203,9 @@ pub(super) fn bind(
 /// A borrowed arrival carries authority from its exact captured occurrences,
 /// not from equal storage geometry. Every possible incoming source must grant
 /// this access through the same parent; missing predecessors stay unknown.
-/// Captured authority also traverses that parent's exact ancestry. Descendants
-/// and separate loans still interfere; lifetime debts remain independent.
+/// The granting chain may contain live or retired intermediate descriptors.
+/// This exempts its exact ancestors from ordinary backing interference, never
+/// a descendant or a separate loan, and does not discharge lifetime debts.
 pub(super) fn lends_from(
     custody: &Custody,
     place: PlaceId,
@@ -212,31 +219,41 @@ pub(super) fn lends_from(
         .is_some_and(|sources| {
             !sources.is_empty()
                 && sources.iter().all(|source| {
-                    if !requested.admits(source.access) {
-                        return false;
-                    }
-                    let mut pending = source.parents.iter().collect::<Vec<_>>();
-                    let mut visited = BTreeSet::new();
-                    while let Some(ancestor) = pending.pop() {
-                        if ancestor == parent {
-                            return true;
-                        }
-                        if !visited.insert(ancestor) {
-                            continue;
-                        }
-                        for leaf in custody
-                            .leaves
-                            .values()
-                            .chain(custody.retired.values().map(|retired| &retired.leaf))
-                        {
-                            if &leaf.identity == ancestor {
-                                pending.extend(&leaf.parents);
-                            }
-                        }
-                    }
-                    false
+                    requested.admits(source.access)
+                        && source
+                            .parents
+                            .iter()
+                            .any(|grant| granting_ancestor(custody, grant, parent))
                 })
         })
+}
+
+/// Follow each retained immediate link; equal backing is never lineage.
+/// Retired occurrences contribute ancestry, not renewed access to storage.
+pub(super) fn granting_ancestor(
+    custody: &Custody,
+    grant: &OccurrenceIdentity,
+    ancestor: &OccurrenceIdentity,
+) -> bool {
+    let mut pending = vec![grant];
+    let mut visited = BTreeSet::new();
+    while let Some(identity) = pending.pop() {
+        if identity == ancestor {
+            return true;
+        }
+        if !visited.insert(identity) {
+            continue;
+        }
+        let leaf = custody
+            .leaves
+            .values()
+            .find(|leaf| leaf.identity == *identity)
+            .or_else(|| custody.retired.get(identity).map(|retired| &retired.leaf));
+        if let Some(leaf) = leaf {
+            pending.extend(&leaf.parents);
+        }
+    }
+    false
 }
 
 pub(super) fn obligations(custody: &Custody) -> impl Iterator<Item = &OccurrenceIdentity> {

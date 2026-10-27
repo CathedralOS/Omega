@@ -1,0 +1,32 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "executed_exclusion_values_exit");
+    configure(builder, false, selected_cause(false), PhysicalAuthorityClass::ProcessInput);
+    Build::bind(builder, windows_x86_64::ProgramEntry, normal);
+    Build::bind(builder, linux_x86_64::ProgramEntry, normal);
+    Build::bind(builder, linux_arm64::ProgramEntry, normal);
+    Build::bind(builder, macos_arm64::ProgramEntry, normal);
+}
+
+machine selected_cause(trapping: bool) -> CrashCause {
+    match trapping {
+        true -> CrashCause::Trap
+        false -> CrashCause::Abort
+    }
+}
+
+machine configure(builder: &mut Build, trapping: bool, cause: CrashCause, authority: PhysicalAuthorityClass) {
+    Build::exclude_crash(builder, cause);
+    Build::exclude_crash(builder, cause);
+    Build::exclude_physical_authority(builder, authority);
+    Build::exclude_service<UnusedService>(builder);
+    transition trapping {
+        true -> uncalled(builder)
+        false -> no_selection()
+    }
+}
+
+machine uncalled(builder: &mut Build) {
+    Build::exclude_crash(builder, CrashCause::Trap);
+}
+
+machine no_selection() {}

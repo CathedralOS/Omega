@@ -1,0 +1,45 @@
+// Target-family member preconditions retain their operand identities, and a call with 42 satisfies the joined contract.
+// Expected exit: 0
+data Item { code: u64; }
+machine matches(item: &Item, number: u64) -> bool {
+    item.code == 42 && number == 42
+}
+
+linux_arm64 machine choose<Value, machine Selected>(value: &Value, number: u64) -> bool
+where machine Selected(argument: &Value, count: u64) -> bool requires count <= 64;
+requires number <= 64
+{ Selected(value, number) }
+
+linux_x86_64 machine choose<Element, machine Callback>(element: &Element, amount: u64) -> bool
+where machine Callback(argument: &Element, count: u64) -> bool requires count <= 128;
+requires amount <= 128
+{ Callback(element, amount) }
+
+macos_arm64 machine choose<Payload, machine Operation>(payload: &Payload, quantity: u64) -> bool
+where machine Operation(argument: &Payload, count: u64) -> bool requires count <= 256;
+requires quantity <= 256
+{ Operation(payload, quantity) }
+
+windows_x86_64 machine choose<Datum, machine Action>(datum: &Datum, input: u64) -> bool
+where machine Action(argument: &Datum, count: u64) -> bool requires count <= 512;
+requires input <= 512
+{ Action(datum, input) }
+
+// The forwarded contract is total. Every member checks it using its own
+// generic symbols, not the first declaration's spelling or inference row.
+machine forward<Value, machine Callback>(value: &Value) -> bool
+where machine Callback(argument: &Value, count: u64) -> bool;
+{ choose<Value, Callback>(value, 42) }
+
+machine main() crashes Trap {
+    let item: Item = Item { code: 42 };
+    let number: u64 = match true { true -> 42, false -> 42 };
+    let direct: bool = choose<Item, matches>(&item, number);
+    let forwarded: bool = forward<Item, matches>(&item);
+    transition direct && forwarded {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

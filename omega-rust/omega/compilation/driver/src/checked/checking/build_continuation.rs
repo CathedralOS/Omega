@@ -301,19 +301,32 @@ fn complete_build_source(
         // Successful Build return currently implies its dependency requests
         // have all joined (the executor refuses any unresolved request). Final
         // ownership precedes Product typing; never retag the private judgment.
-        let (count, syntax) = pending.assemble(package_inputs, timings)?;
-        let diagnostic_sources = syntax.sources.clone();
-        let product = lower_typed_frontier(
-            count,
-            syntax,
-            build_execution_profile,
-            package_inputs,
-            timings,
-        )
-        .map_err(|mut diagnostics| {
-            super::attribute_diagnostics(&mut diagnostics, &diagnostic_sources, package_inputs);
-            diagnostics
-        })?;
+        let inputs =
+            package_compilation::ProductSourceInputs::new(package_inputs, build_execution_profile);
+        let product = match pending.retained(&inputs, package_inputs)? {
+            Some(product) => product,
+            None => {
+                let (count, syntax) = pending.sources().assemble(package_inputs, timings)?;
+                let diagnostic_sources = syntax.sources.clone();
+                let product = lower_typed_frontier(
+                    count,
+                    syntax,
+                    build_execution_profile,
+                    package_inputs,
+                    timings,
+                )
+                .map_err(|mut diagnostics| {
+                    super::attribute_diagnostics(
+                        &mut diagnostics,
+                        &diagnostic_sources,
+                        package_inputs,
+                    );
+                    diagnostics
+                })?;
+                pending.retain(inputs, &product)?;
+                product
+            }
+        };
         // The retained parsed input preserves declaration source coordinates.
         // No display name, allocation order or old typed handle selects a body
         // in this distinct Product context.
@@ -327,6 +340,7 @@ fn complete_build_source(
         generated_source_custody = product.generated_source_custody;
         Arc::make_mut(&mut computed_build_config).selected_build_machine_symbol = selected;
     }
+    super::product_selections::admit(source.typed(), Arc::make_mut(&mut computed_build_config))?;
     let sources = BuildSourceCustody {
         source_file_count,
         build_execution_profile,
@@ -400,11 +414,13 @@ pub(super) fn lower_typed_frontier(
             Arc::new(inputs.clone()) as Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
         }),
     };
-    let source = request.prepare(&mut terminal_production::PsiStageTimings::new(timings))?;
+    let source = request.prepare(&mut crate::observations::PsiStageTimings::new(timings))?;
     Ok(TypedCompilationFrontier {
         source,
         anonymous_source: syntax.anonymous_owner,
-        product_sources: syntax.product_sources,
+        product_sources: syntax
+            .product_sources
+            .map(compilation_products::DeferredProductCompilation::new),
         build_source_id,
         source_file_count,
         generated_source_custody,
@@ -439,7 +455,7 @@ pub(super) fn complete_product_frontend(
         retained_build_check: _,
     } = built;
     let source =
-        source.complete_authored(&mut terminal_production::PsiStageTimings::new(timings))?;
+        source.complete_authored(&mut crate::observations::PsiStageTimings::new(timings))?;
     // Package custody, generated-byte admission and parsing stay outside Psi's
     // resolver/typing owner. No authored Build effects repeat on this path.
     let prepared = if let Some((extension, package_inputs)) = sources.admit_generated_extension(
@@ -460,7 +476,7 @@ pub(super) fn complete_product_frontend(
                     first_source: source::SourceId(base_sources.len()),
                     selection_authority: Arc::new(package_inputs.clone()),
                 },
-                &mut terminal_production::PsiStageTimings::new(timings),
+                &mut crate::observations::PsiStageTimings::new(timings),
             )
             .map_err(|mut diagnostics| {
                 super::attribute_diagnostics(

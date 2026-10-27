@@ -286,6 +286,16 @@ pub(crate) fn checked_requirement_schema(
         None
     };
     Ok(terminal_psi::ClosedConformanceSchema {
+        requirement_declaration: terminal_psi::NominalDeclarationIdentity::new(
+            crate::machine_lowering::declarations::semantic_identity(
+                identities,
+                checked,
+                requirement,
+            )
+            .map_err(|_| {
+                LoweringError::Unsupported("conformance requirement lost its declaration owner")
+            })?,
+        ),
         declaring_trait_identity: identities
             .intern(&checked.symbols.display_path(declaring_trait, "::")),
         public_requirement_identity: identities.intern(&checked_evidence_requirement_identity(

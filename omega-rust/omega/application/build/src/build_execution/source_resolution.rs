@@ -114,6 +114,26 @@ impl ResolvedPackageBuild {
     }
 }
 
+/// Review consumes Product contexts from the same settled source roster.
+/// Settlement joins each original activation; it neither replays Build nor
+/// prepares a Product. Commands and inspection share this completion step.
+pub(crate) fn settle_source_builds(
+    builds: Vec<ResolvedPackageBuild>,
+    compiler: &mut CompilationSession,
+    profile: TargetProfile,
+) -> Result<Vec<CompletedBuild>, ProjectSourceResolutionError> {
+    let mut completed = Vec::with_capacity(builds.len());
+    for build in builds {
+        let inputs = build.package_inputs().clone();
+        completed.push(
+            build
+                .settle(compiler, profile, inputs)
+                .map_err(ProjectSourceResolutionError::Compilation)?,
+        );
+    }
+    Ok(completed)
+}
+
 /// Resolve actual dependency requests without static Build projection.
 /// The shared execution owner is also used by ordinary compilation and review.
 /// This migration entry retains normal returns for subsequent admission; it

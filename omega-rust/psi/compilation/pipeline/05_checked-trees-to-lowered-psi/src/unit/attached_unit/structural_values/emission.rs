@@ -117,7 +117,7 @@ pub(crate) fn emit<'source>(
         &mut calls.claims,
     )?;
     let authored_state = crate::declarations::state_declaration(checked, state)?.1;
-    let sources = production
+    let captured_sources = production
         .selection
         .is_valid()
         .then(|| {
@@ -139,19 +139,32 @@ pub(crate) fn emit<'source>(
                     "owned selection source span is stale",
                 ))?
                 .iter()
-                .rev()
+                .enumerate()
+                // The checked roster already carries reverse declaration
+                // order. Keep its original ordinals when filtering captures.
                 // Only residual owners need this physical cleanup roster.
                 // Whole moves still resolve through the complete receipt.
-                .filter(|source| source.retains_storage)
-                .map(|source| {
-                    if let Some(argument) =
+                .filter(|(_, source)| source.retains_storage)
+                .map(|(ordinal, source)| {
+                    let source_ordinal = u32::try_from(ordinal).map_err(|_| {
+                        LoweringError::Unsupported(
+                            "selected source ordinal exceeds its checked representation",
+                        )
+                    })?;
+                    if let Some(local) =
                         crate::expression_preparation::bindings::structural_local_by_root(
                             &evaluation.structural_locals,
                             facts::PlaceRoot::Symbol(source.symbol),
                         )
-                        .map(|local| local.argument.clone())
                     {
-                        return Ok(argument);
+                        return Ok(argument_evaluation::CapturedSelectionSource {
+                            source_ordinal,
+                            storage: argument_evaluation::StructuralValueStorage {
+                                place: local.argument.place,
+                                path: local.argument.path.clone(),
+                                selected_type: local.structural_type,
+                            },
+                        });
                     }
                     // Parameter sources keep their physical ingress place: the
                     // receipt row names the authored position and the
@@ -177,16 +190,27 @@ pub(crate) fn emit<'source>(
                             "owned selection parameter source lacks owned custody",
                         ));
                     }
-                    Ok(StructuralArgument {
-                        place: declaration.place,
-                        path: Vec::new(),
-                        access: StructuralAccess::Owned,
+                    Ok(argument_evaluation::CapturedSelectionSource {
+                        source_ordinal,
+                        storage: argument_evaluation::StructuralValueStorage {
+                            place: declaration.place,
+                            path: Vec::new(),
+                            selected_type: declaration.structural_type,
+                        },
                     })
                 })
                 .collect::<Result<Vec<_>, _>>()
         })
         .transpose()?
         .unwrap_or_default();
+    let sources = captured_sources
+        .iter()
+        .map(|source| StructuralArgument {
+            place: source.storage.place,
+            path: source.storage.path.clone(),
+            access: StructuralAccess::Owned,
+        })
+        .collect::<Vec<_>>();
     // A referent alias observes storage through the selection's address join.
     // A materialized descriptor instead transfers its own affine lifetime
     // resource, even when the source binding has shared referent access.
@@ -286,13 +310,19 @@ pub(crate) fn emit<'source>(
         }
         owners
     };
+    // The checked receipt belongs to this production, not its private joins.
+    // Capture every residual source from the incoming namespace now: a nested
+    // projection may create several continuations, and a constructor operand
+    // temporarily hides the outer owners. Neither changes the receipt's homes.
+    // This roster carries geometry only; actual moves, claims, and normal death
+    // still follow their checked operations and edges below.
+    evaluation.capture_selection_sources(production.selection, captured_sources)?;
     let mut emission = Emission {
         produced_root: *value,
         checked,
         machine,
         state,
         statement: production.statement,
-        selection: production.selection,
         structural_type,
         multiplicity,
         structural_types,
@@ -1054,7 +1084,6 @@ pub(super) struct Emission<'a, 'b, 'calls> {
     pub(super) machine: symbols::SymbolHandle,
     pub(super) state: symbols::SymbolHandle,
     pub(super) statement: u32,
-    selection: arena::Handle<checked_trees::FlowOwnedSelectionReceipt>,
     pub(super) structural_type: StructuralTypeId,
     pub(super) multiplicity: StructuralMultiplicity,
     pub(super) structural_types: &'a [StructuralTypeDeclaration],
@@ -1157,11 +1186,6 @@ pub(super) struct ProjectionSource {
 }
 
 impl Emission<'_, '_, '_> {
-    /// The argument source arriving at `place`, when the receipt carries one.
-    fn source_at(&self, place: PlaceId) -> Option<&StructuralArgument> {
-        self.sources.iter().find(|source| source.place == place)
-    }
-
     fn bind_completion_claims(
         operations: &mut OperationBuffer,
         place: PlaceId,
@@ -2998,10 +3022,9 @@ impl Emission<'_, '_, '_> {
         })
     }
 
-    /// Bookkeep a root selection continuation: install the join block's
-    /// value and structural parameters on the evaluation state, publish the
-    /// completed custody roster and retain candidate homes. Both common and
-    /// unselected owners keep their original storage through the continuation.
+    /// Install completed result custody at its actual join. Residual source
+    /// correspondence belongs to the enclosing production and was captured
+    /// before its private continuations; sealing names cannot capture it again.
     fn seal_continuation_names(
         &mut self,
         continuation: &mut ValueContinuation,
@@ -3045,70 +3068,6 @@ impl Emission<'_, '_, '_> {
         self.operations
             .arrival_claims
             .push((continuation.place, continuation.claims.clone()));
-        self.evaluation.structural_value_owners = continuation.remaining_owners.clone();
-        if !self.selection.is_valid() {
-            if self.sources.is_empty() {
-                return Ok(());
-            }
-            return unsupported("selected source storage has no checked receipt");
-        }
-        let selection = self.selection;
-        let receipt = self
-            .checked
-            .facts
-            .flow
-            .ownership
-            .owned_selections
-            .get(selection);
-        // A checked fresh selection still has a join with an explicitly empty
-        // named-source roster. Anonymous partial sources have already retired
-        // their exact complements at their own value completions.
-        let roster = self
-            .checked
-            .facts
-            .flow
-            .ownership
-            .selection_sources
-            .span_or_empty(receipt.sources);
-        let mut sources = Vec::new();
-        for owner in self
-            .owners
-            .iter()
-            .rev()
-            .filter(|owner| self.source_at(owner.value.place).is_some())
-        {
-            let mut matching = roster
-                .iter()
-                .enumerate()
-                .filter(|(_, source)| source.symbol == owner.symbol);
-            let (ordinal, _) = matching.next().ok_or(LoweringError::Unsupported(
-                "selected source home lost its checked declaration",
-            ))?;
-            if matching.next().is_some() {
-                return Err(LoweringError::Unsupported(
-                    "selected source declaration is ambiguous",
-                ));
-            }
-            sources.push(argument_evaluation::CapturedSelectionSource {
-                source_ordinal: u32::try_from(ordinal).map_err(|_| {
-                    LoweringError::Unsupported(
-                        "selected source ordinal exceeds its checked representation",
-                    )
-                })?,
-                storage: argument_evaluation::StructuralValueStorage {
-                    place: owner.value.place,
-                    path: Vec::new(),
-                    selected_type: owner.value.structural_type,
-                },
-            });
-        }
-        self.evaluation
-            .selection_cleanups
-            .push(argument_evaluation::SelectionCleanup {
-                selection,
-                sources,
-                retired_reference_paths: Vec::new(),
-            });
         self.evaluation.structural_value_owners = continuation.remaining_owners.clone();
         self.evaluation.structural_locals.retain(
             |crate::expression_preparation::bindings::StructuralLocalBinding {

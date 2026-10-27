@@ -12,7 +12,9 @@
 //! When no single premise names both bounds, one ordered premise pair may
 //! compose transitively through a shared middle bound (`i < n` with
 //! `n <= j` proves `i < j`); `==` legs substitute from either side and `!=`
-//! legs never compose.
+//! legs compose only with exact equality substitution.
+//! Checked predicate calls contribute the relations the shared symbolic body
+//! prover establishes on every true return, substituted onto exact actuals.
 //! No relation can form a loan, extend a lifetime, or widen access.
 //! Required domain membership uses the same decomposition with a definition
 //! scope: its reserved self binds the immutable membership subject. The
@@ -106,6 +108,47 @@ impl PremiseScope<'_> {
                 )
             }
         }
+    }
+
+    fn projected_bound(
+        &self,
+        program: &dyn ::validation::CheckingInput,
+        lookup: &validation::ImmutableBoundLookup<'_>,
+        expression: ExpressionHandle,
+        projection: &[facts::PlaceSegment],
+    ) -> Option<NormalizedBound> {
+        if projection.is_empty() {
+            return self.bound(program, lookup, expression);
+        }
+        if let Some(base) = self.bound(program, lookup, expression) {
+            return super::indexes::append_immutable_projection(program, lookup, base, projection);
+        }
+        let (expression, mut prefix) = match self {
+            Self::State { .. } => (expression, Vec::new()),
+            Self::Call { guarantee, .. } => guarantee.actual_projection(program, expression)?,
+            Self::Proposition {
+                parameters,
+                arguments,
+                ..
+            } => {
+                let place = validation::canonical_place_from_expression(program, expression)?;
+                let facts::PlaceRoot::Symbol(symbol) = place.root else {
+                    return None;
+                };
+                let position =
+                    typed_trees::signature::state_parameter_position(parameters, symbol)?;
+                (arguments[position], place.segments)
+            }
+            Self::Domain { .. } => return None,
+        };
+        let place = validation::canonical_place_from_expression(program, expression)?;
+        let facts::PlaceRoot::Symbol(symbol) = place.root else {
+            return None;
+        };
+        let mut segments = place.segments;
+        segments.append(&mut prefix);
+        let base = NormalizedBound::Projected { symbol, segments };
+        super::indexes::append_immutable_projection(program, lookup, base, projection)
     }
 
     fn bound(
@@ -332,6 +375,13 @@ pub struct StatedOrderingPremise {
 }
 
 impl StatedOrderingPremise {
+    /// Candidate endpoints grant nothing: the query owner must independently
+    /// prove their equality in its current transported namespace before use.
+    pub(super) fn equality_candidates(&self) -> Option<[NormalizedBound; 2]> {
+        matches!(self.relation, BorrowCompatibilityPremiseRelation::Equal)
+            .then(|| [self.left.clone(), self.right.clone()])
+    }
+
     /// The caller has established equality of the detached values at their
     /// actual evaluation epochs, not equality of current storage coordinates.
     pub(super) fn captured_equality(left: NormalizedBound, right: NormalizedBound) -> Self {
@@ -570,10 +620,62 @@ fn decompose_premise_expression(
     parameter_arguments: &Option<Vec<(symbols::SymbolHandle, symbols::SymbolHandle)>>,
     premises: &mut Vec<StatedOrderingPremise>,
 ) {
-    if !expression.is_valid() || !scope.has_builtin_meaning(program, expression) {
+    if !expression.is_valid() {
         return;
     }
     let node = program.expression_table.expression(expression);
+    if matches!(node, ExpressionNode::Call(_)) {
+        // Positive predicate truth is available here, but only its checked
+        // body's consequences may justify compatibility. Keep exact actual
+        // normalization in this formation scope; the shared prover's private
+        // formal atoms cannot become caller loan or storage identities.
+        if !negated {
+            for consequence in validation::predicate_ordering_consequences(program, expression) {
+                let operand_bound = |operand| match operand {
+                    validation::PredicateIntegerOperand::Argument(subject) => scope
+                        .has_builtin_meaning(program, subject.expression)
+                        .then(|| {
+                            scope.projected_bound(
+                                program,
+                                lookup,
+                                subject.expression,
+                                &subject.projection,
+                            )
+                        })
+                        .flatten(),
+                    validation::PredicateIntegerOperand::Integer(value) => {
+                        i64::try_from(value).ok().map(NormalizedBound::Integer)
+                    }
+                };
+                let (Some(left), Some(right)) = (
+                    operand_bound(consequence.left),
+                    operand_bound(consequence.right),
+                ) else {
+                    continue;
+                };
+                use BorrowCompatibilityPremiseRelation as Relation;
+                let (relation, left, right) = match consequence.operator {
+                    BinaryOperator::Less => (Relation::StrictlyBefore, left, right),
+                    BinaryOperator::LessOrEqual => (Relation::LessOrEqual, left, right),
+                    BinaryOperator::Greater => (Relation::StrictlyBefore, right, left),
+                    BinaryOperator::GreaterOrEqual => (Relation::LessOrEqual, right, left),
+                    BinaryOperator::Equal => (Relation::Equal, left, right),
+                    BinaryOperator::NotEqual => (Relation::NotEqual, left, right),
+                    _ => continue,
+                };
+                premises.push(StatedOrderingPremise {
+                    relation,
+                    left,
+                    right,
+                    parameter_arguments: parameter_arguments.clone(),
+                });
+            }
+        }
+        return;
+    }
+    if !scope.has_builtin_meaning(program, expression) {
+        return;
+    }
     if let ExpressionNode::Unary(unary) = node
         && unary.operator == UnaryOperator::LogicalNot
     {
@@ -827,8 +929,8 @@ fn premise_orientation_proves(
 /// line. A strictly separating middle (`m1 < m2`) makes the composed relation
 /// strict; at an equal middle the relation is strict when either leg is
 /// strict and loose when both are loose, with `==` absorbing a leg outright.
-/// `!=` legs never compose: a distinct middle could reorder or collapse the
-/// endpoints. Each query endpoint transports through its own premise's
+/// `!=` transports only across an equality leg with an exact shared middle;
+/// other relations or a shifted middle could reorder or collapse its endpoints. Each query endpoint transports through its own premise's
 /// parameter bindings, so a guard-scope premise may chain with a state-scope
 /// one. The composed outer endpoints still participate in the ordinary
 /// constant-offset algebra, so `i < n && n <= j` proves `i < j + 1`.
@@ -864,7 +966,7 @@ struct ChainLeg {
 }
 
 /// Orientations of `premise` usable as the left leg of a chain: the shared
-/// middle is its right endpoint. `==` contributes both orientations.
+/// middle is its right endpoint. Equality and disequality are symmetric.
 fn legs(
     premise: &StatedOrderingPremise,
     outer: &NormalizedBound,
@@ -875,12 +977,15 @@ fn legs(
         relation: premise.relation,
         middle: middle.clone(),
     });
-    let flipped =
-        matches!(premise.relation, BorrowCompatibilityPremiseRelation::Equal).then_some(ChainLeg {
-            outer: middle.clone(),
-            relation: premise.relation,
-            middle: outer.clone(),
-        });
+    let flipped = matches!(
+        premise.relation,
+        BorrowCompatibilityPremiseRelation::Equal | BorrowCompatibilityPremiseRelation::NotEqual
+    )
+    .then_some(ChainLeg {
+        outer: middle.clone(),
+        relation: premise.relation,
+        middle: outer.clone(),
+    });
     [stored, flipped]
 }
 
@@ -902,21 +1007,26 @@ fn chained_legs_prove(
     right: NormalizedBound,
 ) -> bool {
     use BorrowCompatibilityPremiseRelation as Relation;
-    if matches!(
-        (first_leg.relation, second_leg.relation),
-        (Relation::NotEqual, _) | (_, Relation::NotEqual)
-    ) {
-        return false;
-    }
+    let transports_disequality = match (first_leg.relation, second_leg.relation) {
+        (Relation::NotEqual, Relation::Equal) | (Relation::Equal, Relation::NotEqual) => true,
+        (Relation::NotEqual, _) | (_, Relation::NotEqual) => return false,
+        _ => false,
+    };
     // The legs meet only when the first middle provably precedes or equals
     // the second on one shared term line.
     let Some(middle_gap) = bound_shift(second_leg.middle, first_leg.middle) else {
         return false;
     };
-    if middle_gap < 0 {
+    if middle_gap < 0 || (transports_disequality && middle_gap != 0) {
         return false;
     }
-    let relation = if middle_gap > 0 {
+    // Disequality has no ordering direction. An available exact equation may
+    // replace one endpoint, but a loose/strict leg or a shifted shared middle
+    // could collapse the two points. Keep this substitution distinct from
+    // ordinary ordered transitivity below.
+    let relation = if transports_disequality {
+        Relation::NotEqual
+    } else if middle_gap > 0 {
         Relation::StrictlyBefore
     } else {
         match (first_leg.relation, second_leg.relation) {

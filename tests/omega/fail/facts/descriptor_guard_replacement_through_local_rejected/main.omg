@@ -1,0 +1,46 @@
+// Replacing one input-carrier reference retains its new backing and the untouched sibling.
+// Place: local; guard replacement.
+// Expected exit: 0
+data Cell { value: i64; }
+data Message<'storage> { body: &'storage mut Cell; sibling: &'storage Cell; }
+data Envelope<'carrier, 'storage> {
+    case Active(message: &'carrier mut Message<'storage>);
+    case Empty;
+}
+machine replace<'storage>(message: &mut Message<'storage>, incoming: &'storage mut Cell) -> bool {
+    message.body = incoming;
+    true
+}
+machine store(target: &mut Cell, value: i64) -> bool requires value == 41 {
+    target.value = value;
+    target.value == 41
+}
+machine store_code(source: &Cell) -> i64 ensures result == 41 {
+    let observation: i64 = source.value;
+    transition observation == 19 { true -> 41 false -> 41 }
+}
+machine consume<'carrier, 'storage>(envelope: Envelope<'carrier, 'storage>, incoming: &'storage mut Cell) -> bool {
+    match envelope {
+        Envelope::Active { message } if replace(&mut message, incoming) ->
+            store(&mut message.body, store_code(&message.body))
+        Envelope::Empty -> false
+        _ -> false
+    }
+}
+
+
+machine main() crashes Trap {
+    let mut old: Cell = Cell { value: 17 };
+    let mut new: Cell = Cell { value: 19 };
+    let sibling: Cell = Cell { value: 19 };
+    let mut message: Message = Message { body: &mut old, sibling: &sibling };
+    let envelope: Envelope = Envelope::Active { message: &mut message };
+    let selected: Envelope = envelope;
+    let replaced: bool = consume(selected, &mut new);
+    transition replaced && old.value == 17 && new.value == 41 && sibling.value == 19 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

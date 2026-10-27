@@ -212,7 +212,6 @@ impl TerminalEffectHandler for NetworkAddressImport {
                     || result != &self.signature.result
                     || address.structural_type != self.contract.structural_type
                     || !address.path.is_empty()
-                    || !address.qualifications.is_empty()
                     || !address.projected_qualifications.is_empty()
                 {
                     return Err(invalid());
@@ -224,6 +223,10 @@ impl TerminalEffectHandler for NetworkAddressImport {
                     self.contract.application,
                     self.contract.multiplicity,
                 )?;
+                // Whole semantic memberships do not change this bare C input's
+                // physical representation. Psi has already bound the actual
+                // input and checked any required authority; this adapter neither
+                // interprets those memberships nor issues them on a result.
                 // The exact owned value was produced by inet_makeaddr
                 // under this same selected opaque application. The C call takes
                 // the four-byte struct by value and retains no guest reference.

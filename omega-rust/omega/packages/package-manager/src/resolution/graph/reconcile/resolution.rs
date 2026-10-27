@@ -37,61 +37,6 @@ struct ObservedCustody {
     origins: Vec<CustodyOrigin>,
 }
 
-/// Resolve a complete source closure under caller-selected ceilings no looser
-/// than the authority the caller is prepared to spend on hostile graph input.
-pub(crate) fn resolve_package_source_closure_with_limits<E, F>(
-    root_request: PackageRootSourceRequest,
-    root: PackageSourceCustody,
-    limits: PackageSourceClosureLimits,
-    mut resolve_dependency: F,
-) -> Result<ResolvedPackageSourceClosure, PackageSourceClosureResolutionError<E>>
-where
-    F: FnMut(&PackageSourceCustody, &DependencySourceRequest) -> Result<PackageSourceCustody, E>,
-{
-    resolve_package_source_closure_with_indexed_limits(
-        root_request,
-        root,
-        limits,
-        |requester, _, _, request| resolve_dependency(requester, request),
-    )
-}
-
-/// The same custody traversal with the exact requester-owned authored
-/// coordinate. Locked recovery uses `(purpose, index)` to join distinct
-/// request occurrences.
-pub(crate) fn resolve_package_source_closure_with_indexed_limits<E, F>(
-    root_request: PackageRootSourceRequest,
-    root: PackageSourceCustody,
-    limits: PackageSourceClosureLimits,
-    mut resolve_dependency: F,
-) -> Result<ResolvedPackageSourceClosure, PackageSourceClosureResolutionError<E>>
-where
-    F: FnMut(
-        &PackageSourceCustody,
-        DependencyPurpose,
-        usize,
-        &DependencySourceRequest,
-    ) -> Result<PackageSourceCustody, E>,
-{
-    let mut step = begin_source_closure(root_request, root, limits)?;
-    loop {
-        let request = match step {
-            SourceClosureStep::Complete(closure) => return Ok(closure),
-            SourceClosureStep::Request(request) => request,
-        };
-        let dependency = resolve_dependency(
-            request.requester(),
-            request.purpose(),
-            request.dependency_index(),
-            request.source(),
-        );
-        step = match dependency {
-            Ok(dependency) => request.complete(dependency)?,
-            Err(error) => return Err(request.fail(error)),
-        };
-    }
-}
-
 /// A request owns the traversal until its selected source has a declaration.
 /// Acquisition can therefore yield to application-owned Build execution without
 /// a compiler callback, a provisional key, or a second graph reconciliation.
