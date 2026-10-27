@@ -1,0 +1,7 @@
+{
+  "fixture": "fail/calls/terminal_call_marked_state",
+  "reason": "Retired state-only ordinary-call prohibition no longer names the source obligation. The unchanged nested-machine call rejects because its block acknowledgement is redundant.",
+  "contract": "wiki/spec/language/state_contracts.md#terminal-calls-in-transition-arms",
+  "rule": "Nested machine calls have no marker exemption. Their exact call envelope determines suspend and block, including in terminal position.",
+  "baseline": "Exact70d5 already emits this redundant-block diagnostic; old expected fragment was stale before this repair. Original source remains unchanged."
+}

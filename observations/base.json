@@ -1,0 +1,6 @@
+{
+  "base": "70d5cda38eda5688b811050f86a3938b50e3c553",
+  "started_utc": "2026-10-27T10:14:58.835380+00:00",
+  "parent": "NESTED-MACHINE-UNIFICATION",
+  "acceptance": "Unify nested machine declaration identity through the existing Omega-written frontend and its native checking gate; no state spelling alias or feature-combination path."
+}

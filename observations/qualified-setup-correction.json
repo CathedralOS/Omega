@@ -1,0 +1,9 @@
+{
+  "reason": "Original qualified setup lacked explicit module declaration; classify as invalid setup, not a valid-positive regression. Its baseline wrong acceptance remains relevant as rejection coverage. Corrected positive adds the required module declaration. Core nine-place frozen witnesses are unchanged.",
+  "original_source_revision": "371ae4b58a5415257b047579a50d649e415ff009",
+  "original_files": {
+    "build/product-nested/qualified-original-setup/routines.omg": "9a777f32e9e0b0239224a6d2b0d9fba8a8a574a5486eb9483e2fb3556f606c46",
+    "build/product-nested/qualified-original-setup/build.omg": "debdded14cced159e410c66d9191d241bb8b181c5fd8d4c717d636eb1093b0dc",
+    "build/product-nested/qualified-original-setup/main.omg": "7f5deb8dfc26676f65bfe4dc52eb9fe9d286c536ec81bf9692e8e3afafef2c06"
+  }
+}

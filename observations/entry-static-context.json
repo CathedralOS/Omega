@@ -1,0 +1,222 @@
+{
+  "schema": "qualification-handoff-1",
+  "role": "implementation",
+  "candidate": "9fb582b1c137d3d2da41b84e9838cad65766a019",
+  "source_revision": "70d5cda38eda5688b811050f86a3938b50e3c553",
+  "changed_paths": [
+    "omega-rust/psi/compilation/checking/src/declarations/transitions.rs",
+    "omega-rust/psi/compilation/checking/src/program_validation/statements/transition_statements.rs",
+    "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols/targets/transitions.rs",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/README.md",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/call_result/build.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/call_result/invalid/build.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/call_result/invalid/main.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/call_result/main.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/const_name/build.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/const_name/invalid/build.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/const_name/invalid/main.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/const_name/main.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/controls/ordinary/build.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/controls/ordinary/invalid/build.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/controls/ordinary/invalid/main.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/controls/ordinary/main.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/controls/parenthesized/build.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/controls/parenthesized/invalid/build.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/controls/parenthesized/invalid/main.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/controls/parenthesized/main.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/controls/qualified/build.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/controls/qualified/invalid/build.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/controls/qualified/invalid/main.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/controls/qualified/invalid/routines.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/controls/qualified/main.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/controls/qualified/routines.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/controls/unpublished_body/build.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/controls/unpublished_body/main.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/field/build.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/field/invalid/build.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/field/invalid/main.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/field/main.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/local/build.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/local/invalid/build.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/local/invalid/main.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/local/main.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/match_join/build.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/match_join/invalid/build.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/match_join/invalid/main.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/match_join/main.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/other_machine/build.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/other_machine/invalid/build.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/other_machine/invalid/main.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/other_machine/main.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/other_state/build.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/other_state/invalid/build.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/other_state/invalid/main.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/other_state/main.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/parameter/build.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/parameter/invalid/build.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/parameter/invalid/main.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/parameter/main.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/target_body/build.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/target_body/invalid/build.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/target_body/invalid/main.omg",
+    "samples/cli/facts/nested_machine_invocation/lexical_entry/target_body/main.omg"
+  ],
+  "canonical_context": [
+    {
+      "contract": "wiki/spec/language/machines.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols",
+        "omega-rust/psi/compilation/checking/src/declarations/transitions.rs",
+        "omega-rust/psi/compilation/checking/src/machine_calls/terminal_transitions.rs",
+        "omega-rust/psi/compilation/checking/src/program_validation/statements/transition_statements.rs"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Select source-visible machine identity through the shared callable resolver in ordinary and terminal positions. Compiler-generated body coordinates have no source declaration priority and cannot bypass invocation contracts or argument admission.",
+      "passages": [
+        "Named machines may nest to arbitrary depth. There is one machine declaration\nkind: the source `state` declaration is retired, not an alias or a second kind\nof machine. Nesting restricts name visibility; it does not allocate data,\ncapture runtime bindings, retain an enclosing activation, or impose a stack\nlayout. Every nested declaration has its own signature, contract and identity.",
+        "A body consists of its executable portion followed by zero or more nested\nmachine declarations. The executable portion may finish with a transition,\nresult, or permitted Unit completion. A transition is not mandatory merely\nbecause declarations follow. Once declarations begin, executable statements\ncannot resume. This layout rule applies recursively. Nested declarations are\nvisible throughout their enclosing machine body, including before their textual\ndeclaration, and within its nested declaration scopes. Duplicate declarations\nfollow ordinary name/overload rules; nesting is not a new overload mechanism.",
+        "Name resolution uses lexical scope. A helper is unavailable outside the machine\nwhose scope declares it; qualification cannot bypass this restriction. A sibling\ncan name another visible sibling, but cannot reach into that sibling's private\ndescendants. An ancestor's visible declaration may be called recursively; this\ninvokes its entry, not a saved activation or a private point inside its body.\nNested declarations are not separately package-exportable; package export of an\nenclosing machine does not export its helpers.",
+        "Runtime parameters and locals of enclosing invocations are **not captured**.\nPass them explicitly, including references, capabilities and lifetime-bearing\nvalues. Enclosing generic/static declaration bindings remain lexical context;\nresolution and specialization retain their exact identities without creating an\nimplicit runtime environment. Nested contracts can use that static context and\ntheir own parameters, not another invocation's local values or live facts.",
+        "An ordinary call resumes its continuation on normal return. A machine call in a\nterminal `transition` arm forwards its normal result as the current invocation's\nresult, with no continuation in that invocation. A nested machine's return is\nlocal to that invocation: it does not return from arbitrary lexical ancestors.\nBoth forms use the same contract, exact call acknowledgements and explicit\narguments. The distinction is call position, never nesting depth.\n[Invocation contracts](state_contracts.md#terminal-calls-in-transition-arms)\nowns argument, result, cleanup and fact obligations.",
+        "Resolution checks visibility and elaborates declaration context before erasing\nlexical nesting into flat machine identities and explicit calls/transfers.\nSource ancestry remains available for identity, diagnostics and debug mapping,\nnot as an executable parent stack. Downstream representations may have ordinary\nbasic blocks and jumps; these are not a revived source `state` construct."
+      ],
+      "revision": "70d5cda38eda5688b811050f86a3938b50e3c553",
+      "blob": "83dad82ce0422177b1df9a3ff60e0c8c39222bca"
+    },
+    {
+      "contract": "wiki/spec/language/state_contracts.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols",
+        "omega-rust/psi/compilation/checking/src/declarations/transitions.rs",
+        "omega-rust/psi/compilation/checking/src/machine_calls/terminal_transitions.rs",
+        "omega-rust/psi/compilation/checking/src/program_validation/statements/transition_statements.rs"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Select source-visible machine identity through the shared callable resolver in ordinary and terminal positions. Compiler-generated body coordinates have no source declaration priority and cannot bypass invocation contracts or argument admission.",
+      "passages": [
+        "A machine enters its own executable body; there is no separately authored entry\nmember. Trailing nested declarations scope helper names, not runtime data.\n[Nested machines](machines.md#nested-machines-and-identity) defines visibility,\ndeclaration order and flattening. Both ordinary and terminal calls invoke the\nselected machine with ordinary explicit parameters. Context records and their\nborrows are supplied like other arguments; no receiver or enclosing activation\nis retained or rebound implicitly.\nAn ordinary terminal value, explicit return, or permitted implicit Unit\ncompletion ends the invocation and owes its declared result/return contract.",
+        "A transition explicitly supplies the target machine's arguments. Executable uses\nname the exact invocation's parameters or preceding local bindings; arrival\ncontracts use the target's parameters. Enclosing and sibling runtime bindings cannot be\nrecovered by matching spelling. Nominal member and case selection retains the\ndeclared owner, including payload projections rooted at an explicit context argument.",
+        "Machine `requires` applies at every invocation, including terminal and recursive\ncalls. Every arrival establishes the target's requirements and declared domains\nunder actual argument substitution. Nesting does not assume the parent's entry\nrequirements again, import its return guarantees, or supply facts invalidated\nby mutation. Live caller facts can discharge a nested helper's requirements;\nbody inference must justify any inferred private requirements on every arrival,\nnot grant them from lexical ancestry. Every invocation retains both sides of\nits own contract. A recursive contract is not its own proof; induction follows\nthe well-founded obligations in [termination](termination.md).",
+        "Arrival substitution is simultaneous and identity-based. Scalar arguments retain\ntheir evaluation snapshots; facts about referenced storage must survive writes\nfrom later arguments. A same-named formal cannot alias an unrelated caller value.\nEvery reachable predecessor participates in a join. Unknown input cannot be\nomitted to preserve a convenient invariant. A minimum collection length is not\nan exact extent, and declaration initializers are not recurring loop invariants.",
+        "## Terminal calls in transition arms",
+        "Resolve every called target as a machine, nested or otherwise. A terminal call\nis an invocation whose normal result completes the current machine, including Unit completion.\nArgument admission, result compatibility, machine postconditions, cleanup,\ncrash and no-normal-return behavior are the ordinary call-and-completion rules.\nOnly the selected arm executes, with ordinary once-only operand evaluation.",
+        "Terminal machine calls accept the same exact operational acknowledgements as\nother calls:",
+        "```omega\n// Assuming Storage::read permits both suspension and blocking:\ntransition {\n    _ -> suspend block Storage::read(storage)\n}\n```",
+        "This invokes `Storage::read` in the current activation and forwards its normal\nresult; it does not start or detach a task. If the call parks, completion of the\nenclosing machine remains pending. No return, cleanup or storage reclamation\noccurs merely because the call is syntactically final or becomes suspended.\nOrdinary cleanup-bearing completion edges still discharge their obligations.\nTail-call lowering may remove unnecessary control state only while preserving\nall live backing, loans, custody and completion obligations. Recursive runtime\ncalls still obey the no-accumulated-frames rule.",
+        "Nested machine calls have no marker exemption. Their exact call envelope\ndetermines `suspend` and `block`, including in terminal position, even when\nlowering later implements the call with a jump. Markers do not redirect name\nresolution. Missing, partial or redundant call markers reject under\n[effects](effects.md#call-site-acknowledgements). The same\n[borrow/carry requirements](../resources/carry.md#borrows-across-suspension)\napply in a terminal arm as at any other suspending call."
+      ],
+      "revision": "70d5cda38eda5688b811050f86a3938b50e3c553",
+      "blob": "3f0063b497dff2a77ef78b292b1f3315cf7b22d9"
+    },
+    {
+      "contract": "wiki/spec/language/modules.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols",
+        "omega-rust/psi/compilation/checking/src/machine_calls/terminal_transitions.rs"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Ordinary and terminal invocation elaboration share source-certified static namespace selection. A module qualifier has no runtime receiver. Retain exact module/dependency/visibility authority, source occurrence and explicit operands; no physical-symbol-parent inference or namespace-kind bypass.",
+      "passages": [
+        "`::` selects a static name; `.` selects a field through a value. A field\nprojection does not select a machine or insert a receiver argument.\nImports select logical names, never filesystem paths, and do not execute code.\nExternal selection requires a requester-local direct dependency and the target\ndeclaration's visibility. Fully qualified spelling and explicit arguments obey\nthe same rule. Tooling may discover an enclosing package; source cannot walk\nparent directories to gain undeclared reach.",
+        "Imports affect the importing source file, not sibling files that declare the\nsame logical module. This is the ordinary import rule; it does not restrict\nvisibility of the logical module's own declarations. Import exposure is not\ntransitive: another module's imports do not become this file's imports.\n\nA package's source files that declare no module form one logical module: each\nsees its siblings' declarations without an import, while each file's imports\nremain its own. A file's own declarations and its imports take precedence over\na sibling's same-spelled declaration."
+      ],
+      "revision": "70d5cda38eda5688b811050f86a3938b50e3c553",
+      "blob": "e846507e8a3637b7c3ffc22b9ad95543b5a1c90c"
+    }
+  ],
+  "context_fingerprint": "5bd8d6d0e40f9dbfede4da9dfff040bc99cd4acf187df3d5ce7eed619f360ba3",
+  "reinject_context": [
+    {
+      "contract": "wiki/spec/language/machines.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols",
+        "omega-rust/psi/compilation/checking/src/declarations/transitions.rs",
+        "omega-rust/psi/compilation/checking/src/machine_calls/terminal_transitions.rs",
+        "omega-rust/psi/compilation/checking/src/program_validation/statements/transition_statements.rs"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Select source-visible machine identity through the shared callable resolver in ordinary and terminal positions. Compiler-generated body coordinates have no source declaration priority and cannot bypass invocation contracts or argument admission.",
+      "passages": [
+        "Named machines may nest to arbitrary depth. There is one machine declaration\nkind: the source `state` declaration is retired, not an alias or a second kind\nof machine. Nesting restricts name visibility; it does not allocate data,\ncapture runtime bindings, retain an enclosing activation, or impose a stack\nlayout. Every nested declaration has its own signature, contract and identity.",
+        "A body consists of its executable portion followed by zero or more nested\nmachine declarations. The executable portion may finish with a transition,\nresult, or permitted Unit completion. A transition is not mandatory merely\nbecause declarations follow. Once declarations begin, executable statements\ncannot resume. This layout rule applies recursively. Nested declarations are\nvisible throughout their enclosing machine body, including before their textual\ndeclaration, and within its nested declaration scopes. Duplicate declarations\nfollow ordinary name/overload rules; nesting is not a new overload mechanism.",
+        "Name resolution uses lexical scope. A helper is unavailable outside the machine\nwhose scope declares it; qualification cannot bypass this restriction. A sibling\ncan name another visible sibling, but cannot reach into that sibling's private\ndescendants. An ancestor's visible declaration may be called recursively; this\ninvokes its entry, not a saved activation or a private point inside its body.\nNested declarations are not separately package-exportable; package export of an\nenclosing machine does not export its helpers.",
+        "Runtime parameters and locals of enclosing invocations are **not captured**.\nPass them explicitly, including references, capabilities and lifetime-bearing\nvalues. Enclosing generic/static declaration bindings remain lexical context;\nresolution and specialization retain their exact identities without creating an\nimplicit runtime environment. Nested contracts can use that static context and\ntheir own parameters, not another invocation's local values or live facts.",
+        "An ordinary call resumes its continuation on normal return. A machine call in a\nterminal `transition` arm forwards its normal result as the current invocation's\nresult, with no continuation in that invocation. A nested machine's return is\nlocal to that invocation: it does not return from arbitrary lexical ancestors.\nBoth forms use the same contract, exact call acknowledgements and explicit\narguments. The distinction is call position, never nesting depth.\n[Invocation contracts](state_contracts.md#terminal-calls-in-transition-arms)\nowns argument, result, cleanup and fact obligations.",
+        "Resolution checks visibility and elaborates declaration context before erasing\nlexical nesting into flat machine identities and explicit calls/transfers.\nSource ancestry remains available for identity, diagnostics and debug mapping,\nnot as an executable parent stack. Downstream representations may have ordinary\nbasic blocks and jumps; these are not a revived source `state` construct."
+      ],
+      "revision": "70d5cda38eda5688b811050f86a3938b50e3c553",
+      "blob": "83dad82ce0422177b1df9a3ff60e0c8c39222bca"
+    },
+    {
+      "contract": "wiki/spec/language/state_contracts.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols",
+        "omega-rust/psi/compilation/checking/src/declarations/transitions.rs",
+        "omega-rust/psi/compilation/checking/src/machine_calls/terminal_transitions.rs",
+        "omega-rust/psi/compilation/checking/src/program_validation/statements/transition_statements.rs"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Select source-visible machine identity through the shared callable resolver in ordinary and terminal positions. Compiler-generated body coordinates have no source declaration priority and cannot bypass invocation contracts or argument admission.",
+      "passages": [
+        "A machine enters its own executable body; there is no separately authored entry\nmember. Trailing nested declarations scope helper names, not runtime data.\n[Nested machines](machines.md#nested-machines-and-identity) defines visibility,\ndeclaration order and flattening. Both ordinary and terminal calls invoke the\nselected machine with ordinary explicit parameters. Context records and their\nborrows are supplied like other arguments; no receiver or enclosing activation\nis retained or rebound implicitly.\nAn ordinary terminal value, explicit return, or permitted implicit Unit\ncompletion ends the invocation and owes its declared result/return contract.",
+        "A transition explicitly supplies the target machine's arguments. Executable uses\nname the exact invocation's parameters or preceding local bindings; arrival\ncontracts use the target's parameters. Enclosing and sibling runtime bindings cannot be\nrecovered by matching spelling. Nominal member and case selection retains the\ndeclared owner, including payload projections rooted at an explicit context argument.",
+        "Machine `requires` applies at every invocation, including terminal and recursive\ncalls. Every arrival establishes the target's requirements and declared domains\nunder actual argument substitution. Nesting does not assume the parent's entry\nrequirements again, import its return guarantees, or supply facts invalidated\nby mutation. Live caller facts can discharge a nested helper's requirements;\nbody inference must justify any inferred private requirements on every arrival,\nnot grant them from lexical ancestry. Every invocation retains both sides of\nits own contract. A recursive contract is not its own proof; induction follows\nthe well-founded obligations in [termination](termination.md).",
+        "Arrival substitution is simultaneous and identity-based. Scalar arguments retain\ntheir evaluation snapshots; facts about referenced storage must survive writes\nfrom later arguments. A same-named formal cannot alias an unrelated caller value.\nEvery reachable predecessor participates in a join. Unknown input cannot be\nomitted to preserve a convenient invariant. A minimum collection length is not\nan exact extent, and declaration initializers are not recurring loop invariants.",
+        "## Terminal calls in transition arms",
+        "Resolve every called target as a machine, nested or otherwise. A terminal call\nis an invocation whose normal result completes the current machine, including Unit completion.\nArgument admission, result compatibility, machine postconditions, cleanup,\ncrash and no-normal-return behavior are the ordinary call-and-completion rules.\nOnly the selected arm executes, with ordinary once-only operand evaluation.",
+        "Terminal machine calls accept the same exact operational acknowledgements as\nother calls:",
+        "```omega\n// Assuming Storage::read permits both suspension and blocking:\ntransition {\n    _ -> suspend block Storage::read(storage)\n}\n```",
+        "This invokes `Storage::read` in the current activation and forwards its normal\nresult; it does not start or detach a task. If the call parks, completion of the\nenclosing machine remains pending. No return, cleanup or storage reclamation\noccurs merely because the call is syntactically final or becomes suspended.\nOrdinary cleanup-bearing completion edges still discharge their obligations.\nTail-call lowering may remove unnecessary control state only while preserving\nall live backing, loans, custody and completion obligations. Recursive runtime\ncalls still obey the no-accumulated-frames rule.",
+        "Nested machine calls have no marker exemption. Their exact call envelope\ndetermines `suspend` and `block`, including in terminal position, even when\nlowering later implements the call with a jump. Markers do not redirect name\nresolution. Missing, partial or redundant call markers reject under\n[effects](effects.md#call-site-acknowledgements). The same\n[borrow/carry requirements](../resources/carry.md#borrows-across-suspension)\napply in a terminal arm as at any other suspending call."
+      ],
+      "revision": "70d5cda38eda5688b811050f86a3938b50e3c553",
+      "blob": "3f0063b497dff2a77ef78b292b1f3315cf7b22d9"
+    },
+    {
+      "contract": "wiki/spec/language/modules.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols",
+        "omega-rust/psi/compilation/checking/src/machine_calls/terminal_transitions.rs"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Ordinary and terminal invocation elaboration share source-certified static namespace selection. A module qualifier has no runtime receiver. Retain exact module/dependency/visibility authority, source occurrence and explicit operands; no physical-symbol-parent inference or namespace-kind bypass.",
+      "passages": [
+        "`::` selects a static name; `.` selects a field through a value. A field\nprojection does not select a machine or insert a receiver argument.\nImports select logical names, never filesystem paths, and do not execute code.\nExternal selection requires a requester-local direct dependency and the target\ndeclaration's visibility. Fully qualified spelling and explicit arguments obey\nthe same rule. Tooling may discover an enclosing package; source cannot walk\nparent directories to gain undeclared reach.",
+        "Imports affect the importing source file, not sibling files that declare the\nsame logical module. This is the ordinary import rule; it does not restrict\nvisibility of the logical module's own declarations. Import exposure is not\ntransitive: another module's imports do not become this file's imports.\n\nA package's source files that declare no module form one logical module: each\nsees its siblings' declarations without an import, while each file's imports\nremain its own. A file's own declarations and its imports take precedence over\na sibling's same-spelled declaration."
+      ],
+      "revision": "70d5cda38eda5688b811050f86a3938b50e3c553",
+      "blob": "e846507e8a3637b7c3ffc22b9ad95543b5a1c90c"
+    }
+  ],
+  "context_refresh": true,
+  "checks": [
+    {
+      "id": "context-only",
+      "kind": "build",
+      "command": [
+        "cargo",
+        "check",
+        "--locked",
+        "-p",
+        "syntax-trees-to-symbol-resolved-trees"
+      ],
+      "inputs": [
+        "Cargo.lock",
+        "Cargo.toml",
+        "omega-rust",
+        "rust-toolchain.toml",
+        "wiki/spec/language/machines.md",
+        "wiki/spec/language/modules.md",
+        "wiki/spec/language/state_contracts.md"
+      ],
+      "artifacts": [],
+      "closure_reason": "Context packet for a demonstrated lexical callable selection defect. Runtime qualification uses the frozen row and its precise arity controls.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 300
+    }
+  ],
+  "assessments": [],
+  "review_instruction": "Judge behavior against these passages; uncovered semantics need an explicit owner decision. Inspect the candidate diff and check evidence; passage identity alone is not semantic compliance.",
+  "prior_context_retained": false
+}

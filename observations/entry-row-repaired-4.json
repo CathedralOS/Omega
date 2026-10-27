@@ -1,0 +1,245 @@
+[
+  {
+    "place": "local",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/entry-producer-4/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/lexical_entry/local/main.omg"
+    ],
+    "source_sha256": "4ba5d8237a42f5fbe0c02559729e443f01f305f90d038551db7333228b6bc1ad",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "local",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/entry-producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/lexical_entry/local/invalid/main.omg"
+    ],
+    "source_sha256": "ec5d186cf5a6ccb02fd31add0e7b56604c97a35f8599c0d2a3cb8b7f40b02e73",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `lexical_entry_local` with 1 diagnostic(s)\n  error: state `entry` expects 3 argument(s), got 2\n    in package `lexical_entry_local`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/lexical_entry/local/invalid/main.omg:7:24\n"
+  },
+  {
+    "place": "field",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/entry-producer-4/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/lexical_entry/field/main.omg"
+    ],
+    "source_sha256": "52e0d2bcfa96654cb5292096750911c61a94c58e2a57fbd5d5b8b268ad77ddd2",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "field",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/entry-producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/lexical_entry/field/invalid/main.omg"
+    ],
+    "source_sha256": "58bf46e1832f90c776de7a69e47f2b891c6c89a665f40fbc5d87187d590836cb",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `lexical_entry_field` with 1 diagnostic(s)\n  error: state `entry` expects 3 argument(s), got 2\n    in package `lexical_entry_field`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/lexical_entry/field/invalid/main.omg:9:24\n"
+  },
+  {
+    "place": "parameter",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/entry-producer-4/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/lexical_entry/parameter/main.omg"
+    ],
+    "source_sha256": "22ae1e731c6475999a781cff8b16270dab7d58e8f16dc8becff9a92cf1f87b8f",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "parameter",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/entry-producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/lexical_entry/parameter/invalid/main.omg"
+    ],
+    "source_sha256": "1bcb8ad19447d8c44f2c0e812e539886bb1cf15bbeb6bac34c02ad03f39ea98c",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `lexical_entry_parameter` with 1 diagnostic(s)\n  error: state `entry` expects 3 argument(s), got 2\n    in package `lexical_entry_parameter`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/lexical_entry/parameter/invalid/main.omg:6:24\n"
+  },
+  {
+    "place": "call_result",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/entry-producer-4/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/lexical_entry/call_result/main.omg"
+    ],
+    "source_sha256": "bc248ca1d37edbd574b73c341d6fc9a5984c20c29ed3c66e1c953ea8ec5b363c",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "call_result",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/entry-producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/lexical_entry/call_result/invalid/main.omg"
+    ],
+    "source_sha256": "704f773308a94bf0a119698a12616b57a711657911ca241bc102f1f3cc33e43e",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `lexical_entry_call_result` with 1 diagnostic(s)\n  error: state `entry` expects 3 argument(s), got 2\n    in package `lexical_entry_call_result`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/lexical_entry/call_result/invalid/main.omg:7:24\n"
+  },
+  {
+    "place": "match_join",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/entry-producer-4/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/lexical_entry/match_join/main.omg"
+    ],
+    "source_sha256": "97cd608291f006b7af841d21ac6469c394ed923a511cc78e2fd6be02b36d97c6",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "match_join",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/entry-producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/lexical_entry/match_join/invalid/main.omg"
+    ],
+    "source_sha256": "35807e9f46ca1a20b8623b4e392ae4a6cf1255151be95cf9caaa7b3ea473290d",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `lexical_entry_match_join` with 1 diagnostic(s)\n  error: state `entry` expects 3 argument(s), got 2\n    in package `lexical_entry_match_join`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/lexical_entry/match_join/invalid/main.omg:7:24\n"
+  },
+  {
+    "place": "const_name",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/entry-producer-4/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/lexical_entry/const_name/main.omg"
+    ],
+    "source_sha256": "c97f9d4f599716a379dd9baa6809c7b1d55a95169688d5ef489ba73486011f59",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "const_name",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/entry-producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/lexical_entry/const_name/invalid/main.omg"
+    ],
+    "source_sha256": "d2578aed6ed57a014cf81775750eedd452d9c797686083a7116cf57b544a3229",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `lexical_entry_const_name` with 1 diagnostic(s)\n  error: state `entry` expects 3 argument(s), got 2\n    in package `lexical_entry_const_name`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/lexical_entry/const_name/invalid/main.omg:8:24\n"
+  },
+  {
+    "place": "other_state",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/entry-producer-4/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/lexical_entry/other_state/main.omg"
+    ],
+    "source_sha256": "f1e77a45ddf3111472dd2a2f8b94b92aac1181398046283dc2667ce1addd85c6",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "other_state",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/entry-producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/lexical_entry/other_state/invalid/main.omg"
+    ],
+    "source_sha256": "6aa7b9e7511a75ed39c78c417e3a48f70a33efbf867d8ef66b7f06d4d4db654a",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `lexical_entry_other_state` with 1 diagnostic(s)\n  error: state `entry` expects 3 argument(s), got 2\n    in package `lexical_entry_other_state`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/lexical_entry/other_state/invalid/main.omg:8:28\n"
+  },
+  {
+    "place": "other_machine",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/entry-producer-4/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/lexical_entry/other_machine/main.omg"
+    ],
+    "source_sha256": "5a4a1204ca9c6d22af1daedfdcb628383cbc58980c274bc5f194a56eb595c523",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "other_machine",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/entry-producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/lexical_entry/other_machine/invalid/main.omg"
+    ],
+    "source_sha256": "2b4fd1ea82afa51c626db1415447580a8b25b5b370199a022f43a5f325843784",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `lexical_entry_other_machine` with 1 diagnostic(s)\n  error: state `entry` expects 3 argument(s), got 2\n    in package `lexical_entry_other_machine`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/lexical_entry/other_machine/invalid/main.omg:6:24\n"
+  },
+  {
+    "place": "target_body",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/entry-producer-4/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/lexical_entry/target_body/main.omg"
+    ],
+    "source_sha256": "f13579a683693df36df55cf30b3592af2b48ae6ae70467e7a1a1ba7378b24e1a",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "target_body",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/entry-producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/lexical_entry/target_body/invalid/main.omg"
+    ],
+    "source_sha256": "d56f0b3372e0b1d3da7ba7e1555dc94caba232fdfb24a5c415851abed0cacc44",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `lexical_entry_target_body` with 4 diagnostic(s)\n  error: state `entry` expects 3 argument(s), got 2\n    in package `lexical_entry_target_body`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/lexical_entry/target_body/invalid/main.omg:6:24\n  error: state `entry` expects 3 argument(s), got 2\n    in package `lexical_entry_target_body`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/lexical_entry/target_body/invalid/main.omg:16:24\n  error: state `entry` expects 3 argument(s), got 2\n    in package `lexical_entry_target_body`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/lexical_entry/target_body/invalid/main.omg:26:24\n  error: state `entry` expects 3 argument(s), got 2\n    in package `lexical_entry_target_body`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/lexical_entry/target_body/invalid/main.omg:36:24\n"
+  }
+]

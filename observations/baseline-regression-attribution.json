@@ -1,0 +1,59 @@
+[
+  {
+    "fixture": "pass/asm/entry_zero_branch_conditional_exit",
+    "producer": {
+      "revision": "70d5cda38eda5688b811050f86a3938b50e3c553",
+      "sha256": "688c28832025cecc15ad7b48e2cf86788f943eec7bdd0780349e61b13e70e083",
+      "profile": "{\"schema\":\"omega-compiler-build-profile-v1\",\"opt_level\":\"1\"}\n"
+    },
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/producer/omega",
+      "--target",
+      "linux_x86_64",
+      "--check",
+      "tests/omega/pass/asm/entry_zero_branch_conditional_exit/main.omg"
+    ],
+    "source_sha256": "262cbbeb6f6f1a54bbaac2a8e26964becbc3c03a6c0fc6bd7a5d0b429cc6b62d",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `entry_zero_branch_conditional_exit` with 2 diagnostic(s)\n  error: cannot prove requires contract for call done from countdown$assembly$portable$4$entry: asm#scratch#4#eax == 0 (needs fact `asm#scratch#4#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`\n  error: cannot prove ensures contract for exit from countdown$assembly$portable$4$entry at statement 2: output == 0\n"
+  },
+  {
+    "fixture": "fail/calls/terminal_call_marked_state",
+    "producer": {
+      "revision": "70d5cda38eda5688b811050f86a3938b50e3c553",
+      "sha256": "688c28832025cecc15ad7b48e2cf86788f943eec7bdd0780349e61b13e70e083",
+      "profile": "{\"schema\":\"omega-compiler-build-profile-v1\",\"opt_level\":\"1\"}\n"
+    },
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/producer/omega",
+      "--target",
+      "linux_x86_64",
+      "--check",
+      "tests/omega/fail/calls/terminal_call_marked_state/main.omg"
+    ],
+    "source_sha256": "9e66de86e0255a6b9a340f4ba1bea9e7c43f5f27ada4a4c781483fdc0c8b3a99",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `terminal_call_marked_state` with 1 diagnostic(s)\n  error: call to `next` has operational envelope neither suspension nor blocking but acknowledges `block`; call acknowledgements must match exactly\n"
+  },
+  {
+    "fixture": "fail/calls/terminal_call_result_type_mismatch_rejected",
+    "producer": {
+      "revision": "70d5cda38eda5688b811050f86a3938b50e3c553",
+      "sha256": "688c28832025cecc15ad7b48e2cf86788f943eec7bdd0780349e61b13e70e083",
+      "profile": "{\"schema\":\"omega-compiler-build-profile-v1\",\"opt_level\":\"1\"}\n"
+    },
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/producer/omega",
+      "--target",
+      "linux_x86_64",
+      "--check",
+      "tests/omega/fail/calls/terminal_call_result_type_mismatch_rejected/main.omg"
+    ],
+    "source_sha256": "16513da4789c5046d212a9d36f7aff586bc69057b25ad8b38d1010a1671a6cb1",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: machine `forward` state `entry` terminal call to `widen` completes with its `u64` result, but the state returns `i32`; a terminal machine call's normal result is its caller's result, so the two must match -- return a converted value instead (`-> (widen(..) as i32)`)\nerror: store in machine `forward` state `entry` return value implicitly converts `u64` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)\nerror: machine `finish` state `entry`: `record(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local\nerror: machine `finish` state `entry` terminal call to `record` completes with its `Unit` result, but the state returns `i32`; a terminal machine call's normal result is its caller's result, so the two must match\n"
+  }
+]

@@ -1,0 +1,155 @@
+{
+  "pr": 398,
+  "submitted_head": "c7ffab502e4f2714914e052e7d1c9095d30e8464",
+  "fixed_base": "70d5cda38eda5688b811050f86a3938b50e3c553",
+  "producer_revision": "88b9f71bc0c167521ae8032e3985412afdd7a677",
+  "qualification_revision": "c7ffab502e4f2714914e052e7d1c9095d30e8464",
+  "qualification_receipt": {
+    "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/entry-qualification.records/999e5b673dbb44ff8e4deeeaf6bee2cd.json",
+    "sha256": "3c0dc26881636844320db0dfdbbe5ad874b410eeeede99f4ce25c70cff0b0136"
+  },
+  "applicability": "Actual engine observations retain their original producer and source revisions. Compiler and libraries equal the submitted head; later source changes only pin fixtures, prose and goldens. Qualification validates retained engine observations, without reexecuting them. Native execution was macOS ARM64 only.",
+  "artifacts": "Frozen compiler executables remain local and are omitted from this evidence branch. Exact source bundles, build receipts, binary digests and verified profiles are retained.",
+  "files": [
+    {
+      "evidence_path": "qualification/entry-qualification.json.gz",
+      "sha256": "91a4393520de89292a812364c680fe24c50014f6c227cbcf75c95d8ace1eb733"
+    },
+    {
+      "evidence_path": "qualification/entry-qualification-config.json.gz",
+      "sha256": "b25c9f9e6a4e9cae4e9cf2e5f9aebac0fc7087b2052f3ebbf488bf27ccfcab53"
+    },
+    {
+      "evidence_path": "qualification/observation-receipt.json.gz",
+      "sha256": "2ba6afa0f7cc9856fa856c2d180b513015b2c61634e56af5a2bbe7f196b4fa76"
+    },
+    {
+      "evidence_path": "qualification/validator-stdout.txt",
+      "sha256": "bbf786cdcde3f5315ec3345f6e23a35e4659d25b4f864dc7e636190cddcd3e20"
+    },
+    {
+      "evidence_path": "qualification/validator-stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "evidence_path": "observations/validate-entry.py",
+      "sha256": "b285822f25fbb70cbf6a91568a6dc9ee93cbac6c319dc14db70aa4f852d0d940"
+    },
+    {
+      "evidence_path": "observations/entry-acceptance.json",
+      "sha256": "7d2bbb36c21cb53560178560c322deaaf28f9c028a8d758b86eec7481ddd0602"
+    },
+    {
+      "evidence_path": "observations/base.json",
+      "sha256": "9d315f393dcf88143451361760aab1804767cb89fa1488c319da84617104a7b3"
+    },
+    {
+      "evidence_path": "observations/producer.json",
+      "sha256": "0ea8290afd56e070b06ab54430d60068130684cdb826453fe4febec7d444633b"
+    },
+    {
+      "evidence_path": "observations/entry-producer-4.json",
+      "sha256": "8895cee81da02eaa1ea62aaca32b89f162e7f8f9b9f178e1f7a96a48826f5f35"
+    },
+    {
+      "evidence_path": "observations/entry-runner-producer.json",
+      "sha256": "2bc27f40b59234b3a8100b364e73a59386734ca63198fee31879262d06967379"
+    },
+    {
+      "evidence_path": "observations/entry-row-baseline.json",
+      "sha256": "87ab3e43a8a53f04fc31c15343437ce67d93a09cae4c54460476ed43f19b9f94"
+    },
+    {
+      "evidence_path": "observations/entry-row-repaired-4.json",
+      "sha256": "fe147e1dcbd8190f1dffb881be9063b8a32d37e9cacf05dfb2e6cae3d80f5ddb"
+    },
+    {
+      "evidence_path": "observations/entry-controls-repaired-4.json",
+      "sha256": "c2fd708042b7447600bd1fda7391fcdd3d7ef8d62d9ac54af1e6d2723e18e702"
+    },
+    {
+      "evidence_path": "observations/entry-corpus-source.json",
+      "sha256": "37f30ada1b45b2e15550f97eebff665fee3e5442c346ec484cba252676b4005e"
+    },
+    {
+      "evidence_path": "observations/entry-corpus-both.json",
+      "sha256": "fddd1372685fbd7adeb384d49300c022d4c3390a0fde1c74ec079a7ce6e9a07c"
+    },
+    {
+      "evidence_path": "observations/entry-marker-correction.json",
+      "sha256": "8490de03d76f4e03f68ccb74e76e20917f6b7b35df89670d567f7a43da7d2add"
+    },
+    {
+      "evidence_path": "observations/entry-frozen-inputs.json",
+      "sha256": "361963b809e92d649bd89dfba22badc6519a9c1c393bafc4d5bf9b1089680b45"
+    },
+    {
+      "evidence_path": "observations/entry-implementation-context.json",
+      "sha256": "53aa48374c0181e4964acb084ebc9cf0d2b5fbfcaeaf9ec7566412b8cb1c7dc9"
+    },
+    {
+      "evidence_path": "observations/entry-checking-context.json",
+      "sha256": "3e03db11d09ea75bd33afcc2e2f19e19ed6bbb8d20818727d331b7793c02c2ff"
+    },
+    {
+      "evidence_path": "observations/entry-static-context.json",
+      "sha256": "aa1b8acfddf0fdb4be4f9b9b903188612d98e9a2d08a03adaf81a403b9906de5"
+    },
+    {
+      "evidence_path": "observations/entry-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "evidence_path": "observations/baseline-regression-attribution.json",
+      "sha256": "3fd1236001ec0dc9ac76d8d5cbd3b96ca585d75d0ae001296a2684e08d4bfcad"
+    },
+    {
+      "evidence_path": "observations/qualified-setup-correction.json",
+      "sha256": "d483958ea68c97f04231ffbe42ee4425c5628e634aaaa4299d04b3bbeb97e4d6"
+    },
+    {
+      "evidence_path": "observations/marker-oracle-migration.json",
+      "sha256": "80799958c90e8e80bb845f94f63c84bcc1be80730ac487604155fb5982613181"
+    },
+    {
+      "evidence_path": "observations/entry-golden-splice.json",
+      "sha256": "13ae420017cfd330e90cdd8e4c96ef7a372f899e54ea9b35624d36a2b59c843c"
+    },
+    {
+      "evidence_path": "producer-builds/build-baseline-retry.jsonl",
+      "sha256": "a17615c2c06aa5a6f273b7381176987ed9feac6416425e171be7aa1b35492ef1"
+    },
+    {
+      "evidence_path": "producer-builds/entry-build-4.jsonl",
+      "sha256": "6e73a4dcaccec4f43e40899c4654e4b6102cca1b4508e97266297d0d088713f5"
+    },
+    {
+      "evidence_path": "producer-builds/entry-runner-build.jsonl",
+      "sha256": "f16e321df948968464f026aeb53ab574c0a45a6cac8b468cf2acea3c3661d611"
+    },
+    {
+      "evidence_path": "source/371d35eadbbce54e5f311618ce3f80dac231a76e.bundle",
+      "sha256": "5e95a6f80335a8b408e78264e56ad8e0fa5bc846ed4e79abee3ac22881ae4ffe"
+    },
+    {
+      "evidence_path": "source/5360a4e726fd0ca54382e3c6febb0901955bfe75.bundle",
+      "sha256": "c62251c0344565ef56ce76cb47386a86abd54b8cff87966642f4e87ccad99af7"
+    },
+    {
+      "evidence_path": "source/c7ffab502e4f2714914e052e7d1c9095d30e8464.bundle",
+      "sha256": "a9c2e1460df287e0a4192407eb310630dbff35280b82254ed3c2a6b98f60ce1f"
+    },
+    {
+      "evidence_path": "original-qualified-setup/routines.omg",
+      "sha256": "9a777f32e9e0b0239224a6d2b0d9fba8a8a574a5486eb9483e2fb3556f606c46"
+    },
+    {
+      "evidence_path": "original-qualified-setup/build.omg",
+      "sha256": "debdded14cced159e410c66d9191d241bb8b181c5fd8d4c717d636eb1093b0dc"
+    },
+    {
+      "evidence_path": "original-qualified-setup/main.omg",
+      "sha256": "7f5deb8dfc26676f65bfe4dc52eb9fe9d286c536ec81bf9692e8e3afafef2c06"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "producer_revision": "88b9f71bc0c167521ae8032e3985412afdd7a677",
+  "baseline_revision": "70d5cda38eda5688b811050f86a3938b50e3c553",
+  "host": "macOS ARM64",
+  "nine_places_both_zero": 9,
+  "arity_reject_twins": 9,
+  "supplementary_controls": 10,
+  "accepted_source_fixtures": 123,
+  "actual_fixture_executions": 57,
+  "native_terminal_zero_agreements": 56,
+  "authored_trap_agreements": 1,
+  "baseline_assembly_refusal": "pass/asm/entry_zero_branch_conditional_exit",
+  "qualification": "Validates retained actual engine observations; no engine executions relabeled or reexecuted by this validator.",
+  "setup_correction": "Qualified module control originally omitted module declaration. Original setup retained as a reject; no valid-positive baseline claim is made for that setup."
+}

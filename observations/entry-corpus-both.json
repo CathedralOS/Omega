@@ -1,0 +1,1276 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "371d35eadbbce54e5f311618ce3f80dac231a76e",
+  "dirty": false,
+  "leg": "both",
+  "target": "macos_arm64",
+  "golden": "tests/omega/corpus_both_macos_arm64.txt",
+  "golden_reason_gaps": {
+    "rows": 0,
+    "of": 4849
+  },
+  "subset": true,
+  "filter": "facts/nested_machine_,calls/nested_machine_,calls/guarded_terminal_call_chain_exit,pass/asm/entry_zero_branch_conditional_exit",
+  "shard": null,
+  "verdict": "regressed",
+  "exit_code": 3,
+  "counts": {
+    "fixtures": 58,
+    "by_status": {
+      "rejected": 1,
+      "built": 57
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 1,
+    "pinned_off_target_fixtures": [
+      "pass/asm/entry_zero_branch_conditional_exit"
+    ],
+    "by_verdict": {
+      "new": 14
+    }
+  },
+  "oracle_failures": [
+    "pass/asm/entry_zero_branch_conditional_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/asm/entry_zero_branch_conditional_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}"
+  ],
+  "infrastructure_error": null,
+  "golden_provenance": {
+    "stamped": 44,
+    "legacy": 0,
+    "unknown_revisions": 0,
+    "oldest": {
+      "revision": "b011da5f273a04a924bc79cfa9df3bef5bcd6674",
+      "commits_behind": 22
+    }
+  },
+  "perf_context": {
+    "golden": {
+      "cpus": 10,
+      "jobs": "2",
+      "load1_end": 8.75,
+      "load1_start": 7.27,
+      "machine": "arm64",
+      "platform": "darwin",
+      "schema": "omega-corpus-context-v1"
+    },
+    "current": {
+      "schema": "omega-corpus-context-v1",
+      "jobs": null,
+      "cpus": 10,
+      "platform": "darwin",
+      "machine": "arm64",
+      "load1_start": 4.62,
+      "load1_end": 9.77
+    },
+    "warnings": []
+  },
+  "observations": [
+    {
+      "fixture": "pass/asm/entry_zero_branch_conditional_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 2781,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "cannot prove requires contract for call done from countdown$assembly$portable$4$entry: asm#scratch#4#eax == 0 (needs fact `asm#scratch#4#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove ensures contract for exit from countdown$assembly$portable$4$entry at statement 2: output == 0"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/calls/guarded_terminal_call_chain_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3499,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/calls/nested_machine_continuation",
+      "tier": "pass",
+      "status": "built",
+      "millis": 13365,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3133,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3227,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3405,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3586,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2954,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3033,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3306,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3086,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2993,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/ancestor_cycle",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3568,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/attached_context",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3387,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/borrow_context",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2842,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/call_result",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3118,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/callable_context",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2930,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/const_context",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2747,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/const_name",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2563,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/copied_payload",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2898,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/field",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2998,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/generic_context",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2780,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/inferred_crash",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2899,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "signal",
+        "signal": "5",
+        "interpreter": "trapped",
+        "terminal-target.windows_x86_64": "trap",
+        "terminal-target.linux_x86_64": "trap",
+        "terminal-target.macos_arm64": "trap",
+        "terminal-target.linux_arm64": "trap",
+        "terminal-target-artifact": "unchanged",
+        "terminal-targets": "match"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/local",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3275,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/match_join",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2891,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/nominal_index",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2712,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/other_machine",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2902,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/other_state",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2718,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/parameter",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2803,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/ranked_callee",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2936,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/selected_helper",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2922,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/shadowing",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3248,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/target_body",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3064,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/unit_completion",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2783,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2790,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3051,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2858,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2663,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3306,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_ordinary_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2955,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2905,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3076,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2805,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_parenthesized_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3071,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_qualified_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2890,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2971,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2511,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2445,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3250,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2661,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2968,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_multiple_arrivals_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3064,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3424,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2967,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3040,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_public_contract_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2874,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_snapshot_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2615,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2006,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  ],
+  "fixtures": [
+    {
+      "fixture": "pass/asm/entry_zero_branch_conditional_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/asm/entry_zero_branch_conditional_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 2781,
+        "expected_satisfied": null,
+        "facts": {
+          "interpreter": "unchecked"
+        },
+        "diagnostics": [
+          "cannot prove requires contract for call done from countdown$assembly$portable$4$entry: asm#scratch#4#eax == 0 (needs fact `asm#scratch#4#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+          "cannot prove ensures contract for exit from countdown$assembly$portable$4$entry at statement 2: output == 0"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/calls/guarded_terminal_call_chain_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/calls/guarded_terminal_call_chain_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 3499,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_call_result_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_lexical_entry_call_result_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2790,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_const_name_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_lexical_entry_const_name_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 3051,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_field_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_lexical_entry_field_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2858,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_local_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_lexical_entry_local_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2663,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_match_join_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_lexical_entry_match_join_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 3306,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_ordinary_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_lexical_entry_ordinary_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2955,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_other_machine_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_lexical_entry_other_machine_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2905,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_other_state_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_lexical_entry_other_state_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 3076,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_parameter_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_lexical_entry_parameter_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2805,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_parenthesized_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_lexical_entry_parenthesized_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 3071,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_qualified_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_lexical_entry_qualified_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2890,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_target_body_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_lexical_entry_target_body_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2971,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    }
+  ]
+}

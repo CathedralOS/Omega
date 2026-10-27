@@ -1,0 +1,2435 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "371d35eadbbce54e5f311618ce3f80dac231a76e",
+  "dirty": false,
+  "leg": "checked",
+  "target": null,
+  "golden": "tests/omega/corpus_outcomes.txt",
+  "golden_reason_gaps": {
+    "rows": 1,
+    "of": 18944
+  },
+  "subset": true,
+  "filter": "facts/nested_machine_,calls/nested_machine_,calls/terminal_call_,calls/guarded_terminal_call_chain_exit,pass/asm/entry_zero_branch_conditional_exit",
+  "shard": null,
+  "verdict": "regressed",
+  "exit_code": 3,
+  "counts": {
+    "fixtures": 124,
+    "by_status": {
+      "rejected": 65,
+      "checked": 59
+    },
+    "wrong_reason": 1,
+    "wrong_reason_fixtures": [
+      "fail/calls/terminal_call_marked_state"
+    ],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 1,
+    "lost_success_fixtures": [
+      "pass/asm/entry_zero_branch_conditional_exit"
+    ],
+    "pinned_off_target": 1,
+    "pinned_off_target_fixtures": [
+      "pass/asm/entry_zero_branch_conditional_exit"
+    ],
+    "by_verdict": {
+      "regressed": 2,
+      "new": 28,
+      "moved": 1
+    }
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": {
+    "stamped": 96,
+    "legacy": 0,
+    "unknown_revisions": 0,
+    "oldest": {
+      "revision": "a92f16431042",
+      "commits_behind": 415
+    }
+  },
+  "perf_context": {
+    "golden": {
+      "cpus": 10,
+      "jobs": "2",
+      "load1_end": 8.21,
+      "load1_start": 7.27,
+      "machine": "arm64",
+      "platform": "darwin",
+      "schema": "omega-corpus-context-v1"
+    },
+    "current": {
+      "schema": "omega-corpus-context-v1",
+      "jobs": null,
+      "cpus": 10,
+      "platform": "darwin",
+      "machine": "arm64",
+      "load1_start": 1.23,
+      "load1_end": 4.62
+    },
+    "warnings": []
+  },
+  "observations": [
+    {
+      "fixture": "pass/asm/entry_zero_branch_conditional_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 2370,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "linux_x86_64"
+      },
+      "diagnostics": [
+        "cannot prove requires contract for call done from countdown$assembly$portable$4$entry: asm#scratch#4#eax == 0 (needs fact `asm#scratch#4#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove ensures contract for exit from countdown$assembly$portable$4$entry at statement 2: output == 0"
+      ],
+      "regressed_from": {
+        "status": "checked",
+        "facts": {
+          "check-target": "linux_x86_64"
+        }
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/calls/guarded_terminal_call_chain_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2955,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/calls/nested_machine_continuation",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 13471,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/calls/terminal_call_acknowledgements",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2762,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/calls/terminal_call_acknowledgements_declarations",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1914,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2943,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2444,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2696,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3346,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2963,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2789,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2901,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2768,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_inferred_requirement_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2644,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/ancestor_cycle",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2761,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/attached_context",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2746,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/borrow_context",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2559,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/call_result",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2774,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/callable_context",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2371,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/const_context",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2685,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/const_name",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2692,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/copied_payload",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2675,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/field",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2794,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/generic_context",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2580,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/inferred_crash",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2636,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64",
+        "terminal-target.windows_x86_64": "trap",
+        "terminal-target.linux_x86_64": "trap",
+        "terminal-target.macos_arm64": "trap",
+        "terminal-target.linux_arm64": "trap",
+        "terminal-target-artifact": "unchanged",
+        "terminal-targets": "match"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/local",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2604,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/match_join",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2791,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/nominal_index",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2674,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/other_machine",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2385,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/other_state",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2730,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/parameter",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2836,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/ranked_callee",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2764,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/selected_helper",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2786,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/shadowing",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2635,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/target_body",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2523,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_invocation/unit_completion",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2834,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2629,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2525,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3049,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2843,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2789,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_ordinary_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2789,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2730,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2755,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2616,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_parenthesized_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2759,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_qualified_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2360,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3071,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2393,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2359,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2930,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2883,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2912,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_multiple_arrivals_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2877,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2757,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2586,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2388,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_public_contract_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2526,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_snapshot_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2823,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_arithmetic_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2577,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/calls/nested_machine_private_descendant",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 704,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "qualified call `hidden` has no resolved callable declaration"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/calls/nested_machine_runtime_capture",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 681,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `read` state `entry` uses `value`, which is not a declared local, parameter, field, or type in this state (check the spelling)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/calls/terminal_call_duplicate_block",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 191,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "tests/omega/fail/calls/terminal_call_duplicate_block/main.omg:3:29: duplicate `block` call acknowledgement; write it exactly once"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/calls/terminal_call_duplicate_suspend",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 313,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "tests/omega/fail/calls/terminal_call_duplicate_suspend/main.omg:3:31: duplicate `suspend` call acknowledgement; write it exactly once"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/calls/terminal_call_marked_state",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1105,
+      "expected_satisfied": false,
+      "facts": {},
+      "diagnostics": [
+        "call to `next` has operational envelope neither suspension nor blocking but acknowledges `block`; call acknowledgements must match exactly"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/calls/terminal_call_redundant_block",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1421,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "call to `ready` has operational envelope neither suspension nor blocking but acknowledges `block`; call acknowledgements must match exactly"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/calls/terminal_call_result_type_mismatch_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 425,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `forward` state `entry` terminal call to `widen` completes with its `u64` result, but the state returns `i32`; a terminal machine call's normal result is its caller's result, so the two must match -- return a converted value instead (`-> (widen(..) as i32)`)",
+        "store in machine `forward` state `entry` return value implicitly converts `u64` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)",
+        "machine `finish` state `entry`: `record(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local",
+        "machine `finish` state `entry` terminal call to `record` completes with its `Unit` result, but the state returns `i32`; a terminal machine call's normal result is its caller's result, so the two must match"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/calls/terminal_call_reversed_markers",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 183,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "tests/omega/fail/calls/terminal_call_reversed_markers/main.omg:3:29: call acknowledgements use canonical order `suspend block`, never `block suspend`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_inferred_requirement_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2328,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_inferred_requirement_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 3069,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call same from forward$specialized$3e1b7aec6f86087c$0: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call same from forward$specialized$084767401bf0eeb2$1: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_inferred_requirement_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2334,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_inferred_requirement_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2068,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_inferred_requirement_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2146,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_inferred_requirement_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2094,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_inferred_requirement_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2347,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_inferred_requirement_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2199,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_inferred_requirement_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2747,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/call_result",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 702,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `keep` state `entry` terminal expression expects `T`, got `bool`",
+        "machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/capture_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 825,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `inner` state `entry` uses `value`, which is not a declared local, parameter, field, or type in this state (check the spelling)",
+        "machine `inner$specialized$e968490059a8ab0c$0` state `entry` uses `value`, which is not a declared local, parameter, field, or type in this state (check the spelling)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/const_name",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 583,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `keep` state `entry` terminal expression expects `T`, got `bool`",
+        "machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/copied_payload",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2177,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `clear` receives `item` as both mutable and read-only"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/field",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 729,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `keep` state `entry` terminal expression expects `T`, got `bool`",
+        "machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/inferred_crash",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1931,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "call from `main` to `wrong` at statement 0 call 0 has an uncovered Abort crash route; publish a same-cause route whose guard covers this invocation",
+        "machine `wrong` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/local",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 618,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `keep` state `entry` terminal expression expects `T`, got `bool`",
+        "machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/match_join",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 788,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `keep` state `entry` terminal expression expects `T`, got `bool`",
+        "machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/nominal_index",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 73,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "indexed-domain selected constant has canonical type `named(name(OtherUnit))`, expected `named(name(Unit))`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/other_machine",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 796,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `keep` state `entry` terminal expression expects `T`, got `bool`",
+        "machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/other_state",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 604,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `keep` state `entry` terminal expression expects `T`, got `bool`",
+        "machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/parameter",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 586,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `keep` state `entry` terminal expression expects `T`, got `bool`",
+        "machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/ranked_callee",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1439,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "terminating machine step: cannot prove strict rank decrease on a recurrent arrival: the transition from `step` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step",
+        "machine call cycle: `step` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/retired_state",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 8,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "tests/omega/fail/facts/nested_machine_invocation/retired_state/main.omg:3:5: nested `state` declarations are retired; declare a nested `machine` with its own signature and contract"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/retired_state_after_body",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 7,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "tests/omega/fail/facts/nested_machine_invocation/retired_state_after_body/main.omg:3:5: nested `state` declarations are retired; declare a nested `machine` with its own signature and contract"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/retired_state_after_machine",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 7,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "tests/omega/fail/facts/nested_machine_invocation/retired_state_after_machine/main.omg:4:5: nested `state` declarations are retired; declare a nested `machine` with its own signature and contract"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/target_body",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 620,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `keep` state `entry` terminal expression expects `T`, got `bool`",
+        "machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_invocation/unit_completion",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 517,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `dispatch` state `entry`: `finish(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local",
+        "call to `entry` discards its non-unit `u64` result; consume the value or discard it explicitly with `_ = entry(...);`",
+        "machine `dispatch$specialized$2022ecce155df880$0` state `entry`: `entry(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_lexical_entry_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 653,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `entry` expects 3 argument(s), got 2"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_lexical_entry_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 743,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `entry` expects 3 argument(s), got 2"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_lexical_entry_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 651,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `entry` expects 3 argument(s), got 2"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_lexical_entry_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 692,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `entry` expects 3 argument(s), got 2"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_lexical_entry_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 560,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `entry` expects 3 argument(s), got 2"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_lexical_entry_missing_module_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 513,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "terminal call `routines::entry` does not select a declared machine entry or callable requirement"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_lexical_entry_ordinary_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 578,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `entry` expects 3 argument(s), got 2"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_lexical_entry_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 842,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `entry` expects 3 argument(s), got 2"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_lexical_entry_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 745,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `entry` expects 3 argument(s), got 2"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_lexical_entry_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 745,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `entry` expects 3 argument(s), got 2"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_lexical_entry_parenthesized_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 609,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `entry` expects 3 argument(s), got 2"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_lexical_entry_qualified_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 551,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` value call to `entry` violates required fact `value > 0`: the instantiated fact is structurally false (`0 > 0`)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_lexical_entry_shadowed_namespace_ordinary_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 692,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry`: value call `routines.entry(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_lexical_entry_shadowed_namespace_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 645,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "terminal call `routines::entry` does not select a declared machine entry or callable requirement"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_lexical_entry_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 577,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `entry` expects 3 argument(s), got 2",
+        "state `entry` expects 3 argument(s), got 2",
+        "state `entry` expects 3 argument(s), got 2",
+        "state `entry` expects 3 argument(s), got 2"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_lexical_entry_unpublished_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 501,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "terminal call `entry` does not select a declared machine entry or callable requirement"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_arithmetic_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 485,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `apply` state `entry` local `result` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_arithmetic_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 822,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `apply` state `entry` local `result` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_arithmetic_escaping_selection_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 820,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `apply` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_arithmetic_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 691,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `apply` state `entry` local `result` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_arithmetic_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 671,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `apply` state `entry` local `result` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_arithmetic_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 547,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `apply` state `entry` local `result` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_arithmetic_multiple_arrivals_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 732,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `apply` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_arithmetic_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 685,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `apply` state `entry` local `result` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_arithmetic_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 681,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `apply` state `entry` local `result` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_arithmetic_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 681,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `apply` state `entry` local `result` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_arithmetic_public_contract_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 526,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `subtract` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_arithmetic_snapshot_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 430,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `apply` state `entry` local `result` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_arithmetic_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 368,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `apply` state `entry` local `result` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
+        "exact arithmetic in machine `apply` state `entry` local `result` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
+        "exact arithmetic in machine `apply` state `entry` local `result` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
+        "exact arithmetic in machine `apply` state `entry` local `result` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  ],
+  "fixtures": [
+    {
+      "fixture": "pass/asm/entry_zero_branch_conditional_exit",
+      "verdict": "regressed",
+      "reasons": [
+        "status checked -> rejected",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/asm/entry_zero_branch_conditional_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 3977,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "linux_x86_64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "e06334c63dc4+wt"
+      },
+      "after": {
+        "fixture": "pass/asm/entry_zero_branch_conditional_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 2370,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "linux_x86_64"
+        },
+        "diagnostics": [
+          "cannot prove requires contract for call done from countdown$assembly$portable$4$entry: asm#scratch#4#eax == 0 (needs fact `asm#scratch#4#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+          "cannot prove ensures contract for exit from countdown$assembly$portable$4$entry at statement 2: output == 0"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "linux_x86_64"
+          }
+        },
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_call_result_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_lexical_entry_call_result_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2629,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_const_name_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_lexical_entry_const_name_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2525,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_field_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_lexical_entry_field_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 3049,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_local_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_lexical_entry_local_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2843,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_match_join_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_lexical_entry_match_join_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2789,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_ordinary_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_lexical_entry_ordinary_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2789,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_other_machine_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_lexical_entry_other_machine_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2730,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_other_state_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_lexical_entry_other_state_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2755,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_parameter_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_lexical_entry_parameter_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2616,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_parenthesized_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_lexical_entry_parenthesized_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2759,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_qualified_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_lexical_entry_qualified_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2360,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_lexical_entry_target_body_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/nested_machine_lexical_entry_target_body_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 3071,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/calls/terminal_call_marked_state",
+      "verdict": "regressed",
+      "reasons": [
+        "rejected without its expected fragment",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/calls/terminal_call_marked_state",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 794,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "`next` is an internal state of this machine and cannot be called; ordinary calls invoke machines, not states: enter it with `transition { _ -> next(..) }`, or make it a machine if its result is used as a value"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/calls/terminal_call_marked_state",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1105,
+        "expected_satisfied": false,
+        "facts": {},
+        "diagnostics": [
+          "call to `next` has operational envelope neither suspension nor blocking but acknowledges `block`; call acknowledgements must match exactly"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/calls/terminal_call_result_type_mismatch_rejected",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/calls/terminal_call_result_type_mismatch_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 975,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "machine `forward` state `entry` terminal call to `widen` completes with its `u64` result, but the state returns `i32`; a terminal machine call's normal result is its caller's result, so the two must match -- return a converted value instead (`-> (widen(..) as i32)`)",
+          "machine `finish` state `entry` terminal call to `record` completes with its `Unit` result, but the state returns `i32`; a terminal machine call's normal result is its caller's result, so the two must match"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/calls/terminal_call_result_type_mismatch_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 425,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "machine `forward` state `entry` terminal call to `widen` completes with its `u64` result, but the state returns `i32`; a terminal machine call's normal result is its caller's result, so the two must match -- return a converted value instead (`-> (widen(..) as i32)`)",
+          "store in machine `forward` state `entry` return value implicitly converts `u64` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)",
+          "machine `finish` state `entry`: `record(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local",
+          "machine `finish` state `entry` terminal call to `record` completes with its `Unit` result, but the state returns `i32`; a terminal machine call's normal result is its caller's result, so the two must match"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/nested_machine_lexical_entry_call_result_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/nested_machine_lexical_entry_call_result_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 653,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "state `entry` expects 3 argument(s), got 2"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/nested_machine_lexical_entry_const_name_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/nested_machine_lexical_entry_const_name_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 743,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "state `entry` expects 3 argument(s), got 2"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/nested_machine_lexical_entry_field_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/nested_machine_lexical_entry_field_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 651,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "state `entry` expects 3 argument(s), got 2"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/nested_machine_lexical_entry_local_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/nested_machine_lexical_entry_local_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 692,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "state `entry` expects 3 argument(s), got 2"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/nested_machine_lexical_entry_match_join_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/nested_machine_lexical_entry_match_join_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 560,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "state `entry` expects 3 argument(s), got 2"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/nested_machine_lexical_entry_missing_module_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/nested_machine_lexical_entry_missing_module_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 513,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "terminal call `routines::entry` does not select a declared machine entry or callable requirement"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/nested_machine_lexical_entry_ordinary_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/nested_machine_lexical_entry_ordinary_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 578,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "state `entry` expects 3 argument(s), got 2"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/nested_machine_lexical_entry_other_machine_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/nested_machine_lexical_entry_other_machine_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 842,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "state `entry` expects 3 argument(s), got 2"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/nested_machine_lexical_entry_other_state_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/nested_machine_lexical_entry_other_state_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 745,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "state `entry` expects 3 argument(s), got 2"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/nested_machine_lexical_entry_parameter_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/nested_machine_lexical_entry_parameter_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 745,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "state `entry` expects 3 argument(s), got 2"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/nested_machine_lexical_entry_parenthesized_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/nested_machine_lexical_entry_parenthesized_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 609,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "state `entry` expects 3 argument(s), got 2"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/nested_machine_lexical_entry_qualified_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/nested_machine_lexical_entry_qualified_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 551,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "machine `probe` state `entry` value call to `entry` violates required fact `value > 0`: the instantiated fact is structurally false (`0 > 0`)"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/nested_machine_lexical_entry_shadowed_namespace_ordinary_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/nested_machine_lexical_entry_shadowed_namespace_ordinary_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 692,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "machine `probe` state `entry`: value call `routines.entry(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names."
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/nested_machine_lexical_entry_shadowed_namespace_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/nested_machine_lexical_entry_shadowed_namespace_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 645,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "terminal call `routines::entry` does not select a declared machine entry or callable requirement"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/nested_machine_lexical_entry_target_body_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/nested_machine_lexical_entry_target_body_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 577,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "state `entry` expects 3 argument(s), got 2",
+          "state `entry` expects 3 argument(s), got 2",
+          "state `entry` expects 3 argument(s), got 2",
+          "state `entry` expects 3 argument(s), got 2"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/nested_machine_lexical_entry_unpublished_body_rejected",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/nested_machine_lexical_entry_unpublished_body_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 501,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "terminal call `entry` does not select a declared machine entry or callable requirement"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    }
+  ]
+}

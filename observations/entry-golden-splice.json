@@ -1,0 +1,16 @@
+[
+  {
+    "path": "tests/omega/corpus_outcomes.txt",
+    "new_rows": 28,
+    "only_replaced_rows": [
+      "fail/calls/terminal_call_marked_state"
+    ],
+    "reason": "One obsolete state-only call diagnostic replaced by its exact nested-call block-marker obligation; baseline attribution and fresh expected-fragment check retained. No other existing row/comment/context changed."
+  },
+  {
+    "path": "tests/omega/corpus_both_macos_arm64.txt",
+    "new_rows": 12,
+    "only_replaced_rows": [],
+    "reason": "One obsolete state-only call diagnostic replaced by its exact nested-call block-marker obligation; baseline attribution and fresh expected-fragment check retained. No other existing row/comment/context changed."
+  }
+]

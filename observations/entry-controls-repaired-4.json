@@ -1,0 +1,135 @@
+[
+  {
+    "name": "missing_module/main.omg",
+    "positive": false,
+    "source_sha256": "0b9ed22666755ec69b788e1e3cd91a51d1ee51aae31afb3efb8f6d15c52ef8bc",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/entry-producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/lexical_entry/controls/missing_module/main.omg"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `lexical_entry_control` with 1 diagnostic(s)\n  error: terminal call `routines::entry` does not select a declared machine entry or callable requirement\n    in package `lexical_entry_control`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/lexical_entry/controls/missing_module/main.omg:4:33\n"
+  },
+  {
+    "name": "ordinary/invalid/main.omg",
+    "positive": false,
+    "source_sha256": "b8486c2ad33237674e5312f912e1e7a19adf07fed3e25f6e434b6683513d5abd",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/entry-producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/lexical_entry/controls/ordinary/invalid/main.omg"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `lexical_entry_control` with 1 diagnostic(s)\n  error: state `entry` expects 3 argument(s), got 2\n    in package `lexical_entry_control`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/lexical_entry/controls/ordinary/invalid/main.omg:6:9\n"
+  },
+  {
+    "name": "ordinary/main.omg",
+    "positive": true,
+    "source_sha256": "2972ff2595077ecba8237b06a98d21002430164ac98ce005a3eda648f7361c39",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/entry-producer-4/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/lexical_entry/controls/ordinary/main.omg"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "name": "parenthesized/invalid/main.omg",
+    "positive": false,
+    "source_sha256": "886596646cefbb6d2ecb09f69fa17736472c3b7928f5ca013107a435836cc6a1",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/entry-producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/lexical_entry/controls/parenthesized/invalid/main.omg"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `lexical_entry_control` with 1 diagnostic(s)\n  error: state `entry` expects 3 argument(s), got 2\n    in package `lexical_entry_control`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/lexical_entry/controls/parenthesized/invalid/main.omg:6:28\n"
+  },
+  {
+    "name": "parenthesized/main.omg",
+    "positive": true,
+    "source_sha256": "8b6d4452e7aa4604e850cd790a3d09c38d334aa2862b1fbd56cb96e40337fa45",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/entry-producer-4/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/lexical_entry/controls/parenthesized/main.omg"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "name": "qualified/invalid/main.omg",
+    "positive": false,
+    "source_sha256": "6885e7bb7540b68c480578ff53e3afc6be3e7767c3dd118346e50af68aa5e3a1",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/entry-producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/lexical_entry/controls/qualified/invalid/main.omg"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `lexical_entry_control` with 1 diagnostic(s)\n  error: machine `probe` state `entry` value call to `entry` violates required fact `value > 0`: the instantiated fact is structurally false (`0 > 0`)\n    in package `lexical_entry_control`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/lexical_entry/controls/qualified/invalid/main.omg:4:20\n"
+  },
+  {
+    "name": "qualified/main.omg",
+    "positive": true,
+    "source_sha256": "7f5deb8dfc26676f65bfe4dc52eb9fe9d286c536ec81bf9692e8e3afafef2c06",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/entry-producer-4/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/lexical_entry/controls/qualified/main.omg"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "name": "shadowed_namespace/main.omg",
+    "positive": false,
+    "source_sha256": "c87656c1872cd42c4267ef8381a6f135368787fa700d85c53ba46d1e36b32de2",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/entry-producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/lexical_entry/controls/shadowed_namespace/main.omg"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `lexical_entry_control` with 1 diagnostic(s)\n  error: terminal call `routines::entry` does not select a declared machine entry or callable requirement\n    in package `lexical_entry_control`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/lexical_entry/controls/shadowed_namespace/main.omg:4:33\n"
+  },
+  {
+    "name": "shadowed_namespace_ordinary/main.omg",
+    "positive": false,
+    "source_sha256": "611e34df2a3a15be63c4b3de89971d26e3de9a70774a06c523d09c29cc9d0bde",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/entry-producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/lexical_entry/controls/shadowed_namespace_ordinary/main.omg"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `lexical_entry_control` with 1 diagnostic(s)\n  error: machine `probe` state `entry`: value call `routines.entry(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.\n    in package `lexical_entry_control`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/lexical_entry/controls/shadowed_namespace_ordinary/main.omg:4:15\n"
+  },
+  {
+    "name": "unpublished_body/main.omg",
+    "positive": false,
+    "source_sha256": "78ab3a301f8c8b6657ae03884ddbf9167edf3104c2718d4ae217ba6ea2ef114a",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/product-nested/entry-producer-4/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/lexical_entry/controls/unpublished_body/main.omg"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `lexical_entry_control` with 1 diagnostic(s)\n  error: terminal call `entry` does not select a declared machine entry or callable requirement\n    in package `lexical_entry_control`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/lexical_entry/controls/unpublished_body/main.omg:2:54\n"
+  }
+]

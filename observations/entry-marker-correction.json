@@ -1,0 +1,116 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "5360a4e726fd0ca54382e3c6febb0901955bfe75",
+  "dirty": false,
+  "leg": "checked",
+  "target": null,
+  "golden": "tests/omega/corpus_outcomes.txt",
+  "golden_reason_gaps": {
+    "rows": 1,
+    "of": 18944
+  },
+  "subset": true,
+  "filter": "fail/calls/terminal_call_marked_state",
+  "shard": null,
+  "verdict": "moved",
+  "exit_code": 1,
+  "counts": {
+    "fixtures": 1,
+    "by_status": {
+      "rejected": 1
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {
+      "moved": 1
+    }
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": {
+    "stamped": 1,
+    "legacy": 0,
+    "unknown_revisions": 0,
+    "oldest": {
+      "revision": "a92f16431042",
+      "commits_behind": 416
+    }
+  },
+  "perf_context": {
+    "golden": {
+      "cpus": 10,
+      "jobs": "2",
+      "load1_end": 8.21,
+      "load1_start": 7.27,
+      "machine": "arm64",
+      "platform": "darwin",
+      "schema": "omega-corpus-context-v1"
+    },
+    "current": {
+      "schema": "omega-corpus-context-v1",
+      "jobs": null,
+      "cpus": 10,
+      "platform": "darwin",
+      "machine": "arm64",
+      "load1_start": 1.61,
+      "load1_end": 1.61
+    },
+    "warnings": []
+  },
+  "observations": [
+    {
+      "fixture": "fail/calls/terminal_call_marked_state",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 555,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "call to `next` has operational envelope neither suspension nor blocking but acknowledges `block`; call acknowledgements must match exactly"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  ],
+  "fixtures": [
+    {
+      "fixture": "fail/calls/terminal_call_marked_state",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/calls/terminal_call_marked_state",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 794,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "`next` is an internal state of this machine and cannot be called; ordinary calls invoke machines, not states: enter it with `transition { _ -> next(..) }`, or make it a machine if its result is used as a value"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/calls/terminal_call_marked_state",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 555,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "call to `next` has operational envelope neither suspension nor blocking but acknowledges `block`; call acknowledgements must match exactly"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    }
+  ]
+}
