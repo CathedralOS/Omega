@@ -18,7 +18,7 @@ use semantic_vocabulary::ScalarType;
 use super::identity_classification::independent_proof_certified_scalar_identity;
 use crate::candidates::{
     accept_region_rewrite, candidate_block, candidate_function, rebuild_node_metadata,
-    receiver_custody_distinct, retirable_scalar_node, set_node_effect_link,
+    receiver_custody_distinct, retirable_scalar_node, retire_node_custody, set_node_effect_link,
 };
 
 /// Independently remove one live proof-certified integer identity.
@@ -277,13 +277,7 @@ pub(crate) fn validate_proof_certified_scalar_identity_candidate(
             let output_block = output_function
                 .block_mut(patch.location.block)
                 .expect("candidate block exists");
-            let removed = output_block.nodes.remove(node_index);
-            let receiver = output_block
-                .nodes
-                .get_mut(node_index)
-                .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-            receiver.provenance.extend_from_slice(&removed.provenance);
-            receiver.fuel.extend_from_slice(&removed.fuel);
+            retire_node_custody(output_block, node_index)?;
             let mut effect = 0u64;
             for block in &mut output_function.blocks {
                 for (node_index, node) in block.nodes.iter_mut().enumerate() {

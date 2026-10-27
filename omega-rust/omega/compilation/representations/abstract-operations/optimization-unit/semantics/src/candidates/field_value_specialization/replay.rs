@@ -29,7 +29,7 @@ use crate::candidates::state_specialization::cyclic_machines;
 use crate::candidates::structural_bindings::bound_place;
 use crate::candidates::{
     accept_region_rewrite, candidate_function, canonicalize_provenance, rebuild_node_metadata,
-    receiver_custody_distinct, retirable_scalar_node, set_node_effect_link,
+    receiver_custody_distinct, retirable_scalar_node, retire_node_custody, set_node_effect_link,
 };
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use abstract_operations::AbstractOperation as O;
@@ -483,13 +483,7 @@ pub(super) fn validate(
                 for site in sites.iter().rev() {
                     let index = usize::try_from(*site)
                         .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
-                    let removed = block.nodes.remove(index);
-                    let receiver = block
-                        .nodes
-                        .get_mut(index)
-                        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-                    receiver.provenance.extend_from_slice(&removed.provenance);
-                    receiver.fuel.extend_from_slice(&removed.fuel);
+                    retire_node_custody(block, index)?;
                 }
             }
             let mut effect = 0u64;

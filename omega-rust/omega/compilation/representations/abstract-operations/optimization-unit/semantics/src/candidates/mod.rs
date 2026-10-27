@@ -339,6 +339,24 @@ pub(crate) fn receiver_custody_distinct(
     })
 }
 
+/// Retire one node of an accepted block and fuse its custody into the node
+/// that inherits the vacated coordinate. The caller's replay already
+/// accounted for every later coordinate and the function's effect chain; this
+/// owns only the removal and the fuse.
+pub(crate) fn retire_node_custody(
+    block: &mut optimization_unit::OptimizationBlock,
+    node_index: usize,
+) -> Result<(), OptimizationUnitValidationError> {
+    let retired = block.nodes.remove(node_index);
+    let receiver = block
+        .nodes
+        .get_mut(node_index)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    receiver.provenance.extend_from_slice(&retired.provenance);
+    receiver.fuel.extend_from_slice(&retired.fuel);
+    Ok(())
+}
+
 /// The canonical provenance order every accepted roster leaves in: input
 /// realization site, then the disposition's canonical tag and site. The
 /// order is part of the candidate contract, so every family sorts through
