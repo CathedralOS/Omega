@@ -854,6 +854,10 @@ impl TerminalExecution<'_> {
                 referent.projected_qualifications.push(row.clone());
             }
         }
+        referent.qualifications.sort();
+        referent.qualifications.dedup();
+        referent.projected_qualifications.sort();
+        referent.projected_qualifications.dedup();
         let mut required_projected = Vec::new();
         terminal_psi::StructuralPathQualification::append_under(
             &required_whole,
