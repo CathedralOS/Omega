@@ -92,17 +92,15 @@ impl emission::Emission<'_, '_, '_> {
     pub(super) fn establish_zeroed(&mut self) -> Result<PlaceId, LoweringError> {
         let place = place_id(allocate_dense(self.environment.next_place)?);
         let operation = self.operations.allocate();
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id: operation,
-            result: structural_result_declaration(
+        self.operations.push(Operation::unsuspended(
+            operation,
+            structural_result_declaration(
                 place,
                 self.structural_type,
                 crate::emission::borrowed_window::zeroed_image(self.multiplicity),
             ),
-            kind: OperationKind::EstablishZeroedStructural {},
-        });
+            OperationKind::EstablishZeroedStructural {},
+        ));
         self.environment
             .private_places
             .push(StructuralPlaceDeclaration {

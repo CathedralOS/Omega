@@ -60,13 +60,11 @@ impl OperationFrame<'_, '_> {
             id,
             call.target.machine,
         )?;
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
+        self.operations.push(Operation::unsuspended(
             id,
-            result: OperationResult::Unit,
-            kind: operands.into_kind(),
-        });
+            OperationResult::Unit,
+            operands.into_kind(),
+        ));
         Ok(())
     }
 
@@ -130,13 +128,11 @@ impl OperationFrame<'_, '_> {
             id,
             *target_machine,
         )?;
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
+        self.operations.push(Operation::unsuspended(
             id,
-            result: OperationResult::Scalar(value),
-            kind: operands.into_kind(),
-        });
+            OperationResult::Scalar(value),
+            operands.into_kind(),
+        ));
         result_policy::emit(policy, value, self.next_value, self.operations)
     }
 

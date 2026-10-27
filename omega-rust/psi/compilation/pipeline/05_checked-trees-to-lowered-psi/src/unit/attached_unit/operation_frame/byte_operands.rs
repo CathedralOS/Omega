@@ -161,11 +161,9 @@ impl OperationFrame<'_, '_> {
         );
         let destination = place_id(allocate_dense(self.next_place)?);
         let producer = self.operations.allocate();
-        self.operations.push(Operation {
-            id: producer,
-            static_reach_binding: None,
-            suspension_crossing: None,
-            result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+        self.operations.push(Operation::unsuspended(
+            producer,
+            OperationResult::Structural(terminal_psi::StructuralOperationResult {
                 place: destination,
                 structural_type,
                 multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
@@ -174,11 +172,11 @@ impl OperationFrame<'_, '_> {
                 qualification_establishments: Vec::new(),
                 claims: Vec::new(),
             }),
-            kind: OperationKind::StructuralLeafCopy {
+            OperationKind::StructuralLeafCopy {
                 source: place,
                 path,
             },
-        });
+        ));
         self.private_places.push(StructuralPlaceDeclaration {
             id: destination,
             kind: StructuralPlaceKind::OperationResult {

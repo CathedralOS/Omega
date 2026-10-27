@@ -785,32 +785,33 @@ fn prepare_owners(
         let entry = source_parameters
             .iter()
             .any(|parameter| parameter.symbol == symbol);
-        let has_conflicting_selection = checked
-            .facts
-            .flow
-            .ownership
-            .with_state_owned_selections(state, |handles| {
-                handles.iter().copied().any(|handle| {
-                    let receipt = checked.facts.flow.ownership.owned_selections.get(handle);
-                    receipt.machine == machine
-                        && receipt.state == state
-                        && matches!(
-                            receipt.evaluation,
-                            checked_trees::FlowPermissionEvaluation::Statement
-                                | checked_trees::FlowPermissionEvaluation::TransitionGuard
-                        )
-                        && (entry || receipt.statement_ordinal > formation)
-                        && receipt.statement_ordinal < statement
-                        && checked
-                            .facts
-                            .flow
-                            .ownership
-                            .selection_sources
-                            .span_or_empty(receipt.sources)
-                            .iter()
-                            .any(|source| source.symbol == symbol)
-                })
-            });
+        let has_conflicting_selection =
+            checked
+                .facts
+                .flow
+                .ownership
+                .with_state_owned_selections(state, |handles| {
+                    handles.iter().copied().any(|handle| {
+                        let receipt = checked.facts.flow.ownership.owned_selections.get(handle);
+                        receipt.machine == machine
+                            && receipt.state == state
+                            && matches!(
+                                receipt.evaluation,
+                                checked_trees::FlowPermissionEvaluation::Statement
+                                    | checked_trees::FlowPermissionEvaluation::TransitionGuard
+                            )
+                            && (entry || receipt.statement_ordinal > formation)
+                            && receipt.statement_ordinal < statement
+                            && checked
+                                .facts
+                                .flow
+                                .ownership
+                                .selection_sources
+                                .span_or_empty(receipt.sources)
+                                .iter()
+                                .any(|source| source.symbol == symbol)
+                    })
+                });
         if has_conflicting_selection {
             return Ok(false);
         }
@@ -1879,18 +1880,15 @@ impl Emission<'_, '_, '_> {
                 )?;
                 let place = place_id(allocate_dense(self.environment.next_place)?);
                 let operation = self.operations.allocate();
-                self.operations.push(terminal_psi::Operation {
-                    id: operation,
-                    static_reach_binding: None,
-                    suspension_crossing: None,
-                    result:
-                        crate::emission::operation_emission::buffer::structural_result_declaration(
-                            place,
-                            self.structural_type,
-                            StructuralMultiplicity::Unrestricted,
-                        ),
-                    kind: OperationKind::EstablishNativeCodeLayout { machine },
-                });
+                self.operations.push(terminal_psi::Operation::unsuspended(
+                    operation,
+                    crate::emission::operation_emission::buffer::structural_result_declaration(
+                        place,
+                        self.structural_type,
+                        StructuralMultiplicity::Unrestricted,
+                    ),
+                    OperationKind::EstablishNativeCodeLayout { machine },
+                ));
                 self.environment
                     .private_places
                     .push(StructuralPlaceDeclaration {
@@ -2805,11 +2803,9 @@ impl Emission<'_, '_, '_> {
         let place = place_id(allocate_dense(self.environment.next_place)?);
         let first_operation = self.operations.operations.len();
         let operation = self.operations.allocate();
-        self.operations.push(terminal_psi::Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id: operation,
-            result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+        self.operations.push(terminal_psi::Operation::unsuspended(
+            operation,
+            OperationResult::Structural(terminal_psi::StructuralOperationResult {
                 qualification_establishments: Vec::new(),
                 place,
                 structural_type: self.structural_type,
@@ -2818,11 +2814,11 @@ impl Emission<'_, '_, '_> {
                 projected_qualifications,
                 claims: Vec::new(),
             }),
-            kind: OperationKind::StructuralLeafCopy {
+            OperationKind::StructuralLeafCopy {
                 source: argument.place,
                 path,
             },
-        });
+        ));
         self.environment
             .private_places
             .push(operation_result_declaration(
@@ -2890,13 +2886,11 @@ impl Emission<'_, '_, '_> {
     ) -> Result<(), LoweringError> {
         let condition = value_id(allocate_dense(self.next_value)?);
         let id = self.operations.allocate();
-        self.operations.push(terminal_psi::Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
+        self.operations.push(terminal_psi::Operation::unsuspended(
             id,
-            result: scalar_result_declaration(condition, ScalarType::Boolean),
+            scalar_result_declaration(condition, ScalarType::Boolean),
             kind,
-        });
+        ));
         self.boolean_value_split(condition, fallback)
     }
 

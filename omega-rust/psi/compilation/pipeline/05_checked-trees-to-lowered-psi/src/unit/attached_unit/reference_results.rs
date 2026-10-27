@@ -76,15 +76,13 @@ pub(crate) fn publish_storage(
         qualifications: Default::default(),
     };
     let id = operations.allocate();
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
+    operations.push(Operation::unsuspended(
         id,
-        result: terminal_psi::OperationResult::Scalar(value.clone()),
-        kind: OperationKind::IntegerConstant {
+        terminal_psi::OperationResult::Scalar(value.clone()),
+        OperationKind::IntegerConstant {
             value: semantic_vocabulary::IntegerValue::Unsigned(0),
         },
-    });
+    ));
     Ok((
         PublishedReferenceStorage::RepresentationView(terminal_psi::ReferenceStorageView {
             byte_offset,
@@ -396,13 +394,7 @@ pub(crate) fn emit_carrier(
         result.projected_qualifications.sort();
         result.projected_qualifications.dedup();
     }
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id,
-        result,
-        kind,
-    });
+    operations.push(Operation::unsuspended(id, result, kind));
     Ok(StructuralPlaceDeclaration {
         id: place,
         kind: StructuralPlaceKind::OperationResult {

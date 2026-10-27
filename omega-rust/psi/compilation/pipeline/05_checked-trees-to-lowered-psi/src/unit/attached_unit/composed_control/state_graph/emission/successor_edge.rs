@@ -662,17 +662,15 @@ impl StateGraphEmission<'_, '_> {
                                 })
                                 .collect::<Result<Vec<_>, _>>()?;
                             let producer = operations.allocate();
-                            operations.push(Operation {
-                                static_reach_binding: None,
-                                suspension_crossing: None,
-                                id: producer,
-                                result: OperationResult::Unit,
-                                kind: OperationKind::EstablishByteSequenceLiteral {
+                            operations.push(Operation::unsuspended(
+                                producer,
+                                OperationResult::Unit,
+                                OperationKind::EstablishByteSequenceLiteral {
                                     destination,
                                     bytes: bytes.clone(),
                                     qualifications,
                                 },
-                            });
+                            ));
                             destination
                         }
                         checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedValue {
@@ -712,11 +710,9 @@ impl StateGraphEmission<'_, '_> {
                                 &target_parameter.type_identity,
                             )?;
                             let producer = operations.allocate();
-                            operations.push(Operation {
-                                static_reach_binding: None,
-                                suspension_crossing: None,
-                                id: producer,
-                                result: OperationResult::Structural(
+                            operations.push(Operation::unsuspended(
+                                producer,
+                                OperationResult::Structural(
                                     terminal_psi::StructuralOperationResult {
                                         qualification_establishments: Vec::new(),
                                         place: destination,
@@ -727,8 +723,8 @@ impl StateGraphEmission<'_, '_> {
                                         claims: Vec::new(),
                                     },
                                 ),
-                                kind: OperationKind::StructuralLeafCopy { source, path },
-                            });
+                                OperationKind::StructuralLeafCopy { source, path },
+                            ));
                             self.catalogs.temporary_places.push(
                                 StructuralPlaceDeclaration {
                                     id: destination,

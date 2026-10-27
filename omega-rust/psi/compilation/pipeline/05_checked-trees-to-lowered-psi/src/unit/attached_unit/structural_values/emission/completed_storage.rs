@@ -439,23 +439,19 @@ impl Emission<'_, '_, '_> {
         let transported_claims = completed.claims;
         let place = super::place_id(super::allocate_dense(self.environment.next_place)?);
         let operation = self.operations.allocate();
-        self.operations.push(terminal_psi::Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id: operation,
-            result: terminal_psi::OperationResult::Structural(
-                terminal_psi::StructuralOperationResult {
-                    place,
-                    structural_type: self.structural_type,
-                    multiplicity: self.multiplicity,
-                    qualifications,
-                    projected_qualifications,
-                    qualification_establishments: Vec::new(),
-                    claims: transported_claims.clone(),
-                },
-            ),
-            kind: terminal_psi::OperationKind::MoveStructuralValue { source },
-        });
+        self.operations.push(terminal_psi::Operation::unsuspended(
+            operation,
+            terminal_psi::OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                place,
+                structural_type: self.structural_type,
+                multiplicity: self.multiplicity,
+                qualifications,
+                projected_qualifications,
+                qualification_establishments: Vec::new(),
+                claims: transported_claims.clone(),
+            }),
+            terminal_psi::OperationKind::MoveStructuralValue { source },
+        ));
         self.evaluation
             .retire_structural_operation_operands(operation, self.operations)?;
         self.environment

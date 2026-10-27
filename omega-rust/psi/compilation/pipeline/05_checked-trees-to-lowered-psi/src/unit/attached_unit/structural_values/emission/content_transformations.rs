@@ -301,11 +301,9 @@ impl Emission<'_, '_, '_> {
             parents.iter().chain(std::iter::once(&source)),
             self.operations,
         )?;
-        self.operations.push(Operation {
-            id: operation,
-            static_reach_binding: None,
-            suspension_crossing: None,
-            result: OperationResult::Structural(StructuralOperationResult {
+        self.operations.push(Operation::unsuspended(
+            operation,
+            OperationResult::Structural(StructuralOperationResult {
                 place,
                 structural_type: self.structural_type,
                 multiplicity: self.multiplicity,
@@ -314,12 +312,12 @@ impl Emission<'_, '_, '_> {
                 qualification_establishments: Vec::new(),
                 claims,
             }),
-            kind: OperationKind::TransformContent {
+            OperationKind::TransformContent {
                 source,
                 parents,
                 derivations,
             },
-        });
+        ));
         self.environment
             .private_places
             .push(StructuralPlaceDeclaration {

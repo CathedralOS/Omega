@@ -565,22 +565,18 @@ pub(crate) fn emit_view(
     operations: &mut OperationBuffer,
 ) -> StructuralPlaceDeclaration {
     let access = source.access;
-    operations.push(terminal_psi::Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: producer,
-        result: terminal_psi::OperationResult::Structural(
-            terminal_psi::StructuralOperationResult {
-                qualification_establishments: Vec::new(),
-                place,
-                structural_type,
-                multiplicity,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-                claims: Vec::new(),
-            },
-        ),
-        kind: if access == terminal_psi::StructuralAccess::MutableBorrow {
+    operations.push(terminal_psi::Operation::unsuspended(
+        producer,
+        terminal_psi::OperationResult::Structural(terminal_psi::StructuralOperationResult {
+            qualification_establishments: Vec::new(),
+            place,
+            structural_type,
+            multiplicity,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            claims: Vec::new(),
+        }),
+        if access == terminal_psi::StructuralAccess::MutableBorrow {
             terminal_psi::OperationKind::EstablishMutableElementView {
                 destination: place,
                 source,
@@ -595,7 +591,7 @@ pub(crate) fn emit_view(
                 region,
             }
         },
-    });
+    ));
     StructuralPlaceDeclaration {
         id: place,
         kind: semantic_vocabulary::StructuralPlaceKind::OperationResult {

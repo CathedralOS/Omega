@@ -999,13 +999,8 @@ impl OperationFrame<'_, '_> {
     /// Append one Unit-result operation at the next identity.
     fn push_unit(&mut self, kind: OperationKind) {
         let id = self.operations.allocate();
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id,
-            result: OperationResult::Unit,
-            kind,
-        });
+        self.operations
+            .push(Operation::unsuspended(id, OperationResult::Unit, kind));
     }
 }
 
@@ -1052,11 +1047,9 @@ pub(super) fn allocate_structural_result(
 ) -> Result<(PlaceId, OperationId), LoweringError> {
     let place = place_id(allocate_dense(next_place)?);
     let producer = operations.allocate();
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: producer,
-        result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+    operations.push(Operation::unsuspended(
+        producer,
+        OperationResult::Structural(terminal_psi::StructuralOperationResult {
             qualification_establishments: Vec::new(),
             place,
             structural_type,
@@ -1066,7 +1059,7 @@ pub(super) fn allocate_structural_result(
             claims: Vec::new(),
         }),
         kind,
-    });
+    ));
     Ok((place, producer))
 }
 

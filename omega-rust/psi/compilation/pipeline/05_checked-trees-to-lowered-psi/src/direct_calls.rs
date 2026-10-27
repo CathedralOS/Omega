@@ -134,13 +134,11 @@ pub(crate) fn emit_direct_call(
                 source_values_before_call,
             )?,
     }
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: operation,
+    operations.push(Operation::unsuspended(
+        operation,
         result,
-        kind: call.into_operation_kind(),
-    });
+        call.into_operation_kind(),
+    ));
     Ok(operation)
 }
 

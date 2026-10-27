@@ -571,20 +571,18 @@ impl OperationFrame<'_, '_> {
         };
         self.private_places.push(declaration);
         let id = self.operations.allocate();
-        self.operations.push(Operation {
+        // A literal view's bytes are image storage: the predicate obligation
+        // belongs to the consuming store, as in `emit_literal_view`, not to
+        // this establishment.
+        self.operations.push(Operation::unsuspended(
             id,
-            static_reach_binding: None,
-            suspension_crossing: None,
-            result: OperationResult::Unit,
-            // A literal view's bytes are image storage: the predicate
-            // obligation belongs to the consuming store, as in
-            // `emit_literal_view`, not to this establishment.
-            kind: OperationKind::EstablishByteSequenceLiteral {
+            OperationResult::Unit,
+            OperationKind::EstablishByteSequenceLiteral {
                 destination,
                 bytes: bytes.to_vec(),
                 qualifications: Vec::new(),
             },
-        });
+        ));
         self.evaluation
             .current_claims
             .publish(destination, Vec::new())?;
@@ -945,11 +943,9 @@ impl OperationFrame<'_, '_> {
                 // would partially move an affine parent before its next use.
                 let place = place_id(allocate_dense(self.next_place)?);
                 let producer = self.operations.allocate();
-                self.operations.push(Operation {
-                    static_reach_binding: None,
-                    suspension_crossing: None,
-                    id: producer,
-                    result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                self.operations.push(Operation::unsuspended(
+                    producer,
+                    OperationResult::Structural(terminal_psi::StructuralOperationResult {
                         place,
                         structural_type: selected,
                         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
@@ -958,11 +954,11 @@ impl OperationFrame<'_, '_> {
                         qualification_establishments: Vec::new(),
                         claims: Vec::new(),
                     }),
-                    kind: OperationKind::StructuralLeafCopy {
+                    OperationKind::StructuralLeafCopy {
                         source: repair.place,
                         path,
                     },
-                });
+                ));
                 self.private_places
                     .push(operation_result_declaration(place, producer, selected));
                 repair.place = place;

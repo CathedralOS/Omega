@@ -677,11 +677,9 @@ pub(super) fn emit_read_source(
                     .checked_add(producer.get())
                     .expect("hoisted leaf places admit a reserved namespace"),
             );
-            operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id: producer,
-                result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+            operations.push(Operation::unsuspended(
+                producer,
+                OperationResult::Structural(terminal_psi::StructuralOperationResult {
                     qualification_establishments: Vec::new(),
                     place,
                     structural_type: *structural_type,
@@ -690,11 +688,11 @@ pub(super) fn emit_read_source(
                     projected_qualifications: Vec::new(),
                     claims: Vec::new(),
                 }),
-                kind: OperationKind::StructuralCaseLeafCopy {
+                OperationKind::StructuralCaseLeafCopy {
                     source: *source,
                     path: path.clone(),
                 },
-            });
+            ));
             place
         }
     }
@@ -1082,13 +1080,11 @@ pub(crate) fn emit_direct_expression(
             if *formation_decided && let Some(obligation) = kind.formation_obligation(operation) {
                 operations.source_checked_obligations.push(obligation);
             }
-            operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id: operation,
-                result: scalar_result_declaration(id, *scalar_type),
-                kind: kind.operation(operation, left, right),
-            });
+            operations.push(Operation::unsuspended(
+                operation,
+                scalar_result_declaration(id, *scalar_type),
+                kind.operation(operation, left, right),
+            ));
             id
         }
         LoweredDirectExpression::IntegerBitwiseNot {
@@ -1135,16 +1131,14 @@ pub(crate) fn emit_direct_expression(
             if *formation_decided {
                 operations.source_checked_obligations.push(obligation);
             }
-            operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id: operation,
-                result: scalar_result_declaration(id, *scalar_type),
-                kind: OperationKind::IntegerExactCast {
+            operations.push(Operation::unsuspended(
+                operation,
+                scalar_result_declaration(id, *scalar_type),
+                OperationKind::IntegerExactCast {
                     operand,
                     obligation,
                 },
-            });
+            ));
             id
         }
         LoweredDirectExpression::RepresentationView {
@@ -1181,16 +1175,14 @@ pub(crate) fn emit_direct_expression(
             if let Some(obligation) = landing_obligation {
                 operations.source_checked_obligations.push(obligation);
             }
-            operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id: operation,
-                result: scalar_result_declaration(id, *scalar_type),
-                kind: OperationKind::ScalarRepresentationView {
+            operations.push(Operation::unsuspended(
+                operation,
+                scalar_result_declaration(id, *scalar_type),
+                OperationKind::ScalarRepresentationView {
                     operand,
                     landing_obligation,
                 },
-            });
+            ));
             id
         }
         LoweredDirectExpression::Boolean { expression } => {

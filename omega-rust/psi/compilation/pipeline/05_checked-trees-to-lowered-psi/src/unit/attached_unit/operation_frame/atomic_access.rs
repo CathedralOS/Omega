@@ -26,13 +26,11 @@ impl OperationFrame<'_, '_> {
         ordering: language_core::atomic::FenceOrdering,
     ) -> Result<(), LoweringError> {
         let id = self.operations.allocate();
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
+        self.operations.push(Operation::unsuspended(
             id,
-            result: OperationResult::Unit,
-            kind: OperationKind::AtomicFence { ordering },
-        });
+            OperationResult::Unit,
+            OperationKind::AtomicFence { ordering },
+        ));
         Ok(())
     }
 
@@ -250,19 +248,17 @@ impl OperationFrame<'_, '_> {
             _ => return unsupported("atomic event result disagrees with its event"),
         };
         let id = self.operations.allocate();
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
+        self.operations.push(Operation::unsuspended(
             id,
             result,
-            kind: OperationKind::AtomicAccess {
+            OperationKind::AtomicAccess {
                 place,
                 path,
                 field,
                 event,
                 resident_obligation,
             },
-        });
+        ));
         Ok(())
     }
 }

@@ -220,16 +220,14 @@ pub(crate) fn establish_at(
         unreachable!("structural declaration");
     };
     declared.qualifications = qualifications;
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: producer,
+    operations.push(Operation::unsuspended(
+        producer,
         result,
-        kind: OperationKind::EstablishPrimitiveLocal {
+        OperationKind::EstablishPrimitiveLocal {
             value: value.id,
             range_obligation,
         },
-    });
+    ));
     Ok(StructuralPlaceDeclaration {
         id: place,
         kind: StructuralPlaceKind::OperationResult {

@@ -147,13 +147,11 @@ pub(crate) fn emit(
             obligation,
         },
     };
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: producer,
-        result: structural_result_declaration(destination, structural_type, multiplicity),
+    operations.push(Operation::unsuspended(
+        producer,
+        structural_result_declaration(destination, structural_type, multiplicity),
         kind,
-    });
+    ));
     Ok(StructuralPlaceDeclaration {
         id: destination,
         kind: StructuralPlaceKind::OperationResult {

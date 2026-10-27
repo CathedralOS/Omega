@@ -91,11 +91,9 @@ pub(super) fn emit(
     let (qualifications, projected_qualifications) =
         terminal_psi::StructuralPathQualification::select(whole, projected, &storage_path);
     let producer = operations.allocate();
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: producer,
-        result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+    operations.push(Operation::unsuspended(
+        producer,
+        OperationResult::Structural(terminal_psi::StructuralOperationResult {
             qualification_establishments: Vec::new(),
             place: destination,
             structural_type: leaf,
@@ -104,11 +102,11 @@ pub(super) fn emit(
             projected_qualifications,
             claims: Vec::new(),
         }),
-        kind: OperationKind::StructuralCaseLeafCopy {
+        OperationKind::StructuralCaseLeafCopy {
             source,
             path: canonical,
         },
-    });
+    ));
     Ok(StructuralPlaceDeclaration {
         id: destination,
         kind: StructuralPlaceKind::OperationResult {

@@ -240,20 +240,14 @@ pub(crate) fn emit_adaptation(
     operations: &mut OperationBuffer,
 ) -> StructuralPlaceDeclaration {
     let copy = operations.allocate();
-    operations.push(terminal_psi::Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: copy,
-        result: structural_result_declaration(
-            place,
-            structural_type,
-            StructuralMultiplicity::Unrestricted,
-        ),
-        kind: terminal_psi::OperationKind::StructuralLeafCopy {
+    operations.push(terminal_psi::Operation::unsuspended(
+        copy,
+        structural_result_declaration(place, structural_type, StructuralMultiplicity::Unrestricted),
+        terminal_psi::OperationKind::StructuralLeafCopy {
             source,
             path: Vec::new(),
         },
-    });
+    ));
     operations.quotient_adaptations.push(
         crate::emission::operation_emission::buffer::SourceQuotientAdaptation {
             value,

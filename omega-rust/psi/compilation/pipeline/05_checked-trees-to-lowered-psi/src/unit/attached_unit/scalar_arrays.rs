@@ -28,15 +28,13 @@ pub(super) fn emit(
     if let terminal_psi::OperationResult::Structural(result) = &mut result {
         result.qualifications = qualifications;
     }
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
+    operations.push(Operation::unsuspended(
         id,
         result,
-        kind: OperationKind::EstablishScalarArray {
+        OperationKind::EstablishScalarArray {
             elements: elements.iter().map(|element| element.id).collect(),
         },
-    });
+    ));
     Ok(StructuralPlaceDeclaration {
         id: place,
         kind: StructuralPlaceKind::OperationResult {
