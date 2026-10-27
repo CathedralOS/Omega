@@ -6,6 +6,7 @@
 //! instructions.
 
 use crate::object_artifact::replay::x86_register_info_writes_stack_pointer;
+use crate::order::strictly_increasing;
 
 use machine_code::{
     ScalarControlAffineCleanupRecord, ScalarControlFlowEvidence, ScalarStackEvidence,
@@ -143,11 +144,7 @@ pub(crate) fn validate_scalar_stack(
     if !scalar_control_affine_cleanups.is_empty() {
         return Err(ObjectError::InvalidUnitAffineCleanupEvidence(machine));
     }
-    if evidence
-        .mutations
-        .windows(2)
-        .any(|pair| pair[0].offset >= pair[1].offset)
-    {
+    if !strictly_increasing(&evidence.mutations, |row| row.offset) {
         return Err(ObjectError::NonCanonicalScalarStackMutationOrder(machine));
     }
     let (mut claimed, mut call_sites) =

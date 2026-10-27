@@ -26,6 +26,7 @@ use super::super::instruction_loads::{
     aarch64_terminal_register, expected_aarch64_stack_load, expected_x86_stack_load,
     x86_terminal_register,
 };
+use crate::order::strictly_increasing;
 use crate::{ObjectError, ObjectUnitCallStack, ObjectUnitStack};
 
 pub(crate) fn validate_internal_unit_scalar_calls(
@@ -126,7 +127,7 @@ fn validate_home_roster(
         .collect::<Vec<_>>();
     producers.sort_by_key(|(ordinal, _, _)| *ordinal);
     if function.unit_scalar_homes.len() != producers.len()
-        || producers.windows(2).any(|pair| pair[0].0 >= pair[1].0)
+        || !strictly_increasing(&producers, |row| row.0)
     {
         return Err(invalid());
     }

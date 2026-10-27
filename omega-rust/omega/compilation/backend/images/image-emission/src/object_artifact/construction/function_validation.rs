@@ -41,6 +41,7 @@ use crate::object_artifact::replay::unit::write_only_primitive_store::validate_u
 use crate::object_artifact::{
     ObjectError, ObjectScalarCallStack, ObjectScalarStack, ObjectUnitCallStack, ObjectUnitStack,
 };
+use crate::order::strictly_increasing;
 use machine_code::MachineCodeFunction;
 use machine_code::{MachineCodePlan, SemanticCodeSite};
 use semantic_vocabulary::{MachineId, PlaceId, StructuralTypeId};
@@ -1003,11 +1004,7 @@ fn validate_function_shape(
     if function.bytes.is_empty() {
         return Err(ObjectError::EmptyFunction(function.machine));
     }
-    if function
-        .internal_calls
-        .windows(2)
-        .any(|pair| pair[0].offset >= pair[1].offset)
-    {
+    if !strictly_increasing(&function.internal_calls, |row| row.offset) {
         return Err(ObjectError::NonCanonicalInternalCallOrder(function.machine));
     }
     if (function.unit_affine_cleanup.is_some()
@@ -1020,11 +1017,7 @@ fn validate_function_shape(
             function.machine,
         ));
     }
-    if function
-        .foreign_calls
-        .windows(2)
-        .any(|pair| pair[0].offset >= pair[1].offset)
-    {
+    if !strictly_increasing(&function.foreign_calls, |row| row.offset) {
         return Err(ObjectError::NonCanonicalForeignCallOrder(function.machine));
     }
     Ok(())
@@ -1137,9 +1130,8 @@ fn validate_foreign_calls(
 /// Semantic code attribution rows are ordered, inside the function, and name
 /// each provenance site once.
 fn validate_semantic_code_attribution(function: &MachineCodeFunction) -> Result<(), ObjectError> {
-    if function.semantic_code_attribution.windows(2).any(|pair| {
-        (pair[0].operation_ordinal, pair[0].code_offset)
-            >= (pair[1].operation_ordinal, pair[1].code_offset)
+    if !strictly_increasing(&function.semantic_code_attribution, |row| {
+        (row.operation_ordinal, row.code_offset)
     }) {
         return Err(ObjectError::NonCanonicalSemanticCodeAttributionOrder(
             function.machine,
@@ -1174,9 +1166,8 @@ fn validate_port_effects(
     plan: &MachineCodePlan,
     function: &MachineCodeFunction,
 ) -> Result<(), ObjectError> {
-    if function.port_effects.windows(2).any(|pair| {
-        (pair[0].code_offset, pair[0].operation_ordinal)
-            >= (pair[1].code_offset, pair[1].operation_ordinal)
+    if !strictly_increasing(&function.port_effects, |row| {
+        (row.code_offset, row.operation_ordinal)
     }) {
         return Err(ObjectError::NonCanonicalPortEffectOrder(function.machine));
     }
@@ -1230,9 +1221,8 @@ fn validate_boundary_settlements(
     plan: &MachineCodePlan,
     function: &MachineCodeFunction,
 ) -> Result<(), ObjectError> {
-    if function.boundary_settlements.windows(2).any(|pair| {
-        (pair[0].code_offset, pair[0].operation_ordinal)
-            >= (pair[1].code_offset, pair[1].operation_ordinal)
+    if !strictly_increasing(&function.boundary_settlements, |row| {
+        (row.code_offset, row.operation_ordinal)
     }) {
         return Err(ObjectError::NonCanonicalBoundarySettlementOrder(
             function.machine,

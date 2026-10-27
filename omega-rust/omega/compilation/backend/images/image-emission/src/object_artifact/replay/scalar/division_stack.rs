@@ -6,6 +6,7 @@
 //! select calling conventions, or emit instructions.
 
 use crate::object_artifact::replay::x86_register_info_writes_stack_pointer;
+use crate::order::strictly_increasing;
 
 use machine_code::{ScalarDivisionBranchEvidence, ScalarStackEvidence, ScalarStackMutation};
 use semantic_vocabulary::MachineId;
@@ -28,11 +29,7 @@ pub(crate) fn validate_linear_scalar_division_stack(
     if architecture != Architecture::X86_64 || branches.is_empty() {
         return Err(ObjectError::InvalidScalarConditionalEvidence { machine, offset: 0 });
     }
-    if evidence
-        .mutations
-        .windows(2)
-        .any(|pair| pair[0].offset >= pair[1].offset)
-    {
+    if !strictly_increasing(&evidence.mutations, |row| row.offset) {
         return Err(ObjectError::NonCanonicalScalarStackMutationOrder(machine));
     }
     let (mut claimed, mut call_sites) =

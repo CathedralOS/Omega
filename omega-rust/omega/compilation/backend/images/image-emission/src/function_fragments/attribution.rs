@@ -4,6 +4,7 @@
 mod tests;
 
 use super::{Error, host};
+use crate::order::strictly_increasing;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use machine_code::{
     FunctionFragment, FunctionFragmentBranchEvidence, FunctionFragmentControlProvenance as Control,
@@ -310,10 +311,7 @@ pub(super) fn validate(
             ));
         }
     }
-    if rows.windows(2).any(|pair| {
-        (pair[0].operation_ordinal, pair[0].code_offset)
-            >= (pair[1].operation_ordinal, pair[1].code_offset)
-    }) {
+    if !strictly_increasing(rows, |row| (row.operation_ordinal, row.code_offset)) {
         return Err(Error::Mismatch(
             "object semantic attribution order is not canonical",
         ));
