@@ -6,6 +6,7 @@
 //! exact check this module performs — one relation, two readers.
 
 use super::integer_math_normalization::propositions_match_under_integer_math_normalization;
+use super::dispatched_rule;
 use super::{AcceptanceBuilder, AcceptedProofRule, ProofError, RuleScope};
 use semantic_vocabulary::{Proposition, PropositionContext};
 use terminal_psi::{ProofNode, ProofRule};
@@ -14,10 +15,7 @@ pub(super) fn check_equality_symmetry(
     proof: &ProofNode,
     acceptance: &mut AcceptanceBuilder,
 ) -> Result<(), ProofError> {
-    let ProofRule::EqualitySymmetry { equality } = &proof.rule else {
-        unreachable!("dispatched check_equality_symmetry")
-    };
-    acceptance.rules.insert(AcceptedProofRule::EqualitySymmetry);
+    dispatched_rule!(proof, acceptance, ProofRule::EqualitySymmetry { equality } => EqualitySymmetry);
     let Proposition::Equal(left, right) = &equality.conclusion else {
         return Err(ProofError::RulePremiseMismatch("equality symmetry"));
     };
@@ -52,14 +50,9 @@ pub(super) fn check_predicate_denotation(
     proof: &ProofNode,
     acceptance: &mut AcceptanceBuilder,
 ) -> Result<(), ProofError> {
-    let ProofRule::PredicateDenotation { premise } = &proof.rule else {
-        unreachable!("dispatched check_predicate_denotation")
-    };
+    dispatched_rule!(proof, acceptance, ProofRule::PredicateDenotation { premise } => PredicateDenotation);
     let RuleScope { context, .. } = *scope;
     predicate_denotation_relation(context, &premise.conclusion, &proof.conclusion)?;
-    acceptance
-        .rules
-        .insert(AcceptedProofRule::PredicateDenotation);
     Ok(())
 }
 
@@ -92,13 +85,7 @@ pub(super) fn check_value_equality_transport(
     proof: &ProofNode,
     acceptance: &mut AcceptanceBuilder,
 ) -> Result<(), ProofError> {
-    let ProofRule::ValueEqualityTransport {
-        premise,
-        equalities,
-    } = &proof.rule
-    else {
-        unreachable!("dispatched check_value_equality_transport")
-    };
+    dispatched_rule!(proof, acceptance, ProofRule::ValueEqualityTransport { premise, equalities } => ValueEqualityTransport);
     let RuleScope { context, .. } = *scope;
     let equations = || equalities.iter().map(|equality| &equality.conclusion);
     value_equality_transport_relation(
@@ -107,9 +94,6 @@ pub(super) fn check_value_equality_transport(
         equations(),
         &proof.conclusion,
     )?;
-    acceptance
-        .rules
-        .insert(AcceptedProofRule::ValueEqualityTransport);
     Ok(())
 }
 
@@ -193,16 +177,7 @@ pub(super) fn check_equality_transitivity(
     proof: &ProofNode,
     acceptance: &mut AcceptanceBuilder,
 ) -> Result<(), ProofError> {
-    let ProofRule::EqualityTransitivity {
-        left_equals_middle,
-        middle_equals_right,
-    } = &proof.rule
-    else {
-        unreachable!("dispatched check_equality_transitivity")
-    };
-    acceptance
-        .rules
-        .insert(AcceptedProofRule::EqualityTransitivity);
+    dispatched_rule!(proof, acceptance, ProofRule::EqualityTransitivity { left_equals_middle, middle_equals_right } => EqualityTransitivity);
     equality_transitivity_relation(
         &left_equals_middle.conclusion,
         &middle_equals_right.conclusion,

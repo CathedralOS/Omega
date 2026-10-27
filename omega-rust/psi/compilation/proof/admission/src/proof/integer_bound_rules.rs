@@ -11,6 +11,7 @@
 use std::collections::BTreeSet;
 
 use super::integer_math_normalization::lower_integer_math_relation;
+use super::dispatched_rule;
 use super::{AcceptanceBuilder, AcceptedProofRule, ProofError, RuleScope};
 use crate::{
     CheckedIntegerCastChain, CheckedIntegerCorrelatedForbiddenRoots,
@@ -458,9 +459,7 @@ pub(super) fn check_integer_correlated_forbidden_roots(
     proof: &ProofNode,
     acceptance: &mut AcceptanceBuilder,
 ) -> Result<(), ProofError> {
-    let ProofRule::IntegerCorrelatedForbiddenRoots { witness } = &proof.rule else {
-        unreachable!("dispatched check_integer_correlated_forbidden_roots")
-    };
+    dispatched_rule!(proof, acceptance, ProofRule::IntegerCorrelatedForbiddenRoots { witness } => IntegerCorrelatedForbiddenRoots);
     let RuleScope {
         context,
         assumptions,
@@ -468,9 +467,6 @@ pub(super) fn check_integer_correlated_forbidden_roots(
         machine_parameter_values,
         ..
     } = *scope;
-    acceptance
-        .rules
-        .insert(AcceptedProofRule::IntegerCorrelatedForbiddenRoots);
     let (citations, _) = correlated_forbidden_roots_relation(
         context,
         assumptions,

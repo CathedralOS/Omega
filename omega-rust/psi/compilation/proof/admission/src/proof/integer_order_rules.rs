@@ -11,6 +11,7 @@ use super::integer_math_normalization::{
     lift_exact_integer_order, lower_integer_math_relation,
     propositions_match_under_integer_math_normalization,
 };
+use super::dispatched_rule;
 use super::{AcceptanceBuilder, AcceptedProofRule, ProofError, mathematical_order, scalar_order};
 use semantic_vocabulary::{IntegerMathTerm, Proposition, ScalarType};
 use terminal_psi::{ProofNode, ProofRule};
@@ -19,16 +20,7 @@ pub(super) fn check_integer_subtract_order(
     proof: &ProofNode,
     acceptance: &mut AcceptanceBuilder,
 ) -> Result<(), ProofError> {
-    let ProofRule::IntegerSubtractOrder {
-        difference,
-        positive,
-    } = &proof.rule
-    else {
-        unreachable!("dispatched check_integer_subtract_order")
-    };
-    acceptance
-        .rules
-        .insert(AcceptedProofRule::IntegerSubtractOrder);
+    dispatched_rule!(proof, acceptance, ProofRule::IntegerSubtractOrder { difference, positive } => IntegerSubtractOrder);
     super::subtract_order::check(
         &difference.conclusion,
         &positive.conclusion,
@@ -40,10 +32,7 @@ pub(super) fn check_integer_add_order(
     proof: &ProofNode,
     acceptance: &mut AcceptanceBuilder,
 ) -> Result<(), ProofError> {
-    let ProofRule::IntegerAddOrder { sum, positive } = &proof.rule else {
-        unreachable!("dispatched check_integer_add_order")
-    };
-    acceptance.rules.insert(AcceptedProofRule::IntegerAddOrder);
+    dispatched_rule!(proof, acceptance, ProofRule::IntegerAddOrder { sum, positive } => IntegerAddOrder);
     super::add_order::check(&sum.conclusion, &positive.conclusion, &proof.conclusion)
 }
 
@@ -51,17 +40,7 @@ pub(super) fn check_integer_subtract_antitone(
     proof: &ProofNode,
     acceptance: &mut AcceptanceBuilder,
 ) -> Result<(), ProofError> {
-    let ProofRule::IntegerSubtractAntitone {
-        smaller,
-        larger,
-        order,
-    } = &proof.rule
-    else {
-        unreachable!("dispatched check_integer_subtract_antitone")
-    };
-    acceptance
-        .rules
-        .insert(AcceptedProofRule::IntegerSubtractAntitone);
+    dispatched_rule!(proof, acceptance, ProofRule::IntegerSubtractAntitone { smaller, larger, order } => IntegerSubtractAntitone);
     super::subtract_antitone::check(
         &smaller.conclusion,
         &larger.conclusion,
@@ -74,12 +53,7 @@ pub(super) fn check_integer_order_discreteness(
     proof: &ProofNode,
     acceptance: &mut AcceptanceBuilder,
 ) -> Result<(), ProofError> {
-    let ProofRule::IntegerOrderDiscreteness { relation } = &proof.rule else {
-        unreachable!("dispatched check_integer_order_discreteness")
-    };
-    acceptance
-        .rules
-        .insert(AcceptedProofRule::IntegerOrderDiscreteness);
+    dispatched_rule!(proof, acceptance, ProofRule::IntegerOrderDiscreteness { relation } => IntegerOrderDiscreteness);
     super::order_discreteness::check(&relation.conclusion, &proof.conclusion)
 }
 
@@ -112,12 +86,7 @@ pub(super) fn check_integer_order_weakening(
     proof: &ProofNode,
     acceptance: &mut AcceptanceBuilder,
 ) -> Result<(), ProofError> {
-    let ProofRule::IntegerOrderWeakening { relation } = &proof.rule else {
-        unreachable!("dispatched check_integer_order_weakening")
-    };
-    acceptance
-        .rules
-        .insert(AcceptedProofRule::IntegerOrderWeakening);
+    dispatched_rule!(proof, acceptance, ProofRule::IntegerOrderWeakening { relation } => IntegerOrderWeakening);
     order_weakening(&relation.conclusion, &proof.conclusion)
 }
 
@@ -162,16 +131,7 @@ pub(super) fn check_integer_less_or_equal_transitivity(
     proof: &ProofNode,
     acceptance: &mut AcceptanceBuilder,
 ) -> Result<(), ProofError> {
-    let ProofRule::IntegerLessOrEqualTransitivity {
-        left_less_or_equal_middle,
-        middle_less_or_equal_right,
-    } = &proof.rule
-    else {
-        unreachable!("dispatched check_integer_less_or_equal_transitivity")
-    };
-    acceptance
-        .rules
-        .insert(AcceptedProofRule::IntegerLessOrEqualTransitivity);
+    dispatched_rule!(proof, acceptance, ProofRule::IntegerLessOrEqualTransitivity { left_less_or_equal_middle, middle_less_or_equal_right } => IntegerLessOrEqualTransitivity);
     less_or_equal_transitivity(
         &left_less_or_equal_middle.conclusion,
         &middle_less_or_equal_right.conclusion,
@@ -183,16 +143,7 @@ pub(super) fn check_integer_strict_order_transitivity(
     proof: &ProofNode,
     acceptance: &mut AcceptanceBuilder,
 ) -> Result<(), ProofError> {
-    let ProofRule::IntegerStrictOrderTransitivity {
-        left_to_middle,
-        middle_to_right,
-    } = &proof.rule
-    else {
-        unreachable!("dispatched check_integer_strict_order_transitivity")
-    };
-    acceptance
-        .rules
-        .insert(AcceptedProofRule::IntegerStrictOrderTransitivity);
+    dispatched_rule!(proof, acceptance, ProofRule::IntegerStrictOrderTransitivity { left_to_middle, middle_to_right } => IntegerStrictOrderTransitivity);
     super::strict_order_transitivity::check(
         &left_to_middle.conclusion,
         &middle_to_right.conclusion,
@@ -204,17 +155,7 @@ pub(super) fn check_integer_order_substitution(
     proof: &ProofNode,
     acceptance: &mut AcceptanceBuilder,
 ) -> Result<(), ProofError> {
-    let ProofRule::IntegerOrderSubstitution {
-        relation,
-        equality,
-        endpoint,
-    } = &proof.rule
-    else {
-        unreachable!("dispatched check_integer_order_substitution")
-    };
-    acceptance
-        .rules
-        .insert(AcceptedProofRule::IntegerOrderSubstitution);
+    dispatched_rule!(proof, acceptance, ProofRule::IntegerOrderSubstitution { relation, equality, endpoint } => IntegerOrderSubstitution);
     endpoint_substitution(
         &relation.conclusion,
         &equality.conclusion,
@@ -329,13 +270,8 @@ pub(super) fn check_integer_math_order_translation(
     proof: &ProofNode,
     acceptance: &mut AcceptanceBuilder,
 ) -> Result<(), ProofError> {
-    let ProofRule::IntegerMathOrderTranslation { relation, addend } = &proof.rule else {
-        unreachable!("dispatched check_integer_math_order_translation");
-    };
+    dispatched_rule!(proof, acceptance, ProofRule::IntegerMathOrderTranslation { relation, addend } => IntegerMathOrderTranslation);
     math_order_translation(&relation.conclusion, addend, &proof.conclusion)?;
-    acceptance
-        .rules
-        .insert(AcceptedProofRule::IntegerMathOrderTranslation);
     Ok(())
 }
 
@@ -384,12 +320,7 @@ pub(super) fn check_integer_order_antisymmetry(
     proof: &ProofNode,
     acceptance: &mut AcceptanceBuilder,
 ) -> Result<(), ProofError> {
-    let ProofRule::IntegerOrderAntisymmetry { forward, backward } = &proof.rule else {
-        unreachable!("dispatched check_integer_order_antisymmetry");
-    };
+    dispatched_rule!(proof, acceptance, ProofRule::IntegerOrderAntisymmetry { forward, backward } => IntegerOrderAntisymmetry);
     order_antisymmetry(&forward.conclusion, &backward.conclusion, &proof.conclusion)?;
-    acceptance
-        .rules
-        .insert(AcceptedProofRule::IntegerOrderAntisymmetry);
     Ok(())
 }
