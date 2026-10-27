@@ -34,6 +34,21 @@ pub(crate) struct StateMutationSummaryCache {
     states: std::sync::OnceLock<BuiltStateMutationSummaries>,
 }
 
+impl StateMutationSummaryCache {
+    pub(crate) fn prewarm(
+        &self,
+        program: &dyn ::validation::CheckingInput,
+        borrow: &BorrowFacts,
+        call_frames: Option<&validation::CallFrameResolver<'_>>,
+    ) {
+        let _ = self.states.get_or_init(|| {
+            phase_profile::scope("05.d.3.b.flow.build_state_mutation_summaries", || {
+                build_state_mutation_summaries(program, borrow, call_frames)
+            })
+        });
+    }
+}
+
 #[derive(Debug, Clone)]
 struct BuiltStateMutationSummaries {
     summaries: Vec<StateMutationSummary>,
@@ -210,60 +225,71 @@ fn build_state_mutation_summaries(
     borrow: &BorrowFacts,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> BuiltStateMutationSummaries {
-    let mut owned_frames = None;
-    let call_frames = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames);
-    let mut states = Vec::with_capacity(borrow.states.len());
-    let mut borrow_states_for_summaries = Vec::with_capacity(borrow.states.len());
+    validation::checking_thread_pool().install(|| {
+        use rayon::prelude::*;
+        let mut owned_frames = None;
+        let call_frames =
+            crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames);
 
-    phase_profile::scope("05.d.3.b.flow.summaries.1_direct", || {
-        for borrow_state in borrow.states.iter().map(|(_, state)| state) {
-            let Some(state) = program.state_by_symbol(borrow_state.state_symbol) else {
-                continue;
-            };
-            let direct_writes = collect_state_mutation_summary_places(program, state, call_frames);
-            let direct_complete = direct_writes.is_some();
-            let writes = direct_writes.unwrap_or_default();
-            let complete = direct_complete
-                && state_has_concrete_body_signature(program, state)
-                && call_frames.is_some_and(|resolver| {
-                    validation::find_state(program, state.symbol).is_some_and(|(machine, _)| {
-                        resolver
-                            .inferred_state_write_frame(machine, state)
-                            .is_complete()
+        let (mut states, borrow_states_for_summaries): (Vec<_>, Vec<_>) =
+            phase_profile::scope("05.d.3.b.flow.summaries.1_direct", || {
+                let borrow_state_refs: Vec<_> =
+                    borrow.states.iter().map(|(_, state)| state).collect();
+                borrow_state_refs
+                    .into_par_iter()
+                    .filter_map(|borrow_state| {
+                        let state = program.state_by_symbol(borrow_state.state_symbol)?;
+                        let direct_writes =
+                            collect_state_mutation_summary_places(program, state, call_frames);
+                        let direct_complete = direct_writes.is_some();
+                        let writes = direct_writes.unwrap_or_default();
+                        let complete = direct_complete
+                            && state_has_concrete_body_signature(program, state)
+                            && call_frames.is_some_and(|resolver| {
+                                validation::find_state(program, state.symbol).is_some_and(
+                                    |(machine, _)| {
+                                        resolver
+                                            .inferred_state_write_frame(machine, state)
+                                            .is_complete()
+                                    },
+                                )
+                            });
+                        Some((
+                            StateMutationSummary {
+                                state_symbol: state.symbol,
+                                held_writes: held_accesses(program, state, &writes),
+                                complete,
+                                writes,
+                            },
+                            borrow_state,
+                        ))
                     })
-                });
-            states.push(StateMutationSummary {
-                state_symbol: state.symbol,
-                held_writes: held_accesses(program, state, &writes),
-                complete,
-                writes,
+                    .unzip()
             });
-            borrow_states_for_summaries.push(borrow_state);
+
+        // The first summary for a symbol answers lookups, as the former linear
+        // search did.
+        let mut index_by_state: symbols::SymbolKeyMap<SymbolHandle, usize> =
+            symbols::SymbolKeyMap::default();
+        for (index, summary) in states.iter().enumerate() {
+            index_by_state.entry(summary.state_symbol).or_insert(index);
         }
-    });
 
-    // The first summary for a symbol answers lookups, as the former linear
-    // search did.
-    let mut index_by_state: symbols::SymbolKeyMap<SymbolHandle, usize> =
-        symbols::SymbolKeyMap::default();
-    for (index, summary) in states.iter().enumerate() {
-        index_by_state.entry(summary.state_symbol).or_insert(index);
-    }
-
-    phase_profile::scope("05.d.3.b.flow.summaries.2_propagate", || {
-        propagate_state_mutation_summaries(
-            program,
-            borrow,
-            &borrow_states_for_summaries,
-            &index_by_state,
-            &mut states,
-            call_frames,
-        );
-    });
-    BuiltStateMutationSummaries {
-        summaries: states,
-        index_by_state,
-    }
+        phase_profile::scope("05.d.3.b.flow.summaries.2_propagate", || {
+            propagate_state_mutation_summaries(
+                program,
+                borrow,
+                &borrow_states_for_summaries,
+                &index_by_state,
+                &mut states,
+                call_frames,
+            );
+        });
+        BuiltStateMutationSummaries {
+            summaries: states,
+            index_by_state,
+        }
+    })
 }
 
 fn propagate_state_mutation_summaries(
@@ -274,6 +300,7 @@ fn propagate_state_mutation_summaries(
     states: &mut [StateMutationSummary],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) {
+    use rayon::prelude::*;
     let owners: Vec<_> = states
         .iter()
         .map(|summary| {
@@ -287,7 +314,7 @@ fn propagate_state_mutation_summaries(
     // repeating `machine_symbol_for_state` and `value_is_reference_free`
     // on every write in every round.
     let exposed_parameters: Vec<Vec<SymbolHandle>> = owners
-        .iter()
+        .par_iter()
         .map(|owner| {
             let Some((caller_state, _)) = owner else {
                 return Vec::new();
@@ -310,11 +337,12 @@ fn propagate_state_mutation_summaries(
     // These are invocation-local dense summary positions, not durable symbol
     // identities. Resolve each dependency once while retaining authored call order.
     let mut calls: Vec<_> = phase_profile::scope("05.d.3.b.flow.summaries.2a_calls", || {
-        states
-            .iter()
-            .zip(borrow_states)
-            .zip(&owners)
-            .map(|((state, borrow_state), owner)| {
+        (0..states.len())
+            .into_par_iter()
+            .map(|caller_index| {
+                let state = &states[caller_index];
+                let borrow_state = borrow_states[caller_index];
+                let owner = &owners[caller_index];
                 borrow
                     .calls
                     .span_or_empty(borrow_state.calls)
@@ -379,173 +407,166 @@ fn propagate_state_mutation_summaries(
         }
     }
     let _loop_guard = phase_profile::guard("05.d.3.b.flow.summaries.2b_loop");
-    let mut dirty: Vec<_> = (0..states.len()).collect();
-    let mut next_dirty = Vec::new();
-    let mut scheduled = vec![false; states.len()];
-    let mut updates = Vec::new();
-    while !dirty.is_empty() {
+    let mut dirty_mask = vec![true; states.len()];
+    let mut has_dirty = !states.is_empty();
+    while has_dirty {
         phase_profile::count("05.d.3.b.flow.summaries.2b_rounds", 1);
         // Publish after the round: later callers must not observe this round's
         // additions early, which would change first-discovery write ordering.
-        for caller_index in dirty.drain(..) {
-            phase_profile::count("05.d.3.b.flow.summaries.2b_visited", 1);
-            if !states[caller_index].complete {
-                continue;
-            }
-            let caller_symbol = states[caller_index].state_symbol;
-            let Some((caller_state, caller_machine)) = owners[caller_index] else {
-                continue;
-            };
-            let caller_exposed_params = &exposed_parameters[caller_index];
-            let caller = &states[caller_index];
-            let mut additions = Vec::new();
-            let mut held_additions = vec![Vec::new(); caller.held_writes.len()];
-            let mut expose = |writes: Vec<MutationWrite>, held_writes: Vec<Vec<MutationWrite>>| {
-                let retain = |existing: &[MutationWrite],
-                              pending: &mut Vec<MutationWrite>,
-                              writes: Vec<MutationWrite>| {
-                    for write in writes {
-                        let exposed = {
-                            let declared = matches!(write.region, StorageRegion::Declared(_));
-                            match write.region.anchor().root.as_symbol() {
-                                None => {
-                                    if !declared {
-                                        return None;
-                                    }
-                                    false
-                                }
-                                Some(root) if root == caller_machine => true,
-                                Some(root) => {
-                                    if program
-                                        .state_parameters(caller_state)
-                                        .iter()
-                                        .any(|parameter| parameter.symbol == root)
-                                    {
-                                        !declared || caller_exposed_params.contains(&root)
-                                    } else {
-                                        if !declared {
-                                            return None;
+        let updates: Vec<_> = calls
+            .par_iter_mut()
+            .enumerate()
+            .filter_map(|(caller_index, caller_calls)| {
+                if !dirty_mask[caller_index] || !states[caller_index].complete {
+                    return None;
+                }
+                let caller_symbol = states[caller_index].state_symbol;
+                let (caller_state, caller_machine) = owners[caller_index]?;
+                let caller_exposed_params = &exposed_parameters[caller_index];
+                let caller = &states[caller_index];
+                let mut additions = Vec::new();
+                let mut held_additions = vec![Vec::new(); caller.held_writes.len()];
+                let mut expose =
+                    |writes: Vec<MutationWrite>, held_writes: Vec<Vec<MutationWrite>>| {
+                        let retain = |existing: &[MutationWrite],
+                                      pending: &mut Vec<MutationWrite>,
+                                      writes: Vec<MutationWrite>| {
+                            for write in writes {
+                                let exposed = {
+                                    let declared =
+                                        matches!(write.region, StorageRegion::Declared(_));
+                                    match write.region.anchor().root.as_symbol() {
+                                        None => {
+                                            if !declared {
+                                                return None;
+                                            }
+                                            false
                                         }
-                                        false
+                                        Some(root) if root == caller_machine => true,
+                                        Some(root) => {
+                                            if program
+                                                .state_parameters(caller_state)
+                                                .iter()
+                                                .any(|parameter| parameter.symbol == root)
+                                            {
+                                                !declared || caller_exposed_params.contains(&root)
+                                            } else {
+                                                if !declared {
+                                                    return None;
+                                                }
+                                                false
+                                            }
+                                        }
                                     }
+                                };
+                                if exposed
+                                    && !existing.contains(&write)
+                                    && !pending.contains(&write)
+                                {
+                                    pending.push(write);
                                 }
                             }
+                            Some(())
                         };
-                        if exposed && !existing.contains(&write) && !pending.contains(&write) {
-                            pending.push(write);
+                        retain(&caller.writes, &mut additions, writes)?;
+                        for ((held, pending), writes) in caller
+                            .held_writes
+                            .iter()
+                            .zip(&mut held_additions)
+                            .zip(held_writes)
+                        {
+                            retain(&held.accesses, pending, writes)?;
                         }
-                    }
-                    Some(())
-                };
-                retain(&caller.writes, &mut additions, writes)?;
-                for ((held, pending), writes) in caller
-                    .held_writes
-                    .iter()
-                    .zip(&mut held_additions)
-                    .zip(held_writes)
+                        Some(())
+                    };
+                let mut complete = true;
+                for (
+                    call,
+                    target_index,
+                    run,
+                    call_site,
+                    has_builtin_coordinates,
+                    inst_cache,
+                    seen_writes,
+                    seen_held,
+                ) in caller_calls.iter_mut()
                 {
-                    retain(&held.accesses, pending, writes)?;
-                }
-                Some(())
-            };
-            let mut complete = true;
-            for (
-                call,
-                target_index,
-                run,
-                call_site,
-                has_builtin_coordinates,
-                inst_cache,
-                seen_writes,
-                seen_held,
-            ) in &mut calls[caller_index]
-            {
-                // Propagate the target's writes, not its unused authority.
-                // Signature ceilings remain the fallback for opaque calls.
-                let Some(target_index) = *target_index else {
-                    if *seen_writes > 0 {
+                    // Propagate the target's writes, not its unused authority.
+                    // Signature ceilings remain the fallback for opaque calls.
+                    let Some(target_index) = *target_index else {
+                        if *seen_writes > 0 {
+                            continue;
+                        }
+                        // Signature-only calls are already admitted by the shared
+                        // frame law. Import that frame in caller coordinates; an
+                        // unresolved frame/origin must not become an empty summary.
+                        // The held run includes all of it, like any call's.
+                        let Some(writes) = super::shared_call_storage_regions(
+                            program,
+                            caller_machine,
+                            caller_symbol,
+                            borrow,
+                            call,
+                            call_frames,
+                        ) else {
+                            complete = false;
+                            break;
+                        };
+                        let writes: Vec<_> = writes
+                            .into_iter()
+                            .map(|region| MutationWrite {
+                                region,
+                                requires_exclusive_access: true,
+                                destination: WriteDestination::Referent,
+                            })
+                            .collect();
+                        let held = vec![writes.clone(); caller.held_writes.len()];
+                        if expose(writes, held).is_none() {
+                            complete = false;
+                            break;
+                        }
+                        *seen_writes = 1;
                         continue;
+                    };
+                    let target = &states[target_index];
+                    if !target.complete {
+                        complete = false;
+                        break;
                     }
-                    // Signature-only calls are already admitted by the shared
-                    // frame law. Import that frame in caller coordinates; an
-                    // unresolved frame/origin must not become an empty summary.
-                    // The held run includes all of it, like any call's.
-                    let Some(writes) = phase_profile::scope(
-                        "05.d.3.b.flow.summaries.2b_shared_call",
-                        || {
-                            super::shared_call_storage_regions(
-                                program,
-                                caller_machine,
-                                caller_symbol,
-                                borrow,
-                                call,
-                                call_frames,
-                            )
-                        },
-                    ) else {
+                    let Some(call_site) = call_site.as_ref() else {
                         complete = false;
                         break;
                     };
-                    let writes: Vec<_> = writes
-                        .into_iter()
-                        .map(|region| MutationWrite {
-                            region,
-                            requires_exclusive_access: true,
-                            destination: WriteDestination::Referent,
-                        })
-                        .collect();
-                    let held = vec![writes.clone(); caller.held_writes.len()];
-                    if expose(writes, held).is_none() {
+                    let Some((target_state, _)) = owners[target_index] else {
                         complete = false;
                         break;
+                    };
+                    let prev_writes = *seen_writes;
+                    let new_writes = &target.writes[prev_writes.min(target.writes.len())..];
+                    let is_whole_run = matches!(run, TargetRun::Whole);
+                    if !is_whole_run && seen_held.len() < target.held_writes.len() {
+                        seen_held.resize(target.held_writes.len(), 0);
                     }
-                    *seen_writes = 1;
-                    continue;
-                };
-                let target = &states[target_index];
-                if !target.complete {
-                    complete = false;
-                    break;
-                }
-                let Some(call_site) = call_site.as_ref() else {
-                    complete = false;
-                    break;
-                };
-                let Some((target_state, _)) = owners[target_index] else {
-                    complete = false;
-                    break;
-                };
-                let prev_writes = *seen_writes;
-                let new_writes = &target.writes[prev_writes.min(target.writes.len())..];
-                if seen_held.len() < target.held_writes.len() {
-                    seen_held.resize(target.held_writes.len(), 0);
-                }
-                if new_writes.is_empty()
-                    && (matches!(run, TargetRun::Whole)
-                        || seen_held
-                            .iter()
-                            .zip(&target.held_writes)
-                            .all(|(&s, h)| s >= h.accesses.len()))
-                {
-                    continue;
-                }
-                let has_builtin_coords = *has_builtin_coordinates;
-                let call_ref = *call;
-                let mut instantiate = |writes: &[MutationWrite]| -> Option<Vec<MutationWrite>> {
-                    if !writes.is_empty() && !has_builtin_coords {
-                        return None;
+                    if new_writes.is_empty()
+                        && (is_whole_run
+                            || seen_held
+                                .iter()
+                                .zip(&target.held_writes)
+                                .all(|(&s, h)| s >= h.accesses.len()))
+                    {
+                        continue;
                     }
-                    let mut instantiated = Vec::new();
-                    for write in writes {
-                        let cached_index = inst_cache
-                            .iter()
-                            .position(|((r, d), _)| r == &write.region && *d == write.destination);
-                        let contributions = match cached_index {
-                            Some(idx) => inst_cache[idx].1.as_ref()?,
-                            None => {
-                                let computed = phase_profile::scope(
-                                    "05.d.3.b.flow.summaries.2b_instantiate",
-                                    || {
+                    let has_builtin_coords = *has_builtin_coordinates;
+                    let call_ref = *call;
+                    let mut instantiate =
+                        |writes: &[MutationWrite], use_cache: bool| -> Option<Vec<MutationWrite>> {
+                            if !writes.is_empty() && !has_builtin_coords {
+                                return None;
+                            }
+                            let mut instantiated = Vec::new();
+                            for write in writes {
+                                if !use_cache {
+                                    let contributions =
                                         instantiate_call_relative_writes_pre_resolved(
                                             program,
                                             caller_machine,
@@ -558,86 +579,124 @@ fn propagate_state_mutation_summaries(
                                             write.destination,
                                             WritePlaceNamespace::Storage,
                                             call_frames,
-                                        )
-                                        .map(|contributions| {
-                                            contributions
-                                                .into_iter()
-                                                .map(|contribution| MutationWrite {
-                                                    region: contribution.region,
-                                                    requires_exclusive_access: write
-                                                        .requires_exclusive_access,
-                                                    destination: write.destination,
-                                                })
-                                                .collect::<Vec<_>>()
-                                        })
-                                    },
-                                );
-                                inst_cache.push(((write.region.clone(), write.destination), computed));
-                                inst_cache.last().unwrap().1.as_ref()?
+                                        )?;
+                                    for contribution in contributions {
+                                        instantiated.push(MutationWrite {
+                                            region: contribution.region,
+                                            requires_exclusive_access: write
+                                                .requires_exclusive_access,
+                                            destination: write.destination,
+                                        });
+                                    }
+                                    continue;
+                                }
+                                let cached_index = inst_cache.iter().position(|((r, d), _)| {
+                                    r == &write.region && *d == write.destination
+                                });
+                                let contributions = match cached_index {
+                                    Some(idx) => inst_cache[idx].1.as_ref()?,
+                                    None => {
+                                        let computed =
+                                            instantiate_call_relative_writes_pre_resolved(
+                                                program,
+                                                caller_machine,
+                                                caller_symbol,
+                                                call_ref,
+                                                call_site,
+                                                has_builtin_coords,
+                                                target_state,
+                                                &write.region,
+                                                write.destination,
+                                                WritePlaceNamespace::Storage,
+                                                call_frames,
+                                            )
+                                            .map(|contributions| {
+                                                contributions
+                                                    .into_iter()
+                                                    .map(|contribution| MutationWrite {
+                                                        region: contribution.region,
+                                                        requires_exclusive_access: write
+                                                            .requires_exclusive_access,
+                                                        destination: write.destination,
+                                                    })
+                                                    .collect::<Vec<_>>()
+                                            });
+                                        inst_cache.push((
+                                            (write.region.clone(), write.destination),
+                                            computed,
+                                        ));
+                                        inst_cache.last().unwrap().1.as_ref()?
+                                    }
+                                };
+                                for item in contributions {
+                                    instantiated.push(MutationWrite {
+                                        region: item.region.clone(),
+                                        requires_exclusive_access: write.requires_exclusive_access,
+                                        destination: write.destination,
+                                    });
+                                }
                             }
+                            Some(instantiated)
                         };
-                        for item in contributions {
-                            instantiated.push(MutationWrite {
-                                region: item.region.clone(),
-                                requires_exclusive_access: write.requires_exclusive_access,
-                                destination: write.destination,
-                            });
-                        }
-                    }
-                    Some(instantiated)
-                };
-                let Some(whole) = instantiate(new_writes) else {
-                    complete = false;
-                    break;
-                };
-                let held = if matches!(run, TargetRun::Whole) {
-                    vec![whole.clone(); caller.held_writes.len()]
-                } else {
-                    let Some(held) = caller
-                        .held_writes
-                        .iter()
-                        .map(|incoming| {
-                            let loan = CanonicalPlace {
-                                root: facts::PlaceRoot::Symbol(incoming.parameter),
-                                segments: Vec::new(),
-                            };
-                            let selected: Vec<_> = run
-                                .new_accesses(
-                                    program,
-                                    &target.writes,
-                                    prev_writes,
-                                    &target.held_writes,
-                                    seen_held,
-                                    Some(&loan),
-                                )
-                                .cloned()
-                                .collect();
-                            instantiate(&selected)
-                        })
-                        .collect::<Option<Vec<_>>>()
-                    else {
+                    let Some(whole) = instantiate(new_writes, !is_whole_run) else {
                         complete = false;
                         break;
                     };
-                    held
-                };
-                if expose(whole, held).is_none() {
-                    complete = false;
-                    break;
+                    let held = if is_whole_run {
+                        vec![whole.clone(); caller.held_writes.len()]
+                    } else {
+                        let Some(held) = caller
+                            .held_writes
+                            .iter()
+                            .map(|incoming| {
+                                let loan = CanonicalPlace {
+                                    root: facts::PlaceRoot::Symbol(incoming.parameter),
+                                    segments: Vec::new(),
+                                };
+                                let selected: Vec<_> = run
+                                    .new_accesses(
+                                        program,
+                                        &target.writes,
+                                        prev_writes,
+                                        &target.held_writes,
+                                        seen_held,
+                                        Some(&loan),
+                                    )
+                                    .cloned()
+                                    .collect();
+                                instantiate(&selected, true)
+                            })
+                            .collect::<Option<Vec<_>>>()
+                        else {
+                            complete = false;
+                            break;
+                        };
+                        held
+                    };
+                    if expose(whole, held).is_none() {
+                        complete = false;
+                        break;
+                    }
+                    *seen_writes = target.writes.len();
+                    if !is_whole_run {
+                        for (s, h) in seen_held.iter_mut().zip(&target.held_writes) {
+                            *s = h.accesses.len();
+                        }
+                    }
                 }
-                *seen_writes = target.writes.len();
-                for (s, h) in seen_held.iter_mut().zip(&target.held_writes) {
-                    *s = h.accesses.len();
+                if !complete
+                    || !additions.is_empty()
+                    || held_additions.iter().any(|pending| !pending.is_empty())
+                {
+                    Some((caller_index, complete, additions, held_additions))
+                } else {
+                    None
                 }
-            }
-            if !complete
-                || !additions.is_empty()
-                || held_additions.iter().any(|pending| !pending.is_empty())
-            {
-                updates.push((caller_index, complete, additions, held_additions));
-            }
-        }
-        for (caller_index, complete, additions, held_additions) in updates.drain(..) {
+            })
+            .collect();
+        dirty_mask.fill(false);
+        has_dirty = false;
+        for (caller_index, complete, additions, held_additions) in updates {
             let summary = &mut states[caller_index];
             summary.complete = complete;
             if complete {
@@ -650,17 +709,12 @@ fn propagate_state_mutation_summaries(
                 summary.held_writes.clear();
             }
             for &dependent in &callers[caller_index] {
-                if !scheduled[dependent] {
-                    scheduled[dependent] = true;
-                    next_dirty.push(dependent);
+                if !dirty_mask[dependent] {
+                    dirty_mask[dependent] = true;
+                    has_dirty = true;
                 }
             }
         }
-        next_dirty.sort_unstable();
-        for &caller_index in &next_dirty {
-            scheduled[caller_index] = false;
-        }
-        std::mem::swap(&mut dirty, &mut next_dirty);
     }
 }
 
