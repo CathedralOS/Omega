@@ -8405,6 +8405,8 @@ fail/facts/foreign_borrowed_array_view_local rejected 857ms expected @ee5082cfda
 fail/facts/foreign_borrowed_array_view_match_join rejected 852ms expected @ee5082cfdacc
 	statement 7 reads `buffer.cells[1].value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 9)
 	statement 7 reads `buffer.cells[1].value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 9)
+fail/facts/foreign_borrowed_array_view_missing_leaf_predicate rejected 779ms expected @bdf2252f8a87
+	cannot prove requires contract for call observed_gap from use_unqualified: cells[1].value in u64::ResidentValue in state `entry`
 fail/facts/foreign_borrowed_array_view_other_machine rejected 1056ms expected @ee5082cfdacc
 	statement 6 reads `buffer.cells[1].value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 8)
 fail/facts/foreign_borrowed_array_view_other_state rejected 1058ms expected @ee5082cfdacc
@@ -26422,6 +26424,7 @@ pass/facts/float_result_equality_through_target_body_exit checked 7575ms check-t
 pass/facts/foreign_borrowed_array_view_call_result checked 3052ms check-target:macos_arm64 @ee5082cfdacc
 pass/facts/foreign_borrowed_array_view_const_name checked 2640ms check-target:macos_arm64 @ee5082cfdacc
 pass/facts/foreign_borrowed_array_view_field checked 2463ms check-target:macos_arm64 @ee5082cfdacc
+pass/facts/foreign_borrowed_array_view_generic_borrowed_root checked 1713ms check-target:macos_arm64 @bdf2252f8a87
 pass/facts/foreign_borrowed_array_view_local checked 2412ms check-target:macos_arm64 @ee5082cfdacc
 pass/facts/foreign_borrowed_array_view_match_join checked 2489ms check-target:macos_arm64 @ee5082cfdacc
 pass/facts/foreign_borrowed_array_view_other_machine checked 2958ms check-target:macos_arm64 @ee5082cfdacc
