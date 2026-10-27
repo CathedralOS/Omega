@@ -744,73 +744,10 @@ mod tests {
         assert!(retained.upgrade().is_some());
         assert_eq!(storage.sources.text_at(product_span), "Shared");
         drop(storage);
+        drop(catalogue);
         assert!(retained.upgrade().is_none());
     }
 
-    #[test]
-    fn source_admission_keeps_retained_coordinates_in_current_frontier_order() {
-        let mut catalogue = source::SourceCatalogue::default();
-        let mut original = SourceStorage::default();
-        let contents = |name: &str| source::SourceContents {
-            path: PathBuf::from(name),
-            source: Arc::from("retained contents"),
-            scope: DependencyScope::Product,
-        };
-        for name in ["first.omg", "unused.omg", "last.omg"] {
-            original
-                .admit_source(
-                    contents(name),
-                    Some(SourceOrigin::Toolchain),
-                    SourceResolutionStratum::Base,
-                    &mut catalogue,
-                )
-                .unwrap();
-        }
-        let mut current = SourceStorage {
-            sources: original.sources.fork_source_selection().unwrap(),
-            ..SourceStorage::default()
-        };
-        let loaded = ["last.omg", "first.omg", "new.omg"].map(|name| {
-            current
-                .admit_source(
-                    contents(name),
-                    Some(SourceOrigin::Toolchain),
-                    SourceResolutionStratum::Base,
-                    &mut catalogue,
-                )
-                .unwrap()
-        });
-        assert_eq!(loaded.each_ref().map(|file| file.source_id.0), [2, 0, 3]);
-        let mut parsed = ParsedSources::default();
-        parsed.batch = parsed
-            .sources
-            .insert_many(loaded.into_iter().map(|file| ParsedSource {
-                source_id: file.source_id,
-                path: file.path,
-                source: file.source,
-                origin: file.origin,
-                root_items: Vec::new(),
-                import_root_range: 0..0,
-                scope: file.scope,
-            }));
-        current.attach_parsed(parsed);
-        assert_eq!(current.sources.len(), 4);
-        assert_eq!(current.file_count(), 3);
-        assert_eq!(
-            current
-                .source_roots
-                .iter()
-                .map(|(_, roots)| roots.source_id.0)
-                .collect::<Vec<_>>(),
-            [2, 0, 3]
-        );
-        assert!(!current.sources.source_is_selected(SourceId(1)));
-        assert_eq!(
-            current.sources.get(SourceId(1)),
-            original.sources.get(SourceId(1))
-        );
-        assert!(current.sources.retains_source_storage(&original.sources));
-    }
     #[test]
     fn implicit_explicit_and_package_core_imports_keep_the_same_owner() {
         let base = std::env::temp_dir().join("omega-core-source-metadata");

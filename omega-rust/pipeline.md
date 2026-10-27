@@ -166,7 +166,6 @@ Product lookup consumes that correspondence. Retention transfers no checking
 judgment, executed Build return or evaluation charge. Cross-invocation package
 and Terminal product persistence remain separate work.
 
-
 | Input → output | Owner |
 | --- | --- |
 | Admitted source frontier → parsed syntax | [Psi source parsing](psi/compilation/driver/src/source_parsing.rs); [package source preparation](omega/packages/compilation-inputs/src/source_assembly.rs) owns import discovery and custody between frontiers |
