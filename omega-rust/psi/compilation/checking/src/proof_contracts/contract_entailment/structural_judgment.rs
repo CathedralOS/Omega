@@ -238,9 +238,7 @@ impl StructuralTerm {
             return left.is_mathematical_predicate() && right.is_mathematical_predicate();
         }
         matches!(self.semantic_value(), Self::MathematicalBinary { operator, .. }
-            if matches!(operator, BinaryOperator::Equal | BinaryOperator::NotEqual
-                | BinaryOperator::Less | BinaryOperator::LessOrEqual
-                | BinaryOperator::Greater | BinaryOperator::GreaterOrEqual))
+            if operator.is_comparison())
     }
 
     fn is_closed_value(&self) -> bool {
