@@ -11,8 +11,8 @@ mod fragment_comparison;
 pub(super) use super::derivation::evidence::{ranges_overlap, span};
 use super::{
     NativeByteSpan, OptimizedOperatorOccurrence, PhysicalRelocationDisposition, native_byte_span,
+    sole_terminal_operation,
 };
-
 pub(super) struct OperatorPhysicalSpan {
     pub machine: NativeByteSpan,
     pub object: NativeByteSpan,
@@ -95,16 +95,8 @@ fn exact_terminal_operation<'module>(
     module: &'module terminal_psi::TerminalModule,
     occurrence: &OptimizedOperatorOccurrence,
 ) -> Result<&'module terminal_psi::Operation, &'static str> {
-    let matching = module
-        .machines
-        .iter()
-        .filter(|machine| machine.id == occurrence.machine())
-        .flat_map(|machine| machine.operations())
-        .filter(|operation| operation.id == occurrence.operation())
-        .collect::<Vec<_>>();
-    let [operation] = matching.as_slice() else {
-        return Err("D29 physical occurrence does not rejoin one Terminal operation");
-    };
+    let operation = sole_terminal_operation(module, occurrence.machine(), occurrence.operation())
+        .ok_or("D29 physical occurrence does not rejoin one Terminal operation")?;
     Ok(operation)
 }
 

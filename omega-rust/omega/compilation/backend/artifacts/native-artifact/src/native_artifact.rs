@@ -964,7 +964,6 @@ impl NativeProviderExecution {
             boundary_contract_report_fingerprint: evidence.boundary_contract_report_fingerprint(),
         }
     }
-
 }
 
 /// The one access surface of a replayed provider execution. Every in-crate
