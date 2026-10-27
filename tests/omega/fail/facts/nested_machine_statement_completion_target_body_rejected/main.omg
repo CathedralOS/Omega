@@ -1,0 +1,32 @@
+// Every completed helper retains result != -1 across an ordinary Unit call, so accept can consume the result.
+// Expected exit: 0
+// Expected output contains: ABCD
+use omega_language_std::console;
+
+boundary trait HostedProbe {
+    machine apply(value: i64, event: i32, select: bool) -> i64 ensures result != -1 reaches Console;
+}
+HostedProbeBody satisfies HostedProbe {
+machine apply(value: i64, event: i32, select: bool) -> i64
+ensures result != -1;
+reaches Console {
+    
+    transition { _ -> filter(value, event) }
+    machine filter(candidate: i64, event: i32) -> i64 reaches Console {
+        Console::write_byte(event);
+        transition candidate != 0 && candidate != -2 { true -> candidate false -> 0 }
+    }
+}
+}
+machine accept(value: i64) -> i64 requires value != -1; { value }
+machine main() reaches Console crashes Trap {
+    let a: i64 = accept(HostedProbe::apply(7, 65, true));
+    let b: i64 = accept(HostedProbe::apply(0, 66, false));
+    let c: i64 = accept(HostedProbe::apply(-1, 67, true));
+    let d: i64 = accept(HostedProbe::apply(-2, 68, false));
+    transition a == 7 && b == 0 && c == 0 && d == -2 {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

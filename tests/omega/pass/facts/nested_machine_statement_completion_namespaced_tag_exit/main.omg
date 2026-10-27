@@ -1,0 +1,23 @@
+// A namespaced Unit call transports its checked case contract, not scalar equations.
+// Expected exit: 0
+data Choice { case Cell(value: u64); case Empty; }
+data Tags {}
+machine Tags::observe(choice: &Choice)
+requires choice in Choice::Cell
+ensures choice in Choice::Cell {}
+machine probe(choice: &Choice) -> u64 requires choice in Choice::Cell {
+ transition { _ -> check(choice) }
+ machine check(choice: &Choice) -> u64 requires choice in Choice::Cell {
+  Tags::observe(choice);
+  read(choice)
+ }
+ machine read(choice: &Choice) -> u64 requires choice in Choice::Cell {
+  transition choice { Choice::Cell { value } -> value Choice::Empty -> 0 }
+ }
+}
+machine main() crashes Trap {
+ let choice: Choice = Choice::Cell { value: 7 };
+ transition probe(&choice) == 7 { true -> done() false -> bad() }
+ machine done() {}
+ machine bad() crashes Trap { crash Trap; }
+}

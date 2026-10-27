@@ -5,6 +5,9 @@
 //! transports only unconditional guarantees. Completed-result tag facts use
 //! the caller's local binding identity and remain separate from value equations:
 //! classifying a result never invents its fields or unfolds the selected body.
+//! Runtime statement completion is independent of citation eligibility. Selection
+//! authenticates the public callable before theorem/tag intake; namespace spelling
+//! and declaration placement never choose the proof lane.
 //! Static callable contracts need their own substitution; a private selected
 //! implementation cannot supply those public guarantees implicitly.
 
@@ -67,12 +70,11 @@ fn selected_citation_machine(
     program
         .machine_by_own_or_state_symbol(symbol)
         .filter(|machine| {
-            machine.attached_data.is_none()
-                && (machine.symbol == symbol
-                    || program
-                        .machine_states(machine)
-                        .first()
-                        .is_some_and(|entry| entry.symbol == symbol))
+            machine.symbol == symbol
+                || program
+                    .machine_states(machine)
+                    .first()
+                    .is_some_and(|entry| entry.symbol == symbol)
         })
 }
 
@@ -181,23 +183,32 @@ pub(super) fn citation_argument_types(
     )
 }
 
-/// Whether a statement is a CITATION: a free (receiver-less) call whose
-/// callee resolves to a free PROOF MACHINE other than the enclosing one
-/// (self-calls are recursion, owned by the descent checks and the IH).
+/// The selected public operation determines theorem relevance. A namespace
+/// supplies no runtime receiver and cannot suppress a legitimate citation;
+/// an implementation selected behind a public requirement supplies no theorem.
 pub(crate) fn is_citation_statement(
     program: &dyn crate::CheckingInput,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
     machine: &Machine,
+    caller: SymbolHandle,
     call: &typed_trees::statement::TableCall,
 ) -> bool {
-    if !call.receiver.is_empty() {
+    let Some(super::specification_calls::SelectedCallContract::Concrete(callee, entry)) =
+        super::specification_calls::selected_call_site_contract(
+            program,
+            caller,
+            crate::CallSite::Statement(call),
+        )
+    else {
         return false;
-    }
-    selected_citation_machine(program, call.target_symbol).is_some_and(|callee| {
-        !std::ptr::eq(callee, machine)
-            && (classification.is_proof_machine(program, callee)
-                || crate::mathematical_applications::is_indexed_logical_machine(program, callee))
-    })
+    };
+    callee.symbol != machine.symbol
+        && program
+            .machine_states(callee)
+            .first()
+            .is_some_and(|first| first.symbol == entry.symbol)
+        && (classification.is_proof_machine(program, callee)
+            || crate::mathematical_applications::is_indexed_logical_machine(program, callee))
 }
 
 /// Statement-call CITATIONS (ch10 "Citing Proofs"; the settled proof-citation
@@ -258,7 +269,8 @@ pub(crate) fn collect_citation_equations(
             }
             continue;
         }
-        let Some((target, argument_handles)) = citation_call_in_statement(program, statement)
+        let Some((target, argument_handles)) =
+            citation_call_in_statement(program, machine.symbol, statement)
         else {
             continue;
         };
@@ -491,52 +503,51 @@ fn suggest_conjunct_match(
 /// the expression table.
 pub(crate) fn citation_call_in_statement<'program>(
     program: &'program dyn crate::CheckingInput,
+    caller: SymbolHandle,
     statement: &'program StatementNode,
 ) -> Option<(CitationTarget, Vec<ExpressionHandle>)> {
-    match statement {
-        StatementNode::Call(call) if call.receiver.is_empty() => Some((
-            CitationTarget {
-                symbol: call.target_symbol,
-                machine_arguments: call.machine_arguments.to_vec(),
-                result_binding: SymbolHandle::invalid(),
-                has_static_selection: !call.machine_arguments.is_empty()
-                    || call.static_machine_parameter.is_valid()
-                    || !call.evidence_arguments.is_empty()
-                    || call.static_requirement_dispatch.is_some(),
-            },
-            program
-                .statement_table
-                .expression_handles(call.arguments)
-                .to_vec(),
-        )),
-        StatementNode::LocalData(local_data) => {
-            let ExpressionNode::Call(call) = program
-                .expression_table
-                .expression(local_data.initial_value)
-            else {
-                return None;
-            };
-            if call.receiver.is_valid() {
-                return None;
-            }
-            Some((
-                CitationTarget {
-                    symbol: call.target_symbol,
-                    machine_arguments: call.machine_arguments.to_vec(),
-                    result_binding: local_data.symbol,
-                    has_static_selection: !call.machine_arguments.is_empty()
-                        || call.static_machine_parameter.is_valid()
-                        || !call.evidence_arguments.is_empty()
-                        || call.static_requirement_dispatch.is_some(),
+    let (site, machine_arguments, result_binding) = match statement {
+        StatementNode::Call(call) => (
+            crate::CallSite::Statement(call),
+            call.machine_arguments.to_vec(),
+            SymbolHandle::invalid(),
+        ),
+        StatementNode::LocalData(local) => {
+            let call = program.expression_table.call_node(local.initial_value)?;
+            (
+                crate::CallSite::Expression {
+                    expression: local.initial_value,
+                    call,
                 },
-                program
-                    .expression_table
-                    .expression_handles(call.arguments)
-                    .to_vec(),
-            ))
+                call.machine_arguments.to_vec(),
+                local.symbol,
+            )
         }
-        _ => None,
-    }
+        _ => return None,
+    };
+    // Selection retains the caller's public requirement view. Resolving the
+    // raw implementation symbol here would import a private guarantee through
+    // an abstract call. Namespace text is neither an operand nor authority.
+    let owner = super::specification_calls::selected_call_site_contract(program, caller, site)?;
+    let has_static_selection = !machine_arguments.is_empty()
+        || site.static_machine_parameter().is_valid()
+        || match site {
+            crate::CallSite::Statement(call) => !call.evidence_arguments.is_empty(),
+            crate::CallSite::Expression { call, .. } => !call.evidence_arguments.is_empty(),
+            crate::CallSite::TransitionNamed {
+                evidence_arguments, ..
+            } => !evidence_arguments.is_empty(),
+        }
+        || site.static_requirement_dispatch().is_some();
+    Some((
+        CitationTarget {
+            symbol: super::specification_calls::owner_symbol(&owner),
+            machine_arguments,
+            result_binding,
+            has_static_selection,
+        },
+        crate::call_site_argument_expressions(program, &site).to_vec(),
+    ))
 }
 
 /// The machine's requires facts as expressions (empty when none).

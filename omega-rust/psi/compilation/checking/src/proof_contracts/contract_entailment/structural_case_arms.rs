@@ -599,7 +599,8 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
             if citation_preserves_values
                 && (!path.judge.has_runtime_body_values()
                     || matches!(statement, StatementNode::Call(_)))
-                && let Some((target, arguments)) = citation_call_in_statement(program, statement)
+                && let Some((target, arguments)) =
+                    citation_call_in_statement(program, machine.symbol, statement)
                 && super::citations::can_establish_citation(
                     program,
                     classification,
@@ -805,7 +806,13 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                     next_paths.push(path);
                 }
                 StatementNode::Call(call)
-                    if is_citation_statement(program, classification, machine, call) =>
+                    if is_citation_statement(
+                        program,
+                        classification,
+                        machine,
+                        machine.symbol,
+                        call,
+                    ) =>
                 {
                     next_paths.push(path);
                 }
@@ -1164,11 +1171,12 @@ fn recognize_structural_state_leaves_from<'a>(
                 citation_preserves_values = complete && writes.is_empty();
                 judge.observe_storage_effects(state, complete.then_some(writes.as_slice()))?;
             }
-            if requirement.is_some()
+            if (requirement.is_some() || judge.has_runtime_body_values())
                 && citation_preserves_values
                 && !saw_transition
                 && (!judge.has_runtime_body_values() || matches!(statement, StatementNode::Call(_)))
-                && let Some((target, arguments)) = citation_call_in_statement(program, statement)
+                && let Some((target, arguments)) =
+                    citation_call_in_statement(program, invocation.symbol, statement)
                 && super::citations::can_establish_citation(
                     program,
                     classification,
@@ -1327,7 +1335,7 @@ fn recognize_structural_state_leaves_from<'a>(
                         if collect_citations
                             && !judge.has_runtime_body_values()
                             && let Some((target, argument_handles)) =
-                                citation_call_in_statement(program, statement)
+                                citation_call_in_statement(program, invocation.symbol, statement)
                         {
                             stage_citation_argument_terms(
                                 program,
@@ -1463,36 +1471,48 @@ fn recognize_structural_state_leaves_from<'a>(
                     }
                     return Some(leaves);
                 }
-                StatementNode::Call(_)
-                    if !saw_transition && collect_citations && citation_preserves_values =>
-                {
-                    // The legacy citation route has no post-state actuals.
-                    // A writing call already retired its live observations;
-                    // staging them now would either revive old referents or
-                    // discard this prefix when those referents are opaque.
-                    let (target, argument_handles) =
-                        citation_call_in_statement(program, statement)?;
-                    stage_citation_argument_terms(
-                        program,
-                        judge,
-                        invocation,
-                        state,
-                        &environment,
-                        &target,
-                        &argument_handles,
-                        &mut pending_citations,
-                    )?;
-                }
-                StatementNode::Call(_)
-                    if !saw_transition && judge.requires_value_preservation() =>
-                {
-                    // The shared effect step above retired affected storage.
-                }
-                StatementNode::Call(call)
-                    if !saw_transition
-                        && is_citation_statement(program, classification, machine, call) =>
-                {
-                    // Entry citations were already intaken machine-wide.
+                StatementNode::Call(call) if !saw_transition => {
+                    if judge.requires_value_preservation() {
+                        // Runtime completion already applied this statement's
+                        // effects and optional selected tag guarantees above.
+                        // An ordinary call need not be a theorem citation.
+                    } else {
+                        let (target, arguments) =
+                            citation_call_in_statement(program, invocation.symbol, statement)?;
+                        let eligible = super::citations::can_establish_citation(
+                            program,
+                            classification,
+                            machine,
+                            &target,
+                            arguments.len(),
+                            false,
+                        );
+                        if !eligible
+                            && !is_citation_statement(
+                                program,
+                                classification,
+                                machine,
+                                invocation.symbol,
+                                call,
+                            )
+                        {
+                            return None;
+                        }
+                        if collect_citations && citation_preserves_values && eligible {
+                            // Only erased proof arms defer citations until the
+                            // independently licensed induction hypotheses exist.
+                            stage_citation_argument_terms(
+                                program,
+                                judge,
+                                invocation,
+                                state,
+                                &environment,
+                                &target,
+                                &arguments,
+                                &mut pending_citations,
+                            )?;
+                        }
+                    }
                 }
                 StatementNode::Transition(transition) => {
                     saw_transition = true;
