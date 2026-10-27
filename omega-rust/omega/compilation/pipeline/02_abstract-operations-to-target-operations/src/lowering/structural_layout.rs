@@ -748,23 +748,6 @@ fn structural_field_shape(
     }
 }
 
-pub(super) fn resolve_structural_field_path(
-    structural_type: StructuralTypeId,
-    path: &[StructuralPathSegment],
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
-) -> Result<(StructuralTypeId, ValueShape, u32), LoweringError> {
-    projection_path(
-        structural_type,
-        path,
-        declarations,
-        cache,
-        active,
-        StructuralFieldType::canonical_leaf_type,
-    )
-}
-
 fn field_geometry<'types>(
     structural_type: StructuralTypeId,
     segment: &StructuralPathSegment,
@@ -948,6 +931,9 @@ pub(super) fn case_projection(
     Ok((endpoint, shape, offset))
 }
 
+/// Resolve a static storage projection to its canonical leaf. A path that
+/// selects through a runtime index belongs to the runtime projection query,
+/// whose caller owns each selector's dominating source.
 pub(super) fn resolve_structural_projection_path(
     structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
@@ -955,31 +941,13 @@ pub(super) fn resolve_structural_projection_path(
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
 ) -> Result<(StructuralTypeId, ValueShape, u32), LoweringError> {
-    projection_path(
-        structural_type,
-        path,
-        declarations,
-        cache,
-        active,
-        StructuralFieldType::canonical_leaf_type,
-    )
-}
-
-fn projection_path(
-    structural_type: StructuralTypeId,
-    path: &[StructuralPathSegment],
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
-    leaf_type: impl Fn(&StructuralFieldType) -> Option<StructuralFieldType>,
-) -> Result<(StructuralTypeId, ValueShape, u32), LoweringError> {
     let (selected, shape, offset, indices) = storage_projection_path(
         structural_type,
         path,
         declarations,
         cache,
         active,
-        leaf_type,
+        StructuralFieldType::canonical_leaf_type,
     )?;
     if !indices.is_empty() {
         return Err(LoweringError::UnsupportedStructuralReference(
