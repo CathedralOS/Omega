@@ -923,7 +923,13 @@ impl Implication<'_> {
             Boolean::Constant(value) => *value,
             Boolean::Comparison(comparison) => self.implies(path, comparison),
             Boolean::And(left, right) => self.entails(path, left) && self.entails(path, right),
-            Boolean::Or(left, right) => self.entails(path, left) || self.entails(path, right),
+            Boolean::Or(left, right) => {
+                self.entails(path, left)
+                    || self.entails(path, right)
+                    || self
+                        .assume_readonly(path, goal, false)
+                        .is_some_and(|assumed| assumed.is_none_or(|path| self.impossible(&path)))
+            }
             Boolean::Not(value) => self
                 .assume_readonly(path, value, true)
                 .is_some_and(|assumed| assumed.is_none_or(|path| self.impossible(&path))),
