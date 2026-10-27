@@ -106,3 +106,51 @@ as rejection before the affected Build executed.
 Which contract should apply? The existing specification names a pre-execution
 prerequisite graph but does not settle whether supplied assignments require
 that graph to be closed and authoritative over later conditional discovery.
+
+### Q2. Shared interfaces known before the first Build activation
+
+**Customer:** a reusable build configurator accepts the caller's Build facets or
+restricted Product descriptions, then queries or binds entries under its own
+lexical authority. The root must know the configurator's callable contract before
+requesting and awaiting its implementation; this is not limited to core's fixed
+interfaces such as `ProgramImage`.
+
+**Contracts checked:** [Build declarations](wiki/spec/build/declarations.md) and
+[execution admission](wiki/spec/build/execution.md#admission-before-execution)
+check the initial Build against core and pre-known interfaces. [Provider
+readiness](wiki/spec/build/provider_selection.md#build-provider-readiness) requires
+the same exact nominal requirement application at the caller and backing;
+matching names or signatures do not suffice. [Scoped
+execution](wiki/spec/build/scoped_execution.md#dependency-declarations-and-binding)
+rejects static imports of newly requested dependencies and forbids inferring
+dependency requests from imports. These contracts do not identify how an ordinary
+project supplies a shared non-core interface before its Build discovers packages.
+
+For example, `await_provider<ConfigureBuild, support::Configurator>` needs
+`ConfigureBuild` before the first statement runs. Declaring it locally in the
+root does not make a separately declared trait in `support` the same nominal
+interface. Importing an interface package requested by that same Build is too
+late; copying source or injecting the caller's type under a matching name would
+invent identity or nameability. The explicit pre-admitted compiler API can supply
+shared sources, but the ordinary project-discovery route has no corresponding
+interface-prerequisite input.
+
+**Proposed decision:** admit an explicit immutable interface-prerequisite source
+graph before initial Build checking, shared by root and backing through ordinary
+package identities. Define how the project supplies that graph independently of
+its not-yet-executed Build. The graph supplies nameability and contracts, not
+helper execution or implicit readiness; implementation requests still execute
+and install through the existing protocol.
+
+**Alternative:** allow a caller-local requirement to be an explicit parameter of
+helper compilation, and define how the backing source names and satisfies that
+exact supplied declaration. That would be a separate declaration-binding
+contract, not structural matching or automatic import of caller-private names.
+
+Which source-admission model should make non-core interfaces pre-known? This is
+separate from Q1's timing of input-map agreement after dependencies are known.
+Until it is decided, keep direct imports of newly requested helpers rejected.
+The old `product_entry_query_foreign_helper_private_entry` and
+`product_entry_query_build_scope_alias` fixtures fail at those imports through
+ordinary discovery; their pre-admitted lexical-scope tests do not establish an
+ordinary reusable-helper path.

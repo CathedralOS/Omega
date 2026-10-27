@@ -8,9 +8,9 @@ mod callable_objects;
 mod callback_thunks;
 mod component_calls;
 mod component_exports;
-pub use component_calls::ComponentNativeCall;
-pub use component_exports::{
-    ComponentExportImage, ComponentExportRequest, ComponentNativeExport, emit_component_exports,
+pub(crate) use component_calls::ComponentNativeCall;
+pub(crate) use component_exports::{
+    ComponentExportImage, ComponentExportRequest, emit_component_exports,
 };
 mod object_emission;
 pub(crate) mod realization_diagnostics;

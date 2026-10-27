@@ -178,6 +178,12 @@ impl<'program> Collector<'program> {
             return Err("constant dependency has ambiguous data declaration custody".to_owned());
         }
         self.type_parameters(definition.type_parameters)?;
+        // A type's proof terms belong to declaration readiness, not the
+        // initializer's authored value-call roster. The checked destination
+        // owner retains and judges these clauses under their own declaration.
+        if self.purpose == super::DependencyPurpose::DeclarationReadiness {
+            self.predicate_facts(definition.where_facts)?;
+        }
         if let Some(quotient) = &definition.quotient {
             self.types.push(&quotient.carrier);
         }
@@ -189,6 +195,9 @@ impl<'program> Collector<'program> {
             match member {
                 DataMember::Field(field) => self.types.push(&field.type_reference),
                 DataMember::Variant(variant) => {
+                    if self.purpose == super::DependencyPurpose::DeclarationReadiness {
+                        self.predicate_facts(variant.where_facts)?;
+                    }
                     let fields = self.program.data_payload_fields(variant.payload);
                     if fields.len() != variant.payload.len() {
                         return Err("constant dependency has stale variant fields".to_owned());
@@ -257,7 +266,7 @@ impl<'program> Collector<'program> {
                 TypeParameterKind::Machine {
                     contract: MachineParameterContract::Structural(signature),
                 } => {
-                    self.contract_facts(signature.where_facts)?;
+                    self.predicate_facts(signature.where_facts)?;
                     self.contracts(signature.contracts)?;
                     self.type_parameters(signature.type_parameters)?;
                     self.state_parameters(signature.parameters)?;

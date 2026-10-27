@@ -143,6 +143,27 @@ fn evaluate(
             };
             boolean(!value)
         }
+        ExpressionNode::Call(call) => {
+            let arguments = program.expression_table.expression_handles(call.arguments);
+            let values = arguments
+                .iter()
+                .map(|argument| {
+                    let (value, carrier) = operand(*argument)?;
+                    match value {
+                        Scalar::Integer(value) => Ok((value, carrier)),
+                        Scalar::Boolean(_) => {
+                            Err("closed predicate application needs integer actuals")
+                        }
+                    }
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let value =
+                crate::proof_contracts::collection_predicates::closed_integer_predicate_value(
+                    program, expression, &values,
+                )
+                .ok_or("closed predicate call has no fully decided admitted integer application")?;
+            boolean(value)
+        }
         ExpressionNode::Binary(binary) => {
             let (left, left_type) = operand(binary.left)?;
             let (right, right_type) = operand(binary.right)?;

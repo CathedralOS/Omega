@@ -773,12 +773,31 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                         return valid;
                     };
                     if !is_tail {
-                        for outcome in outcomes {
+                        if outcomes.len() > 1
+                            && outcomes.iter().all(|outcome| {
+                                outcome
+                                    .judge
+                                    .has_no_new_effects_or_guarantees_since(&path.judge)
+                            })
+                        {
+                            let judge_refs: Vec<_> =
+                                outcomes.iter().map(|outcome| &outcome.judge).collect();
+                            let rejoined = path
+                                .judge
+                                .rejoin_pure_outcomes(&judge_refs, Some(*expression));
                             next_paths.push(ActiveStatePrefixPath {
-                                judge: outcome.judge,
+                                judge: rejoined,
                                 environment: path.environment.clone(),
                                 established_guarantees: path.established_guarantees.clone(),
                             });
+                        } else {
+                            for outcome in outcomes {
+                                next_paths.push(ActiveStatePrefixPath {
+                                    judge: outcome.judge,
+                                    environment: path.environment.clone(),
+                                    established_guarantees: path.established_guarantees.clone(),
+                                });
+                            }
                         }
                     }
                 }
@@ -1240,9 +1259,7 @@ fn recognize_structural_state_leaves_from<'a>(
                             outcome_judge.has_no_new_effects_or_guarantees_since(&judge)
                         })
                     {
-                        let dead_local = requirement
-                            .as_deref()
-                            .is_some_and(|observer| observer.site().state == state.symbol)
+                        let dead_local = requirement.is_some()
                             && local_symbol_is_dead_in_remaining_prefix(
                                 program,
                                 statements,
@@ -1250,7 +1267,8 @@ fn recognize_structural_state_leaves_from<'a>(
                                 execution_position + 1,
                                 local.symbol,
                                 requirement.as_deref().is_some_and(|observer| {
-                                    !observer.site().in_transition_target
+                                    observer.site().state == state.symbol
+                                        && !observer.site().in_transition_target
                                         && observer.site().statement_index < statements.len()
                                         && !matches!(
                                             statements[observer.site().statement_index],

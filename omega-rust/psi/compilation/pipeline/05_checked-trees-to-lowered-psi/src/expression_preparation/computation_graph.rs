@@ -210,10 +210,7 @@ pub(crate) fn reachable_structural_values(
         .facts
         .values
         .scalar_computations
-        .roots
-        .iter()
-        .filter_map(|(_, root)| (root.machine == machine).then_some(root.root))
-        .collect::<Vec<_>>();
+        .roots_for_machine(machine);
     let mut values = Vec::new();
     collect_reachable_nodes(checked, &roots, &mut values)?;
     Ok(values)
@@ -224,17 +221,15 @@ fn value_calls(
     machine: symbols::SymbolHandle,
     state: Option<symbols::SymbolHandle>,
 ) -> Result<Vec<&checked_trees::CheckedStructuralValueCall>, LoweringError> {
-    let roots = checked
-        .facts
-        .values
-        .scalar_computations
-        .roots
-        .iter()
-        .filter_map(|(_, root)| {
-            (root.machine == machine && state.is_none_or(|state| root.state == state))
-                .then_some(root.root)
-        })
-        .collect::<Vec<_>>();
+    let scalar_plans = &checked.facts.values.scalar_computations;
+    let roots = match state {
+        Some(state) => scalar_plans
+            .root_records_for_state(state)
+            .into_iter()
+            .filter_map(|root| (root.machine == machine).then_some(root.root))
+            .collect::<Vec<_>>(),
+        None => scalar_plans.roots_for_machine(machine),
+    };
     let mut values = Vec::new();
     collect_reachable_nodes(checked, &roots, &mut values)?;
     // A standalone structural result need not be observed by a scalar node.
@@ -242,9 +237,14 @@ fn value_calls(
     // a structural dispatch. Catalog discovery unions those dependencies;
     // it must not import their private ordinals into the caller's schedule.
     let plans = &checked.facts.values.structural_values;
-    for (_, root) in plans.roots.iter().filter(|(_, root)| {
-        root.machine == machine && state.is_none_or(|state| root.state == state)
-    }) {
+    let structural_roots = match state {
+        Some(state) => plans.roots_for_state(state),
+        None => plans.roots_for_machine(machine),
+    };
+    for root in structural_roots
+        .into_iter()
+        .filter(|root| root.machine == machine)
+    {
         if !values.contains(&root.root) {
             values.push(root.root);
         }

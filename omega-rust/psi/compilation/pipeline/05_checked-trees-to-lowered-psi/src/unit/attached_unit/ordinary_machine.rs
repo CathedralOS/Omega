@@ -78,6 +78,8 @@ pub(super) struct ClosureCatalog<'a> {
     /// result republishes the callee's qualified result through it.
     pub(super) prepared_scalar_qualifications:
         &'a crate::expression_preparation::qualifications::PreparedScalarQualifications,
+    pub(super) dynamic_dispatch:
+        &'a std::sync::Arc<crate::unit::dynamic_dispatch::DynamicDispatchIndex>,
 }
 
 mod locals;
@@ -183,6 +185,7 @@ pub(super) fn emit(
         closure,
         provider_candidate_plans,
         prepared_scalar_qualifications,
+        dynamic_dispatch,
     } = catalog;
     let EmissionCounters {
         place: place_counter,
@@ -273,6 +276,7 @@ pub(super) fn emit(
         type_ids,
         domain_ids,
         structural_types,
+        dynamic_dispatch,
         &mut next_place,
         &mut next_value,
         &mut next_call_obligation,
@@ -1354,6 +1358,7 @@ fn establish_call_literals(
     type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     domain_ids: &[StructuralDomainBinding],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
+    dynamic_dispatch: &std::sync::Arc<crate::unit::dynamic_dispatch::DynamicDispatchIndex>,
     next_place: &mut u64,
     next_value: &mut u64,
     next_obligation: &mut u64,
@@ -1390,9 +1395,7 @@ fn establish_call_literals(
             ))?;
     let mut operations = OperationBuffer::new(
         operation_identity_base,
-        std::sync::Arc::new(crate::unit::dynamic_dispatch::DynamicDispatchIndex::new(
-            checked,
-        )),
+        std::sync::Arc::clone(dynamic_dispatch),
     );
     let mut private_places = literal_arguments
         .iter()

@@ -36,6 +36,11 @@ the establishing write before calling the independent consuming machine. All
 positive projects declare exit 0 and bind all four hosted `ProgramEntry` slots.
 The row and its twins are pinned under `tests/omega/{pass,fail}/facts`.
 
+The [checked predicate helper production](predicate_helper/README.md) carries
+the same fact through all nine places when the default domain is an ordinary
+Boolean machine call. It also retains the complete constant destination
+judgment through materialization and index use.
+
 ## Establishment and preservation
 
 - **Establishment:** construction and the checked borrowed write establish the

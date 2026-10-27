@@ -455,11 +455,16 @@ pub(crate) fn evaluate(
         for ordinal in &ready {
             if declarations[*ordinal].leaves.is_empty() {
                 let value = preparation
-                    .canonicalize_initializer_value(&syntax, &declarations[*ordinal].definition)
+                    .canonicalize_initializer_payload(&syntax, &declarations[*ordinal].definition)
                     .map_err(|reason| {
                         failure(declarations[*ordinal].definition.name.source_span(), reason)
                     })?;
-                declarations[*ordinal].evaluated_value = Some(value.encoding.into());
+                declarations[*ordinal].definition.pending_qualification = value.pending_destination;
+                syntax.items.replace_item(
+                    declarations[*ordinal].item,
+                    Item::Const(declarations[*ordinal].definition.clone()),
+                );
+                declarations[*ordinal].evaluated_value = Some(value.value.encoding.into());
             }
         }
         ready.retain(|ordinal| !declarations[*ordinal].leaves.is_empty());
@@ -739,6 +744,7 @@ pub(crate) fn evaluate(
                 materialize_value(&mut syntax, authored_expression, &replacements)?
             };
             let mut definition = declarations[ordinal].definition.clone();
+            let mut pending_destination = None;
             // A scalar leaf retains its evaluated meaning without demanding bits; a
             // structured or multi-leaf value currently encodes from the complete
             // materialized literal instead.
@@ -755,13 +761,13 @@ pub(crate) fn evaluate(
             } else {
                 let mut materialized_definition = definition.clone();
                 materialized_definition.value = value;
-                preparation
-                    .canonicalize_initializer_value(&syntax, &materialized_definition)
+                let payload = preparation
+                    .canonicalize_initializer_payload(&syntax, &materialized_definition)
                     .map_err(|reason| {
                         failure(syntax.expressions.source_span(authored_expression), reason)
-                    })?
-                    .encoding
-                    .into()
+                    })?;
+                pending_destination = payload.pending_destination;
+                payload.value.encoding.into()
             };
             // A declaration's geometry is part of its normalization custody,
             // even when a scalar payload leaf never reads that extent. Keep
@@ -827,6 +833,16 @@ pub(crate) fn evaluate(
             });
             definition.value = value;
             definition.qualification = None;
+            if pending_destination.is_none()
+                && preparation.initializer_requires_destination_proof(&syntax, &definition)
+            {
+                pending_destination = Some(syntax_trees::item::ConstDestinationObligation {
+                    declaration: definition.name.source_span(),
+                    destination: definition.type_reference,
+                    initializer: value,
+                });
+            }
+            definition.pending_qualification = pending_destination;
             syntax
                 .items
                 .replace_item(declarations[ordinal].item, Item::Const(definition.clone()));

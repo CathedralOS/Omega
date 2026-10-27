@@ -80,9 +80,6 @@ impl<'input> ComponentExportImage<'input> {
     pub const fn image(&self) -> &image_emission::ComponentSharedImage {
         &self.image
     }
-    pub const fn runtime(&self) -> &native_artifact::TerminalCallableRuntimeProvisions {
-        &self.runtime
-    }
     pub const fn authority(
         &self,
     ) -> &terminal_psi_to_abstract_operations::provider_admission::AdmittedNativeCallableAuthority

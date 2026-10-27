@@ -1,1 +1,2 @@
-requires declaration-site default-domain proof checking
+cannot form specification operator `==` in data `Counter` default-domain predicate
+no exact selected meaning

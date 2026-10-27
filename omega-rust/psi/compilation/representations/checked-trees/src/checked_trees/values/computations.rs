@@ -146,11 +146,18 @@ pub struct CheckedScalarComputationPlans {
     pub case_fields: Arena<CheckedScalarCaseComputationField>,
     #[doc(hidden)]
     pub roots_by_state: KeyedRows<SymbolHandle, CheckedScalarComputationRoot>,
+    #[doc(hidden)]
+    pub roots_by_machine: KeyedRows<SymbolHandle, CheckedScalarComputationRoot>,
+    #[doc(hidden)]
+    pub projection_selectors_by_state: KeyedRows<SymbolHandle, CheckedProjectionSelectorRoot>,
 }
 
 impl CheckedScalarComputationPlans {
     pub fn seal(&mut self) {
         self.roots_by_state.seal(&self.roots, |root| root.state);
+        self.roots_by_machine.seal(&self.roots, |root| root.machine);
+        self.projection_selectors_by_state
+            .seal(&self.projection_selectors, |root| root.state);
     }
 
     pub fn projection_selectors_at(
@@ -160,18 +167,24 @@ impl CheckedScalarComputationPlans {
         statement: u32,
         expression: typed_trees::expression::ExpressionHandle,
     ) -> Option<HandleSpan<CheckedScalarComputationHandle>> {
-        let mut roots = self
-            .projection_selectors
-            .iter()
-            .map(|(_, root)| root)
-            .filter(|root| {
-                root.machine == machine
-                    && root.state == state
-                    && root.statement_ordinal == statement
-                    && root.expression == expression
-            });
-        let root = roots.next()?;
-        roots.next().is_none().then_some(root.evaluations)
+        self.projection_selectors_by_state.with_rows(
+            &self.projection_selectors,
+            |root| root.state,
+            &state,
+            |handles| {
+                let mut roots = handles
+                    .iter()
+                    .map(|handle| self.projection_selectors.get(*handle))
+                    .filter(|root| {
+                        root.machine == machine
+                            && root.state == state
+                            && root.statement_ordinal == statement
+                            && root.expression == expression
+                    });
+                let root = roots.next()?;
+                roots.next().is_none().then_some(root.evaluations)
+            },
+        )
     }
 
     fn with_state_roots<R>(
@@ -181,6 +194,15 @@ impl CheckedScalarComputationPlans {
     ) -> R {
         self.roots_by_state
             .with_rows(&self.roots, |root| root.state, &state, run)
+    }
+
+    fn with_machine_roots<R>(
+        &self,
+        machine: SymbolHandle,
+        run: impl FnOnce(&[Handle<CheckedScalarComputationRoot>]) -> R,
+    ) -> R {
+        self.roots_by_machine
+            .with_rows(&self.roots, |root| root.machine, &machine, run)
     }
 
     pub fn root_at(
@@ -275,10 +297,40 @@ impl CheckedScalarComputationPlans {
 
     /// Root handles of computations owned by `machine`, in arena order.
     pub fn roots_for_machine(&self, machine: SymbolHandle) -> Vec<CheckedScalarComputationHandle> {
-        self.roots
-            .iter()
-            .filter_map(|(_, root)| (root.machine == machine).then_some(root.root))
-            .collect()
+        self.with_machine_roots(machine, |handles| {
+            handles
+                .iter()
+                .map(|handle| self.roots.get(*handle))
+                .filter_map(|root| (root.machine == machine).then_some(root.root))
+                .collect()
+        })
+    }
+
+    fn machine_root_handles(
+        &self,
+        machines: &[SymbolHandle],
+    ) -> Vec<Handle<CheckedScalarComputationRoot>> {
+        match machines {
+            [] => Vec::new(),
+            [machine] => self.with_machine_roots(*machine, |handles| handles.to_vec()),
+            _ => {
+                let mut seen_machines = Vec::with_capacity(machines.len());
+                let mut all_handles = Vec::new();
+                for &machine in machines {
+                    if !seen_machines.contains(&machine) {
+                        seen_machines.push(machine);
+                        self.with_machine_roots(machine, |handles| {
+                            all_handles.extend_from_slice(handles);
+                        });
+                    }
+                }
+                if seen_machines.len() > 1 {
+                    all_handles.sort_unstable_by_key(|handle| handle.arena_index());
+                    all_handles.dedup();
+                }
+                all_handles
+            }
+        }
     }
 
     /// Whether `root` points at a valid computation node authored by
@@ -303,9 +355,9 @@ impl CheckedScalarComputationPlans {
         &self,
         machines: &[SymbolHandle],
     ) -> Vec<CheckedScalarComputationHandle> {
-        self.roots
-            .iter()
-            .filter_map(|(_, root)| machines.contains(&root.machine).then_some(root.root))
+        self.machine_root_handles(machines)
+            .into_iter()
+            .map(|handle| self.roots.get(handle).root)
             .collect()
     }
 
@@ -314,9 +366,9 @@ impl CheckedScalarComputationPlans {
         &'plans self,
         machines: &'plans [SymbolHandle],
     ) -> impl Iterator<Item = &'plans CheckedScalarComputationRoot> {
-        self.roots
-            .iter()
-            .filter_map(move |(_, root)| machines.contains(&root.machine).then_some(root))
+        self.machine_root_handles(machines)
+            .into_iter()
+            .map(move |handle| self.roots.get(handle))
     }
 }
 

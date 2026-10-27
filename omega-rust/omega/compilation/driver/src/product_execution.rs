@@ -7,9 +7,9 @@
 //! execution installation; planning is not authority to execute or publish.
 
 mod component;
+mod native_inputs;
 
 use crate::execution_settlement::SelectedProductTarget;
-use crate::native::produce_native_product;
 use crate::terminal::{
     ProducedTerminalApplication, TerminalProductRequest, TerminalProductionView,
     finish_terminal_application,
@@ -283,7 +283,25 @@ impl RequestedTerminalCompilation {
                     finish_terminal_application(produced, request)
                 })?;
                 let produced = phase_profile::scope("06.0.e_produce_native_product", || {
-                    produce_native_product(request, &checked, terminal, rollback.effective())
+                    let accepted_package_terminal_authority_permission_policy =
+                        native_inputs::accepted_terminal_authority_permission_policy(&checked)?;
+                    let components = native_inputs::independent_components(&checked, &terminal)?;
+                    let post_terminal = rollback.effective().project_post_terminal();
+                    let request = native_production::NativeCompileRequest {
+                        private_entry_ram: &request.private_entry_ram,
+                        optimization_selections: post_terminal.selections(),
+                        terminal_authority_policy: request.terminal_authority_policy,
+                        accepted_package_terminal_authority_permission_policy,
+                        terminal_authority_permission_policy: request
+                            .terminal_authority_permission_policy,
+                        image_request: image_emission::ExecutableImageEmissionRequest::direct(
+                            checked.build().config.settings.subsystem,
+                        ),
+                        imports: &[],
+                        components: &components,
+                    };
+                    native_production::compile(terminal, request)
+                        .map_err(|(_, diagnostics)| diagnostics)
                 })?;
                 phase_profile::scope(
                     "06.0.f_settlement_finish_native",

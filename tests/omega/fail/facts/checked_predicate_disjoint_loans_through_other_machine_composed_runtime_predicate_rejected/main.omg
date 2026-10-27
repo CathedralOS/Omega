@@ -1,0 +1,53 @@
+// A checked distinct-index predicate authorizes two mutable element loans that write 17 and 53 to the original distinct caller elements.
+// Expected exit: 0
+data Cell { value: i32; }
+data Storage { before: i32; values: [Cell; 2]; after: i32; }
+data Indices { positions: [u64; 2]; first: u64; second: u64; }
+machine ordered(left: u64, right: u64) -> bool { left <= right || right < left }
+machine distinct(indices: &Indices) -> bool {
+    transition indices.first < 2 && indices.second < 2 {
+        true -> ordered(indices.positions[indices.first], indices.positions[indices.second])
+        false -> false
+    }
+}
+machine replace(values: &mut [Cell], indices: &Indices)
+requires values.len == 2, indices.first < 2, indices.second < 2, indices.positions[indices.first] < values.len, indices.positions[indices.second] < values.len,
+    distinct(indices) == true
+{
+    let first: &mut Cell = &mut values[indices.positions[indices.first]];
+    let second: &mut Cell = &mut values[indices.positions[indices.second]];
+    first = Cell { value: 17 };
+    second = Cell { value: 53 };
+}
+machine forward(values: &mut [Cell]) requires values.len == 2 {
+    let indices: Indices = Indices { positions: [0u64, 1u64], first: 0, second: 1 };
+    replace(values, &indices);
+}
+machine reverse(values: &mut [Cell]) requires values.len == 2 {
+    let indices: Indices = Indices { positions: [1u64, 0u64], first: 0, second: 1 };
+    replace(values, &indices);
+}
+machine main() crashes Trap {
+    let mut forward: Storage = Storage { before: 101, values: [Cell { value: 1 }, Cell { value: 2 }], after: 109 };
+    let mut reverse: Storage = Storage { before: 127, values: [Cell { value: 3 }, Cell { value: 4 }], after: 137 };
+    forward(&mut forward.values[..]);
+    reverse(&mut reverse.values[..]);
+    let forward_indices: Indices = Indices { positions: [0u64, 1u64], first: 0, second: 1 };
+    let reverse_indices: Indices = Indices { positions: [1u64, 0u64], first: 0, second: 1 };
+    let equal_indices: Indices = Indices { positions: [0u64, 0u64], first: 0, second: 1 };
+    let outside_indices: Indices = Indices { positions: [0u64, 1u64], first: 2, second: 1 };
+    let accepts_forward: bool = distinct(&forward_indices);
+    let accepts_reverse: bool = distinct(&reverse_indices);
+    let accepts_equal: bool = distinct(&equal_indices);
+    let accepts_outside: bool = distinct(&outside_indices);
+    transition forward.values[0].value == 17 && forward.values[1].value == 53
+        && reverse.values[0].value == 53 && reverse.values[1].value == 17
+        && forward.before == 101 && forward.after == 109
+        && reverse.before == 127 && reverse.after == 137
+        && accepts_forward && accepts_reverse && !accepts_equal && !accepts_outside {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

@@ -83,51 +83,30 @@ fn validate_terminal_image_with_import_count(
     if artifact.target().object_format == target::ObjectFormat::MachO {
         // Function observations do not describe what the loader maps. Rejoin
         // every supported segment and the on-disk payload before accepting
-        // instruction, relocation, or receiver-specific evidence.
-        match artifact.target().architecture {
-            target::Architecture::Aarch64 => {
-                image_macho::validate_macho_aarch64_loader_mapping(
-                    &output.bytes,
-                    output.final_image_layout,
-                    &output.final_text_bytes,
-                    &output.final_data_bytes,
-                    output.bss_bytes,
-                )?;
-                image_macho::validate_macho_aarch64_object_fixups(
-                    object,
-                    relocations,
-                    text_bytes.len(),
-                    artifact.data_bytes().len(),
-                    output,
-                )?;
-                image_macho::validate_macho_aarch64_import_binding_pairing(
-                    &output.final_text_bytes,
-                    &output.executable_regions,
-                    &output.data_regions,
-                )?;
-            }
-            target::Architecture::X86_64 => {
-                image_macho::validate_macho_x86_64_loader_mapping(
-                    &output.bytes,
-                    output.final_image_layout,
-                    &output.final_text_bytes,
-                    &output.final_data_bytes,
-                    output.bss_bytes,
-                )?;
-                image_macho::validate_macho_x86_64_object_fixups(
-                    object,
-                    relocations,
-                    text_bytes.len(),
-                    artifact.data_bytes().len(),
-                    output,
-                )?;
-                image_macho::validate_macho_x86_64_import_binding_pairing(
-                    &output.final_text_bytes,
-                    &output.executable_regions,
-                    &output.data_regions,
-                )?;
-            }
-        }
+        // instruction, relocation, or receiver-specific evidence. Each check
+        // reads the ABI off the artifact's own target, so there is no
+        // per-architecture arm to select one.
+        image_macho::validate_macho_loader_mapping(
+            &output.bytes,
+            output.final_image_layout,
+            &output.final_text_bytes,
+            &output.final_data_bytes,
+            output.bss_bytes,
+            artifact.target(),
+        )?;
+        image_macho::validate_macho_object_fixups(
+            object,
+            relocations,
+            text_bytes.len(),
+            artifact.data_bytes().len(),
+            output,
+        )?;
+        image_macho::validate_macho_import_binding_pairing(
+            &output.final_text_bytes,
+            &output.executable_regions,
+            &output.data_regions,
+            artifact.target(),
+        )?;
     }
     if output.final_image_imports != expected_imports {
         return Err(Diagnostic::error(

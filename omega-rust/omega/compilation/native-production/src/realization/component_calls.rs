@@ -149,15 +149,6 @@ impl<'input> ComponentNativeCall<'input> {
         })
     }
 
-    pub const fn image(&self) -> &ComponentExportImage<'input> {
-        self.image
-    }
-    pub const fn locator(&self) -> &target::NormalizedComponentLocator {
-        &self.locator
-    }
-    pub const fn commitment(&self) -> &[u8; 32] {
-        &self.commitment
-    }
     pub const fn call(&self) -> &AdmittedNativeComponentCall<'input> {
         self.call
     }

@@ -57,33 +57,37 @@ pub(super) fn check_call_requires(
     // fallthrough arms -- through the flow's context threading, now that a
     // transition's branch-taken exit context is no longer leaked onto its sibling
     // fallthrough (see flow/statements.rs). No direct-context consultation needed.
-    let entry_contexts: Vec<_> = facts
-        .flow
-        .state_call_entry_semantic_contexts(
+    let entry_contexts: Vec<_> = phase_profile::scope("05.d.7.3b.1a.entry_contexts", || {
+        facts
+            .flow
+            .state_call_entry_semantic_contexts(
+                state_flow,
+                call_flow.statement_index,
+                call_flow.call_ordinal,
+                call_flow.target_symbol,
+                call_flow.receiver_symbol,
+            )
+            .collect()
+    });
+    phase_profile::scope("05.d.7.3b.1b.contextual_and_nominal", || {
+        super::contextual_cleanup::check(
+            program,
+            facts,
             state_flow,
-            call_flow.statement_index,
-            call_flow.call_ordinal,
-            call_flow.target_symbol,
-            call_flow.receiver_symbol,
-        )
-        .collect();
-    super::contextual_cleanup::check(
-        program,
-        facts,
-        state_flow,
-        call_flow,
-        &entry_contexts,
-        call_frames,
-        diagnostics,
-    );
-    super::nominal_inputs::check(
-        program,
-        facts,
-        state_flow,
-        call_flow,
-        nominal_requirements,
-        diagnostics,
-    );
+            call_flow,
+            &entry_contexts,
+            call_frames,
+            diagnostics,
+        );
+        super::nominal_inputs::check(
+            program,
+            facts,
+            state_flow,
+            call_flow,
+            nominal_requirements,
+            diagnostics,
+        );
+    });
     let mut whole_contract_caches = Vec::<WholeContractCache>::new();
     for requires_context in facts
         .flow
@@ -91,9 +95,9 @@ pub(super) fn check_call_requires(
     {
         let context = facts.semantic.contexts.get(requires_context);
         for fact in facts.semantic.context_view(context).facts() {
-            let membership = {
+            let membership = phase_profile::scope("05.d.7.3b.1c.membership", || {
                 super::call_values::membership_evidence(program, facts, state_flow, call_flow, fact)
-            };
+            });
             let mut proves_case = |case: Option<&super::call_values::MembershipCase>| {
                 let requirement_contexts =
                     case.map_or(entry_contexts.as_slice(), |case| case.contexts.as_slice());
@@ -107,20 +111,23 @@ pub(super) fn check_call_requires(
                         });
                         whole_contract_caches.len() - 1
                     });
-                let captured_judgment = {
-                    captured_boolean::judgment(
-                        program,
-                        facts,
-                        state_flow,
-                        call_flow,
-                        requirement_contexts,
-                        fact,
-                        expression_intervals,
-                        call_frames,
-                        &mut whole_contract_caches[cache_index].answers,
-                    )
-                };
-                let satisfied =
+                let captured_judgment = phase_profile::scope(
+                    "05.d.7.3b.1d.captured_boolean",
+                    || {
+                        captured_boolean::judgment(
+                            program,
+                            facts,
+                            state_flow,
+                            call_flow,
+                            requirement_contexts,
+                            fact,
+                            expression_intervals,
+                            call_frames,
+                            &mut whole_contract_caches[cache_index].answers,
+                        )
+                    },
+                );
+                let satisfied = phase_profile::scope("05.d.7.3b.1e.proves_core", || {
                     selected_evidence_proves_requirement(facts, state_flow, call_flow, fact)
                         || captured_judgment.unwrap_or_else(|| match fact.payload {
                             FactPayload::ContractBooleanExpression { expression, .. } => {
@@ -150,65 +157,66 @@ pub(super) fn check_call_requires(
                                     program, facts, state_flow, call_flow, fact,
                                 )
                             }
-                        });
+                        })
+                });
                 // ch8 construction-grant: a string literal whose compile-time bytes
                 // satisfy a domain's declared byte-predicate fact grants that
                 // domain without a validating boundary call -- this is how a literal
                 // flows into a `&[u8] in Utf8` target.
                 let satisfied = satisfied
-                    || (captured_judgment.is_none()
-                        && proven_predicates_grant_domain(
-                            program,
-                            facts,
-                            state_flow,
-                            call_flow,
-                            requirement_contexts,
-                            fact,
-                            call_frames,
-                        ));
-                let satisfied = satisfied || {
-                    captured_judgment.is_none()
-                        && !super::prover::indexed_membership(program, fact.payload)
-                        && (transition_guard_proves_requires(
-                            program,
-                            facts,
-                            state_flow,
-                            call_flow,
-                            fact,
-                            call_frames,
-                        ) || string_literal_grants_domain(
-                            program,
-                            &facts.semantic,
-                            fact.payload,
-                            fact.place,
-                        ) || value_call_return_domain_grants(
-                            program,
-                            &facts.semantic,
-                            fact.payload,
-                            fact.place,
-                        ) || subslice_grants_domain(
-                            program,
-                            facts,
-                            requirement_contexts,
-                            fact.payload,
-                            fact.place,
-                        ) || parameter_domain_grants(
-                            program,
-                            facts,
-                            state_flow,
-                            fact.payload,
-                            fact.place,
-                        ) || super::reference_domains::proves(
-                            program,
-                            facts,
-                            state_flow,
-                            call_flow,
-                            requirement_contexts,
-                            fact,
-                            case.and_then(|case| case.referents.as_deref()),
-                            call_frames,
-                        ))
-                };
+                    || phase_profile::scope("05.d.7.3b.1f.domain_grants", || {
+                        (captured_judgment.is_none()
+                            && proven_predicates_grant_domain(
+                                program,
+                                facts,
+                                state_flow,
+                                call_flow,
+                                requirement_contexts,
+                                fact,
+                                call_frames,
+                            ))
+                            || (captured_judgment.is_none()
+                                && !super::prover::indexed_membership(program, fact.payload)
+                                && (transition_guard_proves_requires(
+                                    program,
+                                    facts,
+                                    state_flow,
+                                    call_flow,
+                                    fact,
+                                    call_frames,
+                                ) || string_literal_grants_domain(
+                                    program,
+                                    &facts.semantic,
+                                    fact.payload,
+                                    fact.place,
+                                ) || value_call_return_domain_grants(
+                                    program,
+                                    &facts.semantic,
+                                    fact.payload,
+                                    fact.place,
+                                ) || subslice_grants_domain(
+                                    program,
+                                    facts,
+                                    requirement_contexts,
+                                    fact.payload,
+                                    fact.place,
+                                ) || parameter_domain_grants(
+                                    program,
+                                    facts,
+                                    state_flow,
+                                    fact.payload,
+                                    fact.place,
+                                ) || super::reference_domains::proves(
+                                    program,
+                                    facts,
+                                    state_flow,
+                                    call_flow,
+                                    requirement_contexts,
+                                    fact,
+                                    case.and_then(|case| case.referents.as_deref()),
+                                    call_frames,
+                                )))
+                    });
 
                 let satisfied = satisfied
                     || crate::checks::termination::profile_requirement_covered(

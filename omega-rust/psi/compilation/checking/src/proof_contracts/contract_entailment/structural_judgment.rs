@@ -479,6 +479,7 @@ impl<'program> StructuralJudge<'program> {
             && self.invalidated_storage.len() == base.invalidated_storage.len()
             && self.storage_exposures == base.storage_exposures
             && self.captured_result_equations.len() == base.captured_result_equations.len()
+            && self.returned_field_owners.len() == base.returned_field_owners.len()
             && self.normal_memberships.len() == base.normal_memberships.len()
             && self.normal_content_guarantees.len() == base.normal_content_guarantees.len()
             && self.case_facts.len() == base.case_facts.len()
@@ -967,11 +968,14 @@ impl<'program> StructuralJudge<'program> {
                 expression,
             )
         {
-            return StructuralJudgment::connective(
+            let composed = StructuralJudgment::connective(
                 binary.operator,
                 self.judge_predicate_in_scope(scope, binary.left, environment, depth + 1),
                 self.judge_predicate_in_scope(scope, binary.right, environment, depth + 1),
             );
+            if !matches!(composed, StructuralJudgment::Unknown) {
+                return composed;
+            }
         }
         let Some(predicate) =
             self.predicate_term_in_scope(scope, expression, environment, depth + 1)
@@ -2051,21 +2055,73 @@ impl<'program> StructuralJudge<'program> {
             if !fires {
                 continue;
             }
-            let TransitionTargetNode::Value(value) =
-                program.statement_table.transition_target(transition.target)
-            else {
-                return None;
+            return match program.statement_table.transition_target(transition.target) {
+                TransitionTargetNode::Value(value) => self.callee_term(
+                    *value,
+                    &environment,
+                    StaticObservations {
+                        machine_bindings: &static_environment,
+                        body_parameters: &[],
+                    },
+                    Some((machine, state, state.return_type)),
+                    depth + 1,
+                ),
+                TransitionTargetNode::Named {
+                    path,
+                    arguments,
+                    static_machine_parameter,
+                    evidence_arguments,
+                    ..
+                } if !static_machine_parameter.is_valid() && evidence_arguments.is_empty() => {
+                    // The terminal target forwards this exact application's
+                    // result. Its original checked selection and formation stay
+                    // on the source transition; a fired guard supplies neither
+                    // operational eligibility nor the target's preconditions.
+                    let (target, result_type) =
+                        crate::machine_calls::calls::terminal_callable_target(
+                            program,
+                            machine,
+                            path.symbol,
+                        )?;
+                    let callee = self.entry_machines.machine(program, target)?;
+                    if !program.machine_type_parameters(callee).is_empty() {
+                        return None;
+                    }
+                    specification_application_candidate(
+                        program,
+                        machine.symbol,
+                        target,
+                        &[],
+                        self.frame_resolver(),
+                    )
+                    .ok()?;
+                    let arguments = program
+                        .statement_table
+                        .expression_handles(*arguments)
+                        .iter()
+                        .map(|argument| {
+                            self.callee_term(
+                                *argument,
+                                &environment,
+                                StaticObservations {
+                                    machine_bindings: &static_environment,
+                                    body_parameters: &[],
+                                },
+                                Some((machine, state, state.return_type)),
+                                depth + 1,
+                            )
+                        })
+                        .collect::<Option<Vec<_>>>()?;
+                    Some(StructuralTerm::Application {
+                        result_type,
+                        target,
+                        selections: Vec::new(),
+                        machine: callee.name.as_str().to_owned(),
+                        arguments,
+                    })
+                }
+                _ => None,
             };
-            return self.callee_term(
-                *value,
-                &environment,
-                StaticObservations {
-                    machine_bindings: &static_environment,
-                    body_parameters: &[],
-                },
-                Some((machine, state, state.return_type)),
-                depth + 1,
-            );
         }
         None
     }
