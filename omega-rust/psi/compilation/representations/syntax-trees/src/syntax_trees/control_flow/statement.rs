@@ -80,7 +80,7 @@ impl StatementTable {
 
     pub fn new_with_generation(generation: u32) -> Self {
         Self {
-            assembly: AssemblyTable::new(generation),
+            assembly: AssemblyTable::new_with_generation(generation),
             statements: Arena::with_generation(generation),
             expression_handles: Arena::with_generation(generation),
             identifier_path_members: Arena::with_generation(generation),

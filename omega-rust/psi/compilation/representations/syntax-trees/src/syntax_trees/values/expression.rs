@@ -1,6 +1,7 @@
 use crate::FloatSpelling;
 use crate::identifier::Identifier;
-use arena::{Handle, HandleSpan, PagedArenaFrontier, PagedArenaSet as Arena};
+use crate::syntax_trees::paged_roster::paged_roster;
+use arena::{Handle, HandleSpan, PagedArenaFrontier};
 use numerics::literals::IntegerLiteral;
 use source::SourceSpan;
 
@@ -11,68 +12,20 @@ mod tests;
 pub type ExpressionHandle = Handle<ExpressionNode>;
 pub type ExpressionFrontier = PagedArenaFrontier<ExpressionNode>;
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
-pub struct ExpressionTable {
-    expressions: Arena<ExpressionNode>,
-    source_spans: Arena<SourceSpan>,
-    expression_handles: Arena<ExpressionHandle>,
-    identifier_path_members: Arena<Identifier>,
-    struct_fields: Arena<TableStructLiteralField>,
-    match_arms: Arena<TableMatchArm>,
-    match_fields: Arena<TableMatchField>,
-    match_subjects: Arena<MatchSubjectCapture>,
-}
-
-pub(crate) struct ExpressionTableAppendCheckpoint {
-    expressions: arena::PagedArenaFrontier<ExpressionNode>,
-    source_spans: arena::PagedArenaFrontier<SourceSpan>,
-    expression_handles: arena::PagedArenaFrontier<ExpressionHandle>,
-    identifier_path_members: arena::PagedArenaFrontier<Identifier>,
-    struct_fields: arena::PagedArenaFrontier<TableStructLiteralField>,
-    match_arms: arena::PagedArenaFrontier<TableMatchArm>,
-    match_fields: arena::PagedArenaFrontier<TableMatchField>,
-    match_subjects: arena::PagedArenaFrontier<MatchSubjectCapture>,
+paged_roster! {
+    pub struct ExpressionTable => pub(crate) ExpressionTableAppendCheckpoint {
+        arena expressions: ExpressionNode,
+        arena source_spans: SourceSpan,
+        arena expression_handles: ExpressionHandle,
+        arena identifier_path_members: Identifier,
+        arena struct_fields: TableStructLiteralField,
+        arena match_arms: TableMatchArm,
+        arena match_fields: TableMatchField,
+        arena match_subjects: MatchSubjectCapture,
+    }
 }
 
 impl ExpressionTable {
-    pub(crate) fn append_checkpoint(&self) -> ExpressionTableAppendCheckpoint {
-        ExpressionTableAppendCheckpoint {
-            expressions: self.expressions.frontier(),
-            source_spans: self.source_spans.frontier(),
-            expression_handles: self.expression_handles.frontier(),
-            identifier_path_members: self.identifier_path_members.frontier(),
-            struct_fields: self.struct_fields.frontier(),
-            match_arms: self.match_arms.frontier(),
-            match_fields: self.match_fields.frontier(),
-            match_subjects: self.match_subjects.frontier(),
-        }
-    }
-
-    pub(crate) fn rewind_appended(&mut self, checkpoint: ExpressionTableAppendCheckpoint) {
-        self.expressions.rewind_appended(checkpoint.expressions);
-        self.source_spans.rewind_appended(checkpoint.source_spans);
-        self.expression_handles
-            .rewind_appended(checkpoint.expression_handles);
-        self.identifier_path_members
-            .rewind_appended(checkpoint.identifier_path_members);
-        self.struct_fields.rewind_appended(checkpoint.struct_fields);
-        self.match_arms.rewind_appended(checkpoint.match_arms);
-        self.match_fields.rewind_appended(checkpoint.match_fields);
-        self.match_subjects
-            .rewind_appended(checkpoint.match_subjects);
-    }
-
-    pub(crate) fn share_pages(&mut self) {
-        self.expressions.share_pages();
-        self.source_spans.share_pages();
-        self.expression_handles.share_pages();
-        self.identifier_path_members.share_pages();
-        self.struct_fields.share_pages();
-        self.match_arms.share_pages();
-        self.match_fields.share_pages();
-        self.match_subjects.share_pages();
-    }
-
     pub fn insert_match_arms(
         &mut self,
         arms: impl IntoIterator<Item = TableMatchArm>,
@@ -139,19 +92,6 @@ impl ExpressionTable {
         Self::new_with_generation(1)
     }
 
-    pub fn new_with_generation(generation: u32) -> Self {
-        Self {
-            expressions: Arena::with_generation(generation),
-            source_spans: Arena::with_generation(generation),
-            expression_handles: Arena::with_generation(generation),
-            identifier_path_members: Arena::with_generation(generation),
-            struct_fields: Arena::with_generation(generation),
-            match_arms: Arena::with_generation(generation),
-            match_fields: Arena::with_generation(generation),
-            match_subjects: Arena::with_generation(generation),
-        }
-    }
-
     pub fn insert(&mut self, expression: ExpressionNode) -> ExpressionHandle {
         let handle = self.expressions.insert(expression);
         let source_span = self.source_spans.append(SourceSpan::default());
@@ -166,29 +106,6 @@ impl ExpressionTable {
 
     pub fn set_source_span(&mut self, handle: ExpressionHandle, source_span: SourceSpan) {
         *self.source_spans.get_mut(source_span_handle(handle)) = source_span;
-    }
-
-    pub(crate) fn adopt(&mut self, other: Self) {
-        self.expressions.adopt(other.expressions);
-        self.source_spans.adopt(other.source_spans);
-        self.expression_handles.adopt(other.expression_handles);
-        self.identifier_path_members
-            .adopt(other.identifier_path_members);
-        self.struct_fields.adopt(other.struct_fields);
-        self.match_arms.adopt(other.match_arms);
-        self.match_fields.adopt(other.match_fields);
-        self.match_subjects.adopt(other.match_subjects);
-    }
-
-    pub(crate) fn begin_page(&mut self, generation: u32) {
-        self.expressions.begin_page(generation);
-        self.source_spans.begin_page(generation);
-        self.expression_handles.begin_page(generation);
-        self.identifier_path_members.begin_page(generation);
-        self.struct_fields.begin_page(generation);
-        self.match_arms.begin_page(generation);
-        self.match_fields.begin_page(generation);
-        self.match_subjects.begin_page(generation);
     }
 
     pub fn append_expression_handle(
