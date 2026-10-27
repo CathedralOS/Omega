@@ -45,6 +45,12 @@ fn field_fact_interval(
     if depth >= 4 || definition.where_facts.is_empty() {
         return None;
     }
+    let field_symbol = program
+        .data_members(definition)
+        .iter()
+        .filter_map(|member| member.as_field())
+        .find(|candidate| candidate.name.as_str() == field)?
+        .symbol;
     if let Some((_, low, high)) = data_where_field_intervals(program, definition)
         .into_iter()
         .flatten()
@@ -95,15 +101,15 @@ fn field_fact_interval(
             program.expression_table.expression(binary.left)
             && matches!(product.operator, BinaryOperator::Multiply)
         {
-            let factor = if side_names_field(program, product.left, field) {
+            let factor = if side_selects_field(program, product.left, field_symbol) {
                 Some(product.right)
-            } else if side_names_field(program, product.right, field) {
+            } else if side_selects_field(program, product.right, field_symbol) {
                 Some(product.left)
             } else {
                 None
             };
             if let Some(factor) = factor
-                && field_is_unsigned(program, definition, field)
+                && field_is_unsigned(program, definition, field_symbol)
                 && let Some(factor_low) = factor_lower_bound(program, definition, factor)
                 && factor_low >= 1
                 && let Some(bound) = bound_source_interval(program, definition, binary.right, depth)
@@ -118,9 +124,9 @@ fn field_fact_interval(
                 continue;
             }
         }
-        let (field_side_left, other) = if side_names_field(program, binary.left, field) {
+        let (field_side_left, other) = if side_selects_field(program, binary.left, field_symbol) {
             (true, binary.right)
-        } else if side_names_field(program, binary.right, field) {
+        } else if side_selects_field(program, binary.right, field_symbol) {
             (false, binary.left)
         } else {
             continue;
@@ -494,7 +500,7 @@ fn field_literal_bounds(
         let field_named = |expression| {
             fields
                 .iter()
-                .find(|field| side_names_field(program, expression, field.name.as_str()))
+                .find(|field| side_selects_field(program, expression, field.symbol))
         };
         let (field, literal, field_on_left) = match (
             field_named(binary.left),
@@ -603,19 +609,16 @@ pub(crate) fn stored_field_where_interval(
         .map(|(_, low, high)| Interval { low, high })
 }
 
-fn side_names_field(
+fn side_selects_field(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
-    field: &str,
+    field: symbols::SymbolHandle,
 ) -> bool {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Name(path) => program
+    field.is_valid()
+        && program
             .expression_table
-            .name_path_members(path.members)
-            .last()
-            .is_some_and(|member| member.as_str() == field),
-        _ => false,
-    }
+            .name_path_node(expression)
+            .is_some_and(|path| path.symbol == field)
 }
 
 /// The bound-supplying side's SOUND interval: a literal is itself; a
@@ -638,18 +641,16 @@ fn bound_source_interval(
             })
         }
         ExpressionNode::Name(path) => {
-            let name = program
-                .expression_table
-                .name_path_members(path.members)
-                .last()?;
-            let handle = crate::declarations::data_queries::data_field_named(
+            let field = program
+                .data_members(definition)
+                .iter()
+                .filter_map(|member| member.as_field())
+                .find(|field| field.symbol.is_valid() && field.symbol == path.symbol)?;
+            crate::proof_contracts::arithmetic_domains::range_constraint_interval(
                 program,
-                definition,
-                name.clone(),
+                field.type_reference,
             )
-            .map(|field| field.type_reference)?;
-            crate::proof_contracts::arithmetic_domains::range_constraint_interval(program, handle)
-                .or_else(|| field_fact_interval(program, definition, name.as_str(), depth + 1))
+            .or_else(|| field_fact_interval(program, definition, field.name.as_str(), depth + 1))
         }
         _ => None,
     }
@@ -660,14 +661,14 @@ fn bound_source_interval(
 fn field_is_unsigned(
     program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
-    field: &str,
+    field: symbols::SymbolHandle,
 ) -> bool {
     program
         .data_members(definition)
         .iter()
         .find_map(|member| match member {
             typed_trees::data::DataMember::Field(data_field)
-                if data_field.name.as_str() == field =>
+                if data_field.symbol.is_valid() && data_field.symbol == field =>
             {
                 program.primitive_type_reference(data_field.type_reference)
             }
@@ -689,11 +690,12 @@ fn factor_lower_bound(
     factor: ExpressionHandle,
 ) -> Option<i64> {
     let path = program.expression_table.name_path_node(factor)?;
-    let factor_name = program
-        .expression_table
-        .name_path_members(path.members)
-        .last()?
-        .as_str();
+    let factor_symbol = program
+        .data_members(definition)
+        .iter()
+        .filter_map(|member| member.as_field())
+        .find(|field| field.symbol.is_valid() && field.symbol == path.symbol)?
+        .symbol;
     if let Some(interval) = bound_source_interval(program, definition, factor, 4)
         && let Some(low) = interval.low
     {
@@ -708,18 +710,20 @@ fn factor_lower_bound(
         };
         let bound = match binary.operator {
             BinaryOperator::GreaterOrEqual
-                if side_names_field(program, binary.left, factor_name) =>
+                if side_selects_field(program, binary.left, factor_symbol) =>
             {
                 integer_literal_value(program, binary.right).map(|value| value as i64)
             }
-            BinaryOperator::Greater if side_names_field(program, binary.left, factor_name) => {
+            BinaryOperator::Greater if side_selects_field(program, binary.left, factor_symbol) => {
                 integer_literal_value(program, binary.right)
                     .map(|value| (value as i64).saturating_add(1))
             }
-            BinaryOperator::LessOrEqual if side_names_field(program, binary.right, factor_name) => {
+            BinaryOperator::LessOrEqual
+                if side_selects_field(program, binary.right, factor_symbol) =>
+            {
                 integer_literal_value(program, binary.left).map(|value| value as i64)
             }
-            BinaryOperator::Less if side_names_field(program, binary.right, factor_name) => {
+            BinaryOperator::Less if side_selects_field(program, binary.right, factor_symbol) => {
                 integer_literal_value(program, binary.left)
                     .map(|value| (value as i64).saturating_add(1))
             }
