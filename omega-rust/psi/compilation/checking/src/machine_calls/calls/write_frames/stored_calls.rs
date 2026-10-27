@@ -424,6 +424,142 @@ fn rebase_output_occurrences(
     Some(())
 }
 
+/// Extend an applied output's source cohort with every lifetime dependency's
+/// captured sources. Each dependency contributes the exact source its declared
+/// path presents, recursed through `aggregate_argument_sources`, then projected
+/// through the referent/stored distinction. The seed is the output's own
+/// identity row, absent for a declared output and performed for an admitted
+/// opaque one; every stored-output family owes this one walk.
+#[allow(clippy::too_many_arguments)]
+fn output_dependency_sources(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    parameters: &[StateParameter],
+    arguments: &[SlotArgumentCapture],
+    context: &CollectedStatementPrefix,
+    symbols: &TopLevelSymbols<'_>,
+    dependencies: &[crate::borrow_contracts::ProviderLifetimeDependency],
+    seed: Vec<SlotSource>,
+) -> Option<Vec<SlotSource>> {
+    let mut sources = seed;
+    for dependency in dependencies {
+        let parameter = parameters.get(dependency.parameter_index)?;
+        if parameter.type_reference != dependency.source_type {
+            return None;
+        }
+        let actual = arguments.get(dependency.parameter_index)?;
+        let relative = FrameSourcePlace {
+            segments: opaque_outputs::owner_segments(&dependency.source_path)?,
+            ..FrameSourcePlace::parameter_root(parameter)
+        };
+        let selected = SlotSource::from_place(
+            program,
+            relative.clone(),
+            FramePathPrecision::Exact,
+            Some(dependency.access),
+        );
+        let captured = if !super::type_reference_is_reference(program, dependency.source_type) {
+            aggregate_argument_sources(
+                program, machine, parameter, actual, &selected, context, symbols,
+            )?
+        } else {
+            let captured = aggregate_argument_sources(
+                program,
+                machine,
+                parameter,
+                actual,
+                &SlotSource::from_place(
+                    program,
+                    FrameSourcePlace::parameter_root(parameter),
+                    FramePathPrecision::Exact,
+                    None,
+                ),
+                context,
+                symbols,
+            )?;
+            let mut projected_sources = Vec::new();
+            for captured in captured {
+                if captured.lifetime_access.is_some() {
+                    projected_sources.push(captured);
+                    continue;
+                }
+                let mut projected = captured.origin.clone();
+                projected.source = projected.source.append_relative(program, &relative);
+                projected.path = path(program, &projected.source);
+                let carrier = captured.carrier.clone();
+                projected_sources.extend(match dependency.source {
+                    // This is the outer reference's referent, not a descriptor
+                    // stored at the same empty path inside that referent.
+                    crate::borrow_contracts::ViewReturnInputSource::Referent => {
+                        vec![SlotSource {
+                            carrier_backing: None,
+                            origin: projected,
+                            carrier,
+                            lifetime_access: Some(dependency.access),
+                        }]
+                    }
+                    crate::borrow_contracts::ViewReturnInputSource::Stored => {
+                        // This dependency reads a descriptor stored inside the
+                        // already captured referent. Keep that leaf's own
+                        // carrier/backing pair; the outer reference's carrier
+                        // is the storage address, not this pointer value.
+                        stored_origins::completed_reference_projection_sources(
+                            program,
+                            &captured,
+                            &projected,
+                            &context.stored,
+                        )?
+                        .into_iter()
+                        .map(|mut source| {
+                            source.lifetime_access =
+                                source.lifetime_access.or(Some(dependency.access));
+                            source
+                        })
+                        .collect()
+                    }
+                });
+            }
+            projected_sources
+        };
+        for source in captured {
+            if !sources.contains(&source) {
+                sources.push(source);
+            }
+        }
+    }
+    Some(sources)
+}
+
+/// Finish an applied-output relation. A template-dependent readiness publishes
+/// the captured coordinates as unknown effects; a complete relation publishes
+/// their cohorts. Every stored-output family owes this one tail.
+fn complete_applied_output_transfer(
+    context: &CollectedStatementPrefix,
+    readiness: crate::borrow_contracts::BorrowRelationReadiness,
+    effects: Vec<SlotEffect>,
+) -> Option<SlotRelationTransfer> {
+    if readiness == crate::borrow_contracts::BorrowRelationReadiness::TemplateDependent {
+        let mut transfer =
+            SlotRelationTransfer::unknown(context, SymbolHandle::invalid(), true, true);
+        // The captured destination may not have an incoming inventory row.
+        // Its checked coordinate still becomes unknown at this completion.
+        for mut effect in effects {
+            effect.sources = None;
+            if !transfer.effects.iter().any(|prior| {
+                prior.root == effect.root
+                    && prior.segments == effect.segments
+                    && prior.kind == effect.kind
+                    && prior.may_select == effect.may_select
+            }) {
+                transfer.effects.push(effect);
+            }
+        }
+        Some(transfer)
+    } else {
+        Some(SlotRelationTransfer::complete(effects))
+    }
+}
+
 fn path(program: &dyn crate::CheckingInput, source: &FrameSourcePlace) -> String {
     super::place_paths::coordinate_storage_path(
         program,
