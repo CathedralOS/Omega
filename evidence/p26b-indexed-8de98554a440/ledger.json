@@ -1,0 +1,34 @@
+{
+  "source": "8de98554a44030dfaa54ae3074097d1420f795bc",
+  "producer": "15cba48fc19157be657b41db21ac47ad3995ddc2",
+  "target": "macos_arm64",
+  "review": {
+    "accepted": true,
+    "reviewer": "/root/fact_a",
+    "candidate": "8de98554a44030dfaa54ae3074097d1420f795bc"
+  },
+  "qualification": {
+    "state_revision": 51,
+    "reused": 4,
+    "invalidated": 0,
+    "kind": "completed replay, no engines executed by qualification"
+  },
+  "observations": {
+    "public": 130,
+    "public_native_terminal_zero_agreements": 58,
+    "public_intended_rejects": 72,
+    "retained_check": 129,
+    "retained_native_terminal_zero_agreements": 57,
+    "historical_compare_unchanged": 5,
+    "ranked_theorem_check": 0,
+    "new_checking_goldens": 25,
+    "new_native_goldens": 12
+  },
+  "sha256": {
+    "qualification.tar.gz": "9c519c1b254fc2d3d521d10279b8e54206a97f802e819c9095da10a38da35d88",
+    "15cba48fc19157be657b41db21ac47ad3995ddc2.bundle": "c21b3c3bb43c38a315975f8213e8333b1ff72d3290ed849c15c3bf384f54b960",
+    "bd638bfd58735d9b11698a738ae7525ebd529263.bundle": "0e4d928e456693ce6b9d3726eab2ca395634ec661ad4a05eb4672de3a94deb66"
+  },
+  "archive_members": 1428,
+  "limits": "Fixed integer-element arrays inside owned records only. Broad parent structured/domain/runtime/theorem acceptance remains open. Native execution host macos_arm64 only."
+}
