@@ -327,14 +327,8 @@ impl Denotation {
                 let divide = this.integer_operation(IntegerOperation::ExactDivide(integer_type))?;
                 let application = {
                     let function = this.constant(divide);
-                    let function = this.arena.insert(Term::Apply {
-                        function,
-                        argument: dividend_term,
-                    });
-                    this.arena.insert(Term::Apply {
-                        function,
-                        argument: divisor_term,
-                    })
+                    this.arena
+                        .apply_binary(function, dividend_term, divisor_term)
                 };
                 Ok(this.arena.insert(Term::Id {
                     ty: integer,

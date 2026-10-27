@@ -892,11 +892,8 @@ impl Denotation {
         position: u32,
         arguments: &[TermHandle],
     ) -> TermHandle {
-        let mut function = self.constant(position);
-        for &argument in arguments {
-            function = self.arena.insert(Term::Apply { function, argument });
-        }
-        function
+        let constant = self.constant(position);
+        self.arena.apply_arguments(constant, arguments)
     }
 
     /// `law a₁ … aₙ` — the roster constant applied to the denoted
@@ -1178,14 +1175,7 @@ impl Denotation {
                 self.integer_less_or_equal()?
             };
             let relation = self.constant(relation);
-            let function = self.arena.insert(Term::Apply {
-                function: relation,
-                argument: left,
-            });
-            self.arena.insert(Term::Apply {
-                function,
-                argument: right,
-            })
+            self.arena.apply_binary(relation, left, right)
         };
         Ok(Some(denoted))
     }
