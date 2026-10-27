@@ -5,12 +5,12 @@
 use super::{BoundObservation, CanonicalPlace, CheckFacts, FlowOperandFact};
 use crate::flow::{CapturedValue, CapturedValueChoice};
 
-pub(super) struct Alias<'facts> {
+pub(in crate::checks::contracts) struct Alias<'facts> {
     pub place: CanonicalPlace,
     pub epoch: &'facts FlowOperandFact,
 }
 
-pub(super) struct CapturedBinding<'facts> {
+pub(in crate::checks::contracts) struct CapturedBinding<'facts> {
     pub position: usize,
     pub choices: Vec<CapturedValueChoice>,
     pub aliases: Vec<Alias<'facts>>,
@@ -30,7 +30,7 @@ impl<'facts> CapturedBinding<'facts> {
     }
 }
 
-pub(super) fn retain_bindings<'facts>(
+pub(in crate::checks::contracts) fn retain_bindings<'facts>(
     program: &dyn validation::CheckingInput,
     facts: &'facts CheckFacts,
     captured: &CapturedValue<'facts>,

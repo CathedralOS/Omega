@@ -88,7 +88,6 @@ pub(super) fn predicates(
                             let support = super::coverage::dependency(
                                 program,
                                 facts,
-                                required,
                                 captures,
                                 selections,
                                 conditions,
