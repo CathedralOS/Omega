@@ -87,6 +87,7 @@ struct CompletedValue {
     /// snapshots do not consume this place-only relationship.
     backing: Handle<checked_trees::FlowOperandFact>,
     evaluated_inputs: HandleSpan<checked_trees::FlowOperandFact>,
+    conditional_inputs_from: Option<usize>,
     referents: Option<HandleSpan<checked_trees::FlowOperandReferent>>,
     retention: Option<Handle<checked_trees::FlowOperandRetention>>,
     /// Descriptor contents substituted after operands, before callee writes.
@@ -816,6 +817,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         capture.completion = completed.completion;
         capture.value_source = completed.value_source;
         capture.evaluated_inputs = completed.evaluated_inputs;
+        capture.conditional_inputs_from = completed.conditional_inputs_from;
         capture.backing = if observed_descriptor.is_valid() {
             observed_descriptor
         } else {
@@ -1030,6 +1032,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         capture.completion = completed.completion;
         capture.value_source = completed.value_source;
         capture.evaluated_inputs = completed.evaluated_inputs;
+        capture.conditional_inputs_from = completed.conditional_inputs_from;
         capture.backing = completed.backing;
         capture.type_reference = reference;
         if let Some(leaves) = completed.reference_leaves {
@@ -1141,6 +1144,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             completion: checked_trees::FlowOperandCompletion::Observation,
             backing: Handle::invalid(),
             evaluated_inputs: HandleSpan::empty(),
+            conditional_inputs_from: None,
             value_source: Handle::invalid(),
             entry_origin_writes: self.entry_origin_writes,
             entry_origin_unknown_write: self.entry_origin_unknown_write,
@@ -1476,6 +1480,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             value_source,
             backing,
             evaluated_inputs,
+            conditional_inputs_from,
             referents,
             retention,
             reference_leaves,
@@ -1591,10 +1596,11 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     self.evaluated_operand(binary.left, contexts, constraints)
                 };
                 if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
-                    let (value, completion, inputs) =
+                    let (value, completion, inputs, conditional_from) =
                         self.logical_expression(binary, evaluated_left, contexts, constraints);
                     *boolean_completion = completion;
                     *evaluated_inputs = inputs;
+                    *conditional_inputs_from = conditional_from;
                     return value;
                 }
                 let left_operand = evaluated_left.capture;

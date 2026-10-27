@@ -202,11 +202,11 @@ pub(in crate::flow) fn completed_calls(
             return Vec::new();
         }
         let mut result = vec![operand.expression];
-        let mut children = control
-            .operands
-            .span_or_empty(operand.evaluated_inputs)
-            .iter()
-            .collect::<Vec<_>>();
+        let inputs = control.operands.span_or_empty(operand.evaluated_inputs);
+        let Some(children) = inputs.get(..operand.conditional_inputs_from.unwrap_or(inputs.len()))
+        else {
+            return Vec::new();
+        };
         for child in control
             .operand_children
             .span_or_empty(operand.constructed_children())
@@ -255,7 +255,7 @@ pub(in crate::flow) fn completed_calls(
                 }
             }
         }
-        for child in children.drain(..) {
+        for child in children {
             for expression in visit(control, child, state, statement, active) {
                 if !result.contains(&expression) {
                     result.push(expression);
