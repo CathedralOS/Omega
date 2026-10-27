@@ -233,6 +233,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
     for returned in crate::flow::retained_borrows::handbacks(
         program,
         borrow,
+        &build.control,
         machine,
         state,
         borrow_call,

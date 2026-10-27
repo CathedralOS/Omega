@@ -84,6 +84,11 @@ pub struct FlowOperandRetention {
     /// scope; borrowing a holder does not inherit its pointee's scope.
     pub immutable_image: bool,
     pub roots: HandleSpan<facts::PlaceRoot>,
+    /// Actual completed inputs selected by the applied declared lifetime
+    /// relation. This preserves typed return obligations through opaque owned
+    /// carriers. It supplies neither descriptor geometry nor new permission;
+    /// those remain with the captured input and its checked loans.
+    pub lifetime_sources: HandleSpan<FlowOperandRetainedSupplier>,
     /// Exact completed inputs retaining the permission carried by a call store.
     /// These are supplier associations, not value equality or pointee snapshots.
     pub suppliers: HandleSpan<FlowOperandRetainedSupplier>,
