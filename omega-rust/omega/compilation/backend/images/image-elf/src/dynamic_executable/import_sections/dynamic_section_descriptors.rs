@@ -13,9 +13,8 @@
 //! [GNU section types]: https://refspecs.linuxfoundation.org/LSB_5.0.0/LSB-Core-generic/LSB-Core-generic/sections.html
 //! [original GNU implementation]: https://sourceware.org/pipermail/binutils/2006-July/048074.html
 
-use target::compatibility_fingerprint::Fnv1a;
-
 use super::super::checked::{self, CandidateValidationError};
+use crate::bytes::{name_at, require_name};
 use crate::dynamic_executable::checked::{read_u32, require};
 use crate::dynamic_executable::import_sections::dynamic_section_bytes::ValidatedElfDynamicSectionPayloads;
 use diagnostics::Diagnostic;
@@ -318,27 +317,13 @@ fn descriptor(
     })
 }
 
-fn validate_candidate(
-    candidate: Candidate,
-) -> Result<ValidatedElfDynamicSectionDescriptorPlan, CandidateValidationError<Candidate>> {
-    checked::validate_candidate(
-        candidate,
-        |candidate| validate_contents(&candidate.payloads, &candidate.contents),
-        |candidate| {
-            candidate.non_authoritative_descriptor_compatibility_fingerprint
-                == non_authoritative_descriptor_compatibility_fingerprint(
-                    &candidate.payloads,
-                    &candidate.contents,
-                )
-        },
-        "ELF dynamic descriptor compatibility fingerprint does not replay",
-        |candidate| ValidatedElfDynamicSectionDescriptorPlan {
-            payloads: candidate.payloads,
-            contents: candidate.contents,
-            non_authoritative_descriptor_compatibility_fingerprint: candidate
-                .non_authoritative_descriptor_compatibility_fingerprint,
-        },
-    )
+checked::seal_stage! {
+    field: payloads,
+    contents: contents,
+    validated: ValidatedElfDynamicSectionDescriptorPlan,
+    validate: validate_contents,
+    fingerprint: non_authoritative_descriptor_compatibility_fingerprint,
+    message: "ELF dynamic descriptor compatibility fingerprint does not replay",
 }
 
 fn validate_contents(
@@ -355,6 +340,7 @@ fn validate_contents(
         name_at(
             &contents.section_name_table_seed,
             SECTION_NAME_TABLE_NAME_OFFSET,
+            "section-name seed",
         )? == b".shstrtab"
             && contents
                 .descriptors
@@ -412,20 +398,12 @@ fn validate_name(
     section_names: &[u8],
     row: &ElfAddressFreeSectionDescriptor,
 ) -> Result<(), Diagnostic> {
-    require(
-        name_at(section_names, row.name_offset)? == row.kind.name(),
-        "ELF descriptor name offset does not identify its semantic kind",
+    require_name(
+        section_names,
+        row.name_offset,
+        row.kind.name(),
+        "ELF descriptor name offset",
     )
-}
-
-fn name_at(section_names: &[u8], offset: u32) -> Result<&[u8], Diagnostic> {
-    let suffix = section_names
-        .get(offset as usize..)
-        .ok_or_else(|| Diagnostic::error("ELF descriptor name offset exceeds the name seed"))?;
-    let end = suffix.iter().position(|byte| *byte == 0).ok_or_else(|| {
-        Diagnostic::error("ELF descriptor name is not terminated in the name seed")
-    })?;
-    Ok(&suffix[..end])
 }
 
 fn validate_row(
@@ -546,12 +524,9 @@ fn non_authoritative_descriptor_compatibility_fingerprint(
     payloads: &ValidatedElfDynamicSectionPayloads,
     contents: &ElfDynamicSectionDescriptorContents,
 ) -> u64 {
-    let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf-dynamic-section-descriptors.v2");
-    hash.bytes(
-        &payloads
-            .non_authoritative_payload_compatibility_fingerprint()
-            .to_le_bytes(),
+    let mut hash = checked::stage_fingerprint(
+        b"omega.elf-dynamic-section-descriptors.v2",
+        payloads.non_authoritative_payload_compatibility_fingerprint(),
     );
     hash.bytes(&contents.section_name_table_seed);
     for row in &contents.descriptors {
