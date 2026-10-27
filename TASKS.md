@@ -774,6 +774,61 @@ helper that passes does not close an item.
 
 ## Immediate product closure
 
+- **LIBRARY-REPRESENTATION-FAMILIES.** Implement the ratified
+  [representation applications](wiki/spec/layouts/plans.md#representation-applications),
+  [transparent generic aliases](wiki/spec/language/generics.md#transparent-type-aliases)
+  and [fallible representation conversions](wiki/spec/layouts/codecs.md#representation-conversions)
+  as one reusable library-authoring path, not recognition of format names or
+  attached data machines. Data remains layout-neutral; core/std and community
+  policies use the same checked machinery.
+  - Implement transparent `data Alias<...> = TypeExpression;` with all existing
+    binder kinds, partial application, computed const arguments, exact machine
+    and conformance selection, lifetime/value-subject preservation, public
+    exposure, acyclic expansion and canonical type/ABI identity through both
+    compiler producers and retained artifacts.
+  - Implement named `FixedLayout<T>` policies and `LayoutStorage<T, Policy>`
+    through authorized schema reflection, explicit target facts, pure terminating
+    compile-time evaluation, complete plan validation, field/case projection,
+    nested representation composition, cleanup, references, recasts and ABI
+    realization without wrapper storage or per-layout Build registration.
+  - Supply a library C-layout family and migrate complete platform ABI records;
+    retain explicit named policies for sparse views. Darwin timestamp pairs and
+    the complete stat extent must agree with the SDK rather than inferring
+    missing fields from the current seconds-only record.
+  - Supply ordinary Representation/TryFrom contracts and reflection-specialized
+    library adapters with explicit resources, failures, full supported-value
+    coverage, round-trip/preservation obligations and optional proved-total
+    forwarding. Demonstrate a separately authored encoded format family and
+    composed cross-representation conversion without compiler format recognition.
+    Reuse WIRE-CODEC-LIBRARY's reflection/codec route, not a second generator.
+  - Migrate Rust and Omega producers, bundled libraries, samples and fixtures;
+    delete declaration-level/domain layout selection, empty policy-data and
+    attached-plan discovery, source-spelling identities and synthetic-record
+    compatibility paths. Preserve existing layout, access and ABI rejection
+    controls while exposing actual remaining unsupported mechanisms.
+  Acceptance: each changed mechanism has one complete nine-place fact row and
+  reject twins; alias and explicit applications agree in Terminal/native runs
+  across hosted targets. An independent package can author a fixed policy and
+  encoded family with no compiler or Build-policy whitelist. Invalid geometry,
+  alias cycles, unauthorized reflection, hidden compile-time effects, stale
+  value facts and widened storage authority reject. Matching-host C ABI and
+  conversion observations meet their authored oracles; unrelated source/data
+  names or imports cannot change selections.
+
+- **PREFIX-CASE-IDENTITIES.** Implement the ratified
+  [identity-before-case syntax](wiki/spec/language/data_and_literals.md#construction-and-case-identity)
+  through Rust and Omega parsers, schema reflection, retained encodings and
+  source tooling. Migrate every numbered-case declaration under source,
+  samples, fixtures and compiler-input literals to `#N case Name`, preserving
+  member numbers, payload scopes, tombstones, default-domain obligations,
+  authored case order and runtime discriminators; remove the retired parser
+  path rather than accepting two dialects. Unnumbered cases remain unchanged.
+  Acceptance: a mixed common-field/case fact survives all nine places with
+  native/Terminal agreement, payload and neighbor checks, and fact-sensitive
+  reject twins; old-order and case-block declarations reject. No executable
+  source fixture remains in the retired numbered spelling or changes its
+  expected value/reject obligation merely to accommodate the migration.
+
 - **STATE-LOCAL-VALUE-FRONTIER.** (also covers **REFERENCE-LOCAL-BINDING-ROUTES**
   and **TRANSITION-TAIL-CALL-TO-MACHINE**)
   Complete ordinary expression, call, reference-local, tail-transition, and
