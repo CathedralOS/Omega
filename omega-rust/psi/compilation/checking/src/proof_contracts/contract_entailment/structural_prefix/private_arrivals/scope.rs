@@ -87,6 +87,7 @@ fn belongs_to(
 pub(super) struct ClosedArrivals {
     pub(super) expected: Vec<Arrival>,
     pub(super) cycle_entries: Vec<SymbolHandle>,
+    pub(super) bodies: Vec<SymbolHandle>,
 }
 
 pub(super) fn closed_arrivals(
@@ -194,8 +195,10 @@ pub(super) fn closed_arrivals(
         return Err("the private declaration group has an exposed callable");
     }
     let mut target_symbols = std::collections::HashSet::new();
+    let mut bodies = Vec::new();
     for (index, member) in members.iter().enumerate() {
         if needed[index] {
+            bodies.push(member.symbol);
             target_symbols.insert(member.symbol);
             for state in program.machine_states(member) {
                 target_symbols.insert(state.symbol);
@@ -226,6 +229,7 @@ pub(super) fn closed_arrivals(
     Ok(ClosedArrivals {
         expected,
         cycle_entries,
+        bodies,
     })
 }
 

@@ -59,12 +59,15 @@ pub(in crate::proof_contracts::contract_entailment) fn observe_private_arrivals(
         })
         .collect::<Vec<_>>();
     let boundaries = roots.iter().map(|root| root.symbol).collect::<Vec<_>>();
+    let mut bodies = arrivals.bodies;
+    bodies.extend(boundaries.iter().copied());
     let mut observer = ArrivalRequirement {
         requirement,
         entry: entry.symbol,
         root: root.symbol,
         observed: Vec::new(),
         boundaries,
+        bodies,
     };
     let mut diagnostics = Vec::new();
     let mut recognized = true;
@@ -128,6 +131,7 @@ struct ArrivalRequirement<'query> {
     root: SymbolHandle,
     observed: Vec<Arrival>,
     boundaries: Vec<SymbolHandle>,
+    bodies: Vec<SymbolHandle>,
 }
 
 impl StructuralPrefixVisitor for ArrivalRequirement<'_> {
@@ -144,7 +148,12 @@ impl StructuralPrefixVisitor for ArrivalRequirement<'_> {
         self.requirement.unresolved(machine);
     }
     fn stops_at_machine(&self, machine: SymbolHandle) -> bool {
-        (machine != self.root && self.boundaries.contains(&machine))
+        // Closure checked every direct/escaping private use. Opaque calls in
+        // unrelated bodies cannot name this private occurrence; re-entry into
+        // an enclosing root is covered by that root's independent invocation.
+        // Ordinary completion still observes their actual writes and values.
+        !self.bodies.contains(&machine)
+            || (machine != self.root && self.boundaries.contains(&machine))
             || self.requirement.stops_at_machine(machine)
     }
     fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {
