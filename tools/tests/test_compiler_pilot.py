@@ -7,7 +7,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ci"))
 import compiler_pilot as pilot
@@ -39,6 +39,33 @@ class CompilerPilotTests(unittest.TestCase):
             self.assertEqual([row["passed"] for row in report["observations"]], [False, False, True])
             self.assertEqual(report["observations"][0]["error"], "native timeout")
             self.assertEqual(report["observations"][1]["error"], "provider unavailable")
+
+    def test_rejection_only_run_never_launches_an_empty_runtime_filter(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            producer = Mock(revision="a" * 40, target="linux_x86_64",
+                            runner_profile={"sha256": "b" * 64})
+            fixture = "fail/example/intended_rejection"
+            def corpus(arguments, **kwargs):
+                self.assertEqual(arguments[arguments.index("--filter") + 1], fixture)
+                self.assertNotIn("--both", arguments)
+                report = self.report()
+                report["observations"] = [dict(fixture=fixture, status="rejected", expected_satisfied=True)]
+                Path(arguments[arguments.index("--json") + 1]).write_text(json.dumps(report))
+                return Mock(returncode=0)
+            with patch.object(pilot, "command", side_effect=lambda argv: "" if "status" in argv else "a" * 40), \
+                 patch.dict(os.environ, {"GITHUB_SHA": "a" * 40}), \
+                 patch.object(pilot.corpus_gate, "host_target", return_value="linux_x86_64"), \
+                 patch.object(pilot, "observation_golden", return_value=output / "golden"), \
+                 patch.object(pilot.subprocess, "run", side_effect=corpus) as execute, \
+                 patch.object(pilot, "prepare_producer") as build:
+                summary = {}
+                pilot.execute(output, summary, positives=(), negatives=(fixture,), producer=producer)
+                execute.assert_called_once()
+                self.assertNotIn("native and Terminal execution", [stage["name"] for stage in summary["stages"]])
+                with self.assertRaisesRegex(ValueError, "at least one fixture"):
+                    pilot.execute(output, {}, positives=(), negatives=())
+                build.assert_not_called()
 
     def test_first_host_keeps_unknown_history_separate_from_other_host_results(self):
         with tempfile.TemporaryDirectory() as temporary:
