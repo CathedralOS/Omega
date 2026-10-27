@@ -166,58 +166,8 @@ pub(super) fn block_local_evidence_over_machines<'machine>(
     evidence
 }
 
-/// Whether dropping `block` would erase a row module-level evidence still
-/// names, or orphan a machine-level structural place declaration rooted at
-/// this block's parameters or operation results.
-pub(super) fn evidence_bound_block(
-    block: &terminal_psi::Block,
-    evidence: &BlockLocalEvidence,
-) -> bool {
-    if evidence.blocks.contains(&block.id) || !block.structural_parameters.is_empty() {
-        return true;
-    }
-    for operation in &block.operations {
-        if operation.static_reach_binding.is_some()
-            || evidence.operations.contains(&operation.id)
-            || matches!(
-                operation.result,
-                terminal_psi::OperationResult::Structural(_)
-            )
-        {
-            return true;
-        }
-        if operation
-            .result
-            .scalar()
-            .is_some_and(|result| evidence.values.contains(&result.id))
-        {
-            return true;
-        }
-    }
-    if block
-        .parameters
-        .iter()
-        .any(|parameter| evidence.values.contains(&parameter.id))
-    {
-        return true;
-    }
-    block
-        .terminator
-        .edges()
-        .any(|edge| evidence.edges.contains(&edge))
-}
-
-/// Machines surviving rows keep alive independent of intra-machine
-/// reachability: the module entry, every attached or ranked machine, every
-/// provider candidate, and every machine a module-level custody or evidence
-/// row names are roots, and each retained machine then keeps the machines
-/// its call, selected-evidence, cleanup, and closed-reach transitions name.
-pub(super) fn retained_machines(module: &TerminalModule) -> BTreeSet<MachineId> {
-    retained_machines_with_roots(module, Vec::new())
-}
-
-/// `retained_machines` closed over extra roots only a producer can name.
-/// A row the verifier's inventory cannot see — the lowering stage's
+/// The machine-retention closure over extra roots only a producer can name.
+/// A row the module-level evidence inventory cannot see — the lowering stage's
 /// unsealed checked-source and selected-IEEE sidecars — can keep a machine
 /// authored without making it a retention root, and the machines that kept
 /// machine's own surviving transitions name must stay as well.
