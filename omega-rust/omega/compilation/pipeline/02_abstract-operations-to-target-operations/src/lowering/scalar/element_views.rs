@@ -1,4 +1,5 @@
 //! Element observation and view operations for common graph lowering.
+use super::descriptor_operands::observes_measured_length;
 use super::{KnownInteger, KnownScalar};
 use crate::LoweringError;
 use crate::lowering::scalar::expressions::{insert_value, unsigned_u64_endpoint};
@@ -7,7 +8,6 @@ use crate::lowering::structural_layout::{
 };
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
-use calling_conventions::ValueShape;
 use semantic_vocabulary::{
     IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
 };
@@ -177,7 +177,7 @@ pub(in crate::lowering) fn lower_element_observation_with_lengths(
         ..
     } = operation
     {
-        element_view_for_place(
+        resolve_element_view(
             function,
             structural_types,
             parameters,
@@ -241,7 +241,7 @@ pub(in crate::lowering) fn lower_element_observation_with_lengths(
         _ => return Ok(false),
     };
     let invalid = || super::descriptor_operands::refusal(function, &operation);
-    let (view, view_structural_type) = element_view_for_place(
+    let (view, view_structural_type, _) = resolve_element_view(
         function,
         structural_types,
         parameters,
@@ -259,7 +259,7 @@ pub(in crate::lowering) fn lower_element_observation_with_lengths(
             path,
             ..
         } => {
-            if !observes_length(values, lengths, *length, source) {
+            if !observes_measured_length(values, lengths, *length, source, false) {
                 return Err(invalid());
             }
             let element_byte_offset = element_leaf_offset(
@@ -345,7 +345,7 @@ pub(in crate::lowering) fn float_element_read(
     let ScalarType::IeeeFloat(format) = result.scalar_type else {
         return Err(invalid());
     };
-    let (view, view_type) = element_view_for_place(
+    let (view, view_type, _) = resolve_element_view(
         function,
         structural_types,
         parameters,
@@ -355,7 +355,7 @@ pub(in crate::lowering) fn float_element_read(
         *source,
         &mut Vec::new(),
     )?;
-    if !observes_length(values, lengths, *length, *source) {
+    if !observes_measured_length(values, lengths, *length, *source, false) {
         return Err(invalid());
     }
     let element_byte_offset =
@@ -445,34 +445,6 @@ fn scalar_leaf_offset(
     runtime_projection(element, path, structural_types, &mut cache, &mut active)
         .ok()
         .map(|(_, _, offset, _)| offset)
-}
-
-/// Resolve one element-view place's descriptor identity: signature or
-/// non-entry block parameters directly, and producer operations for
-/// established and subslice views. The paired structural type identifies the
-/// view's element declaration.
-#[allow(clippy::too_many_arguments)]
-pub(in crate::lowering) fn element_view_for_place(
-    function: &AbstractFunction,
-    structural_types: &StructuralTypeLookup<'_>,
-    parameters: &[TargetStructuralParameter],
-    backings: ElementViewBackings<'_>,
-    values: &BTreeMap<ValueId, KnownScalar>,
-    lengths: &BTreeMap<ValueId, PlaceId>,
-    place: PlaceId,
-    active: &mut Vec<PlaceId>,
-) -> Result<(TargetElementView, StructuralTypeId), LoweringError> {
-    resolve_element_view(
-        function,
-        structural_types,
-        parameters,
-        backings,
-        values,
-        lengths,
-        place,
-        active,
-    )
-    .map(|(view, structural_type, _)| (view, structural_type))
 }
 
 pub(in crate::lowering) fn resolve_element_view(
@@ -1087,32 +1059,4 @@ fn live_aggregate_backing(
         }
     };
     Some((home.structural_type(), source))
-}
-
-/// An element-view length observation measured exactly this descriptor.
-fn observes_length(
-    values: &BTreeMap<ValueId, KnownScalar>,
-    lengths: &BTreeMap<ValueId, PlaceId>,
-    length: ValueId,
-    source: PlaceId,
-) -> bool {
-    let Some(KnownScalar::Integer { scalar_type, value }) = values.get(&length) else {
-        return false;
-    };
-    if scalar_type.sign() != IntegerSign::Unsigned || scalar_type.bits() != 64 {
-        return false;
-    }
-    match value {
-        KnownInteger::Runtime(TargetIntegerExpression::ElementViewLength {
-            source: observed,
-            source_value,
-            ..
-        }) => observed.place == source && observed.path.is_empty() && *source_value == length,
-        KnownInteger::Runtime(TargetIntegerExpression::ScalarHome(home)) => {
-            home.source_value == length
-                && home.scalar_type == ScalarType::Integer(*scalar_type)
-                && lengths.get(&length) == Some(&source)
-        }
-        _ => false,
-    }
 }

@@ -7,6 +7,7 @@ use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::AbstractFunction;
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, StructuralTypeId};
 use std::collections::BTreeMap;
+use target_operations::TargetIntegerExpression;
 use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralParameterDeclaration, StructuralPathSegment,
     StructuralTypeShape,
@@ -168,6 +169,54 @@ pub(in crate::lowering) fn observes_count(
         }
         _ => false,
     })
+}
+
+/// Whether `length`'s dominating known value is the count observation that
+/// measured exactly this descriptor. `bytes` separates the byte-sequence
+/// observation from the element-view one, the same board `observes_count`
+/// reads; the retained scalar home is the one that both share.
+pub(in crate::lowering) fn observes_measured_length(
+    values: &BTreeMap<semantic_vocabulary::ValueId, super::KnownScalar>,
+    lengths: &BTreeMap<semantic_vocabulary::ValueId, semantic_vocabulary::PlaceId>,
+    length: semantic_vocabulary::ValueId,
+    source: semantic_vocabulary::PlaceId,
+    bytes: bool,
+) -> bool {
+    let Some(super::KnownScalar::Integer { scalar_type, value }) = values.get(&length) else {
+        return false;
+    };
+    if scalar_type.sign() != semantic_vocabulary::IntegerSign::Unsigned || scalar_type.bits() != 64
+    {
+        return false;
+    }
+    match value {
+        super::KnownInteger::Runtime(TargetIntegerExpression::ByteSequenceLength {
+            source: observed,
+            source_value,
+            ..
+        }) if bytes => measured(observed, *source_value, length, source),
+        super::KnownInteger::Runtime(TargetIntegerExpression::ElementViewLength {
+            source: observed,
+            source_value,
+            ..
+        }) if !bytes => measured(observed, *source_value, length, source),
+        super::KnownInteger::Runtime(TargetIntegerExpression::ScalarHome(home)) => {
+            home.source_value == length
+                && home.scalar_type == ScalarType::Integer(*scalar_type)
+                && lengths.get(&length) == Some(&source)
+        }
+        _ => false,
+    }
+}
+
+/// One measured count names this exact descriptor, unprojected.
+fn measured(
+    observed: &StructuralArgument,
+    source_value: semantic_vocabulary::ValueId,
+    length: semantic_vocabulary::ValueId,
+    source: semantic_vocabulary::PlaceId,
+) -> bool {
+    observed.place == source && observed.path.is_empty() && source_value == length
 }
 
 /// Whether `collection` storage can back the parameter's declared view

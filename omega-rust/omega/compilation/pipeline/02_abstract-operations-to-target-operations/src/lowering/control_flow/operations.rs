@@ -495,7 +495,7 @@ pub(super) fn lower_operation(
             ..
         } => {
             let values = observations::scalar_values(site.live, &prepared.scalar_parameters)?;
-            let (view, _) = super::super::scalar::element_views::element_view_for_place(
+            let (view, _, _) = super::super::scalar::element_views::resolve_element_view(
                 function,
                 structural_types,
                 &prepared.parameters,

@@ -125,7 +125,7 @@ pub(super) fn lower(
         ..
     } = operation
     {
-        let (view, _) = element_views::element_view_for_place(
+        let (view, _, _) = element_views::resolve_element_view(
             function,
             structural_types,
             &prepared.parameters,
