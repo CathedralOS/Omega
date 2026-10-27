@@ -35,6 +35,7 @@ hosted targets; it adds no retired target-prefixed declaration syntax.
 Additional controls retain [a load-bearing namespaced theorem](controls/namespaced_theorem/main.omg),
 [its missing premise](controls/missing_theorem_premise/main.omg),
 [its missing citation](controls/missing_theorem_citation/main.omg),
+[the missing Unit theorem citation](controls/missing_unit_theorem_citation/main.omg),
 [a namespaced tag contract](controls/namespaced_tag/main.omg),
 [a wrong tag](controls/wrong_tag/main.omg),
 [an invalidated storage guard](controls/overwritten_guard/main.omg), and

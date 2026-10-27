@@ -2101,6 +2101,17 @@ pass/facts/nested_machine_private_bounds_other_machine_exit built 4768ms exit:0 
 pass/facts/nested_machine_private_bounds_other_state_exit built 4953ms exit:0 interpreter-exit:0 interpreter:agrees @cdcff74025ec
 pass/facts/nested_machine_private_bounds_parameter_exit built 4504ms exit:0 interpreter-exit:0 interpreter:agrees @cdcff74025ec
 pass/facts/nested_machine_private_bounds_target_body_exit built 4589ms exit:0 interpreter-exit:0 interpreter:agrees @cdcff74025ec
+pass/facts/nested_machine_statement_completion_call_result_exit built 37718ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @a5c5c11ddcfa
+pass/facts/nested_machine_statement_completion_const_name_exit built 38172ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @a5c5c11ddcfa
+pass/facts/nested_machine_statement_completion_field_exit built 37211ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @a5c5c11ddcfa
+pass/facts/nested_machine_statement_completion_local_exit built 37802ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @a5c5c11ddcfa
+pass/facts/nested_machine_statement_completion_match_join_exit built 37980ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @a5c5c11ddcfa
+pass/facts/nested_machine_statement_completion_namespaced_tag_exit built 13745ms exit:0 interpreter-exit:0 interpreter:agrees @a5c5c11ddcfa
+pass/facts/nested_machine_statement_completion_namespaced_theorem_exit built 13855ms exit:0 interpreter-exit:0 interpreter:agrees @a5c5c11ddcfa
+pass/facts/nested_machine_statement_completion_other_machine_exit built 37895ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @a5c5c11ddcfa
+pass/facts/nested_machine_statement_completion_other_state_exit built 37125ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @a5c5c11ddcfa
+pass/facts/nested_machine_statement_completion_parameter_exit built 38072ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @a5c5c11ddcfa
+pass/facts/nested_machine_statement_completion_target_body_exit built 24512ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @a5c5c11ddcfa
 pass/facts/nested_nine_level_record_field_bound_through_call_result_exit built 46319ms exit:0 interpreter-exit:0 interpreter:agrees @80e7797d0e1e+wt
 pass/facts/nested_nine_level_record_field_bound_through_const_name_exit built 48829ms exit:0 interpreter-exit:0 interpreter:agrees @80e7797d0e1e+wt
 pass/facts/nested_nine_level_record_field_bound_through_field_exit built 46870ms exit:0 interpreter-exit:0 interpreter:agrees @80e7797d0e1e+wt

@@ -25,7 +25,7 @@ use crate::proof_contracts::contract_entailment::structural_terms::{
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
 use typed_trees::statement::StatementNode;

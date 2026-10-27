@@ -11715,6 +11715,35 @@ fail/facts/nested_machine_private_bounds_target_body_rejected rejected 1114ms ex
 	cannot prove index `index` is within unknown slice length of `items` in get::entry
 	cannot prove index `index` is within unknown slice length of `items` in get::entry
 	cannot prove index `index` is within unknown slice length of `items` in get::entry
+fail/facts/nested_machine_statement_completion_call_result_rejected rejected 17624ms expected @a5c5c11ddcfa
+	cannot prove ensures contract for exit from probe at statement 1: result != -1
+fail/facts/nested_machine_statement_completion_const_name_rejected rejected 13451ms expected @a5c5c11ddcfa
+	cannot prove ensures contract for exit from probe at statement 0: result != -1
+fail/facts/nested_machine_statement_completion_field_rejected rejected 13452ms expected @a5c5c11ddcfa
+	cannot prove ensures contract for exit from probe at statement 1: result != -1
+fail/facts/nested_machine_statement_completion_local_rejected rejected 13451ms expected @a5c5c11ddcfa
+	cannot prove ensures contract for exit from probe at statement 1: result != -1
+fail/facts/nested_machine_statement_completion_match_join_rejected rejected 13448ms expected @a5c5c11ddcfa
+	cannot prove ensures contract for exit from probe at statement 1: result != -1
+fail/facts/nested_machine_statement_completion_missing_theorem_citation_rejected rejected 1667ms expected @a5c5c11ddcfa
+	machine `conclude` ensures contract proof fact `minus(x, z) == minus(y, z)` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+fail/facts/nested_machine_statement_completion_missing_theorem_premise_rejected rejected 1845ms expected @a5c5c11ddcfa
+	machine `conclude` cites `Laws::minus_swap`, but the callee's requires fact `a == add(b, Nat)` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
+	machine `conclude` ensures contract proof fact `minus(x, z) == minus(y, z)` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+fail/facts/nested_machine_statement_completion_other_machine_rejected rejected 13270ms expected @a5c5c11ddcfa
+	cannot prove ensures contract for exit from probe at statement 0: result != -1
+fail/facts/nested_machine_statement_completion_other_state_rejected rejected 13477ms expected @a5c5c11ddcfa
+	cannot prove ensures contract for exit from probe at statement 0: result != -1
+fail/facts/nested_machine_statement_completion_overwritten_guard_rejected rejected 13143ms expected @a5c5c11ddcfa
+	cannot prove ensures contract for exit from probe at statement 2: result != -1
+fail/facts/nested_machine_statement_completion_parameter_rejected rejected 11920ms expected @a5c5c11ddcfa
+	cannot prove ensures contract for exit from probe at statement 0: result != -1
+fail/facts/nested_machine_statement_completion_private_guarantee_rejected rejected 3729ms expected @a5c5c11ddcfa
+	cannot prove ensures contract for exit from probe at statement 0: result != -1
+fail/facts/nested_machine_statement_completion_target_body_rejected rejected 10994ms expected @a5c5c11ddcfa
+	cannot prove ensures contract for exit from HostedProbeBody::apply at statement 0: result != -1
+fail/facts/nested_machine_statement_completion_wrong_tag_rejected rejected 2405ms expected @a5c5c11ddcfa
+	cannot prove requires contract for call probe from main: choice == constructor:80:package:0ababaff7be122379295755579dfe2fa5efa40c446ce2a4d4011f916f57fb1af::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/nested_nine_level_record_field_bound_through_call_result_rejected rejected 879ms expected @a92f16431042
 	exact arithmetic in machine `check_bound` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/nested_nine_level_record_field_bound_through_const_name_rejected rejected 874ms expected @a92f16431042
@@ -27704,6 +27733,17 @@ pass/facts/nested_machine_private_bounds_other_machine_exit checked 4742ms check
 pass/facts/nested_machine_private_bounds_other_state_exit checked 5043ms check-target:macos_arm64 @cdcff74025ec
 pass/facts/nested_machine_private_bounds_parameter_exit checked 5240ms check-target:macos_arm64 @cdcff74025ec
 pass/facts/nested_machine_private_bounds_target_body_exit checked 4748ms check-target:macos_arm64 @cdcff74025ec
+pass/facts/nested_machine_statement_completion_call_result_exit checked 27217ms check-target:macos_arm64 @a5c5c11ddcfa
+pass/facts/nested_machine_statement_completion_const_name_exit checked 27531ms check-target:macos_arm64 @a5c5c11ddcfa
+pass/facts/nested_machine_statement_completion_field_exit checked 27217ms check-target:macos_arm64 @a5c5c11ddcfa
+pass/facts/nested_machine_statement_completion_local_exit checked 27217ms check-target:macos_arm64 @a5c5c11ddcfa
+pass/facts/nested_machine_statement_completion_match_join_exit checked 27404ms check-target:macos_arm64 @a5c5c11ddcfa
+pass/facts/nested_machine_statement_completion_namespaced_tag_exit checked 9597ms check-target:macos_arm64 @a5c5c11ddcfa
+pass/facts/nested_machine_statement_completion_namespaced_theorem_exit checked 9600ms check-target:macos_arm64 @a5c5c11ddcfa
+pass/facts/nested_machine_statement_completion_other_machine_exit checked 27411ms check-target:macos_arm64 @a5c5c11ddcfa
+pass/facts/nested_machine_statement_completion_other_state_exit checked 27291ms check-target:macos_arm64 @a5c5c11ddcfa
+pass/facts/nested_machine_statement_completion_parameter_exit checked 27297ms check-target:macos_arm64 @a5c5c11ddcfa
+pass/facts/nested_machine_statement_completion_target_body_exit checked 20295ms check-target:macos_arm64 @a5c5c11ddcfa
 pass/facts/nested_nine_level_record_field_bound_through_call_result_exit checked 2797ms check-target:macos_arm64 @a92f16431042
 pass/facts/nested_nine_level_record_field_bound_through_const_name_exit checked 2817ms check-target:macos_arm64 @a92f16431042
 pass/facts/nested_nine_level_record_field_bound_through_field_exit checked 1906ms check-target:macos_arm64 @a92f16431042
