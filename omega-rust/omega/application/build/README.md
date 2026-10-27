@@ -21,8 +21,10 @@ pinned resolution, policy comparison, bounded reporting and the final unchanged-
 check; the application cannot publish an audit as package acceptance.
 
 Start at [build.rs](src/build.rs). One typed `BuildRequest` selects a host,
-single explicit target or batch, and a check, native or named Terminal inspection
-product. Inspection has one target context and uses a private workspace without
+single explicit target or batch, and a check, retained Terminal, native or named
+Terminal inspection product. Terminal production retains its canonical artifact
+for interpretation, rollback comparison or explicit publication, without native
+realization. Inspection has one target context and uses a private workspace without
 native publication. The entrance
 admits output directories, prepares the project, requests products through
 package admission and compiler facades, and publishes ordered outcomes. A target's directory
