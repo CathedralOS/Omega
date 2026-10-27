@@ -134,6 +134,26 @@ impl<'program, 'facts> ExitScalars<'program, 'facts> {
     fn state(&self) -> Option<&'program typed_trees::state::State> {
         validation::find_state_for_exit(self.program, self.exit)
     }
+
+    /// The recognized origin this exit retained for `entry_parameter` under
+    /// this contract. A state edge rebases an entry binder only through the
+    /// correspondence the exit recorded; later states keep the exact pair.
+    fn contract_origin(
+        &self,
+        entry_parameter: symbols::SymbolHandle,
+    ) -> Option<&'facts checked_trees::FlowExitParameterOrigin> {
+        self.contract_origins()
+            .find(|origin| origin.entry_parameter == entry_parameter)
+    }
+
+    /// Every origin this exit retained for this contract, in roster order.
+    fn contract_origins(
+        &self,
+    ) -> impl Iterator<Item = &'facts checked_trees::FlowExitParameterOrigin> {
+        crate::flow::exit_parameter_origins(self.facts, self.exit)
+            .iter()
+            .filter(|origin| origin.contract == self.contract)
+    }
 }
 
 /// Parameters typed primitive — the leading slots of a scalar binding
@@ -178,17 +198,8 @@ impl ExitScalars<'_, '_> {
         if entry.symbol != self.exit.state_symbol {
             let root = place.root.as_symbol()?;
             let origin = self
-                .facts
-                .flow
-                .control
-                .exit_parameter_origins
-                .span_or_empty(self.exit.parameter_origins)
-                .iter()
-                .find(|origin| {
-                    origin.contract == self.contract
-                        && origin.entry_parameter == root
-                        && origin.state_parameter.is_valid()
-                })?;
+                .contract_origin(root)
+                .filter(|origin| origin.state_parameter.is_valid())?;
             place.root = PlaceRoot::Symbol(origin.state_parameter);
         }
         Some(place)
@@ -200,15 +211,8 @@ impl ExitScalars<'_, '_> {
         // still agree with the exit namespace; rebased scalar observations
         // below use the explicit origin correspondence instead.
         if !self
-            .facts
-            .flow
-            .control
-            .exit_parameter_origins
-            .span_or_empty(self.exit.parameter_origins)
-            .iter()
-            .any(|origin| {
-                origin.contract == self.contract && origin.entry_parameter != origin.state_parameter
-            })
+            .contract_origins()
+            .any(|origin| origin.entry_parameter != origin.state_parameter)
             && self
                 .state()
                 .and_then(|state| {
@@ -507,17 +511,7 @@ impl ExitScalars<'_, '_> {
         {
             return false;
         }
-        let Some(origin) = self
-            .facts
-            .flow
-            .control
-            .exit_parameter_origins
-            .span_or_empty(self.exit.parameter_origins)
-            .iter()
-            .find(|origin| {
-                origin.contract == self.contract && origin.entry_parameter == parameter.symbol
-            })
-        else {
+        let Some(origin) = self.contract_origin(parameter.symbol) else {
             return false;
         };
         let Some(state) = self.state() else {
@@ -578,16 +572,7 @@ impl ExitScalars<'_, '_> {
             .state_parameter_by_symbol(entry, root)
             .is_some()
         {
-            let origin = self
-                .facts
-                .flow
-                .control
-                .exit_parameter_origins
-                .span_or_empty(self.exit.parameter_origins)
-                .iter()
-                .find(|origin| {
-                    origin.contract == self.contract && origin.entry_parameter == root
-                })?;
+            let origin = self.contract_origin(root)?;
             if !origin.state_parameter.is_valid() {
                 return None;
             }
