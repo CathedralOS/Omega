@@ -1,0 +1,23 @@
+{
+  "consumer_revision": "45623895d95639107323d3759ab45fb5319c502c",
+  "producer_revision": "0dd926aed9fcad8fe05d8ff413893e095e192675",
+  "producer_sha256": "25b7c01372a52787fd558bd91b9a260b274bd3e9a7003435d7c4887d01b30a5f",
+  "execution": "Named QEMU8.2.2/PRoot5.1 on Linux x86-64; not physical ARM",
+  "receipt_sha256": "53c914626c7a616bb5b3710df1a199a9f886d8a7db2e2bf0b5838dd497cd62b4",
+  "packet_sha256": {
+    "arm64-final-consumer-evidence.tar": "22083efa7e58367e16456616d0cac22fd7a319895cacded25adcc14dd4b58c5e",
+    "arm64-pins-evidence.tar": "8576a64ca97c34709f27eea78baba489f44e4cc4d07ec46cfed3f0b5fcc65252",
+    "arm64-acceptance-public-evidence.tar": "4def67b9e13e9f9cdc95db7ec4db4425a8ae172f8931f3e96b259fb49e0e9a54",
+    "arm64-scoped-gates-evidence.tar": "2aa595168c0accc5411cc197431899fa9f7f857e5d9de7e0f770a5b20d92dae0",
+    "arm-macos-parity-evidence.tar": "f74d16baba621b3f816f5ebbb5ae0eacfa17793d65ecbff769e97cbe1dd4a446",
+    "arm-windows-regression-evidence.tar": "fd299aee97ca5a31d8c108841e071973fbca182e04873355a52ad5b9456988c3",
+    "arm64-baseline-linux-evidence.tar": "a9e5b3237532e10ac52bdada30064dc368ba6d15b3fc7ba291fd94bec8e51f01"
+  },
+  "source_bundle_sha256": "8d8921c1a31aeac7177f99cd6ffd64689b6222c904c83983f3b1b14a62f9cbec",
+  "source_bundle_prerequisites": [
+    "0cc8b6b9ba1d1350f3e2f09184e9e859a83edd36",
+    "7f7ad2cb686b8f3223106859bcf23908c55f03ec"
+  ],
+  "baseline_gates": "Existing ARM units158/159; strict owner Clippy8 unchanged-file errors. Both gates remain failed and independently attributed.",
+  "host_limits": "Mac image parity only; fresh macOS and physical ARM execution unverified."
+}
