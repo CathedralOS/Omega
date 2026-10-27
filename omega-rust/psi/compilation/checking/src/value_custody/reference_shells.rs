@@ -123,6 +123,28 @@ pub(crate) fn peel_carrier_shells(
     None
 }
 
+/// The carrier a declared type spells beneath its borrows and domain
+/// constraint shells: `[u8; 4]`, `[u8]`, `Room`, a primitive. Access and
+/// domain qualification shape what a carrier may be used for, never which
+/// node it is, so every carrier classifier reads the shape here instead of
+/// re-walking the shells once per query.
+pub fn carrier_beneath_borrows(
+    program: &dyn crate::CheckingInput,
+    mut reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    if !reference.is_valid() {
+        return None;
+    }
+    for _ in 0..=program.type_reference_table.type_reference_count() {
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+            TypeReferenceNode::Reference { referee, .. } => reference = *referee,
+            _ => return Some(reference),
+        }
+    }
+    None
+}
+
 /// A stored slice view keeps a descriptor with its live extent. References
 /// to fixed arrays use the ordinary pointer carrier and retain their exact
 /// referee geometry. This classification grants no backing or loan authority.
