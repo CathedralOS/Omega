@@ -1,0 +1,744 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "408a6f6e240ac02fb45899d02b0b79c5f3d41595",
+  "dirty": true,
+  "leg": "both",
+  "target": "macos_arm64",
+  "golden": "tests/omega/corpus_both_macos_arm64.txt",
+  "golden_reason_gaps": {
+    "rows": 0,
+    "of": 4635
+  },
+  "subset": true,
+  "filter": "facts/saved_case_predicate_,facts/saved_observation_snapshot_,facts/saved_byte_predicate_,facts/case_payload_stored_loan_,facts/descriptor_guard_replacement_,control_flow/saved_case_predicate_,borrows/guard_subject,borrows/guard_observation",
+  "shard": null,
+  "verdict": "recorded",
+  "exit_code": 0,
+  "counts": {
+    "fixtures": 47,
+    "by_status": {
+      "built": 47
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {}
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": null,
+  "perf_context": null,
+  "observations": [
+    {
+      "fixture": "pass/borrows/guard_subject_ends_before_returning_call_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1781,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/control_flow/saved_case_predicate_disjoint_effects_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1679,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1867,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1966,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2120,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1838,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1666,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1740,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1894,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1726,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1903,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1724,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2035,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2083,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1640,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1653,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2264,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1994,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1795,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1832,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_call_result",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1986,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_const_name",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1719,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_field",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1927,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_local",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1638,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_match_join",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1866,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_other_machine",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2038,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_other_state",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1763,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_parameter",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1762,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_target_body",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1985,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1623,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1611,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1640,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2019,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2013,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1736,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1566,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2068,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1900,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1728,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1555,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2010,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1738,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1745,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1857,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1749,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1743,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1478,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "408a6f6e240a"
+    }
+  ],
+  "fixtures": []
+}

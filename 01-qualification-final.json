@@ -1,0 +1,68 @@
+{
+  "schema": "omega-qualification-summary-v1",
+  "state": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case/qualification-state.json",
+  "revision": 4,
+  "base": "eac9952c077414c4b91e4d3dcd7c7fdb46aa31eb",
+  "qualification_revision": "36a64a6328c677ab6f23f82ce53e1a8a57bdcc73",
+  "running": null,
+  "source_ref": "refs/qualification/8d614911c508b4d3bbe6e0eb/36a64a6328c677ab6f23f82ce53e1a8a57bdcc73",
+  "latest_run": {
+    "id": "82ac304c8ae54bafbef726b73f56154f",
+    "check": "saved-case-final",
+    "revision": "36a64a6328c677ab6f23f82ce53e1a8a57bdcc73",
+    "exit": 0,
+    "invalidations": [],
+    "duration_seconds": 64.894331708,
+    "receipt": {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case/qualification-state.records/82ac304c8ae54bafbef726b73f56154f.json",
+      "sha256": "08790416f96fe7d10ecfe161b8e2213d39a262b913f2c8d2d3bb4d8fb594d344"
+    }
+  },
+  "latest_assessment": {
+    "candidate": "36a64a6328c677ab6f23f82ce53e1a8a57bdcc73",
+    "base": "eac9952c077414c4b91e4d3dcd7c7fdb46aa31eb",
+    "checks": [
+      {
+        "check": "saved-case-final",
+        "action": "reuse",
+        "reasons": [
+          "reviewed_inputs_unchanged"
+        ],
+        "evidence": "82ac304c8ae54bafbef726b73f56154f",
+        "observed_revision": "36a64a6328c677ab6f23f82ce53e1a8a57bdcc73"
+      }
+    ],
+    "canonical_context": [
+      {
+        "classification": "missing_implementation",
+        "contract": "wiki/spec/language/state_contracts.md",
+        "implementation": [
+          "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow"
+        ],
+        "passages": [
+          "Facts apply to their exact subjects and program points. Assignments first\n[capture their destination place](expressions.md#evaluation-schedule), including\nits selectors and bounds at that program point. They then evaluate the\nright-hand side and its effects, capture transferable evidence, and finally\ninvalidate overlapping destination facts and establish the new value at the\ncaptured place. Right-hand-side mutations invalidate their own overlapping facts\nwhen they occur; the captured selector is not a fact that the selector's live\nbinding still has its earlier value. Uninitialized storage\nhas no assumed zero. Copies transport facts about the captured value, not source\nexpressions to be reevaluated after mutation.\n\nA reference identifies live storage, not its former contents. Replacing a local\nreference binding changes that binding without redirecting aliases made from its\nprevious value. A write through the reference changes the referent, not the\nbinding. Stored reference leaves retain their captured origins until replacement\nor exposure invalidates that relation. Type or lifetime correspondence alone\ndoes not establish a returned reference's storage origin.\n\nCaller-visible mutation summaries include operand evaluation and callee writes.\nA complete empty summary preserves facts; an unknown summary proves no\nnon-interference. Fact invalidation uses storage footprints, while borrow\nauthorization uses the access route. Neither may-write summaries nor origin\nrecovery grant loans, permit moves, or discharge linear claims."
+        ],
+        "reason": "Retain the original evaluated observation, receiver, polarity and write-prefix association through saved Boolean recovery. Consume it only under preserved exact storage identity; do not replay an initializer, restore retired facts, widen loans or infer noninterference from unknown writes. Authenticated invocation-referent coordinates must have one shared stability law in the fact producer and consumer.",
+        "revision": "eac9952c077414c4b91e4d3dcd7c7fdb46aa31eb",
+        "blob": "3f0063b497dff2a77ef78b292b1f3315cf7b22d9"
+      },
+      {
+        "classification": "missing_implementation",
+        "contract": "wiki/spec/language/patterns.md",
+        "implementation": [
+          "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow"
+        ],
+        "passages": [
+          "A dispatch evaluates its subject once, tests alternatives in authored order,\nand executes only the selected arm. Matching contributes facts valid for that\nsubject and program point. Failed alternatives do not execute their bodies.\nAn expression `match` produces compatible arm values; a `transition` selects an\noutgoing control edge. Both use the same pattern vocabulary."
+        ],
+        "reason": "A saved true case verdict selects the exact current payload after proven disjoint effects, while replacement of that case retires the current payload fact. Keep all branch and payload formation obligations.",
+        "revision": "eac9952c077414c4b91e4d3dcd7c7fdb46aa31eb",
+        "blob": "5cbaddcb87f5edbbfb08bb667218f80b176fd21a"
+      }
+    ],
+    "incoming_paths": [],
+    "duration_seconds": 1.2152365419999995,
+    "reused": 1,
+    "invalidated": 0
+  }
+}

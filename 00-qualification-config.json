@@ -1,0 +1,82 @@
+{
+  "context": {
+    "host": "macOS ARM64",
+    "target": "macos_arm64",
+    "parent": "STATE-LOCAL-VALUE-FRONTIER",
+    "requirement": "Preserve the evaluated case verdict and its exact unchanged storage identity across saved Boolean copies and disjoint writes; invalidate current case authority after overlapping replacement."
+  },
+  "semantic_contracts": [
+    {
+      "contract": "wiki/spec/language/state_contracts.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Retain the original evaluated observation, receiver, polarity and write-prefix association through saved Boolean recovery. Consume it only under preserved exact storage identity; do not replay an initializer, restore retired facts, widen loans or infer noninterference from unknown writes. Authenticated invocation-referent coordinates must have one shared stability law in the fact producer and consumer.",
+      "passages": [
+        "Facts apply to their exact subjects and program points. Assignments first\n[capture their destination place](expressions.md#evaluation-schedule), including\nits selectors and bounds at that program point. They then evaluate the\nright-hand side and its effects, capture transferable evidence, and finally\ninvalidate overlapping destination facts and establish the new value at the\ncaptured place. Right-hand-side mutations invalidate their own overlapping facts\nwhen they occur; the captured selector is not a fact that the selector's live\nbinding still has its earlier value. Uninitialized storage\nhas no assumed zero. Copies transport facts about the captured value, not source\nexpressions to be reevaluated after mutation.\n\nA reference identifies live storage, not its former contents. Replacing a local\nreference binding changes that binding without redirecting aliases made from its\nprevious value. A write through the reference changes the referent, not the\nbinding. Stored reference leaves retain their captured origins until replacement\nor exposure invalidates that relation. Type or lifetime correspondence alone\ndoes not establish a returned reference's storage origin.\n\nCaller-visible mutation summaries include operand evaluation and callee writes.\nA complete empty summary preserves facts; an unknown summary proves no\nnon-interference. Fact invalidation uses storage footprints, while borrow\nauthorization uses the access route. Neither may-write summaries nor origin\nrecovery grant loans, permit moves, or discharge linear claims."
+      ]
+    },
+    {
+      "contract": "wiki/spec/language/patterns.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow"
+      ],
+      "classification": "missing_implementation",
+      "reason": "A saved true case verdict selects the exact current payload after proven disjoint effects, while replacement of that case retires the current payload fact. Keep all branch and payload formation obligations.",
+      "passages": [
+        "A dispatch evaluates its subject once, tests alternatives in authored order,\nand executes only the selected arm. Matching contributes facts valid for that\nsubject and program point. Failed alternatives do not execute their bodies.\nAn expression `match` produces compatible arm values; a `transition` selects an\noutgoing control edge. Both use the same pattern vocabulary."
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "saved-case-final",
+      "kind": "native",
+      "command": [
+        "python3",
+        "build/saved-case/validate-final.py"
+      ],
+      "inputs": [
+        "omega-rust",
+        "source/library",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        ".config",
+        "tools",
+        "samples/cli/facts/saved_case_predicate",
+        "tests/omega",
+        "build.omg"
+      ],
+      "artifacts": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case/producer-3/omega",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case/producer-3/corpus_runner",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case/producer-3.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case/corpus-producer.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case/validate-final.py",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case/run-both-row.py",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case/corpus-both.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case/corpus-both.log"
+      ],
+      "producer": {
+        "revision": "36a64a6328c677ab6f23f82ce53e1a8a57bdcc73",
+        "inputs": [
+          "omega-rust",
+          "source/library",
+          "Cargo.toml",
+          "Cargo.lock",
+          "rust-toolchain.toml"
+        ],
+        "executables": [
+          "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case/producer-3/omega",
+          "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case/producer-3/corpus_runner"
+        ]
+      },
+      "closure_reason": "Compiler and bundled libraries, fixed source/oracles, audited corpus runner and raw 47-program runtime record, plus actual nine-place dual-engine executions and all focused source controls. Producer inputs unchanged since optimized builds; fixture/golden/docs commits do not change compiler inputs.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 300
+    }
+  ]
+}

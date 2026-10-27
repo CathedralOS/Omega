@@ -1,0 +1,99 @@
+{
+  "source_head": "36a64a6328c677ab6f23f82ce53e1a8a57bdcc73",
+  "fixed_base": "eac9952c077414c4b91e4d3dcd7c7fdb46aa31eb",
+  "pr": 301,
+  "files": [
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case/qualification-config.json",
+      "sha256": "629e1496da3b02be05b3170f1a372587817718883a76c61fb74eea2a723fe242"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case/qualification-final.json",
+      "sha256": "9afc10fa447bf9e9f1355462c70550ea7fca84a6d8dfe229eeda6aa230e44bf6"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case/qualification-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case/producer-3.json",
+      "sha256": "72654ebefbfe8ac9487090019cbcbc5c5dd3b3991c82f2f637e4c6a0d8d23d3c"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case/corpus-producer.json",
+      "sha256": "3eed70939b62ad6a5b4e2a4bc8153b3e4e5f36f37b0e376ba2b8578114141f51"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case/corpus-both.json",
+      "sha256": "08676b084d483e54228595423ba70b8e83a4096c6309ad2d6d92a5fc4819015d"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case/corpus-both.log",
+      "sha256": "c52813628117f82712d8ee7ed76e8b710f91bc71f574b29593ddf0f8578bb324"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case/corpus-source.json",
+      "sha256": "93be45fba5e07eb145c73ed5fc67c5f0753478863766840371907e0d715ab219"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case/corpus-source.log",
+      "sha256": "a5365ef3256ee54eeb1ebb599844a4616974dfb7ad9407d4a8e9351313d5f5c2"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case/final-source.json",
+      "sha256": "faafc17b708a4f9067e7ac6ea02aa1df83d68cc1873115dc7bb2cbb93eed4a23"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case/final-source.stdout",
+      "sha256": "ce8ba093ed49ff4a5859538149af205e423bb2f71d4331f97cd51e3c9389c8fd"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case/final-source.stderr",
+      "sha256": "f27f73cadb09d9eea10baca4500957635627bd8ac6bbbfbe4023c80ad20e8e12"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case/row-final.json",
+      "sha256": "01195fe7491a301e1c7a984a0dea9f88e85cc9a542b354ddbccac39a4a22f85b"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case/row-baseline-valid.json",
+      "sha256": "ec39ab61698d0f71ddd25397fac050365da6ef7ac61bbdd1bb10d8e8f6c86390"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case/probes-effects-3.json",
+      "sha256": "e5284d5b7d4b812627cecd23e3cce1e0512ecae839a2c47cb97fa8c5e6bb53c4"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case/validate-final.py",
+      "sha256": "dd684bef552053f19ba49e1f9ea7a16297078090a3ec2c4b086514957f33f13d"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case/run-both-row.py",
+      "sha256": "e1fc737d3d8bc9dd57ce40b337a4dcdf1a0863efd536291759be35af2a8f2fb3"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case/implementation-context.json",
+      "sha256": "243ee3c4696e44269a24385a959106c750efd82cd5a6b3bf18525d8efa19c85e"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/corpus-source/408a6f6e240ac02fb45899d02b0b79c5f3d41595.bundle",
+      "sha256": "a867ee380edf4f9f9aeee9122e35062c62af60962e1b83d77edcaac0d12eb73d"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case/qualification-state.json.gz",
+      "sha256": "75f475397b83af040fd4edadb89e9819b89990d19adf9037c2039ca1e0644475"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case/qualification-state.records/82ac304c8ae54bafbef726b73f56154f.json",
+      "sha256": "08790416f96fe7d10ecfe161b8e2213d39a262b913f2c8d2d3bb4d8fb594d344"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case/qualification-state.records/82ac304c8ae54bafbef726b73f56154f.stdout",
+      "sha256": "7b2e79ec307b30a91180c1a523cd14eddd04211b7a3ed063bb28235c53027f20"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/saved-case/qualification-state.records/82ac304c8ae54bafbef726b73f56154f.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

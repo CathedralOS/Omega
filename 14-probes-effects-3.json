@@ -1,0 +1,20 @@
+[
+  {
+    "name": "effectful_receiver",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `saved_case_effectful_receiver` with 1 diagnostic(s)\n  error: machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence\n"
+  },
+  {
+    "name": "written_receiver",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `saved_case_written_receiver` with 1 diagnostic(s)\n  error: machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence\n"
+  },
+  {
+    "name": "trailing_effect",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `saved_case_trailing_effect` with 1 diagnostic(s)\n  error: machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence\n"
+  }
+]

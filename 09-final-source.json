@@ -1,0 +1,1719 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "36a64a6328c677ab6f23f82ce53e1a8a57bdcc73",
+  "dirty": false,
+  "leg": "checked",
+  "target": null,
+  "golden": "tests/omega/corpus_outcomes.txt",
+  "golden_reason_gaps": {
+    "rows": 1,
+    "of": 18423
+  },
+  "subset": true,
+  "filter": "facts/saved_case_predicate_,facts/saved_observation_snapshot_,facts/saved_byte_predicate_,facts/case_payload_stored_loan_,facts/descriptor_guard_replacement_,control_flow/saved_case_predicate_,borrows/guard_subject,borrows/guard_observation",
+  "shard": null,
+  "verdict": "moved",
+  "exit_code": 1,
+  "counts": {
+    "fixtures": 96,
+    "by_status": {
+      "checked": 47,
+      "rejected": 49
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {
+      "perf_faster": 1,
+      "moved": 10
+    }
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": {
+    "stamped": 96,
+    "legacy": 0,
+    "unknown_revisions": 0,
+    "oldest": {
+      "revision": "a92f16431042",
+      "commits_behind": 320
+    }
+  },
+  "perf_context": {
+    "golden": {
+      "cpus": 10,
+      "jobs": "2",
+      "load1_end": 8.21,
+      "load1_start": 7.27,
+      "machine": "arm64",
+      "platform": "darwin",
+      "schema": "omega-corpus-context-v1"
+    },
+    "current": {
+      "schema": "omega-corpus-context-v1",
+      "jobs": "4",
+      "cpus": 10,
+      "platform": "darwin",
+      "machine": "arm64",
+      "load1_start": 2.09,
+      "load1_end": 4.17
+    },
+    "warnings": [
+      "worker counts differ (golden jobs=2, this run jobs=4) \u2014 record and diff at the same OMEGA_CORPUS_JOBS before trusting perf moves",
+      "the golden was recorded on a busy machine (pre-run load 7.27 on 10 cpus); fixtures only look faster now \u2014 treat perf_faster moves as noise"
+    ]
+  },
+  "observations": [
+    {
+      "fixture": "pass/borrows/guard_subject_ends_before_returning_call_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1643,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/control_flow/saved_case_predicate_disjoint_effects_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1645,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1648,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1666,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1515,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1513,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1512,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1496,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1488,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1487,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/case_payload_stored_loan_through_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1486,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1486,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1456,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1458,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1454,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1454,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1467,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1463,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1462,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/descriptor_guard_replacement_through_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1464,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_call_result",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1451,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_const_name",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1450,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_field",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1447,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_local",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1446,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_match_join",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1470,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_other_machine",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1467,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_other_state",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1465,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_parameter",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1466,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_byte_predicate_through_target_body",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1457,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1453,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1453,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1450,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1453,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1453,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1452,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1449,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1432,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_case_predicate_through_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1436,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1431,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1431,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1441,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1440,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1441,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1438,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1485,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1477,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1487,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/borrows/guard_observation_not_retired_during_guard",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1259,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `mutate` receives `cell` while local borrow `saved` is still active (borrowed at statement 0; its last use is at statement 2)",
+        "statement 1 borrows `cell` while local borrow `saved` is still active (borrowed at statement 0; its last use is at statement 2)",
+        "statement 1 mutates `cell.value` while local borrow `saved` is still active (borrowed at statement 0; its last use is at statement 2)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/borrows/guard_subject_alias_held_through_call",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 644,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `clear_and_read` receives `frames` as both mutable and read-only",
+        "state `clear_and_read` receives `frames` while local borrow `saved` is still active (borrowed at statement 0; its last use is at statement 6 and it is released at state exit)",
+        "state `clear_and_read` receives `frames` as both mutable and read-only",
+        "state `clear_and_read` receives `frames` while local borrow `saved` is still active",
+        "statement 5 mutates `frames[__hoist_15]` while local borrow `saved` is still active (borrowed at statement 0; its last use is at statement 6 and it is released at state exit)",
+        "statement 6 mutates `frames[__hoist_15]` while local borrow `saved` is still active (borrowed at statement 0)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/control_flow/saved_case_predicate_guard_write_retires",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 695,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `quotient` state `entry` statement 2: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/control_flow/saved_case_predicate_local_write_retires",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 691,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `quotient` state `entry` statement 3: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/case_payload_stored_loan_through_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1448,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `consume` receives `backing` as both mutable and read-only"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/case_payload_stored_loan_through_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1116,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)",
+        "statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/case_payload_stored_loan_through_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1566,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store_code` receives `backing` while local borrow `envelope` is still active (borrowed at statement 2; its last use is at statement 3)",
+        "statement 3 borrows `backing` while local borrow `envelope` is still active (borrowed at statement 2; its last use is at statement 3)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/case_payload_stored_loan_through_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1558,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)",
+        "statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/case_payload_stored_loan_through_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1386,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)",
+        "state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)",
+        "statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)",
+        "statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/case_payload_stored_loan_through_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1297,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)",
+        "statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/case_payload_stored_loan_through_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1298,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)",
+        "statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/case_payload_stored_loan_through_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1265,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)",
+        "statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/case_payload_stored_loan_through_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1316,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store_code` receives `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)",
+        "statement 3 borrows `backing` while local borrow `loan` is still active (borrowed at statement 2; its last use is at statement 3)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/descriptor_guard_replacement_through_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1305,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/descriptor_guard_replacement_through_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1166,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/descriptor_guard_replacement_through_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1127,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/descriptor_guard_replacement_through_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1266,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/descriptor_guard_replacement_through_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1239,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/descriptor_guard_replacement_through_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1341,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/descriptor_guard_replacement_through_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1323,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/descriptor_guard_replacement_through_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1316,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/descriptor_guard_replacement_through_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1304,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `store` receives `<saved subject #1:1>::Active.message.body` as both mutable and read-only"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_call_result",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1311,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_const_name",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1300,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_field",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1326,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call inspect from probe: ascii_only(holder.bytes[0..1]) && holder.bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_local",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1319,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_match_join",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1306,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_other_machine",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1302,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call inspect from observe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_other_state",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1288,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `observe`; authored requirement `ascii_only(view) && view.len >= 1`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_parameter",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1326,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_target_body",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1343,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`",
+        "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`",
+        "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`",
+        "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1331,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 7: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1140,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 7: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1302,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 6: cannot prove selected case for payload access `holder.choice.amount`: captured source `holder.choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1239,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 7: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1222,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 7: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1111,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `quotient` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1214,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1428,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_case_predicate_through_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1433,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence",
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence",
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence",
+        "machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_through_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1141,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_through_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1522,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_through_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1269,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from main: note.observed == items[0] && note.observed == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_through_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1260,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_through_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1310,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_through_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1298,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from read_kept at statement 2: result == items[0] && result == 7"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_through_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1288,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call check from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_through_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1287,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from hold: observed == items[0] && observed == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_through_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1161,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  ],
+  "fixtures": [
+    {
+      "fixture": "pass/facts/saved_observation_snapshot_through_other_machine_exit",
+      "verdict": "perf_faster",
+      "reasons": [
+        "6914ms -> 1438ms (>=2x faster)"
+      ],
+      "before": {
+        "fixture": "pass/facts/saved_observation_snapshot_through_other_machine_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 6914,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "pass/facts/saved_observation_snapshot_through_other_machine_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 1438,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_call_result",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/facts/saved_byte_predicate_through_call_result",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1640,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/facts/saved_byte_predicate_through_call_result",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1311,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_const_name",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/facts/saved_byte_predicate_through_const_name",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2769,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/facts/saved_byte_predicate_through_const_name",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1300,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_field",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/facts/saved_byte_predicate_through_field",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2749,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from probe: ascii_only(holder.bytes[0..1]) && holder.bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/facts/saved_byte_predicate_through_field",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1326,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from probe: ascii_only(holder.bytes[0..1]) && holder.bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_local",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/facts/saved_byte_predicate_through_local",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2761,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/facts/saved_byte_predicate_through_local",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1319,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_match_join",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/facts/saved_byte_predicate_through_match_join",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2740,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/facts/saved_byte_predicate_through_match_join",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1306,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_other_machine",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/facts/saved_byte_predicate_through_other_machine",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2776,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from observe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/facts/saved_byte_predicate_through_other_machine",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1302,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from observe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_other_state",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/facts/saved_byte_predicate_through_other_state",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1874,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `observe`"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/facts/saved_byte_predicate_through_other_state",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1288,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `observe`; authored requirement `ascii_only(view) && view.len >= 1`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_parameter",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/facts/saved_byte_predicate_through_parameter",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2779,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/facts/saved_byte_predicate_through_parameter",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1326,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_byte_predicate_through_target_body",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/facts/saved_byte_predicate_through_target_body",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2692,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/facts/saved_byte_predicate_through_target_body",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1343,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`",
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`",
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`",
+          "cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `ascii_only(view) && view.len >= 1`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/saved_observation_snapshot_through_other_machine_rejected",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/facts/saved_observation_snapshot_through_other_machine_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1966,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove ensures contract for exit from read_kept at statement 2: result == items[0] && result == 7",
+          "cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/facts/saved_observation_snapshot_through_other_machine_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1298,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove ensures contract for exit from read_kept at statement 2: result == items[0] && result == 7"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    }
+  ]
+}

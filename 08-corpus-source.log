@@ -1,0 +1,8 @@
+corpus_runner: 18405 prior timings loaded
+corpus_runner: 21/21 done, 0 compile(s) in flight
+corpus_gate: retained source evidence /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/corpus-source/408a6f6e240ac02fb45899d02b0b79c5f3d41595.bundle; publish with PR evidence
+corpus_gate: tests/omega/corpus_outcomes.txt carries 1 of 18405 rows asserting an expected/unexpected outcome with no stored diagnostic line — their outcome is an observation, their reason is unsupported, and LOST cannot see them because the key is present. Reason-level verdicts drawn from them are unsupported; --record refuses to write new rows of that shape
+corpus_gate: recorded 21 fixture outcomes to /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/tests/omega/corpus_outcomes.txt; 0 unimplemented rows remain, 295 rows record a lost success
+corpus_gate: measured at jobs=4, golden jobs=2
+corpus_gate: 313 pass/run row(s) pinned without a success and 35 fail row(s) pinned as a success (295 carry regressed-from)
+corpus_gate:   list them with --list-pinned-regressions

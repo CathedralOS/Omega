@@ -1,0 +1,40 @@
+const_name True 1 cannot compile admitted project: checked compilation failed for package `saved_case_const_name` with 1 diagnostic(s)
+  error: machine `probe` state `entry` statement 7: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
+other_machine True 1 cannot compile admitted project: checked compilation failed for package `saved_case_other_machine` with 1 diagnostic(s)
+  error: machine `quotient` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
+other_machine False 0 native exit 0
+interp exit: 0
+const_name False 0 native exit 0
+interp exit: 0
+field True 1 cannot compile admitted project: checked compilation failed for package `saved_case_field` with 1 diagnostic(s)
+  error: machine `probe` state `entry` statement 6: cannot prove selected case for payload access `holder.choice.amount`: captured source `holder.choice::Full.amount` has no live case evidence
+field False 0 native exit 0
+interp exit: 0
+call_result True 1 cannot compile admitted project: checked compilation failed for package `saved_case_call_result` with 1 diagnostic(s)
+  error: machine `probe` state `entry` statement 7: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
+call_result False 0 native exit 0
+interp exit: 0
+local False 0 native exit 0
+interp exit: 0
+local True 1 cannot compile admitted project: checked compilation failed for package `saved_case_local` with 1 diagnostic(s)
+  error: machine `probe` state `entry` statement 7: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
+match_join True 1 cannot compile admitted project: checked compilation failed for package `saved_case_match_join` with 1 diagnostic(s)
+  error: machine `probe` state `entry` statement 7: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
+match_join False 0 native exit 0
+interp exit: 0
+target_body True 1 cannot compile admitted project: checked compilation failed for package `saved_case_target_body` with 4 diagnostic(s)
+  error: machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
+  error: machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
+  error: machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
+  error: machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
+target_body False 0 native exit 0
+interp exit: 0
+other_state True 1 cannot compile admitted project: checked compilation failed for package `saved_case_other_state` with 1 diagnostic(s)
+  error: machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
+other_state False 0 native exit 0
+interp exit: 0
+parameter True 1 cannot compile admitted project: checked compilation failed for package `saved_case_parameter` with 1 diagnostic(s)
+  error: machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
+parameter False 0 native exit 0
+interp exit: 0
+{"native_and_terminal_places": 9, "fact_sensitive_rejects": 9, "focused_source_fixtures": 96, "retained_audited_both_programs": 47}
