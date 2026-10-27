@@ -1326,7 +1326,7 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     rejection.
   - **FOREIGN-RETAINED-ARGUMENT-BACKING:** complete installed-provider custody
     and native marshaling for protocol-owned backing, permitted snapshots, and
-    remaining resident/view codecs (borrowed arrays, tagged/dynamic carriers,
+    remaining resident/view codecs (tagged/dynamic carriers,
     independently qualified descendants and tagged/qualified owned results)
     through stage 05 `retention/retained_borrow_custody.rs` and the selected
     provider.

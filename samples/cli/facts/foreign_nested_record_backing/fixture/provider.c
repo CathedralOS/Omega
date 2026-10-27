@@ -9,6 +9,9 @@ struct cell { uint64_t value; };
 struct buffer { uint64_t marker; struct cell cell; };
 struct repeated_buffer { struct cell marker; struct cell cell; };
 struct array_buffer { uint64_t marker; struct cell cells[3]; };
+struct view_buffer { uint64_t marker; struct cell (*cells)[3]; };
+_Static_assert(sizeof(struct view_buffer) == 16 && offsetof(struct view_buffer, cells) == 8,
+               "a fixed-array reference is one pointer word beside the marker");
 _Static_assert(sizeof(struct array_buffer) == 32 && offsetof(struct array_buffer, cells) == 8, "array root has ordinary repeated cell placement");
 _Static_assert(sizeof(struct cell) == 8, "nested cell must use its ordinary u64 layout");
 _Static_assert(sizeof(struct buffer) == 16, "Buffer is marker followed by a nested cell");
@@ -21,8 +24,8 @@ _Static_assert(offsetof(struct repeated_buffer, marker) == 0
                && offsetof(struct repeated_buffer, cell) == 8,
                "each repeated Cell field has its own parent path and layout offset");
 enum state { VACANT, CAPACITY, REGISTERED };
-enum retained_kind { NO_ROOT, ORIGINAL_ROOT, REPEATED_ROOT, ARRAY_ROOT };
-union retained_root { struct buffer *original; struct repeated_buffer *repeated; struct array_buffer *array; };
+enum retained_kind { NO_ROOT, ORIGINAL_ROOT, REPEATED_ROOT, ARRAY_ROOT, VIEW_ROOT };
+union retained_root { struct buffer *original; struct repeated_buffer *repeated; struct array_buffer *array; struct view_buffer *view; };
 static struct slot {
     enum state state;
     uint64_t capacity_generation;
@@ -84,6 +87,18 @@ RETENTION_EXPORT uint64_t nestlease_register_array(uint64_t capacity, struct arr
     slot->state = REGISTERED;
     return (slot->registration_generation << 2) | (capacity & 3);
 }
+RETENTION_EXPORT uint64_t nestlease_register_view(uint64_t capacity, struct view_buffer *root) {
+    struct slot *slot = lookup(capacity, CAPACITY);
+    if (root == NULL || root->marker != 91 || root->cells == NULL
+        || (*root->cells)[0].value != 305419896 || (*root->cells)[2].value != 1515863100) invalid();
+    if (slot->registration_generation == (UINT64_MAX >> 2)) invalid();
+    slot->registration_generation++;
+    (*root->cells)[1].value = 41;
+    slot->root.view = root;
+    slot->kind = VIEW_ROOT;
+    slot->state = REGISTERED;
+    return (slot->registration_generation << 2) | (capacity & 3);
+}
 RETENTION_EXPORT uint64_t nestlease_complete(uint64_t pending, uint64_t *observed) {
     struct slot *slot = lookup(pending, REGISTERED);
     if (observed == NULL) invalid();
@@ -102,6 +117,13 @@ RETENTION_EXPORT uint64_t nestlease_complete(uint64_t pending, uint64_t *observe
         if (slot->root.array->marker != 91 || slot->root.array->cells[0].value != 305419896 || slot->root.array->cells[2].value != 1515863100) invalid();
         slot->root.array->cells[1].value = 73;
         *observed = slot->root.array->cells[1].value;
+        break;
+    case VIEW_ROOT:
+        if (slot->root.view->marker != 91 || slot->root.view->cells == NULL
+            || (*slot->root.view->cells)[0].value != 305419896
+            || (*slot->root.view->cells)[2].value != 1515863100) invalid();
+        (*slot->root.view->cells)[1].value = 73;
+        *observed = (*slot->root.view->cells)[1].value;
         break;
     default:
         invalid();
@@ -183,6 +205,23 @@ static void array_selftest(void) {
     assert(value.cells[0].value == 305419896 && value.cells[2].value == 1515863100);
     nestlease_release(capacity);
 }
+static void view_selftest(void) {
+    uint64_t first_capacity = nestlease_acquire(), second_capacity = nestlease_acquire(), observed = 0;
+    struct cell first_cells[3] = {{305419896}, {37}, {1515863100}};
+    struct cell second_cells[3] = {{305419896}, {57}, {1515863100}};
+    struct view_buffer first = {91, &first_cells}, second = {91, &second_cells};
+    uint64_t first_pending = nestlease_register_view(first_capacity, &first);
+    uint64_t second_pending = nestlease_register_view(second_capacity, &second);
+    assert(first_cells[1].value == 41 && second_cells[1].value == 41);
+    assert(nestlease_complete(second_pending, &observed) == second_capacity && observed == 73);
+    assert(first_cells[1].value == 41 && second_cells[1].value == 73);
+    assert(nestlease_complete(first_pending, &observed) == first_capacity && observed == 73);
+    assert(first.cells == &first_cells && second.cells == &second_cells);
+    assert(first.marker == 91 && second.marker == 91 && first_cells[1].value == 73);
+    assert(first_cells[0].value == 305419896 && first_cells[2].value == 1515863100);
+    assert(second_cells[0].value == 305419896 && second_cells[2].value == 1515863100);
+    nestlease_release(first_capacity); nestlease_release(second_capacity);
+}
 int main(int argc, char **argv) {
 #if defined(_WIN32)
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);
@@ -211,6 +250,7 @@ int main(int argc, char **argv) {
     nestlease_release(c);
     repeated_selftest();
     array_selftest();
+    view_selftest();
     return 0;
 }
 #endif

@@ -139,3 +139,91 @@ fn private_worker_and_host_share_pages_until_each_mapping_retires() {
     child.finish().unwrap();
     std::fs::remove_dir_all(directory).unwrap();
 }
+
+#[test]
+fn pointer_links_use_worker_homes_and_reject_foreign_incarnations() {
+    use crate::{NativePointerSlot, NativePointerTarget, NativeProviderProcess};
+    let launch = || {
+        let mut command = Command::new(std::env::current_exe().unwrap());
+        command.args([
+            "--exact",
+            "physical_tests::internal_native_provider_worker",
+            "--nocapture",
+        ]);
+        NativeProviderProcess::launch(command, TIMEOUT).unwrap()
+    };
+    let mut process = launch();
+    let descriptor = process.create_home(24, 8).unwrap();
+    let first = process.create_home(24, 8).unwrap();
+    let second = process.create_home(24, 8).unwrap();
+    let slot = NativePointerSlot {
+        home: descriptor,
+        offset: 8,
+    };
+    let target = |home| NativePointerTarget {
+        home,
+        offset: 0,
+        byte_size: 24,
+        alignment: 8,
+    };
+    process
+        .write_home(descriptor, 0, &91_u64.to_le_bytes())
+        .unwrap();
+    process
+        .write_home(descriptor, 16, &37_u64.to_le_bytes())
+        .unwrap();
+    process.link_pointer(slot, target(first)).unwrap();
+    assert!(process.pointer_matches(slot, target(first)).unwrap());
+    assert!(!process.pointer_matches(slot, target(second)).unwrap());
+    process.link_pointer(slot, target(second)).unwrap();
+    assert!(!process.pointer_matches(slot, target(first)).unwrap());
+    assert!(process.pointer_matches(slot, target(second)).unwrap());
+    let mut bytes = [0; 8];
+    process.read_home(descriptor, 0, &mut bytes).unwrap();
+    assert_eq!(u64::from_le_bytes(bytes), 91);
+    process.read_home(descriptor, 16, &mut bytes).unwrap();
+    assert_eq!(u64::from_le_bytes(bytes), 37);
+    assert!(
+        process
+            .link_pointer(
+                NativePointerSlot {
+                    home: descriptor,
+                    offset: 24
+                },
+                target(first)
+            )
+            .is_err()
+    );
+    assert!(
+        process
+            .link_pointer(
+                slot,
+                NativePointerTarget {
+                    byte_size: 25,
+                    ..target(first)
+                }
+            )
+            .is_err()
+    );
+    assert!(
+        process
+            .link_pointer(NativePointerSlot { offset: 1, ..slot }, target(first))
+            .is_err()
+    );
+    let mut fresh = launch();
+    let new_home = fresh.create_home(24, 8).unwrap();
+    assert!(
+        fresh
+            .link_pointer(
+                NativePointerSlot {
+                    home: new_home,
+                    offset: 8
+                },
+                target(first)
+            )
+            .is_err()
+    );
+    assert!(fresh.pointer_matches(slot, target(new_home)).is_err());
+    process.close().unwrap();
+    fresh.close().unwrap();
+}
