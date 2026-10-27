@@ -1,10 +1,11 @@
-// Fact: A mutable foreign registration retains the exact original nested array Buffer backing until completion consumes Pending; completion writes its middle cell to 73 while marker 91, neighbors 305419896 and 1515863100, and an earlier copy 37 remain unchanged.
+// Fact: Completion consumes Pending and returns the original nested array Buffer with each ResidentValue field bound restored, permitting exact subtraction; C writes the middle cell to 73 while marker 91, neighbors 305419896 and 1515863100, and the earlier copy 37 stay unchanged.
 // Expected exit: 0. Completion updates the nested cell; marker and copied scalar retain their original values.
 use omega::language::core::content;
 use omega::language::core::drop;
 use omega::language::core::external_binding;
 public data ByteUnit {}
-public data Cell [copy] { value: u64; }
+public domain u64::ResidentValue(value) requires value >= 0 && value <= 2147483647;
+public data Cell [copy] { value: u64 in ResidentValue; }
 public data Buffer [linear] { marker: u64; cells: [Cell; 3]; }
 machine Buffer::drop(buffer: &mut Buffer) {}
 public domain Buffer::Owned;
@@ -146,12 +147,13 @@ machine run_main(main: &mut Main) reaches Writer crashes Trap {
     let mut observed: u64 = 0;
     let returned: Capacity in Capacity::Available = Writer::complete(routed, &mut observed);
     Writer::release(returned);
+    let remaining: u64 = 2147483647u64 - buffer.cells[1].value;
     let value: u64 = buffer.cells[1].value;
     let marker: u64 = buffer.marker;
     let left_guard: u64 = buffer.cells[0].value;
     let right_guard: u64 = buffer.cells[2].value;
     drop(buffer);
-    transition observed == 73 && value == 73 && original == 37 && marker == 91 && left_guard == 305419896 && right_guard == 1515863100 { true -> done() _ -> bad() }
+    transition remaining == 2147483574 && observed == 73 && value == 73 && original == 37 && marker == 91 && left_guard == 305419896 && right_guard == 1515863100 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }
