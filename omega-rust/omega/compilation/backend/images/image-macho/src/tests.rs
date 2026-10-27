@@ -97,9 +97,8 @@ fn emitted_bss_matches_relocated_storage_and_writable_segment() {
         (0, 24, 16),
         (0, 0x8000, 0x10000),
     ] {
-        let output =
-            super::emit_macho_aarch64_executable(storage_image(data_size, bss_size, alignment))
-                .expect("emit storage image");
+        let output = super::emit_macho_executable(storage_image(data_size, bss_size, alignment))
+            .expect("emit storage image");
         let data = segment(&output.bytes, b"__DATA\0\0\0\0\0\0\0\0\0\0");
         let (sections, remainder) = data[72..].as_chunks::<80>();
         assert!(remainder.is_empty());
@@ -168,7 +167,7 @@ fn validate_x86_64_mapping(
 #[test]
 fn x86_64_emission_writes_intel_cpu_fields_and_four_kib_pages() {
     let output =
-        super::emit_macho_x86_64_executable(x86_64_storage_image(13, 24, 16)).expect("emit x86-64");
+        super::emit_macho_executable(x86_64_storage_image(13, 24, 16)).expect("emit x86-64");
     assert_eq!(output.format, "mach-o-x86_64-executable");
     assert_eq!(word(&output.bytes, 0), 0xfeed_facf);
     assert_eq!(word(&output.bytes, 4), 0x0100_0007, "CPU_TYPE_X86_64");
@@ -195,10 +194,9 @@ fn x86_64_loader_mapping_accepts_storage_variations() {
         (13, 0x4000, 0x4000),
         (0, 0x8000, 0x10000),
     ] {
-        let output = super::emit_macho_x86_64_executable(x86_64_storage_image(
-            data_size, bss_size, alignment,
-        ))
-        .expect("emit x86-64 storage variation");
+        let output =
+            super::emit_macho_executable(x86_64_storage_image(data_size, bss_size, alignment))
+                .expect("emit x86-64 storage variation");
         validate_x86_64_mapping(&output).expect("exact x86-64 loader mapping");
     }
 }
@@ -234,7 +232,7 @@ fn x86_64_loader_mapping_accepts_eager_import_storage() {
             kind: RelocationKind::X86_64Relative32,
             ..Default::default()
         });
-    let output = super::emit_macho_x86_64_executable(image).expect("emit x86-64 eager import");
+    let output = super::emit_macho_executable(image).expect("emit x86-64 eager import");
     validate_x86_64_mapping(&output).expect("x86-64 eager import loader mapping");
     // The thunk is the closed `jmp qword ptr [rip + disp32]` form, and it must
     // point at the one placed binding slot carrying the same import symbol.
@@ -256,9 +254,11 @@ fn x86_64_loader_mapping_accepts_eager_import_storage() {
 }
 
 #[test]
-fn x86_64_emission_rejects_a_mismatched_image_target() {
-    assert!(super::emit_macho_x86_64_executable(storage_image(0, 0, 1)).is_err());
-    assert!(super::emit_macho_aarch64_executable(x86_64_storage_image(0, 0, 1)).is_err());
+fn macho_emission_refuses_a_target_off_the_two_supported_diagonals() {
+    // The ABI is read off the image, so a mismatched architecture pairing cannot
+    // be expressed; the derivation still refuses a target with no Mach-O ABI.
+    let elf = storage_image_for(target::NativeTarget::linux_x64(), vec![0xc3], 0, 0, 1);
+    assert!(super::emit_macho_executable(elf).is_err());
 }
 
 fn segment_offset(bytes: &[u8], name: &[u8; 16]) -> usize {
@@ -276,9 +276,8 @@ fn loader_mapping_accepts_storage_variations() {
         (13, 0x4000, 0x4000),
         (0, 0x8000, 0x10000),
     ] {
-        let output =
-            super::emit_macho_aarch64_executable(storage_image(data_size, bss_size, alignment))
-                .expect("emit storage variation");
+        let output = super::emit_macho_executable(storage_image(data_size, bss_size, alignment))
+            .expect("emit storage variation");
         validate_mapping(&output).expect("exact loader mapping");
     }
 }
@@ -309,15 +308,15 @@ fn loader_mapping_accepts_eager_import_storage() {
                 kind: RelocationKind::Aarch64Branch26,
                 ..Default::default()
             });
-        let output = super::emit_macho_aarch64_executable(image).expect("emit eager import");
+        let output = super::emit_macho_executable(image).expect("emit eager import");
         validate_mapping(&output).expect("eager import loader mapping");
     }
 }
 
 #[test]
 fn loader_mapping_rejects_segment_and_zero_fill_corruption() {
-    let original = super::emit_macho_aarch64_executable(storage_image(13, 24, 16))
-        .expect("emit storage image");
+    let original =
+        super::emit_macho_executable(storage_image(13, 24, 16)).expect("emit storage image");
     let data_offset = segment_offset(&original.bytes, b"__DATA\0\0\0\0\0\0\0\0\0\0");
     let text_offset = segment_offset(&original.bytes, b"__TEXT\0\0\0\0\0\0\0\0\0\0");
     let linkedit_offset = segment_offset(&original.bytes, b"__LINKEDIT\0\0\0\0\0\0");
@@ -367,15 +366,13 @@ fn code_signature_identifier(bytes: &[u8]) -> String {
 
 #[test]
 fn authored_identifier_is_bound_into_the_code_directory() {
-    let fallback = super::emit_macho_aarch64_executable(storage_image(13, 24, 16))
-        .expect("emit leaf-fallback image");
+    let fallback =
+        super::emit_macho_executable(storage_image(13, 24, 16)).expect("emit leaf-fallback image");
     assert_eq!(code_signature_identifier(&fallback.bytes), "omega-program");
     assert_eq!(fallback.file_name, "omega-program");
-    let signed = super::emit_macho_aarch64_executable_signed(
-        storage_image(13, 24, 16),
-        "com.omega.window-app",
-    )
-    .expect("emit authored-identifier image");
+    let signed =
+        super::emit_macho_executable_signed(storage_image(13, 24, 16), "com.omega.window-app")
+            .expect("emit authored-identifier image");
     assert_eq!(
         code_signature_identifier(&signed.bytes),
         "com.omega.window-app"
@@ -384,17 +381,15 @@ fn authored_identifier_is_bound_into_the_code_directory() {
         fallback.bytes, signed.bytes,
         "the signing identity is part of the emitted bytes"
     );
-    let repeated = super::emit_macho_aarch64_executable_signed(
-        storage_image(13, 24, 16),
-        "com.omega.window-app",
-    )
-    .expect("re-emit authored-identifier image");
+    let repeated =
+        super::emit_macho_executable_signed(storage_image(13, 24, 16), "com.omega.window-app")
+            .expect("re-emit authored-identifier image");
     assert_eq!(
         signed.bytes, repeated.bytes,
         "signed emission is deterministic for one bound identifier"
     );
     assert!(
-        super::emit_macho_aarch64_executable_signed(storage_image(13, 24, 16), "").is_err(),
+        super::emit_macho_executable_signed(storage_image(13, 24, 16), "").is_err(),
         "an empty signing identifier rejects before image emission"
     );
 }
@@ -402,7 +397,7 @@ fn authored_identifier_is_bound_into_the_code_directory() {
 #[test]
 fn loader_mapping_rejects_malformed_command_envelopes() {
     let original =
-        super::emit_macho_aarch64_executable(storage_image(0, 24, 16)).expect("emit storage image");
+        super::emit_macho_executable(storage_image(0, 24, 16)).expect("emit storage image");
     for (offset, value) in [
         (0, 0),
         (12, 1),

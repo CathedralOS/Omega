@@ -10,8 +10,8 @@
 //! every build, and lives in `image`'s relocation patcher. Distinct page
 //! sizes, adjacent in the same emitter, meaning different things.
 //!
-//! `emit_macho_aarch64_executable` / `emit_macho_x86_64_executable` run in an
-//! order most of which is forced:
+//! `emit_macho_executable` / `emit_macho_executable_signed` run in an order
+//! most of which is forced:
 //!
 //! ```text
 //!   install_import_thunks     preflights the dylib roster, THEN mutates .text
@@ -127,23 +127,27 @@ use isa::MachoIsa;
 /// label when the build authored no application identifier
 /// (wiki/spec/build/macos_application.md). The universal leaf is replaced when
 /// the validated application name reaches image emission; an authored
-/// identifier is bound through [`emit_macho_aarch64_executable_signed`]
-/// instead.
+/// identifier is bound through [`emit_macho_executable_signed`] instead.
 const OMEGA_EXECUTABLE_LEAF: &str = "omega-program";
+
+/// The ISA an image's own target names, or the refusal. The image carries the
+/// target it was built for, so emission reads the ABI off it exactly as
+/// `image::apply_relocations` reads its instruction set; there is no entry
+/// point that takes an ISA beside an image. `shared_component` derives its ISA
+/// the same way before asking for a container.
+fn macho_isa_for(image: &FinalImage) -> Result<MachoIsa, Diagnostic> {
+    MachoIsa::from_format(image.target.object_format, image.target.architecture).ok_or_else(|| {
+        Diagnostic::error(format!(
+            "Mach-O emission cannot supply an image whose target is {:?}",
+            image.target,
+        ))
+    })
+}
 
 /// Emit with the console fallback: the executable leaf is the ad-hoc
 /// CodeDirectory label because no authored application identifier was bound.
-pub fn emit_macho_aarch64_executable(
-    image: FinalImage,
-) -> Result<ExecutableImageOutput, Diagnostic> {
-    emit_macho_aarch64_executable_signed(image, OMEGA_EXECUTABLE_LEAF)
-}
-
-/// Emit the x86-64 executable with the same fallback signing label.
-pub fn emit_macho_x86_64_executable(
-    image: FinalImage,
-) -> Result<ExecutableImageOutput, Diagnostic> {
-    emit_macho_x86_64_executable_signed(image, OMEGA_EXECUTABLE_LEAF)
+pub fn emit_macho_executable(image: FinalImage) -> Result<ExecutableImageOutput, Diagnostic> {
+    emit_macho_executable_signed(image, OMEGA_EXECUTABLE_LEAF)
 }
 
 /// Emit one signed executable binding `code_signature_identifier` as the
@@ -154,27 +158,11 @@ pub fn emit_macho_x86_64_executable(
 /// load command is written and is embedded verbatim in the CodeDirectory
 /// after the finished bytes are hashed. Publication cannot substitute or
 /// re-sign with a different identity.
-pub fn emit_macho_aarch64_executable_signed(
+pub fn emit_macho_executable_signed(
     image: FinalImage,
     code_signature_identifier: &str,
 ) -> Result<ExecutableImageOutput, Diagnostic> {
-    emit_macho_executable_signed(image, code_signature_identifier, MachoIsa::Aarch64)
-}
-
-/// Emit one signed x86-64 executable binding `code_signature_identifier` as
-/// the CodeDirectory identity, under the same contract as the AArch64 emit.
-pub fn emit_macho_x86_64_executable_signed(
-    image: FinalImage,
-    code_signature_identifier: &str,
-) -> Result<ExecutableImageOutput, Diagnostic> {
-    emit_macho_executable_signed(image, code_signature_identifier, MachoIsa::X86_64)
-}
-
-fn emit_macho_executable_signed(
-    image: FinalImage,
-    code_signature_identifier: &str,
-    isa: MachoIsa,
-) -> Result<ExecutableImageOutput, Diagnostic> {
+    let isa = macho_isa_for(&image)?;
     let MachoContainerContents {
         image,
         bytes,

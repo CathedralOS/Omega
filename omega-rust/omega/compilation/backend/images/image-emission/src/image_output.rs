@@ -307,28 +307,17 @@ pub(crate) fn emit_direct_executable_image_signed(
         data_bytes: artifact.data_bytes(),
     });
     let final_image_symbol_digest = image::final_image_symbol_digest(&image);
-    let output = match (artifact.target.object_format, artifact.target.architecture) {
-        (ObjectFormat::Elf, Architecture::Aarch64) => image_elf::emit_elf_aarch64_executable(image),
-        (ObjectFormat::Elf, Architecture::X86_64) => image_elf::emit_elf_x86_64_executable(image),
-        (ObjectFormat::MachO, Architecture::Aarch64) => match code_signature_identifier {
-            Some(identifier) => {
-                image_macho::emit_macho_aarch64_executable_signed(image, identifier)
-            }
-            None => image_macho::emit_macho_aarch64_executable(image),
+    let output = match artifact.target.object_format {
+        // The architecture axis is deliberately not a dispatch key here: each
+        // emitter reads the ABI off the image's own target and refuses a target
+        // it has no container for, so no call site can name one architecture
+        // while handing over another's image.
+        ObjectFormat::Elf => image_elf::emit_elf_executable(image),
+        ObjectFormat::MachO => match code_signature_identifier {
+            Some(identifier) => image_macho::emit_macho_executable_signed(image, identifier),
+            None => image_macho::emit_macho_executable(image),
         },
-        (ObjectFormat::MachO, Architecture::X86_64) => match code_signature_identifier {
-            Some(identifier) => image_macho::emit_macho_x86_64_executable_signed(image, identifier),
-            None => image_macho::emit_macho_x86_64_executable(image),
-        },
-        (ObjectFormat::Coff, Architecture::X86_64) => {
-            image_pe::emit_pe_x86_64_executable(image, subsystem)
-        }
-        _ => {
-            return Err(Diagnostic::error(format!(
-                "cannot emit terminal-Psi executable image for {:?}",
-                artifact.target
-            )));
-        }
+        ObjectFormat::Coff => image_pe::emit_pe_x86_64_executable(image, subsystem),
     }?;
     let mut output = emitted_direct_executable_output(output);
     let text_validation = validate_terminal_image(
