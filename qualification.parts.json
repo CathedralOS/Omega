@@ -1,0 +1,23 @@
+{
+  "schema": "omega-qualification-parts-v1",
+  "archive": "qualification.zip",
+  "sha256": "491bfc1c6195cc204e5f8907a63a533427daf546b30e0fc9eceb745bfb62ba40",
+  "bytes": 172181215,
+  "parts": [
+    {
+      "name": "qualification.zip.part001",
+      "sha256": "3af9f3ad7e19cacf88f5d2673ca6fec45e8cc715d9364953e563c91ecbd1e2de",
+      "bytes": 67108864
+    },
+    {
+      "name": "qualification.zip.part002",
+      "sha256": "377429ac0ea0425cff52b92d3bef20ff83aead385aaf4dcb74664724c193fa0d",
+      "bytes": 67108864
+    },
+    {
+      "name": "qualification.zip.part003",
+      "sha256": "b29caa8a9ced97685b1b7f360d578ecb11ad4bebf3110ff6759db56cf2fb7118",
+      "bytes": 37963487
+    }
+  ]
+}
