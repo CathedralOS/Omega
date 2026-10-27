@@ -155,6 +155,29 @@ pub enum NormalizedForeignCallMechanism {
     },
 }
 
+impl NormalizedForeignCallMechanism {
+    /// The admitted user-space stack contribution every non-kernel mechanism
+    /// carries. A kernel entry consumes no foreign receiver-stack reserve, so
+    /// this split is answered once instead of at each report coordinate.
+    fn same_stack_contribution(&self) -> Option<&task_plans::AdmittedSameStackContribution> {
+        match self {
+            Self::Import {
+                same_stack_contribution,
+                ..
+            }
+            | Self::Component {
+                same_stack_contribution,
+                ..
+            }
+            | Self::Table {
+                same_stack_contribution,
+                ..
+            } => Some(same_stack_contribution),
+            Self::SystemCall(_) => None,
+        }
+    }
+}
+
 /// Exact source-free custody for a direct kernel entry. Unlike an imported
 /// user-space callee it consumes no foreign receiver-stack reserve. The
 /// ordinary lowering stages still owe argument placement, result custody and
@@ -235,42 +258,20 @@ impl NormalizedForeignCallBinding {
         &'identities self,
         identities: &'identities terminal_psi::TerminalIdentityTable,
     ) -> Option<&'identities str> {
-        match &self.mechanism {
-            NormalizedForeignCallMechanism::Import {
-                same_stack_contribution,
-                ..
-            }
-            | NormalizedForeignCallMechanism::Component {
-                same_stack_contribution,
-                ..
-            }
-            | NormalizedForeignCallMechanism::Table {
-                same_stack_contribution,
-                ..
-            } => identities.text(same_stack_contribution.requirement_identity()),
-            NormalizedForeignCallMechanism::SystemCall(binding) => {
-                Some(binding.requirement_identity.as_str())
-            }
+        match self.mechanism.same_stack_contribution() {
+            Some(contribution) => identities.text(contribution.requirement_identity()),
+            None => self
+                .system_call()
+                .map(|binding| binding.requirement_identity.as_str()),
         }
     }
 
     pub fn provider_plan_report_identity(&self) -> u64 {
-        match &self.mechanism {
-            NormalizedForeignCallMechanism::Import {
-                same_stack_contribution,
-                ..
-            }
-            | NormalizedForeignCallMechanism::Component {
-                same_stack_contribution,
-                ..
-            }
-            | NormalizedForeignCallMechanism::Table {
-                same_stack_contribution,
-                ..
-            } => same_stack_contribution.provider_plan_report_identity(),
-            NormalizedForeignCallMechanism::SystemCall(binding) => {
-                binding.provider_plan_report_identity
-            }
+        match self.mechanism.same_stack_contribution() {
+            Some(contribution) => contribution.provider_plan_report_identity(),
+            None => self
+                .system_call()
+                .map_or(0, |binding| binding.provider_plan_report_identity),
         }
     }
 
@@ -386,21 +387,7 @@ impl NormalizedForeignCallBinding {
     /// User-space counterparties share stack and floating-control obligations,
     /// whether their entry address comes from a linker or a named table field.
     pub fn same_stack_contribution(&self) -> Option<&task_plans::AdmittedSameStackContribution> {
-        match &self.mechanism {
-            NormalizedForeignCallMechanism::Import {
-                same_stack_contribution,
-                ..
-            }
-            | NormalizedForeignCallMechanism::Component {
-                same_stack_contribution,
-                ..
-            }
-            | NormalizedForeignCallMechanism::Table {
-                same_stack_contribution,
-                ..
-            } => Some(same_stack_contribution),
-            NormalizedForeignCallMechanism::SystemCall(_) => None,
-        }
+        self.mechanism.same_stack_contribution()
     }
 
     pub fn table_dispatch(&self) -> Option<(u32, bool)> {
