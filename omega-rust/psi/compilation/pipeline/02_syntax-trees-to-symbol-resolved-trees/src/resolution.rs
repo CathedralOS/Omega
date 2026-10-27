@@ -361,6 +361,56 @@ pub fn prepare_const_initializer_selection(
     let sources = request.sources.clone();
     let bindings = request.top_level_bindings.clone();
     let (syntax, lowerer) = begin(request, ConstResolutionMode::InitializerSelection)?;
+    finish_const_initializer_selection(syntax, lowerer, sources, bindings)
+}
+
+/// Discover destination judgments before demanding their declaration graph.
+/// These are the original destinations, before the private forest deferred their
+/// qualifications. Selection and leaf classification only schedule work: every
+/// selected destination still returns through ordinary typed checking.
+pub fn prepare_const_qualification_selection<'authored>(
+    request: ResolutionRequest,
+    authored: &'authored SyntaxTrees,
+    destinations: impl IntoIterator<Item = &'authored syntax_trees::item::ConstDefinition>,
+) -> Result<Option<ConstInitializerSelection>, Vec<Diagnostic>> {
+    let sources = request.sources.clone();
+    let bindings = request.top_level_bindings.clone();
+    let (syntax, lowerer) = begin(request, ConstResolutionMode::InitializerSelection)?;
+    let selection = lowerer.constant_selection.as_ref().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "constant qualification lost its declaration selector",
+        )]
+    })?;
+    let mut demanded = false;
+    for definition in destinations {
+        if (definition.pending_qualification.is_some()
+            || preparation::generic_data::const_destination_requires_proof(
+                authored,
+                definition,
+                Some(selection),
+            ))
+            && constant::pending_const_initializer_leaves(authored, definition, selection)
+                .map_err(|reason| {
+                    vec![Diagnostic::error(reason).with_source_span(definition.name.source_span())]
+                })?
+                .is_empty()
+        {
+            demanded = true;
+            break;
+        }
+    }
+    if !demanded {
+        return Ok(None);
+    }
+    finish_const_initializer_selection(syntax, lowerer, sources, bindings).map(Some)
+}
+
+fn finish_const_initializer_selection(
+    syntax: SyntaxTrees,
+    lowerer: Lowerer,
+    sources: Option<Arc<SourceMap>>,
+    bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+) -> Result<ConstInitializerSelection, Vec<Diagnostic>> {
     let mut frontier = index_deferred(syntax, lowerer, sources, bindings)?;
     let initializers = frontier
         .trees()
@@ -384,21 +434,12 @@ pub fn prepare_const_initializer_selection(
             .complete_machine_bodies(&demand.deferred_machines)?
             .into_resolved_frontier();
     }
-    let DeferredResolvedFrontier {
-        syntax,
-        trees,
-        selection,
-        ..
-    } = frontier;
-    let preparation = ConstInitializerSelection {
-        trees: Arc::unwrap_or_clone(trees),
-        selection,
-    };
+    let preparation = ConstInitializerSelection { frontier };
     // The prepared forest, not an unprepared sibling: preparation rewrites
     // domain heads and adds trait default machines, and neither touches a
     // constant's initializer expression or its declaration's source span,
     // which are the only things leaf validation reads.
-    preparation.validate_initializer_leaves(&syntax)?;
+    preparation.validate_initializer_leaves(&preparation.frontier.syntax)?;
     Ok(preparation)
 }
 
