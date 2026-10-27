@@ -1,0 +1,41 @@
+// Every completed helper carries result != -1, so accept can consume its result.
+// Expected exit: 0
+data Storage { value: i64; touched: u64; canary: u64; }
+machine probe(output: &mut Storage, value: i64, select: bool) -> i64
+ensures result != -1;
+{
+    let saved: i64 = value;
+    transition { _ -> apply(output, saved) }
+    machine apply(buffer: &mut Storage, candidate: i64) -> i64 {
+        buffer.value = candidate;
+        transition buffer.value != -1 { true -> read(buffer) false -> (0) }
+    }
+    machine read(cell: &mut Storage) -> i64 {
+        cell.touched = 5;
+        cell.value
+    }
+}
+machine accept(value: i64) -> i64 requires value != -1; { value }
+machine main() crashes Trap {
+    let mut output: Storage = Storage { value: 77, touched: 0, canary: 33 };
+    let result_0: i64 = accept(probe(&mut output, 7, true));
+    let value_0: i64 = output.value;
+    let touched_0: u64 = output.touched;
+    output.touched = 0;
+    let result_1: i64 = accept(probe(&mut output, 9, false));
+    let value_1: i64 = output.value;
+    let touched_1: u64 = output.touched;
+    output.touched = 0;
+    let result_2: i64 = accept(probe(&mut output, -2, true));
+    let value_2: i64 = output.value;
+    let touched_2: u64 = output.touched;
+    output.touched = 0;
+    let result_3: i64 = accept(probe(&mut output, -1, true));
+    let value_3: i64 = output.value;
+    let touched_3: u64 = output.touched;
+    transition result_0 == 7 && value_0 == 7 && touched_0 == 5 && result_1 == 9 && value_1 == 9 && touched_1 == 5 && result_2 == -2 && value_2 == -2 && touched_2 == 5 && result_3 == 0 && value_3 == -1 && touched_3 == 0 && output.canary == 33 {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

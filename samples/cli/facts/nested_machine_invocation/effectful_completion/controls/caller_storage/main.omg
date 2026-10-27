@@ -1,0 +1,13 @@
+// Expected exit: 0
+data Storage { value: i64; touched: u64; canary: u64; }
+machine probe(output: &mut Storage) ensures output.value == 42; {
+ transition { _ -> write(output) }
+ machine write(buffer: &mut Storage) { buffer.value = 42; }
+}
+machine main() crashes Trap {
+ let mut output: Storage = Storage { value: 0, touched: 0, canary: 33 };
+ probe(&mut output);
+ transition output.value == 42 && output.touched == 0 && output.canary == 33 { true -> done() false -> bad() }
+ machine done() {}
+ machine bad() crashes Trap { crash Trap; }
+}

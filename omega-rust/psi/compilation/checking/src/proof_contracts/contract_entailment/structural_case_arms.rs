@@ -7,7 +7,7 @@
 //! prevent an independently surviving path from proving its call premises,
 //! and excluding it supplies no crash permission or denotational admission.
 
-mod call_entries;
+pub(super) mod call_entries;
 
 use super::call_requirements::establish_citation;
 use super::structural_prefix::StructuralPrefixVisitor;
@@ -964,7 +964,7 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn recognize_structural_state_leaves<'a>(
+pub(super) fn recognize_structural_state_leaves<'a>(
     program: &'a dyn crate::CheckingInput,
     machine: &Machine,
     judge: &StructuralJudge<'a>,
@@ -1764,6 +1764,10 @@ fn recognize_structural_state_leaves_from<'a>(
                     continue;
                 }
                 let target = &transition.target;
+                // Normal completion observes executed code even without an
+                // occurrence visitor. Its runtime judge owns ordered writes
+                // and captured values; theorem/case-only traversal retains
+                // the existing denotational eligibility requirement.
                 let body_transfer = terminal_body_transfer(
                     program,
                     invocation,
@@ -1771,7 +1775,7 @@ fn recognize_structural_state_leaves_from<'a>(
                     target,
                     transition.source_target,
                     classification,
-                    requirement.is_some() && judge.requires_value_preservation(),
+                    judge.requires_value_preservation(),
                 );
                 if let Some((target_state, argument_handles, call_expression)) = body_transfer
                     // An active theorem's recursive value stays an application.
@@ -1833,6 +1837,20 @@ fn recognize_structural_state_leaves_from<'a>(
                     .unwrap_or_default();
                     for frame in target_frames {
                         let arguments = frame.observed_arguments()?;
+                        let caller = frame.judge.clone();
+                        let writes = if caller.requires_value_preservation() {
+                            let frames = caller.frame_resolver()?;
+                            Some(if let Some(expression) = call_expression {
+                                frames.operation_write_frame(invocation, expression)
+                            } else {
+                                frames.statement_value_write_frame(
+                                    invocation,
+                                    &statements[statement_index],
+                                )
+                            })
+                        } else {
+                            None
+                        };
                         let (target_environment, captured) = frame.judge.bind_invocation(
                             target_state,
                             &arguments,
@@ -1848,7 +1866,7 @@ fn recognize_structural_state_leaves_from<'a>(
                                 target_state.symbol,
                             );
                         }
-                        leaves.extend(recognize_structural_state_leaves(
+                        let mut completed = recognize_structural_state_leaves(
                             program,
                             machine,
                             &captured,
@@ -1866,7 +1884,16 @@ fn recognize_structural_state_leaves_from<'a>(
                             fresh,
                             requirement,
                             established_guarantees.clone(),
-                        )?);
+                        )?;
+                        if let Some(writes) = &writes {
+                            for arm in &mut completed {
+                                arm.normal_judge = arm
+                                    .normal_judge
+                                    .clone()
+                                    .complete_invocation(&caller, state, &subjects, writes)?;
+                            }
+                        }
+                        leaves.extend(completed);
                     }
                 } else {
                     let TransitionTargetNode::Value(value) = target else {
@@ -1995,7 +2022,7 @@ fn terminal_body_transfer<'program>(
     target: &TransitionTargetNode,
     source_target: Option<typed_trees::statement::TransitionTargetHandle>,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
-    runtime_prefix: bool,
+    preserve_runtime_values: bool,
 ) -> Option<(
     &'program typed_trees::state::State,
     &'program [ExpressionHandle],
@@ -2057,7 +2084,7 @@ fn terminal_body_transfer<'program>(
         }
         _ => return None,
     };
-    call_entries::body_can_be_observed(program, callee, classification, runtime_prefix)
+    call_entries::body_can_be_observed(program, callee, classification, preserve_runtime_values)
         .then_some((entry, arguments, expression))
 }
 
