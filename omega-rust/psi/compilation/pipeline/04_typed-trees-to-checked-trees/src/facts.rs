@@ -466,7 +466,7 @@ pub(crate) fn build_check_facts(
     let mut fact_call_projections = Vec::new();
     for call in &validation_facts.integer_embedding_calls {
         let exact_source = matches!(program.expression_table.expression(call.call_expression),
-            typed_trees::expression::ExpressionNode::Call(source) if source.target_symbol == call.target_state)
+            typed_trees::expression::ExpressionNode::Call(source) if validation::call_target_entry_symbol(program, source.target_symbol) == call.target_state)
             && program
                 .machines()
                 .iter()

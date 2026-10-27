@@ -426,7 +426,8 @@ fn retains_values_across_unit_call<Value>(
     {
         return None;
     }
-    let (machine_index, state_index) = context.state_location(program, call.target_symbol)?;
+    let entered_target = validation::call_target_entry_symbol(program, call.target_symbol);
+    let (machine_index, state_index) = context.state_location(program, entered_target)?;
     let callee = &program.machines()[machine_index];
     let entry = &program.machine_states(callee)[state_index];
     if state_index != 0 {
@@ -495,7 +496,7 @@ fn retains_values_across_unit_call<Value>(
     let borrowed_call = calls.next()?;
     if calls.next().is_some()
         || borrowed_call.call_ordinal != 0
-        || borrowed_call.target_symbol != call.target_symbol
+        || borrowed_call.target_symbol != entered_target
         || borrowed_call.has_receiver
         || borrowed_call.receiver_symbol.is_valid()
     {

@@ -853,7 +853,9 @@ fn expand_joined_frontier(
     else {
         return None;
     };
-    if call.target_symbol != target_symbol {
+    if validation::call_target_entry_symbol(program, validation::call_target_symbol(program, call))
+        != target_symbol
+    {
         return None;
     }
     let target = validation::call_target_state(program, target_symbol)?;

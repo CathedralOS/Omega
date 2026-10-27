@@ -249,7 +249,7 @@ pub(crate) fn instantiate_contract_expression_evidence_parameter(
     else {
         return None;
     };
-    if call.target_symbol != target_state_symbol
+    if validation::call_target_entry_symbol(program, call.target_symbol) != target_state_symbol
         || call.static_requirement_dispatch.is_some()
         || call.quotient_operation.is_some()
     {
