@@ -89,34 +89,6 @@ impl<'program> Engine<'program> {
         CarrierFit::Unknown
     }
 
-    pub(in crate::proof_contracts::contract_entailment) fn trace_bound_state(&self, label: &str) {
-        if std::env::var_os("OMEGA_TRACE_ARITHMETIC_FIT").is_none() {
-            return;
-        }
-        use std::fmt::Write;
-        let mut output = format!(
-            "TRACE_STATE {label} engine={:p} owner={:?} contradiction={}\n",
-            self, self.source_owner, self.requires_unsatisfiable
-        );
-        let _ = writeln!(output, "SUBSTITUTIONS {:?}", self.substitutions);
-        for (polynomial, bound) in &self.bounds {
-            let _ = writeln!(output, "BOUND {polynomial:?} >= {bound}");
-        }
-        for (from, to, bound) in self.difference_seeds() {
-            let _ = writeln!(output, "SEED {from:?} {to:?} {bound}");
-        }
-        for from in self.matrix.atom_names() {
-            let index = self.matrix.position(from).unwrap();
-            let _ = writeln!(output, "ATOM {index} {from:?}");
-            for to in self.matrix.atom_names() {
-                if let Some(bound) = self.matrix.stored_bound(from, to) {
-                    let _ = writeln!(output, "STORED {from:?} {to:?} {bound}");
-                }
-            }
-        }
-        eprint!("{output}TRACE_END\n");
-    }
-
     pub(in crate::proof_contracts::contract_entailment) fn strict_for_declaration(
         program: &'program dyn crate::CheckingInput,
         owner: SymbolHandle,
