@@ -262,13 +262,16 @@ python3 tools/qualification.py start --state build/qualification.json --base FUL
 python3 tools/qualification.py run-pending --state build/qualification.json --revision 0 --base FULL_BASE_SHA
 ```
 
-State updates retain complete history in compact JSON. Add `--summary-output`
-to state commands when repeated full-state output is costly. It emits a distinct
+State updates retain complete history in compact JSON. State commands emit a distinct
 `omega-qualification-summary-v1` presentation with the canonical state's absolute
 path and revision, latest immutable observation receipt and latest assessment.
 It preserves the command's actual exit status. The presentation cannot be loaded
 as qualification state; context, handoff and source-reuse packets remain complete.
-Default stdout remains the full state, and immutable receipt bytes stay unchanged.
+Read the canonical state file for complete history, or request `--full-output`
+when that full JSON response is needed. The explicit `--summary-output` flag
+remains supported. Neither presentation changes canonical state or immutable
+receipt bytes. Summaries avoid duplicating large source/artifact histories into
+every command's redirected log.
 
 Within one capture, reservation and completion privately retain decoded state.
 Each locked update first compares the current file's exact bytes by SHA-256;
