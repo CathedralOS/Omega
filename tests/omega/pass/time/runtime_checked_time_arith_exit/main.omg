@@ -30,13 +30,13 @@ machine Main::main(context: &mut Main) reaches Console {
         InstantResult::Ok { instant } -> check_add_carry(context, duration, instant)
         InstantResult::Overflow -> fail_leg(context, 1)
     }
-    state check_add_carry(context: &mut Main, duration: Duration, instant: Instant) {
+    machine check_add_carry(context: &mut Main, duration: Duration, instant: Instant) {
         transition instant.seconds == 8 && instant.subsecond_nanoseconds == 100000000 {
             true -> leg2(context, duration)
             false -> fail_leg(context, 1)
         }
     }
-    state leg2(context: &mut Main, duration: Duration) {
+    machine leg2(context: &mut Main, duration: Duration) {
         let instant: Instant = Instant { seconds: 5, subsecond_nanoseconds: 100000000 };
         let result: InstantResult = Instant::checked_subtract(&instant, duration);
         transition result {
@@ -44,13 +44,13 @@ machine Main::main(context: &mut Main) reaches Console {
             InstantResult::Overflow -> fail_leg(context, 2)
         }
     }
-    state check_sub_borrow(context: &mut Main, duration: Duration, instant: Instant) {
+    machine check_sub_borrow(context: &mut Main, duration: Duration, instant: Instant) {
         transition instant.seconds == 2 && instant.subsecond_nanoseconds == 800000000 {
             true -> leg3(context, duration)
             false -> fail_leg(context, 2)
         }
     }
-    state leg3(context: &mut Main, duration: Duration) {
+    machine leg3(context: &mut Main, duration: Duration) {
         let instant: Instant = Instant { seconds: 18446744073709551615, subsecond_nanoseconds: 0 };
         let result: InstantResult = Instant::checked_add(&instant, duration);
         transition result {
@@ -58,7 +58,7 @@ machine Main::main(context: &mut Main) reaches Console {
             InstantResult::Ok { instant } -> fail_leg(context, 3)
         }
     }
-    state leg4(context: &mut Main, duration: Duration) {
+    machine leg4(context: &mut Main, duration: Duration) {
         let time: SystemTime = SystemTime { seconds_since_unix_epoch: 0 - 5, subsecond_nanoseconds: 800000000 };
         let result: SystemTimeResult = SystemTime::checked_add(&time, duration);
         transition result {
@@ -66,13 +66,13 @@ machine Main::main(context: &mut Main) reaches Console {
             SystemTimeResult::Overflow -> fail_leg(context, 4)
         }
     }
-    state check_wall_add(context: &mut Main, time: SystemTime) {
+    machine check_wall_add(context: &mut Main, time: SystemTime) {
         transition time.seconds_since_unix_epoch == 0 - 2 && time.subsecond_nanoseconds == 100000000 {
             true -> leg5(context)
             false -> fail_leg(context, 4)
         }
     }
-    state leg5(context: &mut Main) {
+    machine leg5(context: &mut Main) {
         let time: SystemTime = SystemTime { seconds_since_unix_epoch: 0 - 2, subsecond_nanoseconds: 100000000 };
         let duration: Duration = Duration { seconds: 0, subsecond_nanoseconds: 300000000 };
         let result: SystemTimeResult = SystemTime::checked_subtract(&time, duration);
@@ -81,13 +81,13 @@ machine Main::main(context: &mut Main) reaches Console {
             SystemTimeResult::Overflow -> fail_leg(context, 5)
         }
     }
-    state check_wall_sub(context: &mut Main, time: SystemTime) {
+    machine check_wall_sub(context: &mut Main, time: SystemTime) {
         transition time.seconds_since_unix_epoch == 0 - 3 && time.subsecond_nanoseconds == 800000000 {
             true -> leg6(context)
             false -> fail_leg(context, 5)
         }
     }
-    state leg6(context: &mut Main) {
+    machine leg6(context: &mut Main) {
         let time: SystemTime = SystemTime { seconds_since_unix_epoch: 9223372036854775807, subsecond_nanoseconds: 0 };
         let duration: Duration = Duration { seconds: 1, subsecond_nanoseconds: 0 };
         let result: SystemTimeResult = SystemTime::checked_add(&time, duration);
@@ -96,7 +96,7 @@ machine Main::main(context: &mut Main) reaches Console {
             SystemTimeResult::Ok { time } -> fail_leg(context, 6)
         }
     }
-    state leg7(context: &mut Main, duration: Duration) {
+    machine leg7(context: &mut Main, duration: Duration) {
         let time: SystemTime = SystemTime { seconds_since_unix_epoch: 0 - 9223372036854775807 - 1, subsecond_nanoseconds: 0 };
         let result: SystemTimeResult = SystemTime::checked_subtract(&time, duration);
         transition result {
@@ -104,7 +104,7 @@ machine Main::main(context: &mut Main) reaches Console {
             SystemTimeResult::Ok { time } -> fail_leg(context, 7)
         }
     }
-    state leg8(context: &mut Main) {
+    machine leg8(context: &mut Main) {
         let time: SystemTime = SystemTime { seconds_since_unix_epoch: 0, subsecond_nanoseconds: 0 };
         let duration: Duration = Duration { seconds: 9300000000000000000, subsecond_nanoseconds: 0 };
         let result: SystemTimeResult = SystemTime::checked_add(&time, duration);
@@ -113,8 +113,8 @@ machine Main::main(context: &mut Main) reaches Console {
             SystemTimeResult::Ok { time } -> fail_leg(context, 8)
         }
     }
-    state good(context: &mut Main) { Console::exit_process(70); }
-    state fail_leg(context: &mut Main, leg: i32) { Console::exit_process(leg); }
+    machine good(context: &mut Main) { Console::exit_process(70); }
+    machine fail_leg(context: &mut Main, leg: i32) { Console::exit_process(leg); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

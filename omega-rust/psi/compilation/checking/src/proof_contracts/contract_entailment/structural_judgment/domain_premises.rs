@@ -539,6 +539,12 @@ impl StructuralJudge<'_> {
         if active.contains(&definition.symbol) {
             return;
         }
+        let has_projected_equations = self.has_projected_field_equations(&value);
+        if !has_projected_equations
+            && !Self::nominal_type_has_data_predicates(program, reference, &mut Vec::new())
+        {
+            return;
+        }
         active.push(definition.symbol);
         let mut parameters = Vec::new();
         let mut bindings = Vec::new();
@@ -585,6 +591,7 @@ impl StructuralJudge<'_> {
             });
             bindings.push((name, index));
         }
+        let has_where_facts = !program.proof_facts.span_or_empty(definition.where_facts).is_empty();
         // Unknown case identity admits only common fields. Payload predicates
         // enter through the separately authenticated selected-case arm; reading
         // every variant here would project inactive same-named payloads onto
@@ -617,7 +624,9 @@ impl StructuralJudge<'_> {
                 ..Default::default()
             });
             bindings.push((field.name.to_string(), projected.clone()));
-            self.intake_admitted_scalar_bounds(projected_type, &projected);
+            if has_where_facts || has_projected_equations {
+                self.intake_admitted_scalar_bounds(projected_type, &projected);
+            }
             self.intake_admitted_data_predicates(projected_type, projected, active);
         }
         for fact in program.proof_facts.span_or_empty(definition.where_facts) {
@@ -631,6 +640,88 @@ impl StructuralJudge<'_> {
             }
         }
         active.pop();
+    }
+
+    fn nominal_type_has_data_predicates(
+        program: &dyn crate::CheckingInput,
+        reference: TypeReferenceHandle,
+        active: &mut Vec<SymbolHandle>,
+    ) -> bool {
+        let Some(definition) =
+            crate::field_domains::readable_nominal_definition(program, reference)
+        else {
+            return false;
+        };
+        if active.contains(&definition.symbol) {
+            return false;
+        }
+        if !program.proof_facts.span_or_empty(definition.where_facts).is_empty()
+            || !program.data_application_value_fields(reference).is_empty()
+        {
+            return true;
+        }
+        active.push(definition.symbol);
+        let has_nested = program
+            .data_members(definition)
+            .iter()
+            .filter_map(|member| member.as_field())
+            .any(|field| {
+                let path = [facts::PlaceSegment::Field {
+                    symbol: field.symbol,
+                }];
+                crate::project_type_reference_from_segments(program, reference, &path)
+                    .is_some_and(|projected_type| {
+                        Self::nominal_type_has_data_predicates(program, projected_type, active)
+                    })
+            });
+        active.pop();
+        has_nested
+    }
+
+    fn has_projected_field_equations(&self, root: &StructuralTerm) -> bool {
+        let root_sem = root.semantic_value();
+        if matches!(root_sem, StructuralTerm::Constructor { .. }) {
+            return true;
+        }
+        fn mentions_projection_of(term: &StructuralTerm, root_sem: &StructuralTerm) -> bool {
+            let sem = term.semantic_value();
+            match sem {
+                StructuralTerm::Projection { subject, .. } => {
+                    let mut current = subject.semantic_value();
+                    while let StructuralTerm::Projection { subject: inner, .. } = current {
+                        current = inner.semantic_value();
+                    }
+                    if current == root_sem {
+                        return true;
+                    }
+                }
+                StructuralTerm::Opaque(text) => {
+                    if let StructuralTerm::Variable(name) | StructuralTerm::Opaque(name) = root_sem
+                        && text.starts_with(name.as_str())
+                        && text.as_bytes().get(name.len()) == Some(&b'.')
+                    {
+                        return true;
+                    }
+                }
+                StructuralTerm::BoundProjection { subject, .. } => {
+                    if let StructuralTerm::BoundValue(root_sym) = root_sem
+                        && subject == root_sym
+                    {
+                        return true;
+                    }
+                }
+                _ => {}
+            }
+            sem.any_child(|child| mentions_projection_of(child, root_sem))
+        }
+        self.rewrites.entries().iter().any(|(left, right)| {
+            mentions_projection_of(left, root_sem) || mentions_projection_of(right, root_sem)
+        }) || self.captured_result_equations.iter().any(|(left, right)| {
+            mentions_projection_of(left, root_sem) || mentions_projection_of(right, root_sem)
+        }) || self
+            .substitutions
+            .iter()
+            .any(|(_, right)| mentions_projection_of(right, root_sem))
     }
 
     pub(in crate::proof_contracts::contract_entailment) fn data_application_static_bindings(

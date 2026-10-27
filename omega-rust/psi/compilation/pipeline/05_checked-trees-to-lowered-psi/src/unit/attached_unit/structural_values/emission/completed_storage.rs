@@ -338,13 +338,25 @@ impl Emission<'_, '_, '_> {
         for decision in memberships {
             let domain = self.checked_membership_domain(decision, membership_carrier)?;
             if !qualifications.contains(&domain) {
-                // Direct Terminal routes do not include every inherited or
-                // aliased restriction. Consult the resolved source declaration,
-                // never its spelling or an empty route roster in the catalog.
-                if validation::field_domains::domain_requires_provenance(
-                    &self.checked.typed,
-                    decision.domain_symbol,
-                ) {
+                let declaration = self
+                    .domain_declarations
+                    .iter()
+                    .find(|row| row.id == domain)
+                    .ok_or(LoweringError::Unsupported(
+                        "owned membership declaration is absent",
+                    ))?;
+                let missing = declaration
+                    .missing_membership_requirements(self.domain_declarations, &qualifications)
+                    .ok_or(LoweringError::Unsupported(
+                        "owned membership transport has unknown prerequisites",
+                    ))?;
+                // Checked formation supplies the erased predicate proof. Only
+                // actual memberships on this source path can supply an issuer;
+                // the desired receiving roster cannot authorize itself.
+                if missing
+                    .iter()
+                    .any(|row| !row.establishment_routes.is_empty())
+                {
                     return unsupported(
                         "owned membership transport cannot establish routed authority",
                     );

@@ -39,6 +39,14 @@ NEGATIVES += tuple(f"fail/facts/opaque_independent_qualified_result_through_{p}_
 POSITIVES += ("pass/facts/opaque_independent_qualified_result_import_alias_exit",
               "pass/facts/opaque_independent_qualified_result_renumbered_catalog_exit")
 
+# A child retains every parent membership and its independent issuer group.
+POSITIVES += tuple(f"pass/facts/opaque_independent_inherited_result_through_{p}_exit" for p in PLACES)
+NEGATIVES += tuple(f"fail/facts/opaque_independent_inherited_result_through_{p}_unissued" for p in PLACES)
+POSITIVES += ("pass/facts/opaque_inherited_result_scalar_parent_tag_exit",
+              "pass/domains/domain_pattern_match_bound_inherited_routed_retained_exit",
+              "pass/domains/domain_pattern_match_bound_alias_routed_retained_exit")
+NEGATIVES += ("fail/domains/domain_pattern_match_bound_inherited_routed_unproven_rejected",)
+
 
 def authenticate_windows_lldiv(output):
     """Observe the SDK's exact PE import, not a guessed library or fixture result.
@@ -145,8 +153,9 @@ def qualify_result_provenance(output, cli):
                   compiler_sha256=digest, compiler_profile=profile, observations=records,
                   dirty=bool(compiler_pilot.command(["git", "status", "--porcelain"])), passed=False)
     try:
-        for name in ("raw_native_result", "component_launders_raw_result"):
-            authored = compiler_pilot.ROOT / "samples/cli/facts/opaque_closed_carrier_exchange/independent_qualified_result/controls" / name
+        for family, name in ((family, name) for family in ("", "refinement")
+                             for name in ("raw_native_result", "component_launders_raw_result")):
+            authored = compiler_pilot.ROOT / "samples/cli/facts/opaque_closed_carrier_exchange/independent_qualified_result" / family / "controls" / name
             def source_hashes():
                 return {str(p.relative_to(authored)): hashlib.sha256(p.read_bytes()).hexdigest()
                         for p in authored.rglob("*") if p.is_file()
@@ -159,11 +168,11 @@ def qualify_result_provenance(output, cli):
                 arguments = [str(cli), *flags, str(authored / "main.omg")]
                 result = subprocess.run(arguments, cwd=compiler_pilot.ROOT, stdin=subprocess.DEVNULL,
                                         capture_output=True, text=True, timeout=180)
-                stem = name + "-" + mode
+                stem = "-".join(part for part in (family, name, mode) if part)
                 (output / (stem + ".stdout.txt")).write_text(result.stdout, encoding="utf-8")
                 (output / (stem + ".stderr.txt")).write_text(result.stderr, encoding="utf-8")
                 passed = result.returncode == code and (mode == "check" or all(x in result.stdout + result.stderr for x in expected))
-                records.append(dict(control=name, mode=mode, argv=arguments, exit=result.returncode,
+                records.append(dict(family=family or "direct", control=name, mode=mode, argv=arguments, exit=result.returncode,
                                     expected=expected if mode == "native" else [], source_sha256=sources, passed=passed))
                 if not passed:
                     raise ValueError(f"{name}/{mode}: missing intended provenance admission rejection: {result.stderr}")

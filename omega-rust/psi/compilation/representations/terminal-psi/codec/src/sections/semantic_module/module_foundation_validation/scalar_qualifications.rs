@@ -9,6 +9,9 @@ use terminal_psi::{ScalarDomainEstablishmentRoute, ScalarReturnOrigin, ScalarRet
 pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
     let catalog = &module.scalar_qualifications;
     for domain in &catalog.domains {
+        if !domain.required_memberships_are_well_formed(&catalog.domains) {
+            return malformed("scalar domain has ambiguous, cyclic or wrong-carrier prerequisites");
+        }
         if module
             .identities
             .text(domain.identity)
@@ -81,16 +84,24 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
             .ok_or(CodecError::MalformedStructuralFoundation(
                 "scalar coercion lost its destination set",
             ))?;
-        if destination_domains.iter().any(|id| {
-            !source_domains.contains(id)
-                && catalog.domains.iter().any(|domain| {
-                    domain.id == *id
-                        && (domain.predicate.is_some() || !domain.establishment_routes.is_empty())
+        for id in destination_domains {
+            let domain = super::scalar_domain(module, *id).ok_or(
+                CodecError::MalformedStructuralFoundation("scalar coercion domain is absent"),
+            )?;
+            if domain
+                .missing_membership_requirements(&catalog.domains, source_domains)
+                .is_none_or(|missing| {
+                    missing.iter().any(|node| {
+                        node.predicate.is_some()
+                            || !node.establishment_routes.is_empty()
+                            || !node.has_no_required_memberships()
+                    })
                 })
-        }) {
-            return malformed(
-                "scalar coercion cannot establish a predicate or routed qualification",
-            );
+            {
+                return malformed(
+                    "scalar coercion cannot establish a predicate or routed qualification",
+                );
+            }
         }
     }
     for returned in &catalog.returns {
@@ -179,11 +190,14 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
                     matches!(returned.site, ScalarReturnSite::Completion { .. })
                         && domain.predicate.is_none()
                         && domain.establishment_routes.is_empty()
+                        && domain.has_no_required_memberships()
                 }
-                ScalarReturnOrigin::Forwarded => catalog
-                    .sets
-                    .iter()
-                    .any(|set| set.id == source.qualifications && set.domains.contains(&domain.id)),
+                ScalarReturnOrigin::Forwarded => catalog.sets.iter().any(|set| {
+                    set.id == source.qualifications
+                        && domain
+                            .missing_membership_requirements(&catalog.domains, &set.domains)
+                            .is_some_and(|missing| missing.is_empty())
+                }),
                 ScalarReturnOrigin::Established { route } => {
                     let declaration = machine.declaration.as_ref().ok_or(
                         CodecError::MalformedStructuralFoundation(
@@ -217,7 +231,25 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
                     }
                 }
             };
-            if !authorized {
+            let prerequisites = if matches!(origin, ScalarReturnOrigin::Established { .. }) {
+                let supplied = super::qualification_domains(module, source.qualifications).ok_or(
+                    CodecError::MalformedStructuralFoundation(
+                        "scalar issuer lost its source qualification set",
+                    ),
+                )?;
+                domain
+                    .missing_membership_requirements(&catalog.domains, supplied)
+                    .is_some_and(|missing| {
+                        missing.iter().all(|node| {
+                            // This return authorizes the named domain only. Each
+                            // parent retains its independent issuer obligation.
+                            node.id == domain.id || node.establishment_routes.is_empty()
+                        })
+                    })
+            } else {
+                true
+            };
+            if !authorized || !prerequisites {
                 return malformed(
                     "scalar return origin does not match its source or authorized issuer",
                 );
@@ -297,10 +329,16 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
             continue;
         };
         for domain in set.domains.iter().filter(|id| {
-            catalog
-                .domains
-                .iter()
-                .any(|domain| domain.id == **id && !domain.establishment_routes.is_empty())
+            catalog.domains.iter().any(|domain| {
+                domain.id == **id
+                    && domain
+                        .required_domain_closure(&catalog.domains)
+                        .is_none_or(|required| {
+                            required
+                                .iter()
+                                .any(|node| !node.establishment_routes.is_empty())
+                        })
+            })
         }) {
             for block in &machine.blocks {
                 if let Terminator::Return { edge, .. } = block.terminator

@@ -494,6 +494,7 @@ pub fn zeroed_projected_byte_qualifications_hold<'a>(
         domain.carrier == carrier.id
             && domain.content_projection.is_none()
             && domain.establishment_routes.is_empty()
+            && domain.has_no_required_memberships()
             && domain.byte_predicate.is_some_and(|predicate| match predicate {
                 terminal_psi::ByteSequencePredicate::ValidUtf8 | terminal_psi::ByteSequencePredicate::AsciiOnly => true,
                 terminal_psi::ByteSequencePredicate::NoNul => length == 0,

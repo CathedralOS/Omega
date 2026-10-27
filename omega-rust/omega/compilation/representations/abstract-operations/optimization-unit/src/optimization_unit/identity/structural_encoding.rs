@@ -618,6 +618,21 @@ pub(super) fn encode_structural_domain(
     bytes.id(declaration.semantic_domain);
     bytes.u32(declaration.identity.0);
     bytes.id(declaration.carrier);
+    bytes.boolean(declaration.complete_predicate_theory);
+    encode_optional(
+        bytes,
+        declaration.required_memberships.as_ref(),
+        |bytes, required| encode_ids(bytes, required),
+    );
+    bytes.slice(&declaration.establishment_routes, |bytes, route| {
+        bytes.u8(match route {
+            terminal_psi::StructuralEstablishmentRoute::CheckedRequirement { .. } => 1,
+            terminal_psi::StructuralEstablishmentRoute::ExactMachine { .. } => 2,
+            terminal_psi::StructuralEstablishmentRoute::BoundaryRequirement { .. } => 3,
+        });
+        bytes.u32(route.declaration().identity().0);
+        bytes.u32(route.identity().0);
+    });
     encode_optional(bytes, declaration.predicate.as_ref(), |bytes, predicate| {
         bytes.id(predicate.subject);
         encode_proposition(bytes, &predicate.proposition);

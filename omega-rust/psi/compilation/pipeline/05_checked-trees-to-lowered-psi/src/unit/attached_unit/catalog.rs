@@ -1233,6 +1233,27 @@ pub(super) fn lower_unit_structural_domains(
             }
         }
     }
+    // Prerequisites remain needed even when no executable operand names their
+    // family directly. Close the selected family set before dense IDs or any
+    // carrier presentation is assigned.
+    let mut cursor = 0;
+    while let Some(domain) = selected.get(cursor).copied() {
+        cursor += 1;
+        for plan in plans.structural_domains().iter().filter(|plan| {
+            plan.domain == domain
+                && type_ids
+                    .iter()
+                    .any(|(identity, _)| *identity == plan.carrier_type_identity)
+        }) {
+            if let Some(required) = &plan.required_memberships {
+                for parent in required {
+                    if !selected.contains(parent) {
+                        selected.push(*parent);
+                    }
+                }
+            }
+        }
+    }
     let mut selected_plans: Vec<&checked_trees::CheckedUnitStructuralDomainPlan> = Vec::new();
     for domain in selected {
         let mut found = false;
@@ -1426,6 +1447,19 @@ pub(super) fn lower_unit_structural_domains(
                     cause: Box::new(cause),
                 })?;
             Ok(StructuralDomainDeclaration {
+                required_memberships: plan
+                    .required_memberships
+                    .as_ref()
+                    .map(|required| {
+                        required
+                            .iter()
+                            .map(|domain| {
+                                DomainSemanticId::new(u64::from(domain.0))
+                                    .ok_or(LoweringError::InvalidContentDomainIdentity)
+                            })
+                            .collect::<Result<Vec<_>, _>>()
+                    })
+                    .transpose()?,
                 complete_predicate_theory: plan.complete_predicate_theory,
                 predicate,
                 byte_predicate: plan.byte_predicate,

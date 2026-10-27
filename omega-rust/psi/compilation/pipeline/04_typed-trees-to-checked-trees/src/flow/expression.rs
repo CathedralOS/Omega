@@ -41,6 +41,7 @@ mod constructed_values;
 mod dispatch;
 mod dispatch_copies;
 mod live_memberships;
+mod primitive_reads;
 mod reference_projection;
 mod result_facts;
 mod returned_descriptors;
@@ -775,7 +776,9 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 *contexts,
                 *constraints,
             );
-            self.context.control.operands.append(descriptor)
+            let descriptor = self.context.control.operands.append(descriptor);
+            self.retain_primitive_read(expression, descriptor, destination, contexts, constraints);
+            descriptor
         } else {
             Handle::invalid()
         };
@@ -1509,6 +1512,10 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 return None;
             }
             ExpressionNode::Match(dispatch) => {
+                // Each selected arm is evaluated into this receiving carrier.
+                // Its natural reference type is not a second outer read after
+                // an arm already produced an owned primitive observation.
+                *formed_type = destination;
                 *completion = checked_trees::FlowOperandCompletion::Selected(self.dispatch(
                     expression,
                     *dispatch,

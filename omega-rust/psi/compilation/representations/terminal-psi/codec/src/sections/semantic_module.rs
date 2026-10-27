@@ -124,9 +124,9 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // declaration owners; older layouts cannot infer these missing coordinates.
 // Suspension capture coordinates include retained ingress permissions, distinct
 // from local formations and evaluated outgoing actuals.
-// The merged schema retains those captures and ordinary no-normal invocations;
-// neither independent marker-195 grammar is the complete current layout.
-pub(crate) const FORMAT_MARKER: u16 = 196;
+// This union retains ingress captures, ordinary no-normal invocations and
+// inherited scalar memberships; neither independent marker-196 layout suffices.
+pub(crate) const FORMAT_MARKER: u16 = 197;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

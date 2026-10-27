@@ -77,18 +77,6 @@ pub(super) fn capture_statement(
     if !program.expression_table.expression_is_valid(source) {
         return None;
     }
-    if let Some(captured) = selected_call_capture(
-        program,
-        borrow,
-        semantic,
-        context,
-        state,
-        statement_index,
-        source,
-        active,
-    ) {
-        return captured;
-    }
     if let Some(value) = completed_statement_scalar(
         program,
         semantic,
@@ -100,6 +88,18 @@ pub(super) fn capture_statement(
         active,
     ) {
         return Some(value);
+    }
+    if let Some(captured) = selected_call_capture(
+        program,
+        borrow,
+        semantic,
+        context,
+        state,
+        statement_index,
+        source,
+        active,
+    ) {
+        return captured;
     }
     let builtin = builtin_bound_meaning_source(program, context, machine_symbol, state, source);
     if let Some((expression, symbols)) =
@@ -171,33 +171,8 @@ fn completed_statement_scalar(
     source: ExpressionHandle,
     active: HandleSpan<FlowSemanticContextRef>,
 ) -> Option<ScalarValue> {
-    let place = validation::canonical_place_from_expression_in_state(
-        program,
-        state,
-        statement_index,
-        source,
-    )?;
-    if place.root != facts::PlaceRoot::Expression(source) || !place.segments.is_empty() {
-        return None;
-    }
-    let destination = match statement {
-        StatementNode::LocalData(local) => local.type_reference,
-        StatementNode::Assignment(assignment) => validation::expression_type_reference_in_state(
-            program,
-            state,
-            statement_index,
-            assignment.target,
-        )?,
-        _ => return None,
-    };
-    let destination = validation::peel_declared_constraints(program, destination);
-    if matches!(
-        program.type_reference_table.type_reference(destination),
-        typed_trees::types::TypeReferenceNode::Reference { .. }
-    ) {
-        return None;
-    }
-    let primitive = program.primitive_type_reference(destination)?;
+    let (place, primitive) =
+        completed_statement_place(program, state, statement_index, statement, source)?;
     let value = crate::values::scalar_value_at_place(
         program,
         semantic,
@@ -219,6 +194,44 @@ fn completed_statement_scalar(
     Some(value)
 }
 
+fn completed_statement_place(
+    program: &dyn validation::CheckingInput,
+    state: SymbolHandle,
+    statement_index: usize,
+    statement: &StatementNode,
+    source: ExpressionHandle,
+) -> Option<(CanonicalPlace, typed_trees::types::PrimitiveType)> {
+    if !program.expression_table.expression_is_valid(source) {
+        return None;
+    }
+    // The completed value owns this namespace even when its producer was a
+    // reference with no ordinary scalar storage coordinate. Selecting it does
+    // not invent a fact: only an actual completion may have published one.
+    let place = CanonicalPlace {
+        root: facts::PlaceRoot::Expression(source),
+        segments: Vec::new(),
+    };
+    let destination = match statement {
+        StatementNode::LocalData(local) => local.type_reference,
+        StatementNode::Assignment(assignment) => validation::expression_type_reference_in_state(
+            program,
+            state,
+            statement_index,
+            assignment.target,
+        )?,
+        _ => return None,
+    };
+    let destination = validation::peel_declared_constraints(program, destination);
+    if matches!(
+        program.type_reference_table.type_reference(destination),
+        typed_trees::types::TypeReferenceNode::Reference { .. }
+    ) {
+        return None;
+    }
+    let primitive = program.primitive_type_reference(destination)?;
+    Some((place, primitive))
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn capture_bounds(
     program: &dyn ::validation::CheckingInput,
@@ -232,6 +245,24 @@ pub(super) fn capture_bounds(
     active: HandleSpan<FlowSemanticContextRef>,
 ) -> Option<facts::IntegerRange> {
     let source = statement_value_source(statement)?;
+    if let Some((place, primitive)) =
+        completed_statement_place(program, state, statement_index, statement, source)
+        && crate::values::integer_type(primitive).is_some()
+        && let Some(bounds) = crate::values::integer_bounds_at_place(
+            program,
+            semantic,
+            context
+                .contexts
+                .semantic_context_refs
+                .span_or_empty(active)
+                .iter()
+                .map(|reference| semantic.contexts.get(reference.context)),
+            &place,
+        )
+    {
+        return Some(bounds);
+    }
+
     if let Some(captured) = selected_call_capture(
         program,
         borrow,

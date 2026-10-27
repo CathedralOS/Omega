@@ -130,9 +130,10 @@ pub use proof_contracts::contract_results::{
     ReservedResultPlace, callable_contract_scopes, reserved_result_owner, reserved_result_place,
 };
 pub use proof_contracts::domains::{
-    integer_domain_membership, scalar_domain_predicate, scalar_domain_value_predicate,
-    scalar_field_domain_predicate, scalar_field_restriction, scalar_membership_carrier,
-    scalar_membership_is_tag, scalar_membership_predicates, scalar_membership_value_carrier,
+    integer_domain_membership, scalar_domain_definition_predicate, scalar_domain_local_predicate,
+    scalar_domain_predicate, scalar_domain_value_predicate, scalar_field_domain_predicate,
+    scalar_field_restriction, scalar_membership_carrier, scalar_membership_is_tag,
+    scalar_membership_predicates, scalar_membership_value_carrier,
     scalar_membership_value_predicates, scalar_predicate_domains, scalar_type_routed_domains,
     scalar_type_tags, validate_executable_domain_test_carriers,
 };

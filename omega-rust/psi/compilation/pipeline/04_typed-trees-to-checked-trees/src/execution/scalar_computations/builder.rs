@@ -521,6 +521,14 @@ impl Builder<'_, '_> {
         if self.uses_captured_dispatch_value(expression) {
             return self.completed_scalar_observation(expression, expected_type);
         }
+        // A value-producing control expression owns its receiving context.
+        // Dispatch lowers each arm into that scalar type; retaining the whole
+        // naturally reference-valued match would publish the wrong local root.
+        if let ExpressionNode::Match(dispatch) =
+            self.program.expression_table.expression(expression).clone()
+        {
+            return self.dispatch(expression, &dispatch, expected_type);
+        }
         if let Some(observation) = self.primitive_reference_observation(expression, expected_type) {
             return Some(observation);
         }
@@ -634,11 +642,6 @@ impl Builder<'_, '_> {
             && semantic_casts::requires_custody(self.program, self.state, expression)
         {
             return self.authored_cast(expression, &cast, expected_type);
-        }
-        if let ExpressionNode::Match(dispatch) =
-            self.program.expression_table.expression(expression).clone()
-        {
-            return self.dispatch(expression, &dispatch, expected_type);
         }
         if expected_type == PrimitiveType::Bool
             && let Some(operator_use) = self.comparison_use(
