@@ -901,8 +901,6 @@ narrows realization only.
     slots (keeping required-output path byte results refused).
   - Carry foreign-helper Product query fixtures through ordinary dependency discovery,
     not only pre-admitted package contexts.
-  - Complete [Build provider readiness](wiki/spec/build/provider_selection.md#build-provider-readiness)
-    for applied/inherited multi-slot requirements.
   - **BUILD-EVALUATES-ONCE / ONE-DRIVER-PER-STAGE:** evaluate `build.omg` once
     per compilation with no realized target observed, run Psi `00–07` once in
     `compiler.rs` to produce one canonical Terminal Psi artifact, and run Omega
