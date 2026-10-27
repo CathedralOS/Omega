@@ -64,16 +64,10 @@ pub use program_entry_physical::{
     MACOS_X86_64_I32_TYPE_IDENTITY, ProgramEntryPhysicalContractPackageSourceDigest,
     ProgramEntryPhysicalContractPlan, WINDOWS_X86_64_PHYSICAL_REQUIREMENT_IDENTITY,
     WINDOWS_X86_64_U32_TYPE_IDENTITY, exact_linux_arm64_physical_boundary_entry_plan,
-    exact_linux_arm64_physical_contract_package_source_digest,
     exact_linux_x86_64_physical_boundary_entry_plan,
-    exact_linux_x86_64_physical_contract_package_source_digest,
     exact_macos_arm64_physical_boundary_entry_plan,
-    exact_macos_arm64_physical_contract_package_source_digest,
-    exact_macos_x86_64_physical_boundary_entry_plan,
-    exact_macos_x86_64_physical_contract_package_source_digest,
-    exact_uefi_x64_physical_contract_package_source_digest,
+    exact_macos_x86_64_physical_boundary_entry_plan, exact_physical_contract_package_source_digest,
     exact_windows_x86_64_physical_boundary_entry_plan,
-    exact_windows_x86_64_physical_contract_package_source_digest,
 };
 pub use selected_entry::SelectedProgramStorageEntryPlan;
 

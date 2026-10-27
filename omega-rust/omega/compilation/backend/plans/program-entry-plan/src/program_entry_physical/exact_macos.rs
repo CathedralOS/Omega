@@ -4,11 +4,6 @@ use calling_conventions::{
     CallSignature, ValidatedBoundaryEntryPlan, ValueShape, evaluate_ordinary_boundary_entry_plan,
 };
 
-const MACOS_ARM64_TARGET_PACKAGE_SOURCE: &[u8] = include_bytes!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../../../../../../source/library/std/targets/macos_arm64/entry.omg"
-));
-
 /// Canonical checked-tree overload identity for `MacosArm64PhysicalEntry::enter`.
 pub const MACOS_ARM64_PHYSICAL_REQUIREMENT_IDENTITY: &str = concat!(
     "named-callable(path(MacosArm64PhysicalEntry::enter),parameters(",
@@ -27,16 +22,6 @@ pub const MACOS_ARM64_I32_TYPE_IDENTITY: &str = "named(name(i32))";
 /// Canonical normalized type identity of the `argv`, `envp`, and `apple`
 /// raw process-arrival addresses.
 pub const MACOS_ARM64_ADDRESS_TYPE_IDENTITY: &str = "named(name(addr))";
-
-/// Strong commitment to the exact closed macOS ARM64 target-package source
-/// compiled into this plan owner.
-pub fn exact_macos_arm64_physical_contract_package_source_digest()
--> super::ProgramEntryPhysicalContractPackageSourceDigest {
-    super::ProgramEntryPhysicalContractPackageSourceDigest::from_package_source(
-        target::ProgramEntryPhysicalContractPackage::MacosArm64,
-        MACOS_ARM64_TARGET_PACKAGE_SOURCE,
-    )
-}
 
 /// Independently reconstruct and validate the exact plan authored by the
 /// closed macOS ARM64 target package. The authored `MacosArm64` policy is the

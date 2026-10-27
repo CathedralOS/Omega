@@ -924,7 +924,8 @@ fn selected_entry_schema<'program>(
             }));
         }
     } else {
-        let expected_digest = exact_bundled_physical_contract_package_source_digest(package);
+        let expected_digest =
+            program_entry_plan::exact_physical_contract_package_source_digest(package);
         for source_file in typed.symbols.source_files().filter(|source_file| {
             source_file.dependency_scope == source::DependencyScope::Product
                 && source_file.package_identity.is_none()
@@ -1066,7 +1067,9 @@ fn target_owned_physical_contract_source(
                         expected_package.package_relative_source(),
                     ))
                 && package_source_digest
-                    == exact_bundled_physical_contract_package_source_digest(expected_package);
+                    == program_entry_plan::exact_physical_contract_package_source_digest(
+                        expected_package,
+                    );
             if !exact_bundled_source {
                 return Err(Diagnostic::error(format!(
                     "target physical entry requirement and schema `{}` require either the exact bundled {} contract or one accepted package-owned {} binding, not `{}`",
@@ -1090,32 +1093,6 @@ fn target_owned_physical_contract_source(
 }
 
 pub use package_compilation::program_entry_semantic_binding_role;
-
-/// Bundled-toolchain digest expected for one closed contract package.
-fn exact_bundled_physical_contract_package_source_digest(
-    package: target::ProgramEntryPhysicalContractPackage,
-) -> program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest {
-    match package {
-        target::ProgramEntryPhysicalContractPackage::UefiX64 => {
-            program_entry_plan::exact_uefi_x64_physical_contract_package_source_digest()
-        }
-        target::ProgramEntryPhysicalContractPackage::MacosArm64 => {
-            program_entry_plan::exact_macos_arm64_physical_contract_package_source_digest()
-        }
-        target::ProgramEntryPhysicalContractPackage::MacosX64 => {
-            program_entry_plan::exact_macos_x86_64_physical_contract_package_source_digest()
-        }
-        target::ProgramEntryPhysicalContractPackage::LinuxX86_64 => {
-            program_entry_plan::exact_linux_x86_64_physical_contract_package_source_digest()
-        }
-        target::ProgramEntryPhysicalContractPackage::LinuxArm64 => {
-            program_entry_plan::exact_linux_arm64_physical_contract_package_source_digest()
-        }
-        target::ProgramEntryPhysicalContractPackage::WindowsX64 => {
-            program_entry_plan::exact_windows_x86_64_physical_contract_package_source_digest()
-        }
-    }
-}
 
 fn physical_contract_package_source_report_fingerprint(identity: &[u8], source: &[u8]) -> u64 {
     let mut hash = crate::fnv1a::Fnv1a::new();

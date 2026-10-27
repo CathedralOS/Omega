@@ -33,33 +33,27 @@ mod exact_linux_arm64;
 mod exact_linux_x86_64;
 mod exact_macos;
 mod exact_macos_x86_64;
-mod exact_uefi;
 mod exact_windows_x86_64;
+mod package_source;
 pub use exact_linux_arm64::{
     LINUX_ARM64_I32_TYPE_IDENTITY, LINUX_ARM64_PHYSICAL_REQUIREMENT_IDENTITY,
     LINUX_ARM64_U64_TYPE_IDENTITY, exact_linux_arm64_physical_boundary_entry_plan,
-    exact_linux_arm64_physical_contract_package_source_digest,
 };
 pub use exact_linux_x86_64::{
     LINUX_X86_64_ADDRESS_TYPE_IDENTITY, LINUX_X86_64_I32_TYPE_IDENTITY,
     LINUX_X86_64_PHYSICAL_REQUIREMENT_IDENTITY, exact_linux_x86_64_physical_boundary_entry_plan,
-    exact_linux_x86_64_physical_contract_package_source_digest,
 };
 pub use exact_macos::{
     MACOS_ARM64_ADDRESS_TYPE_IDENTITY, MACOS_ARM64_I32_TYPE_IDENTITY,
     MACOS_ARM64_PHYSICAL_REQUIREMENT_IDENTITY, exact_macos_arm64_physical_boundary_entry_plan,
-    exact_macos_arm64_physical_contract_package_source_digest,
 };
 pub use exact_macos_x86_64::{
     MACOS_X86_64_ADDRESS_TYPE_IDENTITY, MACOS_X86_64_I32_TYPE_IDENTITY,
     exact_macos_x86_64_physical_boundary_entry_plan,
-    exact_macos_x86_64_physical_contract_package_source_digest,
 };
-pub use exact_uefi::exact_uefi_x64_physical_contract_package_source_digest;
 pub use exact_windows_x86_64::{
     WINDOWS_X86_64_PHYSICAL_REQUIREMENT_IDENTITY, WINDOWS_X86_64_U32_TYPE_IDENTITY,
     exact_windows_x86_64_physical_boundary_entry_plan,
-    exact_windows_x86_64_physical_contract_package_source_digest,
 };
 
 /// Domain-separated commitment to the exact source bytes of one closed
@@ -68,6 +62,21 @@ pub use exact_windows_x86_64::{
 pub struct ProgramEntryPhysicalContractPackageSourceDigest {
     package: target::ProgramEntryPhysicalContractPackage,
     bytes: [u8; 32],
+}
+
+/// Strong commitment to the exact source bytes of one closed
+/// toolchain-owned physical-entry contract package.
+///
+/// The package selects its own bundled document (`package_source`), so a
+/// caller compares the digest its compiled tree produced against this one
+/// without naming the target again.
+pub fn exact_physical_contract_package_source_digest(
+    package: target::ProgramEntryPhysicalContractPackage,
+) -> ProgramEntryPhysicalContractPackageSourceDigest {
+    ProgramEntryPhysicalContractPackageSourceDigest::from_package_source(
+        package,
+        package_source::exact_package_source(package),
+    )
 }
 
 impl ProgramEntryPhysicalContractPackageSourceDigest {

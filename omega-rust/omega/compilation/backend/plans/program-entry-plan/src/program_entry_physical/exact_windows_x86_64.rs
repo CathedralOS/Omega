@@ -5,26 +5,11 @@ use calling_conventions::{
     evaluate_ordinary_boundary_entry_plan,
 };
 
-const WINDOWS_X86_64_TARGET_PACKAGE_SOURCE: &[u8] = include_bytes!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../../../../../../source/library/std/targets/windows_x86_64/entry.omg"
-));
-
 /// Canonical checked-tree overload identity for `WindowsProcessEntry::enter`.
 pub const WINDOWS_X86_64_PHYSICAL_REQUIREMENT_IDENTITY: &str =
     "named-callable(path(WindowsProcessEntry::enter),parameters(),result-dispatch())";
 /// Canonical normalized type identity of the process-completion status.
 pub const WINDOWS_X86_64_U32_TYPE_IDENTITY: &str = "named(name(u32))";
-
-/// Strong commitment to the exact closed Windows x86-64 target-package source
-/// compiled into this plan owner.
-pub fn exact_windows_x86_64_physical_contract_package_source_digest()
--> super::ProgramEntryPhysicalContractPackageSourceDigest {
-    super::ProgramEntryPhysicalContractPackageSourceDigest::from_package_source(
-        target::ProgramEntryPhysicalContractPackage::WindowsX64,
-        WINDOWS_X86_64_TARGET_PACKAGE_SOURCE,
-    )
-}
 
 /// Independently reconstruct and validate the exact plan authored by the
 /// closed Windows x86-64 target package. The loader enters a PE32+ executable

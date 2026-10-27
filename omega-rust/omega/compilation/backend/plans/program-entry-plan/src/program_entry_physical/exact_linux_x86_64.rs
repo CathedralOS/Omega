@@ -6,11 +6,6 @@ use calling_conventions::{
     validate_boundary_entry_plan,
 };
 
-const LINUX_X86_64_TARGET_PACKAGE_SOURCE: &[u8] = include_bytes!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../../../../../../source/library/std/targets/linux_x86_64/entry.omg"
-));
-
 /// Canonical checked-tree overload identity for `LinuxX86_64PhysicalEntry::enter`.
 pub const LINUX_X86_64_PHYSICAL_REQUIREMENT_IDENTITY: &str = concat!(
     "named-callable(path(LinuxX86_64PhysicalEntry::enter),parameters(",
@@ -22,16 +17,6 @@ pub const LINUX_X86_64_PHYSICAL_REQUIREMENT_IDENTITY: &str = concat!(
 pub const LINUX_X86_64_ADDRESS_TYPE_IDENTITY: &str = "named(name(addr))";
 /// Canonical normalized type identity of the process-completion status.
 pub const LINUX_X86_64_I32_TYPE_IDENTITY: &str = "named(name(i32))";
-
-/// Strong commitment to the exact closed Linux x86-64 target-package source
-/// compiled into this plan owner.
-pub fn exact_linux_x86_64_physical_contract_package_source_digest()
--> super::ProgramEntryPhysicalContractPackageSourceDigest {
-    super::ProgramEntryPhysicalContractPackageSourceDigest::from_package_source(
-        target::ProgramEntryPhysicalContractPackage::LinuxX86_64,
-        LINUX_X86_64_TARGET_PACKAGE_SOURCE,
-    )
-}
 
 /// Independently reconstruct and validate the exact plan authored by the
 /// closed Linux x86-64 target package. The kernel enters a static ELF
