@@ -1,0 +1,9 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "requires",
+    "ordered",
+    "left != right"
+  ]
+}
