@@ -582,9 +582,11 @@ defines the complete product bar.
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and joint SCC ranking across
     nested/sibling/ancestor/top-level edges without ambient parent entry facts).
-    Infer arithmetic-formation obligations inside private helpers from every
-    actual arrival too (for example `value - 1` under a predecessor
-    `value > 1` guard), instead of requiring duplicated helper annotations.
+    Private arithmetic formation now uses every closed actual arrival rather
+    than duplicated helper bounds: the [nine-place subtraction row](samples/cli/facts/nested_machine_invocation/private_arithmetic/README.md)
+    executes through Terminal Psi and native code with fact-sensitive rejects.
+    Public/escaping helpers and changed storage retain their proof obligations;
+    private cyclic inference remains conservative.
   - Update Terminal production, codecs/checking, both interpreters, native
     lowering, and WCSU together so runtime cycles remain constant-stack with all
     live backing accounted for.

@@ -39,7 +39,6 @@ use typed_trees::statement::{TransitionGuardNode, TransitionTargetNode};
 
 mod inherited_predicates;
 use inherited_predicates::{InheritedPredicate, inherited_predicate};
-mod private_arrivals;
 
 /// Check one exact substituted requirement on every recognized path to a call.
 /// Unsupported paths and unknown judgments do not establish the requirement.
@@ -397,10 +396,15 @@ fn structural_requirement_at_prefix(
     if recognized.is_some() && diagnostics.is_empty() && requirement.seen && requirement.proven {
         return true;
     }
-    if let Some(proven) =
-        private_arrivals::prove(program, machine, &mut requirement, case_facts_only)
-    {
-        return proven;
+    requirement.seen = false;
+    requirement.proven = true;
+    if let Some(covered) = super::structural_prefix::observe_private_arrivals(
+        program,
+        machine,
+        &mut requirement,
+        case_facts_only,
+    ) {
+        return covered && requirement.seen && requirement.proven;
     }
     false
 }
@@ -441,6 +445,25 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
 
     fn unresolved(&mut self, _machine: &Machine) {
         self.proven = false;
+    }
+
+    fn observe_private_arrival<'program>(
+        &mut self,
+        root: &Machine,
+        observation: PrefixObservation<'_, 'program>,
+    ) {
+        let (program, machine, state, mut judge, environment) = observation;
+        if !judge.has_runtime_body_values() {
+            intake_state_induction(
+                program,
+                root,
+                state,
+                self.statement_index,
+                environment,
+                &mut judge,
+            );
+        }
+        self.observe((program, machine, state, judge, environment));
     }
 
     fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {
