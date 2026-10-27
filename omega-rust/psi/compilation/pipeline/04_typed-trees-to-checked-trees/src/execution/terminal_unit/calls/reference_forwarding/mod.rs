@@ -147,16 +147,19 @@ fn exact_mutable_referent(
             StatementNode::LocalData(local) => Some(local.symbol),
             _ => None,
         });
-    if borrow.state_loans(borrow_state).any(|(handle, loan)| {
-        !returned_loans.contains(&handle)
-            && order.at_or_before(loan.statement_index, call.statement_index)
-            && order.at_or_before(call.statement_index, loan.last_use_statement_index)
-            && (loan.root == facts::PlaceRoot::Symbol(source_symbol)
-                || loan.owner_symbol == source_symbol
-                || loan.source_owner_symbol == source_symbol)
-            && !(loan.statement_index == call.statement_index
-                && Some(loan.owner_symbol) == result_owner)
-    }) {
+    if borrow
+        .state_loans(borrow_state)
+        .any(|(handle, loan)| {
+            !returned_loans.contains(&handle)
+                && order.at_or_before(loan.statement_index, call.statement_index)
+                && order.at_or_before(call.statement_index, loan.last_use_statement_index)
+                && (loan.root == facts::PlaceRoot::Symbol(source_symbol)
+                    || loan.owner_symbol == source_symbol
+                    || loan.source_owner_symbol == source_symbol)
+                && !(loan.statement_index == call.statement_index
+                    && Some(loan.owner_symbol) == result_owner)
+        })
+    {
         return None;
     }
     Some(())

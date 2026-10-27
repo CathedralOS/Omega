@@ -1,0 +1,17 @@
+// Expected exit: 0
+machine observe<'storage>(source: &'storage mut u64, value: u64,
+    called: &mut bool, trace: &mut u64, event: u64) -> &'storage mut u64
+ensures source == value { source = value; called = !called; trace = event; source }
+machine same(observed: u64, expected: u64) -> u64
+requires observed == expected { observed }
+machine probe(left: u64, right: u64, first: bool, second: bool) -> u64 {
+    let mut items: [u64; 2] = [3, 1]; let mut called: bool = false; let mut trace: u64 = 0;
+    let saved: u64 = match first {
+        true -> observe(&mut items[0], left, &mut called, &mut trace, 11)
+        false -> observe(&mut items[0], right, &mut called, &mut trace, 13)
+    };
+    items[1] = 4;
+    let expected: u64 = match second { true -> left false -> right };
+    same(saved, expected)
+}
+machine main() { let result: u64 = probe(7, 9, true, false); }

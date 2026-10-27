@@ -47,9 +47,7 @@ impl Scope<'_> {
                     .program
                     .machine_type_parameters(self.machine)
                     .iter()
-                    .any(|p| {
-                        p.symbol == symbol && matches!(p.kind, TypeParameterKind::Const { .. })
-                    })
+                    .any(|p| p.symbol == symbol && matches!(p.kind, TypeParameterKind::Const { .. }))
         };
         match self.program.expression_table.expression(expr) {
             ExpressionNode::Integer(_)
@@ -63,16 +61,18 @@ impl Scope<'_> {
                 self.expression_is_const(b.left) && self.expression_is_const(b.right)
             }
             ExpressionNode::Cast(c) => self.expression_is_const(c.value),
-            ExpressionNode::Call(call) => call.machine_arguments.iter().all(|arg| {
-                (!arg.symbol.is_valid() || is_const_symbol(arg.symbol))
-                    && (arg.const_literal.is_some()
-                        || !arg.type_reference.is_valid()
-                        || self
-                            .program
-                            .type_reference_table
-                            .anonymous_numeric_literal_value(arg.type_reference)
-                            .is_some())
-            }),
+            ExpressionNode::Call(call) => {
+                call.machine_arguments.iter().all(|arg| {
+                    (!arg.symbol.is_valid() || is_const_symbol(arg.symbol))
+                        && (arg.const_literal.is_some()
+                            || !arg.type_reference.is_valid()
+                            || self
+                                .program
+                                .type_reference_table
+                                .anonymous_numeric_literal_value(arg.type_reference)
+                                .is_some())
+                })
+            }
             _ => false,
         }
     }
@@ -88,9 +88,7 @@ impl Scope<'_> {
                     .program
                     .machine_type_parameters(self.machine)
                     .iter()
-                    .any(|p| {
-                        p.symbol == symbol && matches!(p.kind, TypeParameterKind::Const { .. })
-                    })
+                    .any(|p| p.symbol == symbol && matches!(p.kind, TypeParameterKind::Const { .. }))
         };
         let table = &self.program.type_reference_table;
         match table.type_reference(argument) {
@@ -211,15 +209,10 @@ impl Scope<'_> {
                 return Some(ScopedArithmeticValue::Term(term));
             }
             if let ExpressionNode::Call(call) = self.program.expression_table.expression(expression)
-                && let Some(callee) = self
-                    .program
-                    .machine_by_own_or_state_symbol(call.target_symbol)
+                && let Some(callee) = self.program.machine_by_own_or_state_symbol(call.target_symbol)
                 && let Some(entry) = self.program.machine_states(callee).first()
             {
-                let statements = self
-                    .program
-                    .statement_table
-                    .statements(entry.statement_nodes);
+                let statements = self.program.statement_table.statements(entry.statement_nodes);
                 let return_expr = statements.last().and_then(|s| match s {
                     StatementNode::Expression(e) => Some(*e),
                     _ => None,
@@ -227,9 +220,7 @@ impl Scope<'_> {
                 if let Some(return_expr) = return_expr {
                     let callee_params = self.program.machine_type_parameters(callee);
                     let mut callee_substitutions = Vec::new();
-                    for (param, actual_arg) in
-                        callee_params.iter().zip(call.machine_arguments.iter())
-                    {
+                    for (param, actual_arg) in callee_params.iter().zip(call.machine_arguments.iter()) {
                         let value = if actual_arg.symbol.is_valid() {
                             application
                                 .substitutions
@@ -242,11 +233,7 @@ impl Scope<'_> {
                             self.program
                                 .type_reference_table
                                 .anonymous_numeric_literal_value(actual_arg.type_reference)
-                                .map(|v| {
-                                    ScopedArithmeticValue::Integer(
-                                        numerics::bignum::BigInt::from_i128(v as i128),
-                                    )
-                                })
+                                .map(|v| ScopedArithmeticValue::Integer(numerics::bignum::BigInt::from_i128(v as i128)))
                         } else {
                             None
                         };
@@ -261,10 +248,8 @@ impl Scope<'_> {
                     {
                         return Some(ScopedArithmeticValue::Term(term));
                     }
-                    if let ExpressionNode::Name(path) =
-                        self.program.expression_table.expression(return_expr)
-                        && let Some((_, Some(val))) =
-                            callee_substitutions.iter().find(|(s, _)| *s == path.symbol)
+                    if let ExpressionNode::Name(path) = self.program.expression_table.expression(return_expr)
+                        && let Some((_, Some(val))) = callee_substitutions.iter().find(|(s, _)| *s == path.symbol)
                     {
                         return Some(val.clone());
                     }

@@ -78,9 +78,10 @@ impl InstructionDispositions {
         places: &mut [LinearPlace],
         events: &mut Vec<FlowPermissionEventFact>,
     ) {
-        if !places.iter().any(|held| {
-            held.live && held.ever_established && held.multiplicity == Multiplicity::Linear
-        }) {
+        if !places
+            .iter()
+            .any(|held| held.live && held.ever_established && held.multiplicity == Multiplicity::Linear)
+        {
             return;
         }
         let Some(state_flow) = facts.flow.control.state(machine.symbol, state.symbol) else {

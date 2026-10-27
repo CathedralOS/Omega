@@ -93,8 +93,10 @@ impl ContractPredicates<'_, '_> {
                     self.program,
                     parameter.type_reference,
                 )?;
-                let supplied =
-                    validation::field_domains::readable_type_reference(self.program, actual.2)?;
+                let supplied = validation::field_domains::readable_type_reference(
+                    self.program,
+                    actual.2,
+                )?;
                 validation::declared_carriers_match(self.program, declared, supplied)
                     .then_some(actual)
             })
