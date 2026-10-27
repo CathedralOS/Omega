@@ -343,11 +343,7 @@ pub fn validate_runtime_proof_citations(
             }
         }
     }
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
+    crate::program_validation::finish_strict_diagnostics(diagnostics)
 }
 
 /// Whether one statement is a fact-only citation that execution erases.

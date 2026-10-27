@@ -73,11 +73,7 @@ pub fn revalidate_named_implementation(
         &mut diagnostics,
         &mut formation_obligations,
     );
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
+    crate::program_validation::finish_strict_diagnostics(diagnostics)
 }
 
 fn validate_named_implementation(

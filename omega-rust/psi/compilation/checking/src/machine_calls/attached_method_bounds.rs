@@ -186,11 +186,7 @@ pub fn validate_selected_attached_method_bounds(
             }
         }
     }
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
+    crate::program_validation::finish_strict_diagnostics(diagnostics)
 }
 
 fn method_is_selected(
