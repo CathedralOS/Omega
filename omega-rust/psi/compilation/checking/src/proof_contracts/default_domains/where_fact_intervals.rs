@@ -261,6 +261,8 @@ fn field_intervals(
         if let Some(binary) = program.expression_table.binary_node(conjunct)
             && binary.operator == BinaryOperator::And
         {
+            // Logical conjunction is a sealed compiler connective; authored
+            // operator implementations cannot replace its meaning.
             conjuncts.extend([binary.left, binary.right]);
             continue;
         }
@@ -339,6 +341,17 @@ fn exact_predicate_field_intervals(
                 .iter()
                 .find(|field| field.symbol.is_valid() && field.symbol == path.symbol)?;
             let primitive = program.primitive_type_reference(field.type_reference)?;
+            // The explorer reads integer representations, not implicit domain
+            // admission. A qualified formal can owe more than its primitive
+            // interval, so it cannot retire this authored predicate clause.
+            if !matches!(
+                program
+                    .type_reference_table
+                    .type_reference(parameter.type_reference),
+                typed_trees::types::TypeReferenceNode::Named { .. }
+            ) {
+                return None;
+            }
             if !primitive.is_fixed_integer()
                 || program.primitive_type_reference(parameter.type_reference) != Some(primitive)
             {
