@@ -748,10 +748,7 @@ fn discover_normal_return_interval(
     {
         return None;
     }
-    let frames = CallFrameResolver::new(program);
-    let incoming = incoming_environments(program, machine, frames.as_ref(), Some((entry, actuals)));
-    let mut combined: Option<Interval> = None;
-    let mut combined_recipe: Option<checked_trees::IntegerRangeRecipe> = None;
+    let mut state_returns = Vec::new();
     for state in program.machine_states(machine) {
         let statements = program.statement_table.statements(state.statement_nodes);
         let order = program
@@ -784,7 +781,11 @@ fn discover_normal_return_interval(
             }
             for target in transition.targets() {
                 match program.statement_table.transition_target(target) {
-                    TransitionTargetNode::Value(expression) => returns.push(*expression),
+                    TransitionTargetNode::Value(expression) => {
+                        if !returns.contains(expression) {
+                            returns.push(*expression);
+                        }
+                    }
                     TransitionTargetNode::Named {
                         path,
                         static_machine_parameter,
@@ -806,29 +807,36 @@ fn discover_normal_return_interval(
                 }
             }
         }
-        for expression in returns {
-            let mut environment = incoming.iter().find_map(|(symbol, environment)| {
-                (*symbol == state.symbol).then(|| environment.clone())
-            })?;
-            let mut walk = ArrivalWalk {
-                program,
-                machine,
-                frames: frames.as_ref(),
-                arrivals: Vec::new(),
-                observations: vec![ExpressionObservation {
-                    include_bounds: true,
-                    recipe: None,
-                    expression,
-                    interval: None,
-                    environment: None,
-                    completed_children: Default::default(),
-                }],
-                completed_children: Default::default(),
-                infer_call_bodies: false,
-                collect_arrivals: false,
-            };
-            walk.state(state, &mut environment);
-            let observed = walk.observations.pop()?;
+        if !returns.is_empty() {
+            state_returns.push((state, returns));
+        }
+    }
+    if state_returns.is_empty() {
+        return None;
+    }
+    let frames = CallFrameResolver::new(program);
+    let incoming = incoming_environments(program, machine, frames.as_ref(), Some((entry, actuals)));
+    let mut combined: Option<Interval> = None;
+    let mut combined_recipe: Option<checked_trees::IntegerRangeRecipe> = None;
+    for (state, returns) in state_returns {
+        let mut environment = incoming.iter().find_map(|(symbol, environment)| {
+            (*symbol == state.symbol).then(|| environment.clone())
+        })?;
+        let mut walk = ArrivalWalk {
+            program,
+            machine,
+            frames: frames.as_ref(),
+            arrivals: Vec::new(),
+            observations: returns
+                .into_iter()
+                .map(ExpressionObservation::bounds)
+                .collect(),
+            completed_children: Default::default(),
+            infer_call_bodies: false,
+            collect_arrivals: false,
+        };
+        walk.state(state, &mut environment);
+        for observed in walk.observations {
             let interval = observed.interval?;
             combined_recipe = if combined.is_none() {
                 observed.recipe
@@ -1013,7 +1021,7 @@ impl ArrivalWalk<'_, '_> {
         environment: &ValueEnvironment,
     ) -> Option<CheckedAnalysis> {
         let mut diagnostics = Vec::new();
-        let analysis = analyze(
+        let analysis = analyze_arrival(
             self.program,
             self.machine,
             Some(source),
@@ -1197,6 +1205,41 @@ impl ArrivalWalk<'_, '_> {
         }
     }
 
+    fn target_needs_walk(&self, target: typed_trees::statement::TransitionTargetHandle) -> bool {
+        if !target.is_valid() {
+            return false;
+        }
+        match self.program.statement_table.transition_target(target) {
+            TransitionTargetNode::Terminal => false,
+            TransitionTargetNode::Named {
+                path, arguments, ..
+            } => {
+                !self.observations.is_empty()
+                    || self.should_arrive(path.symbol)
+                    || (self.collect_arrivals
+                        && self
+                            .program
+                            .statement_table
+                            .expression_handles(*arguments)
+                            .iter()
+                            .any(|argument| {
+                                crate::machine_calls::calls::expression_has_calls(
+                                    self.program,
+                                    *argument,
+                                )
+                            }))
+            }
+            TransitionTargetNode::Value(expression) => {
+                !self.observations.is_empty()
+                    || (self.collect_arrivals
+                        && crate::machine_calls::calls::expression_has_calls(
+                            self.program,
+                            *expression,
+                        ))
+            }
+        }
+    }
+
     fn target(
         &mut self,
         source: &State,
@@ -1249,29 +1292,37 @@ impl ArrivalWalk<'_, '_> {
     ) -> bool {
         for (statement_index, statement) in statements {
             self.completed_children.clear();
-            environment.prepare_numeric_observations(
-                self.program,
-                self.machine,
-                source,
-                statement_index,
-                statement,
-            );
             match statement {
                 StatementNode::Transition(transition) => {
-                    let target_needs_walk = transition.target.is_valid()
-                        && !matches!(
-                            self.program
-                                .statement_table
-                                .transition_target(transition.target),
-                            TransitionTargetNode::Terminal
-                        );
-                    let continuation_needs_walk = transition.continuation.is_valid()
-                        && !matches!(
-                            self.program
-                                .statement_table
-                                .transition_target(transition.continuation),
-                            TransitionTargetNode::Terminal
-                        );
+                    let target_needs_walk = self.target_needs_walk(transition.target);
+                    let continuation_needs_walk = self.target_needs_walk(transition.continuation);
+                    let continues_to_next_statement = !transition.continuation.is_valid()
+                        && transition.guard != TransitionGuardNode::Always;
+                    let condition_needs_walk = match transition.guard {
+                        TransitionGuardNode::When(condition) => {
+                            !self.observations.is_empty()
+                                || (self.collect_arrivals
+                                    && crate::machine_calls::calls::expression_has_calls(
+                                        self.program,
+                                        condition,
+                                    ))
+                        }
+                        TransitionGuardNode::Always => false,
+                    };
+                    if !target_needs_walk
+                        && !continuation_needs_walk
+                        && !continues_to_next_statement
+                        && !condition_needs_walk
+                    {
+                        return false;
+                    }
+                    environment.prepare_numeric_observations(
+                        self.program,
+                        self.machine,
+                        source,
+                        statement_index,
+                        statement,
+                    );
                     let mut selected = None;
                     let mut fallback = None;
                     if let TransitionGuardNode::When(condition) = transition.guard {
@@ -1285,7 +1336,7 @@ impl ArrivalWalk<'_, '_> {
                                 environment,
                             ));
                         }
-                        if continuation_needs_walk || !transition.continuation.is_valid() {
+                        if continuation_needs_walk || continues_to_next_statement {
                             fallback = Some(super::evaluated_condition_environment(
                                 self.program,
                                 self.machine,
@@ -1297,7 +1348,9 @@ impl ArrivalWalk<'_, '_> {
                         }
                         // Discover call occurrences separately from the exact
                         // selected-path facts supplied to state arrivals.
-                        self.expression(source, condition, environment);
+                        if condition_needs_walk {
+                            self.expression(source, condition, environment);
+                        }
                     }
                     if target_needs_walk {
                         let mut selected_env = selected.unwrap_or_else(|| environment.clone());
@@ -1310,15 +1363,39 @@ impl ArrivalWalk<'_, '_> {
                             .unwrap_or_else(|| environment.clone());
                         self.target(source, transition.continuation, &mut fallback_env);
                     }
-                    if transition.continuation.is_valid()
-                        || transition.guard == TransitionGuardNode::Always
-                    {
+                    if !continues_to_next_statement {
                         return false;
                     }
                     if let Some(fallback_env) = fallback {
                         *environment = fallback_env;
                     }
+                    continue;
                 }
+                StatementNode::Expression(expression) => {
+                    if self.observations.is_empty()
+                        && !(self.collect_arrivals
+                            && crate::machine_calls::calls::expression_has_calls(
+                                self.program,
+                                *expression,
+                            ))
+                    {
+                        continue;
+                    }
+                }
+                StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {
+                    continue;
+                }
+                _ => {}
+            }
+            environment.prepare_numeric_observations(
+                self.program,
+                self.machine,
+                source,
+                statement_index,
+                statement,
+            );
+            match statement {
+                StatementNode::Transition(_) => unreachable!(),
                 StatementNode::LocalData(local) => {
                     if local.role == language_core::LocalBindingRole::AtomicObservedResult {
                         record_assignment(
@@ -1768,15 +1845,23 @@ impl ArrivalWalk<'_, '_> {
                 self.expression(source, range.end, environment);
             }
             ExpressionNode::ArrayLiteral(values) => {
+                let capture_children = self.observations.iter().any(|obs| obs.include_bounds)
+                    || crate::machine_calls::calls::expression_has_calls(self.program, expression);
                 for value in self.program.expression_table.expression_handles(*values) {
                     self.expression(source, *value, environment);
-                    self.capture_completed_child(source, *value, environment);
+                    if capture_children {
+                        self.capture_completed_child(source, *value, environment);
+                    }
                 }
             }
             ExpressionNode::StructLiteral(literal) => {
+                let capture_children = self.observations.iter().any(|obs| obs.include_bounds)
+                    || crate::machine_calls::calls::expression_has_calls(self.program, expression);
                 for field in self.program.expression_table.struct_fields(literal.fields) {
                     self.expression(source, field.value, environment);
-                    self.capture_completed_child(source, field.value, environment);
+                    if capture_children {
+                        self.capture_completed_child(source, field.value, environment);
+                    }
                 }
             }
             ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => {}
