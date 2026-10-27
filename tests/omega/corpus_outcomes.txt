@@ -11493,6 +11493,9 @@ fail/facts/nested_machine_joint_rank_parameter_rejected rejected 1971ms expected
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_preserving_subcycle_rejected rejected 1784ms expected @de3c5539bbb6
 	machine call cycle: `count`, `forward`, `detour` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_private_promise_rejected rejected 1024ms expected @34e571f3d5a1
+	terminating machine forward contains a recursive cycle but carries no ranking witness -- spell one with `terminates by <subjects> [-> View];` (decision 23)
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_target_body_rejected rejected 1673ms expected @de3c5539bbb6
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_lexical_entry_call_result_rejected rejected 653ms expected @371d35eadbbce54e5f311618ce3f80dac231a76e
@@ -27579,6 +27582,7 @@ pass/facts/nested_machine_joint_rank_match_join_exit checked 7866ms check-target
 pass/facts/nested_machine_joint_rank_other_machine_exit checked 8698ms check-target:macos_arm64 @de3c5539bbb6
 pass/facts/nested_machine_joint_rank_other_state_exit checked 8602ms check-target:macos_arm64 @de3c5539bbb6
 pass/facts/nested_machine_joint_rank_parameter_exit checked 7972ms check-target:macos_arm64 @de3c5539bbb6
+pass/facts/nested_machine_joint_rank_private_promise_exit checked 2240ms check-target:macos_arm64 @34e571f3d5a1
 pass/facts/nested_machine_joint_rank_target_body_exit checked 5193ms check-target:macos_arm64 @de3c5539bbb6
 pass/facts/nested_machine_joint_rank_top_level_exit checked 5007ms check-target:macos_arm64 @de3c5539bbb6
 pass/facts/nested_machine_lexical_entry_call_result_exit checked 2629ms check-target:macos_arm64 @371d35eadbbce54e5f311618ce3f80dac231a76e

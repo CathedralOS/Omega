@@ -2017,6 +2017,7 @@ pass/facts/nested_machine_joint_rank_match_join_exit built 8520ms exit:0 interpr
 pass/facts/nested_machine_joint_rank_other_machine_exit built 7925ms exit:0 interpreter-exit:0 interpreter:agrees @de3c5539bbb6
 pass/facts/nested_machine_joint_rank_other_state_exit built 7542ms exit:0 interpreter-exit:0 interpreter:agrees @de3c5539bbb6
 pass/facts/nested_machine_joint_rank_parameter_exit built 8329ms exit:0 interpreter-exit:0 interpreter:agrees @de3c5539bbb6
+pass/facts/nested_machine_joint_rank_private_promise_exit built 2326ms exit:0 interpreter-exit:0 interpreter:agrees @34e571f3d5a1
 pass/facts/nested_machine_joint_rank_target_body_exit built 5347ms exit:0 interpreter-exit:0 interpreter:agrees @de3c5539bbb6
 pass/facts/nested_machine_joint_rank_top_level_exit built 5382ms exit:0 interpreter-exit:0 interpreter:agrees @de3c5539bbb6
 pass/facts/nested_machine_lexical_entry_call_result_exit built 2790ms exit:0 interpreter-exit:0 interpreter:agrees @371d35eadbbce54e5f311618ce3f80dac231a76e
