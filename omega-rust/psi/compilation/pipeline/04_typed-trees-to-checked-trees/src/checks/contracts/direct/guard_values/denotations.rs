@@ -54,8 +54,7 @@ impl Denotations<'_> {
         // callee formal symbols share a declaration namespace.
         if formal
             && let ExpressionNode::Name(path) = table.expression(right)
-            && path.symbol == path.head_symbol
-            && table.name_path_members(path.members).len() == 1
+            && table.name_path_is_single_member(path)
             && let Some(position) = validation::call_contract_parameter_position(
                 self.program,
                 self.target_state_symbol,
@@ -320,13 +319,10 @@ impl Denotations<'_> {
         let Some(path) = self.program.expression_table.name_path_node(expression) else {
             return None;
         };
-        if path.symbol != path.head_symbol
-            || self
-                .program
-                .expression_table
-                .name_path_members(path.members)
-                .len()
-                != 1
+        if !self
+            .program
+            .expression_table
+            .name_path_is_single_member(path)
         {
             return None;
         }

@@ -45,21 +45,22 @@ pub(crate) fn rejoin_expression_call_accesses<'program>(
         source.statement_index,
         source.call_ordinal,
     )?;
-    let collector = match &site {
-        CallSite::Expression { expression, call } => {
-            if *expression != source.authored_expression
-                || validation::call_target_symbol(program, call) != source.target_symbol
-            {
-                return None;
-            }
-            super::collect_call_argument_accesses
-        }
-        _ => return None,
+    let CallSite::Expression {
+        expression,
+        call: named_call,
+    } = &site
+    else {
+        return None;
     };
+    if *expression != source.authored_expression
+        || validation::call_target_symbol(program, named_call) != source.target_symbol
+    {
+        return None;
+    }
     let arguments = call_site_argument_expressions(program, &site);
     let mut expected_segments = arena::Arena::new();
     let mut expected_accesses = arena::Arena::new();
-    let expected = collector(
+    let expected = super::collect_argument_accesses(
         program,
         &mut expected_segments,
         &mut expected_accesses,
@@ -68,6 +69,7 @@ pub(crate) fn rejoin_expression_call_accesses<'program>(
         source.statement_index,
         machine,
         source.target_symbol,
+        super::ArgumentAccessSchedule::Invocation,
     );
     let expected = expected_accesses.span(expected)?;
     let actual = borrow.argument_accesses.span(call.accesses)?;

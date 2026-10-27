@@ -242,13 +242,10 @@ impl<'a> FloatObservations<'a> {
                     else {
                         return None;
                     };
-                    if path.symbol != path.head_symbol
-                        || self
-                            .program
-                            .expression_table
-                            .name_path_members(path.members)
-                            .len()
-                            != 1
+                    if !self
+                        .program
+                        .expression_table
+                        .name_path_is_single_member(path)
                         || formal.is_some_and(|known| known != path.symbol)
                     {
                         return None;

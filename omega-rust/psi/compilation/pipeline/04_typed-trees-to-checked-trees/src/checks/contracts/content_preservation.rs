@@ -149,11 +149,7 @@ pub(super) fn proves_readonly_source(
                         continue;
                     }
                     matched = true;
-                    if facts
-                        .flow
-                        .control
-                        .exit_parameter_origins
-                        .span_or_empty(exit.parameter_origins)
+                    if crate::flow::exit_parameter_origins(facts, exit)
                         .iter()
                         .any(|origin| {
                             origin.contract == contract

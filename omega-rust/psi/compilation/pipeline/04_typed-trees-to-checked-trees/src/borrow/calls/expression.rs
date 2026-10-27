@@ -1,3 +1,4 @@
+use crate::borrow::accesses::ArgumentAccessSchedule;
 use crate::borrow::calls::BorrowCallCollection;
 use validation::{
     call_receiver_parts, receiver_can_dispatch_to_machine, resolve_state_call_target,
@@ -48,7 +49,7 @@ pub(super) fn collect_expression_borrow_calls(
                 );
 
             if is_machine_call {
-                let accesses = collection.collect_call_argument_accesses(
+                let accesses = collection.collect_argument_accesses(
                     collection
                         .program
                         .expression_table
@@ -58,6 +59,7 @@ pub(super) fn collect_expression_borrow_calls(
                     } else {
                         call.target_symbol
                     },
+                    ArgumentAccessSchedule::Invocation,
                 );
                 collection.append_borrow_call(
                     expression,

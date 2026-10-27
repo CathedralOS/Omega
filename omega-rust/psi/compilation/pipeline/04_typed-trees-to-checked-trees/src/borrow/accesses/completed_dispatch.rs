@@ -62,7 +62,7 @@ pub(crate) fn retain_completed_dispatch_extractions(
         let arguments = validation::call_site_argument_expressions(program, &site);
         let mut segments = arena::Arena::new();
         let mut accesses = arena::Arena::new();
-        let expected = super::collect_completed_transition_target_argument_accesses(
+        let expected = super::collect_argument_accesses(
             program,
             &mut segments,
             &mut accesses,
@@ -71,7 +71,7 @@ pub(crate) fn retain_completed_dispatch_extractions(
             call.statement_index,
             machine.symbol,
             call.target_symbol,
-            extraction,
+            super::ArgumentAccessSchedule::TransitionTarget(Some(extraction)),
         );
         let Some(expected) = accesses.span(expected) else {
             continue;

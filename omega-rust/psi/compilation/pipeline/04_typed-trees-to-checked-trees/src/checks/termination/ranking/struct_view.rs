@@ -179,8 +179,8 @@ fn exact_parameter(
     symbol: SymbolHandle,
 ) -> bool {
     matches!(program.expression_table.expression(expression), ExpressionNode::Name(path)
-        if symbol.is_valid() && path.symbol == symbol && path.head_symbol == symbol
-            && program.expression_table.name_path_members(path.members).len() == 1)
+        if program.expression_table.name_path_is_single_member(path)
+            && path.symbol == symbol)
 }
 
 /// `subject.path[0]. ... .path[n].field`: the exact member chain of the ranked
