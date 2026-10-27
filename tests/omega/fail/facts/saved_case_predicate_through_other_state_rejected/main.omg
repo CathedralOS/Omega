@@ -16,5 +16,5 @@ machine main() crashes Trap {
     transition alias { true -> 490 / choice.amount false -> 0 }
     }
     machine done() {}
-    machine bad() { crash Trap; }
+    machine bad() crashes Trap { crash Trap; }
 }
